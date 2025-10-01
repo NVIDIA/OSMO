@@ -1,0 +1,51 @@
+# Copy this file to terraform.tfvars and customize the values for your environment
+
+# General Configuration
+aws_region   = "us-west-2"
+project_name = "osmo"
+owner        = "platform-team"
+cluster_name = "osmo"
+
+# VPC Configuration
+vpc_cidr            = "10.0.0.0/16"
+private_subnets     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+public_subnets      = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+database_subnets    = ["10.0.201.0/24", "10.0.202.0/24", "10.0.203.0/24"]
+single_nat_gateway  = false  # Set to true for cost savings in dev environments
+
+# EKS Configuration
+kubernetes_version        = "1.30"
+node_instance_types      = ["t3.medium"] # Use m5a.xlarge for production
+node_group_min_size      = 1
+node_group_max_size      = 5
+node_group_desired_size  = 3
+
+# RDS Configuration (PostgreSQL)
+rds_engine                   = "postgres"
+rds_engine_version          = "15.4"
+rds_family                  = "postgres15"
+rds_major_engine_version    = "15"
+rds_instance_class          = "db.t3.micro"  # Use db.r5.large or higher for production
+rds_allocated_storage       = 20
+rds_max_allocated_storage   = 100
+rds_db_name                 = "osmo"
+rds_username                = "postgres"
+rds_password                = "REPLACE_WITH_SECURE_PASSWORD"  # Must be changed before deployment
+rds_port                    = 5432
+rds_multi_az                = false  # Set to true for production
+rds_backup_retention_period = 7
+
+# Redis Configuration
+redis_node_type                  = "cache.t3.micro"  # Use cache.r5.large or higher for production
+redis_num_cache_nodes            = 1
+redis_automatic_failover_enabled = false  # Set to true for production
+redis_multi_az_enabled           = false  # Set to true for production
+redis_engine_version             = "7.0"
+redis_family                     = "redis7.x"
+redis_snapshot_retention_limit   = 5
+
+# ALB Configuration
+alb_enable_deletion_protection = false  # Set to true for production
+alb_idle_timeout              = 60
+alb_enable_http2              = true
+alb_ip_address_type           = "ipv4"   # Use "dualstack" for IPv4/IPv6 support

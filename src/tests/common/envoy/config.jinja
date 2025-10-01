@@ -1,0 +1,86 @@
+#####################################################################################
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+#####################################################################################
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+
+static_resources:
+  listeners:
+  {% for backend in backends %}
+  {% for assigned_port in backend.assigned_ports %}
+  - name: listener_{{ backend.name }}_{{ assigned_port }}
+    address:
+      socket_address: { address: 0.0.0.0, port_value: {{ assigned_port }} }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: {{ backend.name }}_{{ assigned_port }}
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: {{ backend.name }}_{{ assigned_port }}
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            tls_certificates:
+              certificate_chain:
+                filename: "/etc/envoy/certs/cert.pem"
+              private_key:
+                filename: "/etc/envoy/certs/key.pem"
+  {% endfor %}
+  {% endfor %}
+  clusters:
+  {% for backend in backends %}
+  {% for assigned_port, backend_port in zip(backend.assigned_ports, backend.ports) %}
+  - name: {{ backend.name }}_{{ assigned_port }}
+    connect_timeout: 0.25s
+    type: LOGICAL_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: {{ backend.name }}_{{ assigned_port }}
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: {{ backend.alias }}
+                port_value: {{ backend_port }}
+  {% endfor %}
+  {% endfor %}

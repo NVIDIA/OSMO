@@ -1,0 +1,417 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+## Global configuration values shared across all OSMO services
+##
+global:
+  ## Base location for OSMO Docker images in the registry
+  ##
+  osmoImageLocation: nvcr.io/nvstaging/osmo
+
+  ## Docker image tag for OSMO services
+  ##
+  osmoImageTag: latest
+
+  ## Node selector constraints for pod scheduling
+  ##
+  nodeSelector:
+    ## Schedule pods only on service nodes
+    ##
+    node_group: service
+    ## Schedule pods only on AMD64 architecture nodes
+    ##
+    kubernetes.io/arch: amd64
+
+  ## Name of the Kubernetes secret containing Docker registry credentials
+  ##
+  imagePullSecret: imagepullsecret
+
+  ## Container registry configuration for OSMO images
+  ##
+  ## TODO: Remove credentials once we can use public registry
+  ##
+  containerRegistry:
+    ## Container registry URL
+    ##
+    registry: nvcr.io
+    ## Container registry username (OAuth token for NGC)
+    ##
+    username: $oauthtoken
+    ## Container registry password (NGC API key)
+    ##
+    password: ""
+
+  ## Object storage configuration for workflow data storage
+  ##
+  objectStorage:
+    ## Object storage endpoint URL for workflow logs, datasets, and other data
+    ##
+    endpoint: ""
+    ## Object storage access key ID for authentication
+    ##
+    accessKeyId: ""
+    ## Object storage access key for authentication
+    ##
+    accessKey: ""
+    ## Object storage region where the bucket is located
+    ##
+    region: ""
+
+## Ingress NGINX Controller configuration
+##
+ingress-nginx:
+  ## Controller configuration for traffic routing
+  ##
+  controller:
+    ## Node selector constraints for ingress controller pod scheduling
+    ##
+    nodeSelector:
+      ## Schedule ingress controller on service nodes
+      ##
+      node_group: service
+      ## Schedule ingress controller on AMD64 architecture nodes
+      ##
+      kubernetes.io/arch: amd64
+    ## Service configuration for ingress controller
+    ##
+    service:
+      ## Service type for ingress controller (NodePort for local access)
+      ##
+      type: NodePort
+      ## NodePort configuration for external access
+      ##
+      nodePorts:
+        ## HTTP port for external access to ingress controller
+        ##
+        http: 30080
+
+## OSMO main service configuration
+##
+service:
+  ## Configuration for individual OSMO services
+  ##
+  services:
+    ## Configuration file service settings
+    ##
+    configFile:
+      ## Enable external configuration file loading (MEK configuration)
+      ##
+      enabled: true
+      ## Path to the Master Encryption Key (MEK) configuration file
+      ##
+      path: /home/osmo/config/mek.yaml
+
+    ## PostgreSQL database service configuration
+    ##
+    postgres:
+      ## Enable PostgreSQL deployment on Kubernetes
+      ##
+      enabled: true
+      ## Storage class name for persistent volume
+      ##
+      storageClassName: standard
+      ## PostgreSQL password
+      ##
+      password: "osmo"
+
+    ## Redis cache service configuration
+    ##
+    redis:
+      ## Enable Redis deployment on Kubernetes
+      ##
+      enabled: true
+      ## Storage class name for persistent volume
+      ##
+      storageClassName: standard
+      ## Enable TLS encryption for Redis connections
+      ##
+      tlsEnabled: false
+
+    ## Main API service configuration
+    ##
+    service:
+      ## Hostname for the OSMO service ingress
+      ##
+      hostname: osmo-ingress-nginx-controller.osmo.svc.cluster.local
+      ## Horizontal Pod Autoscaler (HPA) configuration for the API service
+      ##
+      scaling:
+        ## Minimum number of API service replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of API service replicas
+        ##
+        maxReplicas: 1
+      ## Ingress configuration for external access to the API service
+      ##
+      ingress:
+        ## Enable SSL/TLS encryption for the ingress
+        ##
+        sslEnabled: false
+
+    ## Worker service configuration for background job processing
+    ##
+    worker:
+      ## Horizontal Pod Autoscaler (HPA) configuration for workers
+      ##
+      scaling:
+        ## Minimum number of worker replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of worker replicas
+        ##
+        maxReplicas: 1
+
+    ## Logger service configuration for log collection and processing
+    ##
+    logger:
+      ## Horizontal Pod Autoscaler (HPA) configuration for the logger service
+      ##
+      scaling:
+        ## Minimum number of logger service replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of logger service replicas
+        ##
+        maxReplicas: 1
+
+    ## Agent service configuration for client communication and management
+    ##
+    agent:
+      ## Horizontal Pod Autoscaler (HPA) configuration for the agent service
+      ##
+      scaling:
+        ## Minimum number of agent service replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of agent service replicas
+        ##
+        maxReplicas: 1
+
+  ## Configuration for service sidecar containers
+  ##
+  sidecars:
+    ## Envoy proxy sidecar configuration
+    ##
+    envoy:
+      ## Enable Envoy proxy sidecar container
+      ##
+      enabled: false
+    ## Log agent sidecar configuration
+    ##
+    logAgent:
+      ## Enable log agent sidecar for centralized log collection
+      ##
+      enabled: false
+      ## Log rotation configuration
+      ##
+      logrotate:
+        ## Enable automatic log rotation
+        ##
+        enabled: false
+    ## OpenTelemetry (OTEL) sidecar configuration
+    ##
+    otel:
+      ## Enable OTEL collector sidecar for metrics and tracing
+      ##
+      enabled: false
+    ## Rate limiting sidecar configuration
+    ##
+    rateLimit:
+      ## Enable rate limiting service
+      ##
+      enabled: false
+
+## Web UI service configuration
+##
+web-ui:
+  ## Configuration for web UI services
+  ##
+  services:
+    ## Main UI service configuration
+    ##
+    ui:
+      ## Skip authentication for UI service
+      ##
+      skipAuth: true
+      ## Hostname for the UI service ingress
+      ##
+      hostname: osmo-ingress-nginx-controller.osmo.svc.cluster.local
+      ## Ingress configuration for external access to the UI service
+      ##
+      ingress:
+        ## Enable SSL/TLS encryption for the ingress
+        ##
+        sslEnabled: false
+      ## Additional environment variables for the UI service
+      ##
+      extraEnvs:
+        ## Disable SSL in Next.js public configuration
+        ##
+        - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
+          value: false
+
+  ## Configuration for web UI sidecar containers
+  ##
+  sidecars:
+    ## Envoy proxy sidecar configuration
+    ##
+    envoy:
+      ## Enable Envoy proxy sidecar container
+      ##
+      enabled: false
+
+## Router service configuration
+##
+router:
+  ## Configuration for router services
+  ##
+  services:
+    ## Configuration file service settings
+    ##
+    configFile:
+      ## Enable external configuration file loading (MEK configuration)
+      ##
+      enabled: true
+      ## Path to the Master Encryption Key (MEK) configuration file
+      ##
+      path: /home/osmo/config/mek.yaml
+
+    ## Main router service configuration
+    ##
+    service:
+      ## Hostname for the router service ingress
+      ##
+      hostname: osmo-ingress-nginx-controller.osmo.svc.cluster.local
+      ## Horizontal Pod Autoscaler (HPA) configuration for the router service
+      ##
+      scaling:
+        ## Minimum number of router service replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of router service replicas
+        ##
+        maxReplicas: 1
+      ## Ingress configuration for external access to the router service
+      ##
+      ingress:
+        ## Enable SSL/TLS encryption for the ingress
+        ##
+        sslEnabled: false
+
+    ## PostgreSQL database service configuration
+    ##
+    postgres:
+      ## PostgreSQL password
+      ##
+      password: "osmo" ## Configuration for router service sidecar containers
+
+  ## Configuration for router service sidecar containers
+  ##
+  sidecars:
+    ## Envoy proxy sidecar configuration
+    ##
+    envoy:
+      ## Enable Envoy proxy sidecar container
+      ##
+      enabled: false
+    ## Log agent sidecar configuration
+    ##
+    logAgent:
+      ## Enable log agent sidecar for centralized log collection
+      ##
+      enabled: false
+
+## Backend operator configuration for managing compute workloads
+##
+backend-operator:
+  ## Global configuration for backend operator
+  ##
+  global:
+    ## OSMO service URL for backend operator communication
+    ##
+    serviceUrl: http://osmo-ingress-nginx-controller.osmo.svc.cluster.local
+    ## Kubernetes namespace for backend operator
+    ##
+    agentNamespace: osmo
+    ## Kubernetes namespace for backend workloads
+    ##
+    backendNamespace: default
+    ## Kubernetes namespace for backend test workloads
+    ##
+    backendTestNamespace: osmo-test
+    ## Backend name identifier
+    ##
+    backendName: default
+    ## Secret name containing backend operator authentication token
+    ##
+    accountTokenSecret: backend-operator-token
+    ## Authentication method for backend operator
+    ##
+    loginMethod: token
+
+  ## Configuration for backend operator services
+  ##
+  services:
+    ## Backend listener service configuration
+    ##
+    backendListener:
+      ## Resource limits and requests for the backend listener container
+      ##
+      resources:
+        ## Resource requests (guaranteed allocation)
+        ##
+        requests:
+          cpu: "125m"
+          memory: "128Mi"
+        ## Resource limits (maximum allocation)
+        ##
+        limits:
+          cpu: "250m"
+          memory: "256Mi"
+    ## Backend worker service configuration
+    ##
+    backendWorker:
+      ## Resource limits and requests for the backend worker container
+      ##
+      resources:
+        ## Resource requests (guaranteed allocation)
+        ##
+        requests:
+          cpu: "125m"
+          memory: "128Mi"
+        ## Resource limits (maximum allocation)
+        ##
+        limits:
+          cpu: "250m"
+          memory: "256Mi"
+
+  ## Backend test runner configuration
+  ##
+  backendTestRunner:
+    ## Enable backend test runner
+    ##
+    enabled: false
+
+  ## Configuration for backend operator sidecar containers
+  ##
+  sidecars:
+    ## OpenTelemetry (OTEL) sidecar configuration
+    ##
+    OTEL:
+      ## Enable OTEL collector sidecar for metrics and tracing
+      ##
+      enabled: false

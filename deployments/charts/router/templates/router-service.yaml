@@ -1,0 +1,323 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+spec:
+  replicas: {{ .Values.services.service.scaling.minReplicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.services.service.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.services.service.serviceName }}
+        {{- with .Values.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.extraPodAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.services.service.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.services.service.topologySpreadConstraints }}
+      topologySpreadConstraints:
+      {{- range . }}
+      - topologyKey: {{.topologyKey }}
+        {{- range $key, $value := . }}
+        {{- if ne $key "topologyKey" }}
+        {{$key}}: {{$value}}
+        {{- end }}
+        {{- end }}
+        labelSelector:
+          matchLabels:
+            app: {{ $.Values.services.service.serviceName }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.services.service.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.services.service.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      serviceAccountName: {{ .Values.services.service.serviceAccountName | default "default" }}
+      containers:
+      - name: {{ .Values.services.service.serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.service.imageName }}:{{ .Values.global.osmoImageTag }}
+        command:
+        - router
+        args:
+        - --hostname
+        - {{ .Values.services.service.hostname }}
+        - --webserver_enabled
+        - {{ .Values.services.service.webserverEnabled | quote }}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db}}
+        {{- if .Values.services.postgres.user }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user }}
+        {{- end }}
+        {{- if .Values.services.configFile.enabled }}
+        - --mek_file
+        - {{ .Values.services.configFile.path }}
+        {{- else }}
+        - --config
+        - /home/osmo/vault-agent/secrets/osmo_config.yaml
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - --log_level
+        - {{ .Values.global.logs.logLevel }}
+        - --k8s_log_level
+        - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_dir
+        - /logs
+        - --log_name
+        - router_service
+        {{- end }}
+        {{- with .Values.extraArgs }}
+        {{- range . }}
+            - {{ . }}
+        {{- end }}
+        {{- end }}
+        env:
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        {{- end }}
+        {{- with .Values.extraEnvs }}
+        {{- range . }}
+        - name: {{ .name }}
+          {{- if .value }}
+          value: {{ .value | quote }}
+          {{- else if .valueFrom }}
+          valueFrom:
+            {{- toYaml .valueFrom | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+        imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        {{- with .Values.extraPorts }}
+        {{- range . }}
+        - name: {{ .name }}
+          containerPort: {{ .containerPort }}
+          protocol: {{ .protocol | default "TCP" }}
+        {{- end }}
+        {{- end }}
+        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.extraVolumeMounts }}
+        volumeMounts:
+        {{- if .Values.services.configFile.enabled}}
+        - mountPath: {{ .Values.services.configFile.path }}
+          name: mek-volume
+          subPath: mek.yaml
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          mountPath: /logs
+        {{- end }}
+        {{- with .Values.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+        resources:
+        {{- toYaml .Values.services.service.resources | nindent 10 }}
+
+        {{- with .Values.services.service.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .Values.services.service.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .Values.services.service.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+      {{- include "router.envoy-sidecar-container" . | nindent 6}}
+      {{- include "router.log-agent-sidecar-container" . | nindent 6}}
+      {{- with .Values.extraContainers }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      volumes:
+        {{- include "router.envoy-volumes" . | nindent 8 }}
+        {{- include "router.log-agent-volumes" . | nindent 8 }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          emptyDir: {}
+        {{- end}}
+        {{- if .Values.services.configFile.enabled}}
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: mek.yaml
+              path: mek.yaml
+            name: mek-config
+          name: mek-volume
+        {{- end}}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+---
+
+{{- with .Values.extraConfigMaps }}
+{{- range . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .name }}
+data:
+  {{- toYaml .data | nindent 2 }}
+---
+{{- end }}
+{{- end }}
+
+{{- if .Values.sidecars.envoy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.services.service.serviceName }}-envoy-config
+data:
+  config.yaml: |
+    {{ include "router.envoy.config" . | nindent 4 }}
+---
+{{- end }}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+spec:
+  ports:
+    - port: 80
+      {{- if .Values.sidecars.envoy.enabled }}
+      targetPort: envoy-http
+      {{- else }}
+      targetPort: 8000
+      {{- end }}
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.services.service.serviceName }}
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  annotations:
+    {{- range $k, $v := .Values.services.service.ingress.annotations }}
+    {{$k}}: {{$v}}
+    {{- end }}
+    {{- if .Values.services.service.ingress.albAnnotations.enabled}}
+    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.order: "50"
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
+    {{- if .Values.services.service.webserverEnabled }}
+    alb.ingress.kubernetes.io/hostnames: '["*.{{ .Values.services.service.hostname }}", "{{ .Values.services.service.hostname }}"]'
+    {{- end }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.services.service.ingress.ingressClass }}
+  rules:
+  {{- if .Values.services.service.webserverEnabled }}
+  - host: "*.{{ .Values.services.service.hostname }}"
+    http:
+      paths:
+      - path: {{ .Values.services.service.ingress.prefix }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.service.serviceName }}
+            port:
+              number: 80
+  {{- end }}
+  - host: {{ .Values.services.service.hostname }}
+    http:
+      paths:
+      - path: {{ .Values.services.service.ingress.prefix }}api/router
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.service.serviceName }}
+            port:
+              number: 80
+  {{- if .Values.services.service.ingress.sslEnabled }}
+  tls:
+  - hosts:
+    - {{ .Values.services.service.hostname }}
+    {{- if .Values.services.service.webserverEnabled }}
+    - "*.{{ .Values.services.service.hostname }}"
+    {{- end }}
+    secretName: {{.Values.services.service.ingress.sslSecret }}
+  {{- end }}
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+  annotations:
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.services.service.serviceName }}
+  minReplicas: {{ .Values.services.service.scaling.minReplicas }}
+  maxReplicas: {{ .Values.services.service.scaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: {{ .Values.services.service.serviceName }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.service.scaling.memoryTarget }}

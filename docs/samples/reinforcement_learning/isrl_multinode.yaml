@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: isaacsim-rl-multinode
+  groups:
+  - name: rl-games-distributed
+    tasks:
+    - name: master
+      image: {{image}}
+      command: ["bash"]
+      args: ["/tmp/entry.sh"]
+      lead: True
+      environment:
+        ACCEPT_EULA: Y
+        NO_NUCLEUS: Y
+      files:
+      - contents: |
+          # Set up environment
+          apt update
+
+          set -e
+          # Hide conflicting Vulkan files, if needed
+          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
+            mv /usr/share/vulkan /usr/share/vulkan_hidden
+          fi
+
+          # Run training for agent
+          /isaac-sim/python.sh -m torch.distributed.run --nproc_per_node={{ num_gpus }} --nnodes={{ num_nodes }} --node_rank=0 \
+            --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:29500 \
+            source/standalone/workflows/rl_games/train.py --headless --task=Isaac-Humanoid-v0 --distributed
+
+          # Move checkpoints to the output folder used to upload
+          MODEL_STORE_DIR="{{output}}/model/"
+          mv logs/rl_games/* $MODEL_STORE_DIR
+
+        path: /tmp/entry.sh
+      - contents: |
+          {
+              "launch_config": {
+                  "headless": true
+              }
+          }
+        path: /tmp/config.json
+{% for index in range(1, num_nodes) %}
+    - name: worker{{ index }}
+      image: {{image}}
+      command: ["bash"]
+      args: ["/tmp/entry.sh"]
+      environment:
+        ACCEPT_EULA: Y
+        NO_NUCLEUS: Y
+      files:
+      - contents: |
+          # Set up environment
+          apt update && apt install -y netcat dnsutils
+
+          set -e
+          # Hide conflicting Vulkan files, if needed
+          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
+            mv /usr/share/vulkan /usr/share/vulkan_hidden
+          fi
+
+          # Set the MASTER_PORT environment variable for Pytorch Distributed to
+          # communicate with the master task, and for the worker task to know
+          # that the master task has started running distributed training
+          export MASTER_PORT=29500
+
+          # Wait until the SSH server for master is up
+          while ! nc -z {{host:master}} $MASTER_PORT; do
+            sleep 10;
+          done
+
+          CONTROL=$(nslookup {{host:master}} | grep -oP \
+            'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+
+          /isaac-sim/python.sh -m torch.distributed.run --nproc_per_node={{ num_gpus }} --nnodes={{ num_nodes }} --node_rank={{ index }} \
+            --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=$CONTROL:29500 \
+            source/standalone/workflows/rl_games/train.py --headless --task=Isaac-Humanoid-v0 --distributed
+
+          # Move checkpoints to the output folder used to upload
+          MODEL_STORE_DIR="{{output}}/model/"
+          mv logs/rl_games/* $MODEL_STORE_DIR
+
+        path: /tmp/entry.sh
+      - contents: |
+          {
+              "launch_config": {
+                  "headless": true
+              }
+          }
+        path: /tmp/config.json
+{% endfor %}
+  resources:
+    default:
+      cpu: 16
+      gpu: {{ num_gpus }}
+      memory: 64Gi
+      storage: 16Gi
+      platform: {{ platform }}
+
+default-values:
+  image: nvcr.io/nvstaging/osmo/isrl:2023.1.1-multigpu
+  num_gpus: 4
+  num_nodes: 8
+  platform: ovx-a40

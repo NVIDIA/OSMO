@@ -1,0 +1,194 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.services.delayedJobMonitor.serviceName }}
+  labels:
+    app: {{ .Values.services.delayedJobMonitor.serviceName }}
+spec:
+  replicas: {{ .Values.services.delayedJobMonitor.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.services.delayedJobMonitor.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.services.delayedJobMonitor.serviceName }}
+      annotations:
+      {{- include "osmo.extra-annotations" .Values.services.delayedJobMonitor | nindent 8 }}
+      {{- if .Values.sidecars.otel.enabled }}
+        sidecar.opentelemetry.io/inject: "true"
+      {{- end}}
+    spec:
+      nodeSelector:
+        {{- range $k, $v := .Values.global.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+        {{- range $k, $v := .Values.services.delayedJobMonitor.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+      tolerations:
+      {{ toYaml .Values.services.delayedJobMonitor.tolerations | nindent 8 }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.delayedJobMonitor.serviceAccountName "Values" .Values) }}
+      containers:
+      - name: {{ .Values.services.delayedJobMonitor.serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.delayedJobMonitor.imageName }}:{{ .Values.global.osmoImageTag }}
+        securityContext:
+          capabilities:
+            drop: ["NET_RAW"]
+        command:
+        - delayed_job_monitor
+        imagePullPolicy: {{ .Values.services.delayedJobMonitor.imagePullPolicy }}
+        args:
+        - --metrics_otel_collector_component
+        - {{ .Values.services.delayedJobMonitor.serviceName }}
+        - --metrics_otel_enable
+        - {{ .Values.sidecars.otel.enabled | quote }}
+        - --redis_host
+        - {{ .Values.services.redis.serviceName }}
+        - --redis_port
+        - {{ .Values.services.redis.port | quote }}
+        - --redis_db_number
+        - {{ .Values.services.redis.dbNumber | quote }}
+        {{- if .Values.services.redis.tlsEnabled }}
+        - --redis_tls_enable
+        - "true"
+        {{- end}}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db}}
+        {{- if .Values.services.configFile.enabled }}
+        - --mek_file
+        - {{ .Values.services.configFile.path }}
+        {{- end}}
+        {{- range .Values.services.delayedJobMonitor.extraArgs }}
+        - {{ . }}
+        {{- end }}
+        {{- if .Values.services.postgres.user }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user }}
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - --log_level
+        - {{ .Values.global.logs.logLevel }}
+        - --k8s_log_level
+        - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_dir
+        - /logs
+        - --log_name
+        - delayed_job_monitor
+        {{- end }}
+        {{- if .Values.sidecars.otel.enabled }}
+        - --enable_metrics
+        {{- end }}
+        {{- range $arg := .Values.services.delayedJobMonitor.extraArgs }}
+        - {{$arg}}
+        {{- end }}
+        env:
+        {{- include "osmo.extra-env" .Values.services.delayedJobMonitor | nindent 8 }}
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        - name: OSMO_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: redis-password
+        {{- end }}
+        resources:
+        {{- toYaml .Values.services.service.resources | nindent 10 }}
+
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.delayedJobMonitor.extraVolumeMounts }}
+        volumeMounts:
+        {{- end }}
+        {{- if .Values.services.configFile.enabled}}
+        - mountPath: {{ .Values.services.configFile.path }}
+          name: mek-volume
+          subPath: mek.yaml
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          mountPath: /logs
+        {{- end }}
+        {{- include "osmo.extra-volume-mounts" .Values.services.delayedJobMonitor | nindent 8 }}
+        {{- if .Values.services.delayedJobMonitor.volumeMounts }}
+        {{- toYaml .Values.services.delayedJobMonitor.volumeMounts | nindent 8 }}
+        {{- end }}
+
+        # Restart if no progress for 300 seconds
+        livenessProbe:
+          exec:
+            command:
+            - progress_check
+            - --progress_interval
+            - "300"
+          failureThreshold: 1
+          periodSeconds: 30
+          timeoutSeconds: 15
+
+        # Give the container 60 seconds to startup
+        startupProbe:
+          exec:
+            command:
+            - progress_check
+            - --progress_interval
+            - "30"
+          failureThreshold: 12
+          periodSeconds: 5
+          timeoutSeconds: 15
+          initialDelaySeconds: 10
+
+      {{- if .Values.global.logs.enabled }}
+      {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
+      {{- end }}
+      {{- if .Values.sidecars.otel.enabled }}
+      {{- include "osmo.otel-sidecar-container" . | nindent 6}}
+      {{- end }}
+      {{- include "osmo.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
+      volumes:
+        {{- if .Values.sidecars.otel.enabled }}
+        {{- include "osmo.otel-volumes" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          emptyDir: {}
+        {{- include "osmo.log-agent-volumes" . | nindent 8 }}
+        {{- end}}
+        {{- include "osmo.extra-volumes" .Values.services.delayedJobMonitor | nindent 8 }}
+        {{- if .Values.services.configFile.enabled}}
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: mek.yaml
+              path: mek.yaml
+            name: mek-config
+          name: mek-volume
+        {{- end}}
+        {{- if .Values.services.delayedJobMonitor.volumes }}
+        {{- toYaml .Values.services.delayedJobMonitor.volumes | nindent 8 }}
+        {{- end }}

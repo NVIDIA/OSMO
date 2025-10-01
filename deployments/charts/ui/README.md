@@ -1,0 +1,294 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+# NVIDIA OSMO - UI Service Helm Chart
+
+This Helm chart deploys the OSMO UI service along with its required sidecars and configurations.
+
+## Values
+
+### Global Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvstaging/osmo` |
+| `global.osmoImageTag` | Tag of the OSMO images | `latest` |
+| `global.imagePullSecret` | Name of the image pull secret | `imagepullsecret` |
+| `global.nodeSelector` | Global node selector | `kubernetes.io/arch: amd64` |
+
+### Global Logging Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `global.logs.enabled` | Enable centralized logging collection and log volume mounting | `true` |
+
+
+### UI Service Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.ui.replicas` | Number of UI replicas (when scaling is disabled) | `1` |
+| `services.ui.imageName` | Name of UI image | `web-ui` |
+| `services.ui.imagePullPolicy` | Image pull policy | `Always` |
+| `services.ui.serviceName` | Name of the service | `osmo-ui` |
+| `services.ui.hostname` | Hostname for the service | `""` (empty, must be configured) |
+| `services.ui.vaultComponentConfigMapPrefix` | Prefix for Vault ConfigMap | `ui` |
+| `services.ui.nodeSelector` | Node selector constraints for UI pod scheduling | `{}` |
+| `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
+| `services.ui.tolerations` | Tolerations for pod scheduling on tainted nodes | `[]` |
+| `services.ui.resources` | Resource limits and requests for the UI container | `{}` |
+
+### UI Scaling Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.ui.scaling.enabled` | Enable HorizontalPodAutoscaler | `false` |
+| `services.ui.scaling.minReplicas` | Minimum number of replicas | `1` |
+| `services.ui.scaling.maxReplicas` | Maximum number of replicas | `3` |
+| `services.ui.scaling.hpaTarget` | Target Memory Utilization Percentage | `85` |
+
+### Ingress Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.ui.ingress.prefix` | URL path prefix | `/` |
+| `services.ui.ingress.ingressClass` | Ingress controller class | `nginx` |
+| `services.ui.ingress.sslEnabled` | Enable SSL | `true` |
+| `services.ui.ingress.sslSecret` | Name of SSL secret | `osmo-tls` |
+
+#### ALB Annotations Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.ui.ingress.albAnnotations.enabled` | Enable ALB annotations | `false` |
+| `services.ui.ingress.albAnnotations.sslCertArn` | ARN of SSL certificate | `arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY` |
+
+### Sidecar Container Settings
+
+#### Envoy Proxy Sidecar
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.envoy.enabled` | Enable Envoy proxy sidecar | `true` |
+| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets for Envoy | `false` |
+| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret file | `/home/osmo/vault-agent/secrets/oidc_secret.txt` |
+| `sidecars.envoy.secretPaths.hmacSecret` | Path to OAuth2 HMAC secret file | `/home/osmo/vault-agent/secrets/oidc_hmac.txt` |
+| `sidecars.envoy.image.repository` | Envoy image repository | `envoyproxy/envoy:v1.29.0` |
+| `sidecars.envoy.image.pullPolicy` | Envoy image pull policy | `IfNotPresent` |
+| `sidecars.envoy.service.address` | Backend service address | `127.0.0.1` |
+| `sidecars.envoy.service.port` | Backend service port | `8000` |
+| `sidecars.envoy.service.hostname` | Service hostname | `""` (empty, must be configured) |
+| `sidecars.envoy.listenerPort` | Envoy listener port | `80` |
+| `sidecars.envoy.maxHeadersSizeKb` | Maximum HTTP headers size in KB | `128` |
+| `sidecars.envoy.skipAuthPaths` | Paths to skip authentication | `[]` |
+
+#### JWT Authentication Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.envoy.jwt.user_header` | JWT user header name | `x-osmo-user` |
+| `sidecars.envoy.jwt.providers[].issuer` | JWT token issuer | `""` (empty, must be configured) |
+| `sidecars.envoy.jwt.providers[].audience` | JWT token audience | `""` (empty, must be configured) |
+| `sidecars.envoy.jwt.providers[].jwks_uri` | JWT JWKS URI | `""` (empty, must be configured) |
+| `sidecars.envoy.jwt.providers[].user_claim` | JWT user claim field | `preferred_username` |
+| `sidecars.envoy.jwt.providers[].cluster` | Target cluster name | `oauth` |
+
+#### OAuth2 Filter Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 filter | `true` |
+| `sidecars.envoy.oauth2Filter.tokenEndpoint` | OAuth2 token endpoint URL | `""` (empty, must be configured) |
+| `sidecars.envoy.oauth2Filter.authEndpoint` | OAuth2 authorization endpoint URL | `""` (empty, must be configured) |
+| `sidecars.envoy.oauth2Filter.redirectPath` | OAuth2 redirect path | `getAToken` |
+| `sidecars.envoy.oauth2Filter.clientId` | OAuth2 client ID | `""` (empty, must be configured) |
+| `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider | `""` (empty, must be configured) |
+| `sidecars.envoy.oauth2Filter.logoutPath` | OAuth2 logout path | `logout` |
+| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name (when useKubernetesSecrets is true) | `oidc-secrets` |
+| `sidecars.envoy.oauth2Filter.clientSecretKey` | Secret key for OAuth2 client secret | `client_secret` |
+| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Secret key for OAuth2 HMAC secret | `hmac_secret` |
+
+#### Vault Integration (Optional)
+
+Vault integration is configured via `extraConfigMaps` and `extraPodAnnotations` rather than built-in templates. This provides maximum flexibility for different Vault configurations.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `extraConfigMaps` | Custom ConfigMaps (can include Vault agent configuration) | `[]` |
+| `extraPodAnnotations` | Custom pod annotations (can include Vault injection annotations) | `{}` |
+| `extraContainers` | Custom containers (can include Vault agent containers) | `[]` |
+
+**Example Vault Configuration via extraPodAnnotations:**
+```yaml
+extraPodAnnotations:
+  vault.hashicorp.com/agent-inject: 'true'
+  vault.hashicorp.com/agent-configmap: 'vault-config'
+  vault.hashicorp.com/secret-volume-path: '/home/osmo/vault-agent/secrets'
+```
+
+#### Log Agent Sidecar
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.logAgent.enabled` | Enable log agent (FluentBit) sidecar | `false` |
+| `sidecars.logAgent.image.repository` | FluentBit image repository | `fluent/fluent-bit:4.0.8-debug` |
+| `sidecars.logAgent.image.pullPolicy` | FluentBit image pull policy | `IfNotPresent` |
+| `sidecars.logAgent.fluentBitPrometheusPort` | FluentBit Prometheus metrics port | `2020` |
+
+#### Log Agent AWS CloudWatch Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.logAgent.aws.region` | AWS region for CloudWatch | `us-west-2` |
+| `sidecars.logAgent.aws.clusterName` | EKS cluster name for CloudWatch | `""` (empty, must be configured) |
+
+#### Log Agent Log Rotation Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.logAgent.logrotate.enabled` | Enable log rotation | `false` |
+| `sidecars.logAgent.logrotate.frequency` | Log rotation frequency | `hourly` |
+| `sidecars.logAgent.logrotate.maxSize` | Maximum log file size | `10M` |
+| `sidecars.logAgent.logrotate.rotateCount` | Number of rotated files to keep | `5` |
+| `sidecars.logAgent.logrotate.sleepSeconds` | Sleep interval between rotations | `60` |
+
+#### OpenTelemetry Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.otel.enabled` | Enable OpenTelemetry sidecar injection | `true` |
+
+#### Additional Custom Containers
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `extraContainers` | List of additional custom containers to add to the pod | `[]` |
+
+## Dependencies
+
+This chart is self-contained and requires:
+- A running Kubernetes cluster
+- Access to NVIDIA container registry
+- ALB or NGINX ingress controller
+- Properly configured OAuth2 provider
+
+**Optional Dependencies:**
+- Vault server (if using Vault for secret management)
+- OpenTelemetry collector (if OTEL sidecar injection is enabled)
+- AWS CloudWatch (if log agent with CloudWatch is enabled)
+- Kubernetes secrets (if using `useKubernetesSecrets: true` for OAuth2 credentials)
+
+## Notes
+
+### Architecture
+- This chart is **self-contained** and no longer depends on the `service-sidecar` chart
+- **Vault-agnostic design**: Templates contain no hardcoded Vault logic
+- All sidecar containers (Envoy, Log Agent) are native to this chart
+- Vault integration is optional via `extraConfigMaps`, `extraPodAnnotations`, and `extraContainers`
+- The service supports both `unique_name` and `preferred_username` JWT claims
+- Envoy is used as a proxy sidecar for handling authentication and routing
+
+### Configuration
+- The service can be configured to use either ALB or NGINX ingress
+- **Flexible secret management**: Choose between Vault Agent injection or Kubernetes secrets
+- Set `sidecars.envoy.useKubernetesSecrets: true` for direct Kubernetes secret usage
+- Set `sidecars.envoy.useKubernetesSecrets: false` when using Vault or other secret management
+- Log agent (FluentBit) can forward logs to AWS CloudWatch when enabled
+- OpenTelemetry is available for observability via sidecar injection
+- Additional custom containers can be added via `extraContainers`
+
+### Security
+- JWT authentication is handled by Envoy proxy
+- OAuth2 flow is managed through Envoy filters
+- **Multiple secret sources**: Supports Vault Agent injection, Kubernetes secrets, or custom solutions
+- Envoy uses consistent secret paths (`/etc/envoy/secrets/`) regardless of secret source
+- All sidecar containers can be individually enabled/disabled
+
+### Logging
+- Application logs are written to `/var/log/` volume
+- Envoy access logs are captured and can be forwarded
+- Log rotation is available when log agent is enabled
+- Centralized logging can be configured through NFS storage
+
+## Secret Management Configuration
+
+This chart supports multiple approaches for managing OAuth2 secrets:
+
+### Option 1: Vault Agent Injection (Recommended for Production)
+
+```yaml
+sidecars:
+  envoy:
+    useKubernetesSecrets: false  # Use Vault instead
+    secretPaths:
+      clientSecret: /home/osmo/vault-agent/secrets/oidc_secret.txt
+      hmacSecret: /home/osmo/vault-agent/secrets/oidc_hmac.txt
+
+extraPodAnnotations:
+  vault.hashicorp.com/agent-inject: 'true'
+  vault.hashicorp.com/agent-configmap: 'vault-agent-config'
+  vault.hashicorp.com/secret-volume-path: '/home/osmo/vault-agent/secrets'
+
+extraConfigMaps:
+- name: vault-agent-config
+  data:
+    config.hcl: |
+      # Vault agent configuration
+      auto_auth { ... }
+      template { ... }
+```
+
+### Option 2: Kubernetes Secrets (Simple Deployments)
+
+```yaml
+sidecars:
+  envoy:
+    useKubernetesSecrets: true
+    secretPaths:
+      clientSecret: /etc/envoy/secrets/client_secret
+      hmacSecret: /etc/envoy/secrets/hmac_secret
+    oauth2Filter:
+      secretName: oauth2-secrets
+      clientSecretKey: client_secret
+      hmacSecretKey: hmac_secret
+
+# Create the secret separately:
+# kubectl create secret generic oauth2-secrets \
+#   --from-literal=client_secret=your-client-secret \
+#   --from-literal=hmac_secret=your-hmac-secret
+```
+
+### Option 3: Custom Secret Management
+
+```yaml
+sidecars:
+  envoy:
+    useKubernetesSecrets: false  # Disable built-in secret handling
+    secretPaths:
+      clientSecret: /custom/path/to/client_secret
+      hmacSecret: /custom/path/to/hmac_secret
+
+extraContainers:
+- name: custom-secret-manager
+  image: your-secret-manager:latest
+  # Custom secret management logic
+
+# Secrets populated by your custom solution at the configured paths
+```
+
+

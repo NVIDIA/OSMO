@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.global.network.restrictEgress }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: osmo-backend-network-policy
+  namespace: {{ .Values.global.backendNamespace }}
+spec:
+  podSelector: {} # Selects every pod in the namespace
+  policyTypes:
+  - Egress
+  egress:
+    # Allow egress to public internet only if allowlistEgress is disabled
+    # TODO: resume if block once all running pods have environment variable for proxy set
+    - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+
+    # Allow egress to backend namespace
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: {{ .Values.global.backendNamespace }}
+    # Allow egress to resolve DNS in kube-system namespace
+    - ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+    {{- if .Values.global.network.allowlistEgress.enabled }}
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: {{ .Values.global.network.allowlistEgress.proxyNamespace }}
+      ports:
+      - port: 3128
+        protocol: TCP
+    {{- end }}
+{{- end }}

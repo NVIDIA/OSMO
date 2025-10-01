@@ -1,0 +1,640 @@
+
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+## Global configuration values shared across all Osmo services
+##
+global:
+  ## Base location for Osmo Docker images in the registry
+  ##
+  osmoImageLocation: nvcr.io/nvstaging/osmo
+
+
+  ## Docker image tag for Osmo server components
+  ##
+  osmoImageTag: latest
+
+  ## Name of the Kubernetes secret containing Docker registry credentials
+  ##
+  imagePullSecret: imagepullsecret
+
+  ## Node selector constraints for pod scheduling
+  ##
+  nodeSelector:
+    # Schedule pods only on AMD64 architecture nodes
+    kubernetes.io/arch: amd64
+    # Add additional node selectors here as needed
+    # node-type: compute
+    # zone: us-west-2a
+
+  ## Logging configuration for all Osmo services
+  ##
+  logs:
+    ## Enable centralized logging collection and log volume mounting
+    ##
+    enabled: true
+
+
+
+## Configuration for individual Osmo services
+##
+services:
+  ## UI service configuration
+  ##
+  ui:
+    ## Number of UI service replicas to run
+    ##
+    replicas: 1
+
+    ## Docker image name for the UI service (without registry or tag)
+    ##
+    imageName: web-ui
+
+    ## Kubernetes image pull policy for the UI service
+    ## Options: Always, IfNotPresent, Never
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the UI service
+    ##
+    serviceName: osmo-ui
+
+    ## Hostname on which the ingress is served
+    ##
+    hostname: ""
+
+
+    ## Container port for the UI service
+    ##
+    containerPort: 8000
+
+    ## Prefix for Vault component configuration maps
+    ##
+    vaultComponentConfigMapPrefix: ui
+
+    ## Kubernetes service account name for the pods
+    ##
+    serviceAccountName: osmo
+
+    ## Command override for the container
+    ## Leave empty to use the default command from the image
+    ##
+    command: []
+    # - "/bin/sh"
+    # - "-c"
+
+    ## Arguments for the container
+    ## Leave empty to use the default args from the image
+    ##
+    args: []
+    # - "npm start"
+
+    ## Additional labels for pods
+    ##
+    podLabels: {}
+    # environment: production
+    # team: osmo
+
+
+    ## Horizontal Pod Autoscaler (HPA) configuration
+    ##
+    scaling:
+      ## Enable automatic scaling based on CPU usage
+      ##
+      enabled: false
+
+      ## Minimum number of replicas when scaling is enabled
+      ##
+      minReplicas: 1
+
+      ## Maximum number of replicas when scaling is enabled
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaTarget: 85
+
+    ## Kubernetes service configuration
+    ##
+    service:
+      ## Service type (ClusterIP, NodePort, LoadBalancer)
+      ## Leave empty to use default behavior
+      ##
+      type: ""
+
+      ## Service port
+      ##
+      port: 80
+
+      ## Service port name
+      ##
+      portName: http
+
+      ## Service protocol
+      ##
+      protocol: TCP
+
+      ## Additional labels for the service
+      ##
+      labels: {}
+      # version: v1.0.0
+      # component: frontend
+
+      ## Additional annotations for the service
+      ##
+      annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      # cloud.google.com/neg: '{"ingress": true}'
+
+      ## Additional service ports
+      ##
+      extraPorts: []
+      # - name: metrics
+      #   port: 9090
+      #   targetPort: 9090
+      #   protocol: TCP
+
+      ## Additional selector labels for the service
+      ##
+      selector: {}
+      # version: v1.0.0
+
+    ## Ingress configuration for external access to the UI service
+    ##
+    ingress:
+      ## URL path prefix for all ingress rules
+      ##
+      prefix: /
+
+      ## Ingress controller class to use for routing traffic
+      ##
+      ingressClass: nginx
+
+      ## AWS Application Load Balancer (ALB) specific annotations
+      ##
+      albAnnotations:
+        ## Enable ALB-specific annotations in the ingress
+        ##
+        enabled: false
+
+        ## ARN of the SSL certificate for HTTPS traffic
+        ##
+        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
+
+      ## Enable SSL/TLS encryption for the ingress
+      ##
+      sslEnabled: true
+
+      ## Name of the Kubernetes secret containing SSL/TLS certificates
+      ##
+      sslSecret: osmo-tls
+
+      ## Additional custom annotations for the ingress resource
+      ##
+      annotations: {}
+      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+      # nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "10"
+
+    ## Node selector constraints for UI pod scheduling
+    ## Leave empty to allow scheduling on any node
+    ##
+    nodeSelector: {}
+    # kubernetes.io/os: linux
+    # node-type: compute
+
+    ## Topology spread constraints to distribute pods across nodes/zones
+    ##
+    topologySpreadConstraints:
+    ## Spread pods across different hostnames (nodes)
+    ##
+    - topologyKey: kubernetes.io/hostname
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+    ## Spread pods across different availability zones
+    ##
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Host aliases for custom DNS resolution within the UI pods
+    ## Leave empty if no custom host aliases are needed
+    ##
+    hostAliases: []
+    # - ip: "192.168.1.100"
+    #   hostnames:
+    #   - "example.local"
+    #   - "test.example.local"
+
+    ## Tolerations for pod scheduling on tainted nodes
+    ## Leave empty to use default tolerations
+    ##
+    tolerations: []
+    # - key: "node-type"
+    #   operator: "Equal"
+    #   value: "gpu"
+    #   effect: "NoSchedule"
+
+    ## Resource limits and requests for the UI container
+    ##
+    resources: {}
+    # limits:
+    #   cpu: 500m
+    #   memory: 512Mi
+    # requests:
+    #   cpu: 250m
+    #   memory: 256Mi
+
+    ## Additional container ports
+    ##
+    extraPorts: []
+    # - name: metrics
+    #   containerPort: 9090
+    #   protocol: TCP
+
+    ## Extra environment variables for the UI container
+    ## Supports both value and valueFrom
+    ##
+    extraEnvs: []
+    # - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
+    #   value: "false"
+    # - name: NEXT_PUBLIC_USE_MOCK_DATA
+    #   value: "true"
+    # - name: DATABASE_PASSWORD
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: db-secret
+    #       key: password
+
+    ## Environment variables from ConfigMaps and Secrets
+    ##
+    envFrom: []
+    # - configMapRef:
+    #     name: ui-config
+    # - secretRef:
+    #     name: ui-secrets
+
+    ## Extra volume mounts for the UI container
+    ##
+    extraVolumeMounts: []
+    # - name: config-volume
+    #   mountPath: /app/config
+    #   readOnly: true
+    # - name: cache-volume
+    #   mountPath: /app/cache
+
+    ## Extra volumes for the pod
+    ##
+    extraVolumes: []
+    # - name: config-volume
+    #   configMap:
+    #     name: ui-config
+    # - name: cache-volume
+    #   emptyDir: {}
+    # - name: shared-data
+    #   persistentVolumeClaim:
+    #     claimName: shared-data-pvc
+
+    ## Liveness probe configuration
+    ## Leave empty to use the default hardcoded probe
+    ##
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 8000
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 3
+    # tcpSocket:
+    #   port: 8000
+    # exec:
+    #   command:
+    #   - /bin/sh
+    #   - -c
+    #   - "curl -f http://localhost:8000/ || exit 1"
+
+    ## Startup probe configuration
+    ## Leave empty to use the default hardcoded probe
+    ##
+    startupProbe:
+      httpGet:
+        path: /
+        port: 8000
+      failureThreshold: 6
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
+
+    ## Readiness probe configuration
+    ## Leave empty to use the default hardcoded probe
+    ##
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 8000
+      failureThreshold: 2
+      timeoutSeconds: 3
+      periodSeconds: 5
+
+
+## Configuration for sidecar containers
+##
+sidecars:
+  ## Envoy proxy sidecar configuration
+  ##
+  envoy:
+    ## Use Kubernetes secrets for Envoy credentials
+    ## Set to false when managing secrets using Vault or other secrets management solution
+    ##
+    useKubernetesSecrets: false
+
+    ## Secret file paths for OAuth2 credentials
+    ## These paths are used by Envoy to read the secret files
+    ##
+    secretPaths:
+      ## Path to the OAuth2 client secret file
+      ##
+      clientSecret: /etc/envoy/secrets/client_secret
+
+      ## Path to the OAuth2 HMAC secret file
+      ##
+      hmacSecret: /etc/envoy/secrets/hmac_secret
+    ## Enable Envoy proxy sidecar container
+    ##
+    enabled: true
+
+    ## The maximum size of all http headers in kb
+    ##
+    maxHeadersSizeKb: 128
+
+    ## Allow accessing certain paths from inside the cluster without auth
+    ##
+    inClusterPaths:
+      enabled: false
+      port: 81
+      paths: []
+
+    ## If we go over this number of concurrent requests, throw an error
+    ## If its empty then do nothing
+    ##
+    maxRequests: null
+
+    ## Paths that skip authentication
+    ##
+    skipAuthPaths: []
+
+    ## Container image configuration for Envoy and its dependencies
+    ##
+    images:
+      ## Init container image for setup tasks
+      ##
+      init: busybox
+
+      ## Envoy proxy container image
+      ##
+      envoy: "envoyproxy/envoy:v1.29.0"
+
+      ## Image pull policy for all Envoy-related containers
+      ##
+      pullPolicy: IfNotPresent
+
+    ## Resource limits and requests for Envoy containers
+    ##
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "64Mi"
+      limits:
+        memory: "128Mi"
+
+
+    ## Enable JWT authentication
+    ##
+    jwtEnable: true
+
+    ## Enable OAuth2 authentication
+    ##
+    oauth2Enable: true
+
+    ## Route configuration for Envoy proxy
+    ##
+    routes:
+    ## Default route matching all paths
+    ##
+    - match:
+        prefix: "/"
+      route:
+        cluster: service
+
+    ## Port that Envoy listens on
+    ##
+    listenerPort: 80
+
+    ## Service configuration for Envoy proxy
+    ##
+    service:
+      ## Port on which the service runs
+      ##
+      port: 8000
+
+      ## Hostname for the Envoy service
+      ##
+      hostname: ""
+
+      ## Service address for upstream cluster
+      ##
+      address: 127.0.0.1
+
+    ## OAuth2 authentication filter configuration
+    ##
+    oauth2Filter:
+      ## Enable OAuth2 authentication for incoming requests
+      ##
+      enabled: true
+
+      ## OAuth2 token endpoint URL for token exchange
+      ##
+      tokenEndpoint: ""
+
+      ## OAuth2 authorization endpoint URL for user authentication
+      ##
+      authEndpoint: ""
+
+      ## Redirect path for OAuth2 callback after authentication
+      ##
+      redirectPath: getAToken
+
+      ## OAuth2 client ID for this application
+      ##
+      clientId: ""
+
+      ## OAuth2 authentication provider identifier
+      ##
+      authProvider: ""
+
+      ## Logout path for ending user sessions
+      ##
+      logoutPath: logout
+
+      ## Secret configuration (when useKubernetesSecrets is true)
+      ## Name of the Kubernetes secret containing OAuth2 credentials
+      ##
+      secretName: oidc-secrets
+
+      ## Key within the secret for the client secret
+      ##
+      clientSecretKey: client_secret
+
+      ## Key within the secret for the HMAC secret
+      ##
+      hmacSecretKey: hmac_secret
+
+    ## SSL configuration
+    ##
+    ssl:
+      enabled: false
+      cert:
+        secretName: envoy-ssl-cert
+        secretKey: cert
+      privateKey:
+        secretName: envoy-ssl-cert
+        secretKey: privateKey
+
+    ## Volume mounts for the Envoy container
+    ##
+    volumeMounts:
+    ## Mount logs volume for log collection
+    ##
+    - name: logs
+      mountPath: /logs
+
+    ## JWT (JSON Web Token) authentication configuration
+    ##
+    jwt:
+      ## HTTP header name where the authenticated user will be set
+      ##
+      user_header: x-osmo-user
+
+      ## List of JWT token providers for authentication
+      ##
+      providers:
+      ## Primary JWT provider configuration
+      ##
+      - issuer: ""
+        audience: ""
+        jwks_uri: ""
+        user_claim: unique_name
+        cluster: oauth
+      ## Secondary JWT provider configuration
+      ##
+      - issuer: ""
+        audience: ""
+        jwks_uri: ""
+        user_claim: preferred_username
+        cluster: oauth
+
+
+  ## Log agent sidecar configuration (FluentBit)
+  ## Collects and forwards logs from the application and Envoy
+  ##
+  logAgent:
+    ## Enable log agent sidecar container
+    ##
+    enabled: false
+
+    ## Log rotation configuration
+    ## logAgent.enabled must be true for logrotate to be enabled
+    ##
+    logrotate:
+      enabled: false
+
+      ## How often to rotate the logs. Valid options are:
+      ## - daily, hourly, monthly, weekly, yearly
+      ## - `minutes <size>` - rotate every <size> minutes
+      ##
+      frequency: hourly
+
+      ## Log files are rotated when they reach this size
+      ##
+      maxSize: 10M
+
+      ## How many log files to rotate before deleting the oldest one
+      ##
+      rotateCount: 5
+
+      ## How many seconds to sleep between rotations
+      ##
+      sleepSeconds: 60
+
+    ## FluentBit image configuration
+    ##
+    image:
+      repository: fluent/fluent-bit:4.0.8-debug
+      pullPolicy: IfNotPresent
+
+    ## FluentBit Prometheus metrics port
+    ##
+    fluentBitPrometheusPort: 2020
+
+    ## AWS CloudWatch logging configuration
+    ##
+    aws:
+      region: us-west-2
+      clusterName: ""
+
+
+    ## Resource limits and requests for log agent container
+    ##
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "400Mi"
+      limits:
+        memory: "400Mi"
+
+    ## Additional volumes for log agent
+    ##
+    volumes: []
+
+    ## Additional volume mounts for log agent
+    ##
+    volumeMounts:
+    - name: logs
+      mountPath: /var/log
+
+
+## Additional ConfigMaps to create
+##
+extraConfigMaps: []
+# - name: custom-config
+#   data:
+#     config.yaml: |
+#       key: value
+
+## Additional containers to include in the pod
+##
+extraContainers: []
+# - name: custom-container
+#   image: custom:latest
+#   ports:
+#   - containerPort: 8080
+
+## Additional pod annotations
+##
+extraPodAnnotations: {}
+# vault.hashicorp.com/agent-inject: 'true'
+# vault.hashicorp.com/agent-configmap: 'vault-config'
+

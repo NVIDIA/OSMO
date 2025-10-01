@@ -1,0 +1,107 @@
+/* SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0 */
+
+/* Custom CSS for Sphinx Immaterial Theme */
+
+/* Font family override */
+:root {
+    --md-text-font: "Lato", "proxima-nova", "Helvetica Neue", Arial, sans-serif;
+    --md-code-font: "Roboto Mono", monospace;
+}
+
+/* Apply custom font to body and headers */
+body, h1, h2, h3, h4, h5, h6 {
+    font-family: var(--md-text-font) !important;
+}
+
+
+:root {
+    --nv-green: #76B900;
+    --md-primary-fg-color: #76b900;
+    --md-primary-fg-color--light: #8bc34a;
+    --md-primary-fg-color--dark: #689f00;
+    --md-accent-fg-color: #76b900;
+}
+
+[data-md-color-scheme="nvgreen"] {
+	--md-primary-fg-color:        var(--nv-green);
+	--md-primary-fg-color--light: #C5E1A5;
+	--md-primary-fg-color--dark:  #004D40;
+	--md-accent-fg-color:         var(--nv-green);
+}
+
+a:hover {
+    color: #689f00 !important;
+}
+
+/* Code and literal styling */
+code, .highlight {
+    color: var(--nv-green) !important;
+}
+
+/* Admonition styling */
+.md-typeset .admonition.note,
+.md-typeset .admonition.info {
+    border-color: var(--nv-green);
+}
+
+.md-typeset .admonition.note > .admonition-title,
+.md-typeset .admonition.info > .admonition-title {
+    background-color: var(--nv-green);
+    border-color: var(--nv-green);
+}
+
+/* Table styling */
+.md-typeset table:not([class]) td {
+    vertical-align: top;
+}
+
+/* Image spacing */
+.md-typeset img {
+    margin-bottom: 24px;
+}
+
+/* Screenshot styling */
+.screenshot {
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+    border-radius: 4px;
+}
+
+/* Search box styling */
+.md-search__input {
+    border-color: var(--nv-green);
+}
+
+.md-search__input:focus {
+    border-color: #689f00;
+}
+
+/* Footer customization */
+.md-footer {
+    font-size: 0.8rem;
+}
+
+/* Custom classes for hidden sections in TOC */
+.hidden-section {
+    display: none;
+}
+
+/* Responsive table improvements */
+@media screen and (min-width: 767px) {
+    .md-typeset table:not([class]) td {
+        white-space: normal !important;
+    }
+}

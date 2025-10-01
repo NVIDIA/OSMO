@@ -1,0 +1,13 @@
+{{- if .Values.sidecars.envoy.enabled }}
+1. Get the application URL by running these commands:
+{{- if .Values.services.ui.ingress.sslEnabled }}
+  https://{{ .Values.services.ui.hostname }}{{ .Values.services.ui.ingress.prefix }}
+{{- else }}
+  http://{{ .Values.services.ui.hostname }}{{ .Values.services.ui.ingress.prefix }}
+{{- end }}
+{{- else }}
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ .Values.services.ui.serviceName }}" -o jsonpath="{.items[0].metadata.name}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:{{ .Values.services.ui.containerPort }}
+{{- end }}

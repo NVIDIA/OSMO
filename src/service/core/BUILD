@@ -1,0 +1,176 @@
+"""
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+"""
+
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
+load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
+
+exports_files(["install.jinja"])
+
+osmo_py_library(
+    name = "install_script_loader",
+    srcs = ["install_script_loader.py"],
+    data = ["install.jinja"],
+    deps = [
+        "//src/lib/utils:jinja_sandbox",
+    ],
+    visibility = ["//src/service/core:__subpackages__"],
+)
+
+osmo_py_library(
+    name = "service_lib",
+    srcs = [
+        "service.py",
+    ],
+    deps = [
+        requirement("diskcache"),
+        requirement("fastapi"),
+        requirement("redis"),
+        requirement("opentelemetry-exporter-otlp"),
+        requirement("opentelemetry-instrumentation-fastapi"),
+        requirement("opentelemetry-sdk"),
+        requirement("uvicorn"),
+        ":install_script_loader",
+        "//src/lib/utils:common",
+        "//src/lib/utils:logging",
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:version",
+        "//src/service/agent:helpers",
+        "//src/service/core/app",
+        "//src/service/core/auth",
+        "//src/service/core/config",
+        "//src/service/core/data",
+        "//src/service/core/profile",
+        "//src/service/core/workflow",
+        "//src/service/logger:ctrl_websocket",
+    ],
+    data = [
+        ":install.jinja",
+        "//src/lib/utils:version.yaml",
+    ],
+    visibility = ["//src/service:__subpackages__"],
+)
+
+osmo_py_binary(
+    name = "service",
+    main = "service.py",
+    srcs = ["service.py"],
+    deps = [":service_lib"],
+)
+
+
+run_binary(
+    name = "service_onedir",
+    args = [
+        "--name osmo-service",
+        "--main $(location :service.py)",
+        "--output_dir $(@D)",
+        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
+        "--add-data $(location :install.jinja):src/service/core/",
+        "--additional-hooks $(locations //src/service/builder:extra_hooks)",
+        "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
+    ],
+    out_dirs = ["osmo_service_onedir"],
+    tool = "//src/service/builder:service_builder",
+    srcs = [
+        "service.py",
+        ":service_lib",
+        ":install.jinja",
+        "//src/service/builder:extra_hooks",
+        "//src/lib/data/storage:extra_hooks",
+        "//src/lib/utils:version.yaml",
+    ],
+)
+
+pkg_tar(
+    name = "service_onedir_pkg",
+    extension = "tgz",
+    remap_paths = {
+        "/osmo_service_onedir": ".",
+    },
+    srcs = [":service_onedir"],
+    symlinks = {
+        "/usr/bin/service": "/osmo/osmo-service/osmo-service",
+    },
+    mode = "0755",
+    visibility = ["//visibility:public"],
+)
+
+################
+#    x86_64    #
+################
+
+oci_image(
+    name = "service_image_x86_64",
+    base = "//src:osmo_docker_distroless_image_amd64",
+    tars = [
+        ":service_onedir_pkg",
+        "//src/utils/progress_check:progress_check_onedir_pkg",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+oci_load(
+    name = "service_image_load_x86_64",
+    image = ":service_image_x86_64",
+    repo_tags = ["osmo.local/service:latest-x86_64"],
+    tags = ["manual"],
+)
+
+oci_push(
+    name = "service_push_x86_64",
+    image = ":service_image_x86_64",
+    repository = BASE_IMAGE_URL + "service",
+    visibility = ["//visibility:public"],
+    tags = [
+        "manual",
+    ],
+)
+
+###############
+#    arm64    #
+###############
+
+oci_image(
+    name = "service_image_arm64",
+    base = "//src:osmo_docker_distroless_image_arm64",
+    tars = [
+        ":service_onedir_pkg",
+        "//src/utils/progress_check:progress_check_onedir_pkg",
+    ],
+    visibility = ["//visibility:public"],
+    tags = ["arm64"],
+)
+
+oci_load(
+    name = "service_image_load_arm64",
+    image = ":service_image_arm64",
+    repo_tags = ["osmo.local/service:latest-arm64"],
+    tags = ["manual", "arm64"],
+)
+
+oci_push(
+    name = "service_push_arm64",
+    image = ":service_image_arm64",
+    repository = BASE_IMAGE_URL + "service",
+    visibility = ["//visibility:public"],
+    tags = ["manual", "arm64"],
+)

@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: serial-tasks
+  resources: # Specify resources for the tasks
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+  tasks:
+  - name: task1
+    image: ubuntu:22.04
+    command: [sh]
+    args: [/tmp/run.sh]
+    files:
+    - contents: |
+        echo "Hello from task1 $(hostname)"
+        echo "Hello from task1 $(hostname)" > {{output}}/hello1.txt
+        echo "Data from task 1" > {{output}}/test_read.txt # Data to be used in task2
+      path: /tmp/run.sh
+  - name: task2
+    image: ubuntu:22.04
+    command: [sh]
+    args: [/tmp/run.sh]
+    inputs:
+    # Because task1 is an input to task2, task2 will wait for task1 to complete before running.
+    - task: task1 # Data from task one will automatically be downloaded to the {{input:0}} folder.
+    files:
+    - contents: |
+        echo "Hello from task2 {{output}}"
+        if [ ! -f "{{input:0}}/test_read.txt" ]; then
+            echo "Error: {{input:0}}/test_read.txt does not exist"
+            exit 1
+        fi
+        head -1 {{input:0}}/test_read.txt
+      path: /tmp/run.sh

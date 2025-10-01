@@ -1,0 +1,49 @@
+# Copy this file to terraform.tfvars and customize the values for your environment
+
+# General Configuration
+subscription_id = "your-azure-subscription-id"  # Replace with your actual subscription ID
+azure_region    = "East US"
+environment     = "dev"
+project_name    = "osmo"
+owner           = "platform-team"
+cluster_name    = "osmo-test"
+resource_group_name = "your-existing-resource-group-name"  # Name of existing RG
+
+# Virtual Network Configuration
+vnet_cidr        = "10.0.0.0/16"
+private_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+database_subnets = ["10.0.201.0/24", "10.0.202.0/24"]
+
+# Availability Zones
+availability_zones = ["1", "2"]
+
+# AKS Configuration
+kubernetes_version              = "1.31.1"
+node_instance_type             = "Standard_D2s_v3"  # Use Standard_D4s_v3 or higher for production
+node_group_min_size            = 1
+node_group_max_size            = 5
+node_group_desired_size        = 3
+aks_private_cluster_enabled    = true  # Set to false for public cluster
+aks_public_network_access_enabled = true
+aks_admin_group_object_ids        = []     # Add Azure AD group object IDs for admin access
+aks_msi_auth_for_monitoring_enabled = true   # Enable MSI authentication for Container Insights
+aks_service_cidr               = "192.168.0.0/16"  # Kubernetes services CIDR (separate from VNet)
+aks_dns_service_ip             = "192.168.0.10"    # DNS service IP within service CIDR
+
+# PostgreSQL Configuration
+postgres_version                       = "15"
+postgres_sku_name                     = "GP_Standard_D2s_v3"  # Use higher SKUs for production
+postgres_storage_mb                   = 32768  # 32 GB
+postgres_db_name                      = "osmo"
+postgres_username                     = "postgres"
+postgres_password                     = "REPLACE_WITH_SECURE_PASSWORD"  # Must be changed before deployment
+postgres_backup_retention_days        = 7
+postgres_geo_redundant_backup_enabled = false  # Set to true for production
+postgres_extensions                   = ["hstore", "uuid-ossp", "pg_stat_statements"]  # Extensions to enable
+
+# Redis Enterprise Configuration
+redis_sku_name = "Enterprise_E10-2"  # Enterprise E10 with 2GB capacity for Redis 7
+
+# Log Analytics Configuration
+log_analytics_sku            = "PerGB2018"  # Standard pricing tier
+log_analytics_retention_days = 30           # Increase for production (30-730 days)

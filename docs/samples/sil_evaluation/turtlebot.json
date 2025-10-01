@@ -1,0 +1,147 @@
+{
+  "layers": {
+    "845139cb-26bc-40b3-8161-8ab60af4baf5": {
+      "visible": false,
+      "frameLocked": true,
+      "label": "Grid",
+      "instanceId": "845139cb-26bc-40b3-8161-8ab60af4baf5",
+      "layerId": "foxglove.Grid",
+      "size": 10,
+      "divisions": 10,
+      "lineWidth": 1,
+      "color": "#248eff",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "order": 1
+    }
+  },
+  "cameraState": {
+    "perspective": false,
+    "distance": 16.290124999971443,
+    "phi": 61.90659935441242,
+    "thetaOffset": 174.7009347113975,
+    "targetOffset": [
+      2.5132449682219637,
+      4.874749274754301,
+      -2.187555389792374e-17
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "targetOrientation": [
+      0,
+      0,
+      0,
+      1
+    ],
+    "fovy": 45,
+    "near": 0.5,
+    "far": 5000
+  },
+  "followMode": "follow-pose",
+  "followTf": "map",
+  "scene": {},
+  "transforms": {},
+  "topics": {
+    "/scan": {
+      "visible": true,
+      "colorField": "intensity",
+      "colorMode": "colormap",
+      "colorMap": "turbo"
+    },
+    "/map": {
+      "visible": true
+    },
+    "/global_costmap/clearing_endpoints": {
+      "visible": false
+    },
+    "/global_costmap/costmap": {
+      "visible": false
+    },
+    "/cost_cloud": {
+      "visible": false
+    },
+    "/marker": {
+      "visible": false
+    },
+    "/waypoints": {
+      "visible": true
+    },
+    "/downsampled_costmap": {
+      "visible": false
+    },
+    "/local_costmap/costmap": {
+      "visible": false
+    },
+    "/hesai_points": {
+      "visible": false,
+      "colorField": "rgb",
+      "colorMode": "rgb",
+      "colorMap": "turbo"
+    },
+    "/local_costmap/clearing_endpoints": {
+      "visible": false
+    },
+    "/mobile_base/sensors/bumper_pointcloud": {
+      "visible": false
+    },
+    "/point_cloud": {
+      "visible": false
+    },
+    "/global_costmap/published_footprint": {
+      "visible": true
+    },
+    "/local_costmap/published_footprint": {
+      "visible": false
+    },
+    "/amcl_pose": {
+      "visible": false
+    },
+    "/goal_pose": {
+      "visible": false
+    },
+    "/initialpose": {
+      "visible": true
+    },
+    "/local_plan": {
+      "visible": false
+    },
+    "/particlecloud": {
+      "visible": false
+    },
+    "/plan": {
+      "visible": false
+    },
+    "/plan_smoothed": {
+      "visible": true
+    },
+    "/received_global_plan": {
+      "visible": true
+    },
+    "/transformed_global_plan": {
+      "visible": true
+    },
+    "/robot_description": {
+      "visible": false
+    }
+  },
+  "publish": {
+    "type": "pose",
+    "poseTopic": "/goal_pose",
+    "pointTopic": "/clicked_point",
+    "poseEstimateTopic": "/initialpose",
+    "poseEstimateXDeviation": 0.5,
+    "poseEstimateYDeviation": 0.5,
+    "poseEstimateThetaDeviation": 0.26179939
+  }
+}

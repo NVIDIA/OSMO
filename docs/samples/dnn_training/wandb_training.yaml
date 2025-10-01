@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: wandb-sample
+  resources:
+    default:
+      gpu: {{ n_gpus_per_node }}
+      cpu: 16
+      memory: 30Gi
+      storage: 30Gi
+  groups:
+  - name: training
+    tasks:
+    {% for item in range(n_nodes) %}
+    {% if item == 0 %}
+    - name: master  # Master task for torchrun
+      lead: true
+      outputs:
+      - dataset:
+          name: {{ dataset }}
+          path: models
+    {% else %}
+    - name: worker_{{item}}  # Worker task that will communicate with the master task
+    {% endif %}
+      image: nvcr.io/nvidia/pytorch:24.03-py3
+      command: [bash]
+      args: [/tmp/run.sh]
+      environment:
+        NCCL_DEBUG: WARN
+      credentials:
+        wandb:
+          WANDB_API_KEY: wandb_api_key
+      files:
+      - path: /tmp/run.sh
+        contents: |
+          set -ex
+          mkdir -p {{output}}/models
+
+          pip install wandb==0.19.6
+          wandb login $WANDB_API_KEY
+
+          # Launch training
+          torchrun --nnodes {{n_nodes}} --nproc_per_node {{n_gpus_per_node}} --node_rank {{item}} \
+                    --master_addr {{host:master}} --master_port {{master_port}} \
+                    /tmp/train.py --total_epochs {{n_epochs}} --batch_size {{batch_size}} \
+                    --snapshot_path {{output}}/models/snapshot.pth \
+                    --group_id {{workflow_id}}
+      - path: /tmp/train.py
+        localpath: scripts/train_wandb.py
+    {% endfor %}
+
+default-values:
+  n_gpus_per_node: 8
+  n_nodes: 2
+  master_port: 29400
+  n_epochs: 10
+  batch_size: 32
+  dataset: model-sample

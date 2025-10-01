@@ -1,0 +1,188 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+set -e  # Exit immediately if a command exits with a non-zero status
+
+SERVICE_URL={{ service_url }}
+VERSION_URL="{{ service_url }}client/version"
+DOWNLOAD_URL="{{ service_url }}client/osmo_client?os_type="
+
+CLI_PACKAGE_NAME=""
+CLI_INSTALL_DIR="/usr/local"
+CLI_INSTALL_PATH="$CLI_INSTALL_DIR/osmo"
+
+TMP_DIR="/tmp/osmo"
+SYMLINK_PATH="/usr/local/bin"
+
+OS_TYPE=$(uname)
+
+download_and_remove() {
+    # Make sure to successfully download before removing existing installation
+    mkdir -p $TMP_DIR
+    curl --progress-bar -fSL $DOWNLOAD_URL -o $TMP_DIR/$CLI_PACKAGE_NAME
+    sudo rm -rf $CLI_INSTALL_PATH
+}
+
+print_help() {
+    echo "Options:"
+    echo "  -y, --yes          Non-interactive installation"
+    echo "  -h, --help         Display this help message"
+}
+
+auto_yes=false
+
+while [ : ]; do
+    case "$1" in
+        -y|--yes)
+            if [ "$EUID" -ne 0 ] && [ "$(id -u)" -ne 0 ]; then
+                echo "Non-interactive installation requires elevated privileges (root/sudo)."
+                exit 1
+            fi
+            auto_yes=true
+            shift
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        --) shift;
+            break
+            ;;
+        '') break
+            ;;
+        *)  echo "Invalid option: $1"
+            print_help
+            exit 1
+            ;;
+    esac
+done
+
+if [ "$OS_TYPE" != "Darwin" ] && [ "$OS_TYPE" != "Linux" ]; then
+    echo "OS is not supported. Eligible OS types: MacOS, Linux."
+    exit 1
+fi
+
+is_mac=false
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+    is_mac=true
+fi
+
+if [ $is_mac == true ]; then
+    echo "Installing OSMO for MacOS..."
+    DOWNLOAD_URL+={{ mac_enum }}
+    CLI_PACKAGE_NAME="osmo-client-macos.pkg"
+else
+    echo "Installing OSMO for Linux..."
+    DOWNLOAD_URL+={{ linux_enum }}
+    CLI_PACKAGE_NAME="osmo-client-linux.tgz"
+fi
+
+# OSMO client already installed, make sure user wants to re-install/update
+if [ -e $CLI_INSTALL_PATH ]; then
+
+    # Extract existing OSMO client version
+    EXISTING_CLIENT_VERSION=$(
+        $CLI_INSTALL_PATH/osmo version -t text | \
+        sed -n 's/^OSMO client version: *//p'
+    )
+
+    # Fetch remote client version
+    REMOTE_CLIENT_VERSION=$(curl -fsSL $VERSION_URL -H "Accept: text/plain")
+
+    # Check if existing OSMO client is up to date
+    if [[ "$EXISTING_CLIENT_VERSION" == "$REMOTE_CLIENT_VERSION" ]]; then
+        echo "OSMO client already up to date: " $EXISTING_CLIENT_VERSION
+        exit 0
+    fi
+
+    echo "Existing OSMO client is version: $EXISTING_CLIENT_VERSION"
+    echo "New OSMO client is version: $REMOTE_CLIENT_VERSION"
+
+    if [ $auto_yes == true ]; then
+        download_and_remove
+    else
+        read -p "Do you wish to update (y/n)? " answer </dev/tty
+        case ${answer:0:1} in
+            y|Y )
+                download_and_remove
+            ;;
+            * )
+                exit 1
+            ;;
+        esac
+    fi
+else
+    mkdir -p $TMP_DIR
+    curl --progress-bar -fSL $DOWNLOAD_URL -o $TMP_DIR/$CLI_PACKAGE_NAME
+fi
+
+if [ $is_mac == true ]; then
+    if [ $auto_yes == true ]; then
+        installer -pkg $TMP_DIR/$CLI_PACKAGE_NAME -target /
+    else
+        open -W $TMP_DIR/$CLI_PACKAGE_NAME
+    fi
+else
+    sudo tar -xzf $TMP_DIR/$CLI_PACKAGE_NAME -C $CLI_INSTALL_DIR
+fi
+
+# Clean up temp directory
+rm -rf $TMP_DIR
+
+# Check if installation was complete
+if [ ! -d $CLI_INSTALL_PATH ]; then
+    echo "Installation unsuccessful, please try again."
+    exit 1
+fi
+
+# Add symlink
+sudo ln -s -f $CLI_INSTALL_PATH/osmo $SYMLINK_PATH/osmo
+
+# Add autocomplete (Linux only)
+if [ $is_mac == false ] && [[ "$(grep -c "$CLI_INSTALL_PATH"/autocomplete.bash ~/.bashrc)" -eq 0 ]]; then
+    echo "Installing autocomplete for OSMO."
+    echo -e "\nif [ -f $CLI_INSTALL_PATH/autocomplete.bash ]; then\n  source $CLI_INSTALL_PATH/autocomplete.bash\nfi\n" >> ~/.bashrc
+    source ~/.bashrc
+fi
+
+# Add autocomplete for zsh (MacOS only)
+if [ $is_mac == true ]; then
+    if [ ! -d ~/.zsh/completions ]; then
+        mkdir -p ~/.zsh/completions
+    fi
+
+    if [ ! -f ~/.zsh/completions/_osmo ] && [ -f $CLI_INSTALL_PATH/autocomplete.zsh ]; then
+        echo ""
+        echo "Adding zsh autocomplete script for OSMO."
+        cp $CLI_INSTALL_PATH/autocomplete.zsh ~/.zsh/completions/_osmo
+        echo ""
+        echo "######################################################################"
+        echo "To enable autocomplete, add the following lines to your ~/.zshrc file:"
+        echo "######################################################################"
+        echo ""
+        echo 'FPATH=$HOME/.zsh/completions:$FPATH'
+        echo "autoload -Uz compinit && compinit"
+        echo ""
+        echo "######################################################################"
+        echo ""
+    fi
+fi
+
+if [ $auto_yes == false ]; then
+    echo "Installation complete. Logging in..."
+    $SYMLINK_PATH/osmo login $SERVICE_URL
+fi

@@ -1,0 +1,261 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.backendTestRunner.enabled }}
+{{$name := or .Values.global.name .Release.Name }}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-backend-test-runner-template
+  namespace: {{ .Values.global.agentNamespace }}
+  labels:
+    app: {{ $name }}-backend-operator
+    component: backend-test-runner
+    {{- range $key, $value := .Values.backendTestRunner.labels }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  annotations:
+    checksum/config: {{ (toJson (dict "backendTestRunner" .Values.backendTestRunner "global" .Values.global)) | sha256sum }}
+data:
+  # Backend Test Runner CronJob Template
+  # This template replaces the static spec.yaml file and defines the structure
+  # for backend test CronJobs created and managed by BackendSynchronizeBackendTest
+  spec.yaml: |
+    # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+    #
+    # Licensed under the Apache License, Version 2.0 (the "License");
+    # you may not use this file except in compliance with the License.
+    # You may obtain a copy of the License at
+    #
+    # http://www.apache.org/licenses/LICENSE-2.0
+    #
+    # Unless required by applicable law or agreed to in writing, software
+    # distributed under the License is distributed on an "AS IS" BASIS,
+    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    # See the License for the specific language governing permissions and
+    # limitations under the License.
+    #
+    # SPDX-License-Identifier: Apache-2.0
+
+    # Backend Test Runner CronJob Template
+    # This template defines the structure for backend test CronJobs
+    # that will be created and managed by the BackendSynchronizeBackendTest job.
+
+    # Template for CronJob that runs backend tests
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: "{{ "{{" }} resource_name {{ "}}" }}"
+      labels:
+        {{ .Values.global.nodeConditionPrefix }}{{ .Values.backendTestRunner.labels.component }}: backend-test
+        {{ .Values.global.nodeConditionPrefix }}backend: "{{ "{{" }} backend_name {{ "}}" }}"
+        {{ .Values.global.nodeConditionPrefix }}test: "{{ "{{" }} test_name {{ "}}" }}"
+        {{- range $key, $value := .Values.backendTestRunner.labels }}
+        {{- if ne $key "component" }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+      annotations:
+        {{- $desc := .Values.backendTestRunner.annotations.description }}
+        description: {{ $desc | replace "{{.BackendName}}" "{{ backend_name }}" | replace "{{.TestName}}" "{{ test_name }}" | quote }}
+        scheduler: {{ .Values.backendTestRunner.annotations.scheduler | quote }}
+    spec:
+      # Schedule configuration
+      schedule: "{{ "{{" }} cron_schedule | default({{ .Values.backendTestRunner.cronJob.schedule | quote }}) {{ "}}" }}"
+      timeZone: "{{ "{{" }} timezone | default({{ .Values.backendTestRunner.cronJob.timezone | quote }}) {{ "}}" }}"
+      startingDeadlineSeconds: {{ .Values.backendTestRunner.cronJob.startingDeadlineSeconds }}
+
+      # Concurrency and history management
+      concurrencyPolicy: {{ .Values.backendTestRunner.cronJob.concurrencyPolicy }}
+      suspend: {{ .Values.backendTestRunner.cronJob.suspend }}
+      successfulJobsHistoryLimit: {{ .Values.backendTestRunner.cronJob.successfulJobsHistoryLimit }}
+      failedJobsHistoryLimit: {{ .Values.backendTestRunner.cronJob.failedJobsHistoryLimit }}
+
+      # Job template specification
+      jobTemplate:
+        metadata:
+          labels:
+            component: backend-test-job
+            backend: "{{ "{{" }}backend_name{{ "}}" }}"
+            test: "{{ "{{" }}test_name{{ "}}" }}"
+            job-type: test-runner
+          annotations:
+            created-by: backend-operator
+        spec:
+          # Job-level configuration
+          parallelism: {{ .Values.backendTestRunner.jobTemplate.parallelism }}
+          completions: {{ .Values.backendTestRunner.jobTemplate.completions }}
+          backoffLimit: {{ .Values.backendTestRunner.jobTemplate.backoffLimit }}
+          activeDeadlineSeconds: {{ .Values.backendTestRunner.jobTemplate.activeDeadlineSeconds }}
+          ttlSecondsAfterFinished: {{ .Values.backendTestRunner.jobTemplate.ttlSecondsAfterFinished }}
+          completionMode: {{ .Values.backendTestRunner.jobTemplate.completionMode }}
+          suspend: {{ .Values.backendTestRunner.jobTemplate.suspend }}
+
+          # Pod template specification
+          template:
+            metadata:
+              labels:
+                {{- range $key, $value := .Values.backendTestRunner.podTemplate.labels }}
+                {{ $key }}: {{ $value | quote }}
+                {{- end }}
+                backend: "{{ "{{" }}backend_name{{ "}}" }}"
+                test: "{{ "{{" }}test_name{{ "}}" }}"
+              annotations:
+                {{- range $key, $value := .Values.backendTestRunner.podTemplate.annotations }}
+                {{ $key }}: {{ $value | quote }}
+                {{- end }}
+            spec:
+              # Pod restart and scheduling
+              restartPolicy: {{ .Values.backendTestRunner.podTemplate.restartPolicy }}
+              terminationGracePeriodSeconds: {{ .Values.backendTestRunner.podTemplate.terminationGracePeriodSeconds }}
+              activeDeadlineSeconds: {{ .Values.backendTestRunner.jobTemplate.activeDeadlineSeconds }}
+
+              # Service account and security
+              serviceAccountName: {{ include "backend-operator.testRunner.serviceAccountName" . }}
+              automountServiceAccountToken: {{ .Values.backendTestRunner.podTemplate.automountServiceAccountToken }}
+              securityContext:
+                runAsNonRoot: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsNonRoot }}
+                runAsUser: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsUser }}
+                runAsGroup: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsGroup }}
+                fsGroup: {{ .Values.backendTestRunner.podTemplate.securityContext.fsGroup }}
+                seccompProfile:
+                  type: {{ .Values.backendTestRunner.podTemplate.securityContext.seccompProfile.type }}
+
+              # Scheduling and placement
+              {{- $nodeSelector := .Values.backendTestRunner.podTemplate.nodeSelector }}
+              {{- if empty $nodeSelector }}
+              nodeSelector: {{ toYaml .Values.global.nodeSelector | nindent 16 }}
+              {{- else }}
+              nodeSelector: {{ toYaml $nodeSelector | nindent 16 }}
+              {{- end }}
+
+              {{- $tolerations := .Values.backendTestRunner.podTemplate.tolerations }}
+              {{- if empty $tolerations }}
+              tolerations: {{ toYaml .Values.global.tolerations | nindent 16 }}
+              {{- else }}
+              tolerations: {{ toYaml $tolerations | nindent 16 }}
+              {{- end }}
+
+              {{- if .Values.backendTestRunner.podTemplate.affinity }}
+              affinity: {{ toYaml .Values.backendTestRunner.podTemplate.affinity | nindent 16 }}
+              {{- end }}
+
+              # Init containers (config validation)
+              initContainers:
+                - name: config-validator
+                  image: {{ .Values.backendTestRunner.podTemplate.initContainer.image | quote }}
+                  command: ["/bin/sh"]
+                  args:
+                    - -c
+                    - |
+                      echo "Validating test configuration..."
+                      if [ -f {{ .Values.backendTestRunner.volumes.testConfigMountPath }}/test_config.json ]; then
+                        echo "Configuration file found"
+                        exit 0
+                      else
+                        echo "Configuration file missing"
+                        exit 1
+                      fi
+                  volumeMounts:
+                    - name: {{ .Values.backendTestRunner.volumes.testConfigName }}
+                      mountPath: {{ .Values.backendTestRunner.volumes.testConfigMountPath }}
+                      readOnly: true
+                  securityContext:
+                    allowPrivilegeEscalation: {{ .Values.backendTestRunner.podTemplate.containerSecurityContext.allowPrivilegeEscalation }}
+                    capabilities:
+                      drop: {{ toYaml .Values.backendTestRunner.podTemplate.containerSecurityContext.capabilities.drop | nindent 24 }}
+                    readOnlyRootFilesystem: {{ .Values.backendTestRunner.podTemplate.containerSecurityContext.readOnlyRootFilesystem }}
+                    runAsNonRoot: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsNonRoot }}
+                    runAsUser: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsUser }}
+                    runAsGroup: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsGroup }}
+                  resources: {{ toYaml .Values.backendTestRunner.podTemplate.initContainer.resources | nindent 20 }}
+
+              # Main containers
+              containers:
+                - name: backend-test-runner
+                  {{- $imageTag := .Values.backendTestRunner.podTemplate.image.tag | default .Values.global.osmoImageTag }}
+                  image: {{ .Values.backendTestRunner.podTemplate.image.repository }}:{{ $imageTag }}
+                  imagePullPolicy: {{ .Values.backendTestRunner.podTemplate.image.pullPolicy }}
+                  command: ["backend_test_runner"]
+                  args: {{ toYaml .Values.backendTestRunner.podTemplate.container.args | nindent 20 }}
+
+                  # Environment variables
+                  env:
+                    - name: BACKEND
+                      value: "{{ "{{" }}backend_name{{ "}}" }}"
+                    - name: BACKEND_TEST_NAME
+                      value: "{{ "{{" }}test_name{{ "}}" }}"
+                    - name: NODE_CONDITION_PREFIX
+                      value: {{ .Values.global.nodeConditionPrefix | quote }}
+                    - name: NAMESPACE
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.namespace
+                    - name: NODE_NAME
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: spec.nodeName
+                    - name: SERVICE_ACCOUNT
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: spec.serviceAccountName
+                    {{- range $key, $value := .Values.backendTestRunner.env.additional }}
+                    - name: {{ $key }}
+                      value: {{ $value | quote }}
+                    {{- end }}
+
+                  # Volume mounts
+                  volumeMounts:
+                    - name: {{ .Values.backendTestRunner.volumes.testConfigName }}
+                      mountPath: {{ .Values.backendTestRunner.volumes.testConfigMountPath }}
+                      readOnly: true
+
+                  # Security context
+                  securityContext:
+                    allowPrivilegeEscalation: {{ .Values.backendTestRunner.podTemplate.containerSecurityContext.allowPrivilegeEscalation }}
+                    capabilities:
+                      drop: {{ toYaml .Values.backendTestRunner.podTemplate.containerSecurityContext.capabilities.drop | nindent 24 }}
+                      add: {{ toYaml .Values.backendTestRunner.podTemplate.containerSecurityContext.capabilities.add | nindent 24 }}
+                    readOnlyRootFilesystem: {{ .Values.backendTestRunner.podTemplate.containerSecurityContext.readOnlyRootFilesystem }}
+                    runAsNonRoot: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsNonRoot }}
+                    runAsUser: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsUser }}
+                    runAsGroup: {{ .Values.backendTestRunner.podTemplate.securityContext.runAsGroup }}
+
+                  # Resource management
+                  resources: {{ toYaml .Values.backendTestRunner.podTemplate.container.resources | nindent 20 }}
+
+              # Volumes
+              volumes:
+                - name: {{ .Values.backendTestRunner.volumes.testConfigName }}
+                  configMap:
+                    {{- $configMapName := .Values.backendTestRunner.configMap.nameTemplate }}
+                    name: {{ $configMapName | replace "{{.BackendName}}" "{{backend_name}}" | replace "{{.TestName}}" "{{test_name}}" | quote }}
+                    defaultMode: {{ .Values.backendTestRunner.configMap.defaultMode }}
+                    optional: {{ .Values.backendTestRunner.configMap.optional }}
+
+              # Image pull secrets
+              {{- if .Values.global.imagePullSecret }}
+              imagePullSecrets:
+                - name: {{ .Values.global.imagePullSecret | quote }}
+              {{- end }}
+
+              # Host aliases for custom DNS resolution
+              {{- with .Values.backendTestRunner.hostAliases }}
+              hostAliases: {{- toYaml . | nindent 16 }}
+              {{- end }}
+
+{{- end }}

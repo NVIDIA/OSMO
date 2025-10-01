@@ -1,0 +1,402 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.services.ui.serviceName }}
+  labels:
+    app: {{ .Values.services.ui.serviceName }}
+spec:
+  replicas: {{ if .Values.services.ui.scaling.enabled }}{{ .Values.services.ui.scaling.minReplicas }}{{ else }}{{ .Values.services.ui.replicas }}{{ end }}
+  selector:
+    matchLabels:
+      app: {{ .Values.services.ui.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.services.ui.serviceName }}
+        {{- with .Values.services.ui.podLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+      {{- with .Values.extraPodAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      hostAliases:
+        {{ toYaml .Values.services.ui.hostAliases | nindent 8}}
+      topologySpreadConstraints:
+      {{- range .Values.services.ui.topologySpreadConstraints }}
+      - topologyKey: {{.topologyKey }}
+        {{- range $key, $value := . }}
+        {{- if ne $key "topologyKey" }}
+        {{$key}}: {{$value}}
+        {{- end }}
+        {{- end }}
+        labelSelector:
+          matchLabels:
+            app: {{ $.Values.services.ui.serviceName }}
+      {{- end }}
+      nodeSelector:
+        {{- range $k, $v := .Values.global.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+        {{- range $k, $v := .Values.services.ui.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+      tolerations:
+      {{ toYaml .Values.services.ui.tolerations | nindent 8 }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- if .Values.services.ui.initContainers }}
+      initContainers:
+        {{- toYaml .Values.services.ui.initContainers | nindent 6 }}
+      {{- end }}
+      serviceAccountName: {{ .Values.services.ui.serviceAccountName }}
+      containers:
+      - name: {{ .Values.services.ui.serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.ui.imageName }}:{{ .Values.global.osmoImageTag }}
+        {{- with .Values.services.ui.command }}
+        command:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.services.ui.args }}
+        args:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        env:
+        - name: PORT
+          value: '{{ .Values.services.ui.containerPort }}'
+        - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
+          value: {{ .Values.services.ui.hostname }}
+        {{- with .Values.services.ui.extraEnvs }}
+        {{- range $env := . }}
+        - name: {{ $env.name }}
+          {{- if (hasKey $env "value") }}
+          value: {{ $env.value | quote }}
+          {{- else if $env.valueFrom }}
+          valueFrom:
+            {{- toYaml $env.valueFrom | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.services.ui.envFrom }}
+        envFrom:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        imagePullPolicy: {{ .Values.services.ui.imagePullPolicy }}
+        ports:
+        - name: {{ .Values.services.ui.service.portName }}
+          containerPort: {{ .Values.services.ui.containerPort }}
+          protocol: {{ .Values.services.ui.service.protocol }}
+        {{- range .Values.services.ui.extraPorts }}
+        - name: {{ .name }}
+          containerPort: {{ .containerPort }}
+          protocol: {{ .protocol | default "TCP" }}
+        {{- end }}
+        {{- if .Values.sidecars.envoy.enabled }}
+        - name: envoy-http
+          containerPort: 80
+          protocol: TCP
+        - name: envoy-admin
+          containerPort: 9901
+          protocol: TCP
+        {{- end}}
+        {{- if or .Values.global.logs.enabled .Values.services.ui.extraVolumeMounts }}
+        volumeMounts:
+        {{- end }}
+        {{- with .Values.services.ui.extraVolumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.services.ui.resources | nindent 10 }}
+
+        {{- with .Values.services.ui.livenessProbe }}
+        # Any failure to return the version api means the service is in a bad state
+        livenessProbe:
+          {{- if .httpGet }}
+          httpGet:
+            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
+            path: {{ .httpGet.path | default "/" }}
+            {{- with .httpGet.scheme }}
+            scheme: {{ . }}
+            {{- end }}
+            {{- with .httpGet.httpHeaders }}
+            httpHeaders:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else if .tcpSocket }}
+          tcpSocket:
+            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
+          {{- else if .exec }}
+          exec:
+            {{- toYaml .exec | nindent 12 }}
+          {{- end }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
+          {{- with .periodSeconds }}
+          periodSeconds: {{ . }}
+          {{- end }}
+          {{- with .timeoutSeconds }}
+          timeoutSeconds: {{ . }}
+          {{- end }}
+          {{- with .initialDelaySeconds }}
+          initialDelaySeconds: {{ . }}
+          {{- end }}
+          {{- with .successThreshold }}
+          successThreshold: {{ . }}
+          {{- end }}
+        {{- end }}
+
+        {{- with .Values.services.ui.startupProbe }}
+        # Give the container 30 seconds to startup
+        startupProbe:
+          {{- if .httpGet }}
+          httpGet:
+            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
+            path: {{ .httpGet.path | default "/" }}
+            {{- with .httpGet.scheme }}
+            scheme: {{ . }}
+            {{- end }}
+            {{- with .httpGet.httpHeaders }}
+            httpHeaders:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else if .tcpSocket }}
+          tcpSocket:
+            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
+          {{- else if .exec }}
+          exec:
+            {{- toYaml .exec | nindent 12 }}
+          {{- end }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
+          {{- with .periodSeconds }}
+          periodSeconds: {{ . }}
+          {{- end }}
+          {{- with .timeoutSeconds }}
+          timeoutSeconds: {{ . }}
+          {{- end }}
+          {{- with .initialDelaySeconds }}
+          initialDelaySeconds: {{ . }}
+          {{- end }}
+          {{- with .successThreshold }}
+          successThreshold: {{ . }}
+          {{- end }}
+        {{- end }}
+
+        {{- with .Values.services.ui.readinessProbe }}
+        # Do a basic database read operation to ensure the service is able to serve traffic
+        readinessProbe:
+          {{- if .httpGet }}
+          httpGet:
+            port: {{ .httpGet.port | default $.Values.services.ui.containerPort }}
+            path: {{ .httpGet.path | default "/" }}
+            {{- with .httpGet.scheme }}
+            scheme: {{ . }}
+            {{- end }}
+            {{- with .httpGet.httpHeaders }}
+            httpHeaders:
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else if .tcpSocket }}
+          tcpSocket:
+            port: {{ .tcpSocket.port | default $.Values.services.ui.containerPort }}
+          {{- else if .exec }}
+          exec:
+            {{- toYaml .exec | nindent 12 }}
+          {{- end }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
+          {{- with .periodSeconds }}
+          periodSeconds: {{ . }}
+          {{- end }}
+          {{- with .timeoutSeconds }}
+          timeoutSeconds: {{ . }}
+          {{- end }}
+          {{- with .initialDelaySeconds }}
+          initialDelaySeconds: {{ . }}
+          {{- end }}
+          {{- with .successThreshold }}
+          successThreshold: {{ . }}
+          {{- end }}
+        {{- end }}
+
+      {{- include "ui.envoy-sidecar-container" . | nindent 6}}
+      {{- include "ui.log-agent-sidecar-container" . | nindent 6}}
+      {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      volumes:
+        {{- include "ui.envoy-volumes" . | nindent 8 }}
+        {{- include "ui.log-agent-volumes" . | nindent 8 }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          emptyDir: {}
+        {{- end}}
+        {{- with .Values.services.ui.extraVolumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.ui.serviceName }}
+  labels:
+    app: {{ .Values.services.ui.serviceName }}
+    {{- with .Values.services.ui.service.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.services.ui.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.services.ui.service.type }}
+  type: {{ . }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.services.ui.service.port }}
+      {{- if .Values.sidecars.envoy.enabled }}
+      targetPort: envoy-http
+      {{- else }}
+      targetPort: {{ .Values.services.ui.containerPort }}
+      {{- end }}
+      protocol: {{ .Values.services.ui.service.protocol }}
+      name: {{ .Values.services.ui.service.portName }}
+    {{- range .Values.services.ui.service.extraPorts }}
+    - port: {{ .port }}
+      targetPort: {{ .targetPort | default .port }}
+      protocol: {{ .protocol | default "TCP" }}
+      name: {{ .name }}
+      {{- with .nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
+    {{- end }}
+  selector:
+    app: {{ .Values.services.ui.serviceName }}
+    {{- with .Values.services.ui.service.selector }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.services.ui.serviceName }}
+  annotations:
+    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
+    {{$k}}: {{$v}}
+    {{- end }}
+    {{- if .Values.services.ui.ingress.albAnnotations.enabled}}
+    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.order: "200"
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.services.ui.ingress.ingressClass }}
+  rules:
+  - host: {{ .Values.services.ui.hostname }}
+    http:
+      paths:
+      - path: {{ .Values.services.ui.ingress.prefix }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.ui.serviceName }}
+            port:
+              number: 80
+  {{- if .Values.services.ui.ingress.sslEnabled }}
+  tls:
+  - hosts:
+    - {{ .Values.services.ui.hostname }}
+    secretName: {{.Values.services.ui.ingress.sslSecret }}
+  {{- end }}
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.services.ui.serviceName }}-trpc
+  annotations:
+    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
+    {{$k}}: {{$v}}
+    {{- end }}
+    {{- if .Values.services.ui.ingress.albAnnotations.enabled}}
+    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.order: "50"
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.services.ui.ingress.ingressClass }}
+  rules:
+  - host: {{ .Values.services.ui.hostname }}
+    http:
+      paths:
+      - path: {{ .Values.services.ui.ingress.prefix }}api/refresh
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.ui.serviceName }}
+            port:
+              number: 80
+      - path: {{ .Values.services.ui.ingress.prefix }}api/trpc
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.ui.serviceName }}
+            port:
+              number: 80
+  {{- if .Values.services.ui.ingress.sslEnabled }}
+  tls:
+  - hosts:
+    - {{ .Values.services.ui.hostname }}
+    secretName: {{.Values.services.ui.ingress.sslSecret }}
+  {{- end }}
+
+{{- if .Values.services.ui.scaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.services.ui.serviceName }}
+  labels:
+    app: {{ .Values.services.ui.serviceName }}
+  annotations:
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.services.ui.serviceName }}
+  minReplicas: {{ .Values.services.ui.scaling.minReplicas }}
+  maxReplicas: {{ .Values.services.ui.scaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      container: {{ .Values.services.ui.serviceName }}
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.ui.scaling.hpaTarget }}
+{{- end }}

@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: dev-env
+  resources:
+    default:
+      cpu: 6
+      memory: 16Gi
+      storage: 32Gi
+
+  tasks:
+  - name: dev-env
+    image: nvcr.io/nvidia/base/ubuntu:22.04_20240212
+    command:
+    - /bin/bash
+    args:
+    - /tmp/entry.sh
+    credentials:
+      sshd-keys: /tmp/.ssh
+    files:
+    - path: /tmp/setup_ssh.sh
+      contents: |-
+        set -ex
+
+        # Create target user
+        # Attempt to use gear resume.sh script to create target user
+        if [[ -f /mnt/amlfs-01/resume.sh ]]; then
+          bash /mnt/amlfs-01/resume.sh {{user}}
+        # If script doesn't exist, create user with uid 1000
+        else
+          useradd {{user}} -m -u 1000
+        fi
+
+        # Install sudo and add target user to sudoer group with no password needed
+        apt update
+        apt install -y sudo
+        sudo usermod -aG sudo {{user}}
+        echo '%sudo  ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+        # Install sshd
+        apt install -y openssh-server
+
+        # Create ssh directory for user if it doesnt exist yet
+        USER_HOME=$(echo ~{{user}})
+        if [[ $USER_HOME/.ssh ]]; then
+          su {{user}} -c "mkdir -p $USER_HOME/.ssh"
+        fi
+
+        # Setup authorized keys to allow logging in with key, if the keys don't yet exist
+        CLIENT_PUBLIC_KEY=$(cat /tmp/.ssh/client-public-key)
+        AUTHORIZED_KEYS_FILE=$USER_HOME/.ssh/authorized_keys
+
+        if [[ ! -f $AUTHORIZED_KEYS_FILE ]] && (! grep "$CLIENT_PUBLIC_KEY" "$AUTHORIZED_KEYS_FILE" > /dev/null ); then
+          echo $CLIENT_PUBLIC_KEY | su {{user}} -c "tee -a $AUTHORIZED_KEYS_FILE > /dev/null"
+        fi
+
+        # Setup up sshd server private key so the client will recognize it
+        cp /tmp/.ssh/server-private-key /etc/ssh/ssh_host_ed25519_key
+        cp /tmp/.ssh/server-public-key /etc/ssh/ssh_host_ed25519_key.pub
+
+        # Start sshd
+        mkdir -p /run/sshd
+        /usr/sbin/sshd
+
+    - path: /tmp/entry.sh
+      contents: |-
+        set -ex
+        bash /tmp/setup_ssh.sh
+        sleep infinity
+
+default-values:
+  user: <username>

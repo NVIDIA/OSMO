@@ -1,0 +1,561 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+## Global configuration values shared across all Osmo router service components
+##
+global:
+  ## Base location for Osmo Docker images in the registry
+  ##
+  osmoImageLocation: nvcr.io/nvidia/osmo
+
+  ## Docker image tag for Osmo router service
+  ##
+  osmoImageTag: latest
+
+  ## Name of the Kubernetes secret containing Docker registry credentials
+  ##
+  imagePullSecret: imagepullsecret
+
+  ## Node selector constraints for pod scheduling
+  ##
+  nodeSelector:
+    # Schedule pods only on AMD64 architecture nodes
+    kubernetes.io/arch: amd64
+    # Add additional node selectors here as needed
+    # node-type: cpu
+    # zone: us-west-2a
+
+  ## Logging configuration for all Osmo services
+  ##
+  logs:
+    ## Enable centralized logging collection and log volume mounting
+    ##
+    enabled: true
+
+    ## Application log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    ##
+    logLevel: DEBUG
+
+    ## Kubernetes system log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    ##
+    k8sLogLevel: WARNING
+
+## Configuration for individual Osmo services
+##
+services:
+  ## Configuration file service settings
+  ##
+  configFile:
+    ## Enable external configuration file loading
+    ##
+    enabled: false
+
+    ## Path to the configuration file (used when enabled is true)
+    ##
+    path: /opt/osmo/config.yaml
+
+  ## Router service configuration
+  ##
+  service:
+    ## Horizontal Pod Autoscaler (HPA) configuration
+    ##
+    scaling:
+      ## Minimum number of replicas when scaling is enabled
+      ##
+      minReplicas: 3
+
+      ## Maximum number of replicas when scaling is enabled
+      ##
+      maxReplicas: 5
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      memoryTarget: 80
+
+    ## Docker image name for the router service (without registry or tag)
+    ##
+    imageName: router
+
+    ## Kubernetes image pull policy for the router service
+    ## Options: Always, IfNotPresent, Never
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the router service
+    ##
+    serviceName: osmo-router
+
+    ## Hostname on which the ingress is served
+    ## Leave empty to use the default cluster hostname
+    ##
+    hostname: ""
+
+    ## Enable webserver functionality for wildcard subdomain support
+    ##
+    webserverEnabled: false
+
+    ## Additional command line arguments to pass to the router service
+    ##
+    extraArgs: []
+    # - "--debug"
+    # - "--config=/path/to/config"
+
+    ## Kubernetes service account name for the router service
+    ##
+    serviceAccountName: router
+
+    ## Host aliases for custom DNS resolution within the router pods
+    ##
+    hostAliases: []
+    # - ip: "192.168.1.100"
+    #   hostnames:
+    #   - "example.local"
+
+
+    ## Ingress configuration for external access to the router service
+    ##
+    ingress:
+      ## URL path prefix for all ingress rules
+      ##
+      prefix: /
+
+      ## Ingress controller class to use for routing traffic
+      ##
+      ingressClass: nginx
+
+      ## AWS Application Load Balancer (ALB) specific annotations
+      ##
+      albAnnotations:
+        ## Enable ALB-specific annotations in the ingress
+        ##
+        enabled: false
+
+        ## ARN of the SSL certificate for HTTPS traffic
+        ##
+        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
+
+      ## Enable SSL/TLS encryption for the ingress
+      ##
+      sslEnabled: true
+
+      ## Name of the Kubernetes secret containing SSL/TLS certificates
+      ##
+      sslSecret: osmo-tls
+
+      ## Additional custom annotations for the ingress resource
+      ##
+      annotations: {}
+      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+      # alb.ingress.kubernetes.io/target-type: ip
+
+    ## Node selector constraints for router pod scheduling
+    ## Leave empty to allow scheduling on any node
+    ##
+    nodeSelector: {}
+    # kubernetes.io/os: linux
+    # node-type: cpu
+
+    ## Tolerations for pod scheduling on tainted nodes
+    ## Leave empty to use default tolerations
+    ##
+    tolerations: []
+    # - key: "node-type"
+    #   operator: "Equal"
+    #   value: "cpu"
+    #   effect: "NoSchedule"
+
+    ## Topology spread constraints to distribute pods across nodes/zones
+    ##
+    topologySpreadConstraints:
+    ## Spread pods across different availability zones
+    ##
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Resource limits and requests for the router container
+    ##
+    resources: {}
+    # limits:
+    #   cpu: 1000m
+    #   memory: 1Gi
+    # requests:
+    #   cpu: 500m
+    #   memory: 512Mi
+
+    ## Health check probes for the router container
+    ##
+    livenessProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 30
+
+    startupProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      failureThreshold: 6
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 30
+
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      periodSeconds: 5
+      failureThreshold: 2
+      timeoutSeconds: 30
+
+  ## PostgreSQL database configuration
+  ##
+  postgres:
+    ## PostgreSQL service name for connection
+    ##
+    serviceName: postgres
+
+    ## PostgreSQL service port
+    ##
+    port: 5432
+
+    ## PostgreSQL database name to connect to
+    ##
+    db: osmo
+
+    ## PostgreSQL username for authentication
+    ##
+    user: postgres
+
+    ## PostgreSQL password for authentication (optional, can be provided via kubernetes secret)
+    ##
+    password: ""
+
+## Configuration for sidecar containers
+##
+sidecars:
+  ## Envoy proxy sidecar configuration
+  ##
+  envoy:
+    ## Enable Envoy proxy sidecar container
+    ##
+    enabled: true
+
+    ## Use Kubernetes secrets to store credentials
+    ##
+    useKubernetesSecrets: false
+
+    ## Paths that should skip authentication
+    ##
+    skipAuthPaths:
+      - /api/router/version
+
+    ## Envoy proxy container image
+    ##
+    image: "envoyproxy/envoy:v1.29.0"
+
+    ## Image pull policy for Envoy container
+    ##
+    imagePullPolicy: IfNotPresent
+
+    ## Port on which Envoy proxy listens for incoming requests
+    ##
+    listenerPort: 80
+
+    ## Maximum size of all http headers in kb
+    ##
+    maxHeadersSizeKb: 128
+
+    ## Log level for Envoy proxy
+    ##
+    logLevel: info
+
+    ## Security context for Envoy containers
+    ##
+    securityContext:
+      capabilities:
+        drop: ["NET_RAW"]
+
+    ## Resource limits and requests for Envoy container
+    ##
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "64Mi"
+      limits:
+        memory: "128Mi"
+
+    ## Service configuration for Envoy proxy
+    ##
+    service:
+      ## Port on which the upstream service listens
+      ##
+      port: 8000
+
+      ## Hostname for the Envoy service
+      ##
+      hostname: ""
+
+      ## Local address for service communication
+      ##
+      address: 127.0.0.1
+
+    ## Route configuration for Envoy proxy
+    ##
+    routes:
+    - match:
+        prefix: "/"
+      route:
+        cluster: service
+        timeout: 0s
+
+
+    ## OAuth2 authentication filter configuration
+    ##
+    oauth2Filter:
+      ## Enable OAuth2 authentication for incoming requests
+      ##
+      enabled: true
+
+      ## Forward bearer token to upstream service
+      ##
+      forwardBearerToken: true
+
+      ## OAuth2 token endpoint URL for token exchange
+      ##
+      tokenEndpoint: ""
+
+      ## OAuth2 authorization endpoint URL for user authentication
+      ##
+      authEndpoint: ""
+
+      ## Redirect path for OAuth2 callback after authentication
+      ##
+      redirectPath: api/auth/getAToken
+
+      ## OAuth2 client ID for this application
+      ##
+      clientId: ""
+
+      ## OAuth2 authentication provider identifier
+      ##
+      authProvider: ""
+
+      ## Logout path for ending user sessions
+      ##
+      logoutPath: logout
+
+    ## JWT (JSON Web Token) authentication configuration
+    ##
+    jwt:
+      ## Enable JWT authentication
+      ##
+      enabled: true
+
+      ## HTTP header name where the authenticated user will be set
+      ##
+      user_header: x-osmo-user
+
+      ## List of JWT token providers for authentication
+      ##
+      providers: []
+
+    ## Osmo authentication service configuration
+    ##
+    osmoauth:
+      ## Enable connection to Osmo authentication service
+      ##
+      enabled: true
+
+      ## Port for Osmo authentication service
+      ##
+      port: 80
+
+      ## Hostname for Osmo authentication service
+      ##
+      hostname: ""
+
+      ## Address for Osmo authentication service
+      ##
+      address: osmo-service
+
+    ## Secret paths for OAuth2 secrets (when using Vault)
+    ##
+    secretPaths:
+      clientSecret: /home/osmo/vault-agent/secrets/oidc_secret.txt
+      hmacSecret: /home/osmo/vault-agent/secrets/oidc_hmac.txt
+
+    ## Additional volume mounts for the Envoy container
+    ##
+    extraVolumeMounts: []
+
+    ## Health check probes for Envoy container
+    ##
+    livenessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    startupProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+
+  ## Log agent sidecar configuration for centralized logging on AWS CloudWatch
+  ##
+  logAgent:
+    ## Enable log agent sidecar container
+    ##
+    enabled: true
+
+    ## Log agent container image
+    ##
+    image: "fluent/fluent-bit:4.0.8-debug"
+
+    ## Image pull policy for log agent container
+    ##
+    imagePullPolicy: IfNotPresent
+
+    ## Port for Prometheus metrics
+    ##
+    prometheusPort: 2020
+
+    ## Name of the ConfigMap containing log agent configuration
+    ##
+    configName: router-log-agent-config
+
+    ## Log rotation configuration
+    ##
+    logrotate:
+      ## Enable log rotation for managing log file sizes
+      ##
+      enabled: true
+
+      ## How often to rotate the logs
+      ##
+      frequency: hourly
+
+      ## Log files are rotated when they reach this size
+      ##
+      maxSize: 10M
+
+      ## How many log files to rotate before deleting the oldest one
+      ##
+      rotateCount: 5
+
+
+    ## AWS CloudWatch logging configuration
+    ##
+    cloudwatch:
+
+      ## AWS region for CloudWatch
+      ##
+      region: us-west-2
+
+      ## Cluster name for CloudWatch log grouping
+      ##
+      clusterName: ""
+
+      ## IAM role ARN for CloudWatch access
+      ##
+      role: ""
+
+    ## Resource limits and requests for log agent container
+    ##
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "400Mi"
+      limits:
+        memory: "400Mi"
+
+    ## Additional volume mounts for the log agent container
+    ##
+    extraVolumeMounts: []
+
+    ## Health check probes for log agent container
+    ##
+    livenessProbe:
+      httpGet:
+        path: /api/v1/health
+        port: 2020
+      initialDelaySeconds: 10
+      periodSeconds: 10
+
+    readinessProbe:
+      httpGet:
+        path: /api/v1/health
+        port: 2020
+      initialDelaySeconds: 5
+      periodSeconds: 5
+
+## Additional configurations for extensibility
+##
+extraContainers: []
+# - name: custom-sidecar
+#   image: custom-image:latest
+#   ports:
+#   - containerPort: 8080
+
+extraVolumes: []
+# - name: custom-volume
+#   configMap:
+#     name: custom-config
+
+extraPodLabels: {}
+# custom-label: custom-value
+
+extraPodAnnotations: {}
+# custom-annotation: custom-value
+
+extraEnvs: []
+# - name: CUSTOM_ENV
+#   value: custom-value
+
+extraArgs: []
+# - "--custom-arg=value"
+
+extraPorts: []
+# - name: custom-port
+#   containerPort: 8080
+#   protocol: TCP
+
+extraVolumeMounts: []
+# - name: custom-volume
+#   mountPath: /custom/path
+
+extraConfigMaps: []
+# - name: custom-config
+#   data:
+#     config.yaml: |
+#       key: value
+

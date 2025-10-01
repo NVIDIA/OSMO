@@ -1,0 +1,222 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Namespace }}-config-setup
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "30"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: config-setup
+        image: alpine/curl:8.14.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+
+          apk add --no-cache jq
+
+          BASE_URL="http://{{ .Release.Namespace }}-ingress-nginx-controller.{{ .Release.Namespace }}.svc.cluster.local"
+          echo "Using URL: $BASE_URL"
+
+          echo "Waiting for OSMO service to be ready..."
+          until curl -f $BASE_URL/api/version; do
+            echo "OSMO service not ready, waiting..."
+            sleep 10
+          done
+
+          echo "OSMO service is ready, configuring settings..."
+
+          echo "Configuring OSMO workflow settings..."
+
+          echo "Debug - Container Registry Variables:"
+          echo "CONTAINER_REGISTRY: ${CONTAINER_REGISTRY}"
+          echo "Making PATCH request to /api/configs/workflow..."
+          response=$(curl  --max-time 30 --retry 3 --retry-delay 5 \
+            --fail-with-body \
+            -w "HTTP_STATUS:%{http_code}" \
+            -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/configs/workflow" \
+            -d '{
+              "configs_dict": {
+                "workflow_data": {
+                  "credential": {
+                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                    "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
+                    "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
+                    "region": "'"${OBJECT_STORAGE_REGION}"'"
+                  }
+                },
+                "workflow_log": {
+                  "credential": {
+                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                    "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
+                    "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
+                    "region": "'"${OBJECT_STORAGE_REGION}"'"
+                  }
+                },
+                "workflow_app": {
+                  "credential": {
+                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                    "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
+                    "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
+                    "region": "'"${OBJECT_STORAGE_REGION}"'"
+                  }
+                },
+                "backend_images": {
+                  "init": {
+                    "amd64": "'"${OSMO_IMAGE_LOCATION}"'/init-container:'"${OSMO_IMAGE_TAG}"'",
+                    "arm64": "'"${OSMO_IMAGE_LOCATION}"'/init-container:'"${OSMO_IMAGE_TAG}"'"
+                  },
+                  "client": {
+                    "amd64": "'"${OSMO_IMAGE_LOCATION}"'/client:'"${OSMO_IMAGE_TAG}"'",
+                    "arm64": "'"${OSMO_IMAGE_LOCATION}"'/client:'"${OSMO_IMAGE_TAG}"'"
+                  },
+                  "credential": {
+                    "registry": "'"${CONTAINER_REGISTRY}"'",
+                    "username": "'"${CONTAINER_REGISTRY_USERNAME}"'",
+                    "auth": "'"${CONTAINER_REGISTRY_PASSWORD}"'"
+                  }
+                }
+              },
+              "description": "Set up workflow config for local development"
+            }')
+
+          # Check response
+          http_code=$(echo "$response" | grep -o 'HTTP_STATUS:[0-9]*' | cut -d: -f2)
+          body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
+
+          echo "Workflow config response code: $http_code"
+          if [ "$http_code" -ge 400 ]; then
+            echo "ERROR: Workflow config failed with status $http_code"
+            echo "Response body: $body"
+            exit 1
+          else
+            echo "Workflow config successful"
+          fi
+
+          echo "Configuring pod templates..."
+
+          # Update pod template configuration (PUT /api/configs/pod_template)
+          curl -s -X PUT \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/configs/pod_template" \
+            -d '{
+              "configs": {
+                "default_compute": {
+                  "spec": {
+                    "nodeSelector": {
+                      "node_group": "compute",
+                      "kubernetes.io/arch": "'"${ARCH}"'"
+                    }
+                  }
+                }
+              },
+              "description": "Add compute pod template"
+            }'
+
+          # Update pool with compute template (PATCH /api/configs/pool/default)
+          curl -s -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/configs/pool/default" \
+            -d '{
+              "configs_dict": {
+                "common_pod_template": [
+                  "default_ctrl",
+                  "default_user",
+                  "default_compute"
+                ]
+              },
+              "description": "Add compute pod template"
+            }'
+
+          echo "Configuring dataset settings..."
+
+          # Update dataset configuration (PATCH /api/configs/dataset)
+          curl -s -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/configs/dataset" \
+            -d '{
+              "configs_dict": {
+                "buckets": {
+                  "osmo": {
+                    "dataset_path": "'"${OBJECT_STORAGE_ENDPOINT}"'/datasets"
+                  }
+                },
+                "default_bucket": "osmo"
+              },
+              "description": "Add dataset bucket"
+            }'
+
+          echo "Configuring service settings..."
+
+          # Update service configuration (PATCH /api/configs/service)
+          curl -s -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/configs/service" \
+            -d '{
+              "configs_dict": {
+                "service_base_url": "'"$BASE_URL"'"
+              },
+              "description": "Update service base url"
+            }'
+
+          echo "Setting default pool..."
+
+          # Set default pool (POST /api/profile/settings)
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/profile/settings" \
+            -d '{
+              "pool": "default"
+            }'
+
+          echo "OSMO configuration completed successfully!"
+        env:
+        - name: OBJECT_STORAGE_ENDPOINT
+          value: {{ .Values.global.objectStorage.endpoint | quote }}
+        - name: OBJECT_STORAGE_ACCESS_KEY_ID
+          value: {{ .Values.global.objectStorage.accessKeyId | quote }}
+        - name: OBJECT_STORAGE_ACCESS_KEY
+          value: {{ .Values.global.objectStorage.accessKey | quote }}
+        - name: OBJECT_STORAGE_REGION
+          value: {{ .Values.global.objectStorage.region | quote }}
+        - name: CONTAINER_REGISTRY
+          value: {{ .Values.global.containerRegistry.registry | quote }}
+        - name: CONTAINER_REGISTRY_USERNAME
+          value: {{ .Values.global.containerRegistry.username | quote }}
+        - name: CONTAINER_REGISTRY_PASSWORD
+          value: {{ .Values.global.containerRegistry.password | quote }}
+        - name: OSMO_IMAGE_LOCATION
+          value: {{ .Values.global.osmoImageLocation | quote }}
+        - name: OSMO_IMAGE_TAG
+          value: {{ .Values.global.osmoImageTag | quote }}
+        - name: ARCH
+          value: {{ index .Values.global.nodeSelector "kubernetes.io/arch" | quote }}

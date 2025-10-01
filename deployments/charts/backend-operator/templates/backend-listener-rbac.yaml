@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.global.enableClusterRoles }}
+
+{{$name := or .Values.global.name .Release.Name }}
+
+# Backend Listener Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: {{ .Values.global.agentNamespace }}
+  name: {{ include "backend-operator.listener.serviceAccountName" . }}
+---
+# Role for Backend Listener (Namespace-scoped events)
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-listener-events
+  namespace: {{ .Values.global.backendNamespace }}
+rules:
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["list", "watch", "get"]
+---
+# ClusterRole for Backend Listener (Cluster-scoped resources)
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-listener
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["list", "watch", "get"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+{{- if or .Values.services.backendListener.enableNodeLabelUpdate }}
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["patch"]
+{{- end }}
+---
+# RoleBinding for Backend Listener Events
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-listener-events
+  namespace: {{ .Values.global.backendNamespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "backend-operator.listener.serviceAccountName" . }}
+  namespace: {{ .Values.global.agentNamespace }}
+roleRef:
+  kind: Role
+  name: {{ $name }}-listener-events
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClusterRoleBinding for Backend Listener
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-listener
+subjects:
+- kind: ServiceAccount
+  name: {{ include "backend-operator.listener.serviceAccountName" . }}
+  namespace: {{ .Values.global.agentNamespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ $name }}-listener
+  apiGroup: rbac.authorization.k8s.io
+
+{{- end }}

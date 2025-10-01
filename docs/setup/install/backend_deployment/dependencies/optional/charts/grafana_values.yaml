@@ -1,0 +1,577 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+grafana:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - example.com
+    path: /grafana
+    tls:
+    - secretName: osmo-tls
+      hosts:
+      - example.com
+
+  # Enable persistence
+  persistence:
+    enabled: true
+    storageClassName: ""
+    annotations:
+      helm.sh/resource-policy: keep
+
+  # Set up Azure AD OAuth 2
+  grafanaProtocol: https
+  envFromSecrets:
+  - name: gf-generic-oauth
+
+  # dashboardProviders:
+  #   dashboardproviders.yaml:
+  #     apiVersion: 1
+  #     providers:
+  #     - name: osmo-backend
+  #       orgId: 1
+  #       folder: OSMO
+  #       type: file
+  #       disableDeletion: false
+  #       editable: true
+  #       options:
+  #         path: /var/lib/grafana/dashboards/osmo-backend
+
+  # dashboards:
+  #   osmo-backend:
+  #     workflow-resources-metrics-dashboard:
+  #       file: dashboards/workflow-resources-metrics.json
+  datasources:
+    defaultDatasourceEnabled: true
+
+  alerting:
+    rules.yaml:
+      apiVersion: 1
+      groups:
+        - orgId: 1
+          name: Node
+          folder: OSMO
+          interval: 60s
+          rules:
+          - uid: OSMOBackendKubeNodeUnreachable
+            title: OSMOBackendKubeNodeUnreachable
+            condition: C
+            data:
+            - refId: A
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: prom_backend_cluster
+              model:
+                editorMode: code
+                expr: "(kube_node_spec_taint{effect=\"NoSchedule\",job=\"kube-state-metrics\",key=\"node.kubernetes.io/unreachable\"} unless ignoring (key, value) kube_node_spec_taint{job=\"kube-state-metrics\",key=~\"ToBeDeletedByClusterAutoscaler|cloud.google.com/impending-node-termination|aws-node-termination-handler/spot-itn\"}) == 1"
+                hide: false
+                intervalMs: 1000
+                legendFormat: "__auto"
+                maxDataPoints: 43200
+                range: true
+                refId: A
+            - refId: B
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                  - evaluator:
+                      params: []
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - B
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: "__expr__"
+                  uid: "-100"
+                expression: A
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: B
+                type: reduce
+            - refId: C
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: "__expr__"
+                  uid: "-100"
+                expression: B
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+            updated: "2023-07-21T07:10:17Z"
+            noDataState: OK
+            execErrState: Error
+            for: "5m"
+            annotations:
+              description: '{{ "{{" }}  $labels.node }} is unreachable and some workloads may be rescheduled'
+              summary: Node is unreachable.
+            labels:
+              cluster: backend
+              severity: critical
+              env: production
+          - uid: OSMOBackendKubeNodeNotReady
+            title: OSMOBackendKubeNodeNotReady
+            condition: C
+            data:
+            - refId: A
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: prom_backend_cluster
+              model:
+                editorMode: code
+                expr: "kube_node_status_condition{condition=\"Ready\",job=\"kube-state-metrics\",status=\"true\"} == 0"
+                hide: false
+                intervalMs: 1000
+                legendFormat: "__auto"
+                maxDataPoints: 43200
+                range: true
+                refId: A
+            - refId: B
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                  - evaluator:
+                      params: []
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - B
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: "__expr__"
+                  uid: "-100"
+                expression: A
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: B
+                type: reduce
+            - refId: C
+              queryType: ""
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                  - evaluator:
+                      params:
+                        - 0
+                      type: gt
+                    operator:
+                      type: and
+                    query:
+                      params:
+                        - C
+                    reducer:
+                      params: []
+                      type: last
+                    type: query
+                datasource:
+                  type: "__expr__"
+                  uid: "-100"
+                expression: B
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+            updated: "2023-07-21T07:10:17Z"
+            noDataState: OK
+            execErrState: Error
+            for: "15m"
+            annotations:
+              description: '{{ "{{" }} $labels.node }} has been unready for more than 15 minutes.'
+              summary: Node is not ready.
+            labels:
+              cluster: backend
+              severity: critical
+              env: production
+        - orgId: 1
+          name: Pod
+          folder: OSMO
+          interval: 60s
+          rules:
+          - uid: OSMOBackendKubePodCrashLooping
+            title: OSMOBackendKubePodCrashLooping
+            condition: C
+            data:
+            - refId: A
+              queryType: ''
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: prom_backend_cluster
+              model:
+                editorMode: code
+                expr: max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace="default",reason="CrashLoopBackOff"}[5m])
+                  >= 1
+                hide: false
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: true
+                refId: A
+            - refId: B
+              queryType: ''
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                    - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+                datasource:
+                  type: __expr__
+                  uid: "-100"
+                expression: A
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: B
+                type: reduce
+            - refId: C
+              queryType: ''
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                - evaluator:
+                    params:
+                    - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                    - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+                datasource:
+                  type: __expr__
+                  uid: "-100"
+                expression: B
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            annotations:
+              description: 'Pod {{ "{{" }} $labels.namespace }}/{{ "{{" }} $labels.pod }} ({{ "{{" }} $labels.container
+                }}) is in waiting state (reason: \"CrashLoopBackOff\").'
+              summary: Pod is crash looping.
+            labels:
+              cluster: backend
+              severity: critical
+              env: production
+          - uid: OSMOBackendKubePodNotReady
+            title: OSMOBackendKubePodNotReady
+            condition: C
+            data:
+            - refId: A
+              queryType: ''
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: prom_backend_cluster
+              model:
+                editorMode: code
+                expr: sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace="default",phase=~"Pending|Unknown|Failed"})
+                  * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace,
+                  pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"})))
+                  > 0
+                hide: false
+                intervalMs: 1000
+                legendFormat: __auto
+                maxDataPoints: 43200
+                range: true
+                refId: A
+            - refId: B
+              queryType: ''
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                    - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+                datasource:
+                  type: __expr__
+                  uid: "-100"
+                expression: A
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                reducer: last
+                refId: B
+                type: reduce
+            - refId: C
+              queryType: ''
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: "-100"
+              model:
+                conditions:
+                - evaluator:
+                    params:
+                    - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                    - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+                datasource:
+                  type: __expr__
+                  uid: "-100"
+                expression: B
+                hide: false
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+            updated: '2023-07-21T08:40:04Z'
+            noDataState: OK
+            execErrState: Error
+            for: 12h
+            annotations:
+              description: 'Pod {{ "{{" }} $labels.namespace }}/{{ "{{" }} $labels.pod }} has been in
+                a non-ready state for longer than 12 hours.'
+              summary: Pod has been in a non-ready state for more than 12 hours.
+            labels:
+              cluster: backend
+              severity: critical
+              env: production
+    templates.yaml:
+      apiVersion: 1
+      templates:
+        - orgID: 1
+          name: slack
+          template: |-
+            {{ "{{" }}  define "slack.text" }}
+              {{ "{{" }}  range .Alerts }}
+                {{ "{{" }} if gt (len .Annotations) 0 }}
+                *Summary*: {{ "{{" }} .Annotations.summary }}
+                *Description*: {{ "{{" }} .Annotations.description }}
+                *Labels*:
+                {{ "{{" }} range .Labels.SortedPairs }}{{ "{{" }} if or (eq .Name "alertname") (eq .Name "cluster") (eq .Name "rulename") (eq .Name "severity") }}• {{ "{{" }} .Name }}: `{{ "{{" }} .Value }}`
+                {{ "{{" }} end }}{{ "{{" }} end }}
+                {{ "{{" }}  end }}
+              {{ "{{" }}  end }}
+            {{ "{{" }}  end }}
+
+            {{ "{{" }} define "alert_severity_prefix_emoji" }}
+              {{ "{{" }} if ne .Status "firing" }}
+                :white_check_mark:
+              {{ "{{" }} else if eq .CommonLabels.severity "critical" }}
+                :red_circle:
+              {{ "{{" }} else if eq .CommonLabels.severity "warning" }}
+                :warning:
+              {{ "{{" }} end }}
+            {{ "{{" }} end }}
+
+            {{ "{{" }} define "slack.title" }}
+              {{ "{{" }} template "alert_severity_prefix_emoji" . }}[{{ "{{" }} .Status | toUpper }}{{ "{{" }} if eq .Status "firing" }} x {{ "{{" }} .Alerts.Firing | len }}{{ "{{" }} end }}  | {{ "{{" }} .CommonLabels.env | toUpper }}]
+            {{ "{{" }} end }}
+
+  grafana.ini:
+    server:
+      domain: example.com
+      protocol: http
+      root_url: "https://%(domain)s/grafana/"
+      serve_from_sub_path: true
+    auth:
+      disable_login_form: true
+    auth.basic:
+      enabled: false
+    auth.generic_oauth:
+      name: Keycloak
+      enabled: true
+      allow_sign_up: true
+      auto_login: false
+      client_id: cluster-browser-flow
+      client_secret: ""
+      scopes: openid email offline_access
+      empty_scopes: false
+      auth_url: https://example.com/realms/osmo/protocol/openid-connect/auth
+      token_url: https://example.com/realms/osmo/protocol/openid-connect/token
+      api_url: https://example.com
+      tls_skip_verify_insecure: false
+      use_pkce: true
+      role_attribute_strict: true
+      role_attribute_path: contains(roles[*], 'grafana-admin') && 'Admin' || contains(roles[*], 'grafana-admin') && 'Editor' || contains(roles[*], 'grafana-user') && 'Viewer'
+
+  sidecar:
+    dashboards:
+      label: grafana_dashboard
+      provider:
+        foldersFromFilesStructure: true
+      folderAnnotation: grafana_folder
+
+  service-sidecar:
+    envoy:
+      enabled: false
+
+    vault:
+      enabled: false
+
+  tolerations:
+    # Following toleration is added to allow for the prometheus pod to be scheduled on
+    - key: node-role.kubernetes.io/control-plane
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: node-role.kubernetes.io/worker
+      operator: "Exists"
+      effect: "NoSchedule"
+
+  storageSpec:
+    ## Using PersistentVolumeClaim
+    ##
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ""
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+prometheus:
+  ingress:
+    enabled: false
+  prometheusSpec:
+    retention: 10d
+    tolerations:
+    # Following toleration is added to allow for the prometheus pod to be scheduled on
+    - key: node-role.kubernetes.io/control-plane
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: node-role.kubernetes.io/worker
+      operator: "Exists"
+      effect: "NoSchedule"
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    additionalScrapeConfigs:
+    - job_name: gpu-metrics
+      scrape_interval: 1s
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names:
+          - gpu-operator
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        action: replace
+        target_label: kubernetes_node
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ""
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+    resources:
+      limits:
+        cpu: 300m
+        memory: 6Gi
+      requests:
+        cpu: 200m
+        memory: 4Gi

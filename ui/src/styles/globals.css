@@ -1,0 +1,419 @@
+/*
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+@import "tailwindcss";
+@import "material-icons/iconfont/material-icons.css";
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@theme {
+  --breakpoint-3xl: 120rem;
+  --breakpoint-4xl: 140rem;
+
+  --color-text: black;
+  --color-bg: #f4f4f4;
+  --color-border: lightgray;
+  --color-footerbg: #f0f0f0;
+  --color-headerbg: #f0f0f0;
+  --color-brand: #76b900;
+
+  --color-pool-text: #2a63ba;
+  --color-pool-bg: #e9f4fb;
+  --color-pool-text-reversed: white;
+  --color-pool-bg-reversed: #2a63ba;
+  --color-platform-text: #642f0a;
+  --color-platform-bg: #f3e9d5;
+  --color-dataset-text: #8c3ca0;
+  --color-dataset-bg: #fbeefe;
+  --color-collection-text: #006b5e;
+  --color-collection-bg: #e1f7f3;
+  --color-tag-text: #335608;
+  --color-tag-bg: #ecfad9;
+  --color-tag-bg-completed: #2e7d32;
+  --color-tag-text-completed: white;
+  --color-error-text: #b6251b;
+  --color-error-bg: #ffefed;
+  --color-error-text-reversed: white;
+  --color-error-bg-reversed: #b6251b;
+  --color-pending-text: #924c00;
+  --color-pending-bg: white;
+  --color-pending-bg-reversed: #f9f4ca;
+  --color-pending-text-reversed: #924c00;
+  --color-neutral-bg: white;
+  --color-neutral-text: black;
+  --color-neutral-bg-reversed: black;
+  --color-neutral-text-reversed: white;
+  --color-inline-link-text: darkgreen;
+}
+
+@layer base {
+  body {
+    @apply font-['Nvidia_Sans','Nvidia_Sans_Fallback'] bg-bg text-text text-sm;
+  }
+
+  h1 {
+    @apply text-xl font-bold px-0 py-3;
+  }
+
+  h2 {
+    @apply text-lg font-bold px-0 py-2;
+  }
+
+  h3 {
+    @apply text-lg font-bold px-0 py-2;
+  }
+
+  h4 {
+    @apply text-lg font-bold px-0 py-1;
+  }
+
+  a {
+    @apply p-1 hover:cursor-pointer underline;
+  }
+
+  button {
+    @apply hover:cursor-pointer;
+  }
+
+  table {
+    @apply w-full;
+  }
+
+  td,
+  th {
+    @apply p-2 border-b-1 border-border text-start;
+  }
+
+  select,
+  input[type="number"],
+  input[type="text"],
+  input[type="search"],
+  input[type="date"],
+  input[type="password"] {
+    @apply p-1 rounded-none! border-1 border-border focus-visible:outline-none focus-visible:border-b-2 focus-visible:border-b-brand focus:bg-gray-50 text-sm;
+  }
+
+  label,
+  legend {
+    @apply text-xs whitespace-nowrap;
+  }
+
+  legend {
+    @apply contents;
+  }
+
+  ul {
+    @apply list-disc list-inside;
+  }
+
+  li {
+    @apply mt-1;
+  }
+
+  textarea {
+    @apply resize-none font-mono;
+  }
+
+  dl {
+    @apply m-0 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-2 text-sm items-start;
+  }
+
+  dt {
+    @apply p-0 font-bold break-words;
+  }
+
+  dd {
+    @apply p-0 mb-3 md:mb-0 break-words;
+  }
+}
+
+@layer components {
+  .text-xxs {
+    font-size: 0.65rem;
+    line-height: 0.65rem;
+  }
+
+  .btn {
+    @apply py-1 px-2 rounded-sm border-1 text-text border-text text-sm hover:opacity-90 focus-visible:outline-2 flex items-center gap-2 min-h-8 disabled:opacity-70 no-underline disabled:cursor-not-allowed outline-offset-0;
+  }
+
+  .btn-primary {
+    @apply bg-brand border-brand;
+  }
+
+  .btn-tertiary {
+    @apply bg-transparent border-transparent hover:bg-transparent text-start;
+  }
+
+  .btn-link {
+    @apply bg-transparent border-transparent underline p-1 hover:bg-transparent text-start;
+  }
+
+  .btn-action {
+    @apply bg-transparent border-transparent hover:border-gray-400 p-0 min-h-auto text-start no-underline;
+  }
+
+  /* TODO: Match select */
+  .btn-dropdown {
+    @apply p-1 rounded-none border-1 border-border focus-visible:outline-none focus-visible:border-b-2 focus-visible:border-b-brand focus:bg-gray-50 text-sm;
+  }
+
+  .dag-details-body {
+    @apply flex flex-col h-full justify-between;
+
+    ul {
+      @apply m-0 p-0;
+
+      li {
+        @apply list-none;
+      }
+    }
+
+    label {
+      @apply font-bold text-sm;
+    }
+
+    p {
+      @apply break-words;
+    }
+  }
+
+  .dag-actions {
+    @apply px-3 py-1 w-full grid lg:grid-cols-2 gap-1;
+  }
+
+  .btn-badge {
+    @apply bg-transparent border-none hover:bg-transparent p-0 rounded-md min-h-auto;
+  }
+
+  .tag-container {
+    @apply rounded-md p-0 no-underline inline-block border-1 border-transparent;
+  }
+
+  .tag-container-round {
+    @apply rounded-full p-0 no-underline inline-block border-1 border-transparent;
+  }
+
+  button.tag-container,
+  a.tag-container,
+  button.tag-container-round,
+  a.tag-container-round {
+    @apply hover:border-gray-400!;
+  }
+
+  .page-header {
+    @apply flex items-center justify-between p-3 border-b border-border bg-white;
+
+    h1 {
+      @apply text-ellipsis overflow-hidden text-lg font-semibold p-0 m-0;
+    }
+  }
+
+  .body-component {
+    @apply bg-white border-1 border-border shadow-md shadow-neutral-400/50;
+  }
+
+  .body-header {
+    @apply bg-headerbg border-b-1 border-border;
+  }
+  .body-footer {
+    @apply bg-footerbg border-t border-border;
+  }
+
+  .workflow-details-slideout {
+    @apply h-full w-[25vw] max-w-120;
+  }
+
+  .popup-header {
+    @apply flex flex-row justify-between items-center px-3 py-2 gap-3;
+
+    button {
+      @apply hover:opacity-90;
+    }
+
+    h2 {
+      @apply text-sm p-0 whitespace-nowrap overflow-hidden text-ellipsis;
+    }
+  }
+  .brand-header {
+    @apply bg-brand border-b-0;
+  }
+
+  .card {
+    @apply flex flex-col border-1 border-border shadow-sm shadow-neutral-400/50;
+
+    ul {
+      @apply m-0 p-0;
+
+      li {
+        @apply list-none mb-3 border-b border-gray-300 pb-3 overflow-hidden text-ellipsis;
+      }
+    }
+  }
+
+  .dl-with-sections {
+    @apply mt-3;
+
+    dt {
+      @apply ml-3;
+    }
+  }
+
+  .table-action {
+    @apply text-sm! px-1 py-0 min-h-0 text-start border-gray-400 hover:border-black;
+  }
+
+  .modal-footer {
+    @apply flex flex-row w-full justify-end gap-3 p-3 bg-footerbg border-t border-border;
+  }
+
+  .link-inline {
+    @apply text-[var(--color-inline-link-text)] underline p-0;
+  }
+
+  .menu {
+    a {
+      text-decoration: none;
+    }
+  }
+
+  .chonky-chonkyRoot {
+    border: 0 !important;
+  }
+
+  .breadcrumbs {
+    @apply text-base;
+
+    a {
+      @apply no-underline;
+    }
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@keyframes hide {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(calc((100% + var(--viewport-padding)) * -1));
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes swipeOut {
+  from {
+    transform: translateY(var(--radix-toast-swipe-end-x));
+  }
+
+  to {
+    transform: translateY(calc(100% + var(--viewport-padding)));
+  }
+}
+
+.editor:focus {
+  outline: none;
+  border: none;
+}
+
+.xterm-screen div {
+  overflow: unset !important;
+  overflow-x: visible !important;
+}
+
+.xterm {
+  padding: 5px;
+}
+
+.term-container * {
+  font-family: monospace !important;
+  font-size: 14px !important;
+}
+
+.xterm-decoration-top {
+  background-color: #ffff00c0 !important;
+  color: black !important;
+}
+
+.flow-sidebar {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  width: 400px;
+  border: 1px solid var(--colors-displayBorderHigh);
+  background-color: var(--colors-displayBgHigh) !important;
+  box-shadow: 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.react-flow__node-input,
+.react-flow__node-output {
+  height: 60px !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 4px !important;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--colors-displayBgHigh) !important;
+  color: var(--colors-displayFgLowPrimary) !important;
+}
+
+.react-flow__node-text {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.react-flow__panel {
+  margin: 0 !important;
+}
+
+.react-flow__controls-button {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.react-flow__node-input.selected {
+  background-color: var(--color-brand) !important;
+}
+
+div[role="main"] {
+  button[aria-expanded="true"]:not([role="switch"]),
+  button[aria-selected="true"]:not([role="switch"]),
+  button[aria-pressed="true"]:not([role="switch"]),
+  button[aria-checked="true"]:not([role="switch"]) {
+    border-radius: 4px;
+    outline: 2px solid var(--colors-displayFgLowPrimary) !important;
+  }
+}

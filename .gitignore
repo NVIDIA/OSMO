@@ -1,0 +1,29 @@
+# Ignore bazel cache files
+bazel-*
+MODULE.bazel.lock
+
+# Ignore python cache files
+**/__pycache__
+
+# Ignore helm chart lock files and downloaded dependencies
+*.tgz
+**/Chart.lock
+
+# Ignore Intelij config files
+.idea
+
+# Ignore Sphinx build outputs
+docs/**/_build/
+docs/**/domain_config.js
+
+.DS_Store
+._.DS_Store
+
+# Allow tarfiles stored in docs
+!docs/**/*.tgz
+
+.cursor
+
+.pnpm-store
+
+.ruff_cache

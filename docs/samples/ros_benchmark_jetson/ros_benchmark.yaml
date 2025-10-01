@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: ros-benchmark-arm64
+  tasks:
+  # Run Apriltag Detection with ROS2 Benchmark
+  - name: ros-benchmark-sample
+    image: arm64v8/ros:humble
+    lead: true
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        # Install dependencies, build ROS2 packages, and download benchmarking assets
+        bash /install_dependencies.sh
+        export R2B_WS_HOME=/workspaces/isaac_ros-dev
+
+        source /opt/ros/humble/setup.bash
+        source $R2B_WS_HOME/install/setup.bash
+        launch_test $R2B_WS_HOME/src/ros2_benchmark/scripts/apriltag_ros_apriltag_node.py
+    - path: /install_dependencies.sh
+      localpath: scripts/install_dependencies.sh
+  # Define a resource that uses a Jetson (ARM64 machine)
+  resources:
+    default:
+      cpu: 7
+      platform: <platform>
+      memory: 16Gi
+      storage: 20Gi

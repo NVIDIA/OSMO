@@ -1,0 +1,332 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{/* Create a copy of the shared sidecar config values */}}
+{{ $serviceSidecarValues := deepCopy .Values.sidecars }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.services.service.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.services.service.serviceName }}
+      annotations:
+        {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
+        {{- if .Values.sidecars.otel.enabled }}
+        sidecar.opentelemetry.io/inject: "true"
+      {{- end}}
+    spec:
+      {{- with .Values.services.service.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      topologySpreadConstraints:
+      {{- range .Values.services.service.topologySpreadConstraints }}
+      - topologyKey: {{.topologyKey }}
+        {{- range $key, $value := . }}
+        {{- if ne $key "topologyKey" }}
+        {{$key}}: {{$value}}
+        {{- end }}
+        {{- end }}
+        labelSelector:
+          matchLabels:
+            app: {{ $.Values.services.service.serviceName }}
+      {{- end }}
+      nodeSelector:
+        {{- range $k, $v := .Values.global.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+        {{- range $k, $v := .Values.services.service.nodeSelector}}
+        {{ $k }}: {{ $v }}
+        {{- end}}
+      tolerations:
+      {{ toYaml .Values.services.service.tolerations | nindent 8 }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.service.serviceAccountName "Values" .Values) }}
+      containers:
+      - name: {{ .Values.services.service.serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.service.imageName }}:{{ .Values.global.osmoImageTag }}
+        command:
+        - service
+        args:
+        - --metrics_otel_collector_component
+        - {{ .Values.services.service.serviceName }}
+        - --metrics_otel_enable
+        - {{ .Values.sidecars.otel.enabled | quote }}
+        - --redis_host
+        - {{ .Values.services.redis.serviceName }}
+        - --redis_port
+        - {{ .Values.services.redis.port | quote }}
+        - --redis_db_number
+        - {{ .Values.services.redis.dbNumber | quote }}
+        {{- if .Values.services.redis.tlsEnabled }}
+        - --redis_tls_enable
+        - "true"
+        {{- end}}
+        - --postgres_host
+        - {{ .Values.services.postgres.serviceName }}
+        - --postgres_port
+        - {{ .Values.services.postgres.port | quote }}
+        - --postgres_database_name
+        - {{ .Values.services.postgres.db}}
+        {{- if .Values.services.configFile.enabled }}
+        - --mek_file
+        - {{ .Values.services.configFile.path }}
+        {{- end }}
+        {{- range .Values.services.service.extraArgs }}
+        - {{ . }}
+        {{- end }}
+        {{- if .Values.services.postgres.user }}
+        - --postgres_user
+        - {{ .Values.services.postgres.user }}
+        {{- end }}
+        {{- if .Values.services.service.auth.enabled }}
+        - --device_endpoint
+        - {{ .Values.services.service.auth.device_endpoint }}
+        - --device_client_id
+        - {{ .Values.services.service.auth.device_client_id }}
+        - --browser_endpoint
+        - {{ .Values.services.service.auth.browser_endpoint }}
+        - --browser_client_id
+        - {{ .Values.services.service.auth.browser_client_id }}
+        - --token_endpoint
+        - {{ .Values.services.service.auth.token_endpoint }}
+        - --logout_endpoint
+        - {{ .Values.services.service.auth.logout_endpoint }}
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - --log_level
+        - {{ .Values.global.logs.logLevel }}
+        - --k8s_log_level
+        - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_dir
+        - /logs
+        - --log_name
+        - api_service
+        {{- end }}
+        {{- range $arg := .Values.services.service.extraArgs }}
+        - {{$arg}}
+        {{- end }}
+        env:
+        - name: OSMO_DISABLE_TASK_METRICS
+          value: {{ .Values.services.service.disableTaskMetrics | quote }}
+        {{- include "osmo.extra-env" .Values.services.service | nindent 8 }}
+        {{- if .Values.services.postgres.password }}
+        - name: OSMO_POSTGRES_PASSWORD
+          value: {{ .Values.services.postgres.password }}
+        {{- else if .Values.services.configFile.enabled }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        - name: OSMO_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: redis-password
+        {{- end }}
+        imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.service.extraVolumeMounts }}
+        volumeMounts:
+        {{- end }}
+        {{- if .Values.services.configFile.enabled}}
+        - mountPath: {{ .Values.services.configFile.path }}
+          name: mek-volume
+          subPath: mek.yaml
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          mountPath: /logs
+        {{- end }}
+        {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
+        resources:
+        {{- toYaml .Values.services.service.resources | nindent 10 }}
+
+        # Any failure to return the version api means the service is in a bad state
+        livenessProbe:
+        {{- toYaml .Values.services.service.livenessProbe | nindent 10 }}
+
+
+        # Give the container 30 seconds to startup
+        startupProbe:
+          httpGet:
+            port: 8000
+            path: /api/version
+          failureThreshold: 6
+          periodSeconds: 5
+          timeoutSeconds: 3
+          initialDelaySeconds: 5
+
+        # Do a basic database read operation to ensure the service is able to serve traffic
+        readinessProbe:
+          httpGet:
+            port: 8000
+            path: /api/workflow?limit=0&all_pools=true
+            httpHeaders:
+            - name: x-osmo-roles
+              value: osmo-admin
+          periodSeconds: 45
+          failureThreshold: 3
+          timeoutSeconds: 20
+
+      {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
+      {{- if .Values.sidecars.otel.enabled }}
+      {{- include "osmo.otel-sidecar-container" . | nindent 6}}
+      {{- end }}
+      {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
+      {{- if .Values.sidecars.rateLimit.enabled }}
+      {{- include "osmo.rate-limit-sidecar-container" . | nindent 6}}
+      {{- end }}
+      {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
+      volumes:
+        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.service.serviceName "Values" .Values) | nindent 8 }}
+        {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
+        {{- if .Values.sidecars.otel.enabled }}
+        {{- include "osmo.otel-volumes" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          emptyDir: {}
+          {{- include "osmo.log-agent-volumes" . | nindent 8 }}
+        {{- end}}
+        {{- if .Values.sidecars.rateLimit.enabled }}
+        {{- include "osmo.rate-limit-volumes" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.services.configFile.enabled}}
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: mek.yaml
+              path: mek.yaml
+            name: mek-config
+          name: mek-volume
+        {{- end}}
+---
+{{- if .Values.sidecars.envoy.enabled }}
+
+{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.service.serviceName "Values" .Values "Release" .Release) }}
+---
+{{- end }}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+spec:
+  ports:
+    - port: 80
+      targetPort: {{ include "service.targetPort" . }}
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.services.service.serviceName }}
+
+---
+
+{{- if .Values.sidecars.envoy.inClusterPaths.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.service.serviceName }}-internal
+  labels:
+    app: {{ .Values.services.service.serviceName }}-internal
+spec:
+  ports:
+    - port: 80
+      targetPort: internal-http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.services.service.serviceName }}
+{{- end }}
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  annotations:
+    {{- range $k, $v := .Values.services.service.ingress.annotations }}
+    {{$k}}: {{$v}}
+    {{- end }}
+    {{- if .Values.services.service.ingress.albAnnotations.enabled}}
+    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.order: "100"
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.services.service.ingress.ingressClass }}
+  rules:
+  - host: {{ .Values.services.service.hostname }}
+    http:
+      paths:
+      - path: {{ .Values.services.service.ingress.prefix }}api
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.service.serviceName }}
+            port:
+              number: 80
+      - path: {{ .Values.services.service.ingress.prefix }}client
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Values.services.service.serviceName }}
+            port:
+              number: 80
+  {{- if .Values.services.service.ingress.sslEnabled }}
+  tls:
+  - hosts:
+    - {{ .Values.services.service.hostname }}
+    secretName: {{.Values.services.service.ingress.sslSecret }}
+  {{- end }}
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.services.service.serviceName }}
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+  annotations:
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.services.service.serviceName }}
+  minReplicas: {{ .Values.services.service.scaling.minReplicas }}
+  maxReplicas: {{ .Values.services.service.scaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: {{ .Values.services.service.serviceName }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.service.scaling.hpaTarget }}

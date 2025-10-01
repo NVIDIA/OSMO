@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: gitlab
+  resources:
+    default:
+      cpu: 2
+      memory: 4Gi
+      storage: 32Gi
+
+  # This workflow will automatically end after 10 minutes
+  timeout:
+    exec_timeout: 10m
+
+  tasks:
+  - args:
+    - /tmp/entry.sh
+    command:
+    - /bin/bash
+    credentials:
+      gitlab-pat: /tmp/gitlab
+    files:
+    - path: /tmp/setup_gitlab_auth.sh
+      contents: |-
+        GITLAB_PAT=$(cat /tmp/gitlab/gitlab-pat)
+
+        # Configure git to use the PAT for authentication
+        git config --global credential.helper store
+        echo "https://token:${GITLAB_PAT}@gitlab-master.nvidia.com" > ~/.git-credentials
+        git config --global credential.helper 'store --file ~/.git-credentials'
+
+    - path: /tmp/entry.sh
+      contents: |-
+        # Install git
+        set -e
+        apt update
+        apt install -y git
+
+        # Setup authentication for gitlab
+        bash /tmp/setup_gitlab_auth.sh
+
+        # Clone a repo
+        cd ~
+        git clone {{repo}}
+        ls
+
+        # Wait for user to exec
+        echo "Done cloning!"
+        sleep infinity
+
+      path: /tmp/entry.sh
+
+    image: ubuntu:22.04
+    name: gitlab
+
+default-values:
+  repo: https://gitlab-master.nvidia.com/<my-project>/<my-repo>.git

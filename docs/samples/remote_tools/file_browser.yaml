@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Run osmo workflow port-forward <workflow ID> browser --port 8080 to see the dashboard
+
+version: 2
+workflow:
+  name: file-browser
+  resources:
+    default:
+      cpu: 1
+      memory: 2Gi
+  tasks:
+  - args:
+    - /tmp/entry.sh
+    command:
+    - /bin/bash
+    files:
+    - contents: |-
+        curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+        filebrowser -r /workspace/examples # replace with your desired path
+      path: /tmp/entry.sh
+    image: nvcr.io/nvidia/pytorch:23.10-py3@sha256:37dbdcf2ee55b570ab855161ab7c48184f83df81da5640d9ea6c3dd2b4418875
+    name: browser

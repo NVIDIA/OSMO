@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.global.enableClusterRoles }}
+
+{{$name := or .Values.global.name .Release.Name }}
+
+# Backend Worker Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: {{ .Values.global.agentNamespace }}
+  name: {{ include "backend-operator.worker.serviceAccountName" . }}
+---
+# ClusterRole for Backend Worker (Cluster-scoped resources)
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-worker
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+{{- if .Values.global.schedulers.kai.enabled }}
+- apiGroups: ["scheduling.run.ai"]
+  resources: ["queues"]
+  verbs: ["list", "delete", "create", "update", "get"]
+{{- end }}
+---
+# ClusterRoleBinding for Backend Worker
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-worker
+subjects:
+- kind: ServiceAccount
+  name: {{ include "backend-operator.worker.serviceAccountName" . }}
+  namespace: {{ .Values.global.agentNamespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ $name }}-worker
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Role for Backend Worker (Namespace-scoped resources)
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-worker
+  namespace: {{ .Values.global.backendNamespace }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets", "pods", "services"]
+  verbs: ["list", "delete", "create", "patch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+{{- if .Values.global.schedulers.schedulerPlugins.enabled }}
+- apiGroups: ["scheduling.sigs.k8s.io", "scheduling.x-k8s.io"]
+  resources: ["podgroups"]
+  verbs: ["list", "delete", "create"]
+{{- end }}
+{{- if .Values.global.schedulers.volcano.enabled }}
+- apiGroups: ["scheduling.volcano.sh"]
+  resources: ["podgroups"]
+  verbs: ["list", "delete", "create"]
+{{- end }}
+{{- if .Values.global.schedulers.kai.enabled }}
+- apiGroups: ["scheduling.run.ai"]
+  resources: ["podgroups"]
+  verbs: ["list", "delete", "create"]
+{{- end }}
+---
+# Role Binding for Backend Worker
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-worker
+  namespace: {{ .Values.global.backendNamespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "backend-operator.worker.serviceAccountName" . }}
+  namespace: {{ .Values.global.agentNamespace }}
+roleRef:
+  kind: Role
+  name: {{ $name }}-worker
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- if .Values.global.backendTestNamespace }}
+# Role for Backend Worker (test namespace)
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-worker
+  namespace: {{ .Values.global.backendTestNamespace }}
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["list", "delete", "create", "patch"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs"]
+  verbs: ["list", "delete", "create", "patch"]
+
+---
+# Role Binding for Backend Worker
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $name }}-worker
+  namespace: {{ .Values.global.backendTestNamespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "backend-operator.worker.serviceAccountName" . }}
+  namespace: {{ .Values.global.agentNamespace }}
+roleRef:
+  kind: Role
+  name: {{ $name }}-worker
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,125 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Namespace }}-mek-generator
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mek-generator
+        image: alpine/k8s:1.28.4
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+
+          echo "Checking if MEK ConfigMap already exists..."
+
+          # Check if mek-config ConfigMap already exists
+          if kubectl get configmap mek-config -n {{ .Release.Namespace }} >/dev/null 2>&1; then
+            echo "MEK ConfigMap already exists, skipping generation"
+            exit 0
+          fi
+
+          echo "MEK ConfigMap does not exist, generating new one..."
+
+          # Generate a random 32-byte key and encode it in base64
+          RANDOM_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
+
+          # Validate key was generated properly
+          if [ ${#RANDOM_KEY} -lt 40 ]; then
+            echo "ERROR: Key generation failed - insufficient length"
+            exit 1
+          fi
+
+          # Create JWK JSON structure and encode it
+          JWK_JSON='{"k":"'$RANDOM_KEY'","kid":"key1","kty":"oct"}'
+          ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
+
+          # Get current timestamp
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+
+          # Create the MEK ConfigMap YAML
+          cat > /tmp/mek-configmap.yaml << EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: mek-config
+            namespace: {{ .Release.Namespace }}
+          data:
+            mek.yaml: |
+              # MEK generated $TIMESTAMP
+              currentMek: key1
+              meks:
+                key1: $ENCODED_JWK
+          EOF
+
+          echo "Generated MEK ConfigMap"
+
+          # Use create instead of apply to ensure it's only created once
+          kubectl create -f /tmp/mek-configmap.yaml
+
+          echo "MEK ConfigMap created successfully"
+      serviceAccountName: {{ .Release.Namespace }}-mek-generator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Namespace }}-mek-generator
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-30"
+    "helm.sh/hook-delete-policy": before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Namespace }}-mek-generator
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-30"
+    "helm.sh/hook-delete-policy": before-hook-creation
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Namespace }}-mek-generator
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-30"
+    "helm.sh/hook-delete-policy": before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Namespace }}-mek-generator
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Namespace }}-mek-generator
+  namespace: {{ .Release.Namespace }}

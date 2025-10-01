@@ -1,0 +1,196 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.sidecars.logAgent.configName }}
+  labels:
+    {{- include "osmo.labels" . | nindent 4 }}
+    k8s-app: log-agent
+data:
+  logrotate-fluentbit.conf: |
+    /var/log/*.txt {
+        su 0 0
+        maxsize {{ .Values.sidecars.logAgent.logrotate.maxSize }}
+        {{ .Values.sidecars.logAgent.logrotate.frequency }}
+        missingok
+        rotate {{ .Values.sidecars.logAgent.logrotate.rotateCount }}
+        copytruncate
+    }
+
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+        Daemon        off
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     {{ .Values.sidecars.logAgent.prometheusPort | default 2020 }}
+
+    @INCLUDE input-osmo.conf
+    @INCLUDE k8s-metadata.conf
+    @INCLUDE event.conf
+    @INCLUDE output-cloudwatch.conf
+
+  input-osmo.conf: |
+    [INPUT]
+        Name              tail
+        Tag               <service_name>
+        Tag_Regex         \/var\/log\/(?<service_name>[^ ]+).txt*
+        Path              /var/log/*.txt
+        Exclude_Path      /var/log/backend_event.txt* , /var/log/envoy_access_log.txt*, /var/log/envoy_api_access_log.txt*
+        Multiline         On
+        Parser_Firstline  osmo-log
+        Key               log
+        DB                /var/log/fluent_bit_checkpoints.db
+        Read_from_Head    True
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   Off
+        Refresh_Interval  1
+        Buffer_Chunk_Size 64k
+        Buffer_Max_Size   64k
+
+    [INPUT]
+        Name              tail
+        Tag               backend_event
+        Path              /var/log/backend_event.txt
+        Parser            event-log
+        Key               log
+        DB                /var/log/fluent_bit_checkpoints.db
+        Read_from_Head    True
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   Off
+        Refresh_Interval  60
+        Buffer_Chunk_Size 64k
+        Buffer_Max_Size   64k
+
+    [INPUT]
+        Name              tail
+        Tag               envoy_access_log
+        Path              /var/log/envoy_access_log.txt, /var/log/envoy_api_access_log.txt
+        Parser            envoy-access-unified
+        Key               log
+        DB                /var/log/fluent_bit_envoy_checkpoints.db
+        Read_from_Head    True
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   Off
+        Refresh_Interval  1
+        Buffer_Chunk_Size 64k
+        Buffer_Max_Size   64k
+
+  k8s-metadata.conf: |
+    [FILTER]
+        Name modify
+        Match *
+        Add node_name ${NODE_NAME}
+        Add namespace ${POD_NAMESPACE}
+        Add pod_name ${POD_NAME}
+        Add pod_ip ${POD_IP}
+
+  event.conf: |
+    [FILTER]
+        Name parser
+        Match backend_event*
+        Key_Name log
+        Preserve_Key true
+        Reserve_Data true
+        Parser event-log-parser
+
+  output-cloudwatch.conf: |
+    [OUTPUT]
+        Name                cloudwatch_logs
+        Match               *
+        region              {{ .Values.sidecars.logAgent.cloudwatch.region }}
+        log_group_name      /aws/containerinsights/{{ .Values.sidecars.logAgent.cloudwatch.clusterName }}/application
+        log_stream_prefix   ${NODE_NAME}-flb-
+        auto_create_group   true
+        extra_user_agent    container-insights
+
+  parsers.conf: |
+    [PARSER]
+        Name   apache
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^"]*)" "(?<agent>[^"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   apache2
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^"]*)" "(?<agent>[^"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   apache_error
+        Format regex
+        Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+
+    [PARSER]
+        Name   nginx
+        Format regex
+        Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^"]*)" "(?<agent>[^"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   json
+        Format json
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name        syslog
+        Format      regex
+        Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+        Time_Key    time
+        Time_Format %b %d %H:%M:%S
+
+    [PARSER]
+        Name        nginx-custom
+        Format      regex
+        Regex       ^(?<time>[0-9\/]*[ ][0-9:]*)[ ](?<log>.*)$
+
+    [PARSER]
+        Name        osmo-log
+        Format      regex
+        Regex       ^(?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?[+-]\d{2}:?\d{2}) (?<service>[^ ]*) \[(?<level>[^ ]*)\][ ]?(?<module>[^ ]*):(?: wf_uuid=(?<workflow_uuid>[\w-]+))?(?<log>.*)$
+
+    [PARSER]
+        Name        event-log
+        Format      regex
+        Regex       ^(?<time>[^ ]*) (?<service>[^ ]*) \[(?<level>[^ ]*)\]: (?<log>.*)$
+
+    [PARSER]
+        Name        event-log-parser
+        Format      regex
+        Regex       [^ ]* [^ ]* (?<task>[^ ]*) .*$
+
+    [PARSER]
+        Name        envoy-access-unified
+        Format      regex
+        Regex       ^(?:\[(?<log_type>API)\] )?\[(?<start_time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^"]*?)(?: +\S*)?)? (?<protocol>\S+)" (?<code>[^ ]*) (?<response_flags>[^ ]*) (?<bytes_received>[^ ]*) (?<bytes_sent>[^ ]*) (?<duration>[^ ]*) (?<x_envoy_upstream_service_time>[^ ]*) "(?<user_agent>[^"]*)" "(?<request_id>[^"]*)" "(?<authority>[^ ]*)" "(?<upstream_host>[^ ]*)" "(?<osmo_user>[^ ]*)" "(?<client_ip>[^"]*)"
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep   On
+        Time_Key    start_time

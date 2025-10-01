@@ -1,0 +1,192 @@
+{{- if .Values.global.network.allowlistEgress.enabled }}
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.network.allowlistEgress.proxyNamespace }}
+  name: squid-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: squid-proxy
+  template:
+    metadata:
+      labels:
+        app: squid-proxy
+    spec:
+      volumes:
+      - name: config
+        configMap:
+          name: squid-config
+      {{- if .Values.global.network.allowlistEgress.additionalVolumes }}
+      {{- range .Values.global.network.allowlistEgress.additionalVolumes }}
+      - name: {{ .name }}
+        {{- if .configMap }}
+        configMap:
+          name: {{ .configMap.name }}
+        {{- end }}
+        {{- if .secret }}
+        secret:
+          secretName: {{ .secret.secretName }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.global.network.allowlistEgress.hostAliases }}
+      hostAliases:
+      {{- range .Values.global.network.allowlistEgress.hostAliases }}
+      - ip: {{ .ip }}
+        hostnames:
+        {{- range .hostnames }}
+          - {{ . }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.global.network.allowlistEgress.nodeSelector }}
+      {{- if . }}
+      nodeSelector:
+      {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: squid-proxy
+        image: "ubuntu/squid:latest"
+        ports:
+        - containerPort: 3128
+        volumeMounts:
+        - name: config
+          mountPath: /etc/squid/
+        resources:
+          requests:
+            cpu: {{ .Values.global.network.allowlistEgress.resources.requests.cpu }}
+            memory: {{ .Values.global.network.allowlistEgress.resources.requests.memory }}
+          limits:
+            memory: {{ .Values.global.network.allowlistEgress.resources.limits.memory }}
+      {{- if .Values.global.network.allowlistEgress.sidecarContainers }}
+      {{- range .Values.global.network.allowlistEgress.sidecarContainers }}
+      - name: {{ .name }}
+        image: {{ .image }}
+        {{- if .command }}
+        command:
+        {{- range .command }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+        {{- if .ports }}
+        ports:
+        {{- range .ports }}
+        - containerPort: {{ .containerPort }}
+          name: {{ .name }}
+        {{- end }}
+        {{- end }}
+        {{- if .volumeMounts }}
+        volumeMounts:
+        {{- range .volumeMounts }}
+        - name: {{ .name }}
+          mountPath: {{ .mountPath }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Values.global.network.allowlistEgress.proxyNamespace }}
+  name: squid-proxy
+spec:
+  ports:
+  - name: proxy
+    protocol: TCP
+    port: 3128
+    targetPort: 3128
+  - name: bridge-https
+    protocol: TCP
+    port: 443
+    targetPort: 443
+  - name: admin
+    protocol: TCP
+    port: 11113
+    targetPort: 11113
+  selector:
+    app: squid-proxy
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: squid-config
+  namespace: {{ .Values.global.network.allowlistEgress.proxyNamespace }}
+data:
+  squid.conf: |
+    dns_v4_first on
+
+    # Define allowed domains for HTTP and HTTPS
+    acl allowed_domains dstdomain .nvidia.com
+    {{- if .Values.global.network.allowlistEgress.additionalAllowedDomains }}
+    {{- range .Values.global.network.allowlistEgress.additionalAllowedDomains }}
+    acl allowed_domains dstdomain {{ . }}
+    {{- end }}
+    {{- end }}
+
+    # SSL/HTTPS ports
+    acl SSL_ports port 443
+    acl Safe_ports port 80          # http
+    acl Safe_ports port 443         # https
+    acl CONNECT method CONNECT
+
+    # Allow specific source IPs (your pod network)
+    acl kubernetes_pods src 10.0.0.0/8
+    {{- if .Values.global.network.allowlistEgress.additionalAllowedSourceIps }}
+    {{- range .Values.global.network.allowlistEgress.additionalAllowedSourceIps }}
+    acl kubernetes_pods src {{ . }}
+    {{- end }}
+    {{- end }}
+
+    # HTTP access rules
+    # TODO: add back allowed_domains once all running pods have environment variable for proxy set
+    http_access allow kubernetes_pods
+
+    # Allow HTTPS CONNECT to SSL ports for allowed domains
+    # TODO: add back allowed_domains once all running pods have environment variable for proxy set
+    http_access allow CONNECT kubernetes_pods SSL_ports
+
+    # Deny CONNECT to other ports
+    http_access deny CONNECT !SSL_ports
+
+    # Deny all other access
+    http_access deny all
+
+    # Standard configuration
+    http_port 3128
+
+    # Cache configuration
+    cache_dir ufs /var/spool/squid 100 16 256
+
+    # Logging
+    access_log /var/log/squid/access.log
+    cache_log /var/log/squid/cache.log
+
+{{- end }}

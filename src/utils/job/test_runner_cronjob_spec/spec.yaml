@@ -1,0 +1,218 @@
+#####################################################################################
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+#####################################################################################
+
+# Backend Test Runner CronJob Template
+# This template defines the structure for backend test CronJobs
+# that will be created and managed by the BackendSynchronizeBackendTest job.
+
+# Template for CronJob that runs backend tests
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: "{{ resource_name }}"
+  labels:
+    {{ node_condition_prefix }}component: backend-test
+    {{ node_condition_prefix }}backend: "{{ backend_name }}"
+    {{ node_condition_prefix }}test: "{{ test_name }}"
+  annotations:
+    description: "Automated test runner for {{ backend_name }} - {{ test_name }}"
+    scheduler: "backend-test-scheduler"
+spec:
+  # Schedule configuration
+  schedule: "{{ cron_schedule | default('0 0 * * *') }}"
+  timeZone: "{{ timezone | default('UTC') }}"
+  startingDeadlineSeconds: 300
+
+  # Concurrency and history management
+  concurrencyPolicy: Forbid
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Job template specification
+  jobTemplate:
+    metadata:
+      labels:
+        component: backend-test-job
+        backend: "{{backend_name}}"
+        test: "{{test_name}}"
+        job-type: test-runner
+      annotations:
+        created-by: backend-operator
+    spec:
+      # Job-level configuration
+      parallelism: 1
+      completions: 1
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 86400
+      completionMode: NonIndexed
+      suspend: false
+
+      # Pod template specification
+      template:
+        metadata:
+          labels:
+            component: backend-test-pod
+            backend: "{{backend_name}}"
+            test: "{{test_name}}"
+            pod-type: test-runner
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "8080"
+            prometheus.io/path: "/metrics"
+        spec:
+          # Pod restart and scheduling
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 30
+          activeDeadlineSeconds: 3600
+
+          # Service account and security
+          serviceAccountName: test-runner
+          automountServiceAccountToken: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+
+          # Scheduling and placement
+          nodeSelector: {}
+          tolerations: []
+          affinity: {}
+
+          # DNS and hostname configuration
+          hostname: "{{backend_name}}-{{test_name}}-runner"
+          subdomain: backend-tests
+          dnsPolicy: ClusterFirst
+          dnsConfig: {}
+
+          # Init containers (if needed)
+          initContainers:
+            - name: config-validator
+              image: "{{init_container_image| default('ubuntu:22.04')}}"
+              command: ["/bin/sh"]
+              args:
+                - -c
+                - |
+                  echo "Validating test configuration..."
+                  if [ -f /test-config/test_config.json ]; then
+                    echo "Configuration file found"
+                    exit 0
+                  else
+                    echo "Configuration file missing"
+                    exit 1
+                  fi
+              volumeMounts:
+                - name: test-config
+                  mountPath: /test-config
+                  readOnly: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "100m"
+
+          # Main containers
+          containers:
+            - name: backend-test-runner
+              image: "{{test_runner_image| default('osmo.local/test-runner:latest-x86_64')}}"
+              imagePullPolicy: Always
+              command: ["backend_test_runner"]
+              args:
+                - '--read_from_osmo'
+                - 'false'
+                - '--read_from_file'
+                - '/test-config/test_config.json'
+                - '--log-level'
+                - '{{log_level| default('INFO')}}'
+                - '--timeout'
+                - '{{test_timeout| default('300')}}'
+
+              # Environment variables
+              env:
+                - name: BACKEND
+                  value: "{{backend_name}}"
+                - name: TEST_NAME
+                  value: "{{test_name}}"
+                - name: NODE_CONDITION_PREFIX
+                  value: "{{node_condition_prefix}}"
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: SERVICE_ACCOUNT
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.serviceAccountName
+              # Volume mounts
+              volumeMounts:
+                - name: test-config
+                  mountPath: /test-config
+                  readOnly: true
+
+              # Security context
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                  add:
+                    - NET_BIND_SERVICE
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+
+              # Resource management
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "500m"
+
+          # Volumes
+          volumes:
+            - name: test-config
+              configMap:
+                name: "{{backend_name}}-{{test_name}}-config"
+                defaultMode: 0644
+                optional: false
+
+          # Image pull secrets
+          imagePullSecrets:
+            - name: "nvcr-secret"

@@ -1,0 +1,187 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.global.enableNonClusterRoles }}
+
+{{$name := or .Values.global.name .Release.Name }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
+  namespace: {{ .Values.global.agentNamespace }}
+  labels:
+    app: {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
+        {{- with .Values.services.backendWorker.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+      {{- if .Values.sidecars.OTEL.enabled }}
+        sidecar.opentelemetry.io/inject: "true"
+      {{- end}}
+      {{- with .Values.services.backendWorker.extraPodAnnotations }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+    spec:
+      nodeSelector:
+        {{- range $k, $v := .Values.global.nodeSelector}}
+        {{ $k }}: "{{ $v }}"
+        {{- end}}
+        {{- range $k, $v := .Values.services.backendWorker.nodeSelector}}
+        {{ $k }}: "{{ $v }}"
+        {{- end}}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      serviceAccountName: {{ include "backend-operator.worker.serviceAccountName" . }}
+      hostAliases:
+        {{- with .Values.services.backendWorker.hostAliases }}
+          {{- toYaml . | nindent 8}}
+        {{- end }}
+      tolerations: {{ toYaml .Values.global.tolerations | nindent 8 }}
+      containers:
+      - name: backend-worker
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.backendWorker.imageName }}:{{ .Values.global.osmoImageTag }}
+        imagePullPolicy: {{ .Values.services.backendWorker.imagePullPolicy }}
+        command:
+        - backend_worker
+        args:
+        - --host
+        - {{ .Values.global.serviceUrl }}
+        {{- if eq .Values.global.loginMethod "password" }}
+        - --username
+        - {{ .Values.global.accountUsername }}
+        {{- end }}
+        - --login_method
+        - {{ .Values.global.loginMethod }}
+        - --backend
+        - {{ .Values.global.backendName }}
+        - --namespace
+        - {{ .Values.global.backendNamespace }}
+        - --log_level
+        - {{ .Values.global.logs.logLevel }}
+        - --k8s_log_level
+        - {{ .Values.global.logs.k8sLogLevel }}
+        - --metrics_otel_collector_component
+        - {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
+        - --metrics_otel_enable
+        - {{ .Values.sidecars.OTEL.enabled | quote }}
+        - --progress_iter_frequency
+        - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
+        {{- if .Values.global.backendTestNamespace }}
+        - --test_runner_namespace
+        - {{ .Values.global.backendTestNamespace | quote }}
+        {{- end }}
+        {{- if .Values.backendTestRunner.enabled }}
+        - --test_runner_cronjob_spec_file
+        - "/tmp/backend-test-runner/spec.yaml"
+        {{- end }}
+        {{- range $arg := .Values.services.backendWorker.extraArgs }}
+        - {{$arg}}
+        {{- end }}
+        env:
+        {{- if eq .Values.global.loginMethod "password" }}
+        - name: OSMO_LOGIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.accountPasswordSecret }}
+              key: {{ .Values.global.accountPasswordSecretKey }}
+        {{- else if eq .Values.global.loginMethod "token" }}
+        - name: OSMO_LOGIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.accountTokenSecret }}
+              key: {{ .Values.global.accountTokenSecretKey }}
+        {{- end }}
+        {{- with .Values.services.backendWorker.extraEnvs }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.services.backendWorker.resources | nindent 10 }}
+        {{- if or .Values.backendTestRunner.enabled .Values.services.backendWorker.volumeMounts }}
+        volumeMounts:
+        {{- if .Values.backendTestRunner.enabled }}
+        - name: backend-test-runner-template
+          mountPath: /tmp/backend-test-runner
+          readOnly: true
+        {{- end }}
+        {{- if .Values.services.backendWorker.volumeMounts }}
+          {{- toYaml .Values.services.backendWorker.volumeMounts | nindent 8 }}
+        {{- end }}
+        {{- end }}
+
+        # Restart if no node or pod progress for 300 seconds
+        livenessProbe:
+          exec:
+            command:
+            - progress_check
+            - --progress_interval
+            - "300:300"
+            - --progress_file
+            - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
+          failureThreshold: 1
+          periodSeconds: 30
+          timeoutSeconds: 15
+        # # Give the container 60 seconds to startup
+        startupProbe:
+          exec:
+            command:
+            - progress_check
+            - --progress_interval
+            - "300:300"
+            - --progress_file
+            - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
+          failureThreshold: 12
+          periodSeconds: 5
+          timeoutSeconds: 15
+          initialDelaySeconds: 10
+
+      {{- if .Values.sidecars.OTEL.enabled }}
+      {{- include "backend-operator.injectOTEL" . | nindent 6}}
+      {{- end }}
+      {{- with .Values.services.backendWorker.extraSidecarContainers }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+      {{- if or .Values.backendTestRunner.enabled .Values.services.backendWorker.volumes .Values.sidecars.OTEL.enabled }}
+      volumes:
+      {{- if .Values.services.backendWorker.volumes }}
+      {{- toYaml .Values.services.backendWorker.volumes | nindent 6 }}
+      {{- end }}
+      {{- if .Values.backendTestRunner.enabled }}
+      - name: backend-test-runner-template
+        configMap:
+          name: {{ $name }}-backend-test-runner-template
+          items:
+          - key: spec.yaml
+            path: spec.yaml
+      {{- end }}
+      {{- if .Values.sidecars.OTEL.enabled }}
+      {{- include "backend-operator.OTELVolumes" (dict "Values" .Values "Prefix" $name) | nindent 6 }}
+      {{- end }}
+      {{- end }}
+
+{{- end }}
