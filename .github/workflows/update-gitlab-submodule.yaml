@@ -14,114 +14,114 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-name: Update GitLab Submodule
+# name: Update GitLab Submodule
 
-on:
-  push:
-    branches:
-      - main  # Triggers when changes are merged into main branch
+# on:
+#   push:
+#     branches:
+#       - main  # Triggers when changes are merged into main branch
 
-  # Allow manual triggering for testing
-  workflow_dispatch:
+#   # Allow manual triggering for testing
+#   workflow_dispatch:
 
-jobs:
-  update-submodule:
-    runs-on: self-hosted
-    steps:
-      - name: Checkout current repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch full history to get the latest commit hash
+# jobs:
+#   update-submodule:
+#     runs-on: self-hosted
+#     steps:
+#       - name: Checkout current repository
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0  # Fetch full history to get the latest commit hash
 
-      - name: Get current commit hash
-        id: get-commit
-        run: |
-          COMMIT_HASH=$(git rev-parse HEAD)
-          echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
-          echo "Current commit: $COMMIT_HASH"
+#       - name: Get current commit hash
+#         id: get-commit
+#         run: |
+#           COMMIT_HASH=$(git rev-parse HEAD)
+#           echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
+#           echo "Current commit: $COMMIT_HASH"
 
-      - name: Setup Git configuration
-        env:
-          ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
+#       - name: Setup Git configuration
+#         env:
+#           ACCESS_GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_TOKEN }}
+#         run: |
+#           git config --global user.name "GitHub Actions Bot"
+#           git config --global user.email "actions@github.com"
 
-          # Configure GitHub authentication for submodule fetching
-          git config --global url."https://oauth2:${ACCESS_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+#           # Configure GitHub authentication for submodule fetching
+#           git config --global url."https://oauth2:${ACCESS_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      - name: Clone GitLab repository
-        env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_REPO_URL: ${{ secrets.GITLAB_REPO_URL }}
-        run: |
-          # Clone the GitLab repository using the token for authentication
-          REPO_HOST=$(echo "${GITLAB_REPO_URL}" | sed 's|https://||')
-          git clone https://oauth2:${GITLAB_TOKEN}@${REPO_HOST} gitlab-repo
-          cd gitlab-repo
+#       - name: Clone GitLab repository
+#         env:
+#           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+#           GITLAB_REPO_URL: ${{ secrets.GITLAB_REPO_URL }}
+#         run: |
+#           # Clone the GitLab repository using the token for authentication
+#           REPO_HOST=$(echo "${GITLAB_REPO_URL}" | sed 's|https://||')
+#           git clone https://oauth2:${GITLAB_TOKEN}@${REPO_HOST} gitlab-repo
+#           cd gitlab-repo
 
-      - name: Update submodule to latest commit
-        run: |
-          cd gitlab-repo
+#       - name: Update submodule to latest commit
+#         run: |
+#           cd gitlab-repo
 
-          # TODO: Remove this once main use github
-          git checkout ryali/hub
+#           # TODO: Remove this once main use github
+#           git checkout ryali/hub
 
-          # Initialize and update submodules
-          git submodule update --init --recursive
+#           # Initialize and update submodules
+#           git submodule update --init --recursive
 
-          # Navigate to the external directory where the submodule should be
-          cd external
+#           # Navigate to the external directory where the submodule should be
+#           cd external
 
-          # Fetch the latest changes from the GitHub repository
-          git fetch origin main
+#           # Fetch the latest changes from the GitHub repository
+#           git fetch origin main
 
-          # Checkout the specific commit that was just pushed
-          git checkout ${{ steps.get-commit.outputs.commit_hash }}
+#           # Checkout the specific commit that was just pushed
+#           git checkout ${{ steps.get-commit.outputs.commit_hash }}
 
-          # Go back to the root of the GitLab repository
-          cd ..
+#           # Go back to the root of the GitLab repository
+#           cd ..
 
-      - name: Commit and push submodule update
-        run: |
-          cd gitlab-repo
+#       - name: Commit and push submodule update
+#         run: |
+#           cd gitlab-repo
 
-          # Check if there are any changes to commit
-          if git diff --quiet && git diff --staged --quiet; then
-            echo "No changes to commit - submodule is already up to date"
-            exit 0
-          fi
+#           # Check if there are any changes to commit
+#           if git diff --quiet && git diff --staged --quiet; then
+#             echo "No changes to commit - submodule is already up to date"
+#             exit 0
+#           fi
 
-          # Add the submodule changes
-          git add external
+#           # Add the submodule changes
+#           git add external
 
-          # Create commit message with details
-          COMMIT_MSG="Update external submodule to ${{ steps.get-commit.outputs.commit_hash }}
+#           # Create commit message with details
+#           COMMIT_MSG="Update external submodule to ${{ steps.get-commit.outputs.commit_hash }}
 
-          Auto-updated by GitHub Actions from repository: ${{ github.repository }}
-          Commit: ${{ github.sha }}
-          Triggered by: ${{ github.event_name }}
-          "
+#           Auto-updated by GitHub Actions from repository: ${{ github.repository }}
+#           Commit: ${{ github.sha }}
+#           Triggered by: ${{ github.event_name }}
+#           "
 
-          # Commit the changes
-          git commit -m "$COMMIT_MSG"
+#           # Commit the changes
+#           git commit -m "$COMMIT_MSG"
 
-          # Push the changes back to GitLab
-          # TODO: Change to main
-          git push origin ryali/hub
+#           # Push the changes back to GitLab
+#           # TODO: Change to main
+#           git push origin ryali/hub
 
-      - name: Report success
-        if: success()
-        run: |
-          echo "✅ Successfully updated GitLab submodule"
-          echo "Repository: ${{ github.repository }}"
-          echo "Commit: ${{ steps.get-commit.outputs.commit_hash }}"
-          echo "GitLab repository has been updated"
+#       - name: Report success
+#         if: success()
+#         run: |
+#           echo "✅ Successfully updated GitLab submodule"
+#           echo "Repository: ${{ github.repository }}"
+#           echo "Commit: ${{ steps.get-commit.outputs.commit_hash }}"
+#           echo "GitLab repository has been updated"
 
-      - name: Report failure
-        if: failure()
-        run: |
-          echo "❌ Failed to update GitLab submodule"
-          echo "Please check the workflow logs for details"
-          echo "Repository: ${{ github.repository }}"
-          echo "Commit: ${{ steps.get-commit.outputs.commit_hash }}"
+#       - name: Report failure
+#         if: failure()
+#         run: |
+#           echo "❌ Failed to update GitLab submodule"
+#           echo "Please check the workflow logs for details"
+#           echo "Repository: ${{ github.repository }}"
+#           echo "Commit: ${{ steps.get-commit.outputs.commit_hash }}"
