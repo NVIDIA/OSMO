@@ -41,7 +41,7 @@ concurrency:
 jobs:
   # Build job for Sphinx documentation
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
