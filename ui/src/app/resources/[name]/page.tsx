@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 
 import { GenericHeader } from "~/components/Header";
+import { getTaskHistoryUrl } from "~/components/TaskHistoryBanner";
 import { env } from "~/env.mjs";
 
 import { ResourceDetails } from "../components/ResourceDetails";
@@ -41,16 +42,15 @@ export default function ResourceOverviewPage({ params }: ResourcesSlugParams) {
         tailSegment={[params.name]}
       >
         <Link
-          href={`/tasks?allUsers=true&allPools=true&nodes=${params.name}&allNodes=false&allStatuses=true`}
+          href={getTaskHistoryUrl(params.name)}
           className="btn btn-secondary"
         >
           Task History
         </Link>
       </GenericHeader>
-      <ResourceDetails
-        node={params.name}
-        className="w-full px-20"
-      />
+      <div>
+        <ResourceDetails node={params.name} />
+      </div>
     </>
   );
 }

@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ReactFlowProvider } from "reactflow";
 
-import { PoolDetails } from "~/app/pools/components/PoolDetails";
 import { useAuth } from "~/components/AuthProvider";
 import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
@@ -63,8 +62,6 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     showWF,
     selectedTaskName,
     retryId,
-    selectedPool,
-    selectedPlatform,
   } = useToolParamUpdater(UrlTypes.Workflows, username, { showWF: "true", allStatuses: "true", status: "" });
   const selectedWorkflow = useWorkflow(params.name, true, 2);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
@@ -124,16 +121,16 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   }, [selectedWorkflow?.data, selectedTaskName, retryId]);
 
   const gridClass = useMemo(() => {
-    if (showWF && (selectedTask ?? selectedPool) && taskPinned) {
+    if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
     } else if (showWF) {
       return "grid grid-cols-[auto_1fr]";
-    } else if (taskPinned && (selectedTask ?? selectedPool)) {
+    } else if (taskPinned && selectedTask) {
       return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
-  }, [showWF, selectedTask, selectedPool, taskPinned]);
+  }, [showWF, selectedTask, taskPinned]);
 
   const verbose = useMemo(() => {
     const tasks = (selectedWorkflow.data?.groups ?? []).flatMap((group) => group.tasks);
@@ -361,33 +358,20 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             localStorage.setItem(TASK_PINNED_KEY, pinned.toString());
           }}
           id={"task-details"}
-          header={selectedPool ? <h2>{selectedPool}</h2> : "Task Details"}
-          open={!!selectedTask || !!selectedPool}
+          header="Task Details"
+          open={!!selectedTask}
           onClose={() => {
-            if (selectedPool) {
-              updateUrl({ selectedPool: null, selectedPlatform: null });
-            } else {
-              updateUrl({ task: null });
-            }
+            updateUrl({ task: null });
           }}
           className="workflow-details-slideout"
           headerClassName="brand-header"
           bodyClassName="dag-details-body"
         >
-          {selectedPool ? (
-            <PoolDetails
-              selectedPool={selectedPool}
-              selectedPlatform={selectedPlatform}
-              isShowingUsed={false}
-              onShowPlatformDetails={(platform) => updateUrl({ selectedPlatform: platform })}
+          {selectedTask && (
+            <TaskDetails
+              task={selectedTask}
+              updateUrl={updateUrl}
             />
-          ) : (
-            selectedTask && (
-              <TaskDetails
-                task={selectedTask}
-                updateUrl={updateUrl}
-              />
-            )
           )}
         </SlideOut>
       </div>

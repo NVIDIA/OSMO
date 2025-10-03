@@ -24,6 +24,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import Link from "next/link";
 
 import { commonFilterFns } from "~/components/commonFilterFns";
 import StatusBadge from "~/components/StatusBadge";
@@ -89,12 +90,14 @@ export const WorkflowsTable = ({
         header: "Pool",
         cell: ({ row }) => {
           return row.original.pool ? (
-            <button
+            <Link
+              href={`/pools/${row.original.pool}`}
               className="tag-container"
-              onClick={() => updateUrl({ selectedPool: row.original.pool, workflow: null })}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               <Tag color={Colors.pool}>{row.original.pool}</Tag>
-            </button>
+            </Link>
           ) : undefined;
         },
         sortingFn: "alphanumericCaseSensitive",

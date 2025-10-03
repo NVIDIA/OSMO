@@ -25,8 +25,6 @@ const PARAM_KEYS = {
   pools: "pools",
   allPools: "allPools",
   isShowingUsed: "isShowingUsed",
-  selectedPlatform: "selectedPlatform",
-  selectedPool: "selectedPool",
 } as const;
 
 export interface ToolParamUpdaterProps {
@@ -34,8 +32,6 @@ export interface ToolParamUpdaterProps {
   allPools?: boolean;
   isShowingUsed?: boolean;
   showGauges?: boolean;
-  selectedPlatform?: string | null;
-  selectedPool?: string | null;
 }
 
 // Undefined means no change; null means clear
@@ -47,8 +43,6 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
   const [isSelectAllPoolsChecked, setIsSelectAllPoolsChecked] = useState(true);
   const [selectedPools, setSelectedPools] = useState("");
   const [filterCount, setFilterCount] = useState(0);
-  const [selectedPool, setSelectedPool] = useState<string | undefined>(undefined);
-  const [selectedPlatform, setSelectedPlatform] = useState<string | undefined>(undefined);
   const [isShowingUsed, setIsShowingUsed] = useState(false);
 
   useEffect(() => {
@@ -72,25 +66,11 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
       filterCount++;
     }
 
-    const pool = params.get(PARAM_KEYS.selectedPool);
-    if (pool) {
-      setSelectedPool(pool);
-    } else if (pool === null) {
-      setSelectedPool(undefined);
-    }
-
-    const platform = params.get(PARAM_KEYS.selectedPlatform);
-    if (platform) {
-      setSelectedPlatform(platform);
-    } else if (platform === null) {
-      setSelectedPlatform(undefined);
-    }
-
     setFilterCount(filterCount);
   }, [params, urlType]);
 
   const updateUrl = (props: ToolParamUpdaterProps): void => {
-    const { pools, allPools, isShowingUsed, selectedPool, selectedPlatform } = props;
+    const { pools, allPools, isShowingUsed } = props;
     const newParams = new URLSearchParams(window.location.search);
 
     if (pathname !== window.location.pathname) {
@@ -112,23 +92,9 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
       newParams.delete(PARAM_KEYS.isShowingUsed);
     }
 
-    if (selectedPlatform) {
-      newParams.set(PARAM_KEYS.selectedPlatform, selectedPlatform);
-    } else if (selectedPlatform === null) {
-      newParams.delete(PARAM_KEYS.selectedPlatform);
-    }
-
-    if (selectedPool) {
-      newParams.set(PARAM_KEYS.selectedPool, selectedPool);
-    } else if (selectedPool === null) {
-      newParams.delete(PARAM_KEYS.selectedPool);
-    }
-
     router.replace(`${pathname}?${newParams.toString()}`);
 
     // Remove the selected resource from the sidebar data
-    newParams.delete(PARAM_KEYS.selectedPlatform);
-    newParams.delete(PARAM_KEYS.selectedPool);
     newParams.delete(TABLE_PARAM_KEYS.pageSize);
     newParams.delete(TABLE_PARAM_KEYS.pageIndex);
     newParams.delete(SORT_PARAM_KEYS.sorting);
@@ -141,8 +107,6 @@ const useToolParamUpdater = (urlType: UrlTypes = UrlTypes.Resources) => {
     selectedPools,
     filterCount,
     isShowingUsed,
-    selectedPlatform,
-    selectedPool,
   };
 };
 

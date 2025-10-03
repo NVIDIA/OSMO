@@ -28,7 +28,7 @@ import kombu  # type: ignore
 import pydantic
 import redis.asyncio  # type: ignore
 
-from src.lib.utils import cache, common
+from src.lib.utils import common
 from src.lib.utils import logging as utils_logging
 from src.lib.utils import osmo_errors
 from src.service.agent import objects as backend_objects
@@ -69,19 +69,18 @@ def create_backend(postgres: connectors.PostgresConnector,
             scheduler_settings,
             last_heartbeat, created_date,
             description, router_address,
-            cache_config, version) AS (
+            version) AS (
             VALUES
                 (text %s, text %s, text %s, text %s, text %s, text %s,
                  timestamp %s,
                  timestamp %s, text %s,
-                 text %s, text %s, text %s)
+                 text %s, text %s)
             )
         , new_row AS (
             INSERT INTO backends (name, k8s_uid, k8s_namespace,
                 dashboard_url, grafana_url,
                 scheduler_settings,
                 last_heartbeat, created_date, description, router_address,
-                cache_config,
                 version)
             SELECT * FROM input_rows
             ON CONFLICT (name) DO NOTHING
@@ -99,7 +98,7 @@ def create_backend(postgres: connectors.PostgresConnector,
          '',
          connectors.BackendSchedulerSettings().json(),
          common.current_time(), common.current_time(), '', '',
-         cache.CacheConfig().json(), message.version))
+         message.version))
     if k8s_info[0].k8s_uid != message.k8s_uid:
         raise osmo_errors.OSMOBackendError(f'Backend {name} is already being used by a '
                                            'different cluster')

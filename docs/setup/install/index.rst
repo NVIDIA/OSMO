@@ -35,6 +35,8 @@ In addition, there are a few service configurations following the installation p
 .. toctree::
    :maxdepth: 1
 
+   quickstart
    service_deployment/index
    register_data/index
    backend_deployment/index
+   advanced_configurations/index

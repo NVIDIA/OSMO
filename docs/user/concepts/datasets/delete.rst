@@ -21,8 +21,22 @@
 Delete
 ================================================
 
-Both datasets and collections can be deleted with the :ref:`ds_delete` CLI. When using the CLI,
-a dataset version or an entire dataset can be deleted.
+Deleting a Dataset
+==================
 
-When deleting a dataset version connected to a collection, the collection is deleted as well.
-However, when collections are deleted, the underlying dataset versions are **NOT** deleted.
+When a dataset version is deleted, it is marked as ``PENDING_DELETE``, but no hashes or manifests
+are deleted from object storage as the same hash file is shared across multiple versions.
+
+Once all the versions of the dataset have been marked for deletion, the hashes and manifests are
+deleted from object storage and the dataset is removed from OSMO.
+
+.. note::
+
+  A race condition may occur if a client tries to upload a new version while another client is
+  deleting the dataset, causing the dataset to become corrupted or missing files.
+
+Deleting a Collection
+=====================
+
+When a collection is deleted, the collection is removed from OSMO and corresponding dataset versions
+remain untouched.

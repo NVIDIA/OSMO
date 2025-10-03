@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import { PoolDetails } from "~/app/pools/components/PoolDetails";
-import { Container } from "~/components/Container";
+import { usePoolLoader } from "~/app/pools/hooks/usePoolLoader";
 import { PageError } from "~/components/PageError";
 import { Spinner } from "~/components/Spinner";
 import { Tag, Colors } from "~/components/Tag";
@@ -77,19 +77,16 @@ export const ResourceDetails = ({
   node,
   defaultPool,
   defaultPlatform,
-  className,
-  narrowView = false,
   children,
 }: {
   node: string;
   defaultPool?: string;
   defaultPlatform?: string;
-  className?: string;
-  narrowView?: boolean;
   children?: React.ReactNode;
 }) => {
   const [error, setError] = useState<string | null>(null);
   const [selectedPoolAndPlatform, setSelectedPoolAndPlatform] = useState<PoolAndPlatform | undefined>(undefined);
+  const pool = usePoolLoader(selectedPoolAndPlatform?.pool);
 
   const { data, isLoading } = api.resources.getResourceInfo.useQuery(
     {
@@ -138,7 +135,7 @@ export const ResourceDetails = ({
     }
 
     return (
-      <table className="border-1 border-border shadow-sm shadow-neutral-400/50">
+      <table className="card w-full">
         <thead className="body-header">
           <tr>
             <th className="text-left">Pool</th>
@@ -193,75 +190,78 @@ export const ResourceDetails = ({
     const fields =
       resource.platform_allocatable_fields?.[selectedPoolAndPlatform.pool]?.[selectedPoolAndPlatform.platform];
 
+    if (!platformConfig) {
+      return null;
+    }
+
     return (
-      <>
+      <PlatformDetails
+        name={selectedPoolAndPlatform.platform}
+        hostNetwork={platformConfig.host_network}
+        privileged={platformConfig.privileged}
+        defaultMounts={platformConfig.default_mounts}
+        allowedMounts={platformConfig.allowed_mounts}
+      >
         {fields && (
-          <div className={`grid gap-4 ${narrowView ? "grid-cols-2" : "grid-cols-4 min-h-40"}`}>
-            <div className="card text-center items-center justify-center">
-              <h2>{Math.floor(convertResourceValueStr(fields.storage?.toString() ?? "0"))}</h2>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 body-header p-3">
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+              <strong>{Math.floor(convertResourceValueStr(fields.storage?.toString() ?? "0"))}</strong>
               <p>Storage [Gi]</p>
             </div>
-            <div className="card text-center items-center justify-center">
-              <h2>{Math.floor(convertResourceValueStr(fields.memory?.toString() ?? "0"))}</h2>
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+              <strong>{Math.floor(convertResourceValueStr(fields.memory?.toString() ?? "0"))}</strong>
               <p>Memory [Gi]</p>
             </div>
-            <div className="card text-center items-center justify-center">
-              <h2>{parseFloat(fields.cpu?.toString() ?? "0")}</h2>
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+              <strong>{parseFloat(fields.cpu?.toString() ?? "0")}</strong>
               <p>CPU [#]</p>
             </div>
-            <div className="card text-center items-center justify-center">
-              <h2>{parseFloat(fields.gpu?.toString() ?? "0")}</h2>
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+              <strong>{parseFloat(fields.gpu?.toString() ?? "0")}</strong>
               <p>GPU [#]</p>
             </div>
           </div>
         )}
-        {platformConfig && (
-          <PlatformDetails
-            hostNetwork={platformConfig.host_network}
-            privileged={platformConfig.privileged}
-            defaultMounts={platformConfig.default_mounts}
-            allowedMounts={platformConfig.allowed_mounts}
-            className={narrowView ? "flex flex-col" : "grid grid-cols-3 h-full"}
-          />
-        )}
-      </>
+      </PlatformDetails>
     );
-  }, [narrowView, resource, selectedPoolAndPlatform]);
+  }, [resource, selectedPoolAndPlatform]);
+
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex justify-center items-center">
+        <Spinner
+          description="Loading Resource..."
+          size="large"
+        />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <PageError
+        title="Failed to Fetch Resource"
+        errorMessage="This may be related to an access issue. Contact #osmo-support on further assistance."
+        subText="Double-check your URL path to make sure the resource exists."
+        subTextTitle="Resource Not Found"
+      />
+    );
+  }
 
   return (
-    <Container className={`${className} h-full p-0! gap-0!`}>
-      {isLoading ? (
-        <div className="h-full flex justify-center items-center">
-          <Spinner
-            description="Loading Resource..."
-            size="large"
+    <>
+      {children}
+      <div className={`flex flex-col w-full h-full p-3`}>
+        {showPoolPlatformList}
+        <div className="flex flex-col xs:grid xs:grid-cols-[1fr_2fr] gap-3 py-3 w-full grow">
+          <PoolDetails
+            name={selectedPoolAndPlatform?.pool}
+            pool={pool}
+            selectedPlatform={selectedPoolAndPlatform?.platform}
+            isShowingUsed={false}
           />
+          {showPoolPlatformDetails}
         </div>
-      ) : (error ?? !resource) ? (
-        <PageError
-          title="Failed to Fetch Resource"
-          errorMessage="This may be related to an access issue. Contact #osmo-support on further assistance."
-          subText="Double-check your URL path to make sure the resource exists."
-          subTextTitle="Resource Not Found"
-        />
-      ) : (
-        <>
-          {children}
-          <div className="flex flex-col gap-3 p-3">
-            {showPoolPlatformList}
-            <div className="card">
-              <h3 className="brand-header text-base px-3 text-center">{selectedPoolAndPlatform?.pool}</h3>
-              <PoolDetails
-                selectedPool={selectedPoolAndPlatform?.pool}
-                selectedPlatform={selectedPoolAndPlatform?.platform}
-                isShowingUsed={false}
-                showActions={false}
-              />
-            </div>
-            {showPoolPlatformDetails}
-          </div>
-        </>
-      )}
-    </Container>
+      </div>
+    </>
   );
 };

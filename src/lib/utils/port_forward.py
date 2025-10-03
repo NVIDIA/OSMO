@@ -20,6 +20,7 @@ import asyncio
 import collections
 import logging
 import json
+import platform
 import random
 import socket
 import struct
@@ -283,8 +284,14 @@ async def run_udp(service_client: client.ServiceClient, app_host: str, app_port:
 
         logger.info(message)
         loop = asyncio.get_event_loop()
+
+        # On macOS, force IPv4 binding when localhost is used to avoid IPv6 (::1) binding
+        bind_host = app_host
+        if platform.system() == 'Darwin' and app_host in ('localhost', '::1'):
+            bind_host = '127.0.0.1'
+
         transport, _ = await loop.create_datagram_endpoint(
-            lambda: Protocol(), local_addr=(app_host, app_port))  # type: ignore
+            lambda: Protocol(), local_addr=(bind_host, app_port))  # type: ignore
 
         _, pending = await asyncio.wait([send_datagram_to_router(),
                                         receive_datagram_from_router(transport)],

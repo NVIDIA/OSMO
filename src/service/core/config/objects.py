@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 
 import pydantic
 
-from src.lib.utils import cache, config_history
+from src.lib.utils import config_history
 from src.utils import connectors
 from src.utils.connectors.postgres import ListOrder
 
@@ -199,7 +199,6 @@ class BackendConfig(pydantic.BaseModel):
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
     node_conditions: connectors.BackendNodeConditions | None = None
     router_address: str | None = None
-    cache_config: cache.CacheConfig | None = None
 
     def plaintext_dict(self, *args, **kwargs):
         """Convert the BackendConfig to a dictionary."""
@@ -209,9 +208,7 @@ class BackendConfig(pydantic.BaseModel):
             if not self.scheduler_settings
             else str(self.scheduler_settings.json())
         )
-        dict_data['cache_config'] = (
-            None if not self.cache_config else str(self.cache_config.json())
-        )
+
         dict_data['node_conditions'] = (
             None if not self.node_conditions else str(self.node_conditions.json())
         )

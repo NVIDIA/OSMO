@@ -21,14 +21,21 @@
 Update
 ================================================
 
-After a dataset version is created, the files inside can be modified using the :ref:`ds_update`
-CLI. There, you can add or remove files.
+Updating a Dataset
+==================
 
-Collections use the same :ref:`ds_update` CLI to add or remove dataset versions from the collection.
+Dataset versions are immutable once created. However, a new dataset version can be created from
+an existing dataset version by adding or removing files.
+
+This process mirrors the :ref:`concepts_ds_create` section and utilizes the manifest file of the
+existing dataset version to create a new dataset version.
+
+Updating a Collection
+=====================
+
+Collections on the other hand can be updated by adding or removing dataset versions.
 
 .. note::
 
   When deleting and adding files/datasets to datasets/collections, the deletion operation comes
   first.
-
-You can rename datasets and collections using the :ref:`ds_rename` CLI.

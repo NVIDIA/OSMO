@@ -14,11 +14,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+# Workflow for building and deploying Sphinx documentation to GitHub Pages
+name: Build and Deploy Documentation to Pages
 
 on:
-  # Runs on pushes targeting the long-lived branches
+  # Runs on pushes targeting the main branch
   push:
     branches:
       - main
@@ -39,24 +39,60 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Build job for Sphinx documentation
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -U -r docs/locked_requirements.txt
+
+      - name: Build Sphinx documentation
+        run: |
+          make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
+
+      - name: Check for build errors
+        run: |
+          if [ -d "docs/build_error_logs" ] && [ "$(find docs/build_error_logs -name '*.log' -size +0c)" ]; then
+            echo "Build errors found:"
+            find docs/build_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
+            exit 1
+          else
+            echo "Build completed successfully with no errors"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-build
+          path: |
+            docs/public/
+            docs/build_error_logs/
+          retention-days: 5
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
           path: 'docs/public/'
+
+  # Deploy job
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

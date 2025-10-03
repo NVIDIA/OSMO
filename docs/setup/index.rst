@@ -31,9 +31,9 @@ Minimal Deployment
 
 Minimal deployment is a single-tenant sandbox deployment that is used to test the OSMO service. It is a good way to get started with OSMO and to understand the service.
 
-.. image:: install/service_deployment/osmo-minimal.png
+.. image:: install/osmo-minimal.png
 
-For the minimal deployment the OSMO services and backend are deployed on the same Kubernetes cluster. There will be no authentication setup for this deployment. If this is the deployment you are looking for, please refer to the :doc:`Minimal Deployment <install/service_deployment/deploy_minimal>` section.
+For the minimal deployment the OSMO services and backend are deployed on the same Kubernetes cluster. There will be no authentication setup for this deployment. If this is the deployment you are looking for, please refer to the :ref:`Quick Start Deployment <deploy_quickstart>` section.
 
 
 Full Deployment
@@ -43,7 +43,7 @@ Full deployment is a single-tenant deployment that is used to deploy OSMO on a K
 
 .. image:: install/service_deployment/osmo-full.png
 
-For the full deployment the OSMO services and backend are deployed on different Kubernetes clusters where users are authenticated using a single sign-on (SSO) provider. If this is the deployment you are looking for, please refer to the :doc:`Full Deployment <install/service_deployment/deploy_full>` section.
+For the full deployment the OSMO services and backend are deployed on different Kubernetes clusters where users are authenticated using a single sign-on (SSO) provider. If this is the deployment you are looking for, please refer to the :ref:`Full Deployment <deploy_single_tenant>` section.
 
 
 
@@ -55,17 +55,13 @@ Multi-tenant deployment at scale is a deployment that is used to deploy OSMO on 
 .. image:: install/service_deployment/osmo-multi-tenant.png
 
 
-For the multi-tenant deployment at scale the OSMO services and backend are deployed on different Kubernetes clusters where each tenant is isolated from the other. Users are authenticated using a single sign-on (SSO) provider. There will be authentication setup for this deployment. If this is the deployment you are looking for, please refer to the :doc:`Multi-tenant Deployment at Scale <install/service_deployment/deploy_multitenant>` section.
+For the multi-tenant deployment at scale the OSMO services and backend are deployed on different Kubernetes clusters where each tenant is isolated from the other. Users are authenticated using a single sign-on (SSO) provider. There will be authentication setup for this deployment. If this is the deployment you are looking for, please refer to the :ref:`Multi-tenant Deployment at Scale <deploy_multitenant>` section.
 
 
 
 If you are doing a full or multi-tenant deployment, familiarize yourself with the on-boarding process below that defines multiple roles.
 
 .. image:: onboarding.png
-
-.. note::
-
-  As a prerequisite, follow :doc:`Deploy Service <install/service_deployment/index>` to configure your OSMO service instance.
 
 Next, proceed with registering your compute backend and data backend with OSMO to run workflows.
 

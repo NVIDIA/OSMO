@@ -19,7 +19,7 @@ load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 ################################################################
 #                      Backend Listener                        #
@@ -120,6 +120,7 @@ oci_push(
     name = "backend_listener_push_x86_64",
     image = ":backend_listener_image_x86_64",
     repository = BASE_IMAGE_URL + "backend-listener",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = [
         "manual",
@@ -152,6 +153,7 @@ oci_push(
     name = "backend_listener_push_arm64",
     image = ":backend_listener_image_arm64",
     repository = BASE_IMAGE_URL + "backend-listener",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual", "arm64"],
 )
@@ -248,6 +250,7 @@ oci_push(
     name = "backend_worker_push_x86_64",
     image = ":backend_worker_image_x86_64",
     repository = BASE_IMAGE_URL + "backend-worker",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = [
         "manual",
@@ -280,6 +283,7 @@ oci_push(
     name = "backend_worker_push_arm64",
     image = ":backend_worker_image_arm64",
     repository = BASE_IMAGE_URL + "backend-worker",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual", "arm64"],
 )

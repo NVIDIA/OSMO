@@ -36,7 +36,7 @@ export const PageError = ({
   className?: string;
 }) => {
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full w-full flex flex-col">
       {subText && (
         <InlineBanner status="error">
           <div className="flex flex-col gap-2">

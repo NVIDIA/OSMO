@@ -75,12 +75,14 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
               <>
                 <dt>Pool</dt>
                 <dd>
-                  <button
+                  <Link
+                    href={`/pools/${workflow.pool}`}
                     className="tag-container"
-                    onClick={() => updateUrl({ selectedPool: workflow.pool })}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     <Tag color={Colors.pool}>{workflow.pool}</Tag>
-                  </button>
+                  </Link>
                 </dd>
               </>
             )}

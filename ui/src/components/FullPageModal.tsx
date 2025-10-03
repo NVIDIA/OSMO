@@ -83,7 +83,7 @@ const FullPageModal = ({
               </div>
               <div
                 ref={modalContentRef}
-                className="flex w-full h-full overflow-y-auto"
+                className="flex flex-col w-full h-full overflow-y-auto"
               >
                 {children}
               </div>

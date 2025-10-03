@@ -41,7 +41,17 @@ Welcome to OSMO, a cloud native platform for Robotics developers.
   tutorials/index
   workflow_examples/index
   troubleshooting/index
-  reference/index
+
+.. toctree::
+  :hidden:
+  :caption: Reference
+
+  reference/cli/index
+
+.. toctree::
+  :hidden:
+  :includehidden:
+
   about/index
 
 .. toctree::
@@ -57,9 +67,7 @@ Welcome to OSMO, a cloud native platform for Robotics developers.
   concepts/workflows_tasks/status
   datasets/index
   faq/index
-  getting_started/install
   getting_started/verify
-  reference/python_library/index
   troubleshooting/credentials
   troubleshooting/dataset
   troubleshooting/resources

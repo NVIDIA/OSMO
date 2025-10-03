@@ -17,15 +17,15 @@
 ..
 
 ============================
-Service Deployment Guide
+Service Deployment Options
 ============================
 
 This guide provides step-by-step instructions for installing OSMO on a Kubernetes cluster.
 
 There are several ways to install OSMO depending on your use case and requirements:
 
-1. **Minimal Deployment** - Single-tenant sandbox for testing and development
-2. **Full Deployment** - Single-tenant production deployment with authentication
+1. **Quick Start Deployment** - Single-tenant sandbox for testing and development
+2. **Single-Tenant Deployment** - Single-tenant production deployment with authentication
 3. **Multi-tenant Deployment** - Production deployment supporting multiple isolated tenants
 
 Choose the deployment type that best fits your needs:
@@ -35,8 +35,8 @@ Choose the deployment type that best fits your needs:
    :widths: 25 25 25 25
 
    * - Feature
-     - Minimal
-     - Full
+     - Quick Start
+     - Single-Tenant
      - Multi-tenant
    * - **Use Case**
      - Testing/Development
@@ -62,14 +62,14 @@ Choose the deployment type that best fits your needs:
 
 Choose your installation type based on your requirements:
 
-**Choose Minimal Deployment if:**
+**Choose Quick Start Deployment if:**
 
 - You want to quickly test OSMO functionality
 - You're developing or evaluating OSMO
 - You don't need user authentication
 - You're working in a sandbox environment
 
-**Choose Full Deployment if:**
+**Choose Single-Tenant Deployment if:**
 
 - You need a production-ready single-tenant setup
 - You require user authentication and authorization
@@ -95,7 +95,6 @@ Infrastructure Prerequisites
 .. toctree::
    :maxdepth: 1
 
-   deploy_minimal
-   deploy_full
+   deploy_single_tenant
    deploy_multitenant
    deploy_service

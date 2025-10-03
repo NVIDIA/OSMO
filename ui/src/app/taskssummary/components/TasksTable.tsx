@@ -24,6 +24,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import Link from "next/link";
 
 import { WorkflowTableRowAction } from "~/app/workflows/components/WorkflowTableRowAction";
 import { type ToolParamUpdaterProps } from "~/app/workflows/hooks/useToolParamUpdater";
@@ -72,14 +73,14 @@ export const TasksTable = ({
         header: "Pool",
         cell: ({ row }) => {
           return row.original.pool ? (
-            <button
+            <Link
+              href={`/pools/${row.original.pool}`}
               className="tag-container"
-              onClick={() => {
-                updateUrl({ selectedPool: row.original.pool, task: null, workflow: null });
-              }}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               <Tag color={Colors.pool}>{row.original.pool}</Tag>
-            </button>
+            </Link>
           ) : undefined;
         },
         sortingFn: "alphanumericCaseSensitive",

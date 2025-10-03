@@ -15,13 +15,12 @@
 //SPDX-License-Identifier: Apache-2.0
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { ResourceDetails } from "~/app/resources/components/ResourceDetails";
 import FullPageModal from "~/components/FullPageModal";
-import { InlineBanner } from "~/components/InlineBanner";
 import { Spinner } from "~/components/Spinner";
+import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import { type Task } from "~/models";
 import { type WorkflowResponse } from "~/models/workflows-model";
 
@@ -192,17 +191,15 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
       onClose={() => updateUrl({ tool: null })}
       headerChildren={
         <LogPopupHeader href={toolUrl}>
-          {workflow && (
-            <FullPageModalHeading
-              workflow={workflow}
-              tool={tool}
-              selectedTask={selectedTask}
-              fullLog={fullLog}
-              lines={lines}
-              verbose={verbose}
-              updateUrl={updateUrl}
-            />
-          )}
+          <FullPageModalHeading
+            workflow={workflow}
+            tool={tool}
+            selectedTask={selectedTask}
+            fullLog={fullLog}
+            lines={lines}
+            verbose={verbose}
+            updateUrl={updateUrl}
+          />
         </LogPopupHeader>
       }
     >
@@ -240,48 +237,8 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
         />
       )}
       {tool === ToolType.Nodes && selectedTask?.node_name && (
-        <ResourceDetails
-          node={selectedTask.node_name}
-          className="w-full"
-        >
-          <InlineBanner
-            status="info"
-            className="sticky top-0"
-          >
-            <p>
-              See{" "}
-              {window.location.pathname.startsWith("/tasks") ? (
-                <button
-                  className="link-inline"
-                  onClick={() =>
-                    updateUrl({
-                      nodes: selectedTask?.node_name ?? "",
-                      allNodes: false,
-                      allStatuses: true,
-                      task: null,
-                      workflow: null,
-                      retry_id: null,
-                      tool: null,
-                      allUsers: true,
-                      allPools: true,
-                    })
-                  }
-                >
-                  Task History
-                </button>
-              ) : (
-                <Link
-                  href={`/tasks?allUsers=true&allPools=true&nodes=${selectedTask.node_name}&allNodes=false&allStatuses=true`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="link-inline"
-                >
-                  Task History
-                </Link>
-              )}{" "}
-              on this node
-            </p>
-          </InlineBanner>
+        <ResourceDetails node={selectedTask.node_name}>
+          <TaskHistoryBanner nodeName={selectedTask.node_name} />
         </ResourceDetails>
       )}
       {tool === ToolType.Outputs && workflow && (

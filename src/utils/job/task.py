@@ -89,7 +89,7 @@ def create_login_dict(user: str,
 
 
 def create_config_dict(data_info: Dict[str, credentials.DecryptedDataCredential],
-                       cache_config: Optional[cache.CacheConfig]) -> Dict:
+                       cache_config: Optional[cache.CacheConfig] = None) -> Dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
     url:
@@ -1412,6 +1412,7 @@ class TaskGroup(pydantic.BaseModel):
     status: TaskGroupStatus = TaskGroupStatus.SUBMITTING
     # This is set when the task group is queued into the backends
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
+    is_osmo_credential_set: bool = False
 
     class Config:
         arbitrary_types_allowed = True
@@ -1947,8 +1948,9 @@ class TaskGroup(pydantic.BaseModel):
         registry_creds_user, registry_cred_osmo = self._get_registry_creds(user, workflow_config)
         image_secrets_user = k8s_factory.create_image_secret(
             self._get_image_secret_name(group_uid, 'user'), labels, registry_creds_user)
-        image_secrets_osmo = k8s_factory.create_image_secret(
-            self._get_image_secret_name(group_uid, 'osmo'), labels, registry_cred_osmo)
+        if registry_cred_osmo:
+            image_secrets_osmo = k8s_factory.create_image_secret(
+                self._get_image_secret_name(group_uid, 'osmo'), labels, registry_cred_osmo)
 
         headless_service = None
         if len(self.spec.tasks) > 1:
@@ -1980,7 +1982,8 @@ class TaskGroup(pydantic.BaseModel):
             kb_resources.append(user_secrets)
 
         kb_resources.append(image_secrets_user)
-        kb_resources.append(image_secrets_osmo)
+        if registry_cred_osmo:
+            kb_resources.append(image_secrets_osmo)
 
         # Create groups
         kb_resources += group_objects
@@ -2105,12 +2108,22 @@ class TaskGroup(pydantic.BaseModel):
                 registry_creds_user[image_info.host] = \
                     {'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')}
 
-        auth_string = (
-            f'{workflow_config.backend_images.credential.username}:'
-            f'{workflow_config.backend_images.credential.auth.get_secret_value()}')
-        registry_cred_osmo = {
-                workflow_config.backend_images.credential.registry:
-                    {'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')}}
+        registry_cred_osmo = None
+        osmo_cred = workflow_config.backend_images.credential
+        if (
+            osmo_cred
+            and osmo_cred.registry
+            and osmo_cred.username
+            and osmo_cred.auth.get_secret_value()
+        ):
+            auth_string = (
+                f'{osmo_cred.username}:{osmo_cred.auth.get_secret_value()}')
+            registry_cred_osmo = {
+                osmo_cred.registry: {
+                    'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+                }
+            }
+            self.is_osmo_credential_set = True
         return registry_creds_user, registry_cred_osmo
 
     def convert_to_pod_spec(
@@ -2306,13 +2319,11 @@ class TaskGroup(pydantic.BaseModel):
             refresh_url = f'{service_url}/api/auth/jwt/refresh_token?{query}'
             login_yaml = create_login_dict(user, service_url, token, refresh_url)
 
-        user_config_yaml = create_config_dict(data_endpoints,
-            backend_config.cache_config)
+        user_config_yaml = create_config_dict(data_endpoints)
 
         service_profile = storage.construct_storage_backend(
             workflow_config.workflow_data.credential.endpoint).profile
-        service_config_yaml = create_config_dict({service_profile: service_creds},
-            backend_config.cache_config)
+        service_config_yaml = create_config_dict({service_profile: service_creds})
 
         # User CLI login config
         login_file = File(path='/login',
@@ -2448,10 +2459,14 @@ class TaskGroup(pydantic.BaseModel):
             f'{self.group_uuid}-file-dir',
             using_gpu)
 
+        image_pull_secrets = [{'name': self._get_image_secret_name(self.group_uuid, 'user')}]
+        if self.is_osmo_credential_set:
+            image_pull_secrets.append(
+                {'name': self._get_image_secret_name(self.group_uuid, 'osmo')})
+
         spec : Dict[str, Any] = {
             'restartPolicy': 'Never',
-            'imagePullSecrets': [{'name': self._get_image_secret_name(self.group_uuid, 'user')},
-                                    {'name': self._get_image_secret_name(self.group_uuid, 'osmo')}],
+            'imagePullSecrets': image_pull_secrets,
             'hostNetwork': task_spec.hostNetwork,
             'containers': [user_container_spec, control_container_spec],
             'initContainers': [

@@ -22,7 +22,7 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//ui:next/package_json.bzl", next_bin = "bin")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 load(":ui.bzl", "ui_runfiles_dir", "ui_standalone_pkg")
 
 # To keep dependencies between package.json and pnpm-lock.yaml synced:
@@ -174,6 +174,7 @@ oci_push(
     name = "web_ui_push_x86_64",
     image = ":web_ui_image_x86_64",
     repository = BASE_IMAGE_URL + "web-ui",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],
 )
@@ -217,6 +218,7 @@ oci_push(
     name = "web_ui_push_arm64",
     image = ":web_ui_image_arm64",
     repository = BASE_IMAGE_URL + "web-ui",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual", "arm64"],
 )

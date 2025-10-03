@@ -15,32 +15,11 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-import { useWindowSize } from "usehooks-ts";
-
 export default function SpecViewer({ url, title }: { url?: string; title: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const windowSize = useWindowSize();
-  const [scrollerHeight, setScrollerHeight] = useState(0);
-
-  useEffect(() => {
-    if (iframeRef?.current) {
-      let height = windowSize.height - iframeRef.current.getBoundingClientRect().top - 12;
-      if (height < 200) {
-        height = 200;
-      }
-
-      setScrollerHeight(height);
-    }
-  }, [windowSize.height, iframeRef]);
-
   return (
     <iframe
-      height={scrollerHeight}
       width="100%"
       src={url}
-      ref={iframeRef}
       title={title}
     />
   );

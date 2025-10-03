@@ -80,9 +80,7 @@ Backend
    * - ``router_address``
      - String
      - WebSocket address for backend communication.
-   * - ``cache_config``
-     - `Cache Config`_
-     - Configuration for backend caching.
+
 
 Scheduler Settings
 ==================
@@ -96,13 +94,13 @@ Scheduler Settings
      - **Description**
    * - ``scheduler_type``
      - String
-     - Type of Kubernetes scheduler to use (e.g., "scheduler-plugins", "kai").
+     - Type of Kubernetes scheduler to use. Supported values: "default", "scheduler-plugins", "volcano", "kai". Default is "default".
    * - ``scheduler_name``
      - String
-     - Name of the specific scheduler instance (e.g., "scheduler-plugins-scheduler", "kai-scheduler").
+     - Name of the kubernetes scheduler or scheduler plugin to use. This should match the name of the scheduler or scheduler plugin in the kubernetes cluster. e.g., "scheduler-plugins-scheduler", "kai-scheduler". Default is "default-scheduler".
    * - ``coscheduling``
      - Boolean
-     - Whether to enable co-scheduling for group workflows.
+     - Whether to enable co-scheduling for group workflows. Default is false.
    * - ``scheduler_timeout``
      - Integer
      - Timeout in seconds for scheduling operations.

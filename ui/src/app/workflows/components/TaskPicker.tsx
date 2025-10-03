@@ -27,7 +27,7 @@ interface TaskPickerProps {
   task?: string;
   retry_id?: number;
   onRefresh: (params: TaskParams) => void;
-  workflow: WorkflowResponse;
+  workflow?: WorkflowResponse;
   suffix?: string;
   includeWorkflow?: boolean;
   includeBlank?: boolean;
@@ -85,7 +85,7 @@ const TaskPicker = ({
       };
     }
 
-    workflow.groups.forEach((group) => {
+    workflow?.groups.forEach((group) => {
       group.tasks.forEach((task) => {
         const key = formatTaskID(task.name, task.retry_id);
         localOptions[key] = {
@@ -97,6 +97,10 @@ const TaskPicker = ({
 
     return localOptions;
   }, [workflow, includeWorkflow, suffix, includeBlank, verbose]);
+
+  if (!workflow) {
+    return null;
+  }
 
   return (
     <Select

@@ -24,16 +24,6 @@ CLI Reference
 .. note::
   TODO: See Run.ai CLI reference - https://run-ai-docs.nvidia.com/SaaS/reference/cli/runai
 
-System Requirements
--------------------
-
-* Operating System
-    * Ubuntu 22.04+ (x86_64)
-    * MacOS (arm64)
-* CPU: 1
-* Disk: 500 MB
-* Memory: 1 GB
-
 .. toctree::
   :hidden:
 

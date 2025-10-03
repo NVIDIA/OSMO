@@ -72,8 +72,6 @@ export const PARAM_KEYS = {
   pod_ip: "pod_ip",
   retry_id: "retry_id",
   entry_command: "entry_command",
-  selectedPlatform: "selectedPlatform",
-  selectedPool: "selectedPool",
 } as const;
 
 export interface ToolParamUpdaterProps {
@@ -100,8 +98,6 @@ export interface ToolParamUpdaterProps {
   pod_ip?: string | null;
   retry_id?: number | null;
   entry_command?: string | null;
-  selectedPlatform?: string | null;
-  selectedPool?: string | null;
 }
 
 // Undefined means no change; null means clear
@@ -138,8 +134,6 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
   const [showWF, setShowWF] = useState<boolean | undefined>(defaults.showWF ? defaults.showWF === "true" : undefined);
   const [showTask, setShowTask] = useState<boolean | undefined>(undefined);
   const [userType, setUserType] = useState<UserFilterType>(UserFilterType.CURRENT);
-  const [selectedPlatform, setSelectedPlatform] = useState<string | undefined>(undefined);
-  const [selectedPool, setSelectedPool] = useState<string | undefined>(undefined);
   useEffect(() => {
     let filterCount = 0;
 
@@ -258,20 +252,6 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       }
     }
 
-    const pool = urlParams.get(PARAM_KEYS.selectedPool);
-    if (pool) {
-      setSelectedPool(pool);
-    } else if (pool === null) {
-      setSelectedPool(undefined);
-    }
-
-    const platform = urlParams.get(PARAM_KEYS.selectedPlatform);
-    if (platform) {
-      setSelectedPlatform(platform);
-    } else if (platform === null) {
-      setSelectedPlatform(undefined);
-    }
-
     setFilterCount(filterCount);
   }, [urlParams, username, defaults]);
 
@@ -314,8 +294,6 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       pod_ip,
       retry_id,
       entry_command,
-      selectedPlatform,
-      selectedPool,
     } = props;
     const newParams = new URLSearchParams(window.location.search);
 
@@ -446,18 +424,6 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       newParams.set(PARAM_KEYS.entry_command, entry_command);
     }
 
-    if (selectedPlatform) {
-      newParams.set(PARAM_KEYS.selectedPlatform, selectedPlatform);
-    } else if (selectedPlatform === null) {
-      newParams.delete(PARAM_KEYS.selectedPlatform);
-    }
-
-    if (selectedPool) {
-      newParams.set(PARAM_KEYS.selectedPool, selectedPool);
-    } else if (selectedPool === null) {
-      newParams.delete(PARAM_KEYS.selectedPool);
-    }
-
     router.replace(`${pathname}?${newParams.toString()}`);
 
     if (urlType) {
@@ -476,13 +442,11 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       newParams.delete(PARAM_KEYS.filterName);
       newParams.delete(PARAM_KEYS.full_log);
       newParams.delete(PARAM_KEYS.last_n_lines);
-      newParams.delete(PARAM_KEYS.selectedPlatform);
-      newParams.delete(PARAM_KEYS.selectedPool);
       handleChangeSidebarData(urlType, `?${newParams.toString()}`);
     }
   };
 
-  return { updateUrl, tool, fullLog, lines, view, nameFilter, nodes, isSelectAllNodesChecked, podIp, filterCount, userFilter, poolFilter, allStatuses, statusFilter, userType, isSelectAllPoolsChecked, priority, dateRange, dateAfterFilter, dateBeforeFilter, selectedWorkflowName, selectedTaskName, retryId, dateRangeDates, showTask, showWF, selectedPlatform, selectedPool };
+  return { updateUrl, tool, fullLog, lines, view, nameFilter, nodes, isSelectAllNodesChecked, podIp, filterCount, userFilter, poolFilter, allStatuses, statusFilter, userType, isSelectAllPoolsChecked, priority, dateRange, dateAfterFilter, dateBeforeFilter, selectedWorkflowName, selectedTaskName, retryId, dateRangeDates, showTask, showWF };
 };
 
 export default useToolParamUpdater;

@@ -36,7 +36,7 @@ OSMO is a cloud native platform that provides easy and efficient access to vario
 * Evaluate the results in simulation
 * Run benchmarks on the hardware used to build the robot
 
-Developers can use either client :ref:`CLI <install>` or `web UI <osmo_ui_>`_ to submit workflows. OSMO orchestrates multiple containers as described in the workflow specification on the compute backend. Each OSMO backend is a Kubernetes cluster of compute nodes.
+Developers can use either client :ref:`CLI <cli_install>` or `web UI <osmo_ui_>`_ to submit workflows. OSMO orchestrates multiple containers as described in the workflow specification on the compute backend. Each OSMO backend is a Kubernetes cluster of compute nodes.
 
 .. image:: intro.png
 	:width: 800

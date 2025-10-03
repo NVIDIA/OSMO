@@ -37,7 +37,6 @@ import { useWorkflow } from "./components/WorkflowLoader";
 import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./components/WorkflowsFilters";
 import { WorkflowsTable } from "./components/WorkflowsTable";
 import useToolParamUpdater, { type ToolType } from "./hooks/useToolParamUpdater";
-import { PoolDetails } from "../pools/components/PoolDetails";
 
 export default function Workflows() {
   const { username } = useAuth();
@@ -62,8 +61,6 @@ export default function Workflows() {
     dateRangeDates,
     selectedTaskName,
     retryId,
-    selectedPool,
-    selectedPlatform,
   } = useToolParamUpdater(UrlTypes.Workflows, username, {
     allStatuses: "true",
     status: "",
@@ -77,9 +74,6 @@ export default function Workflows() {
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
-
-  // focus trap onDeacticate is happening in the DOM and state is not reliable - use ref instead
-  const detailsContext = useRef<"pool" | "workflow" | null>(null);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {
@@ -99,11 +93,6 @@ export default function Workflows() {
       setActiveTool(tool);
     }
   }, [selectedWorkflow.data, tool]);
-
-  // Set detailsContext when the slideout opens; don't clear it on close so onClose can use a stable value
-  useEffect(() => {
-    detailsContext.current = selectedPool ? "pool" : selectedWorkflowName ? "workflow" : null;
-  }, [selectedPool, selectedWorkflowName]);
 
   useEffect(() => {
     if (selectedTaskName) {
@@ -188,12 +177,12 @@ export default function Workflows() {
   const { setSafeTimeout } = useSafeTimeout();
 
   const gridClass = useMemo(() => {
-    if (workflowPinned && (selectedWorkflowName ?? selectedPool)) {
+    if (workflowPinned && selectedWorkflowName) {
       return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
-  }, [workflowPinned, selectedWorkflowName, selectedPool]);
+  }, [workflowPinned, selectedWorkflowName]);
 
   const {
     data: workflows,
@@ -272,7 +261,7 @@ export default function Workflows() {
           onClose={() => setShowFilters(false)}
           className="w-100 border-t-0"
           containerRef={headerRef}
-          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          top={headerRef.current?.offsetHeight ?? 0}
           dimBackground={false}
         >
           <WorkflowsFilters
@@ -306,36 +295,24 @@ export default function Workflows() {
         />
         <SlideOut
           header={
-            <>
-              {selectedPool ? (
-                <h2>{selectedPool}</h2>
-              ) : (
-                selectedWorkflowName && (
-                  <Link
-                    id="workflow-details-header"
-                    className="btn btn-action"
-                    href={`/workflows/${selectedWorkflowName}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Open in new tab"
-                  >
-                    <span className="font-semibold">Workflow Details</span>
-                    <FilledIcon name="open_in_new" />
-                  </Link>
-                )
-              )}
-            </>
+            selectedWorkflowName && (
+              <Link
+                id="workflow-details-header"
+                className="btn btn-action"
+                href={`/workflows/${selectedWorkflowName}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open in new tab"
+              >
+                <span className="font-semibold">Workflow Details</span>
+                <FilledIcon name="open_in_new" />
+              </Link>
+            )
           }
           id="details-slideout"
-          open={!!selectedWorkflowName || !!selectedPool}
+          open={!!selectedWorkflowName}
           onClose={() => {
-            if (!workflowPinned) {
-              updateUrl({ selectedPool: null, selectedPlatform: null, workflow: null });
-            } else if (detailsContext.current === "pool") {
-              updateUrl({ selectedPool: null, selectedPlatform: null });
-            } else {
-              updateUrl({ workflow: null });
-            }
+            updateUrl({ workflow: null });
           }}
           canPin={true}
           pinned={workflowPinned}
@@ -349,14 +326,7 @@ export default function Workflows() {
           containerRef={containerRef}
           heightOffset={10}
         >
-          {selectedPool ? (
-            <PoolDetails
-              selectedPool={selectedPool}
-              selectedPlatform={selectedPlatform}
-              isShowingUsed={false}
-              onShowPlatformDetails={(platform) => updateUrl({ selectedPlatform: platform })}
-            />
-          ) : selectedWorkflow.isLoading ? (
+          {selectedWorkflow.isLoading ? (
             <div className="flex justify-center items-center h-full">
               <Spinner description="Loading workflow..." />
             </div>

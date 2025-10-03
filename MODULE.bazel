@@ -18,6 +18,7 @@
 BASE_DISTROLESS_IMAGE_URL = "nvcr.io/nvidia/distroless/"
 
 BASE_IMAGE_URL = "nvcr.io/nvidia/osmo/"
+IMAGE_TAG = ""
 
 ################
 #  Workspace   #
@@ -59,6 +60,7 @@ osmo_constants = use_repo_rule("//bzl:osmo_constants_repo.bzl", "osmo_constants"
 osmo_constants(
     name = "osmo_constants",
     base_image_url = BASE_IMAGE_URL,
+    image_tag = IMAGE_TAG,
 )
 
 ################

@@ -32,7 +32,6 @@ import { type TaskSummaryListItem } from "~/models/tasks-model";
 import { api } from "~/trpc/react";
 
 import { TasksTable } from "./components/TasksTable";
-import { PoolDetails } from "../pools/components/PoolDetails";
 import { TasksFilters, type TasksFiltersDataProps } from "../tasks/components/TasksFilters";
 import { ToolsModal } from "../workflows/components/ToolsModal";
 import WorkflowDetails from "../workflows/components/WorkflowDetails";
@@ -70,8 +69,6 @@ export default function TasksSummary() {
     statusFilter,
     nodes,
     isSelectAllNodesChecked,
-    selectedPool,
-    selectedPlatform,
   } = useToolParamUpdater(UrlTypes.TasksSummary, username, defaultState);
   const headerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,9 +77,6 @@ export default function TasksSummary() {
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(tool);
   const [showFilters, setShowFilters] = useState(false);
   const [showTotalResources, setShowTotalResources] = useState(false);
-
-  // focus trap onDeacticate is happening in the DOM and state is not reliable - use ref instead
-  const detailsContext = useRef<"pool" | "workflow" | null>(null);
 
   const {
     data: selectedWorkflow,
@@ -128,10 +122,6 @@ export default function TasksSummary() {
         .find((task) => task.name === selectedTaskName && task.retry_id === retryId) ?? undefined
     );
   }, [selectedWorkflow, selectedTaskName, retryId]);
-
-  useEffect(() => {
-    detailsContext.current = selectedPool ? "pool" : selectedWorkflowName ? "workflow" : null;
-  }, [selectedPool, selectedWorkflowName]);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {
@@ -226,12 +216,12 @@ export default function TasksSummary() {
   const { setSafeTimeout } = useSafeTimeout();
 
   const gridClass = useMemo(() => {
-    if (taskPinned && (selectedWorkflowName ?? selectedPool)) {
+    if (taskPinned && selectedWorkflowName) {
       return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
-  }, [taskPinned, selectedWorkflowName, selectedPool]);
+  }, [taskPinned, selectedWorkflowName]);
 
   const processResources = useMemo((): TaskSummaryListItem[] => {
     if (!isSuccess) {
@@ -404,33 +394,23 @@ export default function TasksSummary() {
             />
             <SlideOut
               header={
-                selectedPool ? (
-                  <h2>{selectedPool}</h2>
-                ) : (
-                  <Link
-                    id="workflow-details-header"
-                    className="btn btn-action"
-                    href={`/workflows/${selectedWorkflowName}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Open in new tab"
-                  >
-                    <span className="font-semibold">Workflow Details</span>
-                    <FilledIcon name="open_in_new" />
-                  </Link>
-                )
+                <Link
+                  id="workflow-details-header"
+                  className="btn btn-action"
+                  href={`/workflows/${selectedWorkflowName}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open in new tab"
+                >
+                  <span className="font-semibold">Workflow Details</span>
+                  <FilledIcon name="open_in_new" />
+                </Link>
               }
               id="details-panel"
-              open={(!!showWF && !!selectedWorkflowName) || !!selectedPool}
-              paused={(!!showWF && !!selectedWorkflowName && !selectedWorkflow) || !!selectedPlatform}
+              open={!!showWF && !!selectedWorkflowName}
+              paused={!!showWF && !!selectedWorkflowName && !selectedWorkflow}
               onClose={() => {
-                if (!taskPinned) {
-                  updateUrl({ selectedPool: null, selectedPlatform: null, workflow: null, task: null });
-                } else if (detailsContext.current === "pool") {
-                  updateUrl({ selectedPool: null, selectedPlatform: null });
-                } else {
-                  updateUrl({ workflow: null, task: null });
-                }
+                updateUrl({ workflow: null, task: null });
               }}
               canPin={true}
               pinned={taskPinned}
@@ -444,14 +424,7 @@ export default function TasksSummary() {
               containerRef={containerRef}
               heightOffset={10}
             >
-              {selectedPool ? (
-                <PoolDetails
-                  selectedPool={selectedPool}
-                  selectedPlatform={selectedPlatform}
-                  isShowingUsed={false}
-                  onShowPlatformDetails={(platform) => updateUrl({ selectedPlatform: platform })}
-                />
-              ) : selectedWorkflowError ? (
+              {selectedWorkflowError ? (
                 <PageError
                   title="Error loading workflow"
                   errorMessage={selectedWorkflowError.message}

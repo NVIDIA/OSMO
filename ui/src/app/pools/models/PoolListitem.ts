@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { type Pool } from "~/models";
+import { type Pool, type PoolResourceUsage, PoolsQuotaResponseSchema } from "~/models";
 
 export interface PoolListItem extends Pool {
   sharedPools: string[];
@@ -26,3 +26,24 @@ export const poolToPoolListItem = (pool: Pool, nodeSetPools?: string[]): PoolLis
   };
 };
 
+export const processPoolsQuotaResponse = (isSuccess: boolean, nodeSets: unknown): { pools: PoolListItem[]; totalResources?: PoolResourceUsage } => {
+  if (!isSuccess) {
+    return { pools: [], totalResources: undefined };
+  }
+
+  const parsedResponse = PoolsQuotaResponseSchema.safeParse(nodeSets);
+
+  if (!parsedResponse.success) {
+    console.error(parsedResponse.error);
+    return { pools: [], totalResources: undefined };
+  }
+
+  return {
+    pools: parsedResponse.data.node_sets.flatMap((nodeSet) => {
+      // nodeSet.pools is an array of Pool objects
+      const nodeSetPools = nodeSet.pools.map((pool) => pool.name);
+      return nodeSet.pools.map((pool) => poolToPoolListItem(pool, nodeSetPools));
+    }),
+    totalResources: parsedResponse.data.resource_sum,
+  };
+};

@@ -36,7 +36,6 @@ import { formatForWrapping } from "~/utils/string";
 
 import { TasksFilters, type TasksFiltersDataProps } from "./components/TasksFilters";
 import { TasksTable } from "./components/TasksTable";
-import { PoolDetails } from "../pools/components/PoolDetails";
 import TaskDetails from "../workflows/components/TaskDetails";
 import { ToolsModal } from "../workflows/components/ToolsModal";
 import WorkflowDetails from "../workflows/components/WorkflowDetails";
@@ -74,8 +73,6 @@ export default function Tasks() {
     showWF,
     nodes,
     isSelectAllNodesChecked,
-    selectedPlatform,
-    selectedPool,
   } = useToolParamUpdater(UrlTypes.Tasks, username, defaultState);
 
   const headerRef = useRef<HTMLDivElement>(null);
@@ -85,9 +82,6 @@ export default function Tasks() {
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(tool);
   const [showFilters, setShowFilters] = useState(false);
   const [showTotalResources, setShowTotalResources] = useState(false);
-
-  // focus trap onDeacticate is happening in the DOM and state is not reliable - use ref instead
-  const detailsContext = useRef<"pool" | "workflow" | "task" | null>(null);
 
   const {
     data: selectedWorkflow,
@@ -126,10 +120,6 @@ export default function Tasks() {
       ?.find((g) => g.tasks.some((t) => t.name === selectedTaskName && t.retry_id === retryId))
       ?.tasks.find((t) => t.name === selectedTaskName && t.retry_id === retryId);
   }, [selectedWorkflow, selectedTaskName, retryId]);
-
-  useEffect(() => {
-    detailsContext.current = selectedPool ? "pool" : showWF ? "workflow" : selectedTaskName ? "task" : null;
-  }, [selectedPool, showWF, selectedTaskName]);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {
@@ -224,12 +214,12 @@ export default function Tasks() {
   const { setSafeTimeout } = useSafeTimeout();
 
   const gridClass = useMemo(() => {
-    if (taskPinned && (selectedTaskName ?? selectedPool)) {
+    if (taskPinned && selectedTaskName) {
       return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
-  }, [taskPinned, selectedTaskName, selectedPool]);
+  }, [taskPinned, selectedTaskName]);
 
   const extraData = useMemo((): Record<string, React.ReactNode> => {
     const taskItem = tasks?.find((t) => t.task_name === selectedTaskName && t.retry_id === retryId);
@@ -254,14 +244,14 @@ export default function Tasks() {
 
       if (taskItem.pool) {
         extraData.Pool = (
-          <button
-            onClick={() => {
-              updateUrl({ selectedPool: taskItem.pool });
-            }}
+          <Link
+            href={`/pools/${taskItem.pool}`}
             className="tag-container"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             <Tag color={Colors.pool}>{taskItem.pool}</Tag>
-          </button>
+          </Link>
         );
       }
 
@@ -348,7 +338,7 @@ export default function Tasks() {
           onClose={() => setShowFilters(false)}
           className="w-100 border-t-0"
           containerRef={headerRef}
-          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          top={headerRef.current?.offsetHeight ?? 0}
           dimBackground={false}
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}
@@ -381,10 +371,10 @@ export default function Tasks() {
           open={showTotalResources}
           onClose={() => setShowTotalResources(false)}
           containerRef={headerRef}
-          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          top={headerRef.current?.offsetHeight ?? 0}
           header={<h2>Total Resources</h2>}
           dimBackground={false}
-          className="mr-30 border-t-0"
+          className="mr-26 border-t-0"
         >
           <div className="h-full w-full p-3 dag-details-body">
             <dl>
@@ -423,9 +413,7 @@ export default function Tasks() {
         />
         <SlideOut
           header={
-            selectedPool ? (
-              selectedPool
-            ) : showWF ? (
+            showWF ? (
               <Link
                 id="workflow-details-header"
                 className="btn btn-action"
@@ -442,14 +430,10 @@ export default function Tasks() {
             )
           }
           id="tasks-details"
-          open={!!selectedTaskName || !!selectedPool}
-          paused={(!!selectedTaskName && !selectedTask) || !!selectedPlatform}
+          open={!!selectedTaskName}
+          paused={!!selectedTaskName && !selectedTask}
           onClose={() => {
-            if (!taskPinned) {
-              updateUrl({ selectedPool: null, selectedPlatform: null, workflow: null, task: null });
-            } else if (detailsContext.current === "pool") {
-              updateUrl({ selectedPool: null, selectedPlatform: null });
-            } else if (detailsContext.current === "workflow") {
+            if (showWF) {
               updateUrl({ showWF: false });
             } else {
               updateUrl({ task: null });
@@ -473,13 +457,6 @@ export default function Tasks() {
               errorMessage={selectedWorkflowError.message}
               subText={selectedWorkflowName}
               size="md"
-            />
-          ) : selectedPool ? (
-            <PoolDetails
-              selectedPool={selectedPool}
-              selectedPlatform={selectedPlatform}
-              isShowingUsed={false}
-              onShowPlatformDetails={(platform) => updateUrl({ selectedPlatform: platform })}
             />
           ) : showWF && selectedWorkflow ? (
             <WorkflowDetails

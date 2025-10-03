@@ -18,13 +18,13 @@
 .. _concepts_ds_labels_and_metadata:
 
 ================================================
-Comparing Labels and Metadata
+Labels and Metadata
 ================================================
 
-Labels are **dataset and collection** wide information describing features about all the versions
-connected to it.
+Labels are a dictionary per **dataset and collection** which enables users to store information
+describing features about **ALL** the versions connected to it.
 
-Metadata is information exclusive to a single **dataset version**.
+Metadata is also a dictionary, but stores information exclusive to a single **dataset version**.
 
 Some examples of what might be stored in each:
 

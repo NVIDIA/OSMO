@@ -21,7 +21,7 @@ load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
-load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
     name = "cli_lib",
@@ -157,6 +157,7 @@ oci_push(
     name = "cli_push_x86_64",
     image = ":cli_image_amd64",
     repository = BASE_IMAGE_URL + "client",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = [
         "manual",
@@ -239,6 +240,7 @@ oci_push(
     name = "cli_push_arm64",
     image = ":cli_image_arm64",
     repository = BASE_IMAGE_URL + "client",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = [
         "arm64",

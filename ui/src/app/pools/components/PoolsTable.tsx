@@ -14,7 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 "use client";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useMemo } from "react";
 
 import {
   type ColumnDef,
@@ -24,67 +24,27 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import Link from "next/link";
 
 import { commonFilterFns } from "~/components/commonFilterFns";
 import { TableBase } from "~/components/TableBase";
 import { TableLoader } from "~/components/TableLoader";
 import { TablePagination } from "~/components/TablePagination";
+import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
 import { useTableStateUrlUpdater } from "~/hooks/useTableStateUrlUpdater";
 
 import { PoolStatus } from "./PoolStatus";
-import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 import { type PoolListItem } from "../models/PoolListitem";
-
-const PoolButton = ({
-  pool,
-  selectedPool,
-  updateUrl,
-  disableScrollIntoView = false,
-}: {
-  pool: string;
-  selectedPool?: string;
-  updateUrl: (props: ToolParamUpdaterProps) => void;
-  disableScrollIntoView?: boolean;
-}) => {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const selected = pool === selectedPool;
-
-  useEffect(() => {
-    if (buttonRef.current && selected && !disableScrollIntoView) {
-      buttonRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [selected, disableScrollIntoView]);
-
-  return (
-    <button
-      ref={buttonRef}
-      className={`btn ${selected ? "btn-primary" : "btn-secondary"} table-action whitespace-nowrap`}
-      aria-label={`View details for ${pool}`}
-      aria-current={selected}
-      onClick={() =>
-        updateUrl({
-          selectedPool: pool,
-        })
-      }
-    >
-      {pool}
-    </button>
-  );
-};
 
 export const PoolsTable = ({
   pools,
   isLoading,
   isShowingUsed,
-  selectedPool,
-  updateUrl,
 }: {
   pools: PoolListItem[];
   isLoading: boolean;
   isShowingUsed: boolean;
-  selectedPool?: string;
-  updateUrl: (props: ToolParamUpdaterProps) => void;
 }) => {
   const updatePagingUrl = useTableStateUrlUpdater();
 
@@ -96,12 +56,14 @@ export const PoolsTable = ({
         header: "Pool",
         accessorKey: "name",
         cell: ({ row }) => (
-          <PoolButton
-            pool={row.original.name}
-            selectedPool={selectedPool}
-            updateUrl={updateUrl}
-            disableScrollIntoView={false}
-          />
+          <Link
+            href={`/pools/${row.original.name}`}
+            className="tag-container"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Tag color={Colors.pool}>{row.original.name}</Tag>
+          </Link>
         ),
         sortingFn: "alphanumericCaseSensitive",
         invertSorting: true,
@@ -114,13 +76,15 @@ export const PoolsTable = ({
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1">
             {row.original.sharedPools.map((pool) => (
-              <PoolButton
+              <Link
+                href={`/pools/${pool}`}
                 key={pool}
-                pool={pool}
-                selectedPool={selectedPool}
-                updateUrl={updateUrl}
-                disableScrollIntoView={true}
-              />
+                className="tag-container"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Tag color={Colors.pool}>{pool}</Tag>
+              </Link>
             ))}
           </div>
         ),
@@ -195,7 +159,7 @@ export const PoolsTable = ({
     }
 
     return columns;
-  }, [isShowingUsed, selectedPool, updateUrl]);
+  }, [isShowingUsed]);
 
   const table = useReactTable({
     columns: columns,
@@ -217,7 +181,7 @@ export const PoolsTable = ({
   });
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full px-3">
       {isLoading ? (
         <TableLoader table={table} />
       ) : (

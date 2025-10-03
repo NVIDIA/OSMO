@@ -41,7 +41,7 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.lib.data import constants, storage
-from src.lib.utils import (cache, common, credentials, jinja_sandbox, login,
+from src.lib.utils import (common, credentials, jinja_sandbox, login,
                            osmo_errors, role)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
@@ -557,7 +557,6 @@ class PostgresConnector:
                 last_heartbeat TIMESTAMP,
                 created_date TIMESTAMP,
                 router_address TEXT,
-                cache_config TEXT,
                 version TEXT DEFAULT '',
                 node_conditions JSONB DEFAULT '{
                     "additional_node_conditions": [],
@@ -2158,7 +2157,6 @@ class Backend(pydantic.BaseModel):
     last_heartbeat: datetime.datetime
     created_date: datetime.datetime
     router_address: str
-    cache_config: cache.CacheConfig
     online: bool
 
     @classmethod
@@ -2198,8 +2196,6 @@ class Backend(pydantic.BaseModel):
                        last_heartbeat=backend_row.last_heartbeat,
                        created_date=backend_row.created_date,
                        router_address=backend_row.router_address,
-                       cache_config=cache.CacheConfig(
-                           **yaml.safe_load(backend_row.cache_config)),
                        online=common.heartbeat_online(backend_row.last_heartbeat))
 
     @classmethod
@@ -2245,8 +2241,6 @@ class Backend(pydantic.BaseModel):
                         last_heartbeat=backend_row.last_heartbeat,
                         created_date=backend_row.created_date,
                         router_address=backend_row.router_address,
-                        cache_config=cache.CacheConfig(
-                            **yaml.safe_load(backend_row.cache_config)),
                         online=common.heartbeat_online(backend_row.last_heartbeat))
                         for backend_row in backend_rows]
 

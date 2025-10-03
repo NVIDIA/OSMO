@@ -36,6 +36,14 @@ config_setting(
     ],
 )
 
+config_setting(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 osmo_py_binary(
     name = "doc_builder",
     main = "doc_builder.py",
@@ -94,6 +102,10 @@ run_binary(
             "PYENCHANT_LIBRARY_PATH": "/usr/lib/aarch64-linux-gnu/libenchant-2.so.2",
             "OSMO_DOMAIN": "hexagon-sandbox",
         },
+        ":linux_x86_64": {
+            "PYENCHANT_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu/libenchant-2.so.2",
+            "OSMO_DOMAIN": "hexagon-sandbox",
+        },
         "//conditions:default": {
             "OSMO_DOMAIN": "hexagon-sandbox",
         },
@@ -118,6 +130,10 @@ run_binary(
         },
         ":linux_arm64": {
             "PYENCHANT_LIBRARY_PATH": "/usr/lib/aarch64-linux-gnu/libenchant-2.so.2",
+            "OSMO_DOMAIN": "hexagon-sandbox",
+        },
+        ":linux_x86_64": {
+            "PYENCHANT_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu/libenchant-2.so.2",
             "OSMO_DOMAIN": "hexagon-sandbox",
         },
         "//conditions:default": {

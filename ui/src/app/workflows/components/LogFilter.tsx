@@ -31,7 +31,7 @@ interface LogOption {
 }
 
 interface LogFilterProps {
-  workflow: WorkflowResponse;
+  workflow?: WorkflowResponse;
   task?: string;
   tool: ToolType;
   fullLog: boolean;
@@ -67,21 +67,21 @@ const LogFilter = ({
   const options = useMemo(() => {
     const localOptions: Record<string, LogOption> = {};
 
-    if (workflow.logs) {
+    if (workflow?.logs) {
       localOptions[formatTaskID(WORKFLOW_KEY, null, false)] = {
         label: "Workflow Logs",
         data: { tool: ToolType.WorkflowLogs, task },
       };
     }
 
-    if (workflow.error_logs) {
+    if (workflow?.error_logs) {
       localOptions[formatTaskID(WORKFLOW_KEY, null, true)] = {
         label: "Workflow Error Logs",
         data: { tool: ToolType.WorkflowErrorLogs, task },
       };
     }
 
-    workflow.groups.forEach((group) => {
+    workflow?.groups.forEach((group) => {
       group.tasks.forEach((task) => {
         if (task.logs) {
           localOptions[formatTaskID(task.name, task.retry_id, false)] = {
@@ -110,6 +110,10 @@ const LogFilter = ({
     setOpen(false);
     onRefreshLines(localFullLog, localLines);
   };
+
+  if (!workflow) {
+    return null;
+  }
 
   return (
     <>

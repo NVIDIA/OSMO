@@ -15,10 +15,10 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _deploy_minimal:
+.. _deploy_quickstart:
 
 ============================
-Minimal Deployment
+Quick Start
 ============================
 
 This guide provides instructions for deploying OSMO in a minimal configuration suitable for testing, development, and evaluation purposes. This setup of OSMO creates the service and backend operator in the same kubernetes cluster, is suitable for single-tenant, has no authentication, and is designed for quick setup and experimentation.
@@ -495,7 +495,7 @@ Generate a token for the backend operator with OSMO CLI:
 
    osmo login http://<your-domain> --method=dev --username=testuser
 
-   export BACKEND_TOKEN=$(osmo token set backend-token --expires-at 2026-08-11 --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
+   export BACKEND_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
 
    kubectl create secret generic osmo-operator-token --from-literal=token=$BACKEND_TOKEN --namespace osmo-operator
 
@@ -592,8 +592,8 @@ Next Steps
 
 Once you have tested OSMO with the minimal deployment and are ready for production use:
 
-1. Consider upgrading to :doc:`deploy_full` for single-tenant production use
-2. Or :doc:`deploy_multitenant` for multi-tenant scenarios
+1. Consider upgrading to :ref:`deploy_single_tenant` for single-tenant production use
+2. Or :ref:`deploy_multitenant` for multi-tenant scenarios
 3. Set up proper authentication and authorization
 4. Configure persistent storage solutions
 5. Implement monitoring and logging

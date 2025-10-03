@@ -23,7 +23,7 @@ import TaskPicker from "./TaskPicker";
 import { ToolType, type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
 interface FullPageModalHeadingProps {
-  workflow: WorkflowResponse;
+  workflow?: WorkflowResponse;
   tool?: ToolType;
   selectedTask?: Task;
   fullLog: boolean;

@@ -18,13 +18,16 @@ def _osmo_constants_impl(ctx):
     ctx.file("BUILD.bazel", "")
     ctx.file("constants.bzl", """
 BASE_IMAGE_URL = "{base_image_url}"
+IMAGE_TAG = "{image_tag}"
 """.format(
     base_image_url = ctx.attr.base_image_url,
+    image_tag = ctx.attr.image_tag,
 ))
 
 osmo_constants = repository_rule(
     implementation = _osmo_constants_impl,
     attrs = {
         "base_image_url": attr.string(mandatory = True),
+        "image_tag": attr.string(mandatory = True),
     },
 )

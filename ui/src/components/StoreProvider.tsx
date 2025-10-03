@@ -20,7 +20,6 @@ const APP_NAME = "osmo-ui";
 
 const SIDEBAR_KEY = `${APP_NAME}-kui-sidebar`;
 export const SHOW_USED_KEY = `${APP_NAME}-show-used`;
-export const RESOURCE_PINNED_KEY = `${APP_NAME}-resource-pinned`;
 export const TASK_PINNED_KEY = `${APP_NAME}-task-pinned`;
 export const POOL_PINNED_KEY = `${APP_NAME}-pool-pinned`;
 export const WORKFLOW_PINNED_KEY = `${APP_NAME}-workflow-pinned`;

@@ -30,11 +30,11 @@ import sys
 import os
 
 sys.path.insert(0, os.path.abspath('.'))
-sys.path.append(os.path.abspath('sphinxext'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'OSMO'
+project = 'NVIDIA OSMO'
+copyright = "2025 NVIDIA CORPORATION & AFFILIATES"
 
 OSMO_DOMAIN = "public"
 
@@ -87,6 +87,7 @@ suppress_warnings = [
 #
 html_theme = "sphinx_immaterial"
 
+html_title = 'OSMO'
 html_show_sourcelink = False
 html_favicon = '../_static/osmo_favicon.png'
 html_logo = '../_static/NVIDIA-logo-white.png'
@@ -104,32 +105,32 @@ html_theme_options = {
         "content.tooltips",
         "announce.dismiss",
     ],
-    # "palette": [
-    #     {
-    #         "media": "(prefers-color-scheme)",
-    #         "toggle": {
-    #             "icon": "material/brightness-auto",
-    #             "name": "Switch to light mode",
-    #         },
-    #     },
-    #     {
-    #         "media": "(prefers-color-scheme: light)",
-    #         "scheme": "nvgreen",
-    #         "toggle": {
-    #             "icon": "material/lightbulb",
-    #             "name": "Switch to dark mode",
-    #         },
-    #     },
-    #     {
-    #         "media": "(prefers-color-scheme: dark)",
-    #         "scheme": "slate",
-    #         "primary": "nvgreen",
-    #         "toggle": {
-    #             "icon": "material/lightbulb-outline",
-    #             "name": "Switch to system preference",
-    #         },
-    #     },
-    # ],
+    "palette": [
+        {
+            "media": "(prefers-color-scheme)",
+            "toggle": {
+                "icon": "material/brightness-auto",
+                "name": "Switch to light mode",
+            },
+        },
+        {
+            "media": "(prefers-color-scheme: light)",
+            "scheme": "nvgreen",
+            "toggle": {
+                "icon": "material/lightbulb",
+                "name": "Switch to dark mode",
+            },
+        },
+        {
+            "media": "(prefers-color-scheme: dark)",
+            "scheme": "slate",
+            "primary": "nvgreen",
+            "toggle": {
+                "icon": "material/lightbulb-outline",
+                "name": "Switch to system preference",
+            },
+        },
+    ],
     "toc_title_is_page_title": True,
 }
 

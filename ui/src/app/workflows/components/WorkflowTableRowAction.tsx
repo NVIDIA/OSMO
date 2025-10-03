@@ -47,7 +47,7 @@ export const WorkflowTableRowAction = ({
       className={`btn ${selected ? "btn-primary" : "btn-secondary"} table-action`}
       ref={buttonRef}
       onClick={() => {
-        updateUrl({ workflow: name, selectedPool: null, selectedPlatform: null, ...extraParams });
+        updateUrl({ workflow: name, ...extraParams });
       }}
     >
       {formatForWrapping(name)}

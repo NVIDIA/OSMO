@@ -13,280 +13,232 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import React, { useEffect, useMemo, useState } from "react";
 
-import Link from "next/link";
+import React from "react";
 
-import { PlatformDetails } from "~/app/resources/components/PlatformDetails";
-import FullPageModal from "~/components/FullPageModal";
-import { OutlinedIcon } from "~/components/Icon";
+import { usePathname, useRouter } from "next/navigation";
+
+import { Spinner } from "~/components/Spinner";
 import { Colors, Tag } from "~/components/Tag";
-import { PoolsListResponseSchema } from "~/models";
-import { api } from "~/trpc/react";
 
 import { PoolStatus } from "./PoolStatus";
 import { type PoolListItem } from "../models/PoolListitem";
-import { poolToPoolListItem } from "../models/PoolListitem";
+
+const PlatformTag = ({
+  platform,
+  selectedPlatform,
+  platformsAsLinks,
+}: {
+  platform: string;
+  selectedPlatform?: string;
+  platformsAsLinks: boolean;
+}) => {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  return platformsAsLinks ? (
+    <button
+      onClick={() => {
+        const newParams = new URLSearchParams(window.location.search);
+
+        newParams.set("platform", platform);
+        router.replace(`${pathname}?${newParams.toString()}`);
+      }}
+      className="tag-container"
+    >
+      <Tag
+        color={Colors.platform}
+        className={`${selectedPlatform === platform ? "outline-2 outline-brand border-brand" : ""}`}
+      >
+        {platform}
+      </Tag>
+    </button>
+  ) : (
+    <Tag
+      color={Colors.platform}
+      className={`inline-block ${selectedPlatform === platform ? "outline-2 outline-brand border-brand" : ""}`}
+    >
+      {platform}
+    </Tag>
+  );
+};
 
 export const PoolDetails = ({
-  pools,
-  selectedPool,
+  name,
+  pool,
   selectedPlatform,
+  platformsAsLinks = false,
   isShowingUsed,
-  onShowPlatformDetails,
-  showActions = true,
 }: {
-  pools?: PoolListItem[];
-  selectedPool?: string;
+  name?: string;
+  pool?: PoolListItem;
   selectedPlatform?: string;
-  isShowingUsed: boolean;
-  onShowPlatformDetails?: (platform?: string | null) => void;
-  showActions?: boolean;
+  platformsAsLinks?: boolean;
+  isShowingUsed?: boolean;
 }) => {
-  const [localPools, setLocalPools] = useState(pools);
-
-  const { data: availablePools } = api.resources.getPools.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-    enabled: !pools,
-  });
-
-  useEffect(() => {
-    setLocalPools(pools);
-  }, [pools]);
-
-  useEffect(() => {
-    // The type of parsedAvailablePools is not an array, but a record (object) mapping pool names to pool objects.
-    // So, to get an array, use Object.values.
-    const parsedData = PoolsListResponseSchema.safeParse(availablePools);
-    const parsedAvailablePools = parsedData.success ? Object.values(parsedData.data.pools) : [];
-    const pools = parsedAvailablePools.map((p) => poolToPoolListItem(p));
-
-    setLocalPools(pools);
-  }, [availablePools]);
-
-  const pool = useMemo(() => {
-    if (selectedPool && localPools) {
-      return localPools.find((pool) => pool.name === selectedPool);
-    } else {
-      return undefined;
-    }
-  }, [selectedPool, localPools]);
-
-  const platform = useMemo(() => {
-    if (selectedPlatform && pool) {
-      return pool.platforms[selectedPlatform];
-    } else {
-      return undefined;
-    }
-  }, [selectedPlatform, pool]);
-
-  if (!pool) {
+  if (!name) {
     return null;
   }
 
   return (
-    <>
-      <div className="flex flex-col">
-        <div className="body-header text-center p-3">{pool.description}</div>
-        <div className="flex flex-col gap-3 pb-3">
-          <dl className="p-3">
-            <dt>Status</dt>
-            <dd>
-              <PoolStatus status={pool.status} />
-            </dd>
-            <dt>Backend</dt>
-            <dd>{pool.backend}</dd>
-            <dt>Default Platform</dt>
-            <dd>
-              {onShowPlatformDetails ? (
-                <button
-                  className="tag-container"
-                  onClick={() => onShowPlatformDetails(pool.default_platform ?? undefined)}
-                >
-                  <Tag color={Colors.platform}>{pool.default_platform}</Tag>
-                </button>
-              ) : (
-                <Tag
-                  className="inline-block"
-                  color={Colors.platform}
-                >
-                  {pool.default_platform}
-                </Tag>
-              )}
-            </dd>
-            <dt>Default Execute Timeout</dt>
-            <dd>{pool.default_exec_timeout}</dd>
-            <dt>Default Queue Timeout</dt>
-            <dd>{pool.default_queue_timeout}</dd>
-            <dt>Max Execute Timeout</dt>
-            <dd>{pool.max_exec_timeout}</dd>
-            <dt>Max Queue Timeout</dt>
-            <dd>{pool.max_queue_timeout}</dd>
-          </dl>
+    <div className="card w-full h-full body-component">
+      <div className="brand-header px-3 flex flex-row justify-between items-center gap-3">
+        <h3>{name}</h3>
+        <Tag
+          className="inline-block"
+          color={Colors.pool}
+        >
+          Pool
+        </Tag>
+      </div>
+      {pool ? (
+        <>
           {pool.resource_usage && (
-            <>
-              <h3 className="body-header text-base px-3">Resource Usage</h3>
-              <dl className="px-3">
-                {isShowingUsed ? (
-                  <>
-                    <dt>Quota Used</dt>
-                    <dd>{pool.resource_usage.quota_used}</dd>
-                    <dt>Quota Limit</dt>
-                    <dd>{pool.resource_usage.quota_limit}</dd>
-                    <dt>Total Usage</dt>
-                    <dd>{pool.resource_usage.total_usage}</dd>
-                    <dt>Total Capacity</dt>
-                    <dd>{pool.resource_usage.total_capacity}</dd>
-                  </>
-                ) : (
-                  <>
-                    <dt>Quota Free</dt>
-                    <dd>{pool.resource_usage.quota_free}</dd>
-                    <dt>Total Free</dt>
-                    <dd>{pool.resource_usage.total_free}</dd>
-                  </>
-                )}
-              </dl>
-            </>
+            <div className="body-header p-3 flex flex-col gap-3">
+              <div className="grid gap-3 grid-cols-2">
+                <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+                  <h4>Quota</h4>
+                  {isShowingUsed ? (
+                    <>
+                      <p>
+                        <strong>Used:</strong> {pool.resource_usage.quota_used}
+                      </p>
+                      <p>
+                        <strong>Total:</strong> {pool.resource_usage.quota_limit}
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      <strong>Free:</strong> {pool.resource_usage.quota_free}
+                    </p>
+                  )}
+                </div>
+                <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+                  <h4>Total</h4>
+                  {isShowingUsed ? (
+                    <>
+                      <p>
+                        <strong>Used:</strong> {pool.resource_usage.total_usage}
+                      </p>
+                      <p>
+                        <strong>Total:</strong> {pool.resource_usage.total_capacity}
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      <strong>Free:</strong> {pool.resource_usage.total_free}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
-          {onShowPlatformDetails && Object.entries(pool.platforms).length > 1 && (
-            <>
+          <div className="flex flex-col gap-3 p-3">
+            <div className="card p-0">
               <h3
-                className="body-header text-base px-3"
+                className="body-header text-base p-3"
                 id="platforms"
               >
-                Platforms
+                Configurations
               </h3>
-              <div className="flex flex-wrap gap-1 mx-3">
-                {Object.entries(pool.platforms).map(([platform]) => (
-                  <button
-                    key={platform}
-                    className="tag-container"
-                    onClick={() => onShowPlatformDetails(platform)}
-                  >
-                    <Tag color={Colors.platform}>{platform}</Tag>
-                  </button>
-                ))}
+              <dl className="p-3">
+                <dt>Description</dt>
+                <dd>{pool.description}</dd>
+                <dt>Status</dt>
+                <dd>
+                  <PoolStatus status={pool.status} />
+                </dd>
+                <dt>Backend</dt>
+                <dd>{pool.backend}</dd>
+                <dt>Default Platform</dt>
+                <dd>
+                  {pool.default_platform ? (
+                    <PlatformTag
+                      platform={pool.default_platform}
+                      selectedPlatform={selectedPlatform}
+                      platformsAsLinks={platformsAsLinks}
+                    />
+                  ) : (
+                    "None"
+                  )}
+                </dd>
+                <dt>Default Execute Timeout</dt>
+                <dd>{pool.default_exec_timeout}</dd>
+                <dt>Default Queue Timeout</dt>
+                <dd>{pool.default_queue_timeout}</dd>
+                <dt>Max Execute Timeout</dt>
+                <dd>{pool.max_exec_timeout}</dd>
+                <dt>Max Queue Timeout</dt>
+                <dd>{pool.max_queue_timeout}</dd>
+              </dl>
+            </div>
+            {Object.entries(pool.platforms).length > 1 && (
+              <div className="card p-0">
+                <h3
+                  className="body-header text-base p-3"
+                  id="platforms"
+                >
+                  Platforms
+                </h3>
+                <div className="flex flex-wrap gap-1 m-3">
+                  {Object.entries(pool.platforms).map(([platform]) => (
+                    <PlatformTag
+                      key={platform}
+                      platform={platform}
+                      selectedPlatform={selectedPlatform}
+                      platformsAsLinks={platformsAsLinks}
+                    />
+                  ))}
+                </div>
               </div>
-            </>
-          )}
-          <h3
-            className="body-header text-base px-3"
-            id="action-permissions"
-          >
-            Action Permissions
-          </h3>
-          <dl
-            aria-labelledby="action-permissions"
-            className="px-3"
-          >
-            {Object.entries(pool.action_permissions).map(([action, description]) => (
-              <React.Fragment key={action}>
-                <dt className="capitalize">{action}</dt>
-                <dd>{description}</dd>
-              </React.Fragment>
-            ))}
-          </dl>
-          {Object.entries(pool.default_exit_actions).length > 0 && (
-            <>
+            )}
+            <div className="card p-0">
               <h3
-                className="body-header text-base px-3"
-                id="default-exit-actions"
+                className="body-header text-base p-3"
+                id="action-permissions"
               >
-                Default Exit Actions
+                Action Permissions
               </h3>
               <dl
-                aria-labelledby="default-exit-actions"
-                className="px-3"
+                aria-labelledby="action-permissions"
+                className="p-3"
               >
-                {Object.entries(pool.default_exit_actions).map(([action, description]) => (
+                {Object.entries(pool.action_permissions).map(([action, description]) => (
                   <React.Fragment key={action}>
                     <dt className="capitalize">{action}</dt>
                     <dd>{description}</dd>
                   </React.Fragment>
                 ))}
               </dl>
-            </>
-          )}
-        </div>
-      </div>
-      {showActions && (
-        <div
-          className={`dag-actions body-footer lg:sticky lg:bottom-0`}
-          role="list"
-          aria-label="Workflow Actions"
-        >
-          <Link
-            href={`/workflows?allPools=false&pools=${pool.name}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-action"
-            role="listitem"
-          >
-            <OutlinedIcon name="work_outline" />
-            My Workflows
-          </Link>
-          <Link
-            href={`/tasks?allPools=false&pools=${pool.name}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-action"
-            role="listitem"
-          >
-            <OutlinedIcon name="task" />
-            My Tasks
-          </Link>
-          <Link
-            href={`/workflows?allPools=false&pools=${pool.name}&allUsers=true`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-action"
-            role="listitem"
-          >
-            <OutlinedIcon name="work_outline" />
-            All Workflows
-          </Link>
-          <Link
-            href={`/tasks?allPools=false&pools=${pool.name}&allUsers=true`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-action"
-            role="listitem"
-          >
-            <OutlinedIcon name="task" />
-            All Tasks
-          </Link>
-          <Link
-            href={`/resources?allPools=false&pools=${pool.name}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-action"
-            role="listitem"
-          >
-            <OutlinedIcon name="cloud" />
-            View Resources
-          </Link>
+            </div>
+            {Object.entries(pool.default_exit_actions).length > 0 && (
+              <div className="card p-0">
+                <h3
+                  className="body-header text-base p-3"
+                  id="default-exit-actions"
+                >
+                  Default Exit Actions
+                </h3>
+                <dl
+                  aria-labelledby="default-exit-actions"
+                  className="p-3"
+                >
+                  {Object.entries(pool.default_exit_actions).map(([action, description]) => (
+                    <React.Fragment key={action}>
+                      <dt className="capitalize">{action}</dt>
+                      <dd>{description}</dd>
+                    </React.Fragment>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="h-full w-full flex justify-center items-center">
+          <Spinner />
         </div>
       )}
-      {onShowPlatformDetails && (
-        <FullPageModal
-          open={!!platform}
-          onClose={() => {
-            onShowPlatformDetails(null);
-          }}
-          headerChildren={<h2>{selectedPlatform}</h2>}
-          size="none"
-        >
-          <PlatformDetails
-            hostNetwork={platform?.host_network_allowed}
-            privileged={platform?.privileged_allowed}
-            defaultMounts={platform?.default_mounts}
-            allowedMounts={platform?.allowed_mounts}
-            className="overflow-y-auto max-h-[85vh] sm:grid sm:grid-cols-3 p-3"
-          />
-        </FullPageModal>
-      )}
-    </>
+    </div>
   );
 };

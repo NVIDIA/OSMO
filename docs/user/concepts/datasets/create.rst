@@ -21,48 +21,45 @@
 Create
 ================================================
 
-After a dataset is created or uploaded, it is referred to by its name and an optional colon
-separated version number or tag.
+Creating a Dataset
+==================
+
+The process of creating a dataset version is as follows:
+
+1. The user's client reports to the OSMO service to instantiate
+   the dataset version information, and the new version is marked as ``PENDING``.
+
+   a. If a dataset already exists with the same name in the same bucket, the version count is
+      incremented and given to the new version.
+   b. Otherwise, a new dataset is created and the version is ``1``.
+
+2. Once the upload operation is completed, the client reports to the OSMO service to
+   mark the version as ``READY`` and the version will be available to be downloaded.
+
+.. note::
+
+  Due to the fact that dataset files are hashed, when the user uploads a new version, the dataset
+  library checks if the file already exists in hashes folder and if so, it skips uploading it.
+
+To reference a dataset version, it is referred to by the dataset name and the version number or tag.
 For example, after creating a dataset called ``my_dataset``, you can reference that dataset using:
 
 * ``my_dataset`` refers to the newest version that is in the READY state.
-* ``my_dataset:LkXFR4YFQsSED0T6MR72CQ`` Refers to the version of the dataset which has a tag of
-  “LkXFR4YFQsSED0T6MR72CQ” linked by the :ref:`ds_tag` CLI.
-* ``my_dataset:latest`` Refers to the dataset with tag “latest”.
-* ``my_dataset:3`` Refers to version 3 of the dataset.
+* ``my_dataset:LkXFR4YFQsSED0T6MR72CQ`` refers to the version of the dataset which has a tag of
+  ``LkXFR4YFQsSED0T6MR72CQ`` linked by the :ref:`ds_tag` CLI.
+* ``my_dataset:latest`` refers to the dataset with tag ``latest``.
+* ``my_dataset:3`` refers to version ``3`` of the dataset.
 
-By default, all datasets are created and downloaded from the default **bucket** that is configure
-by the Admin. To reference the datasets from your team, append the bucket name alongside a
-`/` to the dataset name. To see all available buckets, use the :ref:`ds_bucket` CLI.
+To reference dataset ``my_dataset`` from bucket ``team_bucket``, use ``team_bucket/my_dataset``.
 
-For example, to reference dataset ``my_dataset`` from bucket ``team_bucket``, use
-``team_bucket/my_dataset``.
+By default, the user needs to specify the bucket name when creating a dataset.
 
-To create a dataset:
+The admin can configure the default bucket that is used when no bucket is specified, or the
+user can specify a default bucket using the profile CLI.
 
-1. Set your dataset bucket credentials using:
+Creating a Collection
+=====================
 
-* :ref:`credentials`
+Collections are a grouping which links to multiple dataset versions.
 
-.. note::
-
-  Upload requires both **write AND read** permissions.
-
-2. Create the dataset using one of the following:
-
-* :ref:`ds_upload`
-* :ref:`ds_workflow`
-
-To retrieve a dataset:
-
-1. Set your dataset bucket credentials using:
-
-* :ref:`credentials`
-
-.. note::
-
-  Download requires **read** permissions.
-
-2. Download your dataset using:
-
-* :ref:`ds_download`
+When a collection is created, no new data is created or duplicated in object storage.

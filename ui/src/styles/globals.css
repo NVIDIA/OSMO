@@ -21,6 +21,7 @@ SPDX-License-Identifier: Apache-2.0
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 @theme {
+  --breakpoint-xs: 36rem;
   --breakpoint-3xl: 120rem;
   --breakpoint-4xl: 140rem;
 
@@ -251,10 +252,14 @@ SPDX-License-Identifier: Apache-2.0
   }
   .brand-header {
     @apply bg-brand border-b-0;
+
+    h3 {
+      @apply text-base py-2;
+    }
   }
 
   .card {
-    @apply flex flex-col border-1 border-border shadow-sm shadow-neutral-400/50;
+    @apply border-1 border-border shadow-sm shadow-neutral-400/50;
 
     ul {
       @apply m-0 p-0;

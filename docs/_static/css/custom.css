@@ -33,7 +33,6 @@ body, h1, h2, h3, h4, h5, h6 {
     --md-primary-fg-color: #76b900;
     --md-primary-fg-color--light: #8bc34a;
     --md-primary-fg-color--dark: #689f00;
-    --md-accent-fg-color: #76b900;
 }
 
 [data-md-color-scheme="nvgreen"] {
@@ -45,23 +44,6 @@ body, h1, h2, h3, h4, h5, h6 {
 
 a:hover {
     color: #689f00 !important;
-}
-
-/* Code and literal styling */
-code, .highlight {
-    color: var(--nv-green) !important;
-}
-
-/* Admonition styling */
-.md-typeset .admonition.note,
-.md-typeset .admonition.info {
-    border-color: var(--nv-green);
-}
-
-.md-typeset .admonition.note > .admonition-title,
-.md-typeset .admonition.info > .admonition-title {
-    background-color: var(--nv-green);
-    border-color: var(--nv-green);
 }
 
 /* Table styling */

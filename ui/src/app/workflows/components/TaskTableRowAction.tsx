@@ -57,8 +57,6 @@ export const TaskTableRowAction = ({
         updateUrl({
           task: name,
           retry_id: retry_id,
-          selectedPool: null,
-          selectedPlatform: null,
           ...extraParams,
         });
       }}

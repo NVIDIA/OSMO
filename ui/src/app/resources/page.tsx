@@ -15,15 +15,16 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
 import { z } from "zod";
 
+import FullPageModal from "~/components/FullPageModal";
 import { FilledIcon, OutlinedIcon } from "~/components/Icon";
-import { InlineBanner } from "~/components/InlineBanner";
 import { SlideOut } from "~/components/SlideOut";
-import { RESOURCE_PINNED_KEY, SHOW_USED_KEY } from "~/components/StoreProvider";
+import { SHOW_USED_KEY } from "~/components/StoreProvider";
+import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
 import { ViewToggleButton } from "~/components/ViewToggleButton";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
 import { convertFields, ResourcesEntrySchema, roundResources } from "~/models";
@@ -51,7 +52,6 @@ export default function Resources() {
   } = useToolParamUpdater();
   const [showFilters, setShowFilters] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
-  const [resourcesPinned, setResourcesPinned] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const { setSafeTimeout } = useSafeTimeout();
@@ -85,30 +85,13 @@ export default function Resources() {
     return resources ? resourcesToNodes(resources) : undefined;
   }, [resources]);
 
-  // Initialize localStorage values after component mounts
-  useEffect(() => {
-    try {
-      const storedResourcesPinned = localStorage.getItem(RESOURCE_PINNED_KEY);
-      if (storedResourcesPinned !== null) {
-        setResourcesPinned(storedResourcesPinned === "true");
-      }
-    } catch (error) {
-      // localStorage might not be available in some environments
-      console.warn("localStorage not available:", error);
-    }
-  }, []);
-
   const gridClass = useMemo(() => {
-    if (showGauges && selectedResource && resourcesPinned) {
-      return "grid grid-cols-[auto_1fr_auto]";
-    } else if (showGauges) {
+    if (showGauges) {
       return "grid grid-cols-[auto_1fr]";
-    } else if (resourcesPinned && selectedResource) {
-      return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
-  }, [showGauges, selectedResource, resourcesPinned]);
+  }, [showGauges]);
 
   const processResources = useMemo((): ResourceListItem[] => {
     if (!isSuccess) {
@@ -286,54 +269,38 @@ export default function Resources() {
             updateUrl={updateUrl}
           />
         </div>
-        <SlideOut
-          canPin={true}
-          pinned={resourcesPinned}
-          containerRef={containerRef}
-          heightOffset={10}
-          id="selected-resource"
-          header={selectedResource?.node ?? ""}
-          position="right"
-          bodyClassName="p-0 h-full"
-          headerClassName="brand-header"
-          className="workflow-details-slideout"
-          open={!!selectedResource}
-          onClose={() => {
-            updateUrl({ selectedResource: null });
-          }}
-          onPinChange={(pinned) => {
-            setResourcesPinned(pinned);
-            localStorage.setItem(RESOURCE_PINNED_KEY, pinned.toString());
-          }}
-        >
-          {selectedResource && (
-            <ResourceDetails
-              node={selectedResource.node}
-              defaultPool={selectedResource.pool}
-              defaultPlatform={selectedResource.platform}
-              narrowView={true}
-            >
-              <InlineBanner
-                status="info"
-                className="sticky top-0"
-              >
-                <p>
-                  See{" "}
-                  <Link
-                    href={`/tasks?allUsers=true&allPools=true&nodes=${selectedResource.node}&allNodes=false&allStatuses=true`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="link-inline"
-                  >
-                    Task History
-                  </Link>{" "}
-                  on this node
-                </p>
-              </InlineBanner>
-            </ResourceDetails>
-          )}
-        </SlideOut>
       </div>
+      <FullPageModal
+        headerChildren={
+          selectedResource?.node && (
+            <Link
+              id="workflow-details-header"
+              className="btn btn-action"
+              href={`/resources/${selectedResource.node}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open in new tab"
+            >
+              <span className="font-semibold">{selectedResource.node}</span>
+              <FilledIcon name="open_in_new" />
+            </Link>
+          )
+        }
+        open={!!selectedResource}
+        onClose={() => {
+          updateUrl({ selectedResource: null });
+        }}
+      >
+        {selectedResource && (
+          <ResourceDetails
+            node={selectedResource.node}
+            defaultPool={selectedResource.pool}
+            defaultPlatform={selectedResource.platform}
+          >
+            <TaskHistoryBanner nodeName={selectedResource.node} />
+          </ResourceDetails>
+        )}
+      </FullPageModal>
     </>
   );
 }

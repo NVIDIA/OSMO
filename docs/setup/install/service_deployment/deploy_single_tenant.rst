@@ -15,10 +15,10 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _deploy_full:
+.. _deploy_single_tenant:
 
 ============================
-Full Deployment
+Single-Tenant Deployment
 ============================
 
 This guide provides instructions for deploying OSMO in a full production configuration suitable for single-tenant enterprise use. This deployment includes authentication, external databases, and all production features.
@@ -31,7 +31,7 @@ Overview
    :alt: Full Deployment
    :width: 100%
 
-The full deployment includes:
+The single-tenant deployment includes:
 
 * Complete OSMO service stack (Service, Router, UI)
 * External PostgreSQL database

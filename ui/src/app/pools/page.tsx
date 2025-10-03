@@ -15,38 +15,30 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { SlideOut } from "~/components/SlideOut";
-import { POOL_PINNED_KEY, SHOW_USED_KEY, UrlTypes } from "~/components/StoreProvider";
-import { ViewToggleButton } from "~/components/ViewToggleButton";
+import { UrlTypes } from "~/components/StoreProvider";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { type PoolResourceUsage, PoolsQuotaResponseSchema } from "~/models";
+import { type PoolResourceUsage } from "~/models";
 import { api } from "~/trpc/react";
 
-import { PoolDetails } from "./components/PoolDetails";
 import { PoolsFilter } from "./components/PoolsFilter";
 import { PoolsTable } from "./components/PoolsTable";
+import { UsedFreeToggle } from "./components/UsedFreeToggle";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
-import { type PoolListItem, poolToPoolListItem } from "./models/PoolListitem";
+import { type PoolListItem, processPoolsQuotaResponse } from "./models/PoolListitem";
 
 export default function Pools() {
-  const {
-    updateUrl,
-    isSelectAllPoolsChecked,
-    selectedPools,
-    filterCount,
-    isShowingUsed,
-    selectedPool,
-    selectedPlatform,
-  } = useToolParamUpdater(UrlTypes.Pools);
+  const { updateUrl, isSelectAllPoolsChecked, selectedPools, filterCount, isShowingUsed } = useToolParamUpdater(
+    UrlTypes.Pools,
+  );
   const [showFilters, setShowFilters] = useState(false);
   const [showTotalResources, setShowTotalResources] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
-  const [detailsPinned, setDetailsPinned] = useState(false);
+
   const { setSafeTimeout } = useSafeTimeout();
 
   const {
@@ -68,47 +60,8 @@ export default function Pools() {
   );
 
   const processPools = useMemo((): { pools: PoolListItem[]; totalResources?: PoolResourceUsage } => {
-    if (!isSuccess) {
-      return { pools: [], totalResources: undefined };
-    }
-
-    const parsedResponse = PoolsQuotaResponseSchema.safeParse(nodeSets);
-
-    if (!parsedResponse.success) {
-      console.error(parsedResponse.error);
-      return { pools: [], totalResources: undefined };
-    }
-
-    return {
-      pools: parsedResponse.data.node_sets.flatMap((nodeSet) => {
-        // nodeSet.pools is an array of Pool objects
-        const nodeSetPools = nodeSet.pools.map((pool) => pool.name);
-        return nodeSet.pools.map((pool) => poolToPoolListItem(pool, nodeSetPools));
-      }),
-      totalResources: parsedResponse.data.resource_sum,
-    };
+    return processPoolsQuotaResponse(isSuccess, nodeSets);
   }, [nodeSets, isSuccess]);
-
-  // Initialize localStorage values after component mounts
-  useEffect(() => {
-    try {
-      const storedDetailsPinned = localStorage.getItem(POOL_PINNED_KEY);
-      if (storedDetailsPinned !== null) {
-        setDetailsPinned(storedDetailsPinned === "true");
-      }
-    } catch (error) {
-      // localStorage might not be available in some environments
-      console.warn("localStorage not available:", error);
-    }
-  }, []);
-
-  const gridClass = useMemo(() => {
-    if (detailsPinned && selectedPool) {
-      return "grid grid-cols-[1fr_auto]";
-    } else {
-      return "flex flex-row";
-    }
-  }, [detailsPinned, selectedPool]);
 
   const forceRefetch = useCallback(() => {
     // Wait to see if the refresh has already happened. If not call it explicitly
@@ -129,31 +82,10 @@ export default function Pools() {
       >
         <h1>Pools</h1>
         <div className="flex items-center gap-3">
-          <fieldset
-            className="flex flex-row gap-3"
-            aria-label="View Type"
-          >
-            <ViewToggleButton
-              name="isShowingUsed"
-              checked={isShowingUsed}
-              onChange={() => {
-                updateUrl({ isShowingUsed: true });
-                localStorage.setItem(SHOW_USED_KEY, "true");
-              }}
-            >
-              Used
-            </ViewToggleButton>
-            <ViewToggleButton
-              name="isShowingUsed"
-              checked={!isShowingUsed}
-              onChange={() => {
-                updateUrl({ isShowingUsed: false });
-                localStorage.setItem(SHOW_USED_KEY, "false");
-              }}
-            >
-              Free
-            </ViewToggleButton>
-          </fieldset>
+          <UsedFreeToggle
+            isShowingUsed={isShowingUsed}
+            updateUrl={updateUrl}
+          />
           <button
             className={`btn ${showTotalResources ? "btn-primary" : ""}`}
             onClick={() => {
@@ -178,10 +110,10 @@ export default function Pools() {
           open={showTotalResources}
           onClose={() => setShowTotalResources(false)}
           containerRef={headerRef}
-          top={headerRef.current?.getBoundingClientRect().top ?? 0}
+          top={headerRef.current?.offsetHeight ?? 0}
           header={<h2>Total Resources</h2>}
           dimBackground={false}
-          className="mr-30 border-t-0"
+          className="mr-26 border-t-0"
         >
           <div className="h-full w-full p-3 dag-details-body">
             <dl className="grid-cols-2">
@@ -251,47 +183,11 @@ export default function Pools() {
           />
         </SlideOut>
       </div>
-      <div
-        ref={containerRef}
-        className={`${gridClass} h-full w-full overflow-x-auto relative px-3 gap-3`}
-      >
-        <PoolsTable
-          isLoading={isFetching}
-          pools={processPools.pools}
-          isShowingUsed={isShowingUsed}
-          selectedPool={selectedPool}
-          updateUrl={updateUrl}
-        />
-        <SlideOut
-          header={selectedPool ? <h2>{selectedPool}</h2> : undefined}
-          id="pools-details"
-          open={!!selectedPool}
-          paused={!!selectedPlatform}
-          canPin={true}
-          pinned={detailsPinned}
-          containerRef={containerRef}
-          heightOffset={10}
-          position="right"
-          bodyClassName="dag-details-body"
-          headerClassName="brand-header"
-          className="workflow-details-slideout"
-          onPinChange={(pinned) => {
-            setDetailsPinned(pinned);
-            localStorage.setItem(POOL_PINNED_KEY, pinned.toString());
-          }}
-          onClose={() => {
-            updateUrl({ selectedPool: null });
-          }}
-        >
-          <PoolDetails
-            pools={processPools.pools ?? []}
-            selectedPool={selectedPool}
-            selectedPlatform={selectedPlatform}
-            onShowPlatformDetails={(platform) => updateUrl({ selectedPlatform: platform })}
-            isShowingUsed={isShowingUsed}
-          />
-        </SlideOut>
-      </div>
+      <PoolsTable
+        isLoading={isFetching}
+        pools={processPools.pools}
+        isShowingUsed={isShowingUsed}
+      />
     </>
   );
 }

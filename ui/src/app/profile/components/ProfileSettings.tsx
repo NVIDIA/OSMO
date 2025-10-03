@@ -75,7 +75,7 @@ const ProfileSettings = ({ profile }: ProfileSettingsProps) => {
       <dd>
         {profile.profile.pool ? (
           <Link
-            href={`/pools?selectedPool=${profile.profile.pool}`}
+            href={`/pools/${profile.profile.pool}`}
             target="_blank"
             rel="noopener noreferrer"
             title={`Open pool ${profile.profile.pool} in new tab`}
@@ -97,7 +97,7 @@ const ProfileSettings = ({ profile }: ProfileSettingsProps) => {
               className="mt-0 mb-1"
             >
               <Link
-                href={`/pools?selectedPool=${pool}`}
+                href={`/pools/${pool}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Open pool ${pool} in new tab`}

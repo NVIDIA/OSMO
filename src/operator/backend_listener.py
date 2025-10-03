@@ -1414,7 +1414,7 @@ def watch_backend_events(progress_writer: progress.ProgressWriter,
                 backend_messages.LoggingType.WARNING,
                 'Connection timed out during watch backend events, reestablishing watch stream.',
                 event_send_queue)
-        except urllib3.exceptions.MaxRetryError as error:
+        except (urllib3.exceptions.MaxRetryError, urllib3.exceptions.ProtocolError) as error:
             send_connection_error_count(event_type='backend')
             helpers.send_log_through_queue(
                 backend_messages.LoggingType.WARNING,

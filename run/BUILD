@@ -227,3 +227,9 @@ oci_load(
     tags = ["manual", "arm64"],
 )
 
+osmo_py_binary(
+    name = "push_multiarch_manifests",
+    main = "push_multiarch_manifests.py",
+    srcs = ["push_multiarch_manifests.py"],
+    visibility = ["//visibility:public"],
+)

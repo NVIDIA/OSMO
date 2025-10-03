@@ -21,7 +21,7 @@ load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
     name = "ctrl_websocket",
@@ -123,6 +123,7 @@ oci_push(
     name = "logger_push_x86_64",
     image = ":logger_image_x86_64",
     repository = BASE_IMAGE_URL + "logger",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],
 )
@@ -152,6 +153,7 @@ oci_push(
     name = "logger_push_arm64",
     image = ":logger_image_arm64",
     repository = BASE_IMAGE_URL + "logger",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual", "arm64"],
 )

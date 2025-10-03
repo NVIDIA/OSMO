@@ -15,18 +15,18 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _reference:
+:orphan:
+
+.. _logout_ui:
 
 ================================================
-Reference
+Sign Out
 ================================================
 
-.. note::
-  TODO:
+To logout from the UI, click the sign out button and logout from Keycloak:
 
-  - Introduce CLI
+.. image:: ui_sign_out.png
+  :width: 400
 
-.. toctree::
-  :hidden:
-
-  cli/index
+.. image:: ui_sign_out2.png
+  :width: 1100
