@@ -14,23 +14,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# TODO: Enable when the runner has larger disk space
+name: PR build and test
 
-# name: PR build and test
+on:
+  pull_request:
+    branches: [ main ] # Triggers on PRs targeting the main branch
 
-# on:
-#   pull_request:
-#     branches: [ main ] # Triggers on PRs targeting the main branch
-
-# jobs:
-#   bazel-build-test:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v4
-#         with:
-#           lfs: true
-#       - name: Bazel Build
-#         run: bazel build $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
-#       - name: Bazel Test
-#         run: bazel test $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
+jobs:
+  bazel-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Bazel Build
+        run: bazel build $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
+      - name: Bazel Test
+        run: bazel test $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
