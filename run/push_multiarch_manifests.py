@@ -18,13 +18,21 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
+import logging
 import os
 import subprocess
 import sys
 import urllib.parse
 
+from run.check_tools import check_required_tools
+from src.lib.utils import logging as logging_utils
 
-def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False):
+
+logging.basicConfig(format='%(message)s')
+logger = logging.getLogger()
+
+
+def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False, amend=False):
     """Create and push a multi-arch manifest for the given image."""
     image_path = urllib.parse.urljoin(registry_path + '/', image_name)
 
@@ -32,9 +40,9 @@ def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False)
     arm64_image = f'{image_path}:{tag}-arm64'
     manifest_image = f'{image_path}:{tag}'
 
-    print(f'Creating multi-arch manifest for {image_path}:{tag}')
-    print(f'  AMD64 image: {amd64_image}')
-    print(f'  ARM64 image: {arm64_image}')
+    logger.info('Creating multi-arch manifest for %s:%s', image_path, tag)
+    logger.info('  AMD64 image: %s', amd64_image)
+    logger.info('  ARM64 image: %s', arm64_image)
 
     create_cmd = [
         'docker', 'manifest', 'create',
@@ -42,21 +50,23 @@ def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False)
         amd64_image,
         arm64_image
     ]
+    if amend:
+        create_cmd.append('--amend')
 
     try:
-        print(f'Running: {" ".join(create_cmd)}')
+        logger.info('Running: %s', ' '.join(create_cmd))
         subprocess.run(create_cmd, check=True)
     except subprocess.CalledProcessError as e:
-        print(f'Error creating manifest for {image_name}: {e}')
+        logger.error('Error creating manifest for %s: %s', image_name, e)
         raise
 
     push_cmd = ['docker', 'manifest', 'push', manifest_image]
 
     try:
-        print(f'Pushing manifest: {" ".join(push_cmd)}')
+        logger.info('Pushing manifest: %s', ' '.join(push_cmd))
         subprocess.run(push_cmd, check=True)
     except subprocess.CalledProcessError as e:
-        print(f'Error pushing manifest for {image_name}: {e}')
+        logger.error('Error pushing manifest for %s: %s', image_name, e)
         raise
 
     # If requested, also push with latest tag
@@ -68,21 +78,23 @@ def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False)
             amd64_image,
             arm64_image
         ]
+        if amend:
+            create_latest_cmd.append('--amend')
 
         try:
-            print(f'Creating latest manifest: {" ".join(create_latest_cmd)}')
+            logger.info('Creating latest manifest: %s', ' '.join(create_latest_cmd))
             subprocess.run(create_latest_cmd, check=True)
 
-            print(f'Pushing latest manifest: docker manifest push {latest_manifest_image}')
+            logger.info('Pushing latest manifest: docker manifest push %s', latest_manifest_image)
             subprocess.run(['docker', 'manifest', 'push', latest_manifest_image], check=True)
         except subprocess.CalledProcessError as e:
-            print(f'Error creating/pushing latest manifest for {image_name}: {e}')
+            logger.error('Error creating/pushing latest manifest for %s: %s', image_name, e)
             raise
 
-    print(f'Successfully created and pushed multi-arch manifest for {image_name}:{tag}')
+    logger.info('Successfully created and pushed multi-arch manifest for %s:%s', image_name, tag)
 
 
-def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=False):
+def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=False, amend=False):
     """
     Helper function to create multiarch manifests for a list of images.
 
@@ -91,11 +103,13 @@ def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=
         tag: The image tag to use
         images_to_process: List or set of image names to process
         push_latest: Whether to also push latest tags
+        amend: Whether to amend the manifest
 
     Returns:
         List of failed image names (empty if all succeeded)
     """
-    print(f"Creating multi-arch manifests for {len(images_to_process)} images with tag '{tag}'")
+    logger.info(
+        'Creating multi-arch manifests for %d images with tag \'%s\'', len(images_to_process), tag)
 
     os.environ['DOCKER_CLI_EXPERIMENTAL'] = 'enabled'
 
@@ -106,10 +120,11 @@ def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=
                 registry_path,
                 image_name,
                 tag,
-                push_latest
+                push_latest,
+                amend
             )
         except subprocess.CalledProcessError as e:
-            print(f'Failed to create manifest for {image_name}: {e}')
+            logger.error('Failed to create manifest for %s: %s', image_name, e)
             failed_images.append(image_name)
 
     return failed_images
@@ -128,26 +143,36 @@ def main():
                         help='The image tag to use for the manifests')
     parser.add_argument('--push_latest_tag', action='store_true',
                         help='If set, the latest tag of the manifest is pushed as well')
+    parser.add_argument('--amend', action='store_true',
+                        help='If set, the manifest is amended')
+    parser.add_argument('--log-level', type=logging_utils.LoggingLevel.parse,
+                        default=logging_utils.LoggingLevel.INFO)
     args = parser.parse_args()
 
+    logger.setLevel(args.log_level)
+
+    check_required_tools(['docker'])
+
     if not args.images:
-        print('ERROR: No images specified. Use --images to specify which images to process.')
+        logger.error('ERROR: No images specified. Use --images to specify which images to process.')
         sys.exit(1)
 
     failed_images = push_multiarch_manifests(
         args.registry_path,
         args.tag,
         args.images,
-        args.push_latest_tag
+        args.push_latest_tag,
+        args.amend
     )
 
     if failed_images:
-        print(f'\nERROR: Failed to create multi-arch manifests for {len(failed_images)} images:')
+        logger.error(
+            '\nERROR: Failed to create multi-arch manifests for %d images:', len(failed_images))
         for image_name in failed_images:
-            print(f'  - {image_name}')
+            logger.error('  - %s', image_name)
         sys.exit(1)
 
-    print(f'\nSuccessfully created multi-arch manifests for all {len(args.images)} images.')
+    logger.info('\nSuccessfully created multi-arch manifests for all %d images.', len(args.images))
 
 
 if __name__ == '__main__':

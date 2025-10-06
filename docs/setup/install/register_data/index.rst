@@ -18,7 +18,7 @@
 .. _data:
 
 ================================================
-Data Backend
+Configure Data Storage
 ================================================
 
 Data backend refers to a data bucket that is used by OSMO to

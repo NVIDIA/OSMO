@@ -16,12 +16,14 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Build Guide
+# NVIDIA OSMO - Run Guide
 
 For developers who want to try out OSMO or test out their changes, this guide will demonstrate how
 to run OSMO using Bazel:
 
 ## Prerequisites
+
+Install the [required tools](./README.md#prerequisites) for developing OSMO.
 
 Set the following environment variables:
 
@@ -42,10 +44,19 @@ bazel run @osmo_workspace//run:start_service -- --mode bazel
 ```
 
 This command:
+
 - Creates postgres, redis, and localstack-s3 docker containers if they do not exist
 - Starts core OSMO services (osmo, ui, router) using bazel
 
 ### Start OSMO Backend
+
+To start the backend, you must be logged into OSMO using the CLI:
+
+```sh
+bazel run @osmo_workspace//src/cli -- login http://$HOST_IP:8000 --method=dev --username=testuser
+```
+
+Then start the backend:
 
 ```sh
 bazel run @osmo_workspace//run:start_backend -- --mode bazel
@@ -64,6 +75,7 @@ bazel run @osmo_workspace//run:update_configs -- --container-registry-password="
 ```
 
 This command:
+
 - Updates workflow configuration with local development settings
 - Configures object storage endpoints and credentials
 - Sets up backend image configurations
@@ -71,13 +83,7 @@ This command:
 
 ### Access OSMO
 
-The OSMO UI and APIs can be accessed at: http://$HOST_IP:8080
-
-Log into OSMO using the CLI:
-
-```sh
-bazel run @osmo_workspace//src/cli -- login http://$HOST_IP:8000 --method=dev --username=testuser
-```
+The OSMO UI and APIs can be accessed at: `http://$HOST_IP:8080`
 
 ## Next steps
 

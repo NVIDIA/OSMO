@@ -414,14 +414,14 @@ def main():
         '--log-level', type=logging_utils.LoggingLevel.parse,
         default=logging_utils.LoggingLevel.INFO)
     parser.add_argument(
+        '--container-registry', default='nvcr.io',
+        help='Container registry (default: nvcr.io)')
+    parser.add_argument(
         '--container-registry-username', default='$oauthtoken',
         help='Container registry username (default: $oauthtoken)')
     parser.add_argument(
         '--container-registry-password', required=True,
         help='Container registry password')
-    parser.add_argument(
-        '--container-registry', default='nvcr.io',
-        help='Container registry (default: nvcr.io)')
     parser.add_argument(
         '--image-location', default='nvcr.io/nvstaging/osmo',
         help='OSMO image location (default: nvcr.io/nvstaging/osmo)')

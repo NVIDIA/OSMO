@@ -37,6 +37,9 @@ Configure Pool
 During the initial deployment of the service, a default pool is created.
 To link the pool to the backend defined in previous steps, update the pool configuration using the OSMO CLI.
 
+.. note::
+  If you have named your backend ``default``, you can skip this step and use the default pool.
+
 .. code-block:: bash
 
   echo '{

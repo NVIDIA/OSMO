@@ -40,9 +40,11 @@ This chart installs and configures:
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) - Container runtime (>=28.3.2)
-- [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) - Kubernetes in Docker (>=0.29.0)
+- [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) - Kubernetes in Docker
+  (>=0.29.0)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) - Kubernetes command-line tool (>=1.32.2)
-- [osmo](https://us-west-2-aws.osmo.nvidia.com/docs/getting_started/install.html#install-client) - OSMO CLI
+- [osmo](https://us-west-2-aws.osmo.nvidia.com/docs/getting_started/install.html#install-client) -
+  OSMO CLI
 
 > [!note] TODO: Install OSMO CLI from some public location.
 
@@ -62,8 +64,8 @@ echo "Detected architecture: $ARCH"
 ```
 
 This setup uses pre-built images from NVIDIA's container registry,
-[NGC](https://www.nvidia.com/en-us/gpu-cloud/). You will need to have an NGC API key
-for `nvcr.io/nvstaging/osmo` to pull images from NGC. Set the following environment variable:
+[NGC](https://www.nvidia.com/en-us/gpu-cloud/). You will need to have an NGC API key for
+`nvcr.io/nvstaging/osmo` to pull images from NGC. Set the following environment variable:
 
 > [!note] TODO: Add CONTAINER_REGISTRY_USERNAME, CONTAINER_REGISTRY for public registry.
 
@@ -71,8 +73,8 @@ for `nvcr.io/nvstaging/osmo` to pull images from NGC. Set the following environm
 export CONTAINER_REGISTRY_PASSWORD=<NGC API key>
 ```
 
-OSMO uses an S3 bucket for storing workflow logs, datasets, and other data. You will need to
-create an S3 bucket and set the following environment variables:
+OSMO uses an S3 bucket for storing workflow logs, datasets, and other data. You will need to create
+an S3 bucket and set the following environment variables:
 
 ```bash
 export S3_ENDPOINT=<S3 endpoint>
@@ -83,9 +85,9 @@ export S3_REGION=<S3 region>
 
 > [!note] TODO: remove this step when public repo is available.
 
-You will also need a GitLab personal access token to download configuration files from the
-OSMO repository. Create a personal access token in GitLab with `read_repository` scope and
-set the following environment variable:
+You will also need a GitLab personal access token to download configuration files from the OSMO
+repository. Create a personal access token in GitLab with `read_repository` scope and set the
+following environment variable:
 
 ```bash
 export GITLAB_TOKEN=<your GitLab personal access token>
@@ -147,6 +149,9 @@ helm upgrade --install osmo nvstaging-osmo/osmo-quick-start \
   --set ingress-nginx.controller.nodeSelector."kubernetes\.io/arch"=$ARCH
 ```
 
+See [Configuration Options](./deployments/charts/osmo-quick-start/README.md#configuration) in the
+`osmo-quick-start` chart for more ways to install the chart.
+
 ### 3. Add Host Entry
 
 Add the following line to your `/etc/hosts` file:
@@ -184,7 +189,8 @@ osmo workflow submit hello_world.yaml
 
 ## Deleting the cluster
 
-Delete the cluster using KIND. This will also delete all persistent volumes, including the postgres database that was created.
+Delete the cluster using KIND. This will also delete all persistent volumes, including the postgres
+database that was created.
 
 ```sh
 kind delete cluster --name osmo
@@ -194,11 +200,15 @@ kind delete cluster --name osmo
 
 ### How do I resolve the issue where `start_service` fails to install helm charts such as `ingress-nginx`?
 
-This is likely caused by running out of [inotify](https://linux.die.net/man/7/inotify) resources. Follow [these instructions](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files) to raise the limits.
+This is likely caused by running out of [inotify](https://linux.die.net/man/7/inotify) resources.
+Follow
+[these instructions](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files)
+to raise the limits.
 
 ### How do I use a different namespace than the default `osmo`?
 
-`osmo-quick-start` can be deployed in a different namespace by specifying the release namespace and name.
+`osmo-quick-start` can be deployed in a different namespace by specifying the release namespace and
+name.
 
 > [!note] TODO: Update to public version tag
 
@@ -223,106 +233,3 @@ helm upgrade --install $RELEASE_NAME nvstaging-osmo/osmo-quick-start \
   --set backend-operator.global.agentNamespace="$RELEASE_NAME" \
   --set backend-operator.global.backendTestNamespace="$RELEASE_NAME-test"
 ```
-
-## Configuration
-
-### Global Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `global.osmoImageLocation` | Base location for OSMO Docker images in the registry | `nvcr.io/nvstaging/osmo` |
-| `global.osmoImageTag` | Docker image tag for OSMO services | `latest` |
-| `global.nodeSelector.node_group` | Node group for service pods | `service` |
-| `global.nodeSelector."kubernetes.io/arch"` | Architecture constraint for pod scheduling | `amd64` |
-| `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `imagepullsecret` |
-| `global.containerRegistry.registry` | Container registry URL | `nvcr.io` |
-| `global.containerRegistry.username` | Container registry username | `$oauthtoken` |
-| `global.containerRegistry.password` | Container registry password (NGC API key) | `""` |
-| `global.objectStorage.endpoint` | Object storage endpoint URL for workflow logs, datasets, and other data | `""` |
-| `global.objectStorage.accessKeyId` | Object storage access key ID for authentication | `""` |
-| `global.objectStorage.accessKey` | Object storage access key for authentication | `""` |
-| `global.objectStorage.region` | Object storage region where the bucket is located | `""` |
-
-### Ingress NGINX Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `ingress-nginx.controller.nodeSelector.node_group` | Node group for ingress controller | `service` |
-| `ingress-nginx.controller.nodeSelector."kubernetes.io/arch"` | Architecture constraint for ingress controller | `amd64` |
-| `ingress-nginx.controller.service.type` | Service type for ingress controller | `NodePort` |
-| `ingress-nginx.controller.service.nodePorts.http` | HTTP NodePort for external access | `30080` |
-
-
-### OSMO Service Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `service.services.configFile.enabled` | Enable external configuration file loading | `true` |
-| `service.services.configFile.path` | Path to the MEK configuration file | `/home/osmo/config/mek.yaml` |
-| `service.services.postgres.enabled` | Enable PostgreSQL deployment on Kubernetes | `true` |
-| `service.services.postgres.storageClassName` | Storage class name for PostgreSQL persistent volume | `standard` |
-| `service.services.postgres.password` | PostgreSQL password | `"osmo"` |
-| `service.services.redis.enabled` | Enable Redis deployment on Kubernetes | `true` |
-| `service.services.redis.storageClassName` | Storage class name for Redis persistent volume | `standard` |
-| `service.services.redis.tlsEnabled` | Enable TLS for Redis connections | `false` |
-| `service.services.service.hostname` | Hostname for OSMO service ingress | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
-| `service.services.service.scaling.minReplicas` | Minimum number of service replicas | `1` |
-| `service.services.service.scaling.maxReplicas` | Maximum number of service replicas | `1` |
-| `service.services.service.ingress.sslEnabled` | Enable SSL for service ingress | `false` |
-| `service.services.worker.scaling.minReplicas` | Minimum number of worker replicas | `1` |
-| `service.services.worker.scaling.maxReplicas` | Maximum number of worker replicas | `1` |
-| `service.services.logger.scaling.minReplicas` | Minimum number of logger service replicas | `1` |
-| `service.services.logger.scaling.maxReplicas` | Maximum number of logger service replicas | `1` |
-| `service.services.agent.scaling.minReplicas` | Minimum number of agent service replicas | `1` |
-| `service.services.agent.scaling.maxReplicas` | Maximum number of agent service replicas | `1` |
-| `service.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
-| `service.sidecars.logAgent.enabled` | Enable log agent sidecar for centralized log collection | `false` |
-| `service.sidecars.logAgent.logrotate.enabled` | Enable automatic log rotation | `false` |
-| `service.sidecars.otel.enabled` | Enable OTEL collector sidecar for metrics and tracing | `false` |
-| `service.sidecars.rateLimit.enabled` | Enable rate limiting service | `false` |
-
-### Web UI Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `web-ui.services.ui.skipAuth` | Skip authentication for UI service | `true` |
-| `web-ui.services.ui.hostname` | Hostname for UI service | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
-| `web-ui.services.ui.ingress.sslEnabled` | Enable SSL for UI ingress | `false` |
-| `web-ui.services.ui.extraEnvs` | Additional environment variables for the UI service | `[{name: NEXT_PUBLIC_OSMO_SSL_ENABLED, value: false}]` |
-| `web-ui.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
-
-### Router Service Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `router.services.configFile.enabled` | Enable external configuration file loading | `true` |
-| `router.services.configFile.path` | Path to the MEK configuration file | `/home/osmo/config/mek.yaml` |
-| `router.services.service.hostname` | Hostname for router service | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
-| `router.services.service.scaling.minReplicas` | Minimum number of router service replicas | `1` |
-| `router.services.service.scaling.maxReplicas` | Maximum number of router service replicas | `1` |
-| `router.services.service.ingress.sslEnabled` | Enable SSL for router ingress | `false` |
-| `router.services.postgres.password` | PostgreSQL password for router | `"osmo"` |
-| `router.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
-| `router.sidecars.logAgent.enabled` | Enable log agent sidecar for centralized log collection | `false` |
-
-### Backend Operator Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `backend-operator.global.serviceUrl` | OSMO service URL for backend operator | `http://osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
-| `backend-operator.global.agentNamespace` | Kubernetes namespace for backend operator | `osmo` |
-| `backend-operator.global.backendNamespace` | Kubernetes namespace for backend workloads | `default` |
-| `backend-operator.global.backendTestNamespace` | Kubernetes namespace for backend test workloads | `osmo-test` |
-| `backend-operator.global.backendName` | Backend name identifier | `default` |
-| `backend-operator.global.accountTokenSecret` | Secret name containing backend operator authentication token | `backend-operator-token` |
-| `backend-operator.global.loginMethod` | Authentication method for backend operator | `token` |
-| `backend-operator.services.backendListener.resources.requests.cpu` | CPU resource requests for backend listener container | `"125m"` |
-| `backend-operator.services.backendListener.resources.requests.memory` | Memory resource requests for backend listener container | `"128Mi"` |
-| `backend-operator.services.backendListener.resources.limits.cpu` | CPU resource limits for backend listener container | `"250m"` |
-| `backend-operator.services.backendListener.resources.limits.memory` | Memory resource limits for backend listener container | `"256Mi"` |
-| `backend-operator.services.backendWorker.resources.requests.cpu` | CPU resource requests for backend worker container | `"125m"` |
-| `backend-operator.services.backendWorker.resources.requests.memory` | Memory resource requests for backend worker container | `"128Mi"` |
-| `backend-operator.services.backendWorker.resources.limits.cpu` | CPU resource limits for backend worker container | `"250m"` |
-| `backend-operator.services.backendWorker.resources.limits.memory` | Memory resource limits for backend worker container | `"256Mi"` |
-| `backend-operator.backendTestRunner.enabled` | Enable backend test runner | `false` |
-| `backend-operator.sidecars.OTEL.enabled` | Enable OTEL collector sidecar for metrics and tracing | `false` |

@@ -53,6 +53,9 @@ def main():
     cluster_group = parser.add_argument_group('KIND cluster arguments',
                                               'Arguments only used with --mode kind')
     cluster_group.add_argument(
+        '--container-registry', default='nvcr.io',
+        help='Container registry URL (default: nvcr.io)')
+    cluster_group.add_argument(
         '--container-registry-username', default='$oauthtoken',
         help='Container registry username (default: $oauthtoken)')
     cluster_group.add_argument(

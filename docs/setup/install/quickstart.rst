@@ -18,7 +18,7 @@
 .. _deploy_quickstart:
 
 ============================
-Quick Start
+Quick Start Installation
 ============================
 
 This guide provides instructions for deploying OSMO in a minimal configuration suitable for testing, development, and evaluation purposes. This setup of OSMO creates the service and backend operator in the same kubernetes cluster, is suitable for single-tenant, has no authentication, and is designed for quick setup and experimentation.
@@ -57,7 +57,7 @@ Prerequisites
 
 .. TODO: Update this link to point to the GitHub repository when we switch to GitHub.
 
-* At least 2 CPUs and 4GB RAM available in your cluster
+* At least 4 CPUs and 8GB RAM available in your cluster
 * NGC API token for accessing NVIDIA's Helm repository
 
 .. TODO: Update this link to point to the public registry when we switch to GitHub.
@@ -74,7 +74,7 @@ Create a dedicated namespace for OSMO:
 
 .. code-block:: bash
 
-   kubectl create namespace osmo-minimal
+   $ kubectl create namespace osmo-minimal
 
 Step 2: Add OSMO Helm Repository
 ==================================
@@ -83,11 +83,11 @@ Add the NVIDIA OSMO Helm repository using your NGC token:
 
 .. code-block:: bash
 
-   helm repo add osmo https://helm.ngc.nvidia.com/nvidian/osmo \
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidian/osmo \
      --username \$oauthtoken \
      --password <ngc-token>
 
-   helm repo update
+   $ helm repo update
 
 Step 3: Create Kubernetes Secret
 =================================
@@ -96,7 +96,7 @@ Create a secret for pulling images from NVIDIA's container registry:
 
 .. code-block:: bash
 
-   kubectl create secret docker-registry imagepullsecret \
+   $ kubectl create secret docker-registry imagepullsecret \
      --docker-server=nvcr.io \
      --docker-username=\$oauthtoken \
      --docker-password=<ngc-token> \
@@ -106,8 +106,8 @@ Create secret for database and redis passwords:
 
 .. code-block:: bash
 
-   kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo-minimal
-   kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo-minimal
+   $ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo-minimal
+   $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo-minimal
 
 Create the master encryption key (MEK) for database encryption:
 
@@ -142,7 +142,7 @@ The MEK should be a JSON Web Key (JWK) with the following format:
 
 .. code-block:: bash
 
-   kubectl apply -f - <<EOF
+   $ kubectl apply -f - <<EOF
    apiVersion: v1
    kind: ConfigMap
    metadata:
@@ -182,7 +182,7 @@ The MEK should be a JSON Web Key (JWK) with the following format:
    echo "Encoded JWK: $ENCODED_JWK"
 
    # Create ConfigMap
-   kubectl apply -f - <<EOF
+   $ kubectl apply -f - <<EOF
    apiVersion: v1
    kind: ConfigMap
    metadata:
@@ -382,7 +382,7 @@ Deploy the OSMO components using the minimal configuration:
 
 .. code-block:: bash
 
-   helm upgrade --install osmo-minimal osmo/service \
+   $ helm upgrade --install osmo-minimal osmo/service \
      -f ./osmo_values.yaml \
      --namespace osmo-minimal
 
@@ -390,7 +390,7 @@ Deploy the OSMO components using the minimal configuration:
 
 .. code-block:: bash
 
-   helm upgrade --install ui-minimal osmo/web-ui \
+   $ helm upgrade --install ui-minimal osmo/web-ui \
      -f ./ui_values.yaml \
      --namespace osmo-minimal
 
@@ -398,7 +398,7 @@ Deploy the OSMO components using the minimal configuration:
 
 .. code-block:: bash
 
-   helm upgrade --install router-minimal osmo/router \
+   $ helm upgrade --install router-minimal osmo/router \
      -f ./router_values.yaml \
      --namespace osmo-minimal
 
@@ -409,7 +409,7 @@ Step 6: Verify Deployment
 
 .. code-block:: bash
 
-   kubectl get pods -n osmo-minimal
+   $ kubectl get pods -n osmo-minimal
 
 You should see pods similar to:
 
@@ -428,13 +428,13 @@ You should see pods similar to:
 
 .. code-block:: bash
 
-   kubectl get services -n osmo-minimal
+   $ kubectl get services -n osmo-minimal
 
 3. Check ingress configuration:
 
 .. code-block:: bash
 
-   kubectl get ingress -n osmo-minimal
+   $ kubectl get ingress -n osmo-minimal
 
 You should see ingress resources similar to:
 
@@ -457,9 +457,10 @@ Step 7: Setup OSMO Backend Operator
    global:
     osmoImageTag: <insert-osmo-image-tag>
     imagePullSecret: imagepullsecret
-    serviceUrl: http://<your-domain>
-    backendNamespace: osmo-operator
-    backendName: osmo-operator
+    serviceUrl: https://<your-domain>
+    agentNamespace: osmo-operator
+    backendNamespace: osmo-workflows
+    backendName: default
     accountTokenSecret: osmo-operator-token
     loginMethod: token
 
@@ -493,18 +494,18 @@ Generate a token for the backend operator with OSMO CLI:
 
 .. code-block:: bash
 
-   osmo login http://<your-domain> --method=dev --username=testuser
+   $ osmo login https://<your-domain> --method=dev --username=testuser
 
-   export BACKEND_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
+   $ export BACKEND_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
 
-   kubectl create secret generic osmo-operator-token --from-literal=token=$BACKEND_TOKEN --namespace osmo-operator
+   $ kubectl create secret generic osmo-operator-token --from-literal=token=$BACKEND_TOKEN --namespace osmo-operator
 
 
 3. deploy the backend operator:
 
 .. code-block:: bash
 
-   helm upgrade --install osmo-operator osmo/backend-operator \
+   $ helm upgrade --install osmo-operator osmo/backend-operator \
      -f ./backend_operator_values.yaml \
      --namespace osmo-operator
 
@@ -516,11 +517,11 @@ With ingress enabled, you can access OSMO directly through your domain:
 
 1. **Access OSMO Service API**:
 
-   Visit ``http://<your-domain>/api/docs`` in your web browser to access the OSMO API.
+   Visit ``https://<your-domain>/api/docs`` in your web browser to access the OSMO API.
 
 2. **Access OSMO UI**:
 
-   Visit ``http://<your-domain>`` in your web browser to access the OSMO UI.
+   Visit ``https://<your-domain>`` in your web browser to access the OSMO UI.
 
 .. note::
    - Replace ``<your-domain>`` with your actual domain name or use port forwarding if DNS is not configured
@@ -535,7 +536,7 @@ If you haven't set up DNS yet, you can still access OSMO using port forwarding:
 
 .. code-block:: bash
 
-   kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
+   $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
 
 Then access the OSMO API at ``http://localhost:9000`` in your web browser.
 
@@ -543,7 +544,7 @@ Then access the OSMO API at ``http://localhost:9000`` in your web browser.
 
 .. code-block:: bash
 
-   kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
+   $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
 
 Then access the OSMO UI at ``http://localhost:3000`` in your web browser.
 
@@ -557,12 +558,12 @@ After deployment, you can perform basic configuration:
 .. code-block:: json
 
    {
-     "service_base_url": "http://<your-domain>"
+     "service_base_url": "https://<your-domain>"
    }
 
 .. code-block:: bash
 
-   osmo config update SERVICE --file service_config.json
+   $ osmo config update SERVICE --file service_config.json
 
 
 2. Setup data storage:
@@ -607,14 +608,14 @@ To remove the minimal deployment:
 
    # Uninstall all Helm releases
    # Uninstall all Helm releases
-   helm uninstall osmo-minimal --namespace osmo-minimal
-   helm uninstall ui-minimal --namespace osmo-minimal
-   helm uninstall router-minimal --namespace osmo-minimal
-   helm uninstall osmo-operator --namespace osmo-operator
+   $ helm uninstall osmo-minimal --namespace osmo-minimal
+   $ helm uninstall ui-minimal --namespace osmo-minimal
+   $ helm uninstall router-minimal --namespace osmo-minimal
+   $ helm uninstall osmo-operator --namespace osmo-operator
 
    # Delete the namespace
-   kubectl delete namespace osmo-minimal
-   kubectl delete namespace osmo-operator
+   $ kubectl delete namespace osmo-minimal
+   $ kubectl delete namespace osmo-operator
 
 Troubleshooting
 ===============

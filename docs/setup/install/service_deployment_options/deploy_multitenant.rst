@@ -149,7 +149,7 @@ Data Isolation Strategy (Redis and Postgres)
 Configuration and Deployment
 =============================
 
-The multi-tenant deployment process extends the comprehensive deployment guide from :doc:`deploy_service`. You'll need to:
+The multi-tenant deployment process extends the comprehensive deployment guide from :ref:`deploy_service`. You'll need to:
 
 1. **Follow the base deployment process** for each tenant
 2. **Implement tenant-specific configurations**
@@ -159,7 +159,7 @@ The multi-tenant deployment process extends the comprehensive deployment guide f
 Step 1: Keycloak Setup
 ----------------------
 
-For each tenant, prepare the Keycloak following the instructions in :doc:`deploy_service`.
+For each tenant, prepare the Keycloak following the instructions in :ref:`deploy_service`.
 
 Create a values file for each tenant and deploy the Keycloak for each tenant.
 
@@ -173,7 +173,7 @@ Create a values file for each tenant and deploy the Keycloak for each tenant.
 Step 2: Per-Tenant Deployment
 ------------------------------
 
-For each tenant, create dedicated values files based on the templates in :doc:`deploy_service`:
+For each tenant, create dedicated values files based on the templates in :ref:`deploy_service`:
 
 .. code-block:: yaml
 
@@ -404,5 +404,5 @@ Multi-tenant specific issues:
 * Check JWT issuer and audience configurations
 * Validate client configurations per tenant
 
-For general troubleshooting, refer to :doc:`deploy_service`.
+For general troubleshooting, refer to :ref:`deploy_service`.
 

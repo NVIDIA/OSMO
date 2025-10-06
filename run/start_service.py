@@ -52,6 +52,9 @@ def main():
         '--cluster-name', default='osmo',
         help='Name of the KIND cluster (default: osmo)')
     cluster_group.add_argument(
+        '--container-registry', default='nvcr.io',
+        help='Container registry URL (default: nvcr.io)')
+    cluster_group.add_argument(
         '--container-registry-username', default='$oauthtoken',
         help='Container registry username (default: $oauthtoken)')
     cluster_group.add_argument(

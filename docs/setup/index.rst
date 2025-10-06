@@ -41,7 +41,7 @@ Full Deployment
 
 Full deployment is a single-tenant deployment that is used to deploy OSMO on a Kubernetes cluster. It is a good way to deploy OSMO on a Kubernetes cluster and to understand the service.
 
-.. image:: install/service_deployment/osmo-full.png
+.. image:: install/service_deployment_options/osmo-full.png
 
 For the full deployment the OSMO services and backend are deployed on different Kubernetes clusters where users are authenticated using a single sign-on (SSO) provider. If this is the deployment you are looking for, please refer to the :ref:`Full Deployment <deploy_single_tenant>` section.
 
@@ -52,7 +52,7 @@ Multi-tenant Deployment at Scale
 
 Multi-tenant deployment at scale is a deployment that is used to deploy OSMO on a Kubernetes cluster for multiple tenants. It is a good way to deploy OSMO on a Kubernetes cluster for multiple tenants and to understand the service.
 
-.. image:: install/service_deployment/osmo-multi-tenant.png
+.. image:: install/service_deployment_options/osmo-multi-tenant.png
 
 
 For the multi-tenant deployment at scale the OSMO services and backend are deployed on different Kubernetes clusters where each tenant is isolated from the other. Users are authenticated using a single sign-on (SSO) provider. There will be authentication setup for this deployment. If this is the deployment you are looking for, please refer to the :ref:`Multi-tenant Deployment at Scale <deploy_multitenant>` section.

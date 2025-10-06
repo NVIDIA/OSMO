@@ -77,7 +77,14 @@ genrule(
 
 filegroup(
     name = "docs_sources",
-    srcs = glob(["setup/**", "user/**", "samples/**", "_static/**", "_templates/**"]),
+    srcs = glob([
+        "setup/**",
+        "user/**",
+        "samples/**",
+        "_static/**",
+        "_templates/**",
+        "_extensions/**",
+    ]),
 )
 
 copy_to_directory(

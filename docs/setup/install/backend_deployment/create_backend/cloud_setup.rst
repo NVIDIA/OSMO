@@ -23,12 +23,6 @@ Create Backend (Cloud)
 
 Create a managed Kubernetes cluster in the cloud to be used as a backend for job execution. This guide covers requirements for cloud-based deployments using managed Kubernetes services.
 
-=====================================
-Infrastructure Requirements (Cloud)
-=====================================
-
-Use these as a baseline when creating a managed Kubernetes cluster to serve as an Osmo backend in the cloud.
-
 Control Plane
 =============
 

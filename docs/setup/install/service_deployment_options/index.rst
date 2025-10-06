@@ -82,6 +82,12 @@ Choose your installation type based on your requirements:
 - You're a service provider offering OSMO to multiple clients
 - You need advanced scaling and resource management
 
+.. toctree::
+   :maxdepth: 1
+
+   deploy_single_tenant
+   deploy_multitenant
+
 
 Infrastructure Prerequisites
 =============================
@@ -92,9 +98,4 @@ Infrastructure Prerequisites
 
   * Sample terraform setup for AWS or Azure is available in our repository at ``/deployments/terraform/aws/example`` or ``/deployments/terraform/azure/example`` directory
 
-.. toctree::
-   :maxdepth: 1
 
-   deploy_single_tenant
-   deploy_multitenant
-   deploy_service

@@ -148,7 +148,7 @@ stringData:
         chart_path = os.path.dirname(RUNFILES.Rlocation(
             os.path.join(runfile_repo, 'deployments/charts/backend-operator/Chart.yaml')))
         values_path = RUNFILES.Rlocation(
-            os.path.join(runfile_repo, 'build/minimal/backend_operator_values.yaml'))
+            os.path.join(runfile_repo, 'run/minimal/backend_operator_values.yaml'))
 
         process = run_command_with_logging([
             'helm', 'dependency', 'build', chart_path
@@ -194,7 +194,10 @@ def start_backend_kind(args: argparse.Namespace) -> None:
         else:
             create_cluster(args.cluster_name)
 
-        setup_osmo_namespace(args.container_registry_username, args.container_registry_password)
+        setup_osmo_namespace(
+            args.container_registry,
+            args.container_registry_username,
+            args.container_registry_password)
 
         detected_platform = detect_platform()
         logger.info('📱 Detected platform: %s', detected_platform)

@@ -27,16 +27,18 @@ As a part of the installation process, the following OSMO components will be ins
 - OSMO Router
 - OSMO Backend Operator
 
-In addition, there are a few service configurations following the installation process.
+In addition to installing the OSMO components, there are a few service configurations following the installation process.
 
 - Configuration of central data storage for logs and user data
 - Configuration of backend, and pools
+
 
 .. toctree::
    :maxdepth: 1
 
    quickstart
-   service_deployment/index
-   register_data/index
+   service_deployment_options/index
+   deploy_service
    backend_deployment/index
+   register_data/index
    advanced_configurations/index

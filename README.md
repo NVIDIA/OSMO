@@ -18,8 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO
 
-OSMO is a workflow orchestration platform that provides easy and efficient access to various
-types of compute and data storage solutions for robotics developers.
+OSMO is a workflow orchestration platform that provides easy and efficient access to various types
+of compute and data storage solutions for robotics developers.
 
 ## Why OSMO?
 
@@ -52,21 +52,25 @@ is with our [Quick Start Guide](QUICK_START.md).
 
 ### Prerequisites
 
-- **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS command-line tool (>=2.24.7)
+- **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS
+  command-line tool (>=2.24.7)
 - **[Bazel](https://bazel.build/install/bazelisk)** - Build tool (>=8.1.1)
 - **[Docker](https://docs.docker.com/get-docker/)** - Container runtime (>=28.3.2)
 - **[Helm](https://helm.sh/docs/intro/install/)** - Package manager for Kubernetes (>=3.17.1)
-- **[KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)** - Kubernetes in Docker (>=0.29.0)
+- **[KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)** - Kubernetes in Docker
+  (>=0.29.0)
 - **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Kubernetes command-line tool (>=1.32.2)
 
-For developers who want to build/modify OSMO, use our [Local Build Guide](BUILD.md).
+For developers who want to run & develop OSMO on their development machine, use our
+[Local Run Guide](RUN.md).
 
-Once the changes are done, follow our [Run and Test Guide](RUN_AND_TEST.md) to validate the changes
-and push the images.
+Once the changes are done, follow our [Build and Test Guide](BUILD_AND_TEST.md) to build, push, and
+test container images.
 
 ## Cloud Deployment
 
 To deploy to the cloud, follow these instructions:
+
 - [AWS](deployments/terraform/aws/example/README.md)
 - [Azure](deployments/terraform/azure/example/README.md)
 
@@ -84,4 +88,5 @@ Follow our documentation below to setup OSMO and run tutorials.
 ## 🤝 Support
 
 For support and questions:
+
 - Review our documentation at the links above

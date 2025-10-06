@@ -18,7 +18,7 @@
 .. _deploy_service:
 
 ============================
-Deploy Service
+Service Deployment
 ============================
 
 This guide provides step-by-step instructions for deploying OSMO on a Kubernetes cluster.

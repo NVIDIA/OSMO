@@ -15,23 +15,12 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _cli_reference:
+.. _cli_reference_logout:
 
 ================================================
-CLI Reference
+osmo logout
 ================================================
 
-.. note::
-  TODO: See Run.ai CLI reference - https://run-ai-docs.nvidia.com/SaaS/reference/cli/runai
+.. code-block::
 
-.. toctree::
-  :hidden:
-
-  install
-  cli_app
-  cli_bucket
-  cli_login
-  cli_logout
-  cli_profile
-  cli_version
-  cli_workflow
+   usage: osmo logout [-h]

@@ -45,7 +45,7 @@ The single-tenant deployment includes:
 Prerequisites
 =============
 
-This deployment requires significant infrastructure preparation. Please ensure you have completed the prerequisites and configurations outlined in :doc:`deploy_service`.
+This deployment requires significant infrastructure preparation. Please ensure you have completed the prerequisites and configurations outlined in :ref:`deploy_service`.
 
 The key prerequisites include:
 
@@ -70,7 +70,7 @@ The full deployment process covers:
 Full Deployment
 ===============================
 
-For the full deployment of the OSMO service stack, you'll use the comprehensive values configuration shown in :doc:`deploy_service`.
+For the full deployment of the OSMO service stack, you'll use the comprehensive values configuration shown in :ref:`deploy_service`.
 
 Execute these commands in order after preparing your values files:
 
@@ -94,7 +94,7 @@ For the full deployment of the OSMO backend operator, you'll need to create the 
 
 If you are using multiple CSPs, you'll need to create the ``backend_operator_values.yaml`` file for each CSP by following the instructions in :ref:`register_cb`.
 
-Follow the instructions in :doc:`../backend_deployment/dependencies/required/index` to install the dependencies for all your clusters.
+Follow the instructions in :ref:`installing_required_dependencies` to install the dependencies for all your clusters.
 
 
 Next Steps
@@ -133,7 +133,7 @@ Scaling
 Troubleshooting
 ===============
 
-For troubleshooting guidance, monitoring setup, and common issues resolution, refer to the comprehensive troubleshooting section in :doc:`deploy_service`.
+For troubleshooting guidance, monitoring setup, and common issues resolution, refer to the comprehensive troubleshooting section in :doc:`../deploy_service`.
 
 Common full deployment issues include:
 

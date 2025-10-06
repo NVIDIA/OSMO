@@ -102,6 +102,17 @@ osmo_py_binary(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_binary(
+    name = "push_multiarch_manifests",
+    main = "push_multiarch_manifests.py",
+    srcs = ["push_multiarch_manifests.py"],
+    deps = [
+        ":utils",
+        "@osmo_workspace//src/lib/utils:logging",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 genrule(
     name = "ca_certs_entrypoint_script",
     outs = ["entrypoint-ca-certs.sh"],
@@ -174,7 +185,7 @@ oci_image(
 oci_load(
     name = "builder_image_load_x86_64",
     image = ":builder_image_x86_64",
-    repo_tags = ["dev-builder:latest-x86_64"],
+    repo_tags = ["osmo-builder:latest-amd64"],
     tags = ["manual"],
 )
 
@@ -223,13 +234,6 @@ oci_image(
 oci_load(
     name = "builder_image_load_arm64",
     image = ":builder_image_arm64",
-    repo_tags = ["dev-builder:latest-arm64"],
+    repo_tags = ["osmo-builder:latest-arm64"],
     tags = ["manual", "arm64"],
-)
-
-osmo_py_binary(
-    name = "push_multiarch_manifests",
-    main = "push_multiarch_manifests.py",
-    srcs = ["push_multiarch_manifests.py"],
-    visibility = ["//visibility:public"],
 )

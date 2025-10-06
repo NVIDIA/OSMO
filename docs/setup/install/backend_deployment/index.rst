@@ -18,7 +18,7 @@
 .. _compute:
 
 ================================================
-Compute Backend
+Backend Deployment
 ================================================
 
 Compute backend refers to set of compute nodes where OSMO can schedule jobs. Each job spins up the user's container on the compute node in a sequence as described in the workflow spec. Each compute backend is essentially a `Kubernetes <https://kubernetes.io/docs/tutorials/kubernetes-basics/>`_ cluster

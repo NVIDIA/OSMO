@@ -14,18 +14,15 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-
 def ui_runfiles_dir():
     """
     Returns the runfiles directory for the ui package.
 
     This is used to allow the UI to be buildable across Bazel workspaces.
     """
-    r = native.repo_name()
+    r = native.repo_name() or '_main'
     p = native.package_name()
-    if r:
-        return "{}/{}".format(r, p)
-    return p
+    return "{}/{}".format(r, p)
 
 def ui_standalone_pkg():
     """

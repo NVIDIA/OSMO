@@ -185,13 +185,13 @@ data:
 
 
 def _install_osmo_service(
-        service_name: str,
-        chart_path: str,
-        values_path: str,
-        image_location: str,
-        image_tag: str,
-        detected_platform: str
-    ) -> None:
+    service_name: str,
+    chart_path: str,
+    values_path: str,
+    image_location: str,
+    image_tag: str,
+    detected_platform: str
+) -> None:
     """Install a single OSMO service using Helm."""
     logger.info('   Installing %s', service_name)
 
@@ -240,13 +240,13 @@ def _install_osmo_services(image_location: str, image_tag: str, detected_platfor
     services = [
         ('osmo',
          'deployments/charts/osmo/Chart.yaml',
-         'build/minimal/osmo_values.yaml'),
+         'run/minimal/osmo_values.yaml'),
         ('ui',
          'deployments/charts/ui/Chart.yaml',
-         'build/minimal/ui_values.yaml'),
+         'run/minimal/ui_values.yaml'),
         ('router',
          'deployments/charts/router/Chart.yaml',
-         'build/minimal/router_values.yaml')
+         'run/minimal/router_values.yaml')
     ]
 
     services_with_paths = []
@@ -288,7 +288,10 @@ def start_service_kind(args: argparse.Namespace) -> None:
         detected_platform = detect_platform()
         logger.info('📱 Detected platform: %s', detected_platform)
 
-        setup_osmo_namespace(args.container_registry_username, args.container_registry_password)
+        setup_osmo_namespace(
+            args.container_registry,
+            args.container_registry_username,
+            args.container_registry_password)
         _install_ingress_nginx()
         _generate_mek()
         _install_osmo_services(args.image_location, args.image_tag, detected_platform)

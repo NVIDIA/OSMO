@@ -21,13 +21,8 @@
 Create Backend (On-Premises)
 ================================================
 
-Create a Kubernetes cluster to be used as a backend for job execution on your own infrastructure. This guide covers requirements for on-premises deployments with full control over hardware and networking.
-
-==========================================
-Infrastructure Requirements (On-Premises)
-==========================================
-
-Use these as a baseline when creating a Kubernetes cluster to serve as an Osmo backend on-premises.
+Create a Kubernetes cluster to be used as a backend for job execution on your own infrastructure. This guide covers requirements for on-premise deployments with full control over hardware and networking.
+Use the following as a baseline when creating a Kubernetes cluster to serve as an OSMO backend on-premise.
 
 Control Plane
 =============

@@ -29,6 +29,7 @@
 import sys
 import os
 
+sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('.'))
 
 # -- Project information -----------------------------------------------------
@@ -57,9 +58,14 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx_simplepdf',
+
+    # Locally defined extensions
+    '_extensions.markdown_argparse',
 ]
 
-spelling_exclude_patterns = ['python_library/**']
+spelling_exclude_patterns = [
+    '**/reference/cli/cli_*.rst',
+]
 spelling_show_suggestions = True
 spelling_warning = True
 spelling_word_list_filename = '../spelling_wordlist.txt'

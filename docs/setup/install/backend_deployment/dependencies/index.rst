@@ -15,17 +15,50 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _install_dependencies:
+.. _installing_required_dependencies:
 
 ================================
-Install Dependencies
+Install Required Dependencies
 ================================
 
-Follow below steps to install OSMO dependencies for the compute backend.
+Before the execution cluster can be registered to OSMO, its dependencies must be installed through Helm charts.
+In addition, secrets must be installed to allow OSMO to download the necessary Docker images, to connect to
+your organization's OIDC provider, and to allow OSMO to connect to the database.
 
-  .. toctree::
-    :glob:
-    :maxdepth: 1
+Prerequisites
+========================================
+- A running Kubernetes cluster
+- `Helm <https://helm.sh/docs/intro/install>`_ CLI installed
+- `NVIDIA GPU-Operator <https://github.com/NVIDIA/gpu-operator>`_ installed in order to schedule workloads that request GPU resources
 
-    required/index
-    optional/index
+
+Install the Extended k8s Scheduler
+===================================
+
+Installing a Kubernetes scheduler that is extended with gang scheduling allows OSMO to efficiently
+schedule groups.
+
+For more information on the scheduler, see :ref:`scheduler`.
+
+Create a file called ``kai-selectors.yaml`` with node selectors / tolerations to specify which
+nodes the KAI scheduler should run on.
+
+.. code-block:: yaml
+
+  global:
+    # Modify the node selectors and tolerations to match your cluster
+    nodeSelector: {}
+    tolerations: []
+
+  scheduler:
+    additionalArgs:
+    - --default-staleness-grace-period=-1s  # Disable stalegangeviction
+
+Next, install KAI using ``helm``
+
+.. code-block:: bash
+
+  helm fetch oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler --version v0.5.5
+  helm upgrade --install kai-scheduler kai-scheduler-v0.5.5.tgz \
+    --create-namespace -n kai-scheduler \
+    --values kai-selectors.yaml

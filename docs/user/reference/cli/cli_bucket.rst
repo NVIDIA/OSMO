@@ -15,23 +15,40 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _cli_reference:
+.. _cli_reference_bucket:
 
 ================================================
-CLI Reference
+osmo bucket
 ================================================
 
-.. note::
-  TODO: See Run.ai CLI reference - https://run-ai-docs.nvidia.com/SaaS/reference/cli/runai
+.. code-block::
 
-.. toctree::
-  :hidden:
+   usage: osmo bucket [-h] {list} ...
 
-  install
-  cli_app
-  cli_bucket
-  cli_login
-  cli_logout
-  cli_profile
-  cli_version
-  cli_workflow
+Positional Arguments
+====================
+
+:kbd:`command`
+   Possible choices: list
+
+Sub-commands
+============
+
+list
+----
+
+List available and default buckets
+
+.. code-block::
+
+   osmo bucket list [-h] [--format-type {json,text}]
+
+Named Arguments
+~~~~~~~~~~~~~~~
+
+--format-type, -t
+   Possible choices: json, text
+
+   Specify the output format type (Default text).
+
+   Default: ``'text'``

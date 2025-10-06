@@ -62,7 +62,7 @@ def create_cluster(cluster_name: str) -> None:
     logger.info('🚀 Creating KIND cluster \'%s\'...', cluster_name)
 
     runfile_repo = RUNFILES.CurrentRepository() or '_main'
-    repo_path = os.path.join(runfile_repo, 'build/kind-osmo-cluster-config.yaml')
+    repo_path = os.path.join(runfile_repo, 'run/kind-osmo-cluster-config.yaml')
     config_file = RUNFILES.Rlocation(repo_path)
 
     if not os.path.exists(config_file):
@@ -109,6 +109,7 @@ def create_cluster(cluster_name: str) -> None:
 
 
 def setup_osmo_namespace(
+        container_registry_url: str,
         container_registry_username: str,
         container_registry_password: str
     ) -> None:
@@ -128,7 +129,7 @@ def setup_osmo_namespace(
 
         docker_config = {
             'auths': {
-                'nvcr.io': {
+                container_registry_url: {
                     'username': container_registry_username,
                     'password': container_registry_password,
                     'auth': auth_b64
