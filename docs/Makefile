@@ -22,8 +22,8 @@
 SPHINXOPTS  ?=
 SPHINXBUILD ?= sphinx-build
 SOURCEDIR   = .
-OUT_DIR     = public/out
-ERR_DIR     = public/err
+OUT_DIR     = _build/public/out
+ERR_DIR     = _build/public/err
 
 # Put it first so that "make" without argument is like "make help".
 help:
@@ -32,17 +32,17 @@ help:
 .PHONY: help generate build generate-and-build Makefile
 
 build:
-	export OSMO_DOMAIN=public && sphinx-build -b html -w $(ERR_DIR)/user.log -t External user $(OUT_DIR)/user
-	export OSMO_DOMAIN=public && sphinx-build -b html -w $(ERR_DIR)/setup.log -t External setup $(OUT_DIR)/setup
-	export OSMO_DOMAIN=public && sphinx-build -b markdown user $(OUT_DIR)/user -w $(ERR_DIR)/user_markdown.log -t External
-	export OSMO_DOMAIN=public && sphinx-build -b markdown setup $(OUT_DIR)/setup -w $(ERR_DIR)/setup_markdown.log -t External
-	rm -rf $(OUT_DIR)/user/_sources
-	rm -rf $(OUT_DIR)/setup/_sources
+	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
+	export OSMO_DOMAIN=public && sphinx-build -b html deployment_guide -w $(ERR_DIR)/deployment_guide.log $(OUT_DIR)/deployment_guide
+	export OSMO_DOMAIN=public && sphinx-build -b markdown user_guide $(OUT_DIR)/user_guide -w $(ERR_DIR)/user_guide_markdown.log
+	export OSMO_DOMAIN=public && sphinx-build -b markdown deployment_guide $(OUT_DIR)/deployment_guide -w $(ERR_DIR)/deployment_guide_markdown.log
+	rm -rf $(OUT_DIR)/user_guide/_sources
+	rm -rf $(OUT_DIR)/deployment_guide/_sources
 
 
 spelling:
-	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/user.log -N -t External user $(OUT_DIR)/user
-	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/setup.log -N -t External setup $(OUT_DIR)/setup
+	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/user_guide.log -N user_guide $(OUT_DIR)/user_guide
+	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/deployment_guide.log -N deployment_guide $(OUT_DIR)/deployment_guide
 
 
 # Catch-all target: route all unknown targets to Sphinx using the new

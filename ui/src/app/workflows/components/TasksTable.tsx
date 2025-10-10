@@ -223,6 +223,7 @@ export const TasksTable = ({
       updatePagingUrl(undefined, newSorting);
     },
     filterFns: commonFilterFns,
+    autoResetPageIndex: false,
   });
 
   useEffect(() => {

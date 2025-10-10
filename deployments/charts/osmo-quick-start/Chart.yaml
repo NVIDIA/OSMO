@@ -19,23 +19,25 @@ description: A complete OSMO deployment for local development and testing
 
 type: application
 
-version: 0.1.0
+version: 1.0.0
 
 dependencies:
 - name: ingress-nginx
   version: 4.13.2
   repository: https://kubernetes.github.io/ingress-nginx
-- name: service
-  version: 0.1.0
+- name: osmo
+  alias: service
+  version: 1.0.0
   repository: file://../osmo
-- name: web-ui
-  version: 0.1.0
+- name: ui
+  alias: web-ui
+  version: 1.0.0
   repository: file://../ui
 - name: router
-  version: 0.1.0
+  version: 1.0.0
   repository: file://../router
 - name: backend-operator
-  version: 0.1.0
+  version: 1.0.0
   repository: file://../backend-operator
 
 appVersion: "1.0.0"

@@ -73,16 +73,6 @@ This setup uses pre-built images from NVIDIA's container registry,
 export CONTAINER_REGISTRY_PASSWORD=<NGC API key>
 ```
 
-OSMO uses an S3 bucket for storing workflow logs, datasets, and other data. You will need to create
-an S3 bucket and set the following environment variables:
-
-```bash
-export S3_ENDPOINT=<S3 endpoint>
-export S3_ACCESS_KEY_ID=<S3 access key ID>
-export S3_ACCESS_KEY=<S3 access key>
-export S3_REGION=<S3 region>
-```
-
 > [!note] TODO: remove this step when public repo is available.
 
 You will also need a GitLab personal access token to download configuration files from the OSMO
@@ -137,14 +127,10 @@ helm repo update
 
 ```bash
 helm upgrade --install osmo nvstaging-osmo/osmo-quick-start \
-  --version 0.1.0-latest \
+  --version 1.0.0-latest \
   --namespace osmo \
   --create-namespace \
   --set global.containerRegistry.password="$CONTAINER_REGISTRY_PASSWORD" \
-  --set global.objectStorage.endpoint="$S3_ENDPOINT" \
-  --set global.objectStorage.accessKeyId="$S3_ACCESS_KEY_ID" \
-  --set global.objectStorage.accessKey="$S3_ACCESS_KEY" \
-  --set global.objectStorage.region="$S3_REGION" \
   --set global.nodeSelector."kubernetes\.io/arch"=$ARCH \
   --set ingress-nginx.controller.nodeSelector."kubernetes\.io/arch"=$ARCH
 ```
@@ -216,14 +202,10 @@ name.
 export RELEASE_NAME=test # or any other name you prefer
 
 helm upgrade --install $RELEASE_NAME nvstaging-osmo/osmo-quick-start \
-  --version 0.1.0-latest \
+  --version 1.0.0-latest \
   --namespace $RELEASE_NAME \
   --create-namespace \
   --set global.containerRegistry.password="$CONTAINER_REGISTRY_PASSWORD" \
-  --set global.objectStorage.endpoint="$S3_ENDPOINT" \
-  --set global.objectStorage.accessKeyId="$S3_ACCESS_KEY_ID" \
-  --set global.objectStorage.accessKey="$S3_ACCESS_KEY" \
-  --set global.objectStorage.region="$S3_REGION" \
   --set global.nodeSelector."kubernetes\.io/arch"=$ARCH \
   --set ingress-nginx.controller.nodeSelector."kubernetes\.io/arch"=$ARCH \
   --set service.services.service.hostname="$RELEASE_NAME-ingress-nginx-controller.$RELEASE_NAME.svc.cluster.local" \

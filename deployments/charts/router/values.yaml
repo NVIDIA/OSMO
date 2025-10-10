@@ -359,6 +359,12 @@ sidecars:
       ##
       logoutPath: logout
 
+      ## Kubernetes secret keys (when useKubernetesSecrets is true)
+      ##
+      secretName: oidc-secrets
+      clientSecretKey: client_secret
+      hmacSecretKey: hmac_secret
+
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:

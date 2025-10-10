@@ -207,6 +207,10 @@ The chart now supports extensible sidecar configuration through the `sidecars` s
 | `sidecars.envoy.oauth2Filter.authProvider` | Auth provider | `""` |
 | `sidecars.envoy.oauth2Filter.logoutPath` | OAuth logout path | `logout` |
 | `sidecars.envoy.oauth2Filter.forwardBearerToken` | Forward bearer token | `true` |
+| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name for OIDC secrets | `oidc-secrets` |
+| `sidecars.envoy.oauth2Filter.clientSecretKey` | Key name for client secret in Kubernetes secret | `client_secret` |
+| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Key name for HMAC secret in Kubernetes secret | `hmac_secret` |
+
 
 #### Log Agent Settings
 
@@ -253,39 +257,6 @@ Each service supports extensibility through the following parameters:
 | `services.{service}.extraSidecars` | Extra sidecar containers | `[]` |
 | `services.{service}.serviceAccountName` | Service account name | `""` |
 
-### Vault Integration
-
-Vault integration is now handled via `extraConfigMaps` instead of hardcoded configuration:
-
-```yaml
-extraConfigMaps:
-- name: osmo-vault-agent-configmap
-  data:
-    config.hcl: |
-      # Vault agent configuration
-```
-
-### Kubernetes Secrets Integration
-
-For environments that don't use Vault, configure Kubernetes secrets:
-
-```yaml
-sidecars:
-  envoy:
-    useKubernetesSecrets: true
-    oauth2Filter:
-      clientSecretKey: client_secret
-      hmacSecretKey: hmac_secret
-    extraVolumeMounts:
-    - name: oauth-secrets
-      mountPath: /etc/envoy/secrets
-      readOnly: true
-
-extraVolumes:
-- name: oauth-secrets
-  secret:
-    secretName: my-oauth-secrets
-```
 
 ## Dependencies
 

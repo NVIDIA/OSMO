@@ -6,7 +6,7 @@ This Terraform configuration creates a complete Azure infrastructure using Azure
 - **Virtual Network (VNet)** with private and database subnets using Azure Verified Module
 - **AKS cluster** with auto-scaling node pools and Container Insights monitoring
 - **PostgreSQL Flexible Server** in private subnets with delegation
-- **Azure Cache for Redis** in private subnets
+- **Azure Redis Enterprise Cluster** in private subnets
 - **Log Analytics Workspace** with Container Insights solution for AKS monitoring
 
 All resources are deployed in the same VNet and properly networked together.

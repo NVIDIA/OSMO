@@ -115,6 +115,18 @@ spec:
         - --logout_endpoint
         - {{ .Values.services.service.auth.logout_endpoint }}
         {{- end }}
+        {{- if .Values.services.service.hostname }}
+        - --host
+        - https://{{ .Values.services.service.hostname }}
+        {{- end }}
+        {{- if .Values.global.osmoImageLocation }}
+        - --osmo_image_location
+        - {{ .Values.global.osmoImageLocation }}
+        {{- end }}
+        {{- if .Values.global.osmoImageTag }}
+        - --osmo_image_tag
+        - {{ .Values.global.osmoImageTag }}
+        {{- end }}
         {{- if .Values.global.logs.enabled }}
         - --log_level
         - {{ .Values.global.logs.logLevel }}

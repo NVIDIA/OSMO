@@ -42,11 +42,14 @@ def setup_parser(parser: argparse._SubParsersAction):
     list_parser = subparsers.add_parser('list',
         help='List service resources.',
         description=(
-            'Resource display formats:\n'
-            '  Used mode (default): Shows "used/total" (e.g., 40/100 means 40 Gi used out of 100 '
-            'Gi total memory)\n'
-            '  Free mode: Shows available resources as a single number (e.g., 60 means 60 Gi of '
-            'memory is available for use)\n'
+            'Resource display formats::\n\n'
+            '  Mode           | Description\n'
+            '  ---------------|----------------------------------------------------\n'
+            '  Used (default) | Shows "used/total" (e.g., 40/100 means 40 Gi used\n'
+            '                 | out of 100 Gi total memory)\n'
+            '  Free           | Shows available resources as a single number\n'
+            '                 | (e.g., 60 means 60 Gi of memory is available for use)\n'
+            '\n'
             'This applies to all allocatable resources: CPU, memory, storage, and GPU.'),
         formatter_class=argparse.RawDescriptionHelpFormatter)
     list_parser.add_argument('--pool', '-p',

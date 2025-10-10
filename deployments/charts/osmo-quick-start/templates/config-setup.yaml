@@ -63,7 +63,7 @@ spec:
               "configs_dict": {
                 "workflow_data": {
                   "credential": {
-                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'/workflows",
                     "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                     "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                     "region": "'"${OBJECT_STORAGE_REGION}"'"
@@ -71,7 +71,7 @@ spec:
                 },
                 "workflow_log": {
                   "credential": {
-                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'/workflows",
                     "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                     "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                     "region": "'"${OBJECT_STORAGE_REGION}"'"
@@ -79,7 +79,7 @@ spec:
                 },
                 "workflow_app": {
                   "credential": {
-                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                    "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'/apps",
                     "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
                     "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
                     "region": "'"${OBJECT_STORAGE_REGION}"'"
@@ -99,6 +99,9 @@ spec:
                     "username": "'"${CONTAINER_REGISTRY_USERNAME}"'",
                     "auth": "'"${CONTAINER_REGISTRY_PASSWORD}"'"
                   }
+                },
+                "credential_config": {
+                  "disable_data_validation": ["s3"]
                 }
               },
               "description": "Set up workflow config for local development"
@@ -128,6 +131,50 @@ spec:
               "configs": {
                 "default_compute": {
                   "spec": {
+                    "containers": [
+                      {
+                        "name": "{{ "{{USER_CONTAINER_NAME}}" }}",
+                        "env": [
+                          {
+                            "name": "AWS_ENDPOINT_URL_S3",
+                            "value": "'"${OBJECT_STORAGE_ENDPOINT}"'"
+                          },
+                          {
+                            "name": "AWS_S3_FORCE_PATH_STYLE",
+                            "value": "true"
+                          },
+                          {
+                            "name": "AWS_DEFAULT_REGION",
+                            "value": "'"${OBJECT_STORAGE_REGION}"'"
+                          },
+                          {
+                            "name": "OSMO_LOGIN_DEV",
+                            "value": "true"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "osmo-ctrl",
+                        "env": [
+                          {
+                            "name": "AWS_ENDPOINT_URL_S3",
+                            "value": "'"${OBJECT_STORAGE_ENDPOINT}"'"
+                          },
+                          {
+                            "name": "AWS_S3_FORCE_PATH_STYLE",
+                            "value": "true"
+                          },
+                          {
+                            "name": "AWS_DEFAULT_REGION",
+                            "value": "'"${OBJECT_STORAGE_REGION}"'"
+                          },
+                          {
+                            "name": "OSMO_LOGIN_DEV",
+                            "value": "true"
+                          }
+                        ]
+                      }
+                    ],
                     "nodeSelector": {
                       "node_group": "compute",
                       "kubernetes.io/arch": "'"${ARCH}"'"

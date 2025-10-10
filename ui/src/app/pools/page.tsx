@@ -17,13 +17,14 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { FilledIcon, OutlinedIcon } from "~/components/Icon";
+import { FilledIcon } from "~/components/Icon";
 import { SlideOut } from "~/components/SlideOut";
 import { UrlTypes } from "~/components/StoreProvider";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
 import { type PoolResourceUsage } from "~/models";
 import { api } from "~/trpc/react";
 
+import { AggregatePanels } from "./components/AggregatePanels";
 import { PoolsFilter } from "./components/PoolsFilter";
 import { PoolsTable } from "./components/PoolsTable";
 import { UsedFreeToggle } from "./components/UsedFreeToggle";
@@ -35,10 +36,9 @@ export default function Pools() {
     UrlTypes.Pools,
   );
   const [showFilters, setShowFilters] = useState(false);
-  const [showTotalResources, setShowTotalResources] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
-
+  const containerRef = useRef<HTMLDivElement>(null);
   const { setSafeTimeout } = useSafeTimeout();
 
   const {
@@ -87,15 +87,6 @@ export default function Pools() {
             updateUrl={updateUrl}
           />
           <button
-            className={`btn ${showTotalResources ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowTotalResources(!showTotalResources);
-            }}
-          >
-            <OutlinedIcon name="memory" />
-            Total {isShowingUsed ? "Used" : "Free"}
-          </button>
-          <button
             className={`btn ${showFilters ? "btn-primary" : ""}`}
             onClick={() => {
               setShowFilters(true);
@@ -105,64 +96,6 @@ export default function Pools() {
             Filters {filterCount > 0 ? `(${filterCount})` : ""}
           </button>
         </div>
-        <SlideOut
-          id="total-resources"
-          open={showTotalResources}
-          onClose={() => setShowTotalResources(false)}
-          containerRef={headerRef}
-          top={headerRef.current?.offsetHeight ?? 0}
-          header={<h2>Total Resources</h2>}
-          dimBackground={false}
-          className="mr-26 border-t-0"
-        >
-          <div className="h-full w-full p-3 dag-details-body">
-            <dl className="grid-cols-2">
-              {isShowingUsed ? (
-                <>
-                  <dt>Quota Used</dt>
-                  <dd className="text-right">
-                    {Intl.NumberFormat("en-US", { style: "decimal" }).format(
-                      processPools.totalResources?.quota_used ?? 0,
-                    )}
-                  </dd>
-                  <dt>Quota Limit</dt>
-                  <dd className="text-right">
-                    {Intl.NumberFormat("en-US", { style: "decimal" }).format(
-                      processPools.totalResources?.quota_limit ?? 0,
-                    )}
-                  </dd>
-                  <dt>Total Usage</dt>
-                  <dd className="text-right">
-                    {Intl.NumberFormat("en-US", { style: "decimal" }).format(
-                      processPools.totalResources?.total_usage ?? 0,
-                    )}
-                  </dd>
-                  <dt>Total Capacity</dt>
-                  <dd className="text-right">
-                    {Intl.NumberFormat("en-US", { style: "decimal" }).format(
-                      processPools.totalResources?.total_capacity ?? 0,
-                    )}
-                  </dd>
-                </>
-              ) : (
-                <>
-                  <dt>Quota Free</dt>
-                  <dd className="text-right">
-                    {Intl.NumberFormat("en-US", { style: "decimal" }).format(
-                      processPools.totalResources?.quota_free ?? 0,
-                    )}
-                  </dd>
-                  <dt>Total Free</dt>
-                  <dd className="text-right">
-                    {Intl.NumberFormat("en-US", { style: "decimal" }).format(
-                      processPools.totalResources?.total_free ?? 0,
-                    )}
-                  </dd>
-                </>
-              )}
-            </dl>
-          </div>
-        </SlideOut>
         <SlideOut
           top={headerRef.current?.offsetHeight ?? 0}
           containerRef={headerRef}
@@ -183,11 +116,33 @@ export default function Pools() {
           />
         </SlideOut>
       </div>
-      <PoolsTable
-        isLoading={isFetching}
-        pools={processPools.pools}
-        isShowingUsed={isShowingUsed}
-      />
+      <div
+        className="h-full w-full px-3 gap-3 grid grid-cols-[auto_1fr]"
+        ref={containerRef}
+      >
+        <div
+          className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
+          style={{
+            maxHeight: `calc(100vh - ${10 + (containerRef?.current?.getBoundingClientRect()?.top ?? 0)}px)`,
+          }}
+        >
+          <div className={`popup-header sticky top-0 z-10 brand-header`}>
+            <h2>Gauges</h2>
+          </div>
+          <div className="flex flex-col gap-3 p-3 h-full justify-between">
+            <AggregatePanels
+              totals={processPools.totalResources}
+              isLoading={isFetching}
+              isShowingUsed={isShowingUsed}
+            />
+          </div>
+        </div>
+        <PoolsTable
+          isLoading={isFetching}
+          pools={processPools.pools}
+          isShowingUsed={isShowingUsed}
+        />
+      </div>
     </>
   );
 }

@@ -22,6 +22,7 @@ import json
 import logging
 import time
 from typing import Dict
+from urllib.parse import urlparse
 
 import fastapi
 import kombu  # type: ignore
@@ -64,6 +65,15 @@ def get_task_info(postgres: connectors.PostgresConnector, workflow_uuid: str, ta
 def create_backend(postgres: connectors.PostgresConnector,
                    name: str,
                    message: backend_messages.InitBody):
+    # Initialize router_address with hostname from config if available
+    router_address = ''
+    if hasattr(postgres.config, 'host') and postgres.config.host:
+        parsed_url = urlparse(postgres.config.host)
+        if parsed_url.hostname:
+            router_address = f'wss://{parsed_url.hostname}'
+            logging.info('Initializing router_address for backend %s to: %s',
+                        name, router_address)
+
     insert_cmd = '''
         WITH input_rows(name, k8s_uid, k8s_namespace, dashboard_url, grafana_url,
             scheduler_settings,
@@ -97,7 +107,7 @@ def create_backend(postgres: connectors.PostgresConnector,
         (name, message.k8s_uid, message.k8s_namespace, '',
          '',
          connectors.BackendSchedulerSettings().json(),
-         common.current_time(), common.current_time(), '', '',
+         common.current_time(), common.current_time(), '', router_address,
          message.version))
     if k8s_info[0].k8s_uid != message.k8s_uid:
         raise osmo_errors.OSMOBackendError(f'Backend {name} is already being used by a '

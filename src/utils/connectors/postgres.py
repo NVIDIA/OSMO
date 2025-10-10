@@ -168,6 +168,15 @@ class PostgresConfig(pydantic.BaseModel):
         default='testuser',
         description='If method is set to "dev", the browser flow to the service will use this '
                     'user name.')
+    # Deployment configuration fields from Helm values for auto-initialization
+    osmo_image_location: str | None = pydantic.Field(
+        command_line='osmo_image_location',
+        default=None,
+        description='The image registry location for OSMO images')
+    osmo_image_tag: str | None = pydantic.Field(
+        command_line='osmo_image_tag',
+        default=None,
+        description='The image tag for OSMO images')
 
 
 def retry(func=None, *, reconnect: bool = True):
@@ -1029,8 +1038,43 @@ class PostgresConnector:
 
     def _init_configs(self):
         """ Initializes configs table. """
+        # Extract deployment values from config if available
+        hostname = None
+        if hasattr(self.config, 'host') and self.config.host:
+            parsed_url = urlparse(self.config.host)
+            hostname = parsed_url.hostname
+
+        # Create config objects with deployment values if provided
         service_configs = ServiceConfig()
+        if hostname:
+            # Override default service_base_url with deployment hostname
+            service_configs.service_base_url = f'https://{hostname}'
+            logging.info(
+                'Using deployment hostname for service_base_url: %s',
+                service_configs.service_base_url)
+
         workflow_configs = WorkflowConfig()
+        if self.config.osmo_image_location and self.config.osmo_image_tag:
+            # Override default backend_images with deployment values
+            workflow_configs.backend_images = OsmoImageConfig(
+                init=ImageConfig(
+                    amd64=(f'{self.config.osmo_image_location}/'
+                          f'init-container:{self.config.osmo_image_tag}'),
+                    arm64=(f'{self.config.osmo_image_location}/'
+                          f'init-container:{self.config.osmo_image_tag}')
+                ),
+                client=ImageConfig(
+                    amd64=(f'{self.config.osmo_image_location}/'
+                          f'client:{self.config.osmo_image_tag}'),
+                    arm64=(f'{self.config.osmo_image_location}/'
+                          f'client:{self.config.osmo_image_tag}')
+                )
+            )
+            logging.info(
+                'Using deployment values for backend_images: %s:%s',
+                self.config.osmo_image_location,
+                self.config.osmo_image_tag)
+
         dataset_configs = DatasetConfig()
 
         def set_default_values(configs: 'DynamicConfig', config_type: ConfigType):
@@ -2512,7 +2556,7 @@ class CliConfig(ExtraArgBaseModel):
 
 class ServiceConfig(DynamicConfig):
     """ Stores any configs OSMO Admins control """
-    service_base_url: str = 'https://osmo.nvidia.com:443'
+    service_base_url: str = 'https://0.0.0.0'
 
     service_auth: auth.AuthenticationConfig = auth.AuthenticationConfig.generate_default()
 

@@ -43,8 +43,8 @@ def main():
                                               html=True), name='user-docs')
     # Mount the setup docs
     app.mount('/setup',
-              fastapi.staticfiles.StaticFiles(directory=f'{docs_dir}/setup_docs',
-                                              html=True), name='setup-docs')
+              fastapi.staticfiles.StaticFiles(directory=f'{docs_dir}/deployment_docs',
+                                              html=True), name='deployment-docs')
 
     try:
         uvicorn.run(app, host=config.host, port=config.port)

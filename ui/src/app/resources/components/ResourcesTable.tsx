@@ -249,6 +249,7 @@ export const ResourcesTable = ({
       updatePagingUrl(undefined, newSorting);
     },
     filterFns: commonFilterFns,
+    autoResetPageIndex: false,
   });
 
   useEffect(() => {

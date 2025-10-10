@@ -50,10 +50,10 @@ This chart installs and configures:
 | `global.containerRegistry.registry` | Container registry URL | `nvcr.io` |
 | `global.containerRegistry.username` | Container registry username | `$oauthtoken` |
 | `global.containerRegistry.password` | Container registry password (NGC API key) | `""` |
-| `global.objectStorage.endpoint` | Object storage endpoint URL for workflow logs, datasets, and other data | `""` |
-| `global.objectStorage.accessKeyId` | Object storage access key ID for authentication | `""` |
-| `global.objectStorage.accessKey` | Object storage access key for authentication | `""` |
-| `global.objectStorage.region` | Object storage region where the bucket is located | `""` |
+| `global.objectStorage.endpoint` | Object storage endpoint URL for workflow logs, datasets, and other data | `"s3://osmo"` |
+| `global.objectStorage.accessKeyId` | Object storage access key ID for authentication | `"test"` |
+| `global.objectStorage.accessKey` | Object storage access key for authentication | `"test"` |
+| `global.objectStorage.region` | Object storage region where the bucket is located | `"us-east-1"` |
 
 ### Ingress NGINX Configuration
 
@@ -77,6 +77,10 @@ This chart installs and configures:
 | `service.services.redis.enabled` | Enable Redis deployment on Kubernetes | `true` |
 | `service.services.redis.storageClassName` | Storage class name for Redis persistent volume | `standard` |
 | `service.services.redis.tlsEnabled` | Enable TLS for Redis connections | `false` |
+| `service.services.localstackS3.enabled` | Enable Localstack S3 deployment on Kubernetes | `true` |
+| `service.services.localstackS3.buckets` | Creates the `osmo` bucket in Localstack S3 | `["osmo"]` |
+| `service.services.localstackS3.persistence.enabled` | Enable Localstack S3 persistence | `true` |
+| `service.services.localstackS3.persistence.hostPath` | Path to Localstack S3 persistence on the host | `/var/lib/localstack` |
 | `service.services.service.hostname` | Hostname for OSMO service ingress | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
 | `service.services.service.scaling.minReplicas` | Minimum number of service replicas | `1` |
 | `service.services.service.scaling.maxReplicas` | Maximum number of service replicas | `1` |

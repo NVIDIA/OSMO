@@ -58,8 +58,10 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx_simplepdf',
+    'sphinx_new_tab_link',
 
     # Locally defined extensions
+    '_extensions.auto_include',
     '_extensions.markdown_argparse',
 ]
 
@@ -73,6 +75,8 @@ copybutton_prompt_text = "$ "
 copybutton_copy_empty_lines = False
 copybutton_selector = "div:not(.no-copybutton) > div.highlight > pre"
 sphinx_immaterial_override_builtin_admonitions = False
+new_tab_link_show_external_link_icon = True
+new_tab_link_enable_referrer = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -80,7 +84,13 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    '_old_docs',
+    'Thumbs.db',
+    '.DS_Store',
+    '**/*.in.rst',  # Ignore files that are embedded in other files
+]
 
 suppress_warnings = [
     'toc.excluded'
@@ -93,49 +103,27 @@ suppress_warnings = [
 #
 html_theme = "sphinx_immaterial"
 
-html_title = 'OSMO'
+html_title = 'OSMO Documentation'
 html_show_sourcelink = False
 html_favicon = '../_static/osmo_favicon.png'
-html_logo = '../_static/NVIDIA-logo-white.png'
+html_logo = '../_static/NVIDIA-logo-black.png'
 
 html_theme_options = {
     "font": False,
+    "repo_url": "https://github.com/NVIDIA/OSMO/",
+    "repo_name": "OSMO",
     "features": [
         "navigation.expand",
         "navigation.top",
+        "navigation.footer",
         "search.highlight",
         "search.share",
         "search.suggest",
+        "content.code.annotate",
         "toc.follow",
         "toc.sticky",
         "content.tooltips",
         "announce.dismiss",
-    ],
-    "palette": [
-        {
-            "media": "(prefers-color-scheme)",
-            "toggle": {
-                "icon": "material/brightness-auto",
-                "name": "Switch to light mode",
-            },
-        },
-        {
-            "media": "(prefers-color-scheme: light)",
-            "scheme": "nvgreen",
-            "toggle": {
-                "icon": "material/lightbulb",
-                "name": "Switch to dark mode",
-            },
-        },
-        {
-            "media": "(prefers-color-scheme: dark)",
-            "scheme": "slate",
-            "primary": "nvgreen",
-            "toggle": {
-                "icon": "material/lightbulb-outline",
-                "name": "Switch to system preference",
-            },
-        },
     ],
     "toc_title_is_page_title": True,
 }

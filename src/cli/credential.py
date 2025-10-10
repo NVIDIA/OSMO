@@ -27,7 +27,6 @@ import yaml
 import shtab
 
 from src.lib.utils import client, client_configs, common, credentials, osmo_errors
-from typing import List
 
 CRED_TYPES = ['REGISTRY', 'DATA', 'GENERIC']
 
@@ -156,22 +155,6 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
         _delete_config(result['credentials'][0]['profile'])
 
 
-def table_to_str(table: List[List]):
-    """ Convert a table to str for printing. """
-    # Calculate the maximum width of each column
-    max_col_widths = [max(len(str(row[i])) for row in table) for i in range(len(table[0]))]
-    # Create the table string with lines between each row and columns
-    table_str = ''
-    for i, row in enumerate(table):
-        for j in range(len(row)):
-            table_str += '| ' + str(row[j]).ljust(max_col_widths[j]) + ' '
-        table_str += '|\n'
-        if i == 0:
-            table_str += '+-' + ''.ljust(max_col_widths[0], '-') + '-+-' + ''.ljust(
-                max_col_widths[1], '-') + '-+-' + ''.ljust(max_col_widths[2], '-') + '-+\n'
-    return table_str
-
-
 def cred_name_regex(arg_value):
     if not re.fullmatch(credentials.CREDNAMEREGEX, arg_value):
         raise argparse.ArgumentTypeError(f'Invalid name: {arg_value}. Names can only consist of '
@@ -211,17 +194,31 @@ def setup_parser(parser: argparse._SubParsersAction):
     set_parser.add_argument('name', help='Name of the credential.', type=cred_name_regex)
     set_parser.add_argument('--type', type=str, default='GENERIC', choices=[
                             'REGISTRY', 'DATA', 'GENERIC'], help='Type of the credential.')
-    table = [['Credential Type', 'Mandatory keys', 'Optional keys'],
-         ['REGISTRY', 'auth', 'registry, username'],
-         ['DATA', 'access_key_id, access_key',
-          'endpoint, '
-          'region (default: us-east-1)'],
-         ['GENERIC', '', '']]
+
     set_group = set_parser.add_mutually_exclusive_group(required=True)
-    set_group.add_argument('--payload', type=str, nargs='+',
-        help='List of key-value pairs.\nThe tabulated information illustrates the mandatory ' +
-             'and optional keys for the payload corresponding to each type of credential:\n\n' +
-             table_to_str(table))
+    set_group.add_argument(
+        '--payload',
+        type=str,
+        nargs='+',
+        help=(
+            'List of key-value pairs.\n'
+            'The tabulated information illustrates the mandatory and optional keys for the '
+            'payload corresponding to each type of credential:\n'
+            '\n'
+            # pylint: disable=line-too-long
+            '+-----------------+---------------------------+---------------------------------------+\n'
+            '| Credential Type | Mandatory keys            | Optional keys                         |\n'
+            '+-----------------+---------------------------+---------------------------------------+\n'
+            '| REGISTRY        | auth                      | registry, username                    |\n'
+            '+-----------------+---------------------------+---------------------------------------+\n'
+            '| DATA            | access_key_id, access_key | endpoint, region (default: us-east-1) |\n'
+            '+-----------------+---------------------------+---------------------------------------+\n'
+            '| GENERIC         |                           |                                       |\n'
+            '+-----------------+---------------------------+---------------------------------------+\n'
+            # pylint: enable=line-too-long
+            '\n'
+        ),
+    )
     set_group.add_argument('--payload-file', dest='payload_file', type=str, nargs='+',
         help='List of key-value pairs, but the value provided needs to be a path to a file.\n'
              'Retrieves the value of the secret from a file.').complete = shtab.FILE

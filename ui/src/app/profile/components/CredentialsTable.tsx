@@ -137,6 +137,7 @@ const CredentialsTable = ({ credentials, nameFilter }: { credentials: Credential
       const newSorting = updater instanceof Function ? updater(sorting) : updater;
       updateUrl(undefined, newSorting);
     },
+    autoResetPageIndex: false,
   });
 
   useEffect(() => {

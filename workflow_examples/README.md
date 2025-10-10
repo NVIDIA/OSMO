@@ -19,14 +19,3 @@ SPDX-License-Identifier: Apache-2.0
 # OSMO - Workflow Specification Examples
 
 This directory contains brief examples of workflows that can be used in combination to make more complex workflows.
-
-TC
-
-## TODO
-
-Convert RST to directories with:
-
-- Directory name corresponding to the example
-- README.md describing any pre-reqs or how to use it
-- spec.yaml file
-- Any scripts

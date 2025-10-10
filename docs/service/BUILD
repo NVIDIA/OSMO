@@ -47,7 +47,7 @@ osmo_py_binary(
     args = ["--docs_dir", "$(location //docs:user_docs)"],
     data = [
         "//docs:user_docs",
-        "//docs:setup_docs",
+        "//docs:deployment_docs",
     ],
 )
 
@@ -69,7 +69,7 @@ run_binary(
         "--main $(location :doc_service.py)",
         "--output_dir $(@D)",
         "--add-data $(location //docs:user_docs):docs/user_docs",
-        "--add-data $(location //docs:setup_docs):docs/setup_docs",
+        "--add-data $(location //docs:deployment_docs):docs/deployment_docs",
     ],
     out_dirs = ["doc_service_onedir"],
     tool = ":builder",
@@ -77,7 +77,7 @@ run_binary(
         ":doc_service_lib",
         "doc_service.py",
         "//docs:user_docs",
-        "//docs:setup_docs",
+        "//docs:deployment_docs",
     ],
 )
 

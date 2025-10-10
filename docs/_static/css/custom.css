@@ -30,16 +30,18 @@ body, h1, h2, h3, h4, h5, h6 {
 
 :root {
     --nv-green: #76B900;
-    --md-primary-fg-color: #76b900;
+    --md-primary-fg-color: #76B900;
     --md-primary-fg-color--light: #8bc34a;
     --md-primary-fg-color--dark: #689f00;
+    --md-accent-fg-color: #76B900;
 }
 
-[data-md-color-scheme="nvgreen"] {
-	--md-primary-fg-color:        var(--nv-green);
-	--md-primary-fg-color--light: #C5E1A5;
-	--md-primary-fg-color--dark:  #004D40;
-	--md-accent-fg-color:         var(--nv-green);
+.md-header{
+    background-color: black;
+}
+
+.md-nav__link:hover {
+    color: #689f00 !important;
 }
 
 a:hover {
@@ -74,6 +76,7 @@ a:hover {
 /* Footer customization */
 .md-footer {
     font-size: 0.8rem;
+    position: static !important;
 }
 
 /* Custom classes for hidden sections in TOC */
@@ -86,4 +89,12 @@ a:hover {
     .md-typeset table:not([class]) td {
         white-space: normal !important;
     }
+}
+
+/* Logo size customization */
+.md-header__button.md-logo img,
+.md-logo img {
+    height: auto;
+    max-height: 2rem;
+    width: auto;
 }

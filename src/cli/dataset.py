@@ -836,7 +836,7 @@ def _run_checksum_command(service_client: client.ServiceClient, args: argparse.N
 def _print_manifest(
     file: io.IOBase,
     format_type: str,
-    regex: str,
+    regex: str | None,
     prefix: str = '',
     count: int = 1000,
 ) -> None:
@@ -1347,7 +1347,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                      'structure. Type json prints out the list of json '
                                      'objects with both URI and URL links.')
     inspect_parser.add_argument('--regex', '-x',
-                                default='',
                                 type=validation.is_regex,
                                 help='Regex to filter which types of files to inspect')
     inspect_parser.add_argument('--count', '-c',

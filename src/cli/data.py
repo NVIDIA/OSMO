@@ -200,7 +200,6 @@ def setup_parser(parser: argparse._SubParsersAction):
     upload_parser.add_argument('local_path', nargs='+',
                                help='Path(s) where the data lies.').complete = shtab.FILE
     upload_parser.add_argument('--regex', '-x',
-                               default='',
                                type=validation.is_regex,
                                help='Regex to filter which types of files to upload')
     upload_parser.add_argument('--processes', '-p',
@@ -227,7 +226,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  help='Path where data will be '
                                       'downloaded to.').complete = shtab.FILE
     download_parser.add_argument('--regex', '-x',
-                                 default='',
                                  type=validation.is_regex,
                                  help='Regex to filter which types of files to download')
     download_parser.add_argument('--resume', '-r',
@@ -254,7 +252,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                              type=validation.is_storage_path,
                              help='URI where data will be listed for.')
     list_parser.add_argument('--regex', '-x',
-                             default='',
                              type=validation.is_regex,
                              help='Regex to filter which types of files to list')
     list_parser.add_argument('--prefix', '-p',
@@ -285,7 +282,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                type=validation.is_storage_path,
                                help='URI where data will be delete from.')
     delete_parser.add_argument('--regex', '-x',
-                               default='',
                                type=validation.is_regex,
                                help='Regex to filter which types of files to delete')
     delete_parser.set_defaults(func=_run_delete_command)

@@ -60,6 +60,11 @@ Envoy sidecar container
     - name: logs
       mountPath: /logs
     {{- end }}
+    {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
+    - name: envoy-secrets
+      mountPath: /etc/envoy/secrets
+      readOnly: true
+    {{- end }}
     {{- with .Values.sidecars.envoy.extraVolumeMounts }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -175,6 +180,16 @@ Envoy volumes
 - name: envoy-config
   configMap:
     name: {{ .Values.services.service.serviceName }}-envoy-config
+{{- end }}
+{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
+- name: envoy-secrets
+  secret:
+    secretName: {{ .Values.sidecars.envoy.oauth2Filter.secretName | default "oidc-secrets" }}
+    items:
+    - key: {{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
+      path: client_secret
+    - key: {{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
+      path: hmac_secret
 {{- end }}
 {{- end }}
 

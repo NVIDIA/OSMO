@@ -18,7 +18,7 @@
 export default function SpecViewer({ url, title }: { url?: string; title: string }) {
   return (
     <iframe
-      width="100%"
+      className="h-full w-full"
       src={url}
       title={title}
     />

@@ -66,7 +66,7 @@ Envoy sidecar container
       name: envoy-config
       readOnly: true
     {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-    - name: oauth-secrets
+    - name: envoy-secrets
       mountPath: /etc/envoy/secrets
       readOnly: true
     {{- end }}
@@ -269,9 +269,14 @@ Envoy volumes
   configMap:
     name: {{ $serviceName }}-envoy-config
 {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-- name: oauth-secrets
+- name: envoy-secrets
   secret:
-    secretName: oidc-client-secret
+    secretName: {{ .Values.sidecars.envoy.oauth2Filter.secretName | default "oidc-secrets" }}
+    items:
+    - key: {{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
+      path: client_secret
+    - key: {{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
+      path: hmac_secret
 {{- end }}
 {{- if .Values.sidecars.envoy.ssl.enabled }}
 - name: ssl-cert

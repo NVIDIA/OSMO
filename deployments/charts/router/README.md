@@ -169,6 +169,9 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.envoy.oauth2Filter.clientId` | OAuth2 client ID | `""` |
 | `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider | `""` |
 | `sidecars.envoy.oauth2Filter.logoutPath` | OAuth2 logout path | `logout` |
+| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name for OIDC secrets | `oidc-secrets` |
+| `sidecars.envoy.oauth2Filter.clientSecretKey` | Key name for client secret in Kubernetes secret | `client_secret` |
+| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Key name for HMAC secret in Kubernetes secret | `hmac_secret` |
 
 #### JWT Authentication
 

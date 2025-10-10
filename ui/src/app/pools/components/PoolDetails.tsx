@@ -13,7 +13,6 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-
 import React from "react";
 
 import { usePathname, useRouter } from "next/navigation";
@@ -21,6 +20,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Spinner } from "~/components/Spinner";
 import { Colors, Tag } from "~/components/Tag";
 
+import { AggregatePanels } from "./AggregatePanels";
 import { PoolStatus } from "./PoolStatus";
 import { type PoolListItem } from "../models/PoolListitem";
 
@@ -94,43 +94,15 @@ export const PoolDetails = ({
       {pool ? (
         <>
           {pool.resource_usage && (
-            <div className="body-header p-3 flex flex-col gap-3">
-              <div className="grid gap-3 grid-cols-2">
-                <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
-                  <h4>Quota</h4>
-                  {isShowingUsed ? (
-                    <>
-                      <p>
-                        <strong>Used:</strong> {pool.resource_usage.quota_used}
-                      </p>
-                      <p>
-                        <strong>Total:</strong> {pool.resource_usage.quota_limit}
-                      </p>
-                    </>
-                  ) : (
-                    <p>
-                      <strong>Free:</strong> {pool.resource_usage.quota_free}
-                    </p>
-                  )}
-                </div>
-                <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
-                  <h4>Total</h4>
-                  {isShowingUsed ? (
-                    <>
-                      <p>
-                        <strong>Used:</strong> {pool.resource_usage.total_usage}
-                      </p>
-                      <p>
-                        <strong>Total:</strong> {pool.resource_usage.total_capacity}
-                      </p>
-                    </>
-                  ) : (
-                    <p>
-                      <strong>Free:</strong> {pool.resource_usage.total_free}
-                    </p>
-                  )}
-                </div>
-              </div>
+            <div
+              className="body-header p-3 flex flex-row gap-3 min-h-40"
+              role="list"
+            >
+              <AggregatePanels
+                totals={pool.resource_usage}
+                isLoading={false}
+                isShowingUsed={isShowingUsed ?? true}
+              />
             </div>
           )}
           <div className="flex flex-col gap-3 p-3">

@@ -273,11 +273,7 @@ services:
     #   value: "false"
     # - name: NEXT_PUBLIC_USE_MOCK_DATA
     #   value: "true"
-    # - name: DATABASE_PASSWORD
-    #   valueFrom:
-    #     secretKeyRef:
-    #       name: db-secret
-    #       key: password
+
 
     ## Environment variables from ConfigMaps and Secrets
     ##

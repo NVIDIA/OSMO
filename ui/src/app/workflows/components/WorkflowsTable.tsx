@@ -198,6 +198,7 @@ export const WorkflowsTable = ({
       const newSorting = updater instanceof Function ? updater(sorting) : updater;
       updatePagingUrl(undefined, newSorting);
     },
+    autoResetPageIndex: false,
   });
 
   return (

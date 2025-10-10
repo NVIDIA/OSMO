@@ -59,16 +59,16 @@ global:
   objectStorage:
     ## Object storage endpoint URL for workflow logs, datasets, and other data
     ##
-    endpoint: ""
+    endpoint: "s3://osmo"
     ## Object storage access key ID for authentication
     ##
-    accessKeyId: ""
+    accessKeyId: "test"
     ## Object storage access key for authentication
     ##
-    accessKey: ""
+    accessKey: "test"
     ## Object storage region where the bucket is located
     ##
-    region: ""
+    region: "us-east-1"
 
 ## Ingress NGINX Controller configuration
 ##
@@ -140,6 +140,21 @@ service:
       ##
       tlsEnabled: false
 
+    ## Localstack S3 Object storage configuration
+    ##
+    localstackS3:
+      ## Enable Localstack S3 Object storage deployment on Kubernetes
+      ##
+      enabled: true
+      ## Buckets for the Localstack S3 Object storage
+      ##
+      buckets: ["osmo"]
+      ## Persistent volume configuration for Localstack S3 Object storage
+      ##
+      persistence:
+        enabled: true
+        hostPath: /var/lib/localstack
+
     ## Main API service configuration
     ##
     service:
@@ -161,6 +176,17 @@ service:
         ## Enable SSL/TLS encryption for the ingress
         ##
         sslEnabled: false
+      ## Additional environment variables for the API service
+      ##
+      extraEnv:
+      - name: AWS_ENDPOINT_URL_S3
+        value: http://localstack-s3:4566
+      - name: AWS_S3_FORCE_PATH_STYLE
+        value: "true"
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+      - name: OSMO_SKIP_DATA_AUTH
+        value: "1"
 
     ## Worker service configuration for background job processing
     ##
@@ -174,6 +200,15 @@ service:
         ## Maximum number of worker replicas
         ##
         maxReplicas: 1
+      ## Additional environment variables for the worker service
+      ##
+      extraEnv:
+      - name: AWS_ENDPOINT_URL_S3
+        value: http://localstack-s3:4566
+      - name: AWS_S3_FORCE_PATH_STYLE
+        value: "true"
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
 
     ## Logger service configuration for log collection and processing
     ##
@@ -187,6 +222,15 @@ service:
         ## Maximum number of logger service replicas
         ##
         maxReplicas: 1
+      ## Additional environment variables for the logger service
+      ##
+      extraEnv:
+      - name: AWS_ENDPOINT_URL_S3
+        value: http://localstack-s3:4566
+      - name: AWS_S3_FORCE_PATH_STYLE
+        value: "true"
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
 
     ## Agent service configuration for client communication and management
     ##
@@ -200,6 +244,15 @@ service:
         ## Maximum number of agent service replicas
         ##
         maxReplicas: 1
+      ## Additional environment variables for the agent service
+      ##
+      extraEnv:
+      - name: AWS_ENDPOINT_URL_S3
+        value: http://localstack-s3:4566
+      - name: AWS_S3_FORCE_PATH_STYLE
+        value: "true"
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
 
   ## Configuration for service sidecar containers
   ##

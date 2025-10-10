@@ -39,20 +39,22 @@ def setup_parser(parser: argparse._SubParsersAction):
         'list',
         help='List resources for all available pools in the service.',
         description=(
-            'Pool resource display formats:\n'
-            '  Used mode (default): Shows the number of GPUs used and the total number of GPUs\n'
-            '  Free mode: Shows the number of GPUs available for use\n'
+            'Pool resource display formats::\n\n'
+            '  Mode           | Description\n'
+            '  ---------------|----------------------------------------------------\n'
+            '  Used (default) | Shows the number of GPUs used and total GPUs\n'
+            '  Free           | Shows the number of GPUs available for use\n'
             '\n'
-            'Columns:\n'
-            '  Quota Limit:    The maximimum number of GPUs that can be used by HIGH/NORMAL\n'
-            '                  priority workflows.\n'
-            '  Quota Used:     The number of GPUs currently used by HIGH/NORMAL priority\n'
-            '                  workflows.\n'
-            '  Quota Free:     The additional number of GPUs that can be used by HIGH/NORMAL\n'
-            '                  priority workflows.\n'
-            '  Total Capacity: The total number of GPUs available on the nodes in the pool.\n'
-            '  Total Used:     The total number of GPUs used by all workflows in the pool.\n'
-            '  Total Free:     The number of free GPUs on the nodes in the pool.\n'),
+            'Display table columns::\n\n'
+            '  Column          | Description\n'
+            '  ----------------|----------------------------------------------------\n'
+            '  Quota Limit     | Max GPUs for HIGH/NORMAL priority workflows\n'
+            '  Quota Used      | GPUs used by HIGH/NORMAL priority workflows\n'
+            '  Quota Free      | Available GPUs for HIGH/NORMAL priority workflows\n'
+            '  Total Capacity  | Total GPUs available on nodes in the pool\n'
+            '  Total Usage     | Total GPUs used by all workflows in pool\n'
+            '  Total Free      | Free GPUs on nodes in the pool\n'
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter)
     list_parser.add_argument('--pool', '-p',
                              nargs='+',

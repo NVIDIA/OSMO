@@ -71,6 +71,15 @@ def restore_boto3_session():
     """
     setattr(boto3, 'Session', _OriginalSession)
 
+#patch added for CVE-2025-8194 - to prevent tarfile.InvalidHeaderError
+_ORIGINAL_TARINFO_BLOCK = getattr(tarfile.TarInfo, '_block')
+
+def _patched_tarinfo_block(self, count):
+    if count < 0:
+        raise tarfile.InvalidHeaderError('invalid offset') # type: ignore[attr-defined]
+    return _ORIGINAL_TARINFO_BLOCK(self, count)
+
+setattr(tarfile.TarInfo, '_block', _patched_tarinfo_block)
 
 def copy_file_to_container(container, host_path, container_path):
     """
@@ -79,6 +88,7 @@ def copy_file_to_container(container, host_path, container_path):
     with open(host_path, 'rb') as file_obj:
         # Create a tar stream with the file
         tar_stream = io.BytesIO()
+
         with tarfile.open(fileobj=tar_stream, mode='w') as tar:
             tarinfo = tarfile.TarInfo(name=os.path.basename(container_path))
             tarinfo.size = os.fstat(file_obj.fileno()).st_size

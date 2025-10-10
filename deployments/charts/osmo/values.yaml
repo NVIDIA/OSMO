@@ -1279,6 +1279,7 @@ sidecars:
 
       ## Kubernetes secret keys (when useKubernetesSecrets is true)
       ##
+      secretName: oidc-secrets
       clientSecretKey: client_secret
       hmacSecretKey: hmac_secret
 

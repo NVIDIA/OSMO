@@ -56,6 +56,7 @@ osmo_py_binary(
         requirement("sphinxcontrib-spelling"),
         requirement("sphinx-simplepdf"),
         requirement("sphinx-markdown-builder"),
+        requirement("sphinx-new-tab-link"),
     ],
 )
 
@@ -71,16 +72,15 @@ osmo_py_binary(
 genrule(
     name = "process_symlinks",
     srcs = glob(["conf.py"]),
-    outs = ["user/conf.py", "setup/conf.py"],
-    cmd = "cp -L $(location conf.py) $(location user/conf.py) && cp -L $(location conf.py) $(location setup/conf.py)"
+    outs = ["user_guide/conf.py", "deployment_guide/conf.py"],
+    cmd = "cp -L $(location conf.py) $(location user_guide/conf.py) && cp -L $(location conf.py) $(location deployment_guide/conf.py)"
 )
 
 filegroup(
     name = "docs_sources",
     srcs = glob([
-        "setup/**",
-        "user/**",
-        "samples/**",
+        "deployment_guide/**",
+        "user_guide/**",
         "_static/**",
         "_templates/**",
         "_extensions/**",
@@ -96,7 +96,7 @@ copy_to_directory(
 run_binary(
     name = "user_docs",
     args = [
-        "$(location :docs_copy)/user",
+        "$(location :docs_copy)/user_guide",
         "--output_dir", "$(@D)",
         "--doctree_dir", "/tmp/user_docs/doctree",
     ],
@@ -124,11 +124,11 @@ run_binary(
 )
 
 run_binary(
-    name = "setup_docs",
+    name = "deployment_docs",
     args = [
-        "$(location :docs_copy)/setup",
+        "$(location :docs_copy)/deployment_guide",
         "--output_dir", "$(@D)",
-        "--doctree_dir", "/tmp/setup_docs/doctree",
+        "--doctree_dir", "/tmp/deployment_docs/doctree",
     ],
     env = select({
         ":darwin": {
@@ -147,7 +147,7 @@ run_binary(
             "OSMO_DOMAIN": "hexagon-sandbox",
         },
     }),
-    out_dirs = ["setup_docs"],
+    out_dirs = ["deployment_docs"],
     tool = ":doc_builder",
     srcs = [":docs_copy"],
     visibility = ["//visibility:public"],

@@ -15,9 +15,8 @@
 //SPDX-License-Identifier: Apache-2.0
 import { useMemo } from "react";
 
+import { GaugeCard } from "~/components/Gauge";
 import { type ResourceAllocation } from "~/models";
-
-import { GaugeCard } from "./Gauge";
 
 export interface AggregateProps {
   cpu: ResourceAllocation;

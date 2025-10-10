@@ -299,6 +299,7 @@ export const TasksTable = ({
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     filterFns: commonFilterFns,
+    autoResetPageIndex: false,
   });
 
   if (isLoading) {

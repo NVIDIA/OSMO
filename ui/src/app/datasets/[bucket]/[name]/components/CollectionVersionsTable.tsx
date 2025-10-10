@@ -116,6 +116,7 @@ export const CollectionVersionsTable: React.FC<{
       const newSorting = updater instanceof Function ? updater(sorting) : updater;
       updateUrl(undefined, newSorting);
     },
+    autoResetPageIndex: false,
   });
 
   return (

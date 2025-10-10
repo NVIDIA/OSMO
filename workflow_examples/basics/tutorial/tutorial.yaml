@@ -1,0 +1,49 @@
+workflow:
+  name: my-serial-workflow
+  resources:
+    default:
+      cpu: 1
+      storage: 1Gi
+      memory: 1Gi
+  tasks:
+  - name: task1
+    image: ubuntu:24.04
+    command: [sh]
+    args: [/tmp/run.sh]
+    files:
+    - contents: |
+        echo "Hello from task1 $(hostname)"
+        echo "Hello from task1 $(hostname)" > {{output}}/hello1.txt
+        echo "Data from task 1" > {{output}}/test_read.txt                  # (1)
+      path: /tmp/run.sh
+    - path: '{{output}}/metadata.yaml'
+      contents: |
+        id: {{workflow_id}}
+    resource: default
+    outputs:
+    - dataset:
+        name: workflow_test_DS
+        metadata:
+        - metadata.yaml
+  - name: task2
+    image: ubuntu:24.04
+    command: ['sh']
+    args: ['/tmp/run.sh']
+    files:
+    - contents: |
+        echo "Hello from task2 {{output}}"
+        if [ ! -f "{{input:1}}/workflow_test_DS/test_read.txt" ]; then          # (1)
+            echo "Error: {{input:1}}/workflow_test_DS/test_read.txt does not exist"
+            exit 1
+        fi
+        head -1 {{input:1}}/workflow_test_DS/test_read.txt
+        echo "Data from task 2" > {{output}}/test_read.txt                      # (2)
+      path: /tmp/run.sh
+    resource: default
+    inputs:
+    - task: task1    # (3)
+    - dataset:
+        name: workflow_test_DS
+    outputs:
+    - dataset:
+        name: workflow_test_DS:test

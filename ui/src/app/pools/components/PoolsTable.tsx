@@ -178,10 +178,11 @@ export const PoolsTable = ({
       updatePagingUrl(undefined, newSorting);
     },
     filterFns: commonFilterFns,
+    autoResetPageIndex: false,
   });
 
   return (
-    <div className="h-full w-full px-3">
+    <div className="h-full w-full flex-grow">
       {isLoading ? (
         <TableLoader table={table} />
       ) : (

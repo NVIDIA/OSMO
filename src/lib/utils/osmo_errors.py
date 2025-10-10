@@ -17,6 +17,17 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import enum
+import tarfile
+
+#patch added for CVE-2025-8194 - to prevent tarfile.InvalidHeaderError
+_ORIGINAL_TARINFO_BLOCK = getattr(tarfile.TarInfo, '_block')
+
+def _patched_tarinfo_block(self, count):
+    if count < 0:
+        raise tarfile.InvalidHeaderError('invalid offset') # type: ignore[attr-defined]
+    return _ORIGINAL_TARINFO_BLOCK(self, count)
+
+setattr(tarfile.TarInfo, '_block', _patched_tarinfo_block)
 
 
 class SubmissionErrorCode(enum.Enum):

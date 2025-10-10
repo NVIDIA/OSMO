@@ -24,6 +24,7 @@ Hil
 Horovod
 IdP
 IncompleteReadError
+IPv
 Jetpack
 Jetson
 Jinja
@@ -155,6 +156,7 @@ io
 ip
 isaac
 iss
+jetson
 json
 kai
 keycloak
@@ -178,10 +180,12 @@ mailgw
 metrics
 microservice
 microservices
+middleware
 mlnxnics
 mnt
 mountpoint
 msgspec
+multicast
 namespace
 namespaces
 natively
@@ -193,6 +197,7 @@ ngc
 nginx
 nics
 nodeSelector
+nslookup
 num
 nvcr
 nvidia
@@ -230,6 +235,7 @@ redash
 redis
 repo
 requeued
+reschedulable
 restitutions
 ros
 routable
@@ -268,10 +274,12 @@ torchrun
 txt
 ui
 unallowed
+unicast
 unschedulable
 url
 urllib
 urls
+useBuiltinTransports
 uuid
 vace
 vCPUs
