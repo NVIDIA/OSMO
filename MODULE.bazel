@@ -149,7 +149,6 @@ use_repo(pip, "osmo_tests_python_deps")
 
 # Docs Python Dependencies
 pip.parse(
-    experimental_index_url = "https://urm.nvidia.com/artifactory/api/pypi/pypi-remote/simple/",
     extra_pip_args = [
         "--retries",
         "10",

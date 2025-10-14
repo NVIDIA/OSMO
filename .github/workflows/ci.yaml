@@ -14,23 +14,71 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# TODO: Enable when the runner has larger disk space
+name: PR build and test
 
-# name: PR build and test
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'run/**'
+      - 'docs/**'
+      - 'ui/**'
+  pull_request:
+    branches: [ main ] # Triggers on PRs targeting the main branch
+    paths:
+      - 'src/**'
+      - 'run/**'
+      - 'docs/**'
+      - 'ui/**'
 
-# on:
-#   pull_request:
-#     branches: [ main ] # Triggers on PRs targeting the main branch
+jobs:
+  bazel-build-test:
+    runs-on: self-hosted
+    container:
+      image: python:3.10-bullseye
+      env:
+        DOCKER_HOST: "tcp://docker:2375"
+        DOCKER_TLS_CERTDIR: ""
+    services:
+      docker:
+        image: docker:24-dind-rootless
+        env:
+          DOCKER_TLS_CERTDIR: ""
+          DOCKER_DRIVER: overlay2
+        options: --privileged
+        ports:
+          - 2375:2375
+    steps:
+      - name: Clean workspace before checkout
+        run: |
+          rm -rf $GITHUB_WORKSPACE/* || true
 
-# jobs:
-#   bazel-build-test:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v4
-#         with:
-#           lfs: true
-#       - name: Bazel Build
-#         run: bazel build $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
-#       - name: Bazel Test
-#         run: bazel test $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
+      - name: Fix workspace permissions
+        run: |
+          chown -R $USER:$USER $GITHUB_WORKSPACE || true
+          chmod -R u+rwX $GITHUB_WORKSPACE || true
+
+      - name: Install Dependencies
+        run: |
+          # Install required packages
+          apt-get update
+          apt-get install -y git git-lfs curl enchant-2
+
+          # Download and install Bazelisk
+          curl -Lo bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64
+          chmod +x bazelisk
+          mv bazelisk /usr/local/bin/bazel
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Bazel Test
+        run: |
+          bazel test \
+            --test_env=DOCKER_HOST=tcp://docker:2375 \
+            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
+            --test_output=errors \
+            $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
