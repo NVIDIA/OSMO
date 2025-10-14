@@ -18,12 +18,6 @@ name: PR build and test
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'run/**'
-      - 'docs/**'
-      - 'ui/**'
   pull_request:
     branches: [ main ] # Triggers on PRs targeting the main branch
     paths:
