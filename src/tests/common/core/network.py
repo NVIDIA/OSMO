@@ -93,10 +93,11 @@ class NetworkFixture(unittest.TestCase):
 
         # Detach all remaining containers from the network
         # pylint: disable=protected-access
-        cls.network._network.reload()
-        attached_containers = cls.network._network.attrs['Containers']
-        for container_id, _ in attached_containers.items():
-            cls.network._network.disconnect(container_id)
+        if cls.network._network:
+            cls.network._network.reload()
+            attached_containers = cls.network._network.attrs['Containers']
+            for container_id, _ in attached_containers.items():
+                cls.network._network.disconnect(container_id)
         # pylint: enable=protected-access
 
         cls.network.remove()
@@ -113,10 +114,11 @@ class NetworkFixture(unittest.TestCase):
             # If so, attach the current container to the network
             if utils.inside_docker_container():
                 # pylint: disable=protected-access
-                attached_containers = cls.network._network.attrs['Containers']
+                if cls.network._network:
+                    attached_containers = cls.network._network.attrs['Containers']
+                    if utils.get_container_id() not in attached_containers:
+                        cls.network.connect(utils.get_container_id())
                 # pylint: enable=protected-access
-                if utils.get_container_id() not in attached_containers:
-                    cls.network.connect(utils.get_container_id())
 
         except Exception as e:  # pylint: disable=broad-except
             cls._clean_up_docker_network()

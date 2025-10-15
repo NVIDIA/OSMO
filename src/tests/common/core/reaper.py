@@ -50,11 +50,11 @@ def patch_reaper_create_instance(reaper_container: network.NetworkAwareContainer
     # pylint: disable=protected-access
     # pylint: disable=unused-argument
     def new_create_instance(cls) -> container.Reaper:
-        logger.debug(f"Creating new Reaper for session: {labels.SESSION_ID}")
+        logger.debug('Creating new Reaper for session: %s', labels.SESSION_ID)
 
         container.Reaper._container = reaper_container.start()
         container.Reaper._container.waiting_for(
-            wait_strategies.LogMessageWaitStrategy(r".* Started!").with_startup_timeout(20))
+            wait_strategies.LogMessageWaitStrategy(r'.* Started!').with_startup_timeout(20))
 
         container_host = container.Reaper._container.get_container_host_ip()
         container_port = container.Reaper._container.get_exposed_port(8080)
@@ -63,7 +63,7 @@ def patch_reaper_create_instance(reaper_container: network.NetworkAwareContainer
             rcc = container.Reaper._container
             assert rcc
             raise exceptions.ContainerConnectException(
-                f'Could not obtain network details for {rcc.id}. '
+                f'Could not obtain network details for {rcc.get_wrapped_container().id}. '
                 f'Host: {container_host} Port: {container_port}'
             )
 
