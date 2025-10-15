@@ -36,7 +36,7 @@ jobs:
         DOCKER_TLS_CERTDIR: ""
     services:
       docker:
-        image: docker:24-dind-rootless
+        image: docker:dind
         env:
           DOCKER_TLS_CERTDIR: ""
           DOCKER_DRIVER: overlay2
