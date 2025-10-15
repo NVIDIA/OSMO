@@ -71,8 +71,17 @@ jobs:
 
       - name: Bazel Test
         run: |
-          bazel test \
+          bazel test --remote_cache=https://bazel-remote.osmo.nvidia.com \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
+
+      - name: Cleanup Bazel cache
+        if: always()
+        run: |
+          # Clean up Bazel's cache to prevent permission issues during runner cleanup
+          bazel clean --expunge || true
+          # Remove any remaining files in temp directories
+          rm -rf $HOME/.cache/bazel || true
+          rm -rf /tmp/bazel* || true
