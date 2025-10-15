@@ -34,7 +34,7 @@ try {
 /** @type {import("next").NextConfig} */
 const config = {
   output: "standalone",
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps: false,
   trailingSlash: false,
   images: {
     remotePatterns: [
@@ -58,6 +58,8 @@ const config = {
       // Ensure CSS files are properly handled
       config.optimization = {
         ...config.optimization,
+        moduleIds: 'deterministic',
+        chunkIds: 'deterministic',
         splitChunks: {
           ...config.optimization.splitChunks,
           cacheGroups: {
