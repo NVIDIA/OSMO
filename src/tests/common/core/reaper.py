@@ -27,7 +27,7 @@ from testcontainers.core import (  # type: ignore
     container,
     exceptions,
     labels,
-    waiting_utils,
+    wait_strategies,
 )
 
 from src.tests.common.core import network
@@ -40,11 +40,11 @@ REAPER_PORT = 8080
 
 def patch_reaper_create_instance(reaper_container: network.NetworkAwareContainer):
     """
-    As of testcontainers v4.9.0, Reaper container requires a special patch
+    As of testcontainers v4.13.2, Reaper container requires a special patch
     in order to operate across both Docker-in-Docker and Local modes.
 
     Reference of the original implementation:
-    https://github.com/testcontainers/testcontainers-python/blob/ace2a7d143fb80576ddc0859a9106aa8652f2356/core/testcontainers/core/container.py#L219
+    https://github.com/testcontainers/testcontainers-python/blob/5c1504c217d8cd3debd99dee54db826e49bfa579/core/testcontainers/core/container.py#L308
     """
 
     # pylint: disable=protected-access
@@ -53,16 +53,19 @@ def patch_reaper_create_instance(reaper_container: network.NetworkAwareContainer
         logger.debug('Creating new Reaper for session: %s', labels.SESSION_ID)
 
         container.Reaper._container = reaper_container.start()
-        waiting_utils.wait_for_logs(
-            container.Reaper._container, r'.* Started!', timeout=20, raise_on_exit=True)
+        container.Reaper._container.waiting_for(
+            wait_strategies.LogMessageWaitStrategy(r'.* Started!').with_startup_timeout(20))
 
         container_host = container.Reaper._container.get_container_host_ip()
         container_port = container.Reaper._container.get_exposed_port(8080)
 
         if not container_host or not container_port:
+            rcc = container.Reaper._container
+            assert rcc
             raise exceptions.ContainerConnectException(
-                f'Could not obtain network details for '
-                f'{container.Reaper._container.get_wrapped_container().id}')
+                f'Could not obtain network details for {rcc.get_wrapped_container().id}. '
+                f'Host: {container_host} Port: {container_port}'
+            )
 
         last_connection_exception: typing.Optional[Exception] = None
         for _ in range(50):
@@ -136,9 +139,10 @@ class ReaperFixture(network.NetworkFixture):
     def tearDownClass(cls):
         try:
             # pylint: disable=protected-access
-            cls.reaper.get_wrapped_container().reload()
-            if cls.reaper.get_wrapped_container().status == 'running':
-                cls.reaper.stop()
+            if cls.reaper._container:
+                cls.reaper._container.reload()
+                if cls.reaper._container.status == 'running':
+                    cls.reaper._container.stop()
             # pylint: enable=protected-access
         finally:
             super().tearDownClass()

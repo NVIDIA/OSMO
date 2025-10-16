@@ -30,6 +30,9 @@ downloading and packaging. These are some restrictions on collections:
   * Collections do **NOT** support versioning. There is only one name per collection.
   * Collections can only store **ONE** version per dataset.
 
+.. note::
+
+  You cannot upload, tag, or add metadata to a collection.
+
 Collections can be created with the :ref:`cli_reference_dataset_collect` CLI and use the most of
-the same CLIs as datasets. To learn more about CLIs that are exclusive to datasets, see :ref:`faqs`.
-You cannot upload, tag, or add metadata to a collection.
+the same CLIs as datasets. To learn more about CLIs that are exclusive to datasets, see :ref:`faq_dataset_cli`.

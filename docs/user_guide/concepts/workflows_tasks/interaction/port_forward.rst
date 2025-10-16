@@ -27,12 +27,14 @@ Browser
 -------
 
 Forwarding a port through the browser is useful when your task has a web service running that
-listens on a single port and serves http traffic, such as a :ref:`Jupyter Notebook <workflow_examples>`,
-a :ref:`VSCode Server <workflow_examples>` or a :ref:`Ray dashboard <workflow_examples>`.
+listens on a single port and serves http traffic, such as a
+`Jupyter Notebook <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/integration_and_tools/jupyterlab>`_,
+a `VSCode Server <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/integration_and_tools/vscode>`_
+or a `Ray dashboard <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/integration_and_tools/ray>`_ .
 
 You can forward a port from **a running workflow task** in the browser using the ``Port Forward``
 option in the ``Task Details`` menu for that task. You may select the task, enter the port number
-and click on ``Start`` to forward the port.
+and click on ``Start`` to forward the port. The port number should be the port of the web service running in the task.
 
 .. note::
 
@@ -47,11 +49,11 @@ CLI
 ---
 
 Forward ports from a running task of your workflow to your local host or browser using ``port-forward`` command.
-For detailed CLI options, see :ref:`cli_reference_workflow`.
+For detailed CLI options, see :ref:`osmo workflow port-forward <cli_reference_workflow_port_forward>`.
 
 If your workflow is hosting a **web application** that listens on a **single** port, you can go to the URL provided after running port forwarding to view
 the application through your web browser. If your workflow is hosting a more complex service like Isaac Sim, you can
 need to use the a corresponding local client to access the service.
 
 For examples of common services that can be port forwarded,
-see `integration & tools <https://github.com/ai-osmo/osmo/tree/main/workflow_examples/integration_and_tools>`_.
+see `integration & tools <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/integration_and_tools>`_.

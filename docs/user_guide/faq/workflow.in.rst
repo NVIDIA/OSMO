@@ -23,7 +23,7 @@ Workflow
 What pools and platforms are available?
 ---------------------------------------
 
-For pool/platform availability, refer to :ref:`cli_reference_pool`.
+For pool/platform availability, refer to :ref:`Pool CLI Reference <cli_reference_pool>`.
 
 How to fix 403 error when accessing OSMO UI?
 --------------------------------------------
@@ -216,14 +216,14 @@ To manually rerun tasks in a workflow that have failed, see :ref:`cli_reference_
 
 To have your workflow automatically reschedule and retry failed tasks, see  :ref:`concepts_wf_actions`
 
-For a practical example of rescheduling training workflows for backend errors, see :ref:`Reschedule Training for Backend Errors <workflow_examples>`.
+For a practical example of rescheduling training workflows for backend errors, see `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_reschedule>`__.
 
 My workflow is stuck, how can I save my data?
 ---------------------------------------------
 
 You can save your data in the workflow by running the OSMO CLI while exec'd into the workflow.
 
-The tutorial :ref:`workflow_examples` shows how to perform this operation.
+The tutorial `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/basics/osmo_cli>`__ shows how to perform this operation.
 
 How to access a private GitHub repository from a workflow?
 ----------------------------------------------------------
@@ -315,7 +315,7 @@ Here are the most common causes and how to investigate them:
 
    - Check if the requested resources (CPU, GPU, memory) are available in your pool
 
-   - Use the :ref:`cli_reference_resource` command to see current resource utilization
+   - Use the :ref:`Resource CLI <cli_reference_resource>` commands to see current resource utilization
 
    - Consider if both total resources and resource per node are available in your pool
 
@@ -323,7 +323,7 @@ Here are the most common causes and how to investigate them:
 
 2. **Pool Quotas and Sharing**
 
-   - Use the :ref:`cli_reference_pool` command to check if your pool has reached its quota limit
+   - Use the :ref:`Pool CLI <cli_reference_pool>` commands to check if your pool has reached its quota limit
 
    - You can not exceed the quota for non-preemptible workflows (HIGH/NORMAL priority)
 

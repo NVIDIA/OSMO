@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Single Node DNN Training
+# NVIDIA OSMO - Training DNN on a Single Node
 
 This example demonstrates how to run a PyTorch training job on a single node using OSMO. It trains a simple CNN on the MNIST dataset and showcases key OSMO features including resource management, dataset handling, checkpointing, and TensorBoard integration.
 

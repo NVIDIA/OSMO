@@ -28,7 +28,7 @@ For a refresher, see :ref:`pool`.
 Prerequisites
 ================================================
 
-- Install and configure the OSMO CLI: `Install the OSMO CLI <../../../docs/getting_started/install.html#install-client>`_
+- Install and configure the OSMO CLI: `Install the OSMO CLI <../../../../docs/reference/cli/install.html>`_
 - A registered compute backend; see :ref:`register_cb`
 
 Configure Pool

@@ -176,7 +176,7 @@ export const TasksTable = ({
         cell: ({ row }) => (
           <a
             className="tag-container-round"
-            href="/docs/concepts/wf/status.html"
+            href="/docs/concepts/workflows_tasks/lifecycle/status.html?h=status#task-statuses"
             target="_blank"
             rel="noopener noreferrer"
             title={getStatusDescription(row.original.status)}
@@ -194,7 +194,7 @@ export const TasksTable = ({
         header: "Priority",
         cell: ({ row }) => (
           <a
-            href="/docs/concepts/wf/priority.html"
+            href="/docs/concepts/workflows_tasks/priority.html"
             target="_blank"
             rel="noopener noreferrer"
             className="tag-container"

@@ -96,7 +96,15 @@ export const WorkflowsFilters = ({
     setLocalStatusMap(
       new Map(WorkflowStatusValues.map((value) => [value, allStatuses || statusArray.includes(value.toString())])),
     );
-  }, [name, statuses, allStatuses]);
+  }, [statuses, allStatuses]);
+
+  useEffect(() => {
+    setLocalName(name);
+  }, [name]);
+
+  useEffect(() => {
+    setLocalDateRange(dateRange);
+  }, [dateRange]);
 
   useEffect(() => {
     const parsedData = PoolsListResponseSchema.safeParse(pools.data);

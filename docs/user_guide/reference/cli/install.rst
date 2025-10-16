@@ -17,18 +17,6 @@
 
 .. _cli_install:
 
-===================
-System Requirements
-===================
-
-* Operating System
-    * Ubuntu 22.04+ (x86_64)
-    * MacOS (arm64)
-* CPU: 1
-* Disk: 500 MB
-* Memory: 1 GB
-
-
 ================================================
 Install
 ================================================
@@ -101,20 +89,6 @@ To logout from the client, can use the following command:
   $ osmo logout
 
   Successfully logged out.
-
-Update
-------
-
-Some client updates are optional and some are mandatory. The client will let you know when it is time to update.
-
-.. code-block:: bash
-  :substitutions:
-
-  $ osmo dataset list
-
-  2025-10-03T11:15:45.464-07:00 client [ERROR] client: Server responded with status code 400
-  Error message: Your client is out of date. Client version is 1.0.0 but the newest client version is 2.0.0. Please run the following command:
-  curl -fsSL |osmo_client_install_url| | bash
 
 ================================================
 Uninstall

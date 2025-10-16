@@ -17,8 +17,12 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import logging
+import io
 import os
+import posixpath
 import shutil
+import time
+import uuid
 
 from fastapi import testclient
 
@@ -81,6 +85,12 @@ class ServiceTestFixture(fixtures.PostgresFixture,
 
         jinja_sandbox.SandboxedJinjaRenderer._instance = \
             jinja_sandbox.SandboxedJinjaRenderer(max_time=5)  # pylint: disable=protected-access
+
+    def setUp(self):
+        super().setUp()
+
+        # Create a unique CLI storage path per test
+        service.CLI_STORAGE_PATH = posixpath.join(service.CLI_STORAGE_PATH, str(uuid.uuid4()))
 
     def tearDown(self):
         # Delete all objects in the bucket
@@ -226,3 +236,24 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         )
 
         return task_group
+
+    def upload_object(self, object_content: bytes, object_name: str):
+        self.s3_client.upload_fileobj(
+            io.BytesIO(object_content),
+            TEST_BUCKET_NAME,
+            object_name,
+        )
+
+        # Verify files are available in S3 before proceeding
+        max_retries = 5
+        for retry in range(max_retries):
+            try:
+                self.s3_client.head_object(Bucket=TEST_BUCKET_NAME, Key=object_name)
+                break
+            except self.s3_client.exceptions.NoSuchKey as error:
+                if retry < max_retries - 1:
+                    time.sleep(0.2)
+                else:
+                    raise TimeoutError(
+                        f'Object {object_name} not found in S3 after {max_retries} retries',
+                    ) from error

@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Parallel tasks communication
+# NVIDIA OSMO - Communicating between Parallel Tasks
 
 This workflow has two tasks in a group that communicate with each other. It creates a simple TCP
 server and client setup:

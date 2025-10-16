@@ -49,14 +49,15 @@ osmo_py_binary(
     main = "doc_builder.py",
     srcs = ["doc_builder.py"],
     deps = [
+        requirement("nvidia-sphinx-theme"),
         requirement("sphinx"),
         requirement("sphinx-copybutton"),
-        requirement("sphinx-immaterial"),
-        requirement("Sphinx-Substitution-Extensions"),
-        requirement("sphinxcontrib-spelling"),
-        requirement("sphinx-simplepdf"),
         requirement("sphinx-markdown-builder"),
         requirement("sphinx-new-tab-link"),
+        requirement("sphinx-simplepdf"),
+        requirement("sphinx-substitution-extensions"),
+        requirement("sphinx-tabs"),
+        requirement("sphinxcontrib-spelling"),
     ],
 )
 
@@ -82,7 +83,6 @@ filegroup(
         "deployment_guide/**",
         "user_guide/**",
         "_static/**",
-        "_templates/**",
         "_extensions/**",
     ]),
 )

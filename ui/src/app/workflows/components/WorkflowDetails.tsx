@@ -50,7 +50,7 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
               {workflow.status && (
                 <a
                   className="tag-container-round"
-                  href="/docs/concepts/wf/status.html"
+                  href="/docs/concepts/workflows_tasks/lifecycle/status.html?h=status#task-statuses"
                   target="_blank"
                   rel="noopener noreferrer"
                   title={getStatusDescription(workflow.status)}
@@ -89,7 +89,7 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
             <dt>Priority</dt>
             <dd>
               <a
-                href="/docs/concepts/wf/priority.html"
+                href="/docs/concepts/workflows_tasks/priority.html"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tag-container"

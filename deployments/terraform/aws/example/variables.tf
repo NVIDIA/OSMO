@@ -218,12 +218,6 @@ variable "redis_engine_version" {
   default     = "7.0"
 }
 
-variable "redis_family" {
-  description = "Redis parameter group family"
-  type        = string
-  default     = "redis7.x"
-}
-
 variable "redis_snapshot_retention_limit" {
   description = "Number of days to retain Redis snapshots"
   type        = number

@@ -17,6 +17,7 @@
 
 * `AWS S3 <https://aws.amazon.com/s3>`_ buckets
 * `GCP Google Storage <https://cloud.google.com/storage/docs/buckets>`_ buckets
+* `Azure Blob Storage <https://azure.microsoft.com/en-us/products/storage/blobs>`_ containers
 * `Torch Object Storage <https://docs.byteplus.com/en/docs/tos>`_ buckets
 
 Refer to the setup guide to configure storage and manage the user access for datasets with ACL.
@@ -114,6 +115,31 @@ To recap, for Data credentials you would need:
   * ``Secret`` for ``access_key``
   * ``Location`` from ``osmo bucket list`` for ``endpoint``
 
+Fetch Azure Blob Storage Credentials
+------------------------------------
+
+Your admin will need to add you to the Azure Blob Storage account in order for you to access
+the containers within that storage account.
+
+Once your admin added you, go to ``Storage center`` and click on the right ``Storage account``.
+
+After landing on the storage account page, click on ``Security + Networking`` > ``Shared Access Signature`` on the left side bar.
+
+From this page:
+
+- Choose the permissions that you want for your credentials
+- Click on ``Object`` for ``Allowed resource types``
+- Choose the expiration date for your credentials.
+
+.. note::
+
+  Be sure to give ample time for the expiration date for your credentials. When the credentials expires, this could impact any
+  data or dataset operation.
+
+After clicking on ``Generate SAS and connection string``, save the ``Connection string``.
+You will use the ``Connection string`` for ``access_key`` field of your OSMO data credentials.
+
+You can choose to leave out the ``access_key_id`` and ``region`` fields when setting up the credentials.
 
 Fetch TOS Credentials
 --------------------------

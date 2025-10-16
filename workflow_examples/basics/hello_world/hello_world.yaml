@@ -18,7 +18,7 @@ workflow:
   name: hello-osmo
   tasks:
     - name: hello
-      image: ubuntu:22.04
+      image: ubuntu:24.04
       command: ["bash"]
       args: ["/tmp/entry.sh"]
       files:

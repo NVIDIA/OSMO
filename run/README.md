@@ -16,4 +16,4 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-Go to [Local Build Guide](../src/README.md) to learn how to develop locally.
+Go to [Dev Guide](../DEV.md) to learn how to develop locally.

@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - JupyterLab
+# NVIDIA OSMO - Launching JupyterLab
 
 This workflow launches a JupyterLab server that can be accessed remotely for interactive development and data science work. It runs a single task that starts JupyterLab on port 6060 configured for remote access, allowing you to work with notebooks, scripts, and datasets in a familiar Jupyter environment.
 

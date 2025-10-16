@@ -91,7 +91,7 @@ Download the kind-osmo-cluster-config.yaml file from the OSMO repository:
 echo "PRIVATE-TOKEN: $GITLAB_TOKEN" > /tmp/gitlab_header
 curl -H "@/tmp/gitlab_header" \
   -o kind-osmo-cluster-config.yaml \
-  "https://gitlab-master.nvidia.com/api/v4/projects/72729/repository/files/build%2Fkind-osmo-cluster-config.yaml/raw?ref=main"
+  "https://gitlab-master.nvidia.com/api/v4/projects/72729/repository/files/external%2Frun%2Fkind-osmo-cluster-config.yaml/raw?ref=main"
 ```
 
 Create the KIND cluster:

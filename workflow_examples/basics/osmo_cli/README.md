@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - OSMO CLI
+# NVIDIA OSMO - Running OSMO CLI in a Workflow
 
 This workflow uses the OSMO CLI from within the workflow. OSMO CLI is always injected into the workflow.
 

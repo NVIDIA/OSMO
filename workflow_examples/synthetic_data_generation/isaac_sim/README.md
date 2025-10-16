@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Synthetic Data Generation
+# NVIDIA OSMO - Generating Photorealistic Synthetic Data using Isaac Sim
 
 ## Overview
 

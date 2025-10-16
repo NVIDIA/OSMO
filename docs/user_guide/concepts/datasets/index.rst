@@ -18,7 +18,7 @@
 .. _concepts_ds:
 
 ================================================
-Datasets and Collections
+Datasets & Collections
 ================================================
 
 A **Dataset** is a versioned group of files and directories that is stored and managed by OSMO.

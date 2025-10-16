@@ -40,7 +40,7 @@ CLI
 ---
 
 You can open a shell into a running task in the workflow using the ``exec`` command.
-For detailed CLI options, see :ref:`cli_reference_workflow`.
+For detailed CLI options, see :ref:`osmo workflow exec <cli_reference_workflow_exec>`.
 
 By default, ``osmo workflow exec`` will connect to the container using the ``/bin/bash`` shell.
 You can terminate a session by either using ``CTRL+D`` or by using the ``exit`` command:

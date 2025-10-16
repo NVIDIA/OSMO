@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - ROS2 AprilTag Detection Benchmark on Jetson
+# NVIDIA OSMO - Running ROS2 AprilTag Detection Benchmark on Jetson
 
 This example demonstrates how to run a ROS2 AprilTag detection benchmark workflow on Jetson hardware using OSMO.
 

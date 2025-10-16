@@ -239,10 +239,10 @@ def _install_osmo_services(image_location: str, image_tag: str, detected_platfor
 
     services = [
         ('osmo',
-         'deployments/charts/osmo/Chart.yaml',
+         'deployments/charts/service/Chart.yaml',
          'run/minimal/osmo_values.yaml'),
         ('ui',
-         'deployments/charts/ui/Chart.yaml',
+         'deployments/charts/web-ui/Chart.yaml',
          'run/minimal/ui_values.yaml'),
         ('router',
          'deployments/charts/router/Chart.yaml',

@@ -37,5 +37,5 @@ want to run your workflow on.
 From there, you can specify the :ref:`workflow definition <concepts_wf>`
 and what inputs/outputs you want to use.
 
-To capture the workflow output, :ref:`datasets <concepts_ds>` and
-:ref:`collections <concepts_ds>` can help you manage and organize your data.
+To capture the workflow output, :ref:`datasets and collections <concepts_ds>` can help you manage
+and organize your data.

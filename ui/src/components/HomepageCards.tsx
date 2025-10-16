@@ -36,7 +36,7 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
   workflowLink,
 }) => {
   return (
-    <div className="card">
+    <div className="card flex flex-col">
       <div className="relative h-50">
         <Image
           fill
@@ -74,7 +74,7 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
 
 export const HomepageCards = () => {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3 p-3">
       <h2 className="text-center">Getting Started</h2>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4 lg:grid-cols-3 md:grid-cols-2">
         <HomepageCard
@@ -92,6 +92,7 @@ export const HomepageCards = () => {
               >
                 Isaac Sim
               </a>
+              .
             </p>
           }
           tutorialLink="/docs/tutorials/advanced/sdg/isaac_sim_sdg.html"
@@ -110,38 +111,56 @@ export const HomepageCards = () => {
                 rel="noopener noreferrer"
                 className="link-inline"
               >
-                pytorch examples
+                Pytorch examples
               </a>
+              .
             </p>
           }
           tutorialLink="/docs/tutorials/advanced/dnn_training/training.html"
           workflowLink="/workflows/submit/mnist_training"
         />
         <HomepageCard
-          title="Evaluate in Simulation"
-          imageUrl="/eval_sample.png"
-          imageAlt="ROS2 Turtlebot"
+          title="Hardware-in-the-Loop Simulation"
+          imageUrl="/robot.png"
+          imageAlt="Humanoid in Isaac Lab"
           body={
             <p>
-              In this tutorial, you will evaluate ROS2 turtlebot in a Gazebo simulator, and stream the topics from robot
-              to Foxglove, a popular visualization tool for robotics
+              In this tutorial, you will run a humanoid robot policy on a <strong>Jetson</strong> device, and stream the
+              actions to control the robot via the{" "}
+              <a
+                href="https://developer.nvidia.com/isaac/lab"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link-inline"
+              >
+                Isaac Lab
+              </a>{" "}
+              simulation environment, focusing on robot learning.
             </p>
           }
-          tutorialLink="/docs/tutorials/advanced/turtlebot.html"
-          workflowLink="/workflows/submit/turtlebot"
+          tutorialLink="/docs/tutorials/advanced/hil.html"
+          workflowLink="/workflows/submit/hil"
         />
         <HomepageCard
-          title="Benchmark on NVIDIA Jetson"
-          imageUrl="/benchmark.png"
-          imageAlt="Benchmark"
+          title="Inference and Fine-tuning with Isaac Groot"
+          imageUrl="/groot.png"
+          imageAlt="Groot N1.5"
           body={
             <p>
-              In this tutorial, you will measure the benchmark performance of ROS2 April Tag node on the NVIDIA Jetson
-              device
+              In this tutorial, you will run inference and fine-tuning with{" "}
+              <a
+                href="https://research.nvidia.com/labs/gear/gr00t-n1_5/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link-inline"
+              >
+                Isaac Groot
+              </a>{" "}
+              (a foundation model for robotics) using a <strong>Jupyter notebook</strong>.
             </p>
           }
-          tutorialLink="/docs/tutorials/advanced/ros_benchmark.html"
-          workflowLink="/workflows/submit/ros_benchmark"
+          tutorialLink="/docs/tutorials/advanced/groot.html"
+          workflowLink="/workflows/submit/groot"
         />
       </div>
     </div>

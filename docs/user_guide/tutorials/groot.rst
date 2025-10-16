@@ -15,11 +15,11 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _groot:
+.. _tutorials_groot:
 
-================================================
-Inference and Fine-tuning with Isaac Groot
-================================================
+============================================
+Inferencing and Fine-tuning with Isaac Groot
+============================================
 
 Introduction
 ------------
@@ -44,17 +44,17 @@ Fetch the workflow spec:
 
 .. code-block:: bash
 
-    $ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflow_examples/groot/groot.yaml
+    $ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflow_examples/groot/groot_notebook/groot_notebook.yaml
 
 .. note::
 
-    The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/groot>`_.
+    The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/groot/groot_notebook>`_.
 
 Add any platform value if necessary. After that, submit the workflow:
 
 .. code-block:: bash
 
-    $ osmo workflow submit groot.yaml
+    $ osmo workflow submit groot_notebook.yaml
 
 After the workflow starts running, check the logs to see if the workflow logs this messages:
 
@@ -87,6 +87,20 @@ in the notebook:
 .. image:: images/groot_action.png
   :width: 800
   :align: center
+
+Note that sometimes you will see these error logs in the notebook:
+
+.. code-block:: bash
+
+  I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+  E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+  E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+  E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+  I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+  To enable the following instructions: AVX2 AVX_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+  W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+
+These are warnings, and you will still be able to run the rest of the notebook.
 
 When running the notebooks, there are sections that require you to run Python scripts outside the notebook.
 For example, in the `Fine-tuning` notebook, you will see something like this:

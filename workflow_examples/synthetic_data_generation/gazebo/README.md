@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Gazebo Synthetic Data Generation
+# NVIDIA OSMO - Generating Synthetic Data using Gazebo
 
 This workflow demonstrates synthetic data generation using the Gazebo simulator. It launches Gazebo with a segmentation world, randomly places objects (vehicles, trees, cones) in the scene, captures synthetic images with semantic labels, and saves them to a dataset.
 

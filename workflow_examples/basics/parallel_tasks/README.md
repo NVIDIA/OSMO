@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Parallel tasks
+# NVIDIA OSMO - Running Parallel tasks
 
 This workflow has two tasks that run in parallel using a group.
 

@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - DeepSpeed Multi-Node DNN Training
+# NVIDIA OSMO - Training DNN on Multiple Nodes using DeepSpeed
 
 This example demonstrates how to run a distributed PyTorch training job across multiple nodes using OSMO with [DeepSpeed](https://www.deepspeed.ai/).
 DeepSpeed is a deep learning optimization library that makes distributed training easy, efficient, and effective.

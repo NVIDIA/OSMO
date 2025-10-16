@@ -397,7 +397,7 @@ clusters:
   circuit_breakers:
     thresholds:
     - priority: DEFAULT
-      max_requests: 100000
+      max_requests: {{.Values.sidecars.envoy.maxRequests}}
   load_assignment:
     cluster_name: service
     endpoints:
@@ -416,7 +416,7 @@ clusters:
   circuit_breakers:
     thresholds:
     - priority: DEFAULT
-      max_requests: 100000
+      max_requests: {{.Values.sidecars.envoy.maxRequests}}
   load_assignment:
     cluster_name: osmoauth
     endpoints:

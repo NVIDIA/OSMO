@@ -93,7 +93,7 @@ export const TasksTable = ({
         header: "Priority",
         cell: ({ row }) => (
           <a
-            href="/docs/concepts/wf/priority.html"
+            href="/docs/concepts/workflows_tasks/priority.html"
             target="_blank"
             rel="noopener noreferrer"
             className="tag-container"

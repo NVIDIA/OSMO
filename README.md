@@ -16,77 +16,77 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO
 
-OSMO is a workflow orchestration platform that provides easy and efficient access to various types
-of compute and data storage solutions for robotics developers.
+# Welcome to NVIDIA OSMO
 
-## Why OSMO?
+OSMO is an open framework for end-to-end robotics development scaled across heterogenous compute​ nodes.
 
-Traditional robotics development faces several challenges:
+OSMO enables robotics developers to scale the AI development seamlessly from PC or workstations to large sized compute clusters in the cloud
 
-- **Complex infrastructure setup** - Managing heterogeneous compute resources is difficult
-- **Resource sharing bottlenecks** - Teams compete for limited development hardware
-- **Scaling difficulties** - Moving from prototype to production-scale testing
-- **Hardware-software mismatch** - Testing on different hardware than production targets
+<img src="Intro.png" width="600" />
 
-OSMO solves these problems by providing:
+## What's new​
 
-- **Unified workflow orchestration** - Submit jobs via CLI or web UI
-- **Hardware abstraction** - Run the same workflows on different compute backends
-- **Resource pooling** - Share expensive hardware resources across teams
-- **Cloud-native scalability** - Scale from single jobs to cluster-wide workloads
-- **Support both SIL and HIL** - Software-in-the-loop and Hardware-in-the-loop simulation
+* Available Now as Open-Source on Github​
+* Run OSMO locally before scaling to the cloud​
+​
+## Key benefits​
 
-## Getting Started
+* Unify simultaneous execution across diverse compute nodes specialized for AI model training, simulation or physical AI runtime.​
+* Simple zero-code YAML based workflow configuration scalable with custom build systems or AI agents​
+* Connect any Kubernetes compute backend ​
+* Integrate with to your existing services with open standards - identity provider, container registries and storage ​
+* Deploy in air-gapped environments
 
-The recommended way for CSPs and developers to evaluate OSMO before committing to a full deployment
-is with our [Quick Start Guide](QUICK_START.md).
 
-## Building and Running Locally
+## Try OSMO
 
-### Supported Devices
+Deploy OSMO on your laptop or any workstation with a [Quick Start Guide](QUICK_START.md).
+
+## Deploy on Cloud
+
+Follow these steps for cloud deployment
+
+* Create required resources in the cloud for hosting OSMO using Terraform
+
+  * [AWS](deployments/terraform/aws/example/README.md)
+  * [Azure](deployments/terraform/azure/example/README.md)
+
+* Deploy and configure OSMO using our [Deployment Guide](docs/deployment_guide/index.rst)
+
+## Documentation
+
+If you are an AI / ML /robotics developer, follow our [User Guide](docs/user_guide/index.rst) to run OSMO workflows
+
+
+## 🤝 Support
+
+For support and questions:
+
+* Review our documentation at the links above
+* Create issues on Github for support
+
+## Contribute to OSMO
+
+To develop features in OSMO, you will need one of the below supported devices to build and run the service
+
+### System Requirements
 
 - Ubuntu 22.04+ (x86_64)
 - MacOS (arm64)
 
-### Prerequisites
+### Install Prerequisites
 
-- **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS
-  command-line tool (>=2.24.7)
 - **[Bazel](https://bazel.build/install/bazelisk)** - Build tool (>=8.1.1)
 - **[Docker](https://docs.docker.com/get-docker/)** - Container runtime (>=28.3.2)
 - **[Helm](https://helm.sh/docs/intro/install/)** - Package manager for Kubernetes (>=3.17.1)
 - **[KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)** - Kubernetes in Docker
   (>=0.29.0)
 - **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Kubernetes command-line tool (>=1.32.2)
+- **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS
+  command-line tool (>=2.24.7)
+- **[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)** - Package manager for Node.js (>=11.6.2)
 
-For developers who want to run & develop OSMO on their development machine, use our
-[Local Run Guide](RUN.md).
+Follow [Dev Guide](DEV.md) to develop and test features on your local workstation
 
-Once the changes are done, follow our [Build and Test Guide](BUILD_AND_TEST.md) to build, push, and
-test container images.
-
-## Cloud Deployment
-
-To deploy to the cloud, follow these instructions:
-
-- [AWS](deployments/terraform/aws/example/README.md)
-- [Azure](deployments/terraform/azure/example/README.md)
-
-## Testing
-
-Follow our documentation below to setup OSMO and run tutorials.
-
-- **[User Guide](docs/user/index.rst)** - Complete guide for OSMO users
-- **[Setup Guide](docs/setup/index.rst)** - Deployment and configuration instructions
-
-## CSP Marketplace Deployment
-
-**Coming Soon...**
-
-## 🤝 Support
-
-For support and questions:
-
-- Review our documentation at the links above
+Follow [Build and Test Guide](BUILD_AND_TEST.md) to containerize your features, push them to desired registry and test the container images

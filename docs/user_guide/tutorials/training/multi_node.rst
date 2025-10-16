@@ -23,8 +23,8 @@ Moving forward to Multi-Node Distributed Training
 
 This section uses TorchRun as an example to demonstrate how to train a model distributively on multiple nodes in OMSO.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_multinode>`_.
-More examples with other distributed training frameworks can be found in :ref:`workflow_examples`.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_multinode>`__.
+More examples with other distributed training frameworks can be found `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training>`__.
 
 Making a TorchRun Multi-Node Training Script
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

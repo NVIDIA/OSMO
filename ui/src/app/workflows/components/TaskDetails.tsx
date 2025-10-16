@@ -137,7 +137,7 @@ const TaskDetails = ({ task, showTaskName = true, updateUrl, extraData }: TaskDe
                 <dd>
                   <Link
                     color={task.exit_code === 0 ? Colors.tag : Colors.error}
-                    href="/docs/concepts/wf/exit_codes.html"
+                    href="/docs/concepts/workflows_tasks/lifecycle/exit_codes.html"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="tag-container"

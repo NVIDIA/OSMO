@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - ROS2 Turtlebot Simulation with Foxglove Visualization
+# NVIDIA OSMO - Running ROS2 Simulation with Foxglove Visualization
 
 This workflow demonstrates the classic ROS2 Turtlebot example and streams the simulated robot's topics to Foxglove, a popular visualization client for robotics.
 

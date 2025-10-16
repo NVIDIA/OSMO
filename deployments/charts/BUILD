@@ -16,8 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 filegroup(
-    name = "osmo",
-    srcs = glob(["osmo/**"]),
+    name = "service",
+    srcs = glob(["service/**"]),
     visibility = ["//visibility:public"],
 )
 
@@ -34,8 +34,8 @@ filegroup(
 )
 
 filegroup(
-    name = "ui",
-    srcs = glob(["ui/**"]),
+    name = "web-ui",
+    srcs = glob(["web-ui/**"]),
     visibility = ["//visibility:public"],
 )
 

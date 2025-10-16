@@ -177,6 +177,10 @@ class PostgresConfig(pydantic.BaseModel):
         command_line='osmo_image_tag',
         default=None,
         description='The image tag for OSMO images')
+    service_hostname: str | None = pydantic.Field(
+        command_line='service_hostname',
+        default=None,
+        description='The public hostname for the OSMO service (used for URL generation)')
 
 
 def retry(func=None, *, reconnect: bool = True):
@@ -1038,17 +1042,11 @@ class PostgresConnector:
 
     def _init_configs(self):
         """ Initializes configs table. """
-        # Extract deployment values from config if available
-        hostname = None
-        if hasattr(self.config, 'host') and self.config.host:
-            parsed_url = urlparse(self.config.host)
-            hostname = parsed_url.hostname
-
         # Create config objects with deployment values if provided
         service_configs = ServiceConfig()
-        if hostname:
+        if self.config.service_hostname:
             # Override default service_base_url with deployment hostname
-            service_configs.service_base_url = f'https://{hostname}'
+            service_configs.service_base_url = f'https://{self.config.service_hostname}'
             logging.info(
                 'Using deployment hostname for service_base_url: %s',
                 service_configs.service_base_url)

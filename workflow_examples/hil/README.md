@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Hardware-In-The-Loop using Isaac Lab
+# NVIDIA OSMO - Running Hardware-In-The-Loop using ROS2 and Isaac Lab
 
 ## Overview
 

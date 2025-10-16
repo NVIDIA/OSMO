@@ -14,20 +14,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Configuration file for the Sphinx documentation builder.
-#
-# This file only contains a selection of the most common options. For a full
-# list see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
 # -- Path setup --------------------------------------------------------------
 
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('.'))
@@ -36,57 +26,57 @@ sys.path.insert(0, os.path.abspath('.'))
 
 project = 'NVIDIA OSMO'
 copyright = "2025 NVIDIA CORPORATION & AFFILIATES"
+author = "NVIDIA"
 
-OSMO_DOMAIN = "public"
+osmo_domain = os.getenv("OSMO_DOMAIN", "public")
 
 # -- General configuration ---------------------------------------------------
 
-# Add any Sphinx extension module names here, as strings. They can be
-# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
-# ones.
-# sys.path.append('/usr/local/lib/python3.6/dist-packages/breathe')
-# extensions = ['breathe']
-# breathe_projects = { "myproject": "../src/xml"}
-# breathe_default_project = "myproject"
-
 extensions = [
+    # Standard extensions
     'sphinx_copybutton',
-    'sphinx_immaterial',
+    'sphinx_new_tab_link',
+    'sphinx_simplepdf',
     'sphinx_substitution_extensions',
-    'sphinxcontrib.spelling',
+    'sphinx_tabs.tabs',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
-    'sphinx_simplepdf',
-    'sphinx_new_tab_link',
+    'sphinxcontrib.spelling',
 
-    # Locally defined extensions
+    # Custom extensions
     '_extensions.auto_include',
+    '_extensions.code_annotations',
+    '_extensions.domain_config',
+    '_extensions.html_translator_mixin',
     '_extensions.markdown_argparse',
 ]
 
+# Spelling
 spelling_exclude_patterns = [
     '**/reference/cli/cli_*.rst',
 ]
 spelling_show_suggestions = True
 spelling_warning = True
 spelling_word_list_filename = '../spelling_wordlist.txt'
+
+# Copybutton
 copybutton_prompt_text = "$ "
 copybutton_copy_empty_lines = False
 copybutton_selector = "div:not(.no-copybutton) > div.highlight > pre"
-sphinx_immaterial_override_builtin_admonitions = False
+
+# New tab link
 new_tab_link_show_external_link_icon = True
 new_tab_link_enable_referrer = False
 
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+# Tabs
+sphinx_tabs_disable_tab_closing = True
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = [
     '_build',
-    '_old_docs',
     'Thumbs.db',
     '.DS_Store',
     '**/*.in.rst',  # Ignore files that are embedded in other files
@@ -101,31 +91,18 @@ suppress_warnings = [
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_immaterial"
+html_theme = "nvidia_sphinx_theme"
 
 html_title = 'OSMO Documentation'
 html_show_sourcelink = False
 html_favicon = '../_static/osmo_favicon.png'
-html_logo = '../_static/NVIDIA-logo-black.png'
+html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
 
 html_theme_options = {
-    "font": False,
-    "repo_url": "https://github.com/NVIDIA/OSMO/",
-    "repo_name": "OSMO",
-    "features": [
-        "navigation.expand",
-        "navigation.top",
-        "navigation.footer",
-        "search.highlight",
-        "search.share",
-        "search.suggest",
-        "content.code.annotate",
-        "toc.follow",
-        "toc.sticky",
-        "content.tooltips",
-        "announce.dismiss",
-    ],
-    "toc_title_is_page_title": True,
+    "collapse_navigation": False,
+    "github_url": "https://github.com/NVIDIA/OSMO/",
+    "navbar_start": ["navbar-logo"],
+    "primary_sidebar_end": [],
 }
 
 # Enable following symbolic links
@@ -144,29 +121,10 @@ html_css_files = [
     'css/custom.css',
 ]
 
-templates_path = ["../_templates"]
-
-osmo_domain = os.getenv("OSMO_DOMAIN", OSMO_DOMAIN)
-
-# Create a JavaScript file with domain configuration
-js_config = f"""
-window.DomainUpdaterConfig = {{
-    oldDomain: "{osmo_domain}.osmo.nvidia.com",
-}};
-"""
-
-# Write the config to a physical JS file
-static_path = os.path.join(os.path.dirname(__file__), '../_static/js')
-os.makedirs(static_path, exist_ok=True)
-with open(os.path.join(static_path, 'domain_config.js'), 'w') as f:
-    f.write(js_config)
-
 # JavaScript files to include in the HTML output
 # Files are loaded in the order they appear in this list
 html_js_files = [
-    'js/add_documentation_options.js',  # This will load first
-    'js/domain_config.js',
-    'js/domain_updater.js',
+    'js/code_annotation.js',
 ]
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
@@ -174,6 +132,8 @@ html_js_files = [
 # The empty string is equivalent to '%b %d, %Y'.
 #
 html_last_updated_fmt = '%b %d, %Y'
+
+# -- Options for substitution -------------------------------------------------
 
 # Constants that can be substituted in the document with |config_name|
 constants = {
@@ -216,7 +176,8 @@ for key, value in constants.items():
 for key, value in link_constants.items():
     rst_prolog += f'.. _{key}: {value}\n'
 
-# Autodoc options for Library APIs
+# -- Options for Autodoc -------------------------------------------------
+
 autodoc_typehints = 'description'
 autodoc_member_order = 'bysource'
 autodoc_unqualified_typehints = True

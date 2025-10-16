@@ -18,7 +18,7 @@
 .. _concepts_resources_pools_platforms:
 
 ================================================
-Resources, Pools, & Platforms
+Resources & Pools
 ================================================
 
 .. _concepts_resources:
@@ -92,7 +92,7 @@ Each platform can also have different access types:
 - **allowed mounts**: Whether the platform allows specific volume mounts from the node to the task container.
 - **default mounts**: The default volume mounts from the node to the task container for the platform.
 
-You can see if these access types are allowed in the resource info output of :ref:`cli_reference_resource_info`.
+You can see if these access types are allowed in the :ref:`resource info <cli_reference_resource_info>` output.
 
 If **privileged**, **host network**, or **allowed mounts** are allowed, you can set them in the
 workflow spec. Learn more at :ref:`concepts_tasks`.
