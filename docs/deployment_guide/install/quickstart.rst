@@ -53,7 +53,7 @@ Prerequisites
 
 .. note::
   - Sample terraform setup for AWS or Azure is available in our repository at ``/deployments/terraform/aws/example`` or ``/deployments/terraform/azure/example`` directory
-  - For kind cluster, a sample setup is available in our repository at ``/dev/kind-osmo-cluster-config.yaml`` file
+  - For kind cluster, a sample setup is available in our repository at ``/run/kind-osmo-cluster-config.yaml`` file
 
 .. TODO: Update this link to point to the GitHub repository when we switch to GitHub.
 

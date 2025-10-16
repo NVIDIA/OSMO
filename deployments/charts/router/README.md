@@ -140,6 +140,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.envoy.imagePullPolicy` | Image pull policy for Envoy | `IfNotPresent` |
 | `sidecars.envoy.listenerPort` | Port for incoming requests | `80` |
 | `sidecars.envoy.maxHeadersSizeKb` | Maximum size of HTTP headers in KB | `128` |
+| `sidecars.envoy.maxRequests` | Maximum request Envoy will handle for the router service | `1000` |
 | `sidecars.envoy.logLevel` | Log level for Envoy proxy | `info` |
 | `sidecars.envoy.resources` | Resource limits and requests | See values.yaml |
 

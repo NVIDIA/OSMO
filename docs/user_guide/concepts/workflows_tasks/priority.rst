@@ -120,4 +120,5 @@ scheduler will preempt ``WF3`` to allow ``WF5`` to start.
 
 .. image:: priority_reclaim.png
 
-To learn more about how to see your quota and the shared GPUs, see :ref:`cli_reference_pool` and :ref:`cli_reference_resource`.
+To learn more about how to see your quota and the shared GPUs, see
+:ref:`Pool CLI Reference <cli_reference_pool>` and :ref:`Resource CLI Reference <cli_reference_resource>`.

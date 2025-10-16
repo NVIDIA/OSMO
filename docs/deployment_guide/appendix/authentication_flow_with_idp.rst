@@ -241,4 +241,4 @@ If you encounter issues with the authentication flow, consider these common prob
 
 .. seealso::
 
-   * :ref: `Authentication Flow with Keycloak <authentication_flow_with_keycloak>`_
+   * :ref:`Authentication Flow with Keycloak <authentication_flow_with_keycloak>`

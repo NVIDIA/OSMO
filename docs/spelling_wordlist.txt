@@ -40,7 +40,7 @@ Metrics
 MiB
 ModuleNotFoundError
 Nano
-Nvidia
+NVIDIA
 OAuth
 OIDC
 Omni
@@ -49,6 +49,7 @@ Omniverse
 Onboarding
 Preconfigured
 Pytorch
+Quickstart
 RTX
 RViz
 ReadTimeoutError
@@ -109,6 +110,7 @@ cuda
 customizable
 dataset
 datasets
+deduplicate
 deduplication
 deepstream
 dereference
@@ -149,6 +151,7 @@ hostname
 hostnames
 https
 iam
+inferencing
 ingressClassName
 ini
 instantiation

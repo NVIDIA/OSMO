@@ -48,4 +48,4 @@ An example of setting the data credential is shown below:
 
 .. note::
 
-  ``region`` is **optional** for AWS and GCP backends.
+  ``region`` is **optional** for AWS, Azure Blob Storage, and GCP backends.

@@ -51,12 +51,20 @@ In the ``Public network access`` section, set the following:
 Configuring IAM Policy
 ======================
 
-We currently do not support users to access storage accounts.
-This is because an Azure connection string that has perpetual access always have admin privileges,
-and there is no way to provide that to users without giving them admin privileges.
+In the storage account page, click on ``Access Control (IAM)`` on the left side bar.
 
-Users will not be able to use `osmo data`, but users will be able to use `osmo dataset`, because
-the dataset operation goes through the OSMO service.
+Click on ``Add`` > ``Add role assignment``.
+
+In the ``Role`` section, select ``Storage Blob Data Contributor``.
+
+In the ``Assign access to`` section, select ``User, group, or service principal``.
+
+Click on ``Select members``, and select the users you want to give access to.
+
+Click on ``Review + assign``.
+
+After the role assignment is created, the users will be able to create their
+credentials with a connection string to access the storage account.
 
 Construct URI
 =============

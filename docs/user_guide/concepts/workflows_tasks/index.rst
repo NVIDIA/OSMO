@@ -56,6 +56,18 @@ in the workflow DAG:
 * `Parallel Workflows` - Workflows that define groups of tasks that execute simultaneously
 * `Combination Workflows` - Workflows that are serial and parallel relationships
 
+.. _concepts_workflows_tasks_apps:
+
+.. note::
+
+  If you have a workflow that you like to reuse or would like to share to other users, you can convert
+  it into an **app**.
+
+  An **app** is a versioned workflow spec that any user can fetch to submit. Each version of the app
+  is immutable, but a new version of the app can be created with updated fields.
+
+  To learn more about how to use apps, follow :ref:`apps`.
+
 .. toctree::
   :hidden:
 
@@ -63,4 +75,3 @@ in the workflow DAG:
   priority
   specification/index
   interaction/index
-  apps

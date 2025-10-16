@@ -110,51 +110,63 @@ export const PoolsTable = ({
     ];
     if (isShowingUsed) {
       columns.push({
-        accessorKey: "quotaUsed",
+        id: "quota_used",
         header: "Quota Used",
-        cell: ({ row }) => {
-          return row.original.resource_usage?.quota_used ?? 0;
-        },
+        accessorFn: (row) => row.resource_usage?.quota_used ?? 0,
+        cell: ({ getValue }) => getValue<number>() ?? 0,
+        sortingFn: "basic",
+        enableMultiSort: true,
+        invertSorting: true,
       });
 
       columns.push({
-        accessorKey: "quotaLimit",
+        id: "quota_limit",
         header: "Quota Limit",
-        cell: ({ row }) => {
-          return row.original.resource_usage?.quota_limit ?? 0;
-        },
+        accessorFn: (row) => row.resource_usage?.quota_limit ?? 0,
+        cell: ({ getValue }) => getValue<number>() ?? 0,
+        sortingFn: "basic",
+        enableMultiSort: true,
+        invertSorting: true,
       });
 
       columns.push({
-        accessorKey: "totalUsage",
+        id: "total_usage",
         header: "Total Usage",
-        cell: ({ row }) => {
-          return row.original.resource_usage?.total_usage ?? 0;
-        },
+        accessorFn: (row) => row.resource_usage?.total_usage ?? 0,
+        cell: ({ getValue }) => getValue<number>() ?? 0,
+        sortingFn: "basic",
+        enableMultiSort: true,
+        invertSorting: true,
       });
 
       columns.push({
-        accessorKey: "totalCapacity",
+        id: "total_capacity",
         header: "Total Capacity",
-        cell: ({ row }) => {
-          return row.original.resource_usage?.total_capacity ?? 0;
-        },
+        accessorFn: (row) => row.resource_usage?.total_capacity ?? 0,
+        cell: ({ getValue }) => getValue<number>() ?? 0,
+        sortingFn: "basic",
+        enableMultiSort: true,
+        invertSorting: true,
       });
     } else {
       columns.push({
-        accessorKey: "quotaFree",
+        id: "quota_free",
         header: "Quota Free",
-        cell: ({ row }) => {
-          return row.original.resource_usage?.quota_free ?? 0;
-        },
+        accessorFn: (row) => row.resource_usage?.quota_free ?? 0,
+        cell: ({ getValue }) => getValue<number>() ?? 0,
+        sortingFn: "basic",
+        enableMultiSort: true,
+        invertSorting: true,
       });
 
       columns.push({
-        accessorKey: "totalFree",
+        id: "total_free",
         header: "Total Free",
-        cell: ({ row }) => {
-          return row.original.resource_usage?.total_free ?? 0;
-        },
+        accessorFn: (row) => row.resource_usage?.total_free ?? 0,
+        cell: ({ getValue }) => getValue<number>() ?? 0,
+        sortingFn: "basic",
+        enableMultiSort: true,
+        invertSorting: true,
       });
     }
 

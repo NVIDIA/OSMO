@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Hello, world!
+# NVIDIA OSMO - Running 'Hello, world!'
 
 This workflow is a single task that prints "Hello from OSMO!"
 

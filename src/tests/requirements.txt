@@ -20,4 +20,4 @@
 # pip-compile ./requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
 httpx==0.28.1
-testcontainers==4.10.0
+testcontainers==4.13.2

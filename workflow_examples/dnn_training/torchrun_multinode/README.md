@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - TorchRun Multi-Node DNN Training
+# NVIDIA OSMO - Training DNN on Multiple Nodes using TorchRun
 
 This example demonstrates how to run a PyTorch training job across multiple nodes using OSMO with torchrun.
 

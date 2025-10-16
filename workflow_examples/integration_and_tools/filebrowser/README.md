@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Filebrowser
+# NVIDIA OSMO - Launching a Filebrowser
 
 This workflow sets up a web-based file browser interface for remote workspace access, allowing you to browse, upload, download, and manage files through a convenient web interface.
 
@@ -39,6 +39,3 @@ osmo workflow port-forward <workflow-id> browser --port 8080:8080
 Once this command is running, open your browser and navigate to `http://localhost:8080`.
 
 Enter the default username `admin` and the password shown in the workflow logs to access the file browser.
-
-![Filebrowser Interface](filebrowser.gif)
-

@@ -1412,7 +1412,6 @@ class TaskGroup(pydantic.BaseModel):
     status: TaskGroupStatus = TaskGroupStatus.SUBMITTING
     # This is set when the task group is queued into the backends
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
-    is_osmo_credential_set: bool = False
 
     class Config:
         arbitrary_types_allowed = True
@@ -2123,7 +2122,6 @@ class TaskGroup(pydantic.BaseModel):
                     'auth': base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
                 }
             }
-            self.is_osmo_credential_set = True
         return registry_creds_user, registry_cred_osmo
 
     def convert_to_pod_spec(
@@ -2460,7 +2458,14 @@ class TaskGroup(pydantic.BaseModel):
             using_gpu)
 
         image_pull_secrets = [{'name': self._get_image_secret_name(self.group_uuid, 'user')}]
-        if self.is_osmo_credential_set:
+        # Check if osmo credentials are configured
+        osmo_cred = workflow_config.backend_images.credential
+        if (
+            osmo_cred
+            and osmo_cred.registry
+            and osmo_cred.username
+            and osmo_cred.auth.get_secret_value()
+        ):
             image_pull_secrets.append(
                 {'name': self._get_image_secret_name(self.group_uuid, 'osmo')})
 

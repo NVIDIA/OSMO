@@ -28,9 +28,7 @@ Prerequisites
 -----------------------------
 
 - :ref:`Create a compute backend <create_cb>`
-- `Install the OSMO CLI <../../../docs/getting_started/install.html#install-client>`_
-
-
+- `Install the OSMO CLI <../../../../docs/reference/cli/install.html>`_
 
 Step 1: Create OSMO service access token
 -----------------------------------------

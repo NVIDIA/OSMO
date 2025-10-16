@@ -603,14 +603,12 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         )
 
     def upload_cli_clients(self, file_content: bytes, cli_version: str):
-        self.s3_client.upload_fileobj(
-            io.BytesIO(file_content),
-            service_fixture.TEST_BUCKET_NAME,
+        self.upload_object(
+            file_content,
             f'client/dev/osmo-client-linux_{cli_version}.tgz',
         )
-        self.s3_client.upload_fileobj(
-            io.BytesIO(file_content),
-            service_fixture.TEST_BUCKET_NAME,
+        self.upload_object(
+            file_content,
             f'client/dev/osmo-client-macos_{cli_version}.pkg',
         )
 

@@ -25,8 +25,8 @@ automatically reschedule tasks when backend errors occur. This is particularly
 useful for long-running training jobs that may encounter transient failures
 (e.g. NCCL errors).
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_reschedule>`_.
-For other elastic training examples, you can refer to the :ref:`workflow_examples` tutorial.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_reschedule>`__.
+For other elastic training examples, please visit `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training>`__.
 
 Resume Training When Tasks Rerun
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

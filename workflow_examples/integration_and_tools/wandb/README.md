@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Weights & Biases Integration
+# NVIDIA OSMO - Integrating Weights & Biases into DNN Training
 
 This example demonstrates distributed neural network training using Weights & Biases (wandb) for experiment tracking. It launches multiple nodes with GPUs to train a model in parallel using PyTorch's distributed training (torchrun).
 

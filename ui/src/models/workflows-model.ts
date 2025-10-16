@@ -561,7 +561,7 @@ workflow:
       storage: 30Gi
 `;
 
-export const ROS_BENCHMARK_WORKFLOW_FILE = `
+export const GROOT_WORKFLOW_FILE = `
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -579,79 +579,60 @@ export const ROS_BENCHMARK_WORKFLOW_FILE = `
 # SPDX-License-Identifier: Apache-2.0
 
 workflow:
-  name: ros-benchmark-arm64
-  tasks:
-  # Run Apriltag Detection with ROS2 Benchmark
-  - name: ros-benchmark-sample
-    image: arm64v8/ros:humble
-    lead: true
-    command: ["bash"]
-    args: ["/tmp/entry.sh"]
-    files:
-    - path: /tmp/entry.sh
-      contents: |
-        # Install dependencies, build ROS2 packages, and download benchmarking assets
-        bash /install_dependencies.sh
-        export R2B_WS_HOME=/workspaces/isaac_ros-dev
-
-        source /opt/ros/humble/setup.bash
-        source $R2B_WS_HOME/install/setup.bash
-        launch_test $R2B_WS_HOME/src/ros2_benchmark/scripts/apriltag_ros_apriltag_node.py
-    - path: /install_dependencies.sh
-      contents: |
-        # These instructions are from the ROS2 Benchmark Quickstart section:
-        # https://github.com/NVIDIA-ISAAC-ROS/ros2_benchmark
-
-        export R2B_WS_HOME=/workspaces/isaac_ros-dev && \
-            export ROS2_BENCHMARK_OVERRIDE_ASSETS_ROOT=$R2B_WS_HOME/src/ros2_benchmark/assets && \
-            apt update && apt install -y git wget git-lfs ros-humble-ament-cmake-ros
-
-        mkdir -p $R2B_WS_HOME/src && cd $R2B_WS_HOME/src && \
-            git clone https://github.com/NVIDIA-ISAAC-ROS/ros2_benchmark.git && cd ros2_benchmark && \
-            git checkout d16541bd055b91a7e9bf9b61bce3f64431006485 && \
-        cd $R2B_WS_HOME/src && \
-            git clone https://github.com/christianrauch/apriltag_ros.git && cd apriltag_ros && \
-            git checkout e109dea361900bdb2fd36d7ce49088eecce04196 && \
-        cd $R2B_WS_HOME && \
-            apt update && \
-            rosdep install -i -r --from-paths src --rosdistro humble -y
-
-        cd $R2B_WS_HOME/src && \
-            git clone https://github.com/ros-perception/vision_opencv.git && cd vision_opencv && \
-            git checkout 066793a23e5d06d76c78ca3d69824a501c3554fd && \
-        cd $R2B_WS_HOME/src && \
-            git clone https://github.com/ros-perception/image_pipeline.git && cd image_pipeline && \
-            git checkout 975548a97abf5de7cdebfd0c8be6712fe128bcee && \
-            git config user.email "benchmarking@ros2_benchmark.com" && git config user.name "ROS 2 Developer" && \
-            wget https://raw.githubusercontent.com/NVIDIA-ISAAC-ROS/ros2_benchmark/main/resources/patch/resize_qos_profile.patch && \
-            git apply resize_qos_profile.patch && \
-        cd $R2B_WS_HOME && \
-            apt update && \
-            rosdep install -i -r --from-paths src --rosdistro humble -y && \
-            source /opt/ros/humble/setup.bash
-            colcon build --packages-up-to image_proc
-
-        mkdir -p $R2B_WS_HOME/src/ros2_benchmark/assets/datasets/r2b_dataset/r2b_storage && \
-        cd $R2B_WS_HOME/src/ros2_benchmark/assets/datasets/r2b_dataset/r2b_storage && \
-            wget --content-disposition -O metadata.yaml 'https://api.ngc.nvidia.com/v2/resources/nvidia/isaac/r2bdataset2023/versions/1/files/r2b_storage/metadata.yaml' && \
-            wget --content-disposition -O r2b_storage_0.db3 'https://api.ngc.nvidia.com/v2/resources/nvidia/isaac/r2bdataset2023/versions/1/files/r2b_storage/r2b_storage_0.db3'
-
-        cd $R2B_WS_HOME && \
-            source /opt/ros/humble/setup.bash && \
-            colcon build --packages-up-to ros2_benchmark apriltag_ros && \
-            source install/setup.bash
-
-  # Define a resource that uses a Jetson (ARM64 machine)
+  name: groot-tutorial
   resources:
     default:
-      cpu: 7
-      memory: 16Gi
-      storage: 20Gi
-      # Uncomment this to target specific platform
-      # platform: <ARM64 Jetson>
+      cpu: 4
+      gpu: 1
+      memory: 32Gi
+      storage: 30Gi
+  tasks:
+  - args:
+    - /tmp/entry.sh
+    command:
+    - /bin/bash
+    environment:
+      DEBIAN_FRONTEND: 'noninteractive'
+    files:
+    - contents: |-
+        apt update && \
+            apt install -y tzdata && \
+            ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime && \
+            apt install -y netcat dnsutils && \
+            apt-get update && \
+            apt-get install -y libgl1-mesa-glx git libvulkan-dev \
+            zip unzip wget curl git git-lfs build-essential cmake \
+            vim less sudo htop ca-certificates man tmux ffmpeg tensorrt \
+            # Add OpenCV system dependencies
+            libglib2.0-0 libsm6 libxext6 libxrender-dev
+
+        git clone https://github.com/NVIDIA/Isaac-GR00T.git && \
+          cd Isaac-GR00T && \
+          git checkout 796ca8d87360913c47e9f75e17c11d63f7805048
+
+        pip install --upgrade setuptools && \
+          pip install gpustat wandb==0.19.0 && \
+          pip install -e .[base] && \
+          pip install jupyterlab==4.0.10
+
+        pip uninstall -y transformer-engine && \
+          pip install flash_attn==2.7.1.post4 -U --force-reinstall && \
+          pip uninstall -y opencv-python opencv-python-headless || true && \
+          rm -rf /usr/local/lib/python3.10/dist-packages/cv2 || true && \
+          pip install opencv-python==4.8.0.74 && \
+          pip install --force-reinstall torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 numpy==1.26.4
+
+        pip install -e . --no-deps && \
+          pip install accelerate>=0.26.0
+
+        jupyter lab --notebook-dir=$PWD/getting_started --no-browser --ip=0.0.0.0 --port=6060 --allow-root --ServerApp.allow_remote_access=True --FileContentsManager.delete_to_trash=False --IdentityProvider.token=''
+
+      path: /tmp/entry.sh
+    image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
+    name: tutorial
 `;
 
-export const TURTLEBOT_WORKFLOW_FILE = `
+export const HIL_WORKFLOW_FILE = `
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -669,45 +650,289 @@ export const TURTLEBOT_WORKFLOW_FILE = `
 # SPDX-License-Identifier: Apache-2.0
 
 workflow:
-  name: turtlebot-demo
   groups:
-  - name: turtlebot
+  - name: hardware-in-loop
     tasks:
-    # Task 1: Run Turtlebot, the navigation stack (Nav2), Gazebo, and foxglove_bridge.
-    # foxglove_bridge can transmit ROS messages to a foxglove instance over a websocket
-    # connection, on port 9090.
-    - name: turtlebot-gazebo
-      image: nvcr.io/nvidian/osmo/osrf_ros:latest
-      lead: true
-      command: ["bash"]
-      args: ["/tmp/entry.sh"]
+    - command:
+      - bash
+      - /tmp/entry.sh
       files:
-      - path: /tmp/entry.sh
-        contents: |
-          # Install dependencies
+      - contents: |-
+          set -e
+          # sleep 10000
           apt update
-          curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo jammy) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-          apt -y install ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-turtlebot3-gazebo ros-humble-foxglove-bridge
+          git clone https://github.com/isaac-sim/IsaacSim-ros_workspaces.git && \
+            cd IsaacSim-ros_workspaces && \
+            git checkout 3beebfc2540486038f56a923effcea099aa49d3e && \
+            git submodule update --init --recursive
+          cd humble_ws && \
+            source /opt/ros/humble/setup.bash && \
+            colcon build --symlink-install --packages-up-to h1_fullbody_controller
+          curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+            python3.10 get-pip.py --force-reinstall && \
+            rm get-pip.py
+          pip3 install torch
+          source /opt/ros/humble/setup.bash && \
+            source install/setup.bash
+          export LD_LIBRARY_PATH=/opt/hpcx/ucx/lib:$LD_LIBRARY_PATH
+          export FASTRTPS_DEFAULT_PROFILES_FILE=/usr/local/share/middleware_profiles/rtps_udp_profile.xml
+          source /tmp/setup_dds.sh
+          ros2 launch h1_fullbody_controller h1_fullbody_controller.launch.py
+        path: /tmp/entry.sh
+      - contents: |-
+          <?xml version="1.0" encoding="UTF-8" ?>
+          <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles" >
+              <transport_descriptors>
+                  <transport_descriptor>
+                      <transport_id>UdpTransport</transport_id>
+                      <type>UDPv4</type>
+                  </transport_descriptor>
+              </transport_descriptors>
 
-          # Set up environment variables
+              <participant profile_name="udp_transport_profile" is_default_profile="true">
+                  <rtps>
+                      <userTransports>
+                          <transport_id>UdpTransport</transport_id>
+                      </userTransports>
+                      <useBuiltinTransports>false</useBuiltinTransports>
+                  </rtps>
+              </participant>
+          </profiles>
+        path: /usr/local/share/middleware_profiles/rtps_udp_profile.xml
+      - contents: |-
+          <?xml version="1.0" encoding="UTF-8" ?>
+
+          <dds>
+              <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+                  <participant profile_name="super_client_profile" is_default_profile="true">
+                      <rtps>
+                          <builtin>
+                              <discovery_config>
+                                  <discoveryProtocol>CLIENT</discoveryProtocol>
+                                  <discoveryServersList>
+                                      <RemoteServer prefix="44.53.00.5f.45.50.52.4f.53.49.4d.41">
+                                          <metatrafficUnicastLocatorList>
+                                              <locator>
+                                                  <udpv4>
+                                                      <address>DISCOVERY_SERVER_IP</address>
+                                                      <port>11811</port>
+                                                  </udpv4>
+                                              </locator>
+                                          </metatrafficUnicastLocatorList>
+                                      </RemoteServer>
+                                  </discoveryServersList>
+                              </discovery_config>
+                              <metatrafficUnicastLocatorList>
+                                  <locator>
+                                      <udpv4>
+                                          <address>CURRENT_MACHINE_PUBLIC_IP</address>
+                                          <port>7778</port>
+                                      </udpv4>
+                                  </locator>
+                              </metatrafficUnicastLocatorList>
+                         </builtin>
+                              <defaultUnicastLocatorList>
+                                  <locator>
+                                      <udpv4>
+                                          <address>CURRENT_MACHINE_PUBLIC_IP</address>
+                                          <port>7777</port>
+                                      </udpv4>
+                                  </locator>
+                              </defaultUnicastLocatorList>
+                      </rtps>
+                  </participant>
+              </profiles>
+          </dds>
+        path: /workspaces/config/mounted_discovery_server_config.xml
+      - contents: |-
+          #!/bin/bash
+          set -x +e
+          sudo apt update
+          # set noninteractive installation
+          export DEBIAN_FRONTEND=noninteractive
+          # install tzdata package
+          apt-get install -y tzdata
+          # set timezone
+          ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
+          dpkg-reconfigure --frontend noninteractive tzdata
+          sudo apt install -y net-tools netcat dnsutils
+
+          NAT_INTERFACE=eth0
+          NAT_IP=$(ifconfig "$NAT_INTERFACE" | grep -oP "inet \K\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+
+          DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+
+          while [[ $DISCOVERY_SERVER_IP == "" ]] ; do
+              sleep 10
+              DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+          done
+
+          # Add in IP information in discovery server config
+          sudo cp /workspaces/config/mounted_discovery_server_config.xml \
+              /workspaces/config/discovery_server_config.xml
+          DDS_CONFIG_XML_PATH=/workspaces/config/discovery_server_config.xml
+          sudo sed -i "s/DISCOVERY_SERVER_IP/$DISCOVERY_SERVER_IP/g" $DDS_CONFIG_XML_PATH
+          sudo sed -i "s/CURRENT_MACHINE_PUBLIC_IP/$NAT_IP/g" $DDS_CONFIG_XML_PATH
+          # Add env variables
+          export ROS_DISCOVERY_SERVER=$DISCOVERY_SERVER_IP:11811
+          export FASTRTPS_DEFAULT_PROFILES_FILE=$DDS_CONFIG_XML_PATH
+        path: /tmp/setup_dds.sh
+      image: arm64v8/ros:humble@sha256:584d92e06114bb0345ccd7c725675450bfce6858e2f84059d6f35cca600bbc60
+      name: locomotion-policy
+      resource: jetson
+    - command:
+      - bash
+      - /tmp/entry.sh
+      files:
+      - contents: |-
+          # sleep 10000
+          export FASTRTPS_DEFAULT_PROFILES_FILE=/usr/local/share/middleware_profiles/rtps_udp_profile.xml
+          apt update && apt install -y net-tools netcat dnsutils sudo
+          source /tmp/setup_dds.sh
+          cd /isaac-sim
+          export ACCEPT_EULA=Y
+          ./runheadless.sh --/app/livestream/enabled=true
+        path: /tmp/entry.sh
+      - contents: |-
+          <?xml version="1.0" encoding="UTF-8" ?>
+          <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles" >
+              <transport_descriptors>
+                  <transport_descriptor>
+                      <transport_id>UdpTransport</transport_id>
+                      <type>UDPv4</type>
+                  </transport_descriptor>
+              </transport_descriptors>
+
+              <participant profile_name="udp_transport_profile" is_default_profile="true">
+                  <rtps>
+                      <userTransports>
+                          <transport_id>UdpTransport</transport_id>
+                      </userTransports>
+                      <useBuiltinTransports>false</useBuiltinTransports>
+                  </rtps>
+              </participant>
+          </profiles>
+        path: /usr/local/share/middleware_profiles/rtps_udp_profile.xml
+      - contents: |-
+          <?xml version="1.0" encoding="UTF-8" ?>
+          <dds>
+              <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+                  <participant profile_name="super_client_profile" is_default_profile="true">
+                      <rtps>
+                          <builtin>
+                              <discovery_config>
+                                  <discoveryProtocol>CLIENT</discoveryProtocol>
+                                  <discoveryServersList>
+                                      <RemoteServer prefix="44.53.00.5f.45.50.52.4f.53.49.4d.41">
+                                          <metatrafficUnicastLocatorList>
+                                              <locator>
+                                                  <udpv4>
+                                                      <address>DISCOVERY_SERVER_IP</address>
+                                                      <port>11811</port>
+                                                  </udpv4>
+                                              </locator>
+                                          </metatrafficUnicastLocatorList>
+                                      </RemoteServer>
+                                  </discoveryServersList>
+                              </discovery_config>
+                              <metatrafficUnicastLocatorList>
+                                  <locator>
+                                      <udpv4>
+                                          <address>CURRENT_MACHINE_PUBLIC_IP</address>
+                                          <port>7778</port>
+                                      </udpv4>
+                                  </locator>
+                              </metatrafficUnicastLocatorList>
+                         </builtin>
+                              <defaultUnicastLocatorList>
+                                  <locator>
+                                      <udpv4>
+                                          <address>CURRENT_MACHINE_PUBLIC_IP</address>
+                                          <port>7777</port>
+                                      </udpv4>
+                                  </locator>
+                              </defaultUnicastLocatorList>
+                      </rtps>
+                  </participant>
+              </profiles>
+          </dds>
+        path: /workspaces/config/mounted_discovery_server_config.xml
+      - contents: |-
+          #!/bin/bash
+
+          set -x +e
+          sudo apt update
+          # set noninteractive installation
+          export DEBIAN_FRONTEND=noninteractive
+          # install tzdata package
+          apt-get install -y tzdata
+          # set timezone
+          ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
+          dpkg-reconfigure --frontend noninteractive tzdata
+          sudo apt install -y net-tools netcat dnsutils
+
+          NAT_INTERFACE=eth0
+          NAT_IP=$(ifconfig "$NAT_INTERFACE" | grep -oP "inet \K\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+
+          DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+
+          while [[ $DISCOVERY_SERVER_IP == "" ]] ; do
+              sleep 10
+              DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+          done
+
+          # Add in IP information in discovery server config
+          sudo cp /workspaces/config/mounted_discovery_server_config.xml \
+              /workspaces/config/discovery_server_config.xml
+          DDS_CONFIG_XML_PATH=/workspaces/config/discovery_server_config.xml
+          sudo sed -i "s/DISCOVERY_SERVER_IP/$DISCOVERY_SERVER_IP/g" $DDS_CONFIG_XML_PATH
+          sudo sed -i "s/CURRENT_MACHINE_PUBLIC_IP/$NAT_IP/g" $DDS_CONFIG_XML_PATH
+          # Add env variables
+          export ROS_DISCOVERY_SERVER=$DISCOVERY_SERVER_IP:11811
+          export FASTRTPS_DEFAULT_PROFILES_FILE=$DDS_CONFIG_XML_PATH
+        path: /tmp/setup_dds.sh
+      image: nvcr.io/nvidia/isaac-lab:2.2.0@sha256:b4d8e96cbfb9a6c40067bec6cc5ee180e36d4c0164b25f7215c5f47e31897b94
+      lead: true
+      name: isaac-lab
+      resource: sim
+    - args:
+      - /tmp/client.sh
+      command:
+      - /bin/bash
+      files:
+      - contents: |-
+          #!/bin/bash
+          set -x +e
+          sudo apt update && sudo apt install -y net-tools dnsutils
+          set -e
+          NAT_INTERFACE=eth0
+          NAT_IP=$(ifconfig "$NAT_INTERFACE" | grep -oP "inet \K\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
           source /opt/ros/humble/setup.bash
-          export TURTLEBOT3_MODEL=waffle
-          export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/opt/ros/humble/share/turtlebot3_gazebo/models
 
-          # Launch Turtlebot, Nav2, Gazebo, and foxglove_bridge
-          ros2 launch nav2_bringup tb3_simulation_launch.py use_simulator:=True headless:=False use_rviz:=False &
-          ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=9090
-
-    # Task 2: Run foxglove to see robot messages, listening at port 8080.
-    - name: foxglove
-      image: nvcr.io/nvidian/osmo/foxglove:latest
-      command: ['/bin/sh', '/entrypoint.sh']
-      args: ["caddy", "file-server", "--listen", ":8080"]
-
+          fastdds discovery -i 0 -l 0.0.0.0 -p 11811
+        path: /tmp/client.sh
+      image: osrf/ros:humble-desktop-full@sha256:ddfee4353aa16235a8f87b00815d9f8c611cf42f1fb6a90e113e573bc466f9f1
+      name: discovery-server
+  name: hardware-in-loop-sim
   resources:
     default:
       cpu: 1
-      storage: 2Gi
       memory: 2Gi
+      platform: ovx-a40
+      storage: 2Gi
+    jetson:
+      cpu: 8
+      memory: 26Gi
+      platform: agx-orin-jp7
+      storage: 30Gi
+    sim:
+      cpu: 16
+      gpu: 1
+      memory: 20Gi
+      platform: ovx-a40
+      storage: 30Gi
 `;

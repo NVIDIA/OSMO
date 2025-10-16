@@ -251,6 +251,10 @@ sidecars:
   ## Envoy proxy sidecar configuration
   ##
   envoy:
+    ## Maximum number of concurrent requests Envoy will handle for the router service
+    ##
+    maxRequests: 1000
+
     ## Enable Envoy proxy sidecar container
     ##
     enabled: true

@@ -31,7 +31,7 @@ To handle who can access Datasets, the necessary AWS resources/policies must be 
 Setting up the bucket
 =====================
 
-First, navigate to the AWS S3 console https://s3.console.aws.amazon.com/s3/home?region=us-west-2
+First, navigate to the `AWS S3 console <https://s3.console.aws.amazon.com/s3/home?region=us-west-2>`_
 
 Click on the ``Create Bucket`` button.
 
@@ -45,7 +45,7 @@ Click on the ``Create Bucket`` button to finish bucket creation.
 Configuring IAM Policy
 ======================
 
-To enforce users to write, delete, or get access on objects, navigate to the AWS IAM Policy Console https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-west-2#/policies
+To enforce users to write, delete, or get access on objects, navigate to the `AWS IAM Policy Console <https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-west-2#/policies>`_
 
 Click on the ``Create Policy`` button and then the ``json`` button to edit the policy.
 Put the json below into the policy text box.
@@ -103,7 +103,7 @@ Lastly, click on the ``Create policy`` button.
 Creating a User Group
 =====================
 
-To assign users to the created policy, navigate to the AWS IAM User Group Console https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-west-2#/groups
+To assign users to the created policy, navigate to the `AWS IAM User Group Console <https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-west-2#/groups>`_
 
 Click on the ``Create group`` button and enter the name for this group.
 

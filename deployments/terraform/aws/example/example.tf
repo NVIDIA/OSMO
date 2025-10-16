@@ -59,6 +59,7 @@ module "vpc" {
   private_subnets = var.private_subnets
   public_subnets  = var.public_subnets
   database_subnets = var.database_subnets
+  elasticache_subnets = var.database_subnets
 
   enable_nat_gateway     = true
   single_nat_gateway     = var.single_nat_gateway
@@ -235,7 +236,7 @@ module "elasticache" {
 
   node_type                  = var.redis_node_type
   port                       = 6379
-  parameter_group_name       = aws_elasticache_parameter_group.redis.name
+  parameter_group_name       = "default.redis7"
 
   num_cache_clusters         = var.redis_num_cache_nodes
   automatic_failover_enabled = var.redis_automatic_failover_enabled
@@ -250,19 +251,6 @@ module "elasticache" {
   # Backup
   snapshot_retention_limit = var.redis_snapshot_retention_limit
   snapshot_window         = "03:00-05:00"
-
-  tags = local.tags
-}
-
-# Parameter group for Redis
-resource "aws_elasticache_parameter_group" "redis" {
-  family = var.redis_family
-  name   = "${local.name}-redis-params"
-
-  parameter {
-    name  = "maxmemory-policy"
-    value = "allkeys-lru"
-  }
 
   tags = local.tags
 }

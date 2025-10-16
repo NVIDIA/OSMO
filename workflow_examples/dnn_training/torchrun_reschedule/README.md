@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - TorchRun Multi-Node DNN Training with Rescheduling
+# NVIDIA OSMO - Training DNN on Multiple Modes using TorchRun with Rescheduling
 
 This example demonstrates how to run a PyTorch training job across multiple nodes using OSMO with torchrun and automatic rescheduling capabilities.
 The workflow uses Jinja2 templating for flexible configuration of node count, GPUs, and checkpoint settings.

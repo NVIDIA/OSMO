@@ -50,6 +50,7 @@ version of the dataset and continues uploading from where it was interrupted.
 
 For download, it continues from where it was interrupted.
 
+.. _faq_dataset_cli:
 
 What CLIs apply to Datasets and which to Collections?
 -----------------------------------------------------

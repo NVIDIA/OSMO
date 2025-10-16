@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - VSCode Server
+# NVIDIA OSMO - Spinning up a VSCode Server
 
 This workflow launches a VSCode server (code-server) that can be accessed via browser for remote development. It provides a full VSCode experience in your web browser, allowing you to edit code, debug, and use extensions while running on OSMO's infrastructure.
 
@@ -37,6 +37,3 @@ osmo workflow port-forward <workflow-id> webserver --port 9000:9000
 ```
 
 Once this command is running, open your browser and navigate to `http://localhost:9000` to access the VSCode interface.
-
-![VSCode Server Interface](vscode.gif)
-

@@ -26,14 +26,14 @@ Fetch registry credentials
 
 OSMO supports users to run containers from various registries. Below are supported container registries.
 
-* `Nvidia GPU Cloud(NGC) <https://catalog.ngc.nvidia.com/?filters=&orderBy=weightPopularDESC&query=>`_
+* `NVIDIA GPU Cloud(NGC) <https://catalog.ngc.nvidia.com/?filters=&orderBy=weightPopularDESC&query=>`_
 * `Docker Hub <https://hub.docker.com/_/registry>`_
 * `Github <https://ghcr.io/>`_
 * `Gitlab <https://docs.gitlab.com/ee/user/packages/container_registry/>`_
 
 To run any workflow, users are required to set credential for at minimum one of the above registries.
 
-`Nvidia GPU Cloud <http://ngc.nvidia.com>`_ (NGC) is an online catalog of GPU accelerated cloud applications (docker containers, helm charts, and models). It also provides private registries for teams to upload their own docker containers.  NGC access is required to upload and manage containerized applications.
+`NVIDIA GPU Cloud <http://ngc.nvidia.com>`_ (NGC) is an online catalog of GPU accelerated cloud applications (docker containers, helm charts, and models). It also provides private registries for teams to upload their own docker containers.  NGC access is required to upload and manage containerized applications.
 
 Please refer to `<https://org.ngc.nvidia.com/setup/personal-keys>`_ and generate a personal API key. Ensure that while creating the key,
 in ``Services Included*`` drop down, select ``Private Registry``.

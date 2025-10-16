@@ -226,11 +226,11 @@ A sample values file for deploying Keycloak is available on NGC resources.
    d. Update client settings for ``osmo-browser-flow`` and ``osmo-device`` in keycloak for OSMO application:
 
       * Client ID: osmo-browser-flow and osmo-device
-      * Root URL: https://<example.com>
-      * Home URL: https://<example.com>
-      * Admin URL: https://<example.com>
-      * Valid Redirect URIs: https://<example.com>/*
-      * Web Origins: https://<example.com>
+      * Root URL: ``https://<example.com>``
+      * Home URL: ``https://<example.com>``
+      * Admin URL: ``https://<example.com>``
+      * Valid Redirect URIs: ``https://<example.com>/*``
+      * Web Origins: ``https://<example.com>``
 
    e. Configure the client secret from the Credentials tab to use when deploying OSMO, this will be used as a secret when deploying OSMO.
 

@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Checkpointing
+# NVIDIA OSMO - Checkpointing Data
 
 This workflow creates checkpoints for data during workflow execution.
 

@@ -15,11 +15,11 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _training:
+.. _tutorials_training:
 
-==================
-Training with OSMO
-==================
+=============================
+Training Deep Learning Models
+=============================
 
 These tutorials guide you through training deep learning models with OSMO, starting from
 single-node training and progressing to distributed multi-node training and fault-tolerant setups:

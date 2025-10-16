@@ -83,7 +83,7 @@ const TaskStatusInfo = ({ status, failureMessage, onClick }: Props) => {
   return (
     <div className="flex flex-row gap-1 items-center">
       <a
-        href="/docs/concepts/wf/status.html"
+        href="/docs/concepts/workflows_tasks/lifecycle/status.html?h=status#task-statuses"
         target="_blank"
         rel="noopener noreferrer"
         className="tag-container-round"

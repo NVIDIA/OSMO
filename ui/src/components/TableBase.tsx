@@ -92,7 +92,7 @@ export function TableBase<TData, TValue>({
                       <div className="flex flex-row gap-3 justify-between">
                         {header.column.getCanSort() ? (
                           <button
-                            className="btn btn-action"
+                            className="btn btn-action gap-0"
                             onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
                               header.column.toggleSorting(undefined, event.shiftKey);
                             }}
@@ -103,7 +103,7 @@ export function TableBase<TData, TValue>({
                                 ? null
                                 : flexRender(header.column.columnDef.header, header.getContext())}
                             </span>
-                            <span>
+                            <span className="w-2 ml-1 mt-[-4px]">
                               {header.column.getIsSorted() === "asc"
                                 ? "↓"
                                 : header.column.getIsSorted() === "desc"

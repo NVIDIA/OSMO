@@ -22,7 +22,7 @@ Rsync
 ================================================
 
 Rsync upload to a running task in your workflow from your local machine using ``rsync`` command.
-For detailed CLI options, see :ref:`cli_reference_workflow`.
+For detailed CLI options, see :ref:`osmo workflow rsync <cli_reference_workflow_rsync>`.
 
 .. note::
 

@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO - Build and Test Guide
 
-If you are trying to develop OSMO on your host machine, follow the [Run Guide](./RUN.md) instead.
+If you are trying to develop OSMO on your host machine, follow the [Dev Guide](./DEV.md) instead.
 
 After you've made your desired changes, you can test your changes in an environment similar to a
 deployed environment like [AWS EKS](https://aws.amazon.com/eks/) or

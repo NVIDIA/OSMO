@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Ray Framework
+# NVIDIA OSMO - Creating a Ray Cluster
 
 This example demonstrates how to launch a Ray cluster on OSMO. Ray is a unified framework for scaling AI and Python applications, and OSMO provides native support for running Ray clusters, making it easy to leverage Ray's distributed computing capabilities.
 

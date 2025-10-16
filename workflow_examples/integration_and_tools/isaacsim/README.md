@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Isaac Sim Livestream
+# NVIDIA OSMO - Livestreaming with Isaac Sim
 
 This example demonstrates how to run NVIDIA Isaac Sim on OSMO with livestream capabilities. NVIDIA Isaac Sim is an application built on NVIDIA Omniverse that enables developers to develop, simulate, and test AI-driven robots in physically-based virtual environments.
 

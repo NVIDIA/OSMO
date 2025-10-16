@@ -39,7 +39,7 @@ DOCKER_DEFAULT_LOCALHOST = '127.0.0.1'
 config.testcontainers_config.max_tries = 150
 config.testcontainers_config.sleep_time = 1
 
-# Use Ryuk image from Nvidia's DockerHub
+# Use Ryuk image from NVIDIA's DockerHub
 config.testcontainers_config.ryuk_image = f'{DOCKER_HUB_REGISTRY}/{config.RYUK_IMAGE}'
 
 # Save the original boto3.Session function to allow restoration

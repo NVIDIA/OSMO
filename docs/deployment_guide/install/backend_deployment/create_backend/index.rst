@@ -26,14 +26,8 @@ Create a Kubernetes cluster to be used as a backend for job execution. Choose th
 Deployment Options
 ==================
 
-.. toctree::
-   :maxdepth: 2
-
-   onprem_setup
-   cloud_setup
-
-On-Premises Deployment
-======================
+:ref:`On-Premises Deployment <onprem_cb>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Deploy Osmo backend on your own infrastructure with full control over hardware, networking, and security policies. This option is ideal for:
 
@@ -42,10 +36,8 @@ Deploy Osmo backend on your own infrastructure with full control over hardware, 
 * Custom hardware configurations
 * Air-gapped or highly secure environments
 
-:ref:`Learn more about on-premises deployment requirements <onprem_cb>`
-
-Cloud Deployment
-================
+:ref:`Cloud Deployment <cloud_cb>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Deploy Osmo backend using managed Kubernetes services in the cloud for simplified operations and elastic scaling. This option is ideal for:
 
@@ -54,7 +46,12 @@ Deploy Osmo backend using managed Kubernetes services in the cloud for simplifie
 * Cost optimization through auto-scaling and spot instances
 * Global deployment across multiple regions
 
-:ref:`Learn more about cloud deployment requirements <cloud_cb>`
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+
+   onprem_setup
+   cloud_setup
 
 Next Steps
 ==========

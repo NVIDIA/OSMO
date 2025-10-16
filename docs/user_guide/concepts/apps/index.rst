@@ -18,7 +18,7 @@
 .. _apps:
 
 ================================================
-Creating Apps
+Apps
 ================================================
 
 Apps allow you to create an easy to launch "application" from a parameterized workflow template.

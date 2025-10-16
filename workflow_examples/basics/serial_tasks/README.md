@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA OSMO - Serial tasks
+# NVIDIA OSMO - Running a Workflow with Downstream Tasks
 
 This workflow has two tasks that run serially with data dependencies.
 

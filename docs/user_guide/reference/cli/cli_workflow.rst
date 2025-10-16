@@ -367,6 +367,8 @@ Named Arguments
    Default: ``[]``
 
 
+.. _cli_reference_workflow_exec:
+
 exec
 ----
 
@@ -437,6 +439,8 @@ Named Arguments
    Default: ``False``
 
 
+.. _cli_reference_workflow_port_forward:
+
 port-forward
 ------------
 
@@ -478,6 +482,8 @@ Named Arguments
 
    Default: ``60``
 
+
+.. _cli_reference_workflow_rsync:
 
 rsync
 -----
