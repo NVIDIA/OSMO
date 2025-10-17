@@ -328,7 +328,7 @@ bazel run @osmo_workspace//src/cli -- login http://ingress-nginx-controller.ingr
 Test your setup with:
 
 ```sh
-bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/docs/samples/hello_world/hello_world.yaml
+bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflow_examples/basics/hello_world/hello_world.yaml
 ```
 
 The workflow should successfully submit and run to a "completed" state.

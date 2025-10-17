@@ -90,7 +90,7 @@ The OSMO UI and APIs can be accessed at: `http://$HOST_IP:8080`
 Test your setup with:
 
 ```sh
-bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/docs/samples/hello_world/hello_world.yaml
+bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflow_examples/basics/hello_world/hello_world.yaml
 ```
 
 The workflow should successfully submit and run to a "completed" state.

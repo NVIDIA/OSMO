@@ -59,7 +59,7 @@ This chart installs and configures:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `ingress-nginx.controller.nodeSelector.node_group` | Node group for ingress controller | `service` |
+| `ingress-nginx.controller.nodeSelector.node_group` | Node group for ingress controller | `ingress` |
 | `ingress-nginx.controller.nodeSelector."kubernetes.io/arch"` | Architecture constraint for ingress controller | `amd64` |
 | `ingress-nginx.controller.service.type` | Service type for ingress controller | `NodePort` |
 | `ingress-nginx.controller.service.nodePorts.http` | HTTP NodePort for external access | `30080` |
@@ -74,13 +74,16 @@ This chart installs and configures:
 | `service.services.postgres.enabled` | Enable PostgreSQL deployment on Kubernetes | `true` |
 | `service.services.postgres.storageClassName` | Storage class name for PostgreSQL persistent volume | `standard` |
 | `service.services.postgres.password` | PostgreSQL password | `"osmo"` |
+| `service.services.postgres.nodeSelector.node_group` | Node group for PostgreSQL pods | `data` |
 | `service.services.redis.enabled` | Enable Redis deployment on Kubernetes | `true` |
 | `service.services.redis.storageClassName` | Storage class name for Redis persistent volume | `standard` |
 | `service.services.redis.tlsEnabled` | Enable TLS for Redis connections | `false` |
+| `service.services.redis.nodeSelector.node_group` | Node group for Redis pods | `data` |
 | `service.services.localstackS3.enabled` | Enable Localstack S3 deployment on Kubernetes | `true` |
 | `service.services.localstackS3.buckets` | Creates the `osmo` bucket in Localstack S3 | `["osmo"]` |
 | `service.services.localstackS3.persistence.enabled` | Enable Localstack S3 persistence | `true` |
 | `service.services.localstackS3.persistence.hostPath` | Path to Localstack S3 persistence on the host | `/var/lib/localstack` |
+| `service.services.localstackS3.nodeSelector.node_group` | Node group for Localstack S3 pods | `data` |
 | `service.services.service.hostname` | Hostname for OSMO service ingress | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
 | `service.services.service.scaling.minReplicas` | Minimum number of service replicas | `1` |
 | `service.services.service.scaling.maxReplicas` | Maximum number of service replicas | `1` |

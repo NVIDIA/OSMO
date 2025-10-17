@@ -58,7 +58,7 @@ SPDX-License-Identifier: Apache-2.0
   --color-neutral-text: black;
   --color-neutral-bg-reversed: black;
   --color-neutral-text-reversed: white;
-  --color-inline-link-text: darkgreen;
+  --color-inline-link-text: #008a00;
 }
 
 @layer base {

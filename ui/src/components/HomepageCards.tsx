@@ -46,7 +46,7 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
         />
       </div>
-      <div className="flex flex-col justify-between flex-grow">
+      <div className="flex flex-col justify-between flex-grow bg-white">
         <div className="p-4 flex flex-col">
           <h4>{title}</h4>
           <p>{body}</p>
@@ -95,11 +95,11 @@ export const HomepageCards = () => {
               .
             </p>
           }
-          tutorialLink="/docs/tutorials/advanced/sdg/isaac_sim_sdg.html"
+          tutorialLink="/docs/tutorials/sdg.html"
           workflowLink="/workflows/submit/isaac_sim_sdg"
         />
         <HomepageCard
-          title="Train Deep Neural Networks"
+          title="Training Deep Learning Networks"
           imageUrl="/train.jpg"
           imageAlt="Training"
           body={
@@ -116,7 +116,7 @@ export const HomepageCards = () => {
               .
             </p>
           }
-          tutorialLink="/docs/tutorials/advanced/dnn_training/training.html"
+          tutorialLink="/docs/tutorials/training.html"
           workflowLink="/workflows/submit/mnist_training"
         />
         <HomepageCard
@@ -138,7 +138,7 @@ export const HomepageCards = () => {
               simulation environment, focusing on robot learning.
             </p>
           }
-          tutorialLink="/docs/tutorials/advanced/hil.html"
+          tutorialLink="/docs/tutorials/hil.html"
           workflowLink="/workflows/submit/hil"
         />
         <HomepageCard
@@ -159,7 +159,7 @@ export const HomepageCards = () => {
               (a foundation model for robotics) using a <strong>Jupyter notebook</strong>.
             </p>
           }
-          tutorialLink="/docs/tutorials/advanced/groot.html"
+          tutorialLink="/docs/tutorials/groot.html"
           workflowLink="/workflows/submit/groot"
         />
       </div>

@@ -1657,7 +1657,12 @@ async def main():
     # Get backend conditions from service instead of hardcoded config
     service_login = service_connector.OsmoServiceConnector(config.service_url,
                                                            config.backend, config)
-    backend_config_payload = service_login.get_backend_config() if service_login else None
+    backend_config_payload = None
+    if service_login:
+        try:
+            backend_config_payload = service_login.get_backend_config()
+        except Exception as e:  # pylint: disable=broad-except
+            logging.warning('Failed to retrieve backend conditions from service: %s', e)
 
     if backend_config_payload:
         # Extract node conditions from the backend config payload

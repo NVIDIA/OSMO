@@ -81,7 +81,7 @@ ingress-nginx:
     nodeSelector:
       ## Schedule ingress controller on service nodes
       ##
-      node_group: service
+      node_group: ingress
       ## Schedule ingress controller on AMD64 architecture nodes
       ##
       kubernetes.io/arch: amd64
@@ -126,6 +126,12 @@ service:
       ## PostgreSQL password
       ##
       password: "osmo"
+      ## Node selector constraints for pod scheduling
+      ##
+      nodeSelector:
+        ## Schedule pods only on data nodes
+        ##
+        node_group: data
 
     ## Redis cache service configuration
     ##
@@ -139,6 +145,12 @@ service:
       ## Enable TLS encryption for Redis connections
       ##
       tlsEnabled: false
+      ## Node selector constraints for pod scheduling
+      ##
+      nodeSelector:
+        ## Schedule pods only on data nodes
+        ##
+        node_group: data
 
     ## Localstack S3 Object storage configuration
     ##
@@ -154,6 +166,12 @@ service:
       persistence:
         enabled: true
         hostPath: /var/lib/localstack
+      ## Node selector constraints for pod scheduling
+      ##
+      nodeSelector:
+        ## Schedule pods only on data nodes
+        ##
+        node_group: data
 
     ## Main API service configuration
     ##

@@ -254,7 +254,7 @@
 
         // Use transitionend with fallback
         const handleTransitionEnd = () => {
-            if (tooltip.parentNode) tooltip.remove();
+            if (tooltip.parentNode) setTimeout(() => tooltip.remove(), 300);
         };
 
         tooltip.addEventListener('transitionend', handleTransitionEnd, { once: true });
@@ -276,7 +276,7 @@
         const tooltip = document.createElement('div');
         tooltip.className = 'code-annotation-tooltip';
         tooltip.setAttribute('role', 'tooltip');
-        tooltip.setAttribute('aria-live', 'polite'); // Accessibility: announce to screen readers
+        tooltip.setAttribute('tabindex', '0');
 
         // Securely get content from template element
         const annotationId = marker.dataset.annotationId;
@@ -326,6 +326,8 @@
         document.body.appendChild(tooltip);
         marker.classList.add('active');
         marker.setAttribute('aria-expanded', 'true');
+
+        setTimeout(() => tooltip.focus(), 100);
 
         // Setup state
         activeTooltip = tooltip;

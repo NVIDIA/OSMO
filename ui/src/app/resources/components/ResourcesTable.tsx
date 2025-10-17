@@ -24,6 +24,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import Link from "next/link";
 
 import { commonFilterFns } from "~/components/commonFilterFns";
 import { TableBase } from "~/components/TableBase";
@@ -148,9 +149,14 @@ export const ResourcesTable = ({
         header: "Pool",
         cell: ({ row }) => {
           return row.original.pool ? (
-            <div className="tag-container">
+            <Link
+              href={`/pools/${row.original.pool}?platform=${row.original.platform}`}
+              className="tag-container"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Tag color={Colors.pool}>{row.original.pool}</Tag>
-            </div>
+            </Link>
           ) : (
             "N/A"
           );
@@ -167,9 +173,14 @@ export const ResourcesTable = ({
         invertSorting: true,
         cell: ({ row }) =>
           row.original.platform ? (
-            <div className="tag-container">
+            <Link
+              href={`/pools/${row.original.pool}?platform=${row.original.platform}`}
+              className="tag-container"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Tag color={Colors.platform}>{row.original.platform}</Tag>
-            </div>
+            </Link>
           ) : undefined,
       },
       {

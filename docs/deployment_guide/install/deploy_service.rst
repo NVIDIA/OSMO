@@ -106,8 +106,8 @@ A sample values file for deploying Keycloak is available on NGC resources.
 
    .. code-block:: bash
 
-      helm repo add bitnami https://charts.bitnami.com/bitnami
-      helm repo update
+      $ helm repo add bitnami https://charts.bitnami.com/bitnami
+      $ helm repo update
 
    b. Create a ``keycloak-values.yaml`` file with the following configuration:
 
@@ -311,8 +311,14 @@ During the values file creation, you can disable envoy sidecar to disable authen
     envoy:
       enabled: false
 
-Step 3: Prepare Secrets
-========================
+Step 3: Create Namespace and Secrets
+====================================
+
+Create a namespace for OSMO:
+
+.. code-block:: bash
+
+   $ kubectl create namespace osmo
 
 Create a secret for pulling images from NVIDIA's container registry:
 
@@ -331,7 +337,8 @@ Create secret for database and redis passwords:
    $ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo
 
-Create a secret with Keycloak client secret and HMAC secret to use with OSMO envoy sidecar:
+
+Create a secret with Keycloak client secret and HMAC secret to use with OSMO's envoy sidecar:
 
 .. code-block:: bash
 
@@ -339,6 +346,11 @@ Create a secret with Keycloak client secret and HMAC secret to use with OSMO env
      --from-literal=client_secret=<keycloak-client-secret> \
      --from-literal=hmac_secret=$(head -c32 /dev/urandom | base64) \
      --namespace osmo
+
+.. note::
+   The client secret is used to authenticate with the Keycloak server, this was configured in the Keycloak section.
+   The HMAC secret is used to sign the JWT tokens, this is can be a random generated string.
+
 
 Create the master encryption key (MEK) for database encryption:
 
@@ -364,10 +376,8 @@ The MEK should be a JSON Web Key (JWK) with the following format:
 
 .. code-block:: bash
 
-   # Take the JWK output from step 2 and base64 encode it
-   $ export JWK_JSON='{"k":"<your-base64-key>","kid":"key1","kty":"oct"}'
    $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
-   echo $ENCODED_JWK
+   $ echo $ENCODED_JWK
 
 4. **Create the ConfigMap with your generated MEK**:
 
@@ -409,8 +419,6 @@ The MEK should be a JSON Web Key (JWK) with the following format:
 
    # Base64 encode the JWK
    $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
-
-   $ echo "Generated JWK: $JWK_JSON"
    $ echo "Encoded JWK: $ENCODED_JWK"
 
    # Create ConfigMap
@@ -482,7 +490,6 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
       scaling:
         minReplicas: 1
         maxReplicas: 3
-        hpaTarget: 80
       hostname: <your-domain>
 
       # Ingress configuration
@@ -490,23 +497,27 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
         ingressClass: <your-ingress-class>  # e.g. alb, nginx
         albAnnotations:
           enabled: false  # Set to true if using AWS ALB
+          # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
         sslEnabled: false  # Set to true if managing SSL at the ingress level
-        annotations: {}
-
+        annotations:
+          # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+          # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+          # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+          # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+          # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
       # Resource allocation
       resources:
         requests:
           cpu: "1"
           memory: "1Gi"
         limits:
-          memory: "2Gi"
+          memory: "1Gi"
 
     # Worker service configuration
     worker:
       scaling:
         minReplicas: 1
         maxReplicas: 3
-        hpaTarget: 80
       resources:
         requests:
           cpu: "500m"
@@ -519,7 +530,6 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
       scaling:
         minReplicas: 1
         maxReplicas: 3
-        hpaTarget: 80
       resources:
         requests:
           cpu: "200m"
@@ -532,7 +542,6 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
       scaling:
         minReplicas: 1
         maxReplicas: 1
-        hpaTarget: 80
       resources:
         requests:
           cpu: "100m"
@@ -662,9 +671,8 @@ Create ``router_values.yaml`` for router with the following sample configuration
       # Router service configuration
       service:
         scaling:
-          minReplicas: 3
-          maxReplicas: 5
-          memoryTarget: 80
+          minReplicas: 1
+          maxReplicas: 2
         hostname: <your-domain>
         # webserverEnabled: true  # (Optional): Enable for UI port forwarding
         serviceAccountName: router
@@ -675,10 +683,15 @@ Create ``router_values.yaml`` for router with the following sample configuration
           ingressClass: <your-ingress-class>  # e.g. alb, nginx
           albAnnotations:
             enabled: false  # Set to true if using AWS ALB
-            sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
+            # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
           sslEnabled: false  # Set to true if managing SSL at the ingress level
           sslSecret: osmo-tls
-          annotations: {}
+          annotations:
+            # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+            # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+            # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+            # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+            # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
         # Resource allocation
         resources:
@@ -686,8 +699,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
             cpu: "500m"
             memory: "512Mi"
           limits:
-            cpu: "1000m"
-            memory: "1Gi"
+            memory: "512Mi"
 
       # PostgreSQL database configuration
       postgres:
@@ -713,14 +725,13 @@ Create ``router_values.yaml`` for router with the following sample configuration
 
         # Service configuration
         service:
-          port: 8000
           hostname: <your-domain>
-          address: 127.0.0.1
 
         # OAuth2 filter configuration
         oauth2Filter:
           enabled: true
           forwardBearerToken: true
+          # Keycloak endpoints for token exchange and authentication
           tokenEndpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/token
           authEndpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/auth
           clientId: osmo-browser-flow
@@ -767,19 +778,10 @@ Create ``router_values.yaml`` for router with the following sample configuration
         #     cluster: service
         #     timeout: 0s
 
-        # Resource allocation for Envoy
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "64Mi"
-          limits:
-            memory: "128Mi"
-
       # Log agent configuration (optional)
       logAgent:
         enabled: false
         # Uncomment and configure if using AWS CloudWatch
-        # image: fluent/fluent-bit:4.0.8-debug
         # cloudwatch:
         #   region: us-west-2
         #   clusterName: <your-cluster-name>
@@ -797,10 +799,6 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
       osmoImageLocation: nvcr.io/nvidia/osmo
       osmoImageTag: <version>
       imagePullSecret: imagepullsecret
-      nodeSelector:
-        kubernetes.io/arch: amd64
-      logs:
-        enabled: true
 
     # UI service configurations
     services:
@@ -814,10 +812,15 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
           ingressClass: <your-ingress-class>  # e.g. alb, nginx
           albAnnotations:
             enabled: false  # Set to true if using AWS ALB
-            sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
+            # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
           sslEnabled: false  # Set to true if managing SSL at the ingress level
           sslSecret: osmo-tls
-          annotations: {}
+          annotations:
+            # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+            # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+            # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+            # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+            # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
         # Resource allocation
         resources:
@@ -825,27 +828,16 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
             cpu: "500m"
             memory: "512Mi"
           limits:
-            cpu: "1000m"
-            memory: "1Gi"
+            memory: "512Mi"
 
       # Envoy proxy configuration
       envoy:
         enabled: true
         useKubernetesSecrets: true
 
-        # Resource allocation for Envoy
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "64Mi"
-          limits:
-            memory: "128Mi"
-
         # Service configuration
         service:
-          port: 8000
           hostname: <your-domain>
-          address: 127.0.0.1
 
         # OAuth2 filter configuration
         oauth2Filter:
@@ -895,49 +887,30 @@ Step 4: Deploy Components
 
 Deploy the components in the following order:
 
-1. Create namespace:
-
-.. code-block:: bash
-
-   kubectl create namespace osmo
-
-2. Create secrets:
-
-.. code-block:: bash
-
-   # Postgres
-   kubectl create secret generic db-secret --from-literal=db-password=<your-database-password> -n osmo
-
-   # Redis
-   kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> -n osmo
-
-   # Image pull secrets
-   kubectl create secret docker-registry imagepullsecret --docker-server=nvcr.io --docker-username=<your-username> --docker-password=<your-password> -n osmo
-
-3. Deploy OSMO Service:
+1. Deploy OSMO Service:
 
 .. code-block:: bash
 
    # add the helm repository
-   helm repo add osmo https://helm.ngc.nvidia.com/nvidian/osmo \
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidian/osmo \
      --username \$oauthtoken \
      --password <ngc-token>
-   helm repo update
+   $ helm repo update
 
    # deploy the service
-   helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
+   $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
 
-5. Deploy Router:
-
-.. code-block:: bash
-
-   helm upgrade --install router osmo/router -f ./router_values.yaml -n osmo
-
-6. Deploy UI:
+2. Deploy Router:
 
 .. code-block:: bash
 
-   helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
+   $ helm upgrade --install router osmo/router -f ./router_values.yaml -n osmo
+
+3. Deploy UI:
+
+.. code-block:: bash
+
+   $ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
 
 Step 5: Verify Deployment
 =========================
@@ -946,13 +919,13 @@ Step 5: Verify Deployment
 
 .. code-block:: bash
 
-   kubectl get pods -n osmo
+   $ kubectl get pods -n osmo
 
 2. Verify services are running:
 
 .. code-block:: bash
 
-   kubectl get services -n osmo
+   $ kubectl get services -n osmo
 
 3. Check ingress configuration:
 
