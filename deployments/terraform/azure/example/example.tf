@@ -63,10 +63,10 @@ module "vnet" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
   version = "~> 0.10"
 
-  name                = "${local.name}-vnet"
-  resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
-  address_space       = [var.vnet_cidr]
+  name          = "${local.name}-vnet"
+  parent_id     = data.azurerm_resource_group.main.id
+  location      = data.azurerm_resource_group.main.location
+  address_space = [var.vnet_cidr]
 
   subnets = {}
 

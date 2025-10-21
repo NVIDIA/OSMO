@@ -31,7 +31,7 @@ This workflow demonstrates how to use NVIDIA Cosmos to generate world models fro
 The workflow requires a Hugging Face token to be configured as a credential. Make sure to set up your Hugging Face token in OSMO before running the workflow:
 
 ```bash
-osmo credential create huggingface_token --type GENERIC --payload token=<your-hf-token>
+osmo credential set huggingface_token --type GENERIC --payload token=<your-hf-token>
 ```
 
 In order for your workflow to pull the Cosmos model from HuggingFace, you will *need* to agree to the terms and

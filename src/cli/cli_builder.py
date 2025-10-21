@@ -43,6 +43,10 @@ def main():
                         action='extend',
                         nargs='+',
                         help='The additional hooks files to pass to PyInstaller')
+    parser.add_argument('--target-arch',
+                        required=True,
+                        choices=['x86_64', 'arm64'],
+                        help='The target architecture to build for')
     args = parser.parse_args()
 
     # Get the path to the runner directory
@@ -80,13 +84,15 @@ def main():
 
         subprocess.run([
             sys.executable,
-            '-OO',  # Python optimization (removes assert + docstrings)
             '-m', 'PyInstaller',
             '-n', 'osmo-cli',
             '--python-option', 'u',  # Unbuffered output
             *add_data_args,
             *additional_hooks_dir_args,
             '--distpath', top_level_dir,
+            f'--target-arch={args.target_arch}',
+            '--codesign-identity=-',  # Ad-hoc signing
+            '--osx-bundle-identifier=com.nvidia.osmo',
             '--noupx',
             '--clean',
             '-y',
@@ -98,6 +104,9 @@ def main():
         parser = main_parser.create_cli_parser()
         with open(f'{top_level_dir}/autocomplete.bash', 'w', encoding='utf-8') as file:
             file.write(shtab.complete(parser, shell='bash'))
+
+        with open(f'{top_level_dir}/autocomplete.zsh', 'w', encoding='utf-8') as file:
+            file.write(shtab.complete(parser, shell='zsh'))
 
 
 if __name__ == '__main__':

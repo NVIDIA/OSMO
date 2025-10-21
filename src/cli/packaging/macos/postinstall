@@ -1,0 +1,49 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+OSMO_CLI_INSTALL_PATH="/usr/local/osmo"
+OSMO_CLI_SYMLINK_PATH="/usr/local/bin"
+OSMO_CLI_AUTOCOMPLETE_DIR="/usr/local/share/zsh/site-functions"
+
+# Create symlink
+ln -s -f "$OSMO_CLI_INSTALL_PATH/osmo" "$OSMO_CLI_SYMLINK_PATH/osmo"
+
+# Setup autocomplete system-wide for zsh
+if [ -f "$OSMO_CLI_INSTALL_PATH/autocomplete.zsh" ]; then
+    echo "Adding zsh autocomplete script for OSMO."
+    mkdir -p "$OSMO_CLI_AUTOCOMPLETE_DIR"
+    cp "$OSMO_CLI_INSTALL_PATH/autocomplete.zsh" "$OSMO_CLI_AUTOCOMPLETE_DIR/_osmo"
+    echo "Zsh autocomplete installed"
+
+    if [[ ! " ${fpath[*]} " =~ " /usr/local/share/zsh/site-functions " ]]; then
+        echo ""
+        echo "######################################################################"
+        echo "Note: /usr/local/share/zsh/site-functions is not in your fpath."
+        echo "Run this command to enable autocomplete:"
+        echo "######################################################################"
+        echo ""
+        echo "echo 'fpath=(/usr/local/share/zsh/site-functions \$fpath)' >> ~/.zshrc && echo 'autoload -Uz compinit && compinit' >> ~/.zshrc"
+        echo ""
+        echo "Then restart your terminal or run: source ~/.zshrc"
+        echo "######################################################################"
+        echo ""
+    fi
+fi
+
+exit 0

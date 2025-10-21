@@ -1,0 +1,1 @@
+src/cli/packaging/install.sh

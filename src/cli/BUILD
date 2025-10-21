@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+package(default_visibility = ["//visibility:public"])
+
 load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
@@ -85,10 +87,6 @@ osmo_py_binary(
     visibility = ["//visibility:public"],
 )
 
-################
-#    x86_64    #
-################
-
 osmo_py_binary(
     name = "cli_builder",
     main = "cli_builder.py",
@@ -98,10 +96,11 @@ osmo_py_binary(
         requirement("pyinstaller"),
         requirement("shtab"),
     ],
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-    ],
 )
+
+################
+#    x86_64    #
+################
 
 run_binary(
     name = "cli_onedir_amd64",
@@ -111,6 +110,7 @@ run_binary(
         "--add-data $(location //src/lib/rsync:rsync_bin):src/lib/rsync/",
         "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
         "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
+        "--target-arch x86_64",
     ],
     out_dirs = ["osmo_cli_onedir_amd64"],
     tool = ":cli_builder",
@@ -121,7 +121,6 @@ run_binary(
         "//src/lib/data/storage:extra_hooks",
         "//src/lib/rsync:rsync_bin",
     ],
-    visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
     ],
@@ -138,7 +137,6 @@ pkg_tar(
         "osmo/osmo": "osmo-cli/osmo-cli",
     },
     package_dir = "/osmo/osmo_cli_onedir",
-    visibility = ["//visibility:public"],
     mode = "0755",
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -152,7 +150,6 @@ oci_image(
         ":osmo_cli_pkg_amd64",
         ":cli_symlinks_tar",
     ],
-    visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
     ],
@@ -174,7 +171,6 @@ oci_push(
     image = ":cli_image_amd64",
     repository = BASE_IMAGE_URL + "client",
     remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
-    visibility = ["//visibility:public"],
     tags = [
         "manual",
     ],
@@ -187,20 +183,6 @@ oci_push(
 #    arm64    #
 ################
 
-osmo_py_binary(
-    name = "cli_builder_arm64",
-    main = "cli_builder_arm64.py",
-    srcs = ["cli_builder_arm64.py"],
-    deps = [
-        ":cli_lib",
-        requirement("pyinstaller"),
-        requirement("shtab"),
-    ],
-    target_compatible_with = [
-        "@platforms//cpu:arm64",
-    ],
-)
-
 run_binary(
     name = "cli_onedir_arm64",
     args = [
@@ -209,9 +191,10 @@ run_binary(
         "--add-data $(location //src/lib/rsync:rsync_bin):src/lib/rsync/",
         "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
         "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
+        "--target-arch arm64",
     ],
     out_dirs = ["osmo_cli_onedir_arm64"],
-    tool = ":cli_builder_arm64",
+    tool = ":cli_builder",
     srcs = [
         "cli.py",
         ":cli_lib",
@@ -222,7 +205,6 @@ run_binary(
     target_compatible_with = [
         "@platforms//cpu:arm64",
     ],
-    visibility = ["//visibility:public"],
 )
 
 pkg_tar(
@@ -250,7 +232,6 @@ oci_image(
         ":osmo_cli_pkg_arm64",
         ":cli_symlinks_tar",
     ],
-    visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:arm64",
     ],
