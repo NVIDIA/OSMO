@@ -101,6 +101,9 @@ oci_image(
     tars = [
         ":doc_service_onedir_pkg",
     ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -108,6 +111,9 @@ oci_load(
     image = ":doc_service_image_x86_64",
     repo_tags = ["osmo.local/docs:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -118,6 +124,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -132,14 +141,19 @@ oci_image(
     tars = [
         ":doc_service_onedir_pkg",
     ],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "docs_service_image_load_arm64",
     image = ":doc_service_image_arm64",
     repo_tags = ["osmo.local/docs:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -148,5 +162,8 @@ oci_push(
     repository = BASE_IMAGE_URL + "docs",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )

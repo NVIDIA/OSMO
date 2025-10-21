@@ -75,7 +75,7 @@ jobs:
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
-            $(bazel query '//... - attr("tags", "arm64", //...) - attr("tags", "manual", //...)')
+            //...
       - name: Cleanup Bazel cache
         if: always()
         run: |

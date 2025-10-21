@@ -211,10 +211,10 @@ spec:
   minReplicas: {{ .Values.services.worker.scaling.minReplicas }}
   maxReplicas: {{ .Values.services.worker.scaling.maxReplicas }}
   metrics:
-  - type: Pods
-    pods:
-      metric:
-        name: osmo_service_worker_job_queue_length_per_worker
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: {{ .Values.services.worker.serviceName }}
       target:
-        type: AverageValue
-        averageValue: {{ .Values.services.worker.scaling.targetQueueLength }}
+        type: Utilization
+        averageUtilization: {{ .Values.services.worker.scaling.hpaTarget }}

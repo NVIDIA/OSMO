@@ -24,7 +24,6 @@ CLI Reference
 .. toctree::
   :maxdepth: 1
 
-  install
   cli_app
   cli_bucket
   cli_credential

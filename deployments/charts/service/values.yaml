@@ -376,9 +376,9 @@ services:
       ##
       maxReplicas: 10
 
-      ## Target queue length per worker for scaling decisions
+      ## Target Memory utilization percentage for HPA scaling
       ##
-      targetQueueLength: 15
+      hpaTarget: 80
 
     ## Docker image name for the worker service
     ##
@@ -696,9 +696,9 @@ services:
       ##
       maxReplicas: 9
 
-      ## Target number of connections per logger instance for scaling decisions
+      ## Target Memory utilization percentage for HPA scaling
       ##
-      targetConnections: 15
+      hpaTarget: 80
 
     ## Docker image name for the logger service
     ##

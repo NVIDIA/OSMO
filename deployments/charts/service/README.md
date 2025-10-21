@@ -103,7 +103,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.worker.scaling.minReplicas` | Minimum replicas | `2` |
 | `services.worker.scaling.maxReplicas` | Maximum replicas | `10` |
-| `services.worker.scaling.targetQueueLength` | Target queue length per worker | `15` |
+| `services.worker.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
 | `services.worker.imageName` | Worker image name | `worker` |
 | `services.worker.serviceName` | Service name | `osmo-worker` |
 | `services.worker.extraArgs` | Additional command line arguments | `[]` |
@@ -137,7 +137,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.logger.scaling.minReplicas` | Minimum replicas | `3` |
 | `services.logger.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.logger.scaling.targetConnections` | Target connections | `15` |
+| `services.logger.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
 | `services.logger.imageName` | Logger image name | `logger` |
 | `services.logger.serviceName` | Service name | `osmo-logger` |
 | `services.logger.nodeSelector` | Node selector constraints | `{}` |

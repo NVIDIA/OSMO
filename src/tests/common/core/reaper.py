@@ -140,9 +140,13 @@ class ReaperFixture(network.NetworkFixture):
         try:
             # pylint: disable=protected-access
             if cls.reaper._container:
-                cls.reaper._container.reload()
-                if cls.reaper._container.status == 'running':
-                    cls.reaper._container.stop()
+                try:
+                    cls.reaper._container.reload()
+                    if cls.reaper._container.status == 'running':
+                        cls.reaper._container.stop()
+                except Exception:  # pylint: disable=broad-except
+                    # Container may have already been removed (e.g., due to auto_remove=True)
+                    logger.debug('Reaper container already removed or not found')
             # pylint: enable=protected-access
         finally:
             super().tearDownClass()

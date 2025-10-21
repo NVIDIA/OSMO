@@ -111,6 +111,9 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [":resource_validator_onedir_pkg"],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -118,6 +121,9 @@ oci_load(
     image = ":resource_validator_image_x86_64",
     repo_tags = ["osmo.local/resource-validator:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -127,6 +133,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -139,14 +148,19 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [":resource_validator_onedir_pkg"],
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "resource_validator_image_load_arm64",
     image = ":resource_validator_image_arm64",
     repo_tags = ["osmo.local/resource-validator:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -156,7 +170,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
-        "arm64",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
     ],
 )
 
@@ -232,6 +248,9 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [":lfs_validator_onedir_pkg"],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -239,6 +258,9 @@ oci_load(
     image = ":lfs_validator_image_x86_64",
     repo_tags = ["osmo.local/lfs-validator:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -248,6 +270,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -260,14 +285,19 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [":lfs_validator_onedir_pkg"],
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "lfs_validator_image_load_arm64",
     image = ":lfs_validator_image_arm64",
     repo_tags = ["osmo.local/lfs-validator:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -277,7 +307,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
-        "arm64",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
     ],
 )
 
@@ -359,6 +391,9 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [":connection_validator_onedir_pkg"],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -366,6 +401,9 @@ oci_load(
     image = ":connection_validator_image_x86_64",
     repo_tags = ["osmo.local/connection-validator:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -375,6 +413,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -387,14 +428,19 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [":connection_validator_onedir_pkg"],
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "connection_validator_image_load_arm64",
     image = ":connection_validator_image_arm64",
     repo_tags = ["osmo.local/connection-validator:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -404,6 +450,8 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
-        "arm64",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
     ],
 )

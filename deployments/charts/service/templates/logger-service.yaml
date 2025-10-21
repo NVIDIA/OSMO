@@ -286,10 +286,10 @@ spec:
   minReplicas: {{ .Values.services.logger.scaling.minReplicas }}
   maxReplicas: {{ .Values.services.logger.scaling.maxReplicas }}
   metrics:
-  - type: Pods
-    pods:
-      metric:
-        name: envoy_cluster_upstream_cx_active
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: {{ .Values.services.logger.serviceName }}
       target:
-        type: AverageValue
-        averageValue: {{ .Values.services.logger.scaling.targetConnections }}
+        type: Utilization
+        averageUtilization: {{ .Values.services.logger.scaling.hpaTarget }}

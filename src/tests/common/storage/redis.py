@@ -91,8 +91,12 @@ class RedisStorageFixture(network.NetworkFixture):
             if hasattr(cls, 'redis_client'):
                 cls.redis_client.close()
 
-            cls.redis_container.get_wrapped_container().reload()
-            if cls.redis_container.get_wrapped_container().status == 'running':
-                cls.redis_container.stop()
+            try:
+                cls.redis_container.get_wrapped_container().reload()
+                if cls.redis_container.get_wrapped_container().status == 'running':
+                    cls.redis_container.stop()
+            except Exception:  # pylint: disable=broad-except
+                # Container may have already been removed
+                logger.debug('Redis container already removed or not found')
         finally:
             super().tearDownClass()
