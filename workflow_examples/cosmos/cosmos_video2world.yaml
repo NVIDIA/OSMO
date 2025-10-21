@@ -37,7 +37,7 @@ workflow:
               --token $HF_TOKEN --add-to-git-credential
 
             ./scripts/hf_video2world.py output/hf_video2world --prompt "assets/video2world/example_prompt.txt" \
-              --image "assets/video2world/example_input.jpg" -v
+              --image "assets/video2world/example_input.jpg" --steps 20 -v
 
             mv output/hf_video2world {{output}}/output/
 

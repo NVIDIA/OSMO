@@ -85,7 +85,7 @@ def fetch_default_pool(service_client: client.ServiceClient) -> str:
 def list_pools(service_client: client.ServiceClient,
                pools: List[str] | None = None,
                quota: bool = False) -> Dict[str, Dict]:
-    params = {} if pools is None else {'pools': pools}
+    params = {} if pools is None else {'pools': pools, 'all_pools': False}
     endpoint = '/api/pool' if not quota else '/api/pool_quota'
     pool_response = service_client.request(
         client.RequestMethod.GET,

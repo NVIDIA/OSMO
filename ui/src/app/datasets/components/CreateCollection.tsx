@@ -13,10 +13,9 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import Link from "next/link";
-import { useWindowSize } from "usehooks-ts";
 
 import FullPageModal from "~/components/FullPageModal";
 import { FilledIcon, OutlinedIcon } from "~/components/Icon";
@@ -58,15 +57,6 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
   const [localDatasetsInfo, setLocalDatasetsInfo] = useState(datasetsInfo);
   const [editingDataset, setEditingDataset] = useState<DatasetInfo | undefined>(undefined);
   const mutation = api.datasets.createCollection.useMutation();
-  const containerRef = useRef<HTMLFormElement>(null);
-  const windowSize = useWindowSize();
-  const [height, setHeight] = useState(0);
-
-  useEffect(() => {
-    if (containerRef?.current) {
-      setHeight(containerRef.current.getBoundingClientRect().bottom - containerRef.current.getBoundingClientRect().top);
-    }
-  }, [windowSize.height]);
 
   const handleCreateCollection = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -106,13 +96,9 @@ export const CreateCollection = ({ bucket, datasetsInfo }: CreateCollectionProps
     <>
       <form
         onSubmit={handleCreateCollection}
-        className="w-full"
-        ref={containerRef}
+        className="w-full h-full"
       >
-        <div
-          className="flex flex-col gap-3 w-full overflow-y-auto justify-between"
-          style={{ height: height }}
-        >
+        <div className="flex flex-col gap-3 w-full h-full overflow-y-auto justify-between">
           <table
             aria-label="Datasets"
             className="w-full border-separate border-spacing-y-0"
