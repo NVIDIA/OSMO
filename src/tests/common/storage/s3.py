@@ -91,10 +91,14 @@ class S3StorageFixture(network.NetworkFixture):
     def tearDownClass(cls):
         logger.info('Tearing down S3 testcontainer.')
         try:
-            cls.s3_container.get_wrapped_container().reload()
-            if cls.s3_container.get_wrapped_container().status == 'running':
-                cls.s3_container.stop()
+            try:
+                cls.s3_container.get_wrapped_container().reload()
+                if cls.s3_container.get_wrapped_container().status == 'running':
+                    cls.s3_container.stop()
+            except Exception:  # pylint: disable=broad-except
+                # Container may have already been removed
+                logger.debug('S3 container already removed or not found')
             utils.restore_boto3_session()
-            os.environ.pop('AWS_ENDPOINT_URL_S3')
+            os.environ.pop('AWS_ENDPOINT_URL_S3', None)
         finally:
             super().tearDownClass()

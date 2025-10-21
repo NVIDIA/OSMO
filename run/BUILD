@@ -180,6 +180,9 @@ oci_image(
     workdir = "/workspace",
     visibility = ["//visibility:public"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -187,6 +190,9 @@ oci_load(
     image = ":builder_image_x86_64",
     repo_tags = ["osmo-builder:latest-amd64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 ###############
@@ -228,12 +234,18 @@ oci_image(
     cmd = ["/usr/local/bin/entrypoint-ca-certs.sh"],
     workdir = "/workspace",
     visibility = ["//visibility:public"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "builder_image_load_arm64",
     image = ":builder_image_arm64",
     repo_tags = ["osmo-builder:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )

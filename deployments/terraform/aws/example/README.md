@@ -47,7 +47,7 @@ All resources are deployed in the same VPC and properly networked together.
 2. **Copy and customize the variables:**
    ```bash
    cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with your desired values
+   # Edit terraform.tfvars with your desired values, remember to replace password for database.
    ```
 
 3. **Initialize Terraform:**

@@ -114,6 +114,9 @@ oci_image(
     workdir = "/app",
     user = "osmo",
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_image(
@@ -131,7 +134,9 @@ oci_image(
     workdir = "/app",
     user = "osmo",
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_image(
@@ -155,6 +160,9 @@ oci_image(
     workdir = "/home/osmo",
     user = "osmo",
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 # Local testing for the optimized client image
@@ -188,7 +196,9 @@ oci_image(
     workdir = "/home/osmo",
     user = "osmo",
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 # Local testing for the optimized client image (arm64)

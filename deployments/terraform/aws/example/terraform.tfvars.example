@@ -22,7 +22,7 @@ node_group_desired_size  = 3
 
 # RDS Configuration (PostgreSQL)
 rds_engine                   = "postgres"
-rds_engine_version          = "15.4"
+rds_engine_version          = "15.12"
 rds_family                  = "postgres15"
 rds_major_engine_version    = "15"
 rds_instance_class          = "db.t3.micro"  # Use db.r5.large or higher for production

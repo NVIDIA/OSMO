@@ -830,6 +830,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
           limits:
             memory: "512Mi"
 
+    sidecars:
       # Envoy proxy configuration
       envoy:
         enabled: true
@@ -838,6 +839,8 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
         # Service configuration
         service:
           hostname: <your-domain>
+          address: 127.0.0.1
+          port: 8000
 
         # OAuth2 filter configuration
         oauth2Filter:

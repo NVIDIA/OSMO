@@ -80,109 +80,80 @@ OSMO uses NVIDIA Run:AI scheduler to share resources efficiently optimizing for 
 You can connect any S3 API compatible object storage and Azure Blob Storage to OSMO. Store your data and models with version control. Use content-addressable storage to deduplicate data across dataset versions, reducing costs and speeding uploads/downloads.
 
 
-High Level Architecture
------------------------
+.. toctree::
+  :hidden:
+  :caption: Introduction
 
-.. image:: arch.png
-	:width: 800
-
-OSMO follows a modular, cloud-native architecture designed to orchestrate complex AI and robotics workflows across heterogeneous compute resources. The platform consists of several key components working together:
-
-**Control Plane**
-
-The OSMO control plane manages the entire lifecycle of your workflows. It includes:
-
-* **API Server**: Provides RESTful APIs for workflow submission, monitoring, and management. Accessible through both CLI and Web UI interfaces.
-* **Scheduler**: Leverages NVIDIA Run:AI to intelligently allocate GPU and CPU resources across workflows, optimizing for utilization and fairness.
-* **Workflow Engine**: Parses YAML workflow specifications, orchestrates task execution, handles dependencies, and manages the workflow state machine.
-* **Authentication & Authorization**: Integrates with external identity providers (OIDC, SAML) to manage user access and permissions.
-
-**Compute Layer**
-
-OSMO connects to multiple Kubernetes clusters as compute backends:
-
-* **Pools & Platforms**: Resources are organized into pools (logical groupings) and platforms (specific hardware types) allowing precise targeting of workloads.
-* **Heterogeneous Support**: Connect cloud clusters (AKS, EKS, GKE), on-premise bare-metal clusters, and edge devices (NVIDIA Jetson) simultaneously.
-* **Container Orchestration**: Each task in a workflow runs as a Kubernetes pod with specified container images, resource requirements, and environment configurations.
-
-**Data Layer**
-
-OSMO manages data through an abstraction layer:
-
-* **Dataset Service**: Provides version-controlled storage for training data, models, and artifacts using content-addressable storage to deduplicate data.
-* **Storage Backends**: Supports S3-compatible object storage and Azure Blob Storage with configurable credentials.
-* **Data Injection**: Automatically mounts datasets into task containers at specified paths, enabling seamless access to inputs and outputs.
-
-**How It Works**
-
-1. **Workflow Submission**: Users submit YAML workflow specifications via CLI or Web UI after authentication.
-2. **Workflow Parsing**: The workflow engine validates the specification and creates an execution graph based on task dependencies.
-3. **Resource Allocation**: The scheduler evaluates resource requirements and assigns tasks to appropriate pools/platforms with available capacity.
-4. **Task Execution**: Kubernetes spawns pods on compute nodes with the specified container images, mounted datasets, and environment variables.
-5. **State Management**: The workflow engine monitors task states (pending, running, succeeded, failed) and triggers dependent tasks upon completion.
-6. **Data Persistence**: Task outputs are automatically synced to configured datasets in object storage for downstream consumption.
-7. **Interactive Access**: Users can connect to running tasks via SSH, VSCode Remote, or Jupyter for debugging and interactive development.
-
-This architecture enables OSMO to scale from a single developer workstation to massive cloud deployments while maintaining a consistent interface and workflow experience. For detailed deployment procedures, refer to the deployment guide linked below.
-
-Quickstart
---------------
-
-Visit our `Quick Start guide <https://github.com/NVIDIA/OSMO/blob/main/QUICK_START.md>`_ to try OSMO on your local machine
-
-Scaling to Cloud
------------------
-For a full, production-ready deployment, see one the following guides:
-
-* `Azure <https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example>`_
-* `AWS <https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example>`_
-
-What's Next?
-------------
-
-* Follow :doc:`Getting Started </getting_started/getting_started_ui>` to run your very first workflow
-* Review :doc:`Tutorials </tutorials/osmo_in_20>` to run sample workflows
-* Scan through the :doc:`FAQs </faq/index>` for answers to common questions
-* Refer to :doc:`Troubleshooting </troubleshooting/index>` to debug issues
+  Overview <self>
+  high_level_architecture
+  scaling_to_the_cloud
+  whats_next
 
 .. toctree::
   :hidden:
   :caption: Getting Started
 
-  getting_started/getting_started_ui
-  getting_started/getting_started_cli
-
-.. toctree::
-  :hidden:
-  :caption: Concepts
-
-  concepts/index
-  concepts/resources_pools_platforms/index
-  concepts/workflows_tasks/index
-  concepts/apps/index
-  concepts/datasets/index
-
-.. toctree::
-  :hidden:
-  :caption: Settings
-
-  settings/credentials/index
-  settings/access_token
-  settings/notifications/index
+  getting_started/quickstart
+  getting_started/system_requirements
+  getting_started/ui/index
+  getting_started/install/index
+  getting_started/credentials/index
+  getting_started/profile/index
+  getting_started/verify_installation
 
 .. toctree::
   :hidden:
   :caption: Tutorials
 
-  tutorials/osmo_in_20
-  tutorials/sdg
+  tutorials/hello_world/index
+  tutorials/workflow_types/index
+  tutorials/isaac_sim_sdg
+  tutorials/isaac_lab_train
+  tutorials/torch_run_train
+  tutorials/isaac_groot_fine_tune
   tutorials/training
+  tutorials/reinforcement_learning
   tutorials/hil
-  tutorials/groot
+
+.. auto-include:: tutorials/*.in.rst
+
+.. toctree::
+  :hidden:
+
   tutorials/workflow_examples
 
 .. toctree::
   :hidden:
+  :caption: Running Workflows
+
+  workflows/index
+  workflows/specification/index
+  workflows/submission
+  workflows/lifecycle/index
+  workflows/interaction/index
+  workflows/exit/exit_codes
+  workflows/exit/exit_actions
+  workflows/apps/index
+
+.. toctree::
+  :hidden:
+  :caption: Resource Pools
+
+  resource_pools/index
+  resource_pools/scheduling/index
+
+.. toctree::
+  :hidden:
+  :caption: Managing Data
+
+  data/index
+  data/datasets/index
+
+.. auto-include:: data/*.in.rst
+
+.. toctree::
+  :hidden:
+  :caption: Help
 
   faq/index
   troubleshooting/index
@@ -192,3 +163,5 @@ What's Next?
   :caption: Reference
 
   reference/cli/index
+
+.. auto-include:: whats_new/*.in.rst

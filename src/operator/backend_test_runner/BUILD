@@ -92,6 +92,9 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [":backend_test_runner_onedir_pkg"],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -99,6 +102,9 @@ oci_load(
     image = ":backend_test_runner_image_x86_64",
     repo_tags = ["osmo.local/backend_test_runner:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -108,6 +114,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -120,14 +129,19 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [":backend_test_runner_onedir_pkg"],
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "backend_test_runner_image_load_arm64",
     image = ":backend_test_runner_image_arm64",
     repo_tags = ["osmo.local/backend_test_runner:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -137,6 +151,8 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
-        "arm64",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
     ],
 )

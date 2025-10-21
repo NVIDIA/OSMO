@@ -89,6 +89,9 @@ oci_image(
     ],
     workdir = "/osmo",
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 # Local image testing only
@@ -97,6 +100,9 @@ oci_load(
     image = ":init_image_x86_64",
     repo_tags = ["init_image_x86_64:latest"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -107,6 +113,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -125,7 +134,9 @@ oci_image(
         "//src/runtime/cmd/rsync:rsync_arm64_pkg",
     ],
     workdir = "/osmo",
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -147,7 +158,9 @@ oci_push(
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = [
-        "arm64",
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
     ],
 )

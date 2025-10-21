@@ -101,6 +101,9 @@ oci_image(
         "//src/utils/progress_check:progress_check_onedir_pkg",
     ],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -108,6 +111,9 @@ oci_load(
     image = ":worker_image_x86_64",
     repo_tags = ["osmo.local/worker:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -118,6 +124,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -133,14 +142,19 @@ oci_image(
         "//src/utils/progress_check:progress_check_onedir_pkg",
     ],
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "worker_image_load_arm64",
     image = ":worker_image_arm64",
     repo_tags = ["osmo.local/worker:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -149,5 +163,8 @@ oci_push(
     repository = BASE_IMAGE_URL + "worker",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )

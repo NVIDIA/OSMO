@@ -97,7 +97,10 @@ osmo_py_binary(
         ":cli_lib",
         requirement("pyinstaller"),
         requirement("shtab"),
-    ]
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 run_binary(
@@ -119,6 +122,9 @@ run_binary(
         "//src/lib/rsync:rsync_bin",
     ],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 pkg_tar(
@@ -134,6 +140,9 @@ pkg_tar(
     package_dir = "/osmo/osmo_cli_onedir",
     visibility = ["//visibility:public"],
     mode = "0755",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_image(
@@ -144,6 +153,9 @@ oci_image(
         ":cli_symlinks_tar",
     ],
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 # Local image testing only
@@ -151,6 +163,10 @@ oci_load(
     name = "cli_image_amd64_load",
     image = ":cli_image_amd64",
     repo_tags = ["cli_image_amd64:latest"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -161,6 +177,9 @@ oci_push(
     visibility = ["//visibility:public"],
     tags = [
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
     ],
 )
 
@@ -177,7 +196,9 @@ osmo_py_binary(
         requirement("pyinstaller"),
         requirement("shtab"),
     ],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 run_binary(
@@ -198,7 +219,9 @@ run_binary(
         "//src/lib/data/storage:extra_hooks",
         "//src/lib/rsync:rsync_bin",
     ],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -215,7 +238,9 @@ pkg_tar(
     package_dir = "/osmo/osmo_cli_onedir",
     visibility = ["//visibility:public"],
     mode = "0755",
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_image(
@@ -226,7 +251,9 @@ oci_image(
         ":cli_symlinks_tar",
     ],
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 # Local image testing only
@@ -234,6 +261,10 @@ oci_load(
     name = "cli_image_arm64_load",
     image = ":cli_image_arm64",
     repo_tags = ["cli_image_arm64:latest"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -243,8 +274,10 @@ oci_push(
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = [
-        "arm64",
         "manual",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
     ],
 )
 

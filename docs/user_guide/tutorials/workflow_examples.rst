@@ -17,10 +17,11 @@
 
 .. _workflow_examples:
 
-================================================
-Exploring More Workflow Examples
-================================================
+=============
+More Examples
+=============
 
 More examples of workflows that can be used in combination to make more complex workflows
 can be found in the `GitHub directory <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples>`_.
 
+.. note:: TODO add boxes and/or table here

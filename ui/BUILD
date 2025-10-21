@@ -161,6 +161,9 @@ oci_image(
     entrypoint = ["node"],
     workdir = "/app/ui/standalone_server.runfiles",
     visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_load(
@@ -168,6 +171,9 @@ oci_load(
     image = ":web_ui_image_x86_64",
     repo_tags = ["osmo.local/web-ui:latest-x86_64"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 oci_push(
@@ -177,6 +183,9 @@ oci_push(
     remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
 )
 
 ###############
@@ -204,14 +213,19 @@ oci_image(
     entrypoint = ["node"],
     workdir = "/app/ui/standalone_server.runfiles",
     visibility = ["//visibility:public"],
-    tags = ["arm64"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_load(
     name = "web_ui_image_load_arm64",
     image = ":web_ui_image_arm64",
     repo_tags = ["osmo.local/web-ui:latest-arm64"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
 
 oci_push(
@@ -220,5 +234,8 @@ oci_push(
     repository = BASE_IMAGE_URL + "web-ui",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
-    tags = ["manual", "arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
 )
