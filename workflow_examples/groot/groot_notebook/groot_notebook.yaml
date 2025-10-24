@@ -23,7 +23,7 @@ workflow:
       cpu: 4
       gpu: 1
       memory: 32Gi
-      storage: 30Gi
+      storage: 45Gi
   tasks:
   - args:
     - /tmp/entry.sh

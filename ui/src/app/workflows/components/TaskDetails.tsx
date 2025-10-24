@@ -20,6 +20,7 @@ import Link from "next/link";
 
 import { Colors, Tag } from "~/components/Tag";
 import { type Task } from "~/models";
+import { useRuntimeEnv } from "~/runtime-env";
 import { calcDuration, convertToReadableTimezone } from "~/utils/string";
 
 import TaskActions from "./TaskActions";
@@ -34,6 +35,7 @@ interface TaskDetailsProps {
 }
 
 const TaskDetails = ({ task, showTaskName = true, updateUrl, extraData }: TaskDetailsProps) => {
+  const runtimeEnv = useRuntimeEnv();
   const [processingDuration, setProcessingDuration] = useState<string | undefined>(undefined);
   const [schedulingDuration, setSchedulingDuration] = useState<string | undefined>(undefined);
   const [initializingDuration, setInitializingDuration] = useState<string | undefined>(undefined);
@@ -137,7 +139,7 @@ const TaskDetails = ({ task, showTaskName = true, updateUrl, extraData }: TaskDe
                 <dd>
                   <Link
                     color={task.exit_code === 0 ? Colors.tag : Colors.error}
-                    href="/docs/concepts/workflows_tasks/lifecycle/exit_codes.html"
+                    href={`${runtimeEnv.DOCS_BASE_URL}workflows/exit/exit_codes.html`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="tag-container"

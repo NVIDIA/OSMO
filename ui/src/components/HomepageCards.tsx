@@ -18,6 +18,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { useRuntimeEnv } from "~/runtime-env";
+
 interface HomepageCardProps {
   title: string;
   imageUrl: string;
@@ -73,17 +75,20 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
 };
 
 export const HomepageCards = () => {
+  const runtimeEnv = useRuntimeEnv();
+
   return (
     <div className="flex flex-col gap-3 p-3">
       <h2 className="text-center">Getting Started</h2>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4 lg:grid-cols-3 md:grid-cols-2">
         <HomepageCard
-          title="Generate Synthetic Data Using Isaac Sim"
+          title="Isaac Sim: Generating Synthetic Data"
           imageUrl="/sdg.png"
           imageAlt="Synthetic Data Generation"
           body={
             <p>
-              In this tutorial, you will generate synthetic data of warehouse scenes using NVIDIA’s robotics simulator,{" "}
+              In this tutorial, you will generate synthetic data of warehouse scenes using NVIDIA&apos;s robotics
+              simulator,{" "}
               <a
                 href="https://developer.nvidia.com/isaac-sim"
                 target="_blank"
@@ -95,11 +100,11 @@ export const HomepageCards = () => {
               .
             </p>
           }
-          tutorialLink="/docs/tutorials/sdg.html"
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/isaac_sim_sdg.html`}
           workflowLink="/workflows/submit/isaac_sim_sdg"
         />
         <HomepageCard
-          title="Training Deep Learning Networks"
+          title="TorchRun: Training Deep Neural Networks"
           imageUrl="/train.jpg"
           imageAlt="Training"
           body={
@@ -116,17 +121,16 @@ export const HomepageCards = () => {
               .
             </p>
           }
-          tutorialLink="/docs/tutorials/training.html"
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/training/single_node.html`}
           workflowLink="/workflows/submit/mnist_training"
         />
         <HomepageCard
-          title="Hardware-in-the-Loop Simulation"
+          title="Isaac Lab: Training Reinforcement Learning Policy"
           imageUrl="/robot.png"
           imageAlt="Humanoid in Isaac Lab"
           body={
             <p>
-              In this tutorial, you will run a humanoid robot policy on a <strong>Jetson</strong> device, and stream the
-              actions to control the robot via the{" "}
+              In this tutorial, you will train a robot policy using{" "}
               <a
                 href="https://developer.nvidia.com/isaac/lab"
                 target="_blank"
@@ -135,14 +139,14 @@ export const HomepageCards = () => {
               >
                 Isaac Lab
               </a>{" "}
-              simulation environment, focusing on robot learning.
+              and generate a video of the policy running on a robot in simulation.
             </p>
           }
-          tutorialLink="/docs/tutorials/hil.html"
-          workflowLink="/workflows/submit/hil"
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/reinforcement_learning.html`}
+          workflowLink="/workflows/submit/reinforcement_learning"
         />
         <HomepageCard
-          title="Inference and Fine-tuning with Isaac Groot"
+          title="Isaac Groot: Interactive Notebook for Inference and Fine-tuning"
           imageUrl="/groot.png"
           imageAlt="Groot N1.5"
           body={
@@ -159,7 +163,7 @@ export const HomepageCards = () => {
               (a foundation model for robotics) using a <strong>Jupyter notebook</strong>.
             </p>
           }
-          tutorialLink="/docs/tutorials/groot.html"
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/isaac_groot_notebook.html`}
           workflowLink="/workflows/submit/groot"
         />
       </div>

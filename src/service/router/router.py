@@ -94,7 +94,8 @@ class ConnectionPayload(pydantic.BaseModel):
     payload: Dict[str, Any] | None = None  # Optional, only used for 'ws' type
 
 
-app = fastapi.FastAPI(docs_url='/api/router/docs', redoc_url=None, openapi_url=None)
+app = fastapi.FastAPI(docs_url='/api/router/docs', redoc_url=None,
+                      openapi_url='/api/router/openapi.json')
 connections: Dict[str, RouterConnection] = {}
 webservers: Dict[str, WebserverConnection] = {}
 

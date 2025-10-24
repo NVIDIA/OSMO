@@ -13,6 +13,7 @@ Dataset
 Datasets
 Datetime
 Filebrowser
+Franka
 Frontend
 Gi
 GiB
@@ -27,6 +28,7 @@ IncompleteReadError
 IPv
 Jetpack
 Jetson
+Jetsons
 Jinja
 Jupyter
 Keycloak
@@ -48,6 +50,7 @@ Omnipackages
 Omniverse
 Onboarding
 Preconfigured
+Preflight
 Pytorch
 Quickstart
 RTX
@@ -111,9 +114,11 @@ customizable
 dataset
 datasets
 deduplicate
+deduplicates
 deduplication
 deepstream
 dereference
+dereferencing
 desc
 designees
 dev
@@ -159,6 +164,7 @@ io
 ip
 isaac
 iss
+iteratively
 jetson
 json
 kai
@@ -226,6 +232,7 @@ prd
 pre
 preconfigured
 preemptible
+preflight
 prem
 prepend
 prometheus

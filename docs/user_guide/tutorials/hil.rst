@@ -17,9 +17,9 @@
 
 .. _tutorials_hil:
 
-====================================================================
-Evaluation: Run trained policy on Jetson Orin (Hardware-in-the-Loop)
-====================================================================
+===============================================
+Hardware-in-the-Loop: Evaluate Policy on Jetson
+===============================================
 
 Introduction
 ------------
@@ -31,8 +31,7 @@ This tutorial is for users who want to implement their own HIL workflows, especi
 device is not on the same LAN/subnet as the simulation machine.
 Users are also expected to be familiar with basic concepts of ROS2 and its middleware.
 
-The main objective of this tutorial is to demonstrate how to configure the ROS2 Discovery Server to allow the embedded
-system to communicate with the simulation machine.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/hil>`_.
 
 Prerequisites
 -------------
@@ -42,6 +41,13 @@ Refer to the official Isaac Sim `Installation <https://docs.isaacsim.omniverse.n
 
 To learn some fundamental concepts regarding the ROS2 Discovery Server, review the guide from the
 `official documentation <https://docs.ros.org/en/humble/Tutorials/Advanced/Discovery-Server/Discovery-Server.html>`_.
+
+Isaac Lab also requires an RTX GPU to run, preferably an RTX 5080 of better. Please check the
+`system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`_ for more details.
+
+The policy will run on a Jetson embedded system to demonstrate hardware-in-the-loop.
+Here is a list of Jetsons that are `available <https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/>`_,
+and we recommend using the Jetson Orin NX or better.
 
 Overview
 --------
@@ -392,7 +398,7 @@ Add the jetson resource spec to the resources section:
   1. Update the `cpu`, `memory`, `storage` fields here according to however much is available on the embedded system.
   2. Update the platform here to target the embedded system.
 
-The complete workflow file and required scripts can be found `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/hil>`_.
+The complete workflow file and required scripts can be found on `Github <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/hil>`_.
 
 To submit the workflow, run the following command:
 

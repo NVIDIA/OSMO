@@ -57,6 +57,10 @@ spec:
       - name: {{ .Values.global.imagePullSecret }}
       {{- end }}
       serviceAccountName: {{ include "backend-operator.listener.serviceAccountName" . }}
+      {{- with .Values.services.backendListener.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       hostAliases:
         {{- with .Values.services.backendListener.hostAliases }}
           {{- toYaml . | nindent 8}}
@@ -66,6 +70,12 @@ spec:
       - name: backend-listener
         image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.backendListener.imageName }}:{{ .Values.global.osmoImageTag }}
         imagePullPolicy: {{ .Values.services.backendListener.imagePullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
         command:
         - backend_listener
         args:
@@ -74,6 +84,11 @@ spec:
         {{- if eq .Values.global.loginMethod "password" }}
         - --username
         - {{ .Values.global.accountUsername }}
+        - --password_file
+        - /opt/osmo/secrets/password.txt
+        {{- else if eq .Values.global.loginMethod "token" }}
+        - --token_file
+        - /opt/osmo/secrets/token.txt
         {{- end }}
         - --login_method
         - {{ .Values.global.loginMethod }}
@@ -103,27 +118,27 @@ spec:
         - {{$arg}}
         {{- end }}
         env:
-        {{- if eq .Values.global.loginMethod "password" }}
-        - name: OSMO_LOGIN_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.global.accountPasswordSecret }}
-              key: {{ .Values.global.accountPasswordSecretKey }}
-        {{- else if eq .Values.global.loginMethod "token" }}
-        - name: OSMO_LOGIN_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.global.accountTokenSecret }}
-              key: {{ .Values.global.accountTokenSecretKey }}
-        {{- end }}
         {{- with .Values.services.backendListener.extraEnvs }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
         resources:
           {{- toYaml .Values.services.backendListener.resources | nindent 10 }}
-        {{- if .Values.services.backendListener.volumeMounts }}
+        {{- if or .Values.services.backendListener.volumeMounts (eq .Values.global.loginMethod "password") (eq .Values.global.loginMethod "token") }}
         volumeMounts:
+        {{- if eq .Values.global.loginMethod "password" }}
+        - name: osmo-secret
+          mountPath: /opt/osmo/secrets/password.txt
+          subPath: password.txt
+          readOnly: true
+        {{- else if eq .Values.global.loginMethod "token" }}
+        - name: osmo-secret
+          mountPath: /opt/osmo/secrets/token.txt
+          subPath: token.txt
+          readOnly: true
+        {{- end }}
+        {{- if .Values.services.backendListener.volumeMounts }}
           {{- toYaml .Values.services.backendListener.volumeMounts | nindent 8 }}
+        {{- end }}
         {{- end }}
 
         livenessProbe:
@@ -137,7 +152,6 @@ spec:
           failureThreshold: 1
           periodSeconds: 30
           timeoutSeconds: 15
-
         # Give the container 60 seconds to startup
         startupProbe:
           exec:
@@ -158,10 +172,25 @@ spec:
       {{- with .Values.services.backendListener.extraSidecarContainers }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
-      {{- if or .Values.services.backendListener.volumes .Values.sidecars.OTEL.enabled }}
+      {{- if or .Values.services.backendListener.volumes .Values.sidecars.OTEL.enabled (eq .Values.global.loginMethod "password") (eq .Values.global.loginMethod "token") }}
       volumes:
       {{- if .Values.services.backendListener.volumes }}
         {{- toYaml .Values.services.backendListener.volumes | nindent 6 }}
+      {{- end }}
+      {{- if eq .Values.global.loginMethod "password" }}
+      - name: osmo-secret
+        secret:
+          secretName: {{ .Values.global.accountPasswordSecret }}
+          items:
+            - key: {{ .Values.global.accountPasswordSecretKey }}
+              path: password.txt
+      {{- else if eq .Values.global.loginMethod "token" }}
+      - name: osmo-secret
+        secret:
+          secretName: {{ .Values.global.accountTokenSecret }}
+          items:
+            - key: {{ .Values.global.accountTokenSecretKey }}
+              path: token.txt
       {{- end }}
       {{- if .Values.sidecars.OTEL.enabled }}
         {{- include "backend-operator.OTELVolumes" (dict "Values" .Values "Prefix" $name) | nindent 6 }}

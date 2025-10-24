@@ -68,7 +68,7 @@ WAITING_REASON_ERROR_CODE = {
     'CrashLoopBackOff': 304
 }
 
-DEFAULT_AVAILABLE_CONDITION = ['Ready']
+DEFAULT_AVAILABLE_CONDITION = {'Ready': 'True'}
 
 class WebSocketConnectionType(enum.Enum):
     """Enum class for websocket connection types."""
@@ -225,8 +225,11 @@ class UnackMessages:
 
 class ConditionsController:
     """
-    Thread-safe shared state for storing node conditions that can be updated by one thread
-    and read by multiple threads safely. Implements singleton pattern.
+    Thread-safe shared state for storing node condition rules that can be updated by one
+    thread and read by multiple threads safely. Implements singleton pattern.
+
+    Rules format: Dict[regex, regex] mapping condition.type regex to a status regex.
+    The status regex must be a combination of: True|False|Unknown (OR-ed).
     """
     _instance = None
 
@@ -238,58 +241,77 @@ class ConditionsController:
                 'ConditionsController has not been created!')
         return ConditionsController._instance
 
-    def __init__(self, initial_available_conditions: List[str]|None = None,
-                 initial_ignore_conditions: List[str]|None = None):
+    def __init__(self, initial_rules: Optional[Dict[str, str]] = None):
         """
         Initialize the shared cluster state singleton.
 
         Args:
-            initial_available_conditions: Initial list of available node conditions
-            initial_ignore_conditions: Initial list of ignore node conditions
+            initial_rules: Initial mapping of regex -> allowed statuses
         """
         if ConditionsController._instance:
             raise osmo_errors.OSMOBackendError(
                 'Only one instance of ConditionsController can exist!')
 
         self._lock = threading.RLock()
-        self._available_conditions: List[str] = initial_available_conditions \
-            or DEFAULT_AVAILABLE_CONDITION
-        self._ignore_conditions: List[str] = initial_ignore_conditions or []
+        self._rules: Dict[str, str] = {}
+        # Validate and set initial rules, enforcing non-overridable 'Ready' policy
+        self.set_rules(initial_rules or {})
         ConditionsController._instance = self
 
-    def set_conditions(self, available_conditions: List[str],
-                       ignore_conditions: List[str]) -> bool:
+    def get_rules(self) -> Dict[str, str]:
+        """Thread-safe retrieval of current rules."""
+        with self._lock:
+            # Return a shallow copy to avoid external mutation
+            return dict(self._rules)
+
+    def set_rules(self, rules: Dict[str, str]) -> None:
         """
-        Thread-safe setting of new node conditions.
+        Thread-safe replace of the entire rule set with the provided mapping.
 
         Args:
-            available_conditions: New list of available node conditions
-            ignore_conditions: New list of ignore node conditions
+            rules: Mapping of condition.type regex -> status regex (True|False|Unknown combos)
+        """
+        # Enforce: 'Ready' can only be set to 'True' if explicitly provided
+        for pattern, status_regex in rules.items():
+            try:
+                if re.match(pattern, 'Ready') and status_regex != 'True':
+                    raise osmo_errors.OSMOBackendError(
+                        "Overriding 'Ready' rule is not allowed; only 'True' is permitted")
+            except re.error:
+                # Ignore invalid regex here; other logic already guards re errors during matching
+                continue
+
+        with self._lock:
+            self._rules = dict(rules)
+
+    def get_effective_rules(self, default_rules: Dict[str, str]) -> List[Tuple[str, str]]:
+        """
+        Build an ordered list of (pattern, status_regex) combining current rules and
+        default rules. Provided rules take precedence; defaults are added only if no
+        provided rule matches the default condition type.
+
+        Args:
+            default_rules: Mapping of condition type (literal) -> status regex
 
         Returns:
-            bool: True if conditions were changed, False if they were the same
+            List of (pattern, status_regex) pairs to evaluate in order.
         """
         with self._lock:
-            conditions_changed = (
-                self._available_conditions != available_conditions or
-                self._ignore_conditions != ignore_conditions
-            )
+            effective: List[Tuple[str, str]] = []
+            # First, include all provided rules as-is
+            for pattern, status_regex in self._rules.items():
+                effective.append((pattern, status_regex))
 
-            if conditions_changed:
-                self._available_conditions = available_conditions.copy()
-                self._ignore_conditions = ignore_conditions.copy()
+        # Then, add defaults for any default condition type not matched by provided patterns
+        for cond_type, status_regex in default_rules.items():
+            try:
+                has_override = any(re.match(pattern, cond_type) for pattern, _ in effective)
+            except re.error:
+                has_override = False
+            if not has_override:
+                effective.append((f'^{re.escape(cond_type)}$', status_regex))
 
-            return conditions_changed
-
-    def get_conditions(self) -> Tuple[List[str], List[str]]:
-        """
-        Thread-safe retrieval of current node conditions.
-
-        Returns:
-            Tuple[List[str], List[str]]: (available_conditions, ignore_conditions)
-        """
-        with self._lock:
-            return self._available_conditions.copy(), self._ignore_conditions.copy()
+        return effective
 
 
 def error_msg_container_name(container_status_name: str):
@@ -394,36 +416,26 @@ def get_container_failure_message(pod: kubernetes.client.models.v1_pod.V1Pod) ->
 
 def is_node_available(node,
                       conditions_controller: ConditionsController) -> bool:
-    # Get current conditions from shared state
-    available_conditions, ignore_conditions = conditions_controller.get_conditions()
-    # These are the specific types where status == 'True'
-    true_conditions = DEFAULT_AVAILABLE_CONDITION + available_conditions
-
+    # Get current rules from shared state
+    effective_rules: List[Tuple[str, str]] = \
+        conditions_controller.get_effective_rules(DEFAULT_AVAILABLE_CONDITION)
     for condition in node.status.conditions:
-        status_should_be_true = False
-        skip_condition = False
-        for ignore_condition in ignore_conditions:
-            if ignore_condition.endswith('*'):
-                if condition.type.startswith(ignore_condition[:-1]):
-                    skip_condition = True
-                    break
-            elif condition.type == ignore_condition:
-                skip_condition = True
-                break
-        if skip_condition:
-            continue
-
-        for true_condition in true_conditions:
-            if true_condition.endswith('*'):
-                if condition.type.startswith(true_condition[:-1]):
-                    status_should_be_true = True
-                    break
-            elif condition.type == true_condition:
-                status_should_be_true = True
-                break
-        if status_should_be_true and condition.status != 'True':
-            return False
-        elif not status_should_be_true and condition.status != 'False':
+        matched_any_rule = False
+        allowed_by_any_rule = False
+        for pattern, status_regex in effective_rules:
+            try:
+                if re.match(pattern, condition.type):
+                    matched_any_rule = True
+                    # Anchor the status regex to full match
+                    if re.match(f'^(?:{status_regex})$', condition.status or ''):
+                        allowed_by_any_rule = True
+                        break
+            except re.error:
+                # Invalid regex should be ignored
+                continue
+        # If at least one rule matched this condition type but none allowed the status,
+        # the node is not available.
+        if matched_any_rule and not allowed_by_any_rule:
             return False
 
     return not node.spec.unschedulable
@@ -1454,13 +1466,22 @@ def get_service_control_updates(
         conditions_controller: ConditionsController
     ):
     """
-    Watches for Control messages that contain updated BackendNodeConditions.
+    Watches and processes control messages for backend node condition updates sent from the service.
 
-    To send node conditions updates from the service, send a message with this format:
-    {
-        "additional_node_conditions": ["condition1", "condition2"],
-        "ignore_node_conditions": ["ignore1", "ignore2"]
-    }
+    Listens on the control receive queue for messages that may contain updated node condition rules,
+    as provided by the service.
+    Upon receiving such a message, updates the runtime node condition rules in the
+    conditions_controller and applies the new rules to all nodes by updating the resource database,
+    and logs the update.
+
+    Args:
+        progress_writer: ProgressWriter instance for reporting status.
+        control_receive_queue: Callback to receive control messages from the queue.
+        node_send_queue: Callback for sending messages to node send queue.
+        event_send_queue: Callback for sending messages to event send queue.
+        api: Kubernetes CoreV1Api instance.
+        node_cache: LRU TTL cache for node data.
+        conditions_controller: ConditionsController instance managing node condition rules.
     """
     while True:
         try:
@@ -1479,18 +1500,31 @@ def get_service_control_updates(
             message_option = backend_messages.MessageOptions(**message_options)
 
             if message_option.node_conditions:
-                # Handle node conditions update messages
-                conditions_controller.set_conditions(
-                    available_conditions=message_option.node_conditions.available_conditions or [],
-                    ignore_conditions=message_option.node_conditions.ignore_conditions or [])
+                # Handle node conditions update messages using rules directly
+                try:
+                    new_rules: Dict[str, str] = getattr(message_option.node_conditions,
+                                                        'rules', {}) or {}
+                except AttributeError:
+                    new_rules = {}
+
+                # Ensure default Ready => True exists if no rule matches 'Ready'
+                try:
+                    has_ready_override = any(
+                        re.match(pattern, 'Ready') for pattern in new_rules.keys())
+                except re.error:
+                    has_ready_override = False
+                if not has_ready_override:
+                    new_rules['^Ready$'] = 'True'
+
+                # Apply rules in bulk
+                conditions_controller.set_rules(new_rules)
+
                 update_resource_database_to_service(node_send_queue, event_send_queue,
                                                     api, node_cache, conditions_controller,
                                                     progress_writer)
                 helpers.send_log_through_queue(
                     backend_messages.LoggingType.INFO,
-                    'Updated resource database with node conditions - Updated: '
-                    f'{message_option.node_conditions.available_conditions}, '
-                    f'Ignore: {message_option.node_conditions.ignore_conditions}',
+                    'Updated resource database with node condition rules',
                     event_send_queue)
             else:
                 helpers.send_log_through_queue(
@@ -1664,25 +1698,26 @@ async def main():
         except Exception as e:  # pylint: disable=broad-except
             logging.warning('Failed to retrieve backend conditions from service: %s', e)
 
+    # Initialize shared ConditionsController with rules (singleton)
+    init_rules: Dict[str, str] = {}
     if backend_config_payload:
-        # Extract node conditions from the backend config payload
         node_conditions = backend_config_payload.get('node_conditions', {})
-        additional_conditions = node_conditions.get('available_conditions', [])
-        ignore_conditions = node_conditions.get('ignore_conditions', [])
-        logging.info(
-            'Retrieved backend conditions from service - available: %s, ignore: %s',
-            additional_conditions, ignore_conditions
-        )
+        # Expect rules mapping directly
+        init_rules = node_conditions.get('rules', {}) or {}
+        logging.info('Retrieved backend condition rules from service: %s', init_rules)
     else:
-        # Fallback to empty conditions if service is unavailable
-        logging.warning(
-            'Failed to retrieve backend conditions from service, using empty conditions'
-        )
-        additional_conditions = DEFAULT_AVAILABLE_CONDITION + []
-        ignore_conditions = []
+        logging.warning('Failed to retrieve backend condition rules from service; using none')
 
-    # Initialize shared ConditionsController with conditions (singleton)
-    conditions_controller = ConditionsController(additional_conditions, ignore_conditions)
+    # Ensure default Ready => True exists if no provided rule matches 'Ready'
+    try:
+        has_ready_override = any(
+            re.match(pattern, 'Ready') for pattern in init_rules.keys())
+    except re.error:
+        has_ready_override = False
+    if not has_ready_override:
+        init_rules['^Ready$'] = 'True'
+
+    conditions_controller = ConditionsController(init_rules)
 
     cluster_api = get_thread_local_api(config)
 
@@ -1726,11 +1761,16 @@ async def main():
     event_loop = asyncio.get_event_loop()
 
     # Create progress writers
-    control_progress_writer = progress.ProgressWriter(config.control_progress_file)
-    event_progress_writer = progress.ProgressWriter(config.event_progress_file)
-    pod_progress_writer = progress.ProgressWriter(config.pod_progress_file)
-    node_progress_writer = progress.ProgressWriter(config.node_progress_file)
-    websocket_progress_writer = progress.ProgressWriter(config.websocket_progress_file)
+    control_progress_writer = progress.ProgressWriter(
+        os.path.join(config.progress_folder_path, config.control_progress_file))
+    event_progress_writer = progress.ProgressWriter(
+        os.path.join(config.progress_folder_path, config.event_progress_file))
+    pod_progress_writer = progress.ProgressWriter(
+        os.path.join(config.progress_folder_path, config.pod_progress_file))
+    node_progress_writer = progress.ProgressWriter(
+        os.path.join(config.progress_folder_path, config.node_progress_file))
+    websocket_progress_writer = progress.ProgressWriter(
+        os.path.join(config.progress_folder_path, config.websocket_progress_file))
     control_progress_writer.report_progress()
     event_progress_writer.report_progress()
     pod_progress_writer.report_progress()

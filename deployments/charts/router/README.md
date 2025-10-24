@@ -62,6 +62,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `services.service.imageName` | Router Docker image name | `router` |
 | `services.service.imagePullPolicy` | Image pull policy | `Always` |
 | `services.service.serviceName` | Kubernetes service name | `osmo-router` |
+| `services.service.initContainers` | Init containers for router service | `[]` |
 | `services.service.hostname` | Hostname for ingress (required) | `""` |
 | `services.service.webserverEnabled` | Enable wildcard subdomain support | `false` |
 | `services.service.extraArgs` | Additional command line arguments | `[]` |

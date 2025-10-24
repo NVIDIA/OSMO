@@ -34,7 +34,7 @@ from run.localstack import (
     LOCALSTACK_REGION
 )
 from run.print_next_steps import print_next_steps
-from run.run_command import run_command_with_logging
+from run.run_command import run_command_with_logging, login_osmo, logout_osmo
 from src.lib.utils import logging as logging_utils
 
 logging.basicConfig(format='%(message)s')
@@ -346,7 +346,13 @@ def _update_backend_config(mode: str) -> None:
             router_address = 'ws://ingress-nginx-controller.ingress-nginx.svc.cluster.local'
 
         backend_config = {
-            'router_address': router_address
+            'router_address': router_address,
+            'scheduler_settings': {
+                'scheduler_type': 'kai',
+                'scheduler_name': 'kai-scheduler',
+                'coscheduling': True,
+                'scheduler_timeout': 30
+            }
         }
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -356,8 +362,8 @@ def _update_backend_config(mode: str) -> None:
         process = run_command_with_logging([
             'bazel', 'run', '@osmo_workspace//src/cli', '--', 'config', 'update', 'BACKEND',
             'default', '--file', backend_file,
-            '--description', 'Update backend router address'
-        ], 'Updating backend router address')
+            '--description', 'Update backend configs'
+        ], 'Updating backend configs')
 
         try:
             os.unlink(backend_file)
@@ -368,7 +374,7 @@ def _update_backend_config(mode: str) -> None:
             logger.info('✅ Backend configuration updated successfully in %.2fs',
                         process.get_elapsed_time())
         else:
-            logger.warning('⚠️  Warning: Failed to update backend router address')
+            logger.warning('⚠️  Warning: Failed to update backend configs')
             logger.debug('   Check stderr: %s', process.stderr_file)
 
     except OSError as e:
@@ -460,37 +466,45 @@ def main():
         detected_platform = detect_platform()
         logger.info('📱 Detected platform: %s', detected_platform)
 
-        _update_workflow_config(
-            args.container_registry,
-            args.container_registry_username,
-            args.container_registry_password,
-            args.object_storage_endpoint,
-            args.object_storage_access_key_id,
-            args.object_storage_access_key,
-            args.object_storage_region,
-            args.image_location,
-            args.image_tag)
+        login_osmo(args.mode)
 
-        _update_pod_template_config(detected_platform, args.mode)
-        dataset_path = args.dataset_path \
-            if args.dataset_path else posixpath.join(args.object_storage_endpoint, 'datasets')
-        _update_dataset_config(dataset_path)
-        _update_service_config(args.mode)
-        _update_backend_config(args.mode)
-        _set_default_pool()
+        try:
+            _update_workflow_config(
+                args.container_registry,
+                args.container_registry_username,
+                args.container_registry_password,
+                args.object_storage_endpoint,
+                args.object_storage_access_key_id,
+                args.object_storage_access_key,
+                args.object_storage_region,
+                args.image_location,
+                args.image_tag)
 
-        total_time = time.time() - start_time
-        logger.info('\n🎉 OSMO configuration updates complete in %.2fs!', total_time)
-        logger.info('=' * 50)
+            _update_pod_template_config(detected_platform, args.mode)
+            dataset_path = args.dataset_path \
+                if args.dataset_path else posixpath.join(args.object_storage_endpoint, 'datasets')
+            _update_dataset_config(dataset_path)
+            _update_service_config(args.mode)
+            _update_backend_config(args.mode)
+            _set_default_pool()
 
-        host_ip = None
-        port = None
-        if args.mode == 'bazel':
-            host_ip = get_host_ip()
-            port = 8000
+            logout_osmo()
 
-        print_next_steps(mode=args.mode, show_start_backend=False, show_update_configs=False,
-                         host_ip=host_ip, port=port)
+            total_time = time.time() - start_time
+            logger.info('\n🎉 OSMO configuration updates complete in %.2fs!', total_time)
+            logger.info('=' * 50)
+
+            host_ip = None
+            port = None
+            if args.mode == 'bazel':
+                host_ip = get_host_ip()
+                port = 8000
+
+            print_next_steps(mode=args.mode, show_start_backend=False, show_update_configs=False,
+                             host_ip=host_ip, port=port)
+        except Exception:
+            logout_osmo()
+            raise
     except Exception as e:
         logger.error('❌ Error updating configurations: %s', e)
         raise SystemExit(1) from e

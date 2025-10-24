@@ -162,3 +162,75 @@ def setup_osmo_namespace(
         raise RuntimeError(f'Unexpected error setting up namespace: {e}') from e
 
 
+def setup_kai_scheduler() -> None:
+    """Set up KAI scheduler using helm."""
+    logger.info('🔧 Setting up KAI scheduler...')
+
+    # Check if KAI scheduler is already installed
+    process = run_command_with_logging([
+        'helm', 'list', '-n', 'kai-scheduler', '--output', 'json'
+    ], 'Checking KAI scheduler installation')
+
+    if not process.has_failed():
+        try:
+            with open(process.stdout_file, 'r', encoding='utf-8') as f:
+                releases = json.loads(f.read().strip() or '[]')
+
+            if any(release.get('name') == 'kai-scheduler' for release in releases):
+                logger.info('✅ KAI scheduler already installed, skipping setup')
+                return
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug('   Could not parse helm list output: %s', e)
+            # Continue with installation if we can't determine status
+
+    # Create temporary directory for KAI scheduler setup
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            # Create kai-selectors.yaml configuration file
+            kai_config = """scheduler:
+  additionalArgs:
+  - --default-staleness-grace-period=-1s  # Disable stalegangeviction
+"""
+
+            # Write the configuration to a temporary file
+            config_file = os.path.join(tmpdir, 'kai-selectors.yaml')
+            with open(config_file, 'w', encoding='utf-8') as f:
+                f.write(kai_config)
+
+            # Fetch the KAI scheduler helm chart to temp directory
+            logger.info('   Fetching KAI scheduler helm chart...')
+            chart_file = os.path.join(tmpdir, 'kai-scheduler-v0.5.5.tgz')
+            process = run_command_with_logging([
+                'helm', 'fetch', 'oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler',
+                '--version', 'v0.5.5',
+                '--destination', tmpdir
+            ], 'Fetching KAI scheduler chart')
+
+            if process.has_failed():
+                logger.error('❌ Error: Failed to fetch KAI scheduler chart')
+                logger.error('   Check stderr: %s', process.stderr_file)
+                raise RuntimeError('Failed to fetch KAI scheduler chart')
+
+            # Install KAI scheduler using helm
+            logger.info('   Installing KAI scheduler...')
+            process = run_command_with_logging([
+                'helm', 'upgrade', '--install', 'kai-scheduler', chart_file,
+                '--create-namespace', '-n', 'kai-scheduler',
+                '--values', config_file
+            ], 'Installing KAI scheduler')
+
+            if not process.has_failed():
+                logger.info('✅ KAI scheduler installed successfully in %.2fs',
+                            process.get_elapsed_time())
+            else:
+                logger.error('❌ Error: Failed to install KAI scheduler')
+                logger.error('   Check output files for details:')
+                logger.error('   - stdout: %s', process.stdout_file)
+                logger.error('   - stderr: %s', process.stderr_file)
+                raise RuntimeError('Failed to install KAI scheduler')
+
+        except OSError as e:
+            logger.error('❌ Unexpected error setting up KAI scheduler: %s', e)
+            raise RuntimeError(f'Unexpected error setting up KAI scheduler: {e}') from e
+
+

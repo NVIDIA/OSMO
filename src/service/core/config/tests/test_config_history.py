@@ -81,7 +81,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Test first service config update
         first_service_config = {
             'cli_config': {
-                'cli_name': 'test-cli',
+                'latest_version': 'test-cli',
                 'min_supported_version': '1.0.0',
                 'credential': {
                     'endpoint': 's3://test-bucket',
@@ -104,7 +104,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Test second service config update
         second_service_config = {
             'cli_config': {
-                'cli_name': 'updated-cli',
+                'latest_version': 'updated-cli',
                 'min_supported_version': '2.0.0',
                 'credential': {
                     'endpoint': 's3://new-bucket',
@@ -134,7 +134,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=first_tags,
         )
         config = history['configs'][-2]['data']
-        self.assertEqual(config['cli_config']['cli_name'], 'test-cli')
+        self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '1.0.0')
         self._verify_history_entry(
@@ -145,7 +145,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=second_tags,
         )
         config = history['configs'][-1]['data']
-        self.assertEqual(config['cli_config']['cli_name'], 'updated-cli')
+        self.assertEqual(config['cli_config']['latest_version'], 'updated-cli')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '2.0.0')
 
@@ -171,7 +171,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=rollback_tags,
         )
         config = history['configs'][-1]['data']
-        self.assertEqual(config['cli_config']['cli_name'], 'test-cli')
+        self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
         self.assertEqual(config['cli_config']['min_supported_version'], '1.0.0')
         self.assertEqual(config['cli_config']['credential']['endpoint'], 's3://test-bucket')
         self.assertEqual(config['cli_config']['credential']['access_key_id'], 'test-key')
@@ -1036,7 +1036,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Create multiple service config updates to have multiple revisions
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'cli_name': 'test-cli-v1'}},
+                configs_dict={'cli_config': {'latest_version': 'test-cli-v1'}},
                 description='First service update',
                 tags=['first-update']
             ),
@@ -1045,7 +1045,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'cli_name': 'test-cli-v2'}},
+                configs_dict={'cli_config': {'latest_version': 'test-cli-v2'}},
                 description='Second service update',
                 tags=['second-update']
             ),
@@ -1054,7 +1054,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'cli_name': 'test-cli-v3'}},
+                configs_dict={'cli_config': {'latest_version': 'test-cli-v3'}},
                 description='Third service update',
                 tags=['third-update']
             ),
@@ -1169,7 +1169,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         initial_tags = ['initial-tag', 'service-tag']
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'cli_name': 'test-cli-v1'}},
+                configs_dict={'cli_config': {'latest_version': 'test-cli-v1'}},
                 description='Initial service update',
                 tags=initial_tags
             ),

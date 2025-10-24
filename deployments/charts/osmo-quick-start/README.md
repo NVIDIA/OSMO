@@ -54,15 +54,19 @@ This chart installs and configures:
 | `global.objectStorage.accessKeyId` | Object storage access key ID for authentication | `"test"` |
 | `global.objectStorage.accessKey` | Object storage access key for authentication | `"test"` |
 | `global.objectStorage.region` | Object storage region where the bucket is located | `"us-east-1"` |
+| `global.objectStorage.awsEndpointUrlS3` | AWS endpoint URL (changed for localstack-s3) | `"http://localstack-s3.osmo:4566"` |
 
 ### Ingress NGINX Configuration
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `ingress-nginx.fullnameOverride` | Override the full name of ingress-nginx resources | `quick-start` |
+| `ingress-nginx.controller.name` | Controller name suffix (empty string removes the suffix) | `""` |
 | `ingress-nginx.controller.nodeSelector.node_group` | Node group for ingress controller | `ingress` |
 | `ingress-nginx.controller.nodeSelector."kubernetes.io/arch"` | Architecture constraint for ingress controller | `amd64` |
 | `ingress-nginx.controller.service.type` | Service type for ingress controller | `NodePort` |
 | `ingress-nginx.controller.service.nodePorts.http` | HTTP NodePort for external access | `30080` |
+| `ingress-nginx.controller.extraInitContainers` | Init containers for ingress controller | Wait for osmo-ui (web UI service) |
 
 
 ### OSMO Service Configuration
@@ -72,28 +76,41 @@ This chart installs and configures:
 | `service.services.configFile.enabled` | Enable external configuration file loading | `true` |
 | `service.services.configFile.path` | Path to the MEK configuration file | `/home/osmo/config/mek.yaml` |
 | `service.services.postgres.enabled` | Enable PostgreSQL deployment on Kubernetes | `true` |
+| `service.services.postgres.imagePullPolicy` | Kubernetes image pull policy for PostgreSQL | `IfNotPresent` |
 | `service.services.postgres.storageClassName` | Storage class name for PostgreSQL persistent volume | `standard` |
 | `service.services.postgres.password` | PostgreSQL password | `"osmo"` |
 | `service.services.postgres.nodeSelector.node_group` | Node group for PostgreSQL pods | `data` |
 | `service.services.redis.enabled` | Enable Redis deployment on Kubernetes | `true` |
+| `service.services.redis.imagePullPolicy` | Kubernetes image pull policy for Redis | `IfNotPresent` |
 | `service.services.redis.storageClassName` | Storage class name for Redis persistent volume | `standard` |
 | `service.services.redis.tlsEnabled` | Enable TLS for Redis connections | `false` |
 | `service.services.redis.nodeSelector.node_group` | Node group for Redis pods | `data` |
 | `service.services.localstackS3.enabled` | Enable Localstack S3 deployment on Kubernetes | `true` |
+| `service.services.localstackS3.imagePullPolicy` | Kubernetes image pull policy for Localstack S3 | `IfNotPresent` |
 | `service.services.localstackS3.buckets` | Creates the `osmo` bucket in Localstack S3 | `["osmo"]` |
 | `service.services.localstackS3.persistence.enabled` | Enable Localstack S3 persistence | `true` |
 | `service.services.localstackS3.persistence.hostPath` | Path to Localstack S3 persistence on the host | `/var/lib/localstack` |
 | `service.services.localstackS3.nodeSelector.node_group` | Node group for Localstack S3 pods | `data` |
-| `service.services.service.hostname` | Hostname for OSMO service ingress | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
+| `service.services.service.hostname` | Hostname for OSMO service ingress | `quick-start.osmo` |
+| `service.services.service.imagePullPolicy` | Kubernetes image pull policy for the API service | `IfNotPresent` |
 | `service.services.service.scaling.minReplicas` | Minimum number of service replicas | `1` |
 | `service.services.service.scaling.maxReplicas` | Maximum number of service replicas | `1` |
 | `service.services.service.ingress.sslEnabled` | Enable SSL for service ingress | `false` |
+| `service.services.service.initContainers` | Init containers for API service | Wait for postgres, redis, and localstack-s3 |
+| `service.services.worker.imagePullPolicy` | Kubernetes image pull policy for the worker service | `IfNotPresent` |
 | `service.services.worker.scaling.minReplicas` | Minimum number of worker replicas | `1` |
 | `service.services.worker.scaling.maxReplicas` | Maximum number of worker replicas | `1` |
+| `service.services.worker.initContainers` | Init containers for worker service | Wait for postgres, redis, and localstack-s3 |
+| `service.services.logger.imagePullPolicy` | Kubernetes image pull policy for the logger service | `IfNotPresent` |
 | `service.services.logger.scaling.minReplicas` | Minimum number of logger service replicas | `1` |
 | `service.services.logger.scaling.maxReplicas` | Maximum number of logger service replicas | `1` |
+| `service.services.logger.initContainers` | Init containers for logger service | Wait for postgres, redis, and localstack-s3 |
+| `service.services.agent.imagePullPolicy` | Kubernetes image pull policy for the agent service | `IfNotPresent` |
 | `service.services.agent.scaling.minReplicas` | Minimum number of agent service replicas | `1` |
 | `service.services.agent.scaling.maxReplicas` | Maximum number of agent service replicas | `1` |
+| `service.services.agent.initContainers` | Init containers for agent service | Wait for postgres, redis, and localstack-s3 |
+| `service.services.delayedJobMonitor.imagePullPolicy` | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent` |
+| `service.services.delayedJobMonitor.initContainers` | Init containers for delayed job monitor service | Wait for postgres, redis, and localstack-s3 |
 | `service.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
 | `service.sidecars.logAgent.enabled` | Enable log agent sidecar for centralized log collection | `false` |
 | `service.sidecars.logAgent.logrotate.enabled` | Enable automatic log rotation | `false` |
@@ -104,8 +121,9 @@ This chart installs and configures:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `web-ui.services.ui.initContainers` | Init containers for UI service | Wait for osmo-service |
 | `web-ui.services.ui.skipAuth` | Skip authentication for UI service | `true` |
-| `web-ui.services.ui.hostname` | Hostname for UI service | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
+| `web-ui.services.ui.hostname` | Hostname for UI service | `quick-start.osmo` |
 | `web-ui.services.ui.ingress.sslEnabled` | Enable SSL for UI ingress | `false` |
 | `web-ui.services.ui.extraEnvs` | Additional environment variables for the UI service | `[{name: NEXT_PUBLIC_OSMO_SSL_ENABLED, value: false}]` |
 | `web-ui.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
@@ -116,10 +134,12 @@ This chart installs and configures:
 |-----------|-------------|---------|
 | `router.services.configFile.enabled` | Enable external configuration file loading | `true` |
 | `router.services.configFile.path` | Path to the MEK configuration file | `/home/osmo/config/mek.yaml` |
-| `router.services.service.hostname` | Hostname for router service | `osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
+| `router.services.service.hostname` | Hostname for router service | `quick-start.osmo` |
+| `router.services.service.imagePullPolicy` | Kubernetes image pull policy for the router service | `IfNotPresent` |
 | `router.services.service.scaling.minReplicas` | Minimum number of router service replicas | `1` |
 | `router.services.service.scaling.maxReplicas` | Maximum number of router service replicas | `1` |
 | `router.services.service.ingress.sslEnabled` | Enable SSL for router ingress | `false` |
+| `router.services.service.initContainers` | Init containers for router service | Wait for postgres and redis |
 | `router.services.postgres.password` | PostgreSQL password for router | `"osmo"` |
 | `router.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
 | `router.sidecars.logAgent.enabled` | Enable log agent sidecar for centralized log collection | `false` |
@@ -128,17 +148,21 @@ This chart installs and configures:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `backend-operator.global.serviceUrl` | OSMO service URL for backend operator | `http://osmo-ingress-nginx-controller.osmo.svc.cluster.local` |
+| `backend-operator.global.serviceUrl` | OSMO service URL for backend operator | `http://quick-start.osmo` |
 | `backend-operator.global.agentNamespace` | Kubernetes namespace for backend operator | `osmo` |
 | `backend-operator.global.backendNamespace` | Kubernetes namespace for backend workloads | `default` |
 | `backend-operator.global.backendTestNamespace` | Kubernetes namespace for backend test workloads | `osmo-test` |
 | `backend-operator.global.backendName` | Backend name identifier | `default` |
 | `backend-operator.global.accountTokenSecret` | Secret name containing backend operator authentication token | `backend-operator-token` |
 | `backend-operator.global.loginMethod` | Authentication method for backend operator | `token` |
+| `backend-operator.services.backendListener.imagePullPolicy` | Kubernetes image pull policy for the backend listener service | `IfNotPresent` |
+| `backend-operator.services.backendListener.initContainers` | Init containers for backend listener service | Wait for quick-start ingress |
 | `backend-operator.services.backendListener.resources.requests.cpu` | CPU resource requests for backend listener container | `"125m"` |
 | `backend-operator.services.backendListener.resources.requests.memory` | Memory resource requests for backend listener container | `"128Mi"` |
 | `backend-operator.services.backendListener.resources.limits.cpu` | CPU resource limits for backend listener container | `"250m"` |
 | `backend-operator.services.backendListener.resources.limits.memory` | Memory resource limits for backend listener container | `"256Mi"` |
+| `backend-operator.services.backendWorker.imagePullPolicy` | Kubernetes image pull policy for the backend worker service | `IfNotPresent` |
+| `backend-operator.services.backendWorker.initContainers` | Init containers for backend worker service | Wait for quick-start ingress |
 | `backend-operator.services.backendWorker.resources.requests.cpu` | CPU resource requests for backend worker container | `"125m"` |
 | `backend-operator.services.backendWorker.resources.requests.memory` | Memory resource requests for backend worker container | `"128Mi"` |
 | `backend-operator.services.backendWorker.resources.limits.cpu` | CPU resource limits for backend worker container | `"250m"` |

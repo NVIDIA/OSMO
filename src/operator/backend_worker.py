@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 import traceback
@@ -101,7 +102,8 @@ class BackendWorker():
     """
     def __init__(self, config: objects.BackendWorkerConfig):
         self.config = config
-        self._progress_writer = progress.ProgressWriter(config.worker_job_progress_file)
+        self._progress_writer = progress.ProgressWriter(
+            os.path.join(config.progress_folder_path, config.worker_job_progress_file))
         try:
             self._progress_iter_freq = common.to_timedelta(config.progress_iter_frequency)
         except ValueError:
@@ -196,7 +198,8 @@ class WebsocketLogHandler(logging.StreamHandler):
 async def receive_messages(websocket,
                            config: objects.BackendWorkerConfig,
                            job_queue: asyncio.Queue):
-    progress_writer = progress.ProgressWriter(config.worker_heartbeat_progress_file)
+    progress_writer = progress.ProgressWriter(
+        os.path.join(config.progress_folder_path, config.worker_heartbeat_progress_file))
     while True:
         value = await websocket.recv()
         service_job = json.loads(value)

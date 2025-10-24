@@ -46,9 +46,14 @@ export const WorkflowTableRowAction = ({
     <button
       className={`btn ${selected ? "btn-primary" : "btn-secondary"} table-action`}
       ref={buttonRef}
-      onClick={() => {
-        updateUrl({ workflow: name, ...extraParams });
+      onClick={(event) => {
+        if (event.ctrlKey) {
+          window.open(`/workflows/${name}`, "_blank");
+        } else {
+          updateUrl({ workflow: name, ...extraParams });
+        }
       }}
+      title={`${name} (Ctrl+Click to open in new tab)`}
     >
       {formatForWrapping(name)}
     </button>

@@ -69,13 +69,24 @@ global:
     ## Object storage region where the bucket is located
     ##
     region: "us-east-1"
+    ## AWS endpoint URL
+    ##
+    ## Changed for localstack-s3
+    ##
+    awsEndpointUrlS3: "http://localstack-s3.osmo:4566"
 
 ## Ingress NGINX Controller configuration
 ##
 ingress-nginx:
+  ## Override the full name of the ingress-nginx resources
+  ##
+  fullnameOverride: quick-start
   ## Controller configuration for traffic routing
   ##
   controller:
+    ## Set controller name to empty string to remove the -controller suffix
+    ##
+    name: ""
     ## Node selector constraints for ingress controller pod scheduling
     ##
     nodeSelector:
@@ -97,6 +108,22 @@ ingress-nginx:
         ## HTTP port for external access to ingress controller
         ##
         http: 30080
+    ## Init containers for ingress controller
+    ##
+    ## Wait for the web UI to be up before starting ingress controller
+    ##
+    extraInitContainers:
+    - name: wait-for-web-ui
+      image: busybox:1.37.0
+      command:
+      - sh
+      - -c
+      - |
+        until nc -z osmo-ui 80; do
+          echo "Waiting for web-ui..."
+          sleep 2
+        done
+        echo "Web UI is ready"
 
 ## OSMO main service configuration
 ##
@@ -120,6 +147,9 @@ service:
       ## Enable PostgreSQL deployment on Kubernetes
       ##
       enabled: true
+      ## Kubernetes image pull policy for PostgreSQL
+      ##
+      imagePullPolicy: IfNotPresent
       ## Storage class name for persistent volume
       ##
       storageClassName: standard
@@ -139,6 +169,9 @@ service:
       ## Enable Redis deployment on Kubernetes
       ##
       enabled: true
+      ## Kubernetes image pull policy for Redis
+      ##
+      imagePullPolicy: IfNotPresent
       ## Storage class name for persistent volume
       ##
       storageClassName: standard
@@ -158,6 +191,9 @@ service:
       ## Enable Localstack S3 Object storage deployment on Kubernetes
       ##
       enabled: true
+      ## Kubernetes image pull policy for Localstack S3
+      ##
+      imagePullPolicy: IfNotPresent
       ## Buckets for the Localstack S3 Object storage
       ##
       buckets: ["osmo"]
@@ -178,7 +214,10 @@ service:
     service:
       ## Hostname for the OSMO service ingress
       ##
-      hostname: osmo-ingress-nginx-controller.osmo.svc.cluster.local
+      hostname: quick-start.osmo
+      ## Kubernetes image pull policy for the API service
+      ##
+      imagePullPolicy: IfNotPresent
       ## Horizontal Pod Autoscaler (HPA) configuration for the API service
       ##
       scaling:
@@ -194,11 +233,49 @@ service:
         ## Enable SSL/TLS encryption for the ingress
         ##
         sslEnabled: false
+      ## Init containers for API service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+      - name: wait-for-localstack-s3
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z localstack-s3 4566; do
+            echo "Waiting for localstack-s3..."
+            sleep 2
+          done
+          echo "Localstack S3 is ready"
       ## Additional environment variables for the API service
       ##
       extraEnv:
       - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3:4566
+        value: http://localstack-s3.osmo:4566
       - name: AWS_S3_FORCE_PATH_STYLE
         value: "true"
       - name: AWS_DEFAULT_REGION
@@ -209,6 +286,9 @@ service:
     ## Worker service configuration for background job processing
     ##
     worker:
+      ## Kubernetes image pull policy for the worker service
+      ##
+      imagePullPolicy: IfNotPresent
       ## Horizontal Pod Autoscaler (HPA) configuration for workers
       ##
       scaling:
@@ -218,11 +298,49 @@ service:
         ## Maximum number of worker replicas
         ##
         maxReplicas: 1
+      ## Init containers for worker service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+      - name: wait-for-localstack-s3
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z localstack-s3 4566; do
+            echo "Waiting for localstack-s3..."
+            sleep 2
+          done
+          echo "Localstack S3 is ready"
       ## Additional environment variables for the worker service
       ##
       extraEnv:
       - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3:4566
+        value: http://localstack-s3.osmo:4566
       - name: AWS_S3_FORCE_PATH_STYLE
         value: "true"
       - name: AWS_DEFAULT_REGION
@@ -231,6 +349,9 @@ service:
     ## Logger service configuration for log collection and processing
     ##
     logger:
+      ## Kubernetes image pull policy for the logger service
+      ##
+      imagePullPolicy: IfNotPresent
       ## Horizontal Pod Autoscaler (HPA) configuration for the logger service
       ##
       scaling:
@@ -240,11 +361,49 @@ service:
         ## Maximum number of logger service replicas
         ##
         maxReplicas: 1
+      ## Init containers for logger service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+      - name: wait-for-localstack-s3
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z localstack-s3 4566; do
+            echo "Waiting for localstack-s3..."
+            sleep 2
+          done
+          echo "Localstack S3 is ready"
       ## Additional environment variables for the logger service
       ##
       extraEnv:
       - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3:4566
+        value: http://localstack-s3.osmo:4566
       - name: AWS_S3_FORCE_PATH_STYLE
         value: "true"
       - name: AWS_DEFAULT_REGION
@@ -253,6 +412,9 @@ service:
     ## Agent service configuration for client communication and management
     ##
     agent:
+      ## Kubernetes image pull policy for the agent service
+      ##
+      imagePullPolicy: IfNotPresent
       ## Horizontal Pod Autoscaler (HPA) configuration for the agent service
       ##
       scaling:
@@ -262,15 +424,98 @@ service:
         ## Maximum number of agent service replicas
         ##
         maxReplicas: 1
+      ## Init containers for agent service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+      - name: wait-for-localstack-s3
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z localstack-s3 4566; do
+            echo "Waiting for localstack-s3..."
+            sleep 2
+          done
+          echo "Localstack S3 is ready"
       ## Additional environment variables for the agent service
       ##
       extraEnv:
       - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3:4566
+        value: http://localstack-s3.osmo:4566
       - name: AWS_S3_FORCE_PATH_STYLE
         value: "true"
       - name: AWS_DEFAULT_REGION
         value: us-east-1
+
+    ## Delayed job monitor service configuration
+    ##
+    delayedJobMonitor:
+      ## Kubernetes image pull policy for the delayed job monitor service
+      ##
+      imagePullPolicy: IfNotPresent
+      ## Init containers for delayed job monitor service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+      - name: wait-for-localstack-s3
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z localstack-s3 4566; do
+            echo "Waiting for localstack-s3..."
+            sleep 2
+          done
+          echo "Localstack S3 is ready"
 
   ## Configuration for service sidecar containers
   ##
@@ -315,12 +560,28 @@ web-ui:
     ## Main UI service configuration
     ##
     ui:
+      ## Init containers for UI service
+      ##
+      ## Wait for the API service to be up before starting the UI
+      ##
+      initContainers:
+      - name: wait-for-service
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z osmo-service 80; do
+            echo "Waiting for osmo-service..."
+            sleep 2
+          done
+          echo "OSMO service is ready"
       ## Skip authentication for UI service
       ##
       skipAuth: true
       ## Hostname for the UI service ingress
       ##
-      hostname: osmo-ingress-nginx-controller.osmo.svc.cluster.local
+      hostname: quick-start.osmo
       ## Ingress configuration for external access to the UI service
       ##
       ingress:
@@ -366,7 +627,10 @@ router:
     service:
       ## Hostname for the router service ingress
       ##
-      hostname: osmo-ingress-nginx-controller.osmo.svc.cluster.local
+      hostname: quick-start.osmo
+      ## Kubernetes image pull policy for the router service
+      ##
+      imagePullPolicy: IfNotPresent
       ## Horizontal Pod Autoscaler (HPA) configuration for the router service
       ##
       scaling:
@@ -382,13 +646,40 @@ router:
         ## Enable SSL/TLS encryption for the ingress
         ##
         sslEnabled: false
+      ## Init containers for router service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
 
     ## PostgreSQL database service configuration
     ##
     postgres:
       ## PostgreSQL password
       ##
-      password: "osmo" ## Configuration for router service sidecar containers
+      password: "osmo"
 
   ## Configuration for router service sidecar containers
   ##
@@ -414,7 +705,7 @@ backend-operator:
   global:
     ## OSMO service URL for backend operator communication
     ##
-    serviceUrl: http://osmo-ingress-nginx-controller.osmo.svc.cluster.local
+    serviceUrl: http://quick-start.osmo
     ## Kubernetes namespace for backend operator
     ##
     agentNamespace: osmo
@@ -440,6 +731,25 @@ backend-operator:
     ## Backend listener service configuration
     ##
     backendListener:
+      ## Kubernetes image pull policy for the backend listener service
+      ##
+      imagePullPolicy: IfNotPresent
+      ## Init containers for backend listener service
+      ##
+      ## Wait for the agent service to be up before starting backend listener
+      ##
+      initContainers:
+      - name: wait-for-ingress
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z quick-start 80; do
+            echo "Waiting for quick-start..."
+            sleep 2
+          done
+          echo "OSMO quick start ingress is ready"
       ## Resource limits and requests for the backend listener container
       ##
       resources:
@@ -456,6 +766,25 @@ backend-operator:
     ## Backend worker service configuration
     ##
     backendWorker:
+      ## Kubernetes image pull policy for the backend worker service
+      ##
+      imagePullPolicy: IfNotPresent
+      ## Init containers for backend worker service
+      ##
+      ## Wait for the agent service to be up before starting backend worker
+      ##
+      initContainers:
+      - name: wait-for-ingress
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z quick-start 80; do
+            echo "Waiting for quick-start..."
+            sleep 2
+          done
+          echo "OSMO quick start ingress is ready"
       ## Resource limits and requests for the backend worker container
       ##
       resources:
@@ -486,3 +815,4 @@ backend-operator:
       ## Enable OTEL collector sidecar for metrics and tracing
       ##
       enabled: false
+

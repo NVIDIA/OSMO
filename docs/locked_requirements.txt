@@ -331,7 +331,6 @@ docutils==0.20.1 \
     #   sphinx-markdown-builder
     #   sphinx-prompt
     #   sphinx-substitution-extensions
-    #   sphinx-tabs
 fonttools[woff]==4.56.0 \
     --hash=sha256:003548eadd674175510773f73fb2060bb46adb77c94854af3e0cc5bc70260049 \
     --hash=sha256:0073b62c3438cf0058488c002ea90489e8801d3a7af5ce5f7c05c105bee815c3 \
@@ -573,7 +572,6 @@ pygments==2.19.1 \
     #   pydata-sphinx-theme
     #   sphinx
     #   sphinx-prompt
-    #   sphinx-tabs
 pyphen==0.17.2 \
     --hash=sha256:3a07fb017cb2341e1d9ff31b8634efb1ae4dc4b130468c7c39dd3d32e7c3affd \
     --hash=sha256:f60647a9c9b30ec6c59910097af82bc5dd2d36576b918e44148d8b07ef3b4aa3
@@ -598,17 +596,21 @@ sphinx==7.4.7 \
     #   nvidia-sphinx-theme
     #   pydata-sphinx-theme
     #   sphinx-copybutton
+    #   sphinx-design
     #   sphinx-markdown-builder
     #   sphinx-new-tab-link
     #   sphinx-prompt
     #   sphinx-simplepdf
     #   sphinx-substitution-extensions
-    #   sphinx-tabs
     #   sphinxcontrib-extdevhelper-kasane
     #   sphinxcontrib-spelling
 sphinx-copybutton==0.5.2 \
     --hash=sha256:4cf17c82fb9646d1bc9ca92ac280813a3b605d8c421225fd9913154103ee1fbd \
     --hash=sha256:fb543fd386d917746c9a2c50360c7905b605726b9355cd26e9974857afeae06e
+    # via -r ./docs_requirements.txt
+sphinx-design==0.6.1 \
+    --hash=sha256:b11f37db1a802a183d61b159d9a202314d4d2fe29c163437001324fe2f19549c \
+    --hash=sha256:b44eea3719386d04d765c1a8257caca2b3e6f8421d7b3a5e742c0fd45f84e632
     # via -r ./docs_requirements.txt
 sphinx-markdown-builder==0.6.8 \
     --hash=sha256:6141b566bf18dd1cd515a0a90efd91c6c4d10fc638554fab2fd19cba66543dd7 \
@@ -629,10 +631,6 @@ sphinx-simplepdf==1.6.0 \
 sphinx-substitution-extensions==2024.2.25 \
     --hash=sha256:1e22951dbe5052b5b7866897196317da3fb2640776b608828ffe6c675e607b95 \
     --hash=sha256:9d489d462343ba14dabc7f290c4d305946a54541d978a21d1d9b904f1ff7afe4
-    # via -r ./docs_requirements.txt
-sphinx-tabs==3.4.7 \
-    --hash=sha256:991ad4a424ff54119799ba1491701aa8130dd43509474aef45a81c42d889784d \
-    --hash=sha256:c12d7a36fd413b369e9e9967a0a4015781b71a9c393575419834f19204bd1915
     # via -r ./docs_requirements.txt
 sphinxcontrib-applehelp==1.0.4 \
     --hash=sha256:29d341f67fb0f6f586b23ad80e072c8e6ad0b48417db2bde114a4c9746feb228 \

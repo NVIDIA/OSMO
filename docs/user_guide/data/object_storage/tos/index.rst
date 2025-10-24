@@ -14,10 +14,11 @@
   limitations under the License.
 
   SPDX-License-Identifier: Apache-2.0
-..
 
-================
-Accessing the UI
-================
+.. _data_object_storage_tos:
 
-.. note:: TODO: Add accessing the UI content here
+====================
+Torch Object Storage
+====================
+
+.. note:: TODO: Add documentation for Torch Object Storage.

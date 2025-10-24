@@ -83,6 +83,10 @@ spec:
           value: '{{ .Values.services.ui.containerPort }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
           value: {{ .Values.services.ui.hostname }}
+        - name: DOCS_BASE_URL
+          value: {{ .Values.services.ui.docsBaseUrl }}
+        - name: CLI_INSTALL_SCRIPT_URL
+          value: {{ .Values.services.ui.cliInstallScriptUrl }}
         {{- with .Values.services.ui.extraEnvs }}
         {{- range $env := . }}
         - name: {{ $env.name }}
@@ -99,23 +103,12 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
         imagePullPolicy: {{ .Values.services.ui.imagePullPolicy }}
-        ports:
-        - name: {{ .Values.services.ui.service.portName }}
-          containerPort: {{ .Values.services.ui.containerPort }}
-          protocol: {{ .Values.services.ui.service.protocol }}
-        {{- range .Values.services.ui.extraPorts }}
-        - name: {{ .name }}
-          containerPort: {{ .containerPort }}
-          protocol: {{ .protocol | default "TCP" }}
-        {{- end }}
-        {{- if .Values.sidecars.envoy.enabled }}
-        - name: envoy-http
-          containerPort: 80
-          protocol: TCP
-        - name: envoy-admin
-          containerPort: 9901
-          protocol: TCP
-        {{- end}}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1000
         {{- if or .Values.global.logs.enabled .Values.services.ui.extraVolumeMounts }}
         volumeMounts:
         {{- end }}

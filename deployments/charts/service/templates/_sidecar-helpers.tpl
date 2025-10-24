@@ -111,6 +111,12 @@ Log agent sidecar container
 - name: log-agent
   image: "{{ .Values.sidecars.logAgent.image }}"
   imagePullPolicy: {{ .Values.sidecars.logAgent.imagePullPolicy }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 10001
   ports:
   - containerPort: {{ .Values.sidecars.logAgent.prometheusPort | default 2020 }}
     protocol: TCP
@@ -197,8 +203,11 @@ OTEL collector sidecar container
 - name: otc-container
   image: "{{ .Values.sidecars.otel.image }}"
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
-      drop: ["NET_RAW"]
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 1001
   imagePullPolicy: IfNotPresent
   args:
   - --config=/conf/collector.yaml
@@ -209,6 +218,14 @@ OTEL collector sidecar container
     name: config
   resources:
   {{- toYaml .Values.sidecars.otel.resources | nindent 4 }}
+  {{- range .Values.sidecars.otel.ports }}
+  livenessProbe:
+    httpGet:
+      path: /metrics
+      port: {{ .containerPort | default . }}
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  {{- end }}
 {{- end }}
 {{- end }}
 
@@ -221,8 +238,11 @@ Rate limit sidecar container
   image: "{{ .Values.sidecars.rateLimit.image }}"
   imagePullPolicy: "{{ .Values.sidecars.rateLimit.imagePullPolicy }}"
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
-      drop: ["NET_RAW"]
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 1001
   command: ["sh", "-c"]
   args:
     - |
@@ -255,6 +275,11 @@ Rate limit sidecar container
   volumeMounts:
   - name: {{ .Values.sidecars.rateLimit.configName }}
     mountPath: /data/ratelimit/config
+  livenessProbe:
+    tcpSocket:
+      port: {{ .Values.sidecars.rateLimit.grpcPort }}
+    initialDelaySeconds: 10
+    periodSeconds: 10
 {{- end }}
 {{- end }}
 

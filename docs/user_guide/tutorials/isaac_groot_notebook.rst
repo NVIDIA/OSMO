@@ -17,17 +17,21 @@
 
 .. _tutorials_isaac_groot:
 
-============================================
-Isaac Groot: Fine-tuning
-============================================
-
-Introduction
-------------
+===============================================================
+Isaac Groot: Interactive Notebook for Inference and Fine-tuning
+===============================================================
 
 This workflow demonstrates how to perform inference and fine-tuning using `Isaac Groot <https://research.nvidia.com/labs/gear/gr00t-n1_5/>`_
 through a Jupyter notebook.
 
 This tutorial is for users who want to experiment with the Isaac Groot foundation models and libraries, and fine-tune it for their own use cases.
+
+Prerequisites
+-------------
+
+The libraries in Isaac Groot requires at least an Ampere GPU to run.
+Please check the `system requirements <https://github.com/NVIDIA/Isaac-GR00T?tab=readme-ov-file#prerequisites>`_
+for more on the specific GPUs that are supported.
 
 Overview
 --------
@@ -66,7 +70,8 @@ After the workflow starts running, check the logs to see if the workflow logs th
    Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
 
 Before the workflow logs this message, the workflow is installing all the necessary dependencies
-before spinning up the JupyterLab interface.
+before spinning up the JupyterLab interface. You will have to wait for the installation to complete
+before you can move on to the next step.
 
 Then, you can access the JupyterLab interface by running the following command:
 
@@ -81,7 +86,7 @@ On the left hand side, you can see the list of all the tutorial notebooks.
   :width: 800
   :align: center
 
-When running the executable boxes, you can oftentimes see visualizations directly
+When running the cells, you can oftentimes see visualizations directly
 in the notebook:
 
 .. image:: images/groot_action.png

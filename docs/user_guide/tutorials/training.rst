@@ -17,11 +17,11 @@
 
 .. _tutorials_training:
 
-=============================
-Training Deep Learning Models
-=============================
+=======================================
+TorchRun: Training Deep Learning Models
+=======================================
 
-These tutorials guide you through training deep learning models with OSMO, starting from
+These tutorials guide you through training deep neural networks (DNNs) with OSMO, starting from
 single-node training and progressing to distributed multi-node training and fault-tolerant setups:
 
 :ref:`training_single_node`

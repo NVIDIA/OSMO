@@ -52,11 +52,11 @@ osmo_py_binary(
         requirement("nvidia-sphinx-theme"),
         requirement("sphinx"),
         requirement("sphinx-copybutton"),
+        requirement("sphinx-design"),
         requirement("sphinx-markdown-builder"),
         requirement("sphinx-new-tab-link"),
         requirement("sphinx-simplepdf"),
         requirement("sphinx-substitution-extensions"),
-        requirement("sphinx-tabs"),
         requirement("sphinxcontrib-spelling"),
     ],
 )

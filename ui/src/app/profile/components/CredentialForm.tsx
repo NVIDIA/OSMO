@@ -30,6 +30,7 @@ import {
   SetCredentialsResponseSchema,
   type CredentialListItem,
 } from "~/models";
+import { useRuntimeEnv } from "~/runtime-env";
 import { api } from "~/trpc/react";
 
 import useToolParamUpdater from "../hooks/useToolParamUpdater";
@@ -41,6 +42,7 @@ const CredentialForm = ({
   currentCredentials: CredentialListItem[];
   onUpdate: () => void;
 }) => {
+  const runtimeEnv = useRuntimeEnv();
   const toolParamUpdater = useToolParamUpdater();
   const mutation = api.credentials.setCredential.useMutation();
   const [credentialType, setCredentialType] = useState<CredentialTypes>(CredentialTypes.Registry);
@@ -232,7 +234,7 @@ const CredentialForm = ({
               <strong>{env.NEXT_PUBLIC_APP_NAME}</strong> lets you run containers from multiple registries. Visit our
               <a
                 className="link-inline"
-                href={`${typeof window !== "undefined" ? window.location.origin : ""}/docs/getting_started/credentials/registry.html#registry`}
+                href={`${runtimeEnv.DOCS_BASE_URL}getting_started/credentials/registry.html#registry`}
                 target="_blank"
                 rel="noopener noreferrer"
               >

@@ -21,6 +21,7 @@ kind: PersistentVolumeClaim
 metadata:
   annotations:
     helm.sh/resource-policy: keep
+    helm.sh/weight: "-30"
   name: postgres-volume
 spec:
   storageClassName: {{ .Values.services.postgres.storageClassName | toYaml }}
@@ -39,6 +40,8 @@ metadata:
   name: postgres
   labels:
     app: postgres
+  annotations:
+    helm.sh/weight: "-30"
 spec:
   replicas: 1
   selector:
@@ -95,6 +98,8 @@ metadata:
   name: {{ .Values.services.postgres.serviceName }}
   labels:
     app: postgres
+  annotations:
+    helm.sh/weight: "-30"
 spec:
   {{ if .Values.services.postgres.enableNodePort }}
   type: NodePort

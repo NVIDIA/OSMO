@@ -14,11 +14,14 @@
   limitations under the License.
 
   SPDX-License-Identifier: Apache-2.0
+..
 
-.. _tutorials_isaac_lab_train:
+.. _deploy_locally:
 
-========================================================
-Isaac Lab: Train policy for robots
-========================================================
+===============
+Deploy Locally
+===============
 
-.. note:: TODO tutorial for isaac lab training policy
+.. note:: TODO: Add deploy locally content here
+
+Visit our `Deploy Locally guide <https://github.com/NVIDIA/OSMO/blob/main/QUICK_START.md>`_ to try OSMO on your local machine

@@ -18,8 +18,11 @@
 import Image from "next/image";
 
 import { env } from "~/env.mjs";
+import { useRuntimeEnv } from "~/runtime-env";
 
 export const HomepageHero = () => {
+  const runtimeEnv = useRuntimeEnv();
+
   return (
     <div className="relative">
       <>
@@ -46,7 +49,7 @@ export const HomepageHero = () => {
             <li>Automate your workflows with CI/CD systems</li>
           </ul>
           <a
-            href="/docs/"
+            href={runtimeEnv.DOCS_BASE_URL}
             target="_blank"
             className="btn btn-primary self-start"
           >

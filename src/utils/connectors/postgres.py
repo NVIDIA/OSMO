@@ -572,8 +572,7 @@ class PostgresConnector:
                 router_address TEXT,
                 version TEXT DEFAULT '',
                 node_conditions JSONB DEFAULT '{
-                    "additional_node_conditions": [],
-                    "ignore_node_conditions": [],
+                    "rules": {"Ready": "True"},
                     "prefix": "osmo.nvidia.com/"
                 }'::jsonb,
                 PRIMARY KEY (name)
@@ -2180,8 +2179,7 @@ class BackendSchedulerSettings(pydantic.BaseModel):
 
 class BackendNodeConditions(pydantic.BaseModel):
     """ Settings for backend node conditions. """
-    additional_node_conditions: List[str]| None = None
-    ignore_node_conditions: List[str]| None = None
+    rules: Dict[str, str] | None = None
     prefix: str = 'osmo.nvidia.com/'
 
 class Backend(pydantic.BaseModel):
@@ -2547,9 +2545,8 @@ class DynamicConfig(ExtraArgBaseModel):
 
 class CliConfig(ExtraArgBaseModel):
     """ Config for storing information regarding CLI storage. """
-    cli_name: str | None = None
+    latest_version: str | None = None
     min_supported_version: str | None = None
-    credential: credentials.DataCredential | None = None
 
 
 class ServiceConfig(DynamicConfig):
@@ -4114,11 +4111,7 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     role.RoleAction(base='http', path='/api/auth/jwt/refresh_token', method='*'),
                     role.RoleAction(base='http', path='/api/auth/jwt/access_token', method='*'),
                     role.RoleAction(base='http', path='/api/auth/access_token', method='*'),
-                    role.RoleAction(base='http', path='/client/osmo_client', method='*'),
-                    role.RoleAction(base='http', path='/client/install.sh', method='*'),
                     role.RoleAction(base='http', path='/client/version', method='*'),
-                    role.RoleAction(base='http', path='/client/pypi/simple/*', method='*'),
-                    role.RoleAction(base='http', path='/client/pypi/simple', method='*'),
                     role.RoleAction(base='http', path='/health', method='*'),
                 ]
             )

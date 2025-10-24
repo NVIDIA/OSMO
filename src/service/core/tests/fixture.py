@@ -18,11 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import logging
 import io
-import os
-import posixpath
-import shutil
 import time
-import uuid
 
 from fastapi import testclient
 
@@ -86,11 +82,6 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         jinja_sandbox.SandboxedJinjaRenderer._instance = \
             jinja_sandbox.SandboxedJinjaRenderer(max_time=5)  # pylint: disable=protected-access
 
-    def setUp(self):
-        super().setUp()
-
-        # Create a unique CLI storage path per test
-        service.CLI_STORAGE_PATH = posixpath.join(service.CLI_STORAGE_PATH, str(uuid.uuid4()))
 
     def tearDown(self):
         # Delete all objects in the bucket
@@ -101,10 +92,6 @@ class ServiceTestFixture(fixtures.PostgresFixture,
                 self.s3_client.delete_object(
                     Bucket=TEST_BUCKET_NAME, Key=obj['Key'])
                 logger.info('Deleted object: %s.', obj['Key'])
-
-        # Remove local CLI cache
-        if os.path.exists(service.CLI_STORAGE_PATH):
-            shutil.rmtree(service.CLI_STORAGE_PATH)
 
         super().tearDown()
 

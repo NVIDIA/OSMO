@@ -52,6 +52,8 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
 | `services.ui.tolerations` | Tolerations for pod scheduling on tainted nodes | `[]` |
 | `services.ui.resources` | Resource limits and requests for the UI container | `{}` |
+| `services.ui.docsBaseUrl` | Documentation base URL users will see from the UI | `"https://nvidia.github.io/OSMO/user_guide/"` |
+| `services.ui.cliInstallScriptUrl` | CLI Installation Script URL displayed in the UI | `"https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"` |
 
 ### UI Scaling Settings
 
@@ -290,5 +292,3 @@ extraContainers:
 
 # Secrets populated by your custom solution at the configured paths
 ```
-
-

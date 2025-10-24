@@ -124,7 +124,7 @@ def create_backend(postgres: connectors.PostgresConnector,
         UPDATE backends SET k8s_namespace = %s, version = %s,
         node_conditions = jsonb_set(
             COALESCE(node_conditions,
-                     '{"additional_node_conditions": [], "ignore_node_conditions": []}'::jsonb
+                     '{"rules": {"Ready": "True"}}'::jsonb
                      ),
             '{prefix}',
             to_jsonb(%s::text)
@@ -680,8 +680,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
         message = backend_messages.MessageBody(
             type=backend_messages.MessageType.NODE_CONDITIONS,
             body=backend_messages.NodeConditionsBody(
-                available_conditions=node_conditions.get('additional_node_conditions', []),
-                ignore_conditions=node_conditions.get('ignore_node_conditions', [])
+                rules=node_conditions.get('rules', {})
             )
         )
         await websocket.send_text(message.json())
@@ -702,9 +701,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                         message = backend_messages.MessageBody(
                             type=backend_messages.MessageType.NODE_CONDITIONS,
                             body=backend_messages.NodeConditionsBody(
-                                available_conditions=json_fields.get('additional_node_conditions',
-                                                                     []),
-                                ignore_conditions=json_fields.get('ignore_node_conditions', [])
+                                rules=json_fields.get('rules', {})
                             ))
                         await websocket.send_text(message.json())
                 except (ConnectionError,

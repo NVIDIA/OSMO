@@ -17,27 +17,21 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import logging
-import os
 from pathlib import Path
-import shutil
 import sys
-import threading
 from typing import Dict, List
 from urllib.parse import urlparse
 
-import diskcache # type: ignore
 import fastapi
 import fastapi.middleware.cors
 import fastapi.responses
 import uvicorn  # type: ignore
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor # type: ignore
 
-from src.lib.data import storage
 from src.lib.utils import common, osmo_errors, version
 import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
-from src.service.core import install_script_loader
 from src.service.core.app import app_service
 from src.service.core.auth import auth_service
 from src.service.core.config import (
@@ -52,64 +46,9 @@ from src.service.logger import ctrl_websocket
 from src.utils import auth, connectors
 
 
-PYPI_CACHE_DIR = '/tmp/osmo/client/pypi'
-PYPI_CACHE_MAX_SIZE = 512 * 1024 * 1024 # 512MB
-PYPI_S3_PATH = 'pypi/simple/nvidia-osmo/'
-
-CLI_STORAGE_PATH = '/tmp/osmo/client/cli'
-LINUX_CLI_NAME = 'osmo-client-linux.tgz'
-TEMP_LINUX_FOLDER = 'linux-temp'
-MACOS_CLI_NAME = 'osmo-client-macos.pkg'
-TEMP_MACOS_FOLDER = 'macos-temp'
-
-
 app = fastapi.FastAPI(docs_url='/api/docs', redoc_url=None, openapi_url='/api/openapi.json')
 misc_router = fastapi.APIRouter(tags = ['Misc API'])
 curr_cli_config = connectors.CliConfig()
-cli_lock = threading.Lock()
-pypi_cache = diskcache.Cache(PYPI_CACHE_DIR, size_limit=PYPI_CACHE_MAX_SIZE)
-
-
-def download_cli(cli_config: connectors.CliConfig):
-    """
-    Set up S3 auth and parameters and download the CLI.
-    """
-    cli_version = cli_config.cli_name
-    if not cli_version or cli_version == 'null':
-        cli_version = str(version.VERSION)
-
-    if cli_config.credential is None:
-        raise osmo_errors.OSMOServerError('CLI config credential is not set')
-
-    storage_client = storage.Client.create(
-        data_credential=cli_config.credential,
-    )
-
-    if not os.path.isdir(CLI_STORAGE_PATH):
-        os.makedirs(CLI_STORAGE_PATH)
-
-    linux_client_name = f'osmo-client-linux_{cli_version}.tgz'
-    macos_client_name = f'osmo-client-macos_{cli_version}.pkg'
-    linux_remote_path = os.path.join(
-        cli_config.credential.endpoint,
-        linux_client_name
-    )
-    macos_remote_path = os.path.join(
-        cli_config.credential.endpoint,
-        macos_client_name
-    )
-
-    # Download both Linux and macOS CLI
-    storage_client.download_objects(
-        destination=CLI_STORAGE_PATH,
-        source=[linux_remote_path, macos_remote_path],
-        resume=False,
-    )
-
-    linux_dst_path = os.path.join(CLI_STORAGE_PATH, LINUX_CLI_NAME)
-    macos_dst_path = os.path.join(CLI_STORAGE_PATH, MACOS_CLI_NAME)
-    shutil.move(os.path.join(CLI_STORAGE_PATH, linux_client_name), linux_dst_path)
-    shutil.move(os.path.join(CLI_STORAGE_PATH, macos_client_name), macos_dst_path)
 
 
 @app.middleware('http')
@@ -125,8 +64,8 @@ async def check_client_version(request: fastapi.Request, call_next):
     postgres = objects.WorkflowServiceContext.get().database
     service_url = postgres.get_workflow_service_url()
     cli_info = postgres.get_service_configs().cli_config
-    newest_client_version = version.Version.from_string(cli_info.cli_name) \
-        if cli_info.cli_name else version.VERSION
+    newest_client_version = version.Version.from_string(cli_info.latest_version) \
+        if cli_info.latest_version else version.VERSION
     if client_version < newest_client_version:
         # If no min_supported_version specified, we allow all client versions
         if cli_info.min_supported_version and\
@@ -156,37 +95,6 @@ app.include_router(workflow_service.router_pool)
 app.include_router(data_service.router)
 app.include_router(profile_service.router)
 
-@misc_router.get('/client/osmo_client', include_in_schema=False)
-def get_osmo_client(
-        os_type: install_script_loader.CliOSType = install_script_loader.CliOSType.LINUX):
-    global curr_cli_config
-    postgres = connectors.PostgresConnector.get_instance()
-    service_configs = postgres.get_service_configs()
-    with cli_lock:
-        cli_path = f'{CLI_STORAGE_PATH}/{MACOS_CLI_NAME}' \
-            if os_type == install_script_loader.CliOSType.MACOS else \
-            f'{CLI_STORAGE_PATH}/{LINUX_CLI_NAME}'
-
-        if service_configs.cli_config != curr_cli_config or not os.path.exists(cli_path):
-            try:
-                download_cli(service_configs.cli_config)
-                curr_cli_config = service_configs.cli_config
-            except (osmo_errors.OSMOError, FileNotFoundError) as e:
-                raise osmo_errors.OSMOServerError(
-                    'Server is unable to pull the newest clients, please '
-                    'contact the admins to resolve the issue.') from e
-        return fastapi.responses.FileResponse(cli_path)
-
-
-@misc_router.get('/client/install.sh', include_in_schema=False)
-async def get_script(request: fastapi.Request):
-    """ Returns the install script. """
-    rendered_script = install_script_loader.render_install_script(
-        str(request.base_url))
-
-    return fastapi.responses.Response(content=rendered_script,
-                                      media_type='text/x-shellscript')
-
 
 @misc_router.get('/client/version')
 async def get_osmo_client_version(request: fastapi.Request):
@@ -195,8 +103,8 @@ async def get_osmo_client_version(request: fastapi.Request):
     cli_config = service_configs.cli_config
 
     # Defaults to service version if client version is not configured
-    client_version = version.VERSION if not cli_config.cli_name \
-        else version.Version.from_string(cli_config.cli_name)
+    client_version = version.VERSION if not cli_config.latest_version \
+        else version.Version.from_string(cli_config.latest_version)
 
     accept_header = request.headers.get('accept', '')
     if 'text/plain' in accept_header:
@@ -205,99 +113,11 @@ async def get_osmo_client_version(request: fastapi.Request):
     return client_version
 
 
-@misc_router.get('/client/pypi/simple')
-async def get_python_package_index():
-    index_html = '''<!DOCTYPE html>
-<html>
-    <head>
-        <meta name="pypi:repository-version" content="1.0">
-        <title>NVIDIA OSMO Python Package Index</title>
-    </head>
-    <body>
-        <h1>Simple index</h1>
-        <a href="/client/pypi/simple/nvidia-osmo/">nvidia-osmo</a>
-    </body>
-</html>'''
-    return fastapi.responses.HTMLResponse(
-        content=index_html,
-        headers={'Content-Type': 'text/html; charset=utf-8'},
-    )
-
-
-@misc_router.get('/client/pypi/simple/nvidia-osmo/')
-def get_library_package():
-    postgres = connectors.PostgresConnector.get_instance()
-    service_configs = postgres.get_service_configs()
-    cli_config = service_configs.cli_config
-
-    storage_client = storage.Client.create(
-        data_credential=cli_config.credential,
-    )
-
-    obj_gen = storage_client.list_objects(
-        prefix=PYPI_S3_PATH,
-        regex='.*whl$',
-        recursive=False,
-    )
-
-    package_links = []
-    for obj in obj_gen:
-        package_name = os.path.basename(obj.key)
-        if package_name and package_name.endswith('.whl'):
-            link = f'/client/pypi/simple/nvidia-osmo/{package_name}'
-            package_links.append(f'<a href="{link}">{package_name}</a>')
-    links_html = '\n'.join(package_links)
-
-    index_html = f'''<!DOCTYPE html>
-<html>
-    <head>
-        <meta name="pypi:repository-version" content="1.0">
-        <title>Links for nvidia-osmo</title>
-    </head>
-    <body>
-        <h1>Links for nvidia-osmo</h1>
-        {links_html}
-    </body>
-</html>'''
-    return fastapi.responses.HTMLResponse(
-        content=index_html,
-        headers={'Content-Type': 'text/html; charset=utf-8'},
-    )
-
-
-@misc_router.get('/client/pypi/simple/nvidia-osmo')
-async def get_library_package_redirect():
-    return fastapi.responses.RedirectResponse(url='/client/pypi/simple/nvidia-osmo/')
-
-
-@misc_router.get('/client/pypi/simple/nvidia-osmo/{package_name}')
-def get_library_package_version(package_name: str):
-    if package_name in pypi_cache:
-        # Previously cached package
-        return fastapi.responses.Response(
-            pypi_cache[package_name],
-            media_type='application/wheel+zip',
-        )
-
-    postgres = connectors.PostgresConnector.get_instance()
-    service_configs = postgres.get_service_configs()
-    cli_config = service_configs.cli_config
-
-    storage_client = storage.Client.create(
-        data_credential=cli_config.credential,
-    )
-
-    remote_path = os.path.join(PYPI_S3_PATH, package_name)
-
-    # Get file from cloud storage and write into cache
-    streaming_body = storage_client.get_object_stream(remote_path)
-    package_data = b''.join(streaming_body)
-    pypi_cache[package_name] = package_data
-
-    return fastapi.responses.Response(
-        package_data,
-        media_type='application/wheel+zip',
-    )
+@misc_router.get('/health')
+async def health():
+    """ To be used for the readiness probe, but not liveness probe. That way, if this method is
+    slow, no new traffic gets routed, instead of killing the service. """
+    return {'status': 'OK'}
 
 
 @misc_router.get('/api/version')

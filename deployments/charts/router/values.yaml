@@ -97,6 +97,10 @@ services:
     ##
     serviceName: osmo-router
 
+    ## Init containers for router service
+    ##
+    initContainers: []
+
     ## Hostname on which the ingress is served
     ## Leave empty to use the default cluster hostname
     ##
@@ -278,7 +282,7 @@ sidecars:
 
     ## Port on which Envoy proxy listens for incoming requests
     ##
-    listenerPort: 80
+    listenerPort: 8080
 
     ## Maximum size of all http headers in kb
     ##
@@ -291,8 +295,11 @@ sidecars:
     ## Security context for Envoy containers
     ##
     securityContext:
+      allowPrivilegeEscalation: false
       capabilities:
-        drop: ["NET_RAW"]
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
 
     ## Resource limits and requests for Envoy container
     ##

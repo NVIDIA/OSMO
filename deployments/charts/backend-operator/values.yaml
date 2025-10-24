@@ -272,6 +272,10 @@ services:
     ##
     serviceName: osmo-backend-listener
 
+    ## Init containers for backend listener
+    ##
+    initContainers: []
+
     ## Kubernetes service account name for the backend listener
     ##
     serviceAccount: backend-listener
@@ -349,11 +353,10 @@ services:
     ##
     resources:
       requests:
-        cpu: "2"
-        memory: "16Gi"
+        cpu: "1"
+        memory: "2Gi"
       limits:
-        cpu: "2"
-        memory: "16Gi"
+        memory: "2Gi"
 
   ## Backend worker configuration
   ## Executes jobs received from the backend listener
@@ -370,6 +373,10 @@ services:
     ## Kubernetes service name for the backend worker
     ##
     serviceName: osmo-backend-worker
+
+    ## Init containers for backend worker
+    ##
+    initContainers: []
 
     ## Kubernetes service account name for the backend worker
     ##
@@ -445,9 +452,8 @@ services:
     resources:
       requests:
         cpu: "1"
-        memory: "512Mi"
+        memory: "1Gi"
       limits:
-        cpu: "2"
         memory: "1Gi"
 
 
@@ -766,7 +772,7 @@ sidecars:
   OTEL:
     ## Enable OTEL collector sidecar for metrics and tracing
     ##
-    enabled: true
+    enabled: false
 
     ## Docker image for OTEL collector
     ##

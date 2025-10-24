@@ -17,14 +17,23 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ .Release.Namespace }}-config-setup
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "30"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
+  ttlSecondsAfterFinished: 30
   template:
     spec:
       restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-ingress
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z quick-start 80; do
+            echo "Waiting for quick-start..."
+            sleep 2
+          done
+          echo "OSMO quick start ingress is ready"
       containers:
       - name: config-setup
         image: alpine/curl:8.14.1
@@ -36,16 +45,10 @@ spec:
 
           apk add --no-cache jq
 
-          BASE_URL="http://{{ .Release.Namespace }}-ingress-nginx-controller.{{ .Release.Namespace }}.svc.cluster.local"
+          BASE_URL="http://quick-start.osmo"
           echo "Using URL: $BASE_URL"
 
-          echo "Waiting for OSMO service to be ready..."
-          until curl -f $BASE_URL/api/version; do
-            echo "OSMO service not ready, waiting..."
-            sleep 10
-          done
-
-          echo "OSMO service is ready, configuring settings..."
+          echo "Configuring OSMO settings..."
 
           echo "Configuring OSMO workflow settings..."
 
@@ -137,7 +140,7 @@ spec:
                         "env": [
                           {
                             "name": "AWS_ENDPOINT_URL_S3",
-                            "value": "'"${OBJECT_STORAGE_ENDPOINT}"'"
+                            "value": "'"${AWS_ENDPOINT_URL_S3}"'"
                           },
                           {
                             "name": "AWS_S3_FORCE_PATH_STYLE",
@@ -158,7 +161,7 @@ spec:
                         "env": [
                           {
                             "name": "AWS_ENDPOINT_URL_S3",
-                            "value": "'"${OBJECT_STORAGE_ENDPOINT}"'"
+                            "value": "'"${AWS_ENDPOINT_URL_S3}"'"
                           },
                           {
                             "name": "AWS_S3_FORCE_PATH_STYLE",
@@ -247,6 +250,8 @@ spec:
 
           echo "OSMO configuration completed successfully!"
         env:
+        - name: AWS_ENDPOINT_URL_S3
+          value: {{ .Values.global.objectStorage.awsEndpointUrlS3 | quote }}
         - name: OBJECT_STORAGE_ENDPOINT
           value: {{ .Values.global.objectStorage.endpoint | quote }}
         - name: OBJECT_STORAGE_ACCESS_KEY_ID

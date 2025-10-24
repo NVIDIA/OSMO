@@ -21,6 +21,14 @@ SPDX-License-Identifier: Apache-2.0
 This is the source code for public documentation about OSMO. The documentation generates both a
 static HTML website and markdown files.
 
+## Installing Dependencies
+
+Run the following command to install doc dependencies:
+
+```bash
+pip install -r locked_requirements.txt
+```
+
 ## Building the Documentation
 
 You can build the docs by running the following in this directory:

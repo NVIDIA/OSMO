@@ -39,6 +39,7 @@ import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
 import { useTableStateUrlUpdater } from "~/hooks/useTableStateUrlUpdater";
 import { type TaskListItem } from "~/models/tasks-model";
+import { useRuntimeEnv } from "~/runtime-env";
 import { convertSeconds, convertToReadableTimezone, formatForWrapping, sortDateWithNA } from "~/utils/string";
 
 export const TasksTable = ({
@@ -58,6 +59,7 @@ export const TasksTable = ({
   updateUrl: (params: ToolParamUpdaterProps) => void;
   showWF: boolean;
 }) => {
+  const runtimeEnv = useRuntimeEnv();
   const updatePagingUrl = useTableStateUrlUpdater();
   const [columnVisibility, setColumnVisibility] = useState({
     tags: false,
@@ -176,7 +178,7 @@ export const TasksTable = ({
         cell: ({ row }) => (
           <a
             className="tag-container-round"
-            href="/docs/concepts/workflows_tasks/lifecycle/status.html?h=status#task-statuses"
+            href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#task-statuses`}
             target="_blank"
             rel="noopener noreferrer"
             title={getStatusDescription(row.original.status)}
@@ -194,7 +196,7 @@ export const TasksTable = ({
         header: "Priority",
         cell: ({ row }) => (
           <a
-            href="/docs/concepts/workflows_tasks/priority.html"
+            href={`${runtimeEnv.DOCS_BASE_URL}concepts/workflows_tasks/priority.html`}
             target="_blank"
             rel="noopener noreferrer"
             className="tag-container"
@@ -275,7 +277,7 @@ export const TasksTable = ({
         enableResizing: false,
       },
     ],
-    [selectedTaskName, selectedWorkflowId, updateUrl, showWF, retryId],
+    [selectedWorkflowId, selectedTaskName, retryId, showWF, updateUrl, runtimeEnv.DOCS_BASE_URL],
   );
 
   const table = useReactTable({

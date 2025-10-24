@@ -19,17 +19,13 @@
  Next Steps:
 
 1. Add the following line to your /etc/hosts file:
-   127.0.0.1 {{ .Release.Namespace }}-ingress-nginx-controller.{{ .Release.Namespace }}.svc.cluster.local
+   127.0.0.1 quick-start.osmo
 
-2. Wait for all services to be ready:
-   kubectl get pods -n {{ .Release.Namespace }}
+2. Login to OSMO:
+   osmo login http://quick-start.osmo --method=dev --username=testuser
 
-3. Login to OSMO:
-   osmo login http://{{ .Release.Namespace }}-ingress-nginx-controller.{{ .Release.Namespace }}.svc.cluster.local \
-     --method=dev --username=testuser
-
-4. Access the OSMO Web UI:
-   http://{{ .Release.Namespace }}-ingress-nginx-controller.{{ .Release.Namespace }}.svc.cluster.local
+3. Access the OSMO Web UI:
+   http://quick-start.osmo
 
 🧪 Test Your Installation:
 

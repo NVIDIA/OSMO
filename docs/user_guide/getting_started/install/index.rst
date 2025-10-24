@@ -21,36 +21,42 @@
 Install Client
 ==============
 
-GitHub
-------
-
-.. important::
-
-   Please visit the `GitHub Releases <https://github.com/NVIDIA/osmo/releases>`_ page to
-   download the latest release version of the OSMO client.
-
-
-Web Service
------------
-
-.. important::
-
-    If you are using an existing OSMO web service, follow the instructions
-    below to install the client that is compatible with your OSMO web service.
-
-Download the installation script and install the client:
+To install the **latest release version** of the OSMO client, run the following command:
 
 .. code-block:: bash
   :substitutions:
 
-  $ curl -fsSL |osmo_client_install_url| | bash  # (1)
+  $ curl -fsSL |osmo_client_install_url| | bash
 
-.. code-annotations::
+Specific versions
+-----------------
 
-  (1) Replace |osmo_client_install_url| with the URL of your OSMO web service.
+.. seealso::
+
+   Visit the `GitHub Releases <https://github.com/NVIDIA/osmo/releases>`_ page to
+   view all available release versions of the OSMO client.
+
+From a specific release version page, navigate to the ``Assets`` section and download the
+appropriate installer package for your operating system and CPU architecture.
+
+.. image:: github_assets_light.png
+   :class: hidden
+
+.. image:: github_assets_dark.png
+   :class: hidden
+
+.. raw:: html
+
+   <img src="../../_images/github_assets_dark.png" alt="GitHub assets" class="theme-image-light" style="margin-bottom: 1em;">
+   <img src="../../_images/github_assets_light.png" alt="GitHub assets" class="theme-image-dark" style="margin-bottom: 1em;">
 
 Login
 -----
+
+.. important::
+
+   The OSMO client can only be used to connect to already deployed OSMO web services. If you are
+   looking to deploy an OSMO service locally, please refer to the :ref:`deploy_locally` guide.
 
 To login to the client, can use the following command:
 
@@ -91,14 +97,3 @@ After successful authentication, you are logged in. Welcome to OSMO.
   :class: no-copybutton
 
   Successfully logged in. Welcome <Your Full Name>.
-
-
-================================================
-Uninstall
-================================================
-
-To uninstall the client, run the following command:
-
-.. code-block:: bash
-
-  $ sudo rm -rf /usr/local/bin/osmo /usr/local/osmo

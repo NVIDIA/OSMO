@@ -21,8 +21,8 @@
 Setup Profile
 =============
 
-Viewing Current Settings
-------------------------
+Viewing Settings
+----------------
 
 You can use the :ref:`Profile List CLI command <cli_reference_profile_list>` to view your current
 profile, including notification preferences and defaults.
@@ -44,7 +44,6 @@ profile, including notification preferences and defaults.
     - my-pool
     - team-pool
 
-
 .. _notifications:
 
 Notifications
@@ -61,26 +60,31 @@ By default, ``slack`` notifications are enabled and ``email`` notifications are 
   $ osmo profile set notifications email true
   $ osmo profile set notifications slack false
 
-Example notification UIs:
+.. dropdown:: Example Slack Notification
+    :color: primary
+    :icon: bell
 
-**Slack**:
+    .. image:: slack.png
 
-.. image:: slack.png
+    .. attention::
 
-.. note::
+      Slack will only work if the admin has set the Slack token.
 
-  Slack will only work if the admin has set the Slack token.
 
-**Email**:
+.. dropdown:: Example Email Notification
+    :color: primary
+    :icon: mail
 
-.. image:: email.png
+    .. image:: email.png
 
-.. note::
+    .. attention::
 
-  Email will only work if the admin has configured the email SMTP server.
+      Email will only work if the admin has configured the email SMTP server.
 
-Setting Default Bucket
+Default Dataset Bucket
 ----------------------
+
+.. auto-include:: ../../data/datasets/what_is_a_dataset.in.rst
 
 To choose a default bucket, first view available buckets with the :ref:`Bucket List CLI command <cli_reference_bucket>`.
 
@@ -98,8 +102,10 @@ Set the default bucket using the profile CLI.
 
   $ osmo profile set bucket my_bucket
 
-Setting Default Pool (Optional)
--------------------------------
+Default Pool
+------------
+
+.. auto-include:: ../../resource_pools/what_is_a_pool.in.rst
 
 To choose a default pool, use the :ref:`Profile List CLI command <cli_reference_profile_list>` to
 view available pools and :ref:`Resource List CLI command <cli_reference_resource_list>` to see what

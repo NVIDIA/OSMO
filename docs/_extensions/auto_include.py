@@ -55,6 +55,12 @@ class AutoInclude(Directive):
         # Resolve docdir through symlinks to get canonical path
         docdir_real = os.path.realpath(docdir)
 
+        # Get the docs root directory as the security boundary
+        docs_root = os.path.realpath(env.srcdir)
+
+        # Get the current document's path to exclude it automatically
+        current_doc_path = env.doc2path(env.docname)
+
         # Validate and normalize the pattern to prevent directory traversal
         if os.path.isabs(pattern):
             error = self.state_machine.reporter.error(
@@ -64,39 +70,31 @@ class AutoInclude(Directive):
             )
             return [error]
 
-        # Reject patterns containing parent directory references
-        # Check for ".." as a path component regardless of separator
-        pattern_normalized = pattern.replace('\\', '/')
-        pattern_parts = pattern_normalized.split('/')
-        if '..' in pattern_parts:
-            error = self.state_machine.reporter.error(
-                f'Parent directory references ("..") are not allowed in patterns: "{pattern}"',
-                nodes.literal_block('', ''),
-                line=self.lineno
-            )
-            return [error]
-
         # Resolve the glob pattern
         full_pattern = os.path.join(docdir, pattern)
         matched_files = sorted(glob.glob(full_pattern, recursive=True), reverse=True)
 
-        # Verify all matched files are within docdir after resolving symlinks
+        # Verify all matched files are within docs_root after resolving symlinks
         verified_files = []
         for filepath in matched_files:
             filepath_real = os.path.realpath(filepath)
-            # Check if the resolved path is truly inside docdir using explicit prefix check
+            # Check if the resolved path is truly inside docs_root using explicit prefix check
             try:
-                # File must be exactly docdir or start with docdir + separator
-                if filepath_real == docdir_real or filepath_real.startswith(docdir_real + os.sep):
+                # File must be exactly docs_root or start with docs_root + separator
+                if filepath_real == docs_root or filepath_real.startswith(docs_root + os.sep):
                     verified_files.append(filepath)
                 else:
-                    # File is outside docdir, skip it
+                    # File is outside docs root, skip it
                     logger.warning(f'Skipping file outside documentation directory: {filepath}')
             except OSError:
                 # OSError: file doesn't exist or permission issue
                 logger.warning(f'Skipping inaccessible file: {filepath}')
 
         matched_files = verified_files
+
+        # Automatically exclude the current document to prevent self-inclusion
+        current_doc_real = os.path.realpath(current_doc_path)
+        matched_files = [f for f in matched_files if os.path.realpath(f) != current_doc_real]
 
         # Filter out excluded files (with same security checks)
         if exclude_patterns:
@@ -105,18 +103,18 @@ class AutoInclude(Directive):
                 # Apply same validation to exclude patterns
                 excl_normalized = excl_pattern.replace('\\', '/')
                 excl_parts = excl_normalized.split('/')
-                if os.path.isabs(excl_pattern) or '..' in excl_parts:
+                if os.path.isabs(excl_pattern):
                     logger.warning(f'Skipping invalid exclude pattern: {excl_pattern}')
                     continue
 
                 excl_full = os.path.join(docdir, excl_pattern)
                 excl_matches = glob.glob(excl_full, recursive=True)
 
-                # Verify excluded files are also within docdir
+                # Verify excluded files are also within docs_root
                 for excl_file in excl_matches:
                     excl_file_real = os.path.realpath(excl_file)
                     try:
-                        if excl_file_real == docdir_real or excl_file_real.startswith(docdir_real + os.sep):
+                        if excl_file_real == docs_root or excl_file_real.startswith(docs_root + os.sep):
                             excluded_files.add(excl_file)
                     except OSError:
                         pass
@@ -125,7 +123,7 @@ class AutoInclude(Directive):
                 if not excl_matches:
                     try:
                         excl_real = os.path.realpath(excl_full)
-                        if excl_real == docdir_real or excl_real.startswith(docdir_real + os.sep):
+                        if excl_real == docs_root or excl_real.startswith(docs_root + os.sep):
                             # Use the original path for exclusion to match the glob results
                             if os.path.exists(excl_full):
                                 excluded_files.add(excl_full)

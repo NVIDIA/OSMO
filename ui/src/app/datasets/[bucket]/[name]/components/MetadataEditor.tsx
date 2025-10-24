@@ -51,6 +51,7 @@ export const MetadataEditor = ({
     const response = await attributeDatasetMutation.mutateAsync({
       name: dataset.name,
       bucket: dataset.bucket,
+      tag: selectedVersionData?.version,
       delete_metadata: deletedFields,
       set_metadata: updatedData,
     });

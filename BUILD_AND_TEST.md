@@ -258,12 +258,6 @@ workstation to your local host.
 The OSMO UI and APIs for the core service can now be accessed on your local machine at:
 http://ingress-nginx-controller.ingress-nginx.svc.cluster.local
 
-Next, login into OSMO using the CLI:
-
-```sh
-bazel run @osmo_workspace//src/cli -- login http://ingress-nginx-controller.ingress-nginx.svc.cluster.local --method=dev --username=testuser
-```
-
 ### Start OSMO Backend
 
 ```sh

@@ -23,8 +23,6 @@ System Requirements
 Web UI
 ------
 
-.. note:: TODO: Add min supported browser versions here
-
 .. list-table:: Supported Browsers
    :widths: 30 70
    :header-rows: 1
@@ -32,9 +30,9 @@ Web UI
    * - Browser
      - Supported Versions
    * - Google Chrome
-     - 120.0.0+
+     - 90+
    * - Microsoft Edge
-     - 120.0.0+
+     - 90+
 
 
 CLI

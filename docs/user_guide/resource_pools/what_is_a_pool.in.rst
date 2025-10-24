@@ -16,8 +16,16 @@
   SPDX-License-Identifier: Apache-2.0
 ..
 
-===================
-Verify Installation
-===================
+.. dropdown:: What is a Pool?
+    :color: primary
+    :icon: question
 
-.. note:: TODO: Add verify installation content here
+    A **Pool** is a shared group of managed compute resources (machines) used to run workflows.
+
+    Key benefits:
+
+    - 👥 **Team sharing** - access-controlled resources shared across your organization
+    - 🎯 **Hardware targeting** - platforms let you specify GPU types and configurations
+    - ⚖️ **Smart scheduling** - maximize resource usage with intelligent workload placement
+
+    See :ref:`concepts_pools` for complete details.

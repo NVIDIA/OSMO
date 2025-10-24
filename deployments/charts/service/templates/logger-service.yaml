@@ -65,12 +65,19 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.logger.serviceAccountName "Values" .Values) }}
+      {{- with .Values.services.logger.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.services.logger.serviceName }}
         image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.logger.imageName }}:{{ .Values.global.osmoImageTag }}
         securityContext:
+          allowPrivilegeEscalation: false
           capabilities:
-            drop: ["NET_RAW"]
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
         command:
         - logger
         args:

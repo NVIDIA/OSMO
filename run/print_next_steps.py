@@ -58,24 +58,7 @@ def print_next_steps(
             logger.info('   127.0.0.1 ingress-nginx-controller.ingress-nginx.svc.cluster.local\n')
             step_number += 1
 
-        logger.info('%d. Log into OSMO using the CLI:', step_number)
-        if is_bazel_mode:
-            # Use provided host_ip and port, or fallback to localhost:8080
-            login_host = f'http://{host_ip}:{port}' if host_ip and port else 'http://localhost:8080'
-            logger.info(
-                '   bazel run @osmo_workspace//src/cli -- login %s '
-                '--method=dev --username=testuser\n', login_host
-            )
-        else:
-            logger.info(
-                '   bazel run @osmo_workspace//src/cli -- login '
-                'http://ingress-nginx-controller.ingress-nginx.svc.cluster.local '
-                '--method=dev --username=testuser\n'
-            )
-        step_number += 1
-
         terminal_prefix = 'in another terminal, ' if is_bazel_mode else ''
-        mode_arg = ' --mode bazel' if is_bazel_mode else ''
 
         logger.info('%d. Start the backend %s:', step_number, terminal_prefix.rstrip(', '))
         if is_bazel_mode:
@@ -102,6 +85,23 @@ def print_next_steps(
             mode_arg
         )
         step_number += 1
+
+    # Login step
+    logger.info('%d. Log into OSMO using the CLI:', step_number)
+    if is_bazel_mode:
+        # Use provided host_ip and port, or fallback to localhost:8080
+        login_host = f'http://{host_ip}:{port}' if host_ip and port else 'http://localhost:8080'
+        logger.info(
+            '   bazel run @osmo_workspace//src/cli -- login %s '
+            '--method=dev --username=testuser\n', login_host
+        )
+    else:
+        logger.info(
+            '   bazel run @osmo_workspace//src/cli -- login '
+            'http://ingress-nginx-controller.ingress-nginx.svc.cluster.local '
+            '--method=dev --username=testuser\n'
+        )
+    step_number += 1
 
     workspace_root = os.environ.get('BUILD_WORKSPACE_DIRECTORY', os.getcwd())
 

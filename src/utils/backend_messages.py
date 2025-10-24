@@ -191,8 +191,7 @@ class NodeConditionsBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """
     Body for node conditions messages from service to backend listener.
     """
-    available_conditions: List[str]|None = None
-    ignore_conditions: List[str]|None = None
+    rules: Dict[str, str]|None = None
 
 
 class AckBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):

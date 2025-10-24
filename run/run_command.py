@@ -23,9 +23,11 @@ import subprocess
 import tempfile
 import threading
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Literal
 
 from tqdm import tqdm
+
+from run.host_ip import get_host_ip
 
 
 logger = logging.getLogger()
@@ -304,3 +306,47 @@ def wait_for_all_processes() -> None:
                 if process.has_failed():
                     raise RuntimeError(f'Process {process.name} failed')
         time.sleep(5)
+
+
+def login_osmo(mode: Literal['kind', 'bazel']) -> None:
+    """Login to OSMO using the CLI.
+
+    Args:
+        mode: The mode being used ('kind' or 'bazel')
+
+    Raises:
+        RuntimeError: If login fails
+    """
+    logger.info('🔐 Logging in to OSMO...')
+
+    if mode == 'bazel':
+        host_ip = get_host_ip()
+        login_url = f'http://{host_ip}:8000'
+    else:  # kind mode
+        login_url = 'http://ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+
+    login_process = run_command_with_logging([
+        'bazel', 'run', '@osmo_workspace//src/cli', '--',
+        'login', login_url, '--method=dev', '--username=testuser'
+    ], 'Logging in to OSMO')
+
+    if login_process.has_failed():
+        logger.error('❌ Failed to login to OSMO')
+        logger.error('   Check stderr: %s', login_process.stderr_file)
+        raise RuntimeError('Failed to login to OSMO')
+
+    logger.info('✅ Successfully logged in to OSMO')
+
+
+def logout_osmo() -> None:
+    """Logout from OSMO using the CLI."""
+    logger.info('🔓 Logging out from OSMO...')
+    logout_process = run_command_with_logging([
+        'bazel', 'run', '@osmo_workspace//src/cli', '--',
+        'logout'
+    ], 'Logging out from OSMO')
+
+    if logout_process.has_failed():
+        logger.warning('⚠️  Warning: Failed to logout from OSMO')
+    else:
+        logger.info('✅ Successfully logged out from OSMO')

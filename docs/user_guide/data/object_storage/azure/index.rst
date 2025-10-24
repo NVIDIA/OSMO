@@ -15,10 +15,10 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _data:
+.. _data_object_storage_azure:
 
-========
-Overview
-========
+==================
+Azure Blob Storage
+==================
 
-.. note:: TODO data usage
+.. note:: TODO: Add documentation for Azure Blob Storage.

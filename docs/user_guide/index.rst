@@ -86,6 +86,7 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
 
   Overview <self>
   high_level_architecture
+  deploy_locally
   scaling_to_the_cloud
   whats_next
 
@@ -93,13 +94,11 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
   :hidden:
   :caption: Getting Started
 
-  getting_started/quickstart
   getting_started/system_requirements
-  getting_started/ui/index
   getting_started/install/index
-  getting_started/credentials/index
   getting_started/profile/index
-  getting_started/verify_installation
+  getting_started/credentials
+  getting_started/next_steps
 
 .. toctree::
   :hidden:
@@ -108,11 +107,9 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
   tutorials/hello_world/index
   tutorials/workflow_types/index
   tutorials/isaac_sim_sdg
-  tutorials/isaac_lab_train
-  tutorials/torch_run_train
-  tutorials/isaac_groot_fine_tune
-  tutorials/training
   tutorials/reinforcement_learning
+  tutorials/training
+  tutorials/isaac_groot_notebook
   tutorials/hil
 
 .. auto-include:: tutorials/*.in.rst
@@ -146,8 +143,9 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
   :hidden:
   :caption: Managing Data
 
-  data/index
+  data/object_storage/index
   data/datasets/index
+  data/local/index
 
 .. auto-include:: data/*.in.rst
 

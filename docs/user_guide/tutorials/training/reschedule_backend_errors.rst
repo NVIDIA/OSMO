@@ -17,8 +17,9 @@
 
 .. _training_reschedule:
 
-More Advanced: Fault-Tolerant Training with Rescheduling
---------------------------------------------------------
+=========================================
+Fault-Tolerant Training with Rescheduling
+=========================================
 
 This tutorial demonstrates how to implement fault-tolerant training that can
 automatically reschedule tasks when backend errors occur. This is particularly
@@ -29,7 +30,7 @@ The complete workflow example is available `here <https://github.com/NVIDIA/OSMO
 For other elastic training examples, please visit `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training>`__.
 
 Resume Training When Tasks Rerun
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 In order to automatically reschedule the training job when backend errors occur,
 you need to first make sure the training script can both start from scratch and resume from checkpoints:
@@ -87,7 +88,7 @@ Now you can also make sure the entry script can both start from scratch and resu
   fi
 
 Catch Reschedulable Failures
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
 
 Not all errors are resolvable by rescheduling the task.
 The best practice is to isolate the errors that we want to reschedule,
@@ -116,9 +117,10 @@ In workflow launch script:
     fi
 
 Configure Reschedule Actions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
 
-Lastly, you need to configure the workflow to reschedule the task when it exists with the specified exit code as defined in the block above.
+Lastly, you need to configure the workflow to reschedule the task when it exists with the specified exit code
+as defined in the block above.
 
 .. code-block:: yaml
 
@@ -134,4 +136,4 @@ Therefore, you need to set ``ignoreNonleadStatus`` to ``false`` to make sure the
   - name: training
     ignoreNonleadStatus: false
 
-see more about ``ignoreNonleadStatus`` in :ref:`concepts_groups` and actions on exit codes in :ref:`concepts_wf_actions`.
+See more about ``ignoreNonleadStatus`` in :ref:`concepts_groups` and actions on exit codes in :ref:`concepts_wf_actions`.

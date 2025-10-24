@@ -70,6 +70,10 @@ class LoginConfig(pydantic.BaseModel):
         default=None,
         env='OSMO_LOGIN_TOKEN',
         description='The access token to sign in with.')
+    token_file: str | None = pydantic.Field(
+        command_line='token_file',
+        default=None,
+        description='The file containing the access token to sign in with.')
     token_endpoint: str | None = pydantic.Field(
         command_line='token_endpoint',
         default = None,

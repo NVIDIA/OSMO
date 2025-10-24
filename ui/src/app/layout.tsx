@@ -21,6 +21,7 @@ import Script from "next/script";
 import { AuthProvider } from "~/components/AuthProvider";
 import { StoreProvider } from "~/components/StoreProvider";
 import { env } from "~/env.mjs";
+import { RuntimeEnvProvider } from "~/runtime-env";
 import { TRPCReactProvider } from "~/trpc/react";
 
 import "../styles/globals.css";
@@ -37,11 +38,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body>
-        <TRPCReactProvider headers={headers()}>
-          <AuthProvider>
-            <StoreProvider>{children}</StoreProvider>
-          </AuthProvider>
-        </TRPCReactProvider>
+        <RuntimeEnvProvider value={{
+          DOCS_BASE_URL: env.DOCS_BASE_URL,
+          CLI_INSTALL_SCRIPT_URL: env.CLI_INSTALL_SCRIPT_URL,
+        }}>
+          <TRPCReactProvider headers={headers()}>
+            <AuthProvider>
+              <StoreProvider>{children}</StoreProvider>
+            </AuthProvider>
+          </TRPCReactProvider>
+        </RuntimeEnvProvider>
         <Script
           src="/osmo-scripts.cjs"
           strategy="afterInteractive"

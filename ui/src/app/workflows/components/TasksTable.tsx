@@ -32,6 +32,7 @@ import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
 import { useTableStateUrlUpdater } from "~/hooks/useTableStateUrlUpdater";
 import { type Task, type WorkflowResponse } from "~/models";
+import { useRuntimeEnv } from "~/runtime-env";
 import { convertToReadableTimezone, sortDateWithNA } from "~/utils/string";
 import { formatForWrapping } from "~/utils/string";
 
@@ -66,6 +67,7 @@ export const TasksTable = ({
   visible,
   updateUrl,
 }: TasksTableProps) => {
+  const runtimeEnv = useRuntimeEnv();
   const updatePagingUrl = useTableStateUrlUpdater();
   const sorting = useTableSortLoader("name", true);
 
@@ -168,7 +170,7 @@ export const TasksTable = ({
           row.original.exit_code !== null ? (
             <a
               color={row.original.exit_code === 0 ? Colors.tag : Colors.error}
-              href="/docs/concepts/workflows_tasks/lifecycle/exit_codes.html"
+              href={`${runtimeEnv.DOCS_BASE_URL}workflows/exit/exit_codes.html`}
               target="_blank"
               rel="noopener noreferrer"
               className="tag-container"
@@ -196,7 +198,7 @@ export const TasksTable = ({
         sortingFn: sortDateWithNA,
       },
     ];
-  }, [selectedTask?.name, selectedTask?.retry_id, verbose, updateUrl]);
+  }, [selectedTask?.name, selectedTask?.retry_id, verbose, updateUrl, runtimeEnv.DOCS_BASE_URL]);
 
   // Memoizing task fetching
   const tableData = useMemo(() => {

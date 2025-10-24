@@ -23,37 +23,29 @@ from typing import Literal
 
 from run.check_tools import check_required_tools
 from run.host_ip import get_host_ip
-from run.kind_utils import check_cluster_exists, create_cluster
+from run.kind_utils import check_cluster_exists, create_cluster, setup_kai_scheduler
 from run.print_next_steps import print_next_steps
 from run.run_command import run_command_with_logging, cleanup_registered_processes, wait_for_all_processes
 
 logger = logging.getLogger()
 
 
-def _check_or_create_kubernetes_backend(cluster_name: str = 'osmo'):
+def _check_or_create_kind_backend(cluster_name: str = 'osmo'):
     """Check if there are compute nodes available, or create a KIND cluster if needed."""
     logger.info('🔍 Checking for Kubernetes compute nodes...')
 
-    # First check if kubectl is available and cluster is accessible
-    process = run_command_with_logging([
-        'kubectl', 'get', 'nodes', '--no-headers'
-    ], 'Checking cluster connectivity')
-
-    if process.has_failed():
-        logger.warning('⚠️  Cannot connect to Kubernetes cluster. Creating KIND cluster...')
-
-        # Check if KIND cluster already exists
-        if check_cluster_exists(cluster_name):
-            logger.info('✅ KIND cluster \'%s\' already exists, switching context...', cluster_name)
-            process = run_command_with_logging([
-                'kubectl', 'config', 'use-context', f'kind-{cluster_name}'
-            ], 'Switching to KIND cluster context')
-            if process.has_failed():
-                logger.error('❌ Failed to switch to KIND cluster context')
-                raise RuntimeError('Failed to switch to KIND cluster context')
-        else:
-            # Create new KIND cluster
-            create_cluster(cluster_name)
+    # Check if KIND cluster already exists
+    if check_cluster_exists(cluster_name):
+        logger.info('✅ KIND cluster \'%s\' already exists, switching context...', cluster_name)
+        process = run_command_with_logging([
+            'kubectl', 'config', 'use-context', f'kind-{cluster_name}'
+        ], 'Switching to KIND cluster context')
+        if process.has_failed():
+            logger.error('❌ Failed to switch to KIND cluster context')
+            raise RuntimeError('Failed to switch to KIND cluster context')
+    else:
+        # Create new KIND cluster
+        create_cluster(cluster_name)
 
         # Re-check connectivity after creating/switching to KIND cluster
         process = run_command_with_logging([
@@ -65,6 +57,8 @@ def _check_or_create_kubernetes_backend(cluster_name: str = 'osmo'):
             with open(process.stderr_file, 'r', encoding='utf-8') as f:
                 logger.error('   Error: %s', f.read().strip())
             raise RuntimeError('Failed to connect to KIND cluster after creation')
+
+    setup_kai_scheduler()
 
     # Check for nodes labeled with node_group=compute
     process = run_command_with_logging([
@@ -136,7 +130,8 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
         f'--host=http://{host_ip}:8000',
         '--backend', 'default',
         '--namespace', 'default',
-        '--username', 'testuser'
+        '--username', 'testuser',
+        '--progress_folder_path', '/tmp/osmo/operator'
     ]
 
     process = run_command_with_logging(
@@ -167,7 +162,7 @@ def start_backend_bazel(cluster_name: str = 'osmo'):
     check_required_tools(['bazel', 'kubectl', 'kind'])
 
     try:
-        _check_or_create_kubernetes_backend(cluster_name)
+        _check_or_create_kind_backend(cluster_name)
 
         _start_backend_listener()
         _start_backend_worker()

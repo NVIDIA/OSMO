@@ -21,6 +21,7 @@ import Link from "next/link";
 
 import { useAuth } from "~/components/AuthProvider";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
+import { useRuntimeEnv } from "~/runtime-env";
 import { api } from "~/trpc/react";
 
 import { FilledIcon, OutlinedIcon } from "./Icon";
@@ -31,9 +32,10 @@ import { TopMenu } from "./TopMenu";
 
 export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   const auth = useAuth();
+  const runtimeEnv = useRuntimeEnv();
   const [openCLI, setOpenCLI] = useState(false);
   const [copied, setCopied] = useState(false);
-  const cliCurl = `curl -fsSL ${typeof window !== "undefined" ? window.location.origin : ""}/client/install.sh | bash`;
+  const cliCurl = `curl -fsSL ${runtimeEnv.CLI_INSTALL_SCRIPT_URL} | bash`;
   const version = api.version.get.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -51,7 +53,7 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
             <a
               target="_blank"
               rel="noopener noreferrer"
-              href={`/docs/`}
+              href={runtimeEnv.DOCS_BASE_URL}
               className="btn btn-link no-underline w-full"
             >
               <FilledIcon name="menu_book" />
@@ -105,7 +107,7 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
         id="cli"
         open={openCLI}
         onClose={() => setOpenCLI(false)}
-        className="fixed top-0 right-2 mt-32 rounded-xl w-[98%] max-w-150"
+        className="fixed top-0 right-2 mt-32 rounded-xl w-fit max-w-[90%]"
       >
         <div className="flex flex-col gap-3 p-3">
           <form onSubmit={(e) => e.preventDefault()}>
@@ -114,7 +116,7 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
                 id="cli-curl"
                 value={cliCurl}
                 readOnly
-                className="w-full"
+                size={cliCurl.length}
                 label="Use the following command to download the CLI"
               />
               <button

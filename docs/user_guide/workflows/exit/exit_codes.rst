@@ -34,9 +34,9 @@ user exit codes.
 
   If a task encounters multiple exit codes, the highest exit code will be selected.
 
-.. tabs::
+.. tab-set::
 
-  .. tab:: User Exit Codes
+  .. tab-item:: User Exit Codes
 
     ..  list-table::
         :header-rows: 1
@@ -51,7 +51,7 @@ user exit codes.
         * - 256-257
           - OSMO initialization failure.
 
-  .. tab:: Service Exit Codes
+  .. tab-item:: Service Exit Codes
 
     ..  list-table::
         :header-rows: 1

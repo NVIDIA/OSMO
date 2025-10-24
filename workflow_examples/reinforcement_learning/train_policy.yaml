@@ -15,43 +15,41 @@
 # SPDX-License-Identifier: Apache-2.0
 
 workflow:
-  groups:
-  - name: train-group
-    tasks:
-    - name: train
-      command: ["bash"]
-      args: ["/tmp/entry.sh"]
-      image: nvcr.io/nvidia/isaac-lab:2.2.0
-      environment:
-        ACCEPT_EULA: Y
-        NO_NUCLEUS: Y
-        OMNI_KIT_ALLOW_ROOT: '1'
-        OMNI_SERVER: isaac-dev.ov.nvidia.com
-      files:
-      - contents: |2-
+  tasks:
+  - name: train
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    image: nvcr.io/nvidia/isaac-lab:2.2.0
+    environment:
+      ACCEPT_EULA: Y
+      NO_NUCLEUS: Y
+      OMNI_KIT_ALLOW_ROOT: '1'
+      OMNI_SERVER: isaac-dev.ov.nvidia.com
+    files:
+    - contents: |2-
 
-          set -euxo pipefail
+        set -euxo pipefail
 
-          ./isaaclab.sh -p -m tensorboard.main --logdir=logs &
+        ./isaaclab.sh -p -m tensorboard.main --logdir=logs &
 
-          ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py \
-            --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
+        ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py \
+          --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
 
-          apt update && apt install -y ffmpeg
-          ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py \
-            --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
+        apt update && apt install -y ffmpeg
+        ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py \
+          --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 
-          mkdir -p {{output}}/output
-          mv logs/ {{output}}/output/
+        mkdir -p {{output}}/output
+        mv logs/ {{output}}/output/
 
-          # Kill TensorBoard process by finding the specific python tensorboard command
-          pkill -f "python3 -m tensorboard.main --logdir=logs" || true
+        # Kill TensorBoard process by finding the specific python tensorboard command
+        pkill -f "python3 -m tensorboard.main --logdir=logs" || true
 
-        path: /tmp/entry.sh
-      outputs:
-      - dataset:
-          name: franka-policy-dataset
-          path: output
+      path: /tmp/entry.sh
+    outputs:
+    - dataset:
+        name: robot-policy-dataset
+        path: output
   name: train-robot-policy
   resources:
     default:

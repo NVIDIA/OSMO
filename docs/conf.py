@@ -35,10 +35,10 @@ osmo_domain = os.getenv("OSMO_DOMAIN", "public")
 extensions = [
     # Standard extensions
     'sphinx_copybutton',
+    'sphinx_design',
     'sphinx_new_tab_link',
     'sphinx_simplepdf',
     'sphinx_substitution_extensions',
-    'sphinx_tabs.tabs',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
@@ -63,14 +63,12 @@ spelling_word_list_filename = '../spelling_wordlist.txt'
 # Copybutton
 copybutton_prompt_text = "$ "
 copybutton_copy_empty_lines = False
+copybutton_line_continuation_character = "\\"
 copybutton_selector = "div:not(.no-copybutton) > div.highlight > pre"
 
 # New tab link
 new_tab_link_show_external_link_icon = True
 new_tab_link_enable_referrer = False
-
-# Tabs
-sphinx_tabs_disable_tab_closing = True
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -139,8 +137,7 @@ html_last_updated_fmt = '%b %d, %Y'
 constants = {
     'osmo_url': "https://" + osmo_domain + ".osmo.nvidia.com",
     'osmo_auth_url': "https://auth-" + osmo_domain + ".osmo.nvidia.com",
-    'osmo_client_url': "https://" + osmo_domain + ".osmo.nvidia.com/client/osmo_client",
-    'osmo_client_install_url': "https://" + osmo_domain + ".osmo.nvidia.com/client/install.sh",
+    'osmo_client_install_url': "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh",
     'osmo_pypi_url': "https://" + osmo_domain + ".osmo.nvidia.com/client/pypi/simple",
     'data_solution': 'S3',
     'data_path': 's3://<location>/data_folder',

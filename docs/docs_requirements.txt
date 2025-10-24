@@ -23,9 +23,9 @@
 nvidia-sphinx-theme==0.0.8
 sphinx==7.4.7
 sphinx-copybutton==0.5.2
+sphinx-design==0.6.1
 sphinx-markdown-builder==0.6.8
 sphinx-new-tab-link==0.8.0
 sphinx-simplepdf==1.6.0
 sphinx-substitution-extensions==2024.2.25
-sphinx-tabs==3.4.7
 sphinxcontrib-spelling==7.7.0

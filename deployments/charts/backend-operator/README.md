@@ -110,6 +110,7 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.imageName` | Listener image name | `backend-listener` |
 | `services.backendListener.imagePullPolicy` | Image pull policy | `Always` |
 | `services.backendListener.serviceName` | Service name | `osmo-backend-listener` |
+| `services.backendListener.initContainers` | Init containers for backend listener | `[]` |
 | `services.backendListener.serviceAccount` | Service account name | `backend-listener` |
 | `services.backendListener.max_unacked_messages` | Maximum unacked messages | `100` |
 | `services.backendListener.podCacheTtl` | Pod cache TTL in seconds | `15` |
@@ -134,6 +135,7 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendWorker.imageName` | Worker image name | `backend-worker` |
 | `services.backendWorker.imagePullPolicy` | Image pull policy | `Always` |
 | `services.backendWorker.serviceName` | Service name | `osmo-backend-worker` |
+| `services.backendWorker.initContainers` | Init containers for backend worker | `[]` |
 | `services.backendWorker.serviceAccount` | Service account name | `backend-worker` |
 | `services.backendWorker.extraArgs` | Additional arguments | `[]` |
 | `services.backendWorker.extraEnvs` | Additional environment variables | `[]` |

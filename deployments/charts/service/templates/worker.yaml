@@ -57,14 +57,21 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.worker.serviceAccountName "Values" .Values) }}
+      {{- with .Values.services.worker.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.services.worker.serviceName }}
         image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.worker.imageName }}:{{ .Values.global.osmoImageTag }}
         command:
         - "worker"
         securityContext:
+          allowPrivilegeEscalation: false
           capabilities:
-            drop: ["NET_RAW"]
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
         imagePullPolicy: {{ .Values.services.worker.imagePullPolicy }}
         args:
         - --metrics_otel_collector_component

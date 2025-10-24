@@ -54,34 +54,39 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
         command_line='include_namespace_usage',
         default=[],
         description='The namespaces of pods to include in node usage.')
+    progress_folder_path: str = pydantic.Field(
+        command_line='progress_folder_path',
+        env='OSMO_PROGRESS_FOLDER_PATH',
+        default='/var/run/osmo',
+        description='The folder path to write progress timestamps to (For liveness/startup probes)')
     node_progress_file: str = pydantic.Field(
         command_line='node_progress_file',
         env='OSMO_NODE_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_node',
+        default='last_progress_node',
         description='The file to write node watch progress timestamps to (For liveness/startup ' +
                     'probes)')
     pod_progress_file: str = pydantic.Field(
         command_line='pod_progress_file',
         env='OSMO_POD_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_pod',
+        default='last_progress_pod',
         description='The file to write pod watch progress timestamps to (For liveness/startup ' +
                     'probes)')
     event_progress_file: str = pydantic.Field(
         command_line='event_progress_file',
         env='OSMO_EVENT_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_event',
+        default='last_progress_event',
         description='The file to write event watch progress timestamps to (For liveness/startup ' +
                     'probes)')
     control_progress_file: str = pydantic.Field(
         command_line='control_progress_file',
         env='OSMO_CONTROL_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_control',
+        default='last_progress_control',
         description='The file to write control progress timestamps to ' +
                     '(For liveness/startup probes)')
     websocket_progress_file: str = pydantic.Field(
         command_line='websocket_progress_file',
         env='OSMO_WEBSOCKET_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_websocket',
+        default='last_progress_websocket',
         description='The file to write websocket progress timestamps to (For liveness/startup ' +
                     'probes)')
     pod_event_cache_size: int = pydantic.Field(
@@ -165,16 +170,21 @@ class BackendWorkerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
         env='TEST_RUNNER_CRONJOB_SPEC_FILE',
         default='test_runner_cronjob_spec/spec.yaml',
         description='Path to the test runner cronjob specification YAML file')
+    progress_folder_path: str = pydantic.Field(
+        command_line='progress_folder_path',
+        env='OSMO_PROGRESS_FOLDER_PATH',
+        default='/var/run/osmo',
+        description='The folder path to write progress timestamps to (For liveness/startup probes)')
     worker_heartbeat_progress_file: str = pydantic.Field(
         command_line='worker_heartbeat_progress_file',
         env='OSMO_WORKER_HEARTBEAT_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_worker_heartbeat',
+        default='last_progress_worker_heartbeat',
         description='The file to write worker heartbeat progress timestamps to (For ' +
                     'liveness/startup probes)')
     worker_job_progress_file: str = pydantic.Field(
         command_line='worker_job_progress_file',
         env='OSMO_WORKER_JOB_PROGRESS_FILE',
-        default='/var/run/osmo/last_progress_worker_job',
+        default='last_progress_worker_job',
         description='The file to write worker job progress timestamps to (For liveness/startup ' +
                     'probes)')
     progress_iter_frequency: str = pydantic.Field(

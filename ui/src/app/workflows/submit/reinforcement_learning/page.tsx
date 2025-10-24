@@ -14,7 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 import { GenericHeader } from "~/components/Header";
-import { HIL_WORKFLOW_FILE } from "~/models/workflows-model";
+import { RL_WORKFLOW_FILE } from "~/models/workflows-model";
 
 import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
 
@@ -23,9 +23,9 @@ export default function WorkflowsSubmitPage() {
     <>
       <GenericHeader
         rootSegment="workflows"
-        tailSegment={["submit", "hil"]}
+        tailSegment={["submit", "reinforcement_learning"]}
       />
-      <WorkflowsSubmit placeholderFile={HIL_WORKFLOW_FILE} />
+      <WorkflowsSubmit placeholderFile={RL_WORKFLOW_FILE} />
     </>
   );
 }

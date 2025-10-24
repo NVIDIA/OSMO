@@ -14,40 +14,104 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0 */
 
-/* Code Annotations */
+/* ==================== CSS Variables ==================== */
+
+:root {
+  /* NVIDIA Brand Colors */
+  --nv-green: #76b900;
+  --nv-green-hover: #689f00;
+
+  /* Code Annotations */
+  --annotation-bg: #fff;
+  --annotation-border: #ddd;
+  --annotation-text: #333;
+  --annotation-code-bg: #f5f5f5;
+  --annotation-code-color: #e01e5a;
+  --annotation-strong: #000;
+  --annotation-shadow: rgba(0, 0, 0, 0.15);
+
+  /* Tab Styling */
+  --tab-inactive-color: #999;
+  --tab-active-color: var(--nv-green);
+  --tab-hover-bg: rgba(118, 185, 0, 0.05);
+  --tab-focus-bg: rgba(118, 185, 0, 0.1);
+  --tab-separator: #ddd;
+}
+
+/* Dark Mode Variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --nv-green: #a0d468;
+    --annotation-bg: #2b2b2b;
+    --annotation-border: #444;
+    --annotation-text: #e0e0e0;
+    --annotation-code-bg: #1a1a1a;
+    --annotation-code-color: #a0d468;
+    --annotation-strong: #fff;
+    --annotation-shadow: rgba(0, 0, 0, 0.6);
+    --tab-inactive-color: #666;
+    --tab-active-color: var(--nv-green);
+    --tab-hover-bg: rgba(160, 212, 104, 0.1);
+    --tab-focus-bg: rgba(160, 212, 104, 0.15);
+    --tab-separator: #444;
+  }
+}
+
+[data-theme="dark"],
+html[data-mode="dark"] {
+  --nv-green: #a0d468;
+  --nv-green-hover: #76b900;
+  --annotation-bg: #2b2b2b;
+  --annotation-border: #444;
+  --annotation-text: #e0e0e0;
+  --annotation-code-bg: #1a1a1a;
+  --annotation-code-color: #a0d468;
+  --annotation-strong: #fff;
+  --annotation-shadow: rgba(0, 0, 0, 0.6);
+  --tab-inactive-color: #666;
+  --tab-active-color: var(--nv-green);
+  --tab-hover-bg: rgba(160, 212, 104, 0.1);
+  --tab-focus-bg: rgba(160, 212, 104, 0.15);
+  --tab-separator: #444;
+}
+
+/* ==================== Code Annotations ==================== */
 
 .annotate.highlight {
   position: relative;
 }
+
 .code-annotations-list {
   display: none !important;
 }
 
-/* Marker */
+/* Marker Styling */
 .code-annotation-marker {
   display: inline-flex;
   padding: 0;
   background: transparent;
   border: none;
   vertical-align: middle;
-  transition: all 0.2s;
   position: relative;
-  color: var(--nv-green, #76b900);
+  color: var(--nv-green);
+  transition: all 0.2s;
 }
 
 .code-annotation-marker.active {
   z-index: 2;
 }
+
 .code-annotation-marker:hover {
   transform: scale(1.1);
 }
+
 .code-annotation-marker:focus-visible {
-  outline: 2px solid var(--nv-green, #76b900);
+  outline: 2px solid var(--nv-green);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
-svg.code-annotation-icon {
+.code-annotation-marker svg.code-annotation-icon {
   width: 20px;
   height: 20px;
   margin: 0 2px;
@@ -59,20 +123,20 @@ svg.code-annotation-icon {
   transform: rotate(45deg);
 }
 
-/* Tooltip */
+/* Tooltip Styling */
 .code-annotation-tooltip {
   position: absolute;
   z-index: 1;
   max-width: 400px;
   min-width: 200px;
   padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--annotation-bg);
+  border: 1px solid var(--annotation-border);
   border-radius: 2px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px var(--annotation-shadow);
   font-size: 14px;
   line-height: 1.6;
-  color: #333;
+  color: var(--annotation-text);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -80,123 +144,181 @@ svg.code-annotation-icon {
 .code-annotation-tooltip.visible {
   opacity: 1;
 }
+
+/* Tooltip Content Elements */
 .code-annotation-tooltip p {
   margin: 0;
 }
+
 .code-annotation-tooltip p + p {
   margin-top: 8px;
 }
+
 .code-annotation-tooltip code {
-  background: #f5f5f5;
+  background: var(--annotation-code-bg);
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 0.9em;
   font-family: "Roboto Mono", monospace;
-  color: #e01e5a;
+  color: var(--annotation-code-color);
 }
+
 .code-annotation-tooltip pre {
-  background: #f5f5f5;
+  background: var(--annotation-code-bg);
   padding: 8px;
   border-radius: 4px;
   overflow-x: auto;
   margin: 8px 0;
 }
+
 .code-annotation-tooltip strong {
   font-weight: 600;
-  color: #000;
+  color: var(--annotation-strong);
 }
+
 .code-annotation-tooltip em {
   font-style: italic;
 }
+
 .code-annotation-tooltip a {
-  color: var(--nv-green, #008a00);
+  color: var(--nv-green);
   text-decoration: underline;
 }
+
 .code-annotation-tooltip a:hover {
-  color: #689f00;
+  color: var(--nv-green-hover);
 }
+
 .code-annotation-tooltip ul,
 .code-annotation-tooltip ol {
   margin: 8px 0;
   padding-left: 20px;
 }
+
 .code-annotation-tooltip li {
   margin: 4px 0;
 }
 
-/* Dark Mode */
-@media (prefers-color-scheme: dark) {
-  .code-annotation-marker {
-    color: var(--nv-green, #a0d468);
-  }
-  .code-annotation-tooltip {
-    background: #2b2b2b;
-    border-color: #444;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-    color: #e0e0e0;
-  }
-  .code-annotation-tooltip code {
-    background: #1a1a1a;
-    color: #a0d468;
-  }
-  .code-annotation-tooltip pre {
-    background: #1a1a1a;
-  }
-  .code-annotation-tooltip strong {
-    color: #fff;
-  }
-  .code-annotation-tooltip a {
-    color: #a0d468;
-  }
-  .code-annotation-tooltip a:hover {
-    color: #76b900;
-  }
-}
-
-[data-theme="dark"] .code-annotation-marker,
-html[data-mode="dark"] .code-annotation-marker {
-  color: var(--nv-green, #a0d468);
-}
-
-[data-theme="dark"] .code-annotation-tooltip,
-html[data-mode="dark"] .code-annotation-tooltip {
-  background: #2b2b2b;
-  border-color: #444;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-  color: #e0e0e0;
-}
-
-[data-theme="dark"] .code-annotation-tooltip code,
-html[data-mode="dark"] .code-annotation-tooltip code {
-  background: #1a1a1a;
-  color: #a0d468;
-}
-
-[data-theme="dark"] .code-annotation-tooltip pre,
-html[data-mode="dark"] .code-annotation-tooltip pre {
-  background: #1a1a1a;
-}
-
-[data-theme="dark"] .code-annotation-tooltip strong,
-html[data-mode="dark"] .code-annotation-tooltip strong {
-  color: #fff;
-}
-
-[data-theme="dark"] .code-annotation-tooltip a,
-html[data-mode="dark"] .code-annotation-tooltip a {
-  color: #a0d468;
-}
-
-[data-theme="dark"] .code-annotation-tooltip a:hover,
-html[data-mode="dark"] .code-annotation-tooltip a:hover {
-  color: #76b900;
-}
-
-/* Responsive */
 @media (max-width: 767px) {
   .code-annotation-tooltip {
     max-width: calc(100vw - 40px);
     font-size: 13px;
     padding: 10px 12px;
   }
+}
+
+/* ==================== Component Fixes ==================== */
+
+/* SVG Alignment */
+svg.sd-octicon,
+svg.icon,
+a.reference.external > svg {
+  margin-bottom: 0;
+}
+
+/* Utility Classes */
+.hidden {
+  display: none;
+}
+
+/* Theme-Aware Images */
+.theme-image-light {
+  display: block;
+}
+
+.theme-image-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-image-light {
+    display: none;
+  }
+
+  .theme-image-dark {
+    display: block;
+  }
+}
+
+[data-theme="dark"] .theme-image-light,
+html[data-mode="dark"] .theme-image-light {
+  display: none;
+}
+
+[data-theme="dark"] .theme-image-dark,
+html[data-mode="dark"] .theme-image-dark {
+  display: block;
+}
+
+/* ==================== Sphinx-Design Tabs ==================== */
+/* Override pydata-sphinx-theme's boxed design with minimal underline style */
+
+.bd-content .sd-tab-set > label {
+  background-color: transparent;
+  border: none;
+  border-bottom: 0.125rem solid transparent;
+  border-radius: 0;
+  color: var(--tab-inactive-color);
+  font-weight: 500;
+  line-height: 1.95;
+  margin-inline-end: 0;
+  padding: 0.5em 1em;
+  transform: none;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.bd-content .sd-tab-set > label:hover,
+.bd-content .sd-tab-set > input:not(:checked, :focus-visible) + label:hover {
+  background: none;
+  border-bottom-color: var(--tab-active-color);
+  color: var(--tab-active-color);
+  text-decoration: none;
+}
+
+.bd-content .sd-tab-set > input:checked + label {
+  background-color: transparent;
+  border: none;
+  border-bottom: 0.125rem solid var(--tab-active-color);
+  border-radius: 0;
+  color: var(--tab-active-color);
+  font-weight: 600;
+  transform: none;
+}
+
+.bd-content .sd-tab-set > input:focus-visible + label {
+  background: none;
+  border: 0.125rem solid var(--tab-active-color);
+  border-radius: 0.125rem;
+  color: var(--tab-active-color);
+}
+
+.bd-content .sd-tab-set .sd-tab-content {
+  background-color: transparent;
+  border: none;
+  border-top: 1px solid var(--tab-separator);
+  border-bottom: 1px solid var(--tab-separator);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem 0;
+}
+
+/* Dark mode explicit overrides for higher specificity */
+html[data-theme="dark"] .bd-content .sd-tab-set > label,
+html[data-mode="dark"] .bd-content .sd-tab-set > label {
+  background-color: transparent;
+}
+
+html[data-theme="dark"] .bd-content .sd-tab-set > input:checked + label,
+html[data-mode="dark"] .bd-content .sd-tab-set > input:checked + label {
+  background-color: transparent;
+}
+
+html[data-theme="dark"] .bd-content .sd-tab-set > input:focus-visible + label,
+html[data-mode="dark"] .bd-content .sd-tab-set > input:focus-visible + label {
+  background: none;
+}
+
+html[data-theme="dark"] .bd-content .sd-tab-set .sd-tab-content,
+html[data-mode="dark"] .bd-content .sd-tab-set .sd-tab-content {
+  background-color: transparent;
 }

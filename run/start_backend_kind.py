@@ -27,13 +27,14 @@ from bazel_tools.tools.python.runfiles import runfiles  # type: ignore
 
 from run.check_tools import check_required_tools
 from run.print_next_steps import print_next_steps
-from run.run_command import run_command_with_logging
+from run.run_command import login_osmo, logout_osmo, run_command_with_logging
 
 from run.kind_utils import (
     check_cluster_exists,
     create_cluster,
     setup_osmo_namespace,
     detect_platform,
+    setup_kai_scheduler,
 )
 
 logger = logging.getLogger()
@@ -202,7 +203,13 @@ def start_backend_kind(args: argparse.Namespace) -> None:
         detected_platform = detect_platform()
         logger.info('📱 Detected platform: %s', detected_platform)
 
-        _setup_backend_operators(args.image_location, args.image_tag, detected_platform)
+        setup_kai_scheduler()
+
+        login_osmo('kind')
+        try:
+            _setup_backend_operators(args.image_location, args.image_tag, detected_platform)
+        finally:
+            logout_osmo()
 
         logger.info('\n🎉 OSMO backend setup complete!')
         print_next_steps(mode='kind', show_start_backend=False, show_update_configs=True)

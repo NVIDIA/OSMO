@@ -16,6 +16,7 @@
 import { OutlinedIcon } from "~/components/Icon";
 import StatusBadge from "~/components/StatusBadge";
 import { type TaskStatusType } from "~/models";
+import { useRuntimeEnv } from "~/runtime-env";
 import { checkExhaustive } from "~/utils/common";
 
 const MAX_LENGTH = 100;
@@ -75,6 +76,7 @@ const getStatusDescription = (status: TaskStatusType) => {
 };
 
 const TaskStatusInfo = ({ status, failureMessage, onClick }: Props) => {
+  const runtimeEnv = useRuntimeEnv();
   const truncatedMessage =
     failureMessage && failureMessage.length > MAX_LENGTH
       ? `${failureMessage.substring(0, MAX_LENGTH)}... Click to see full message`
@@ -83,7 +85,7 @@ const TaskStatusInfo = ({ status, failureMessage, onClick }: Props) => {
   return (
     <div className="flex flex-row gap-1 items-center">
       <a
-        href="/docs/concepts/workflows_tasks/lifecycle/status.html?h=status#task-statuses"
+        href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#task-statuses`}
         target="_blank"
         rel="noopener noreferrer"
         className="tag-container-round"

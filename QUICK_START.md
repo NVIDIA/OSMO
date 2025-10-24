@@ -40,30 +40,8 @@ mkdir -p ~/osmo-quick-start && cd ~/osmo-quick-start
 
 ### Download and Install OSMO CLI
 
-#### Linux AMD64
-
-> Download from [osmo-client-linux](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/osmo/resources/osmo-client-linux)
-
 ```bash
-# cd to downloaded CLI tgz
-sudo tar -xzf osmo-client-linux_6.0.0.c18411774.tgz -C /usr/local
-rm osmo-client-linux_6.0.0.c18411774.tgz
-
-# Create symlink
-sudo ln -s -f /usr/local/osmo /usr/local/bin/osmo
-```
-
-#### MacOS ARM64
-
-> Download from [osmo-client-macos](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/osmo/resources/osmo-client-macos)
-
-```bash
-# cd to downloaded CLI pkg
-open -W osmo-client-macos_6.0.0.c18411774.pkg
-rm osmo-client-macos_6.0.0.c18411774.pkg
-
-# Create symlink
-sudo ln -s -f /usr/local/osmo /usr/local/bin/osmo
+curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
 ```
 
 ## 2. Configure variables
@@ -185,9 +163,16 @@ helm upgrade --install osmo nvstaging-osmo/osmo-quick-start \
   --version 1.0.0 \
   --namespace osmo \
   --create-namespace \
+  --wait \
   --set global.containerRegistry.password="$CONTAINER_REGISTRY_PASSWORD" \
   --set global.nodeSelector."kubernetes\.io/arch"=$ARCH \
   --set ingress-nginx.controller.nodeSelector."kubernetes\.io/arch"=$ARCH
+```
+
+Installing the chart will take about 5 minutes. If you're curious what's happening, you can monitor with:
+
+```bash
+kubectl get pods --namespace osmo
 ```
 
 See [Configuration Options](./deployments/charts/osmo-quick-start/README.md#configuration) in the
@@ -198,7 +183,7 @@ See [Configuration Options](./deployments/charts/osmo-quick-start/README.md#conf
 Add the following line to your `/etc/hosts` file:
 
 ```bash
-echo "127.0.0.1 osmo-ingress-nginx-controller.osmo.svc.cluster.local" | sudo tee -a /etc/hosts
+echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 ```
 
 ## 5. Using OSMO
@@ -206,8 +191,7 @@ echo "127.0.0.1 osmo-ingress-nginx-controller.osmo.svc.cluster.local" | sudo tee
 ### Login to OSMO
 
 ```bash
-osmo login http://osmo-ingress-nginx-controller.osmo.svc.cluster.local \
-  --method=dev --username=testuser
+osmo login http://quick-start.osmo --method=dev --username=testuser
 ```
 
 ### Run a workflow

@@ -18,22 +18,23 @@
 
 .. _training_multi_node:
 
-Moving forward to Multi-Node Distributed Training
--------------------------------------------------
+===============================
+Multi-Node Distributed Training
+===============================
 
-This section uses TorchRun as an example to demonstrate how to train a model distributively on multiple nodes in OMSO.
+You will learn how to train a model on multiple nodes in OSMO.
 
 The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_multinode>`__.
 More examples with other distributed training frameworks can be found `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training>`__.
 
 Making a TorchRun Multi-Node Training Script
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------------------
 
 To train a model on multiple nodes in OMSO, you need to first make your training script compatible with distributed training,
 for example, using `train.py <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_multinode/train.py>`_.
 
 Training on Two Nodes
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 ``groups`` enables tasks to be launched simultaneously and allow network communication between tasks.
 OSMO token ``{{host:<task_name>}}`` can be used to get the hostname of the lead task for TorchRun setup.
@@ -99,7 +100,7 @@ Use ``nslookup`` as an example to resolve the hostname to an IP address:
     'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | head -n1)
 
 Scaling up to Arbitrary Number of Nodes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------------------
 
 Once the two-node training is successful, you can scale up the training to more nodes with templating:
 
@@ -160,11 +161,11 @@ this shows how to submit the workflow with 4 nodes and 4 GPUs per node:
 
   $ osmo workflow submit <your workflow spec path> --set n_nodes=4 n_gpus_per_node=4
 
-Synchronizing Training Starting time by Yourself
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Synchronizing Training Start Time (Optional)
+--------------------------------------------
 
 OSMO makes sure that all tasks in the same group start entry commands at the same time.
-This prevents different initialization time causing timeout issues.
+This prevents different initialization timing that causes timeout issues.
 
 In some cases, you may want to synchronize the training starting time by yourself.
 For example, you need to install some heavy dependencies before the training starts and that can take varies of time.

@@ -50,13 +50,7 @@ This command:
 
 ### Start OSMO Backend
 
-To start the backend, you must be logged into OSMO using the CLI:
-
-```sh
-bazel run @osmo_workspace//src/cli -- login http://$HOST_IP:8000 --method=dev --username=testuser
-```
-
-Then start the backend:
+After OSMO services are started, start the backend:
 
 ```sh
 bazel run @osmo_workspace//run:start_backend -- --mode bazel
@@ -64,8 +58,8 @@ bazel run @osmo_workspace//run:start_backend -- --mode bazel
 
 This command:
 
-- Checks for a kubernetes backend cluster that can be used for compute
-  - If one is not accessible, a KIND cluster is created for compute
+- Checks for a KIND backend cluster that can be used for compute
+  - If one is not accessible, a new KIND cluster is created for compute
 - Starts backend operators (listener, worker) using bazel
 
 ### Update Configuration
@@ -86,6 +80,11 @@ This command:
 The OSMO UI and APIs can be accessed at: `http://$HOST_IP:8080`
 
 ## Next steps
+
+Log into OSMO using the CLI:
+```sh
+bazel run @osmo_workspace//src/cli -- login http://$HOST_IP:8000 --method=dev --username=testuser
+```
 
 Test your setup with:
 

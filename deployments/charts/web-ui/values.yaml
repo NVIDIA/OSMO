@@ -108,6 +108,13 @@ services:
     # environment: production
     # team: osmo
 
+    ## Documentation base URL
+    ##
+    docsBaseUrl: "https://nvidia.github.io/OSMO/user_guide/"
+
+    ## CLI Installation Script URL
+    ##
+    cliInstallScriptUrl: "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"
 
     ## Horizontal Pod Autoscaler (HPA) configuration
     ##
@@ -380,8 +387,39 @@ sidecars:
     ##
     inClusterPaths:
       enabled: false
-      port: 81
+      port: 8081
       paths: []
+
+    livenessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    startupProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
 
     ## If we go over this number of concurrent requests, throw an error
     ## If its empty then do nothing
@@ -437,7 +475,7 @@ sidecars:
 
     ## Port that Envoy listens on
     ##
-    listenerPort: 80
+    listenerPort: 8080
 
     ## Service configuration for Envoy proxy
     ##
@@ -633,4 +671,3 @@ extraContainers: []
 extraPodAnnotations: {}
 # vault.hashicorp.com/agent-inject: 'true'
 # vault.hashicorp.com/agent-configmap: 'vault-config'
-

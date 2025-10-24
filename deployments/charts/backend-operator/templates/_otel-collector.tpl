@@ -19,8 +19,12 @@
 - name: otc-container
   image: "{{ .Values.sidecars.OTEL.image }}"
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
-      drop: ["NET_RAW"]
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 10001
+
   imagePullPolicy: IfNotPresent
   args:
   - --config=/conf/collector.yaml
@@ -29,6 +33,15 @@
   volumeMounts:
   - mountPath: /conf
     name: config
+  livenessProbe:
+    httpGet:
+      path: /metrics
+      port: 4000
+      scheme: HTTP
+    periodSeconds: 30
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
   resources:
   {{- toYaml .Values.sidecars.OTEL.resources | nindent 4 }}
 {{- end }}

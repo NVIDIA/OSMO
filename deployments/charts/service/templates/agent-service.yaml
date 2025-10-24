@@ -65,14 +65,21 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.agent.serviceAccountName "Values" .Values) }}
+      {{- with .Values.services.agent.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.services.agent.serviceName }}
         image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.agent.imageName }}:{{ .Values.global.osmoImageTag }}
         command:
         - agent_service
         securityContext:
+          allowPrivilegeEscalation: false
           capabilities:
-            drop: ["NET_RAW"]
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
         args:
         - --redis_host
         - {{ .Values.services.redis.serviceName }}
@@ -149,7 +156,7 @@ spec:
         resources:
         {{- toYaml .Values.services.agent.resources | nindent 10 }}
 
-        # Any failure to return the version api means the service is in a bad state
+        # A failed progress check means the container is in a bad state
         livenessProbe:
           exec:
             command:

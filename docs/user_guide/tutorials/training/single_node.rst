@@ -18,8 +18,9 @@
 
 .. _training_single_node:
 
-Starting from Single Node Training
-----------------------------------
+====================
+Single Node Training
+====================
 
 This tutorial walks you through running a DNN training job on a single node with OSMO.
 You'll learn the basics of launching your training script, selecting resources, managing data
@@ -28,7 +29,7 @@ and monitoring training progress using TensorBoard or Weights & Biases.
 The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/single_node>`_.
 
 Launching a Training Script in a Workflow
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------------------------
 
 Suppose you have a training script `train.py <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/single_node/train.py>`_ ready to use.
 Use the ``files`` field in your task spec to include the script in your workflow as a local file.
@@ -43,7 +44,7 @@ Then you can launch the training script in your entry script:
     args: ["/tmp/entry.sh"]
     files:
     - path: /tmp/train.py
-      localpath: train.py  # Include the training script as a local file
+      localpath: train.py  # (1)
     - path: /tmp/entry.sh
       contents: |
         set -ex
@@ -62,8 +63,11 @@ Then you can launch the training script in your entry script:
           --checkpoint-dir $OUTPUT_DIR/checkpoints \
           --model-save-path $OUTPUT_DIR/models
 
+.. code-annotations::
+  1. Include the training script as a local file.
+
 Selecting Resources
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
 Use the ``resources`` field in your workflow spec to select the appropriate resources for your task.
 Based on your training script and available resources, use one or more GPUs.
@@ -78,7 +82,7 @@ Based on your training script and available resources, use one or more GPUs.
       storage: 30Gi
 
 Preparing Training Data
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
 The above example training script will download the public MNIST dataset if not already exists.
 If you want to use your own data as training input,
@@ -105,7 +109,7 @@ Then the input dataset can be referenced in the training script as ``{{input:0}}
     Refer to :ref:`credentials_data` to create a data credential to manage your datasets.
 
 Saving Training Results
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
 To save the trained model as an OSMO dataset, use the ``outputs`` field in your task spec:
 
@@ -132,7 +136,7 @@ use the ``checkpoint`` field in your task spec:
       regex: .*.pth  # Regex for files to checkpoint
 
 Monitoring Training Progress
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------------
 
 **Weigths and Biases**
 
@@ -196,6 +200,6 @@ When the task is running, you can run the port-forward command to forward the Te
 
 Open your browser and visit ``http://localhost:6006`` to see the TensorBoard:
 
-.. image:: tensorboard.png
+.. image:: ../images/tensorboard.png
   :width: 800
   :align: center

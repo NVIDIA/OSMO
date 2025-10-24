@@ -574,10 +574,7 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
       - /api/auth/refresh_token
       - /api/auth/jwt/refresh_token
       - /api/auth/jwt/access_token
-      - /client/osmo_client
-      - /client/install.sh
       - /client/version
-      - /client/pypi/simple
 
       # Service configuration
       service:

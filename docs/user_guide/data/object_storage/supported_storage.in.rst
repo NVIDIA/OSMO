@@ -16,10 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 ..
 
-===========
-Quick Start
-===========
-
-.. note:: TODO: Add quick start content here
-
-Visit our `Quick Start guide <https://github.com/NVIDIA/OSMO/blob/main/QUICK_START.md>`_ to try OSMO on your local machine
+* `AWS S3 <https://aws.amazon.com/s3>`_
+* `GCP Google Storage <https://cloud.google.com/storage/docs/buckets>`_
+* `Azure Blob Storage <https://azure.microsoft.com/en-us/products/storage/blobs>`_
+* `Torch Object Storage <https://docs.byteplus.com/en/docs/tos>`_

@@ -23,8 +23,11 @@ Envoy sidecar container
 - name: envoy
   image: "{{ .Values.sidecars.envoy.images.envoy }}"
   securityContext:
+    allowPrivilegeEscalation: false
     capabilities:
-      drop: ["NET_RAW"]
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 1001
 
   imagePullPolicy: {{ .Values.sidecars.envoy.images.pullPolicy }}
   args:
@@ -69,6 +72,27 @@ Envoy sidecar container
     - name: {{ .name }}
       mountPath: {{ .mountPath }}
     {{- end }}
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: 9901
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 9901
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+  startupProbe:
+    httpGet:
+      path: /ready
+      port: 9901
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
   resources:
 {{ toYaml .Values.sidecars.envoy.resources | nindent 4 }}
 {{- end }}
@@ -120,6 +144,12 @@ Generate log agent sidecar container
 - name: log-agent
   image: "{{ .Values.sidecars.logAgent.image.repository }}"
   imagePullPolicy: {{ .Values.sidecars.logAgent.image.pullPolicy }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 10001
   ports:
   - containerPort: {{ .Values.sidecars.logAgent.fluentBitPrometheusPort }}
     protocol: TCP

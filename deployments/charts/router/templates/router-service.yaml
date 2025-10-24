@@ -66,6 +66,10 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       serviceAccountName: {{ .Values.services.service.serviceAccountName | default "default" }}
+      {{- with .Values.services.service.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.services.service.serviceName }}
         image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.service.imageName }}:{{ .Values.global.osmoImageTag }}
@@ -131,6 +135,12 @@ spec:
         {{- end }}
         {{- end }}
         imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
         ports:
         - name: http
           containerPort: 8000

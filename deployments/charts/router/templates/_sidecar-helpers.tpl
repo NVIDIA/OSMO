@@ -93,6 +93,12 @@ Log agent sidecar container
 - name: log-agent
   image: "{{ .Values.sidecars.logAgent.image }}"
   imagePullPolicy: {{ .Values.sidecars.logAgent.imagePullPolicy }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 10001
   ports:
   - containerPort: {{ .Values.sidecars.logAgent.prometheusPort | default 2020 }}
     protocol: TCP

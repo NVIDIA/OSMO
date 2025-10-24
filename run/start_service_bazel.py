@@ -221,6 +221,9 @@ def _start_localstack_s3():
     if _handle_existing_container('localstack', 'LocalStack S3'):
         return
 
+    # Create kind network if it doesn't exist
+    run_command_with_logging(['docker', 'network', 'create', 'kind'], async_mode=False)
+
     # Start new LocalStack container for S3 on the kind network
     cmd = [
         'docker', 'run', '--rm', '-d',
@@ -294,7 +297,8 @@ def _start_core_service():
         'bazel', 'run', '@osmo_workspace//src/service/core:service',
         '--',
         '--host', f'http://{host_ip}:8000',
-        '--method=dev'
+        '--method=dev',
+        '--progress_file', '/tmp/osmo/service/last_progress_core'
     ]
 
     run_command_with_logging(
@@ -314,7 +318,8 @@ def _start_service_worker():
     cmd = [
         'bazel', 'run', '@osmo_workspace//src/service/worker',
         '--',
-        '--method=dev'
+        '--method=dev',
+        '--progress_file', '/tmp/osmo/service/last_progress_worker'
     ]
 
     process = run_command_with_logging(
@@ -382,7 +387,8 @@ def _start_delayed_job_monitor():
     cmd = [
         'bazel', 'run', '@osmo_workspace//src/service/delayed_job_monitor',
         '--',
-        '--method=dev'
+        '--method=dev',
+        '--progress_file', '/tmp/osmo/service/last_progress_delayed_job_monitor'
     ]
 
     process = run_command_with_logging(
@@ -443,7 +449,7 @@ def start_service_bazel():
         host_ip = get_host_ip()
         logger.info('📊 Core API: http://%s:8000/api/docs', host_ip)
         logger.info('🌐 UI: http://%s:3000', host_ip)
-        logger.info('🔀 Router: http://%s:8001/api/docs\n', host_ip)
+        logger.info('🔀 Router: http://%s:8001/api/router/docs\n', host_ip)
         logger.info('💡 Press Ctrl+C to stop all services\n')
 
         print_next_steps(mode='bazel', show_start_backend=True, show_update_configs=True,

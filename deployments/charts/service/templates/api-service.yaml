@@ -64,6 +64,10 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.service.serviceAccountName "Values" .Values) }}
+      {{- with .Values.services.service.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       containers:
       - name: {{ .Values.services.service.serviceName }}
         image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.service.imageName }}:{{ .Values.global.osmoImageTag }}
@@ -160,6 +164,12 @@ spec:
               key: redis-password
         {{- end }}
         imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 1001
         {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.service.extraVolumeMounts }}
         volumeMounts:
         {{- end }}

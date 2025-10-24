@@ -26,6 +26,6 @@ py_test(
     deps = [
         requirement("kubernetes"),
         "//src/utils/job",
-        "//src/operator:backend_listener"
+        "//src/operator:backend_listener_lib"
     ]
 )

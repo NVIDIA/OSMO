@@ -47,18 +47,26 @@ def get_login_info(
                         f'The file {config.password_file} does not exist!')
                 with open(config.password_file, 'r', encoding='utf-8') as f:
                     password = f.read().strip('\n')
-            if not config.password:
-                raise osmo_errors.OSMOUserError('Must provide password')
-            else:
+            elif config.password is not None:
                 password = config.password
+            else:
+                raise osmo_errors.OSMOUserError('Must provide password')
             return login.owner_password_login(
                 config, config.service_url, config.username, password, user_agent=user_agent)
         elif config.login_method == 'token':
-            if not config.token:
+            if config.token_file is not None:
+                if not os.path.exists(config.token_file):
+                    raise osmo_errors.OSMOUserError(
+                        f'The file {config.token_file} does not exist!')
+                with open(config.token_file, 'r', encoding='utf-8') as f:
+                    token = f.read().strip('\n')
+            elif config.token is not None:
+                token = config.token
+            else:
                 raise osmo_errors.OSMOUserError('Must provide token')
             return login.token_login(
                 config.service_url,
-                login.construct_token_refresh_url(config.service_url, config.token),
+                login.construct_token_refresh_url(config.service_url, token),
                 user_agent=user_agent,
             )
         else:

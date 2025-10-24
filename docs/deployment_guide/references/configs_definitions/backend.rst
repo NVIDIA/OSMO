@@ -115,12 +115,9 @@ Node Conditions
    * - **Field**
      - **Type**
      - **Description**
-   * - ``additional_node_conditions``
-     - Array[String]
-     - Additional node conditions to monitor beyond the defaults.
-   * - ``ignore_node_conditions``
-     - Array[String]
-     - Node conditions to ignore when evaluating node health.
+   * - ``rules``
+     - Map[String, String]
+     - Mapping of condition type regex to allowed status regex. Status combinations use ``|`` over ``True``, ``False``, ``Unknown``. Examples: ``{"^Ready$": "True"}``, ``{"^Sample.*$": "False|Unknown"}``.
    * - ``prefix``
      - String
      - Prefix to apply to custom node condition labels.

@@ -56,8 +56,6 @@ global:
     ##
     k8sLogLevel: WARNING
 
-
-
 ## Configuration for individual Osmo services
 ##
 services:
@@ -292,6 +290,10 @@ services:
     ##
     serviceName: osmo-delayed-job-monitor
 
+    ## Init containers for delayed job monitor
+    ##
+    initContainers: []
+
     ## Node selector constraints for delayed job monitor pod scheduling
     ##
     nodeSelector: {}
@@ -391,6 +393,10 @@ services:
     ## Kubernetes service name for the worker service
     ##
     serviceName: osmo-worker
+
+    ## Init containers for worker
+    ##
+    initContainers: []
 
     ## Node selector constraints for worker pod scheduling
     ##
@@ -494,6 +500,10 @@ services:
     ## Kubernetes service name for the API service
     ##
     serviceName: osmo-service
+
+    ## Init containers for API service
+    ##
+    initContainers: []
 
     ## Hostname on which the ingress is served
     ## Leave empty to use the default cluster hostname
@@ -712,6 +722,10 @@ services:
     ##
     serviceName: osmo-logger
 
+    ## Init containers for logger service
+    ##
+    initContainers: []
+
     ## Prefix for Vault component configuration maps
     ##
     vaultComponentConfigMapPrefix: logger
@@ -810,6 +824,10 @@ services:
     ##
     serviceName: osmo-agent
 
+    ## Init containers for agent service
+    ##
+    initContainers: []
+
     ## Prefix for Vault component configuration maps
     ##
     vaultComponentConfigMapPrefix: agent
@@ -898,6 +916,30 @@ sidecars:
     ##
     useKubernetesSecrets: false
 
+    livenessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    startupProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
+
     ## Secret paths for OAuth2 credentials
     ##
     secretPaths:
@@ -912,7 +954,7 @@ sidecars:
 
       ## Port for in-cluster communication
       ##
-      port: 81
+      port: 8081
 
       ## List of paths that are allowed to be accessed without authentication in the cluster
       ##
@@ -941,10 +983,7 @@ sidecars:
     - /api/auth/refresh_token
     - /api/auth/jwt/refresh_token
     - /api/auth/jwt/access_token
-    - /client/osmo_client
-    - /client/install.sh
     - /client/version
-    - /client/pypi/simple
 
     ## Advanced routing configuration for Envoy proxy
     ## Contains detailed regex-based routing rules for various API endpoints
@@ -1088,20 +1127,6 @@ sidecars:
               header_name: X-OSMO-USER
               descriptor_key: "OSMO_USER"
     - match:
-        safe_regex:
-          regex: "^/client/pypi(/.*)?$"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "client_pypi_path_limit"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
         prefix: "/client"
       route:
         cluster: service
@@ -1182,10 +1207,13 @@ sidecars:
 
     ## Security context for Envoy containers
     ##
-    securityContext: {}
-    # runAsUser: 1000
-    # runAsGroup: 1000
-    # fsGroup: 1000
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
+
 
     ## Volume mounts for Envoy containers
     ##
@@ -1193,7 +1221,7 @@ sidecars:
 
     ## Listener port for Envoy proxy
     ##
-    listenerPort: 80
+    listenerPort: 8080
 
     ## Maximum size of all http headers in kb
     ##
@@ -1542,11 +1570,11 @@ sidecars:
 
     ## HTTP port for rate limiting service
     ##
-    httpPort: 8080
+    httpPort: 8090
 
     ## gRPC port for rate limiting service
     ##
-    grpcPort: 8081
+    grpcPort: 8091
 
     ## Debug port for rate limiting service
     ##

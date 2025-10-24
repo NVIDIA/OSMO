@@ -18,6 +18,7 @@ import Link from "next/link";
 import StatusBadge from "~/components/StatusBadge";
 import { Colors, Tag } from "~/components/Tag";
 import type { WorkflowResponse } from "~/models";
+import { useRuntimeEnv } from "~/runtime-env";
 import { convertSeconds, convertToReadableTimezone, formatForWrapping } from "~/utils/string";
 
 import WorkflowActions from "./WorkflowActions";
@@ -32,6 +33,7 @@ interface WorkflowDetailsProps {
 }
 
 const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, updateUrl }: WorkflowDetailsProps) => {
+  const runtimeEnv = useRuntimeEnv();
   const totalTasks = workflow.groups?.reduce((acc, group) => acc + group.tasks.length, 0);
 
   return (
@@ -50,7 +52,7 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
               {workflow.status && (
                 <a
                   className="tag-container-round"
-                  href="/docs/concepts/workflows_tasks/lifecycle/status.html?h=status#task-statuses"
+                  href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#workflow-statuses`}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={getStatusDescription(workflow.status)}
@@ -89,7 +91,7 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
             <dt>Priority</dt>
             <dd>
               <a
-                href="/docs/concepts/workflows_tasks/priority.html"
+                href={`${runtimeEnv.DOCS_BASE_URL}resource_pools/scheduling/index.html#priority`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tag-container"

@@ -23,18 +23,6 @@ load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
-exports_files(["install.jinja"])
-
-osmo_py_library(
-    name = "install_script_loader",
-    srcs = ["install_script_loader.py"],
-    data = ["install.jinja"],
-    deps = [
-        "//src/lib/utils:jinja_sandbox",
-    ],
-    visibility = ["//src/service/core:__subpackages__"],
-)
-
 osmo_py_library(
     name = "service_lib",
     srcs = [
@@ -48,7 +36,6 @@ osmo_py_library(
         requirement("opentelemetry-instrumentation-fastapi"),
         requirement("opentelemetry-sdk"),
         requirement("uvicorn"),
-        ":install_script_loader",
         "//src/lib/utils:common",
         "//src/lib/utils:logging",
         "//src/lib/utils:osmo_errors",
@@ -63,7 +50,6 @@ osmo_py_library(
         "//src/service/logger:ctrl_websocket",
     ],
     data = [
-        ":install.jinja",
         "//src/lib/utils:version.yaml",
     ],
     visibility = ["//src/service:__subpackages__"],
@@ -84,7 +70,6 @@ run_binary(
         "--main $(location :service.py)",
         "--output_dir $(@D)",
         "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--add-data $(location :install.jinja):src/service/core/",
         "--additional-hooks $(locations //src/service/builder:extra_hooks)",
         "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
     ],
@@ -93,7 +78,6 @@ run_binary(
     srcs = [
         "service.py",
         ":service_lib",
-        ":install.jinja",
         "//src/service/builder:extra_hooks",
         "//src/lib/data/storage:extra_hooks",
         "//src/lib/utils:version.yaml",

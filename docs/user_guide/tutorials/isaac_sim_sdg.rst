@@ -17,17 +17,15 @@
 
 .. _tutorials_isaac_sim_sdg:
 
-========================================================
+====================================
 Isaac Sim: Generating Synthetic Data
-========================================================
+====================================
 
-This workflow demonstrates how to generate synthetic data using Isaac Sim,
-NVIDIA's robotics simulator. By the end of the tutorial, you will have a
-generated dataset of synthetic images of warehouse scenes, that can be used
-for training models.
+In this tutorial, you will generate synthetic data using `Isaac Sim <https://developer.nvidia.com/isaac/sim>`_,
+NVIDIA's robotics simulator. By the end of the tutorial, you will have a dataset of synthetic images of warehouse scenes,
+that can be used to train models.
 
-This tutorial is for users who want to generate synthetic data to make
-their models more robust and accurate.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/synthetic_data_generation>`_.
 
 Prerequisites
 -------------
@@ -36,6 +34,9 @@ In this tutorial, you will need an OSMO data credential in order for the workflo
 to upload the generated data to a dataset.
 
 You can check out the data credentials :ref:`section <credentials_data>` for more information.
+
+Isaac Sim also requires an RTX GPU to run, preferably an RTX 5080 of better. Please check the
+`system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`_ for more details.
 
 Overview
 --------
@@ -68,7 +69,7 @@ We will first start with the skeleton of the workflow:
   1. Entrypoint script to run Isaac Sim.
   2. Setting the environment variables for Isaac Sim to run.
 
-Under environment, we will now add the files section.
+Under ``environment``, we will now add the ``files`` section.
 We will now define the entrypoint script referenced in the command section:
 
 .. code-block:: bash
@@ -133,7 +134,7 @@ Finally, we need to add the resources section to the workflow:
       memory: 32Gi
       storage: 10Gi
 
-This task requires an RTX GPU to run Isaac Sim.
+As mentioned earlier, Isaac Sim requires an RTX GPU to run, so you will need to specify the ``gpu`` field to 1.
 If there is a specific type of GPU that you want to use, you can specify it by adding the ``platform`` field.
 To check the available resources in OSMO, you can run the following command:
 
@@ -141,7 +142,7 @@ To check the available resources in OSMO, you can run the following command:
 
   $ osmo resource list
 
-The complete workflow file can be found `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/synthetic_data_generation>`_.
+The complete workflow file can be found at `isaac_sim_sdg.yaml <https://github0.com/NVIDIA/OSMO/tree/main/workflow_examples/synthetic_data_generation>`_.
 
 Running the Workflow
 --------------------
@@ -158,13 +159,13 @@ Once the workflow has completed, you can download the dataset by running:
 
 .. code-block:: bash
 
-  $ osmo dataset download isaac-sim-sdg-sample <local_folder>
+  $ osmo dataset download isaac-sim-sdg-sample ~/
 
 The folder structure will look like this:
 
 .. code-block:: bash
 
-  <local_folder>/
+  isaac-sim-sdg-sample/
     TopView/
     PalletView/
     DriverView/

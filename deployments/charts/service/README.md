@@ -92,6 +92,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.delayedJobMonitor.replicas` | Number of replicas | `1` |
 | `services.delayedJobMonitor.imageName` | Image name | `delayed-job-monitor` |
 | `services.delayedJobMonitor.serviceName` | Service name | `osmo-delayed-job-monitor` |
+| `services.delayedJobMonitor.initContainers` | Init containers for delayed job monitor | `[]` |
 | `services.delayedJobMonitor.extraArgs` | Additional command line arguments | `[]` |
 | `services.delayedJobMonitor.nodeSelector` | Node selector constraints | `{}` |
 | `services.delayedJobMonitor.tolerations` | Pod tolerations | `[]` |
@@ -106,6 +107,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.worker.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
 | `services.worker.imageName` | Worker image name | `worker` |
 | `services.worker.serviceName` | Service name | `osmo-worker` |
+| `services.worker.initContainers` | Init containers for worker | `[]` |
 | `services.worker.extraArgs` | Additional command line arguments | `[]` |
 | `services.worker.nodeSelector` | Node selector constraints | `{}` |
 | `services.worker.tolerations` | Pod tolerations | `[]` |
@@ -121,6 +123,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.service.scaling.hpaTarget` | HPA target utilization | `80` |
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
+| `services.service.initContainers` | Init containers for API service | `[]` |
 | `services.service.hostname` | Service hostname | `""` |
 | `services.service.extraArgs` | Additional command line arguments | `[]` |
 | `services.service.hostAliases` | Host aliases for custom DNS resolution | `[]` |
@@ -140,6 +143,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.logger.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
 | `services.logger.imageName` | Logger image name | `logger` |
 | `services.logger.serviceName` | Service name | `osmo-logger` |
+| `services.logger.initContainers` | Init containers for logger service | `[]` |
 | `services.logger.nodeSelector` | Node selector constraints | `{}` |
 | `services.logger.tolerations` | Pod tolerations | `[]` |
 | `services.logger.resources` | Resource limits and requests | See values.yaml |
@@ -154,6 +158,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.agent.scaling.hpaTarget` | HPA target utilization | `80` |
 | `services.agent.imageName` | Agent image name | `agent` |
 | `services.agent.serviceName` | Service name | `osmo-agent` |
+| `services.agent.initContainers` | Init containers for agent service | `[]` |
 | `services.agent.nodeSelector` | Node selector constraints | `{}` |
 | `services.agent.tolerations` | Pod tolerations | `[]` |
 | `services.agent.resources` | Resource limits and requests | See values.yaml |

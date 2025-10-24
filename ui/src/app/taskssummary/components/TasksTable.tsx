@@ -36,6 +36,7 @@ import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
 import { useTableStateUrlUpdater } from "~/hooks/useTableStateUrlUpdater";
 import { type TaskSummaryListItem } from "~/models/tasks-model";
+import { useRuntimeEnv } from "~/runtime-env";
 import { formatForWrapping } from "~/utils/string";
 
 export const TasksTable = ({
@@ -51,6 +52,7 @@ export const TasksTable = ({
   updateUrl: (params: ToolParamUpdaterProps) => void;
   showWF: boolean;
 }) => {
+  const runtimeEnv = useRuntimeEnv();
   const updatePagingUrl = useTableStateUrlUpdater();
   const [columnVisibility, setColumnVisibility] = useState({
     tags: false,
@@ -93,7 +95,7 @@ export const TasksTable = ({
         header: "Priority",
         cell: ({ row }) => (
           <a
-            href="/docs/concepts/workflows_tasks/priority.html"
+            href={`${runtimeEnv.DOCS_BASE_URL}resource_pools/scheduling/index.html#priority`}
             target="_blank"
             rel="noopener noreferrer"
             className="tag-container"
@@ -165,7 +167,7 @@ export const TasksTable = ({
     }
 
     return columns;
-  }, [selectedWorkflowId, updateUrl, showWF]);
+  }, [showWF, runtimeEnv.DOCS_BASE_URL, selectedWorkflowId, updateUrl]);
 
   const table = useReactTable({
     data: processResources,
