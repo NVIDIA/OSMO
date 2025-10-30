@@ -493,11 +493,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=first_update_tags,
         )
         self.assertEqual(history['configs'][-2]['data']
-                         [0]['scheduler_settings']['scheduler_type'], 'scheduler-plugins')
-        self.assertEqual(history['configs'][-2]['data']
                          [0]['scheduler_settings']['scheduler_name'], 'test-scheduler')
-        self.assertEqual(history['configs'][-2]['data']
-                         [0]['scheduler_settings']['coscheduling'], True)
         self.assertEqual(history['configs'][-2]['data']
                          [0]['scheduler_settings']['scheduler_timeout'], 12)
         self._verify_history_entry(
@@ -508,11 +504,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=second_update_tags,
         )
         self.assertEqual(history['configs'][-1]['data']
-                         [0]['scheduler_settings']['scheduler_type'], 'scheduler-plugins')
-        self.assertEqual(history['configs'][-1]['data']
                          [0]['scheduler_settings']['scheduler_name'], 'test-scheduler-2')
-        self.assertEqual(history['configs'][-1]['data']
-                         [0]['scheduler_settings']['coscheduling'], False)
         self.assertEqual(history['configs'][-1]['data']
                          [0]['scheduler_settings']['scheduler_timeout'], 13)
 
@@ -538,11 +530,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=rollback_tags,
         )
         self.assertEqual(history['configs'][-1]['data'][0]
-                         ['scheduler_settings']['scheduler_type'], 'scheduler-plugins')
-        self.assertEqual(history['configs'][-1]['data'][0]
                          ['scheduler_settings']['scheduler_name'], 'test-scheduler')
-        self.assertEqual(history['configs'][-1]['data'][0]
-                         ['scheduler_settings']['coscheduling'], True)
         self.assertEqual(history['configs'][-1]['data'][0]
                          ['scheduler_settings']['scheduler_timeout'], 12)
 

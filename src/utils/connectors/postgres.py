@@ -2126,8 +2126,6 @@ class BackendResource(pydantic.BaseModel):
 class BackendSchedulerType(enum.Enum):
     """ Defines the type of scheduler used by the backend """
     DEFAULT = 'default'
-    SCHEDULER_PLUGINS = 'scheduler-plugins'
-    VOLCANO = 'volcano'
     KAI = 'kai'
 
 
