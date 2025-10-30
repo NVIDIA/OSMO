@@ -452,9 +452,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             request=objects.PostBackendRequest(
                 configs=objects.BackendConfig(
                     scheduler_settings=connectors.BackendSchedulerSettings(
-                        scheduler_type=connectors.BackendSchedulerType.SCHEDULER_PLUGINS,
                         scheduler_name='test-scheduler',
-                        coscheduling=True,
                         scheduler_timeout=12,
                     ),
                 ),
@@ -471,9 +469,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             request=objects.PostBackendRequest(
                 configs=objects.BackendConfig(
                     scheduler_settings=connectors.BackendSchedulerSettings(
-                        scheduler_type=connectors.BackendSchedulerType.SCHEDULER_PLUGINS,
                         scheduler_name='test-scheduler-2',
-                        coscheduling=False,
                         scheduler_timeout=13,
                     ),
                 ),

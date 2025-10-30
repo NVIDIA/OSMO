@@ -483,8 +483,6 @@ def get_k8s_object_factory(backend: connectors.Backend) -> K8sObjectFactory:
     scheduler_type = scheduler_settings.scheduler_type
     if scheduler_type == connectors.BackendSchedulerType.KAI:
         return KaiK8sObjectFactory(backend)
-    elif scheduler_type == connectors.BackendSchedulerType.DEFAULT:
-        return K8sObjectFactory(scheduler_settings.scheduler_name)
     else:
         raise ValueError(f'Unsupported scheduler type: {scheduler_type}')
 
