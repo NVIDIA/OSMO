@@ -19,9 +19,42 @@
 What's Next
 ===========
 
-.. note:: TODO: Add what's next content here
+.. only:: html
 
-* Follow :doc:`Getting Started </getting_started/system_requirements>` to start using OSMO
-* Review :doc:`Tutorials </tutorials/hello_world/index>` to run your first workflow
-* Scan through the :doc:`FAQs </faq/index>` for answers to common questions
-* Refer to :doc:`Troubleshooting </troubleshooting/index>` to debug issues
+  .. grid:: 1 2 2 2
+      :gutter: 3
+
+      .. grid-item-card:: :material-outlined:`rocket_launch;1.5em` Getting Started
+          :link: ./getting_started/system_requirements
+          :link-type: doc
+
+          Install the OSMO CLI and configure your environment to start using OSMO.
+
+      .. grid-item-card:: :material-outlined:`school;1.5em` Tutorials
+          :link: ./tutorials/overview
+          :link-type: doc
+
+          Follow hands-on tutorials to see OSMO in action.
+
+      .. grid-item-card:: :material-outlined:`terminal;1.5em` Workflows
+          :link: ./workflows/index
+          :link-type: doc
+
+          Discover how to define, configure, and orchestrate computational workflows.
+
+      .. grid-item-card:: :material-outlined:`memory;1.5em` Resource Pools
+          :link: ./resource_pools/index
+          :link-type: doc
+
+          Understand how OSMO allocates resources and schedules jobs efficiently.
+
+      .. grid-item-card:: :material-outlined:`signpost;1.5em` How-to Guides
+          :link: ./how_to/isaac_sim_sdg
+          :link-type: doc
+
+          Explore in-depth guides on how to use OSMO with other tools, frameworks, and platforms.
+
+      .. grid-item-card:: :octicon:`mark-github;1.2em` GitHub Repository
+          :link: https://github.com/NVIDIA/OSMO
+
+          Explore the source code and stay up to date with the latest releases.

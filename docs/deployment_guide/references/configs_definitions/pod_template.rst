@@ -18,10 +18,12 @@
 .. _pod_template_config:
 
 ===========================
-Pod Template Config
+/api/configs/pod_template
 ===========================
 
 Each pod template is defined by a name and a Dictionary[String, Any], where the dictionary is a JSON representation of the Kubernetes pod specification.
+
+**Default Value:** Empty dictionary ``{}`` (no pod templates configured by default)
 
 Example
 =======

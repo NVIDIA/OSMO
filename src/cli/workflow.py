@@ -194,9 +194,16 @@ def setup_parser(parser: argparse._SubParsersAction):
     logs_parser = subparsers.add_parser('logs', help='Get the logs from a workflow.')
     logs_parser.add_argument('workflow_id',
                              help='The workflow ID or UUID for which to fetch the logs.')
+    logs_parser.add_argument('--task', '-t',
+                             type=str,
+                             help='The task name for which to fetch the logs.')
+    logs_parser.add_argument('--retry-id', '-r',
+                             type=int,
+                             help='The retry ID for the task which to fetch the logs. '
+                                  'If not provided, the latest retry ID will be used.')
     logs_parser.add_argument('--error',
                              action='store_true',
-                             help='Show error logs instead of regular logs')
+                             help='Show task error logs instead of regular logs')
     logs_parser.add_argument('-n',
                              dest='last_n_lines',
                              type=int,
@@ -771,9 +778,16 @@ def _validate_workflow(service_client: client.ServiceClient, args: argparse.Name
 
 def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespace):
     logging.debug('Fetch workflow logs for workflow %s.', args.workflow_id)
+    if (args.error or args.retry_id) and not args.task:
+        raise osmo_errors.OSMOUserError('Specify task for retry ID or error logs.')
+
     params = {}
     if args.last_n_lines:
         params['last_n_lines'] = args.last_n_lines
+    if args.task:
+        params['task_name'] = args.task
+    if args.retry_id:
+        params['retry_id'] = args.retry_id
     if not args.error:
         result = service_client.request(
             client.RequestMethod.GET,
@@ -784,7 +798,8 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
         result = service_client.request(
             client.RequestMethod.GET,
             f'api/workflow/{args.workflow_id}/error_logs',
-            mode=client.ResponseMode.STREAMING)
+            mode=client.ResponseMode.STREAMING,
+            params=params)
     if args.error:
         print(f'Workflow {args.workflow_id} has error logs:')
     else:
@@ -794,6 +809,12 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
             print(line.decode('utf-8'))
     # Give friendly message on broken connection
     except requests.exceptions.ChunkedEncodingError as error:
+        # Check if this is specifically the timeout case with InvalidChunkLength
+        error_str = str(error)
+        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+            print('\nLog stream has timed out or failed. '
+                  'Please run the command again to continue viewing logs.')
+            return
         raise osmo_errors.OSMOServerError(f'Failed to fetch logs: {error}') from error
 
 

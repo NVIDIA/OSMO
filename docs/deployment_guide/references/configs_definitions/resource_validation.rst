@@ -17,9 +17,9 @@
 
 .. _resource_validation_config:
 
-===========================
-Resource Validation Config
-===========================
+==================================
+/api/configs/resource_validation
+==================================
 
 Resource validation configurations define rules to validate resource requests against available cluster resources.
 
@@ -54,23 +54,28 @@ Resource Validation Rule
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 15 60
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``operator``
      - `Operator`_
      - The comparison operator to use for validation.
+     - Required field
    * - ``left_operand``
      - String
      - The left side of the comparison, typically a user-requested value or template variable.
+     - Required field
    * - ``right_operand``
      - String
      - The right side of the comparison, typically a cluster resource limit or template variable.
+     - Required field
    * - ``assert_message``
      - String
      - Error message to display when the validation rule fails.
+     - Required field
 
 Example
 =======

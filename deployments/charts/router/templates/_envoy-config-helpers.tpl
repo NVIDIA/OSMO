@@ -32,7 +32,7 @@ admin:
 {{- end }}
 
 {{/*
-Generate secrets configuration - supports both Vault and Kubernetes secrets
+Generate secrets configuration - supports both custom path and Kubernetes secrets
 */}}
 {{- define "router.envoy.secrets" -}}
 {{- if .Values.sidecars.envoy.useKubernetesSecrets }}

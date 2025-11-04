@@ -23,8 +23,8 @@ import os
 import glob
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
+from docutils.statemachine import StringList
 from sphinx.util import logging
-from docutils.parsers.rst.directives.misc import Include
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class AutoInclude(Directive):
 
         # Resolve the glob pattern
         full_pattern = os.path.join(docdir, pattern)
-        matched_files = sorted(glob.glob(full_pattern, recursive=True), reverse=True)
+        matched_files = sorted(glob.glob(full_pattern, recursive=True))
 
         # Verify all matched files are within docs_root after resolving symlinks
         verified_files = []
@@ -136,31 +136,54 @@ class AutoInclude(Directive):
             # No files matched - silently return empty
             return []
 
-        # Directly instantiate and run Sphinx's Include directive for each file
-        # This ensures identical behavior to manually written include directives
+        # Collect nodes from all matched files
         result_nodes = []
 
+        # Process each matched file
         for filepath in matched_files:
-            # Get relative path from docdir for the include directive
             rel_path = os.path.relpath(filepath, docdir)
 
             try:
-                # Create an Include directive instance with the relative path
-                include_directive = Include(
-                    name='include',
-                    arguments=[rel_path],
-                    options={},
-                    content=[],
-                    lineno=self.lineno,
-                    content_offset=self.content_offset,
-                    block_text='',
-                    state=self.state,
-                    state_machine=self.state_machine
-                )
+                # Read the file content
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    include_lines = f.read().splitlines()
 
-                # Run the directive and collect its nodes
-                nodes_from_include = include_directive.run()
-                result_nodes.extend(nodes_from_include)
+                # Skip leading RST comment blocks (like copyright headers)
+                # Comments start with ".." and continue on indented lines
+                start_idx = 0
+                in_comment = False
+                for i, line in enumerate(include_lines):
+                    stripped = line.lstrip()
+                    # Check if this is a comment start (.. followed by whitespace or nothing on same line)
+                    if stripped.startswith('..') and (len(stripped) == 2 or stripped[2:3].isspace()):
+                        in_comment = True
+                    elif in_comment:
+                        # Comments continue on indented lines or empty lines
+                        if line and not line[0].isspace() and stripped:
+                            # First non-indented, non-empty line after comment
+                            start_idx = i
+                            break
+                    elif stripped:
+                        # First content line (not a comment)
+                        start_idx = i
+                        break
+
+                include_lines = include_lines[start_idx:]
+
+                # Create a StringList from the included lines for parsing
+                string_list = StringList(include_lines, source=filepath)
+
+                # Create a container node to hold the parsed content
+                container = nodes.container()
+                container['classes'].append('auto-include-content')
+
+                # Parse the content synchronously in the current state's context
+                # This makes the nodes immediately available for parent directive validation
+                self.state.nested_parse(string_list, self.content_offset, container)
+
+                # Extract and return the children nodes (not the container itself)
+                # This makes it as if the content was written directly in the parent file
+                result_nodes.extend(container.children)
 
             except Exception as exc:
                 error = self.state_machine.reporter.error(
@@ -173,11 +196,192 @@ class AutoInclude(Directive):
         return result_nodes
 
 
+def _strip_rst_comments(file_lines):
+    """
+    Strip leading RST comment blocks (like copyright headers) from file lines.
+
+    RST comments start with ".." followed by indented content, and can be 
+    closed with another "..". This function finds the index where real 
+    content begins.
+
+    Args:
+        file_lines: List of strings representing file lines
+
+    Returns:
+        int: The index of the first line of real content
+    """
+    start_idx = 0
+    in_comment = False
+
+    for j, line in enumerate(file_lines):
+        stripped = line.lstrip().rstrip()  # Remove trailing whitespace too
+
+        # Check if this is a comment marker: ".." with ONLY whitespace after (or nothing)
+        is_comment_marker = (stripped.startswith('..') and
+                             (len(stripped) == 2 or stripped[2:].strip() == ''))
+
+        # Check if this starts or continues a comment block
+        if not in_comment:
+            # Look for comment start: ".." with nothing or only whitespace after
+            if is_comment_marker:
+                in_comment = True
+                continue
+            elif stripped:
+                # First real content (not a comment)
+                start_idx = j
+                break
+        else:
+            # We're in a comment block
+            if not stripped:
+                # Empty line, continue
+                continue
+            elif line[0].isspace():
+                # Indented line, part of comment
+                continue
+            elif is_comment_marker:
+                # Another ".." marker (comment closer)
+                # Skip it and any following blank lines
+                continue
+            else:
+                # Non-indented, non-comment, non-blank line - real content starts here
+                start_idx = j
+                break
+
+    return start_idx
+
+
+def _process_single_directive(match, lines, current_idx, srcdir):
+    """
+    Process a single auto-include directive by parsing options, matching files,
+    applying exclusions, reading file contents, and formatting with indentation.
+
+    Args:
+        match: Regex match object containing directive information
+        lines: List of all source file lines
+        current_idx: Index of the current directive line
+        srcdir: Source directory path for resolving file patterns
+
+    Returns:
+        tuple: (processed_lines, next_line_index) where processed_lines contains
+               the formatted content to replace the directive, and next_line_index
+               is the index of the next line to process after this directive
+    """
+    indent = match.group(1)
+    file_pattern = match.group(2).strip()
+
+    # Start from the line after the directive
+    i = current_idx + 1
+
+    # Parse option lines (lines starting with more indentation + :)
+    exclude_patterns = []
+    while i < len(lines):
+        line_stripped = lines[i].strip()
+        if line_stripped.startswith(':') and len(lines[i]) - len(lines[i].lstrip()) > len(indent):
+            # Parse the option
+            if line_stripped.startswith(':exclude:'):
+                # Extract the exclude patterns (space-separated list after :exclude:)
+                exclude_value = line_stripped[9:].strip()  # Remove ':exclude:'
+                if exclude_value:
+                    exclude_patterns = exclude_value.split()
+            i += 1
+        elif not line_stripped:
+            i += 1
+        else:
+            break
+
+    processed_lines = []
+
+    # Find matching files
+    if not os.path.isabs(file_pattern):
+        full_pattern = os.path.join(srcdir, file_pattern)
+        matched_files = sorted(glob.glob(full_pattern, recursive=True))
+
+        # Apply exclusions
+        if exclude_patterns:
+            excluded_files = set()
+            for excl_pattern in exclude_patterns:
+                if not os.path.isabs(excl_pattern):
+                    excl_full = os.path.join(srcdir, excl_pattern)
+                    excl_matches = glob.glob(excl_full, recursive=True)
+                    excluded_files.update(excl_matches)
+                    # If no glob match, treat as exact filename
+                    if not excl_matches and os.path.exists(excl_full):
+                        excluded_files.add(excl_full)
+
+            matched_files = [f for f in matched_files if f not in excluded_files]
+
+        # Include each matched file's content with proper indentation
+        for filepath in matched_files:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    include_lines = f.readlines()
+
+                # Strip leading RST comments (like copyright headers)
+                start_idx = _strip_rst_comments(include_lines)
+
+                # Add indented content
+                for line in include_lines[start_idx:]:
+                    if line.strip():
+                        processed_lines.append(indent + line)
+                    else:
+                        processed_lines.append(line)
+
+                # Add a blank line after the included content to ensure proper RST spacing
+                # This prevents "Explicit markup ends without a blank line" warnings
+                if processed_lines and processed_lines[-1].strip():
+                    processed_lines.append('\n')
+
+            except Exception as e:
+                logger.warning(f'Failed to include {filepath}: {e}')
+
+    return processed_lines, i
+
+
+def process_auto_includes(app, docname, source):
+    """
+    Process auto-include directives in the source before parsing.
+    This ensures included content is available when parent directives execute.
+    """
+    import re
+
+    content = source[0]
+    srcdir = os.path.dirname(app.env.doc2path(docname))
+
+    # Pattern to match auto-include directives
+    # Captures the indentation, pattern, and any options
+    pattern = r'^(\s*)\.\.\ auto-include::\ +(.+?)$'
+
+    lines = content.splitlines(keepends=True)
+    result_lines = []
+    i = 0
+
+    while i < len(lines):
+        match = re.match(pattern, lines[i])
+        if match:
+            # Process this directive and get the included content
+            processed_lines, next_idx = _process_single_directive(match, lines, i, srcdir)
+            result_lines.extend(processed_lines)
+            i = next_idx
+        else:
+            result_lines.append(lines[i])
+            i += 1
+
+    new_source = ''.join(result_lines)
+    if new_source != content:
+        source[0] = new_source
+
+
 def setup(app):
+    # Register the source-read event handler to process includes before parsing
+    # This happens before RST parsing, ensuring included content is available
+    # when parent directives execute
+    app.connect('source-read', process_auto_includes)
+
+    # Keep the directive registered but it will be processed by source-read
     app.add_directive('auto-include', AutoInclude)
 
     return {
         'version': '0.1',
         'parallel_read_safe': True,
-        'parallel_write_safe': True,
+        'parallel_write_safe': False,  # source-read modifies source
     }

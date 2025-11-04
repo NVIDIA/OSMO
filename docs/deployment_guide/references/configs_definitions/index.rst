@@ -16,24 +16,45 @@
   SPDX-License-Identifier: Apache-2.0
 
 ===========================
-Configuration Definitions
+API Configurations
 ===========================
 
-OSMO supports the following configurations:
+OSMO hosts a Swagger UI that provides a full overview of the available API endpoints.
 
-* **Service**: System-wide settings for the OSMO service
-* **Workflow**: Default settings for workflow execution
-* **Dataset**: Settings for dataset storage and handling
-* **Backend**: Compute and data backend configurations
-* **Pool**: Compute pool configurations for workload distribution
-* **Pod Template**: Kubernetes pod template configurations
-* **Resource Validation**: Rules for validating resource requirements
-* **Role**: User roles and permissions
+The following table provides a list of API endpoints that admins can use to configure the service.
 
-A full overview of the configurations is available in the following sections:
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - **API Endpoint**
+     - **Description**
+   * - :ref:`/api/configs/service <service_config>`
+     - System-wide settings for the OSMO service
+   * - :ref:`/api/configs/workflow <workflow_config>`
+     - Default settings for workflow execution
+   * - :ref:`/api/configs/dataset <dataset_config>`
+     - Settings for dataset storage and handling
+   * - :ref:`/api/configs/backend <backend_config>`
+     - Compute backend configurations
+   * - :ref:`/api/configs/pool <pool_config>`
+     - Compute pool configurations for workload distribution
+   * - :ref:`/api/configs/pod_template <pod_template_config>`
+     - Kubernetes pod template configurations
+   * - :ref:`/api/configs/resource_validation <resource_validation_config>`
+     - Rules for validating resource requirements
+   * - :ref:`/api/configs/role <roles_config>`
+     - User roles and permissions
+
+Admins can access the Swagger UI at ``/api/docs`` to use the Swagger UI to configure the service.
+
+.. image:: swagger.png
+   :alt: Swagger UI
+   :width: 1000
+   :align: center
 
 .. toctree::
-   :maxdepth: 1
+   :hidden:
 
    service
    workflow

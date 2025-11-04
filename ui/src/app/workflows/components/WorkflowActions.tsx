@@ -143,16 +143,6 @@ export default function WorkflowActions({
             Resource Usage
           </Link>
         )}
-        {workflow.outputs && (
-          <button
-            className="btn btn-action"
-            onClick={() => updateUrl({ tool: ToolType.Outputs })}
-            role="listitem"
-          >
-            <OutlinedIcon name="output" />
-            Outputs
-          </button>
-        )}
         <Link
           className="btn btn-action"
           href={submitUrl}

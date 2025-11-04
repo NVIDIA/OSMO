@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  name: robot-simulation
+
+  timeout:
+    exec_timeout: 15m
+
+  resources:
+    gpu-compute:
+      cpu: 4
+      gpu: 1
+      storage: 10Gi
+      memory: 16Gi
+      platform: ovx-a40
+
+    arm-controller:
+      cpu: 2
+      storage: 10Gi
+      memory: 8Gi
+      platform: agx-orin-jp6
+
+  groups:
+  - name: robot-hil
+    tasks:
+
+    ##################################################
+    # GPU Task - Run physics simulation
+    ##################################################
+    - name: physics-sim
+      lead: true
+      image: nvcr.io/nvidia/pytorch:24.01-py3
+      resource: gpu-compute  # (1)
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo "GPU Physics Simulation starting..."
+        nvidia-smi --query-gpu=name --format=csv,noheader
+
+        # Serve simulation data
+        mkdir -p /tmp/sim && cd /tmp/sim
+        python3 -m http.server 8080 &
+        sleep 1
+
+        # Generate robot state
+        step=0
+        while true; do
+          distance=$((10 + RANDOM % 20))
+          echo "{\"step\": $step, \"obstacle_m\": $distance}" > state.json
+          echo "[$step] Obstacle at ${distance}m"
+          ((step++))
+          sleep 2
+        done
+
+    ##################################################
+    # ARM Task - Run robot controller
+    ##################################################
+    - name: robot-ctrl
+      image: arm64v8/ubuntu:24.04
+      resource: arm-controller  # (2)
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo "ARM Robot Controller starting..."
+        apt-get update -qq && apt-get install -y -qq curl jq > /dev/null 2>&1
+
+        # Connect to simulation
+        while ! curl -s http://{{host:physics-sim}}:8080/state.json > /dev/null; do  # (3)
+          sleep 1
+        done
+        echo "Connected to physics simulation"
+
+        # Control loop
+        while true; do
+          state=$(curl -s http://{{host:physics-sim}}:8080/state.json)
+          step=$(echo "$state" | jq -r '.step')
+          dist=$(echo "$state" | jq -r '.obstacle_m')
+
+          # Make control decision
+          [ "$dist" -lt 15 ] && action="BRAKE" || action="CRUISE"
+
+          echo "[$step] Obstacle: ${dist}m → $action"
+          sleep 2
+        done

@@ -109,10 +109,10 @@ def create_cluster(cluster_name: str) -> None:
 
 
 def setup_osmo_namespace(
-        container_registry_url: str,
-        container_registry_username: str,
-        container_registry_password: str
-    ) -> None:
+    container_registry_url: str,
+    container_registry_username: str,
+    container_registry_password: str
+) -> None:
     """Set up the OSMO namespace and image pull secret."""
     logger.info('🔧 Setting up OSMO namespace...')
 
@@ -123,6 +123,17 @@ def setup_osmo_namespace(
         if process.has_failed():
             logger.warning('⚠️  Warning: Failed to create namespace (may already exist)')
             logger.debug('   Check stderr: %s', process.stderr_file)
+
+        logger.info('🔧 Removing existing image pull secret...')
+        process = run_command_with_logging(
+            ['kubectl', 'delete', 'secret', 'imagepullsecret', '-n', 'osmo'])
+        if process.has_failed():
+            logger.warning('⚠️  Warning: Failed to delete image pull secret (may not exist)')
+            logger.debug('   Check stderr: %s', process.stderr_file)
+
+        if not container_registry_password:
+            logger.info('✅ OSMO namespace setup complete')
+            return
 
         auth_str = f'{container_registry_username}:{container_registry_password}'
         auth_b64 = base64.b64encode(auth_str.encode()).decode()
@@ -141,7 +152,6 @@ def setup_osmo_namespace(
             json.dump(docker_config, config_file)
             config_file_path = config_file.name
 
-        # Create image pull secret
         process = run_command_with_logging([
             'kubectl', 'create', 'secret', 'docker-registry', 'imagepullsecret',
             '--from-file=.dockerconfigjson=' + config_file_path,
@@ -154,8 +164,6 @@ def setup_osmo_namespace(
                 '⚠️  Warning: Failed to create image pull secret (may already exist)')
             logger.debug('   Check stderr: %s', process.stderr_file)
 
-        # We need to track the total elapsed time across all operations
-        # For simplicity, we'll just note completion
         logger.info('✅ OSMO namespace setup complete')
     except OSError as e:
         logger.error('❌ Unexpected error setting up namespace: %s', e)
@@ -232,5 +240,4 @@ def setup_kai_scheduler() -> None:
         except OSError as e:
             logger.error('❌ Unexpected error setting up KAI scheduler: %s', e)
             raise RuntimeError(f'Unexpected error setting up KAI scheduler: {e}') from e
-
 

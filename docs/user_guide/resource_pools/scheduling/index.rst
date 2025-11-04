@@ -21,10 +21,44 @@
 Scheduling
 ==========
 
+Overview
+--------
+
+OSMO's scheduling system maximizes cluster utilization while ensuring fair resource allocation across teams and projects.
+The scheduler operates on **three key principles**:
+
+.. grid:: 1 1 3 3
+   :gutter: 3
+   :margin: 4 4 0 0
+
+   .. grid-item-card::
+      :class-header: bg-primary text-white
+      :class-body: text-center
+
+      **Priority-Based Queuing**
+
+      Workflows are scheduled based on their priority level (HIGH, NORMAL, LOW), ensuring critical tasks get resources first.
+
+   .. grid-item-card::
+      :class-header: bg-info text-white
+      :class-body: text-center
+
+      **Smart Preemption**
+
+      Low-priority workflows can be interrupted to make room for higher-priority tasks, with automatic rescheduling.
+
+   .. grid-item-card::
+      :class-header: bg-success text-white
+      :class-body: text-center
+
+      **GPU Borrowing**
+
+      Unused GPUs from other pools can be borrowed to maximize utilization and reduce wait times.
+
 Priority
 --------
 
-If the pool supports preemption, workflows can be assigned one of three priority levels:
+Workflows can be assigned one of three priority levels:
 
 ..  list-table::
     :header-rows: 1
@@ -32,98 +66,193 @@ If the pool supports preemption, workflows can be assigned one of three priority
 
     * - **Priority**
       - **Preemptible**
-      - **Can borrow GPUs from other pools**
-      - **When to use**
-    * - HIGH
+      - **May Borrow GPUs**
+      - **When To Use**
+    * - ``HIGH``
       - No
       - No
       - For time-critical workflows that need to skip the queue.
-    * - NORMAL
+    * - ``NORMAL``
       - No
       - No
       - For most standard workflows.
-    * - LOW
+    * - ``LOW``
       - Yes
       - Yes
       - Batch jobs that can handle being interrupted and restarted. These can be scheduled before
         ``HIGH`` and ``NORMAL`` priority workflows because they can borrow GPUs from other
         pools (see :ref:`concepts_borrowing`).
 
-The scheduler will always try to schedule higher priority workflows before lower priority workflows,
-and within the same priority level, workflows are scheduled in the order they are submitted.
+The scheduler will always try to schedule **higher** priority workflows before **lower** priority workflows.
 
-In the example below, the workflows are submitted in order from ``WF1`` to ``WF6``.
-``WF1`` and ``WF2`` start running immediately because there
-are two GPUs available. The rest of the workflows are queued by order of priority and then by
-order of submit time.
+For workflows with the **same** priority level, workflows are scheduled in the order they are submitted.
 
-.. image:: priority_queueing_order.png
+.. dropdown:: Example: Priority Queueing Order
+    :color: primary
+    :icon: book
+    :open:
 
-For more information on how to specify priority, see :ref:`cli_reference_workflow_submit`.
+    In this example, we have ``WF1`` (``NORMAL`` priority) and ``WF2`` (``NORMAL`` priority) running.
+
+    The rest of the workflows (``WF3`` through ``WF6``) are queued by **(1)** priority and then
+    by **(2)** submission time.
+
+    .. image:: priority_queueing_order.svg
+      :align: center
+      :class: transparent-bg
+      :width: 100%
+
+.. seealso::
+
+  To learn how to specify priority in your workflow, see :ref:`cli_reference_workflow_submit`.
+
+Quotas
+------
+
+Each pool has a **quota** of GPUs that can be occupied by ``NORMAL`` and ``HIGH`` priority workflows.
+Once the pool's GPU quota is reached, workflows submitted with ``NORMAL`` or ``HIGH`` priority will be queued.
+
+``LOW`` priority workflows can be executed even when the pool has hit its GPU quota via :ref:`concepts_borrowing`.
+
+.. important::
+
+  ``LOW`` priority workflows do not count towards the pool's GPU quota.
+
+.. seealso::
+
+  To learn more about how to see your pool's quota, see
+  :ref:`Pool CLI Reference <cli_reference_pool>` and :ref:`Resource CLI Reference <cli_reference_resource>`.
+
+.. _concepts_preemption:
 
 Preemption
 ----------
 
-There are no available resources, workflows submitted with the ``LOW`` priority will be preempted
-if a higher priority workflow (``NORMAL`` or ``HIGH``) is queued.
+**Preemption** within a pool is when a higher priority workflow (``NORMAL`` or ``HIGH``) evicts
+a lower priority workflow (``LOW``) to make room for it to start running.
 
-The preempted workflow will fail with the ``FAILED_PREEMPTED`` status.
+Preemption will happen if the following conditions are met:
 
-In the example below, ``WF1`` and ``WF2`` are running, and ``WF1`` has ``LOW`` priority.
-If ``WF1`` was preempted, then ``WF3`` in the queue would be able to start running, so the scheduler
-goes ahead and preempts ``WF1`` to allow ``WF3`` to start.
+1. The pool has **NOT** reached its GPU quota (from ``NORMAL`` and ``HIGH`` priority workflows)
+2. There are existing ``LOW`` priority workflows consuming the pool's GPUs
+3. A higher priority workflow (``NORMAL`` or ``HIGH``) is submitted to the pool
 
-.. image:: priority_preemption.png
+This will result in ``LOW`` priority workflows running in the pool to be preempted to make room
+for the higher priority workflow.
 
-Preemption allows you to submit as many ``LOW`` priority workflows as you want to keep the cluster
-busy without needing to worry about blocking other workflows.
+.. seealso::
 
-By default, preempted workflows will automatically be rescheduled.
-You can manually configure a workflow to automatically reschedule on preemption by using the
-``exitActions`` field in the workflow spec. Learn more about exit actions at :ref:`concepts_wf_actions`.
+  Preemption outside of a pool may occur when **borrowed** resources are **reclaimed** by other pools.
+  See :ref:`concepts_borrowing` for more information.
 
-.. note::
+.. important::
 
-  The default behavior for preemption can be configured but requires service-level configuration.
-  If you have administrative access, you can enable this directly. Otherwise, contact someone
-  with pool administration privileges.
+  **Key Characteristic:**
+
+  * A preempted workflow will fail with the ``FAILED_PREEMPTED`` status.
+  * A preempted workflow will be rescheduled automatically by default.
+  * Preemption allows you to submit as many ``LOW`` priority workflows as you want to keep the
+    cluster busy without needing to worry about blocking other workflows.
+
+.. dropdown:: Example: Preemption
+    :color: primary
+    :icon: book
+    :open:
+
+    In this example, we have:
+
+    * ``WF1`` (``LOW`` priority) and ``WF2`` (``NORMAL`` priority) are running.
+    * ``WF3`` (``LOW`` priority) and ``WF4`` (``LOW`` priority) are already enqueued.
+
+    When ``WF5`` (``NORMAL`` priority) is submitted, it jumps to the front of the queue. Since ``WF1``
+    is ``LOW`` priority, it will be preempted to make room for ``WF5`` to start running.
+
+    ``WF1`` will be re-enqueued, placing it in front of ``WF3`` and ``WF4`` (due to the order of
+    priority and submit time).
+
+    .. image:: priority_preemption.svg
+      :align: center
+      :class: transparent-bg
+      :width: 100%
+
+.. dropdown:: Why should I use ``LOW`` priority workflows?
+    :color: primary
+    :icon: question
+
+    While preemption may seem like a *disadvantage* at first glance, it is essential tool for
+    maximizing cluster utilization.
+
+    By organizing your workflows into different priority levels, you can ensure that critical
+    workflows are always able to run, while less critical workflows can be queued and executed when
+    resources are available.
+
+.. dropdown:: What happens when a workflow is preempted?
+    :color: primary
+    :icon: question
+
+    By default, preempted workflows will automatically be rescheduled.
+
+    You can manually configure a workflow to automatically reschedule on preemption by using the
+    ``exitActions`` field in the workflow spec.
+
+    .. seealso::
+
+      Learn more about exit actions at :ref:`workflow_spec_exit_actions`.
 
 .. _concepts_borrowing:
 
 Borrowing
 ---------
 
-Borrowing allows you to run more workflows than you have GPUs given to you, by allowing you to
-use GPUs from other pools that are sharing the same physical GPUs.
+Multiple pools can **share** the same physical GPUs in the compute cluster. Administrators can configure
+the partitioning of the GPUs between the pools through *quotas*.
 
-When sharing GPUs, each pool can have a quota which determines how many GPUs can be occupied by
-``NORMAL``/``HIGH`` priority workflows.
+**Borrowing** allows you to run more workflows even if the **total GPUs used have reached the pool's GPU quota**.
+OSMO will automatically **borrow GPUs** from other pools that are sharing the same GPUs.
 
-However, ``LOW`` priority workflows can go beyond the pool quota by borrowing GPUs from other pools
-with the risk of being preempted.
+.. important::
 
-.. note::
+  ``LOW`` priority workflows are the **only** priority level that can go beyond the pool quota by
+  borrowing GPUs from other pools with the risk of being :ref:`preempted <concepts_preemption>`.
 
-  If the pool is under their quota limit, the ``LOW`` priority workflows will **NOT** be preempted
+  If the pool is under its quota limit, the ``LOW`` priority workflows will **NOT** be preempted
   by **other** pools.
 
-In this example, there are two pools ``pool1`` and ``pool2`` that share 4 GPUs. Both pools
-have a quota of 2 GPUs each.
+.. dropdown:: When is borrowing possible?
+    :color: primary
+    :icon: question
 
-``pool2`` is only using 1 of its 2 allocated GPUs, so ``pool1`` can "borrow" the other GPU from
-``pool2`` to run the ``LOW`` priority workflow ``WF3``.
+    Borrowing is only possible when the pool has reached its **quota** limit but not its
+    **capacity** limit.
 
-.. image:: priority_borrowing.png
+    While the pool's **quota** is the number of GPUs that are guaranteed to be available to the pool, the
+    **capacity** is the total number of GPUs that are available to be used by the pool, including
+    GPUs that are shared with other pools.
 
-If another workflow, ``WF5``, is submitted to ``pool2`` that needs the borrowed GPU, then the
-scheduler will preempt ``WF3`` to allow ``WF5`` to start.
+    As noted above, only ``LOW`` priority workflows can borrow GPUs from other pools.
 
-.. image:: priority_reclaim.png
+.. dropdown:: Example: Borrowing and Reclaiming
+    :color: primary
+    :icon: book
+    :open:
 
-To learn more about how to see your quota and the shared GPUs, see
-:ref:`Pool CLI Reference <cli_reference_pool>` and :ref:`Resource CLI Reference <cli_reference_resource>`.
+    In this example, ``pool1`` and ``pool2`` share 4 GPUs. Both pools have a quota of 2 GPUs each.
 
-Fair Share
-----------
+    * In ``pool1`` - ``WF1`` (``NORMAL`` priority) and ``WF2`` (``LOW`` priority) are running.
+    * In ``pool2`` - ``WF4`` (``NORMAL`` priority) is running.
+    * A user submits ``WF3`` (``LOW`` priority) to ``pool1``.
 
-.. note:: TODO fair share
+    Since ``pool2`` is only using **1 out of its 2 allocated GPUs**, ``pool1`` can
+    **borrow the unused GPU** from ``pool2`` to run ``WF3``.
+
+    .. image:: priority_borrowing.svg
+      :align: center
+      :class: transparent-bg
+      :width: 75%
+
+    When a user submits ``WF5`` with ``NORMAL`` priority to ``pool2``, the scheduler will **preempt** ``WF3`` to allow ``WF5`` to start, effectively **reclaiming** the borrowed GPU.
+
+    .. image:: priority_reclaim.svg
+      :align: center
+      :class: transparent-bg
+      :width: 75%

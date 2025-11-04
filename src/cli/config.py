@@ -855,7 +855,7 @@ def setup_parser(parser: argparse._SubParsersAction):
         epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
                'Ex. osmo config show SERVICE\n'
                'Ex. osmo config show RESOURCE_VALIDATION default_cpu\n'
-               'Ex. osmo config show POD_TEMPLATE:3 amlfs'
+               'Ex. osmo config show WORKFLOW:3 user_workflow_limits'
     )
     show_parser.add_argument(
         'config',

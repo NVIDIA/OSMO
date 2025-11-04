@@ -32,7 +32,7 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 
 
-def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False, amend=False):
+def create_multiarch_manifest(registry_path, image_name, tag, push_extra_tag=None, amend=False):
     """Create and push a multi-arch manifest for the given image."""
     image_path = urllib.parse.urljoin(registry_path + '/', image_name)
 
@@ -70,8 +70,8 @@ def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False,
         raise
 
     # If requested, also push with latest tag
-    if push_latest and tag != 'latest':
-        latest_manifest_image = f'{image_path}:latest'
+    if push_extra_tag and tag != push_extra_tag:
+        latest_manifest_image = f'{image_path}:{push_extra_tag}'
         create_latest_cmd = [
             'docker', 'manifest', 'create',
             latest_manifest_image,
@@ -82,10 +82,12 @@ def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False,
             create_latest_cmd.append('--amend')
 
         try:
-            logger.info('Creating latest manifest: %s', ' '.join(create_latest_cmd))
+            logger.info('Creating %s manifest: %s', push_extra_tag, ' '.join(create_latest_cmd))
             subprocess.run(create_latest_cmd, check=True)
 
-            logger.info('Pushing latest manifest: docker manifest push %s', latest_manifest_image)
+            logger.info('Pushing %s manifest: docker manifest push %s',
+                        push_extra_tag,
+                        latest_manifest_image)
             subprocess.run(['docker', 'manifest', 'push', latest_manifest_image], check=True)
         except subprocess.CalledProcessError as e:
             logger.error('Error creating/pushing latest manifest for %s: %s', image_name, e)
@@ -94,7 +96,8 @@ def create_multiarch_manifest(registry_path, image_name, tag, push_latest=False,
     logger.info('Successfully created and pushed multi-arch manifest for %s:%s', image_name, tag)
 
 
-def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=False, amend=False):
+def push_multiarch_manifests(registry_path, tag, images_to_process, push_extra_tag=None,
+    amend=False):
     """
     Helper function to create multiarch manifests for a list of images.
 
@@ -102,7 +105,7 @@ def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=
         registry_path: The registry path (e.g., "nvcr.io/my_org/my_team")
         tag: The image tag to use
         images_to_process: List or set of image names to process
-        push_latest: Whether to also push latest tags
+        push_extra_tag: Whether to also push extra tags like latest.
         amend: Whether to amend the manifest
 
     Returns:
@@ -120,7 +123,7 @@ def push_multiarch_manifests(registry_path, tag, images_to_process, push_latest=
                 registry_path,
                 image_name,
                 tag,
-                push_latest,
+                push_extra_tag,
                 amend
             )
         except subprocess.CalledProcessError as e:
@@ -161,8 +164,8 @@ def main():
         args.registry_path,
         args.tag,
         args.images,
-        args.push_latest_tag,
-        args.amend
+        push_extra_tag = 'latest' if args.push_latest_tag else None,
+        amend=args.amend
     )
 
     if failed_images:

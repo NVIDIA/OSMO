@@ -18,7 +18,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { highlight, languages } from "prismjs";
@@ -40,27 +40,11 @@ import {
   type PriorityType,
   ProfileResponseSchema,
 } from "~/models";
+import { useRuntimeEnv } from "~/runtime-env";
 import { api } from "~/trpc/react";
 
 // Import Prism.js only on the client side to avoid SSR issues
-export const mockCreatedWorkflowFile = `
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# SPDX-License-Identifier: Apache-2.0
-
-workflow:
+export const mockCreatedWorkflowFile = `workflow:
   name: hello-osmo
   tasks:
   # Simple Task
@@ -83,6 +67,7 @@ export const WorkflowsSubmit = ({
   renderedSpec?: string;
 }) => {
   const mutation = api.workflows.create.useMutation();
+  const runtimeEnv = useRuntimeEnv();
   const { data: profileData, isLoading } = api.profile.getSettings.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -96,10 +81,44 @@ export const WorkflowsSubmit = ({
   const { height: windowHeight } = useWindowSize();
   const [editorHeight, setEditorHeight] = useState(0);
   const footerRef = useRef<HTMLDivElement>(null);
+  const [warnLocalPath, setWarnLocalPath] = useState(false);
+  const [warningList, setWarningList] = useState<ReactNode[]>([]);
 
   useEffect(() => {
     setFile(placeholderFile);
   }, [placeholderFile]);
+
+  useEffect(() => {
+    setWarnLocalPath(file.includes("localpath:"));
+  }, [file]);
+
+  useEffect(() => {
+    const warnings = [];
+    if (warnLocalPath) {
+      warnings.push(
+        <p key="localpath-warning">Localpath is not supported when submitting a workflow through the UI.</p>,
+      );
+      warnings.push(<p key="localpath-warning-2">Please use the CLI to submit workflows with localpath.</p>);
+      warnings.push(
+        <p key="localpath-warning-3">
+          For more information, see{" "}
+          <a
+            className="link-inline"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={`${runtimeEnv.DOCS_BASE_URL}workflows/specification/file_injection.html`}
+          >
+            File Injection
+          </a>
+          .
+        </p>,
+      );
+    }
+    if (selectedPriority === "LOW") {
+      warnings.push(<p key="low-priority-warning">LOW priority workflows can be preempted during the run</p>);
+    }
+    setWarningList(warnings);
+  }, [warnLocalPath, selectedPriority]);
 
   const parsedProfileData = useMemo(() => {
     if (!profileData) {
@@ -138,7 +157,7 @@ export const WorkflowsSubmit = ({
           (footerRef.current?.getBoundingClientRect().height ?? 0),
       );
     }
-  }, [windowHeight, isLoading, parsedProfileData?.success, selectedPool, error, selectedPriority]);
+  }, [windowHeight, isLoading, parsedProfileData?.success, selectedPool, error, warningList]);
 
   const handleSubmit = async () => {
     if (!selectedPool) {
@@ -274,14 +293,14 @@ export const WorkflowsSubmit = ({
         ref={footerRef}
       >
         <InlineBanner
-          status={error ? "error" : selectedPriority === "LOW" ? "warning" : "none"}
+          status={error ? "error" : warningList.length > 0 ? "warning" : "none"}
           className="w-full"
         >
           <div className="flex flex-row gap-3 justify-between w-full items-center">
             {error ? (
               <div className="whitespace-pre-wrap">{error}</div>
-            ) : selectedPriority === "LOW" ? (
-              "LOW priority workflows can be preempted during the run"
+            ) : warningList.length > 0 ? (
+              <div className="flex flex-col">{warningList}</div>
             ) : (
               <div />
             )}

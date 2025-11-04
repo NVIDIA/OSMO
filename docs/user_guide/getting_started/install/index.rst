@@ -56,42 +56,35 @@ Login
 .. important::
 
    The OSMO client can only be used to connect to already deployed OSMO web services. If you are
-   looking to deploy an OSMO service locally, please refer to the :ref:`deploy_locally` guide.
+   looking to run the OSMO service on your workstation, please refer to `Quick Start <https://github.com/NVIDIA/OSMO/blob/main/QUICK_START.md>`_.
 
 To login to the client, can use the following command:
 
 .. code-block:: bash
-  :substitutions:
+  :class: no-copybutton
 
-  $ osmo login |osmo_url|  # (1)
+  $ osmo login https://<Your OSMO URL>/
 
-.. code-annotations::
-
-  (1) Replace |osmo_url| with the URL of your OSMO web service.
-
-After running the command above, you will be prompted to authenticate with the following message:
+After running the command above, you will be prompted to authenticate with the browser based OIDC authentication. For example:
 
 .. code-block:: bash
   :class: no-copybutton
-  :substitutions:
 
-  Visit |osmo_auth_url|/realms/osmo/device?user_code=HIIV-ECOD and complete authentication.
-
-
-Follow the prompts that lead to the browser based OIDC authentication.
-
-.. image:: login1.png
-  :alt: Alternative text
+  Visit https://<Your OSMO URL>/device?user_code=ABCD-EFGH and complete authentication.
 
 Grant access for OSMO application to authenticate you.
 
-.. image:: login2.png
-  :alt: Alternative text
+.. image:: login1.png
+  :align: center
+  :width: 100%
+  :alt: Login and grant access to OSMO application
 
 After successful authentication, you are logged in. Welcome to OSMO.
 
-.. image:: login3.png
-  :alt: Alternative text
+.. image:: login2.png
+  :align: center
+  :width: 100%
+  :alt: Successfully logged in
 
 .. code-block:: bash
   :class: no-copybutton

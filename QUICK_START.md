@@ -18,9 +18,42 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO - Quick Start
 
-This guide will walk you through steps necessary to deploy OSMO on your local workstation.
-At the end of the guide, you would've deployed all essential components of OSMO and be able
-to run a workflow in your environment.
+You don't need a cloud account or enterprise approval to try OSMO. Your local workstation provides
+everything you need to experience the platform.
+
+## Deploy OSMO on Your Workstation
+
+When you deploy OSMO locally on your workstation, you get the complete platform:
+
+- **Full workflow orchestration** – Task dependencies, parallel execution, state management
+- **Real containerized execution** – Your Docker images running in local Kubernetes (via KIND)
+- **Complete data management** – Local object storage for datasets and artifacts
+- **The same YAML workflows** that scale to cloud environments
+- **Interactive development** – SSH into containers, attach debuggers, inspect logs
+
+This guide will walk you through steps necessary to deploy OSMO on your local workstation. At the
+end of the guide, you will have deployed all essential components of OSMO and be able to run a
+workflow in your environment.
+
+## Why Start Locally?
+
+Local deployment is ideal for:
+
+- **Evaluating OSMO** before proposing it to your team or organization
+- **Learning the platform** in a low-risk environment
+- **Testing your workflows** with your own Docker images and data
+- **Assessing fit** for your robotics development needs
+- **Understanding the interface** – CLI, Web UI, and YAML specifications
+
+No cloud costs. No complex infrastructure setup. Just Docker, a few command-line tools, and about 10
+minutes of your time.
+
+If OSMO works for your use case locally, it will scale to hundreds of GPUs in the cloud – using the
+exact same workflows.
+
+> [!WARNING]
+> Quick Start is not recommended for production use because it lacks authentication and
+> security features.
 
 ## Prerequisites
 
@@ -29,51 +62,15 @@ to run a workflow in your environment.
   (>=0.29.0)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) - Kubernetes command-line tool (>=1.32.2)
 - [helm](https://helm.sh/docs/intro/install/) - Helm command-line tool (>=3.16.2)
+- [Raise `inotify` limits](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files)
+- [Make sure your user has permission to use `docker`](https://kind.sigs.k8s.io/docs/user/known-issues/#docker-permission-denied)
 
-## 1. Prepare
+### Optional: GPU support
 
-### Create directory
+If your workstation has a GPU, you can use [nvkind](https://github.com/NVIDIA/nvkind) instead of
+KIND to expose the GPU to the KIND cluster.
 
-```bash
-mkdir -p ~/osmo-quick-start && cd ~/osmo-quick-start
-```
-
-### Download and Install OSMO CLI
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-```
-
-## 2. Configure variables
-
-### Determine CPU Architecture
-
-Determine the architecture of your system and set the `ARCH` environment variable:
-
-```bash
-ARCH=$(uname -m)
-if [[ "$ARCH" == "x86_64" ]]; then
-  ARCH="amd64"
-elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-  ARCH="arm64"
-else
-  echo "Unsupported architecture: $ARCH"
-  exit 1
-fi
-echo "Detected architecture: $ARCH"
-```
-
-### Setup Registry Credentials
-
-This setup uses pre-built images from NVIDIA's container registry,
-[NGC](https://www.nvidia.com/en-us/gpu-cloud/). You will need to have an NGC API key for
-`nvcr.io/nvstaging/osmo` to pull images from NGC. Set the following environment variable:
-
-```bash
-export CONTAINER_REGISTRY_PASSWORD='<NGC API key>'
-```
-
-## 3. Create a KIND cluster
+## 1. Create a KIND cluster
 
 ### Create config
 
@@ -90,7 +87,7 @@ nodes:
       kind: JoinConfiguration
       nodeRegistration:
         kubeletExtraArgs:
-          node-labels: "node_group=ingress"
+          node-labels: "node_group=ingress,nvidia.com/gpu.deploy.operands=false"
     extraPortMappings:
       - containerPort: 30080
         hostPort: 80
@@ -101,7 +98,14 @@ nodes:
       kind: JoinConfiguration
       nodeRegistration:
         kubeletExtraArgs:
-          node-labels: "node_group=data"
+          node-labels: "node_group=kai-scheduler,nvidia.com/gpu.deploy.operands=false"
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
     extraMounts:
       - hostPath: /tmp/localstack-s3
         containerPath: /var/lib/localstack
@@ -111,14 +115,14 @@ nodes:
       kind: JoinConfiguration
       nodeRegistration:
         kubeletExtraArgs:
-          node-labels: "node_group=service"
+          node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
   - role: worker
     kubeadmConfigPatches:
     - |
       kind: JoinConfiguration
       nodeRegistration:
         kubeletExtraArgs:
-          node-labels: "node_group=service"
+          node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
   - role: worker
     kubeadmConfigPatches:
     - |
@@ -135,48 +139,70 @@ EOF
 kind create cluster --config kind-osmo-cluster-config.yaml --name osmo
 ```
 
-This creates a cluster with:
+This creates a Kubernetes cluster on your workstation with a control plane node and several worker
+nodes. The
+[core OSMO components](https://nvidia.github.io/OSMO/docs/user_guide/high_level_architecture.html)
+will be installed on those worker nodes:
 
-- 1 control-plane node
-- 1 worker node labeled `node_group=ingress` for NGINX ingress
-- 1 worker ndoe labeled `node_group=data` for data dependencies (PostgreSQL, Redis, LocalStack S3)
-- 2 worker nodes labeled `node_group=service` for OSMO services
-- 1 worker node labeled `node_group=compute` for compute workloads
+- Control Plane
+  - 2 worker nodes labeled `node_group=service` for API server and workflow engine
+  - 1 worker node labeled `node_group=ingress` for NGINX ingress
+- Compute Layer
+  - 1 worker node labeled `node_group=compute`
+- Data Layer
+  - 1 worker node labeled `node_group=data` for PostgreSQL, Redis, LocalStack S3
 
-## 4. Installation
+## 2. Installation
 
-### Add OSMO Helm Registry
+### [Optional] Install GPU Operator
 
-Before installing the chart, you need to add the Helm repository with your API key:
+[GPU Operator](https://github.com/NVIDIA/gpu-operator) is necessary if your workstation has a GPU
+and you'd like to use it with OSMO Quick Start.
 
 ```bash
-helm repo add nvstaging-osmo https://helm.ngc.nvidia.com/nvstaging/osmo \
-  --username='$oauthtoken' \
-  --password="$CONTAINER_REGISTRY_PASSWORD"
-helm repo update
+helm fetch https://helm.ngc.nvidia.com/nvidia/charts/gpu-operator-v25.10.0.tgz
+helm upgrade --install gpu-operator gpu-operator-v25.10.0.tgz \
+  --namespace gpu-operator \
+  --create-namespace \
+  --set driver.enabled=false \
+  --set toolkit.enabled=false \
+  --set nfd.enabled=true \
+  --wait
 ```
 
-### Install the Chart
+### Install KAI scheduler
 
 ```bash
-helm upgrade --install osmo nvstaging-osmo/osmo-quick-start \
-  --version 1.0.0 \
+helm upgrade --install kai-scheduler \
+  oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+  --version v0.5.5 \
+  --create-namespace -n kai-scheduler \
+  --set global.nodeSelector.node_group=kai-scheduler \
+  --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
+  --wait
+```
+
+KAI scheduler is used to for coscheduling, priority, and preemption of workflows and tasks.
+
+### Install OSMO
+
+```bash
+helm fetch https://helm.ngc.nvidia.com/nvidia/osmo/charts/quick-start-1.0.0.tgz
+helm upgrade --install osmo quick-start-1.0.0.tgz \
   --namespace osmo \
   --create-namespace \
-  --wait \
-  --set global.containerRegistry.password="$CONTAINER_REGISTRY_PASSWORD" \
-  --set global.nodeSelector."kubernetes\.io/arch"=$ARCH \
-  --set ingress-nginx.controller.nodeSelector."kubernetes\.io/arch"=$ARCH
+  --wait
 ```
 
-Installing the chart will take about 5 minutes. If you're curious what's happening, you can monitor with:
+Installing the chart will take about 5 minutes. If you're curious what's happening, you can monitor
+with:
 
 ```bash
 kubectl get pods --namespace osmo
 ```
 
-See [Configuration Options](./deployments/charts/osmo-quick-start/README.md#configuration) in the
-`osmo-quick-start` chart for more ways to install the chart.
+See [Configuration Options](./deployments/charts/quick-start/README.md#configuration) in the
+`quick-start` chart for more ways to install the chart.
 
 ### Add Host Entry
 
@@ -186,7 +212,16 @@ Add the following line to your `/etc/hosts` file:
 echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 ```
 
-## 5. Using OSMO
+## 3. Using OSMO
+
+Congratulations! You now have OSMO configured and running on your workstation. You are ready to
+start running your robotics workflows on OSMO.
+
+### Download and Install OSMO CLI
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+```
 
 ### Login to OSMO
 
@@ -194,35 +229,20 @@ echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 osmo login http://quick-start.osmo --method=dev --username=testuser
 ```
 
-### Run a workflow
+### Run Your Workflows
 
-You can run a workflow by using the OSMO CLI.
+Explore [next steps](https://nvidia.github.io/OSMO/docs/user_guide/getting_started/next_steps.html)
+for information on submitting workflows, interactive development, distributed training, and more.
 
-#### Create a workflow file
+Once you have reached the limits of your workstation, you can scale to the cloud seamlessly –
+without rewriting your workflows. Contact your cloud administrator to discuss deploying OSMO for
+your organization.
 
-```bash
-cat > hello_world.yaml <<'EOF'
-workflow:
-  name: hello-osmo
-  tasks:
-  # Simple Task
-  - name: hello
-    image: ubuntu:22.04  # Docker image name
-    command: ["bash"]
-    args: ["/tmp/entry.sh"]
-    files:
-    - path: /tmp/entry.sh
-      contents: |
-        echo "Hello from OSMO!"
-EOF
-```
-#### Submit the workflow
+> [!NOTE]
+> Cloud engineers and administrators can find more information about deploying OSMO in the
+> [Deployment Guide](https://nvidia.github.io/OSMO/docs/deployment_guide/index.html).
 
-```bash
-osmo workflow submit hello_world.yaml
-```
-
-## 6. Deleting the cluster
+## 4. Deleting the cluster
 
 Delete the cluster using KIND. This will also delete all persistent volumes, including the postgres
 database that was created.
@@ -230,3 +250,4 @@ database that was created.
 ```sh
 kind delete cluster --name osmo
 ```
+

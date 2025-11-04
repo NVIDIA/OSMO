@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# To submit:
+# osmo workflow submit ros2_comm.yaml
+
+workflow:
+  groups:
+  - name: nodes
+    tasks:
+    - name: discovery-server
+      image: osrf/ros:humble-desktop-full
+      args:
+      - /tmp/client.sh
+      command:
+      - /bin/bash
+      files:
+      - contents: |-
+          #!/bin/bash
+          source /opt/ros/humble/setup.bash
+          fastdds discovery --server-id 0 -p 11811
+        path: /tmp/client.sh
+    - name: publisher-node
+      image: osrf/ros:humble-desktop-full
+      args:
+      - /tmp/entry.sh
+      command:
+      - bash
+      files:
+      - contents: |-
+          apt-get update
+          apt-get install -y dnsutils
+
+          DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+
+          export ROS_DISCOVERY_SERVER=$DISCOVERY_SERVER_IP:11811
+
+          # Set up environment variables
+          source /opt/ros/humble/setup.bash
+
+          ros2 run demo_nodes_cpp talker --ros-args --remap __node:=talker_discovery_server
+        path: /tmp/entry.sh
+      lead: true
+    - name: subscriber-node
+      image: osrf/ros:humble-desktop-full
+      args:
+      - /tmp/entry.sh
+      command:
+      - bash
+      files:
+      - contents: |-
+          apt-get update
+          apt-get install -y dnsutils
+
+          DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+
+          export ROS_DISCOVERY_SERVER=$DISCOVERY_SERVER_IP:11811
+
+          # Set up environment variables
+          source /opt/ros/humble/setup.bash
+
+          ros2 run demo_nodes_cpp listener --ros-args --remap __node:=listener_discovery_server
+        path: /tmp/entry.sh
+  name: ros-comms
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  timeout:
+    exec_timeout: 15m

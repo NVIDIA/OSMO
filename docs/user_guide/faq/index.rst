@@ -21,9 +21,9 @@
 FAQs
 ====
 
-.. include:: data.in.rst
-
 .. include:: workflow.in.rst
+
+.. include:: data.in.rst
 
 .. auto-include:: *.in.rst
    :exclude: data.in.rst workflow.in.rst

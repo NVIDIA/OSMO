@@ -27,7 +27,7 @@ Envoy sidecar container
   command: ["/bin/sh", "-c"]
   args:
     - |
-      echo "$(date -Iseconds) Waiting for Vault agent to populate secrets..."
+      echo "$(date -Iseconds) Waiting to populate secrets..."
       {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
       # For Kubernetes secrets, just wait and start
       sleep 5

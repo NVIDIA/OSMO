@@ -908,7 +908,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                         platform_to_resource_map[platform].append(resource)
             rendered_spec.validate_resources(platform_to_resource_map)
 
-            rendered_spec.validate_credentials(self.user, pool_info.platforms)
+            rendered_spec.validate_credentials(self.user)
         except Exception as err:  # pylint: disable=broad-except
             if upload_workflow_spec:
                 workflow_obj = self.build_workflow_object(

@@ -14,7 +14,7 @@
   limitations under the License.
 
 
-.. _concepts_checkpointing:
+.. _workflow_spec_checkpointing:
 
 ================================================
 Checkpointing

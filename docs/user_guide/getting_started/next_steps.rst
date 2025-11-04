@@ -48,29 +48,29 @@ Your OSMO environment gives you access to:
           Define tasks in YAML, submit to OSMO, and let the platform handle scheduling and execution.
 
       .. grid-item-card:: 💻 Interactive Development
-          :link: ../workflows/interaction/index
+          :link: ../workflows/interactive/index
           :link-type: doc
 
           Use SSH, VSCode, or Jupyter notebooks to interactively develop and debug in running tasks.
 
       .. grid-item-card:: 🎯 Distributed Training
-          :link: ../tutorials/training
+          :link: ../how_to/training
           :link-type: doc
 
           Run training jobs and simulations across GPU clusters without managing infrastructure.
 
-      .. grid-item-card:: 📊 Manage Datasets
-          :link: ../data/datasets/index
+      .. grid-item-card:: 🤖 Hardware-in-the-Loop (HIL)
+          :link: ../how_to/hil
           :link-type: doc
 
-          Version your datasets with content-addressable storage that deduplicates data.
+          Test robot policies on real hardware like Jetson while running simulation on GPU nodes.
 
 .. only:: not html
 
    * **Submit Workflows** - Define tasks in YAML, submit to OSMO, and let the platform handle scheduling and execution. (:doc:`../workflows/submission`)
-   * **Interactive Development** - Use SSH, VSCode, or Jupyter notebooks to interactively develop and debug in running tasks. (:doc:`../workflows/interaction/index`)
-   * **Distributed Training** - Run training jobs and simulations across GPU clusters without managing infrastructure. (:doc:`../tutorials/training`)
-   * **Manage Datasets** - Version your datasets with content-addressable storage that deduplicates data. (:doc:`../data/datasets/index`)
+   * **Interactive Development** - Use SSH, VSCode, or Jupyter notebooks to interactively develop and debug in running tasks. (:doc:`../workflows/interactive/index`)
+   * **Distributed Training** - Run training jobs and simulations across GPU clusters without managing infrastructure. (:doc:`../how_to/training`)
+   * **Hardware-in-the-Loop (HIL)** - Test robot policies on real hardware like Jetson while running simulation on GPU nodes. (:doc:`../how_to/hil`)
 
 ----
 

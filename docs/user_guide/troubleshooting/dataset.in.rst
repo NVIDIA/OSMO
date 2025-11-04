@@ -21,8 +21,8 @@ Dataset
 ================================================
 
 Below are some common errors you might run into when using the dataset CLI. Please follow the
-suggested steps to troubleshoot. Please also refer to :ref:`credentials_data` or :ref:`concepts_ds`
-for more information
+suggested steps to troubleshoot. Please also refer to :ref:`credentials_data` or
+:ref:`Working with Data <tutorials_working_with_data>` for more information.
 
 Validation error
 ----------------

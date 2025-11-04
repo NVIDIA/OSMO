@@ -18,7 +18,7 @@
 .. _dataset_config:
 
 ===========================
-Dataset Config
+/api/configs/dataset
 ===========================
 
 Dataset config is used to configure dataset storage buckets and access.
@@ -28,43 +28,53 @@ Top-Level Configuration
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``buckets``
      - `Bucket`_
      - Configuration for available dataset storage buckets.
+     - ``{}``
    * - ``default_bucket``
      - String
      - The default bucket identifier to use when none is specified.
+     - ``None``
 
 Bucket
 ======
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``dataset_path``
      - String
      - The URI to the dataset storage location including protocol and bucket/container.
+     - Required field
    * - ``region``
      - String
      - The cloud storage region where the bucket is located.
+     - ``us-east-1``
    * - ``check_key``
      - Boolean
      - Whether to validate access keys before allowing access to the bucket.
+     - ``False``
    * - ``description``
      - String
      - Human-readable description of the bucket and its intended use.
+     - ``None``
    * - ``mode``
      - String
      - Access mode for the bucket. Can be "read-only" or "read-write".
+     - ``read-write``
    * - ``default_credential``
      - String/null
      - Default credential identifier to use for this bucket. If null, someone using the bucket will need to specify a credential.
+     - ``None``

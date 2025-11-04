@@ -49,12 +49,12 @@ extensions = [
     '_extensions.code_annotations',
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
-    '_extensions.markdown_argparse',
+    '_extensions.markdown_translator',
 ]
 
 # Spelling
 spelling_exclude_patterns = [
-    '**/reference/cli/cli_*.rst',
+    '**/appendix/cli/cli_*.rst',
 ]
 spelling_show_suggestions = True
 spelling_warning = True
@@ -116,13 +116,15 @@ html_static_path = ['../_static']
 # These paths are either relative to html_static_path
 # or fully qualified paths (eg. https://...)
 html_css_files = [
-    'css/custom.css',
+    'css/base.css',
+    'css/lifecycle-timeline.css',
 ]
 
 # JavaScript files to include in the HTML output
 # Files are loaded in the order they appear in this list
 html_js_files = [
     'js/code_annotation.js',
+    'js/tab-set.js',
 ]
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
@@ -172,6 +174,31 @@ for key, value in constants.items():
 
 for key, value in link_constants.items():
     rst_prolog += f'.. _{key}: {value}\n'
+
+# Custom badge roles
+rst_prolog += '''
+.. role:: bdg-pending
+   :class: badge bg-pending badge-pending 
+
+.. role:: bdg-running
+   :class: badge bg-running badge-running
+
+.. role:: bdg-completed
+   :class: badge bg-completed badge-completed
+
+.. role:: bdg-failed
+   :class: badge bg-failed badge-failed
+
+.. role:: tag-online
+   :class: tag tag-online
+
+.. role:: tag-offline
+   :class: tag tag-offline
+
+.. role:: tag-maintenance
+   :class: tag tag-maintenance
+
+'''
 
 # -- Options for Autodoc -------------------------------------------------
 

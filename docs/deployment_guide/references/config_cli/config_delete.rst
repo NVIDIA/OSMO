@@ -15,36 +15,47 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-Delete
-======
+.. _cli_reference_config_delete:
 
-The ``osmo config delete`` command allows you to delete named configurations or specific config revisions.
+==================
+osmo config delete
+==================
 
-.. code-block:: bash
+Delete a named configuration or a specific config revision
 
-    $ osmo config delete -h
-    usage: osmo config delete [-h] config_type [name] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
+.. code-block::
 
-    positional arguments:
-      config_type           Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a specific revision
-      name                  Name of the config to delete (required when not deleting a revision)
+   osmo config delete [-h] config_type [name] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
 
-    options:
-      -h, --help            show this help message and exit
-      --description DESCRIPTION, -d DESCRIPTION
-                            Description of the deletion (only used when deleting a named config)
-      --tags TAGS [TAGS ...], -t TAGS [TAGS ...]
-                            Tags for the deletion (only used when deleting a named config)
+   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE
 
-    Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE
+   Ex. osmo config delete POOL my-pool
+   Ex. osmo config delete SERVICE:123
+   Ex. osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
 
-    Ex. osmo config delete POOL my-pool
-    Ex. osmo config delete SERVICE:123
-    Ex. osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
+Positional Arguments
+====================
+
+:kbd:`config_type`
+   Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a specific revision
+
+
+:kbd:`name`
+   Name of the config to delete (required when not deleting a revision)
+
+
+Named Arguments
+===============
+
+--description, -d
+   Description of the deletion (only used when deleting a named config)
+
+--tags, -t
+   Tags for the deletion (only used when deleting a named config)
 
 
 Examples
---------
+========
 
 Delete a named pool configuration:
 

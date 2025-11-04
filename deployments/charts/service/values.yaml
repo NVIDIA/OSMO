@@ -30,10 +30,9 @@ global:
 
   ## Node selector constraints for pod scheduling
   ##
-  nodeSelector:
-    # Schedule pods only on AMD64 architecture nodes
-    kubernetes.io/arch: amd64
-    # Add additional node selectors here as needed
+  nodeSelector: {}
+    # Add node selectors here as needed
+    # kubernetes.io/arch: amd64
     # node-type: cpu
     # zone: us-west-2a
 
@@ -300,10 +299,6 @@ services:
     # kubernetes.io/os: linux
     # node-type: cpu
 
-    ## Prefix for Vault component configuration maps
-    ##
-    vaultComponentConfigMapPrefix: delayedjobmonitor
-
     ## Volumes for delayed job monitor
     ## Default includes progress files for liveness and startup probes
     ##
@@ -419,10 +414,6 @@ services:
       maxSkew: 1
       whenUnsatisfiable: ScheduleAnyway
 
-    ## Prefix for Vault component configuration maps
-    ##
-    vaultComponentConfigMapPrefix: worker
-
     ## Resource limits and requests for the worker container
     ##
     resources: {}
@@ -516,10 +507,6 @@ services:
     # - ip: "192.168.1.100"
     #   hostnames:
     #   - "example.local"
-
-    ## Prefix for Vault component configuration maps
-    ##
-    vaultComponentConfigMapPrefix: service
 
     ## Disable task metrics collection (set to true to disable)
     ##
@@ -726,10 +713,6 @@ services:
     ##
     initContainers: []
 
-    ## Prefix for Vault component configuration maps
-    ##
-    vaultComponentConfigMapPrefix: logger
-
     ## Node selector constraints for logger service pod scheduling
     ##
     nodeSelector: {}
@@ -828,10 +811,6 @@ services:
     ##
     initContainers: []
 
-    ## Prefix for Vault component configuration maps
-    ##
-    vaultComponentConfigMapPrefix: agent
-
     ## Node selector constraints for agent service pod scheduling
     ##
     nodeSelector: {}
@@ -912,7 +891,7 @@ sidecars:
     ##
     enabled: true
 
-    ## Use Kubernetes secrets instead of Vault for credentials
+    ## Use Kubernetes secret for credentials
     ##
     useKubernetesSecrets: false
 
@@ -1581,7 +1560,7 @@ sidecars:
     debugPort: 6070
 
 ## Global configuration for extra ConfigMaps
-## These ConfigMaps can be used for vault configurations or other custom configurations
+## These ConfigMaps can be used for custom configurations
 ##
 extraConfigMaps: []
 # - name: custom-config

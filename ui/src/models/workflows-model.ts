@@ -465,7 +465,7 @@ workflow:
   name: isaac-sim-sdg
   tasks:
   - name: isaac-sim-sdg
-    image: nvcr.io/nvidia/isaac-sim:4.0.0
+    image: nvcr.io/nvidia/isaac-sim:5.1.0
     command: ["bash"]
     args: ["/tmp/entry.sh"]
     environment:
@@ -474,11 +474,6 @@ workflow:
     files:
     - contents: |
         set -e
-        # Hide conflicting Vulkan files, if needed
-        if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
-          mv /usr/share/vulkan /usr/share/vulkan_hidden
-        fi
-
         /isaac-sim/python.sh /isaac-sim/standalone_examples/replicator/scene_based_sdg/scene_based_sdg.py --config /tmp/config.json
         cp -r /isaac-sim/_out_scene_based_sdg/. {{output}}
       path: /tmp/entry.sh
@@ -496,7 +491,7 @@ workflow:
     default:
       cpu: 4
       gpu: 1
-      memory: 16Gi
+      memory: 32Gi
       storage: 10Gi
 `;
 
@@ -630,6 +625,8 @@ workflow:
       path: /tmp/entry.sh
     image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
     name: tutorial
+  timeout:
+    exec_timeout: 2h
 `;
 
 export const RL_WORKFLOW_FILE = `

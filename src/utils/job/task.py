@@ -736,21 +736,6 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                         f'Task with platform: {self.resources.platform} does not allow ' +
                         f'mount: {src_mount}. Task {self.name}')
 
-    def get_arch(self, pool: str, platforms: Dict[str, connectors.Platform]) -> str:
-        """ Get the arch of the task """
-        if self.resources.platform not in platforms:
-            raise osmo_errors.OSMOResourceError(
-                f'Platform {self.resources.platform} does not exist in pool {pool}!')
-
-        platform_labels = platforms[self.resources.platform].parsed_pod_template\
-            .get('spec', {}).get('nodeSelector', {'kubernetes.io/arch': 'amd64'})
-
-        if not platform_labels.get('kubernetes.io/arch', ''):
-            raise osmo_errors.OSMOError(
-                f'No kubernetes.io/arch defined for platform {self.resources.platform}.')
-
-        return platform_labels['kubernetes.io/arch']
-
     def get_filemounts(self, group_uid: str,
                        k8s_factory: kb_objects.K8sObjectFactory) -> List[kb_objects.FileMount]:
         return [
@@ -2280,9 +2265,6 @@ class TaskGroup(pydantic.BaseModel):
         volumes = [file.volume() for file in files]
         volumes += [mount.volume() for mount in host_mounts]
 
-        arch = task_platform.parsed_pod_template.get('spec', {}).get('nodeSelector', {})\
-            .get('kubernetes.io/arch', '')
-
         file_mounts = [file.volume_mount() for file in files if
             file.path.startswith(kb_objects.DATA_LOCATION + '/output/')]
 
@@ -2412,17 +2394,9 @@ class TaskGroup(pydantic.BaseModel):
                                     str(jinja_variables.get('USER_CACHE', '0MiB')),
                                     target='MiB'))
 
-        client_image: connectors.ImageConfig = workflow_config.backend_images.client
-        if arch == 'arm64':
-            control_container_spec = k8s_factory.create_control_container(
-                ctrl_extra_args, client_image.arm64, self.group_uuid, file_mounts,
-                task_spec.downloadType.value, task_spec.resources, user_cache_size)
-        elif arch == 'amd64':
-            control_container_spec = k8s_factory.create_control_container(
-                ctrl_extra_args, client_image.amd64, self.group_uuid, file_mounts,
-                task_spec.downloadType.value, task_spec.resources, user_cache_size)
-        else:
-            raise osmo_errors.OSMOServerError(f'Cannot recognize container arch {arch}.')
+        control_container_spec = k8s_factory.create_control_container(
+            ctrl_extra_args, workflow_config.backend_images.client, self.group_uuid, file_mounts,
+            task_spec.downloadType.value, task_spec.resources, user_cache_size)
 
         using_gpu = bool(task_spec.resources.gpu and task_spec.resources.gpu > 0)
         user_args += [
@@ -2476,7 +2450,6 @@ class TaskGroup(pydantic.BaseModel):
             'containers': [user_container_spec, control_container_spec],
             'initContainers': [
                 k8s_factory.create_init_container(
-                    arch,
                     login_file_mount.volume_mount(),
                     user_config_file_mount.volume_mount(),
                     init_extra_args,

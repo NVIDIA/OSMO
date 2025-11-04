@@ -151,8 +151,6 @@ bazel run @osmo_workspace//src/operator:backend_listener_push_x86_64            
 bazel run @osmo_workspace//src/operator:backend_worker_push_x86_64                         # Image name: backend-worker
 # OSMO UI
 bazel run @osmo_workspace//ui:web_ui_push_x86_64                                           # Image name: web-ui
-# OSMO Docs
-bazel run @osmo_workspace//docs/service:doc_service_push_x86_64                            # Image name: docs
 # OSMO Runtime
 bazel run @osmo_workspace//src/runtime:init_push_x86_64                                    # Image name: init-container
 # OSMO Client
@@ -174,8 +172,6 @@ bazel run @osmo_workspace//src/operator:backend_listener_push_arm64             
 bazel run @osmo_workspace//src/operator:backend_worker_push_arm64                         # Image name: backend-worker
 # OSMO UI
 bazel run @osmo_workspace//ui:web_ui_push_arm64                                           # Image name: web-ui
-# OSMO Docs
-bazel run @osmo_workspace//docs/service:doc_service_push_arm64                            # Image name: docs
 # OSMO Runtime
 bazel run @osmo_workspace//src/runtime:init_push_arm64                                    # Image name: init-container
 # OSMO Client
@@ -322,7 +318,7 @@ bazel run @osmo_workspace//src/cli -- login http://ingress-nginx-controller.ingr
 Test your setup with:
 
 ```sh
-bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflow_examples/basics/hello_world/hello_world.yaml
+bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflows/basics/hello_world/hello_world.yaml
 ```
 
 The workflow should successfully submit and run to a "completed" state.

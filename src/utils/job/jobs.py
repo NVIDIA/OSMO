@@ -1290,10 +1290,13 @@ class CleanupWorkflow(WorkflowJob):
             end_delimiter =  '-' * 100 + '\n'
             base_url = context.postgres.get_workflow_service_url()
             error_logs_url = f'{base_url}/api/workflow/{self.workflow_id}/error_logs'
+            status_url = f'{base_url}/workflows/{self.workflow_id}'
+            if context.postgres.config.method == 'dev':
+                status_url = f'{base_url}/api/workflow/{self.workflow_id}'
 
             log_message = f'{start_delimiter}Workflow terminated ' +\
-                          'abnormally, select task error logs at:\n' +\
-                          f'{error_logs_url}\n{end_delimiter}'
+                          f'abnormally, view task status at:\n{status_url}\n\n' +\
+                          f'View task error logs at:\n{error_logs_url}\n{end_delimiter}'
             logs = connectors.redis.LogStreamBody(
                 time=common.current_time(), io_type=connectors.redis.IOType.DUMP,
                 source='OSMO', retry_id=0, text=log_message)

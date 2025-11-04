@@ -40,7 +40,7 @@ filegroup(
 )
 
 filegroup(
-    name = "osmo-quick-start",
-    srcs = glob(["osmo-quick-start/**"]),
+    name = "quick-start",
+    srcs = glob(["quick-start/**"]),
     visibility = ["//visibility:public"],
 )

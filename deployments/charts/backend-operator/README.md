@@ -31,7 +31,7 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvidia/osmo` |
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the image pull secret | `null` |
-| `global.nodeSelector` | Global node selector | `kubernetes.io/arch: amd64` |
+| `global.nodeSelector` | Global node selector | `{}` |
 | `global.agentNamespace` | Namespace for agent deployment | `osmo` |
 | `global.backendName` | Name identifier for this backend | `default` |
 | `global.backendNamespace` | Backend namespace | `osmo-namespace` |

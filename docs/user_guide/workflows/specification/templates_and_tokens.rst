@@ -15,11 +15,13 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _concepts_wf_templates_and_special_tokens:
+.. _workflow_spec_templates_and_special_tokens:
 
 ================================================
 Templates and Special Tokens
 ================================================
+
+.. _workflow_spec_templates:
 
 Templates
 =========
@@ -33,7 +35,7 @@ with unspecified variables will result in a submission failure.
 
 .. warning::
 
-  Some variable names are reserved and cannot be used. Refer to :ref:`concepts_special_tokens` for more information.
+  Some variable names are reserved and cannot be used. Refer to :ref:`workflow_spec_special_tokens` for more information.
 
 For example:
 
@@ -112,7 +114,7 @@ The example below uses a for loop to create four tasks inside the group:
   1. The ``range(3)`` function is used to create three tasks.
   2. The ``if`` statement is used to set the first task as the lead task.
 
-.. _concepts_special_tokens:
+.. _workflow_spec_special_tokens:
 
 Special Tokens
 ==============
@@ -124,113 +126,42 @@ If you try to set a value for a special token, it will be ignored.
 
 The special tokens are:
 
-..  list-table::
-  :header-rows: 1
-  :widths: 50 150
+.. include:: tokens_table.in.rst
 
-  * - **Token**
-    - **Description**
-  * - ``{{input:<#>}}``
-    - The directory where inputs are downloaded to. The ``<#>`` is the index of an input, starting at 0.
-  * - ``{{output}}``
-    - The directory where files will be uploaded from when the task finishes.
-  * - ``{{workflow_id}}``
-    - The workflow ID.
-  * - ``{{host:<task_name>}}``
-    - The hostname of a currently running task. Useful for tasks to communicate with each other.
+.. dropdown:: Example with ``input``, ``output``, and ``workflow_id``
+  :color: primary
+  :icon: code
+  :open:
 
-The following example uses the special tokens ``input``, ``output``, and ``workflow_id``:
+  .. code-block:: yaml
 
-..
-  This has to use bash for the code annotation to work on the multiline string
-
-.. code-block:: bash
-
-  workflow:
-    name: special-tokens
-    tasks:
-    - name: task1
-      image: ubuntu
-      command: [sh]
-      args: [/tmp/run.sh]
-      inputs:
-      - dataset:
-          name: first_input
-      - dataset:
-          name: second_input
-      outputs:
-      - dataset:
-          name: my_dataset
-      files:
-      - contents: |
-          echo "Hello from {{workflow_id}}"                                 # (1)
-          cat {{input:0}}/file.txt                                          # (2)
-          cat {{input:1}}/file2.txt                                         # (3)
-          echo "Data from task 1: {{workflow_id}}" > {{output}}/my_file.txt # (4)
-        path: /tmp/run.sh
-
-.. code-annotations::
-  1. Prints out the workflow ID
-  2. Reads a file called ``file.txt`` in the dataset ``first_input``
-  3. Reads a file called ``file2.txt`` in the dataset ``second_input``
-  4. Writes the workflow ID to the output folder
-
-The contents of ``{{output}}`` are uploaded to the source defined in the ``outputs`` section of the task.
-
-The following example uses the special token ``{{host:<task_name>}}``. In this example,
-both tasks are part of a group and can communicate over the private network:.
-
-.. code-block:: bash
-
-  workflow:
-    name: server-client
-    groups:
-    - name: my_group
+    workflow:
+      name: special-tokens
       tasks:
-      - name: server
-        image: busybox
+      - name: task1
+        image: ubuntu
         command: [sh]
         args: [/tmp/run.sh]
+        inputs:
+        - dataset:
+            name: first_input
+        - dataset:
+            name: second_input
+        outputs:
+        - dataset:
+            name: my_dataset
         files:
         - contents: |
-            nc -w 50 -l -p 24831 < /tmp/hello.txt # (1)
-          path: /tmp/run.sh
-        - contents: |-
-            hello
-          path: /tmp/hello.txt
-      - name: client
-        image: busybox
-        command: [sh]
-        args: [/tmp/run.sh]
-        files:
-        - contents: |
-            retries=45
-            while ! nslookup {{host:server}} > /dev/null ; do # (2)
-              echo "Waiting for server pod, $retries retries left..."
-              if [ $retries -eq 0 ] ; then
-                echo "Server pod not started in time!"
-                exit 1
-              fi
-              retries=$(($retries - 1))
-              sleep 1
-            done
-
-            retries=20
-            while ! nc -w 30 {{host:server}} 24831 > tmp/tcp_echo.txt ; do # (3)
-              echo "Attempting to connect to server, $retries retries left..."
-              if [ $retries -eq 0 ] ; then
-                echo "Could not connect to server in time!"
-                exit 1
-              fi
-              retries=$(($retries - 1))
-              sleep 1
-            done
-
-            cat tmp/tcp_echo.txt > {{output}}/tcp_echo.txt # (4)
+            echo "Hello from {{workflow_id}}"                                 # (1)
+            cat {{input:0}}/file.txt                                          # (2)
+            cat {{input:1}}/file2.txt                                         # (3)
+            echo "Data from task 1: {{workflow_id}}" > {{output}}/my_file.txt # (4)
           path: /tmp/run.sh
 
-.. code-annotations::
-  1. Opens a TCP server in listening mode using port 24831
-  2. Waits for the server container to be created
-  3. Attempts to read from the server for 20 seconds
-  4. Writes the contents of the server to the output folder
+  .. code-annotations::
+    1. Prints out the workflow ID
+    2. Reads a file called ``file.txt`` in the dataset ``first_input``
+    3. Reads a file called ``file2.txt`` in the dataset ``second_input``
+    4. Writes the workflow ID to the output folder
+
+.. include:: group_communication_example.rst

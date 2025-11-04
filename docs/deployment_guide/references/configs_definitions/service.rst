@@ -18,7 +18,7 @@
 .. _service_config:
 
 ===========================
-Service Config
+/api/configs/service
 ===========================
 
 Service config is used to configure the service.
@@ -28,61 +28,76 @@ Top-Level Configuration
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``service_base_url``
      - String
      - The base URL of the service.
+     - ``https://0.0.0.0``
    * - ``service_auth``
      - `Service Authentication`_
      - The authentication configuration for the service.
+     - Default configuration
    * - ``cli_config``
      - `CLI Configuration`_
      - The CLI configuration for the service.
+     - Default configuration
    * - ``max_pod_restart_limit``
      - String
-     - The maximum duration allowed for a pod restart. The format must be <integer><unit> (for example, 10m, 1h, 1d). Default is 30m.
+     - The maximum duration allowed for a pod restart. The format must be <integer><unit> (for example, 10m, 1h, 1d).
+     - ``30m``
    * - ``agent_queue_size``
      - Integer
-     - The size of the agent queue used to process messages from the backend listener. Default is 1024.
+     - The size of the agent queue used to process messages from the backend listener.
+     - ``1024``
 
 Service Authentication
 ======================
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``keys``
      - Dict[String, `Authentication Keys`_]
      - Keys that are used to mint and sign JWT tokens for workflows to communicate with the service.
+     - Auto-generated RSA key pair
    * - ``active_key``
      - String
      - The active key that is used to mint and sign JWT, referenced by the ``keys`` field.
+     - Auto-generated UUID
    * - ``issuer``
      - String
      - The issuer of the JWT tokens.
+     - ``osmo``
    * - ``audience``
      - String
      - The audience of the JWT tokens.
+     - ``osmo``
    * - ``user_roles``
      - Array[String]
      - The roles that are given to the JWT tokens inside a workflow.
+     - ``[osmo-user]``
    * - ``ctrl_roles``
      - Array[String]
      - The roles that are given to the JWT tokens inside osmo-ctrl.
+     - ``[osmo-user, osmo-ctrl]``
    * - ``login_info``
      - `Login Information`_
      - Configuration for users to authenticate with the service via OAuth2.
+     - Empty configuration
    * - ``max_token_duration``
      - String
-     - The lifetime of the JWT tokens. The format must be <integer><unit> (for example, 10m, 1h, 1d). Default is 365d.
+     - The lifetime of the JWT tokens. The format must be <integer><unit> (for example, 10m, 1h, 1d).
+     - ``365d``
 
 .. note::
 
@@ -96,17 +111,20 @@ Authentication Keys
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``public_key``
      - String
      - The public key of the key pair, in JSON Web Key (JWK) format.
+     - Auto-generated
    * - ``private_key``
      - String
      - The private key of the key pair.
+     - Auto-generated
 
 An example of a JWK public key:
 
@@ -124,69 +142,53 @@ Login Information
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``device_endpoint``
      - String
      - The url to use to completed device flow authentication.
+     - ``None``
    * - ``device_client_id``
      - String
      - The client id to use when authenticating with the device endpoint.
+     - ``None``
    * - ``browser_endpoint``
      - String
      - The url to use to complete browser flow authentication.
+     - ``None``
    * - ``browser_client_id``
      - String
      - The client id to use when authenticating with the browser endpoint.
+     - ``None``
    * - ``token_endpoint``
      - String
      - The url to use to get a token from device auth, client auth, or refresh token.
+     - ``None``
    * - ``logout_endpoint``
      - String
      - The url to use to log out of the service.
+     - ``None``
 
 CLI Configuration
 =================
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
-   * - ``cli_name``
+     - **Default Values**
+   * - ``latest_version``
      - String
      - The name of the CLI build that will be used fetch the build in cloud storage.
+     - ``None``
    * - ``min_supported_version``
      - String
      - The minimum supported version of the CLI. Any CLI with a version older than this will require users to update their CLI.
-   * - ``credential``
-     - `CLI Credential`_
-     - The credentials to use to access the service.
-
-CLI Credential
-==============
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 55
-
-   * - **Field**
-     - **Type**
-     - **Description**
-   * - ``access_key_id``
-     - String
-     - The access key id used to fetch the CLI build from cloud storage.
-   * - ``access_key``
-     - String
-     - The access key used to fetch the CLI build from cloud storage.
-   * - ``endpoint``
-     - String
-     - The endpoint to use to fetch the CLI build from cloud storage, which includes the container name and any prefix.
-   * - ``region``
-     - String
-     - The region of the cloud storage endpoint which has the CLI builds.
+     - ``None``

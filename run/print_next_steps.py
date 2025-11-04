@@ -19,14 +19,14 @@ SPDX-License-Identifier: Apache-2.0
 
 import logging
 import os
-from typing import Optional
+from typing import Literal, Optional
 
 
 logger = logging.getLogger()
 
 
 def print_next_steps(
-    mode: str = 'kind',
+    mode: Literal['kind', 'bazel'],
     show_start_backend: bool = True,
     show_update_configs: bool = True,
     host_ip: Optional[str] = None,
@@ -45,6 +45,7 @@ def print_next_steps(
 
     step_number = 1
     is_bazel_mode = mode == 'bazel'
+    terminal_prefix = 'in another terminal, ' if is_bazel_mode else ''
 
     if show_start_backend:
         # Only show /etc/hosts step for kind mode
@@ -58,31 +59,20 @@ def print_next_steps(
             logger.info('   127.0.0.1 ingress-nginx-controller.ingress-nginx.svc.cluster.local\n')
             step_number += 1
 
-        terminal_prefix = 'in another terminal, ' if is_bazel_mode else ''
-
         logger.info('%d. Start the backend %s:', step_number, terminal_prefix.rstrip(', '))
-        if is_bazel_mode:
-            logger.info(
-                '   bazel run @osmo_workspace//run:start_backend -- '
-                '--mode bazel\n'
-            )
-        else:
-            logger.info(
-                '   bazel run @osmo_workspace//run:start_backend -- '
-                '--container-registry-password="$CONTAINER_REGISTRY_PASSWORD"\n'
-            )
+        logger.info(
+            '   bazel run @osmo_workspace//run:start_backend -- '
+            '--mode=%s\n',
+            mode
+        )
         step_number += 1
 
     if show_update_configs:
-        terminal_prefix = 'in another terminal, ' if is_bazel_mode else ''
-        mode_arg = ' --mode bazel' if is_bazel_mode else ''
-
         logger.info('%d. Update OSMO configurations %s:', step_number, terminal_prefix.rstrip(', '))
         logger.info(
             '   bazel run @osmo_workspace//run:update_configs -- '
-            '--container-registry-password="$CONTAINER_REGISTRY_PASSWORD"'
-            ' %s\n',
-            mode_arg
+            '--mode=%s\n',
+            mode
         )
         step_number += 1
 
@@ -115,7 +105,7 @@ def print_next_steps(
     logger.info('%d. Test your setup with:', step_number)
     logger.info(
         '   bazel run @osmo_workspace//src/cli -- '
-        'workflow submit %s/workflow_examples/basics/hello_world/hello_world.yaml\n',
+        'workflow submit %s/workflows/basics/hello_world/hello_world.yaml\n',
         docs_path,
     )
     logger.info('   The workflow should successfully submit and run to a "completed" state.')

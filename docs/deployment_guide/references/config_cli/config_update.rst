@@ -15,54 +15,66 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-Update
-======
+.. _cli_reference_config_update:
 
-The ``osmo config update`` command allows you to update a configuration.
+==================
+osmo config update
+==================
 
-.. code-block:: bash
+Update a configuration
 
-    $ osmo config update -h
-    usage: osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
+.. code-block::
 
-    positional arguments:
-      config_type           Config type to update (CONFIG_TYPE)
-      name                  Optional name of the config to update
+   osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
 
-    options:
-      -h, --help            show this help message and exit
-      --file FILE, -f FILE  Path to a JSON file containing the updated config
-      --description DESCRIPTION, -d DESCRIPTION
-                            Description of the config update
-      --tags TAGS [TAGS ...], -t TAGS [TAGS ...]
-                            Tags for the config update
+   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
 
-    Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+   Ex. osmo config update SERVICE
+   Ex. osmo config update POOL my-pool --description "Updated pool settings" --tags production high-priority
+   Ex. osmo config update BACKEND my-backend --file config.json
 
-    Ex. osmo config update SERVICE
-    Ex. osmo config update POOL my-pool --description "Updated pool settings" --tags production high-priority
-    Ex. osmo config update BACKEND my-backend --file config.json
+Positional Arguments
+====================
 
+:kbd:`config_type`
+   Config type to update (CONFIG_TYPE)
+
+
+:kbd:`name`
+   Optional name of the config to update
+
+
+Named Arguments
+===============
+
+--file, -f
+   Path to a JSON file containing the updated config
+
+--description, -d
+   Description of the config update
+
+--tags, -t
+   Tags for the config update
 
 Examples
---------
+========
 
 Update a service configuration:
 
 .. code-block:: bash
 
-    $ osmo config show SERVICE cli_config cli_name
-    Key        Value
+    $ osmo config show SERVICE cli_config latest_version
+    Key              Value
     =========================
-    cli_name   5.0.0.5a0e9b81
+    latest_version   6.0.0
 
     $ osmo config update SERVICE
     Successfully updated SERVICE config
 
-    $ osmo config show SERVICE cli_config cli_name
-    Key        Value
+    $ osmo config show SERVICE cli_config latest_version
+    Key              Value
     =========================
-    cli_name   5.0.0.abcd0123
+    latest_version   6.0.1
 
 Update a backend configuration from a file:
 

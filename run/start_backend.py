@@ -62,17 +62,13 @@ def main():
         '--container-registry-password',
         help='Container registry password')
     cluster_group.add_argument(
-        '--image-location', default='nvcr.io/nvstaging/osmo',
-        help='OSMO image location (default: nvcr.io/nvstaging/osmo)')
+        '--image-location', default='nvcr.io/nvidia/osmo',
+        help='OSMO image location (default: nvcr.io/nvidia/osmo)')
     cluster_group.add_argument(
         '--image-tag', default='latest',
         help='OSMO image tag (default: latest)')
 
     args = parser.parse_args()
-
-    # Validate required arguments for KIND mode
-    if args.mode == 'kind' and not args.container_registry_password:
-        parser.error('--container-registry-password is required when using --mode kind')
 
     logger.setLevel(args.log_level)
 

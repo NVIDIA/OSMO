@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 global:
-  osmoImageLocation: nvcr.io/nvstaging/osmo
+  osmoImageLocation: nvcr.io/nvidia/osmo
   osmoImageTag: latest
   nodeSelector:
     node_group: service

@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _concepts_wf_resources:
+.. _workflow_spec_resources:
 
 ============
 Resources

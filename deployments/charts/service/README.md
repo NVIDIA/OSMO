@@ -29,7 +29,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvidia/osmo` |
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the image pull secret | `imagepullsecret` |
-| `global.nodeSelector` | Global node selector | `kubernetes.io/arch: amd64` |
+| `global.nodeSelector` | Global node selector | `{}` |
 
 ### Global Logging Settings
 
@@ -190,7 +190,7 @@ The chart now supports extensible sidecar configuration through the `sidecars` s
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `sidecars.envoy.enabled` | Enable Envoy sidecar | `true` |
-| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets instead of Vault | `false` |
+| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets | `false` |
 | `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth client secret | `/etc/envoy/secrets/client_secret` |
 | `sidecars.envoy.secretPaths.hmacSecret` | Path to HMAC secret | `/etc/envoy/secrets/hmac_secret` |
 | `sidecars.envoy.image` | Envoy proxy image | `envoyproxy/envoy:v1.29.0` |
@@ -271,7 +271,6 @@ This chart requires:
 - PostgreSQL database (external or deployed via chart)
 - Redis cache (external or deployed via chart)
 - Properly configured OAuth2 provider for authentication
-- Optional: HashiCorp Vault server (for secret management)
 - Optional: CloudWatch (for AWS environments)
 
 ## Architecture

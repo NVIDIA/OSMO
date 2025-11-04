@@ -15,32 +15,37 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-Show
-====
+.. _cli_reference_config_show:
 
-The ``osmo config show`` command displays the contents of a configuration.
+================
+osmo config show
+================
 
-.. code-block:: bash
+Show a configuration or previous revision of a configuration
 
-    $ osmo config show -h
-    usage: osmo config show [-h] config_type [names ...]
+.. code-block::
 
-    positional arguments:
-      config_type  Config to show in format <CONFIG_TYPE>[:<revision>]
-      names        Optional names/indices to index into the config. Can be used to show a named config.
+   osmo config show [-h] config_type [names ...]
 
-    options:
-      -h, --help   show this help message and exit
+   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
 
-    Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
+   Ex. osmo config show SERVICE
+   Ex. osmo config show RESOURCE_VALIDATION default_cpu
+   Ex. osmo config show WORKFLOW:3 user_workflow_limits
 
-    Ex. osmo config show SERVICE
-    Ex. osmo config show RESOURCE_VALIDATION default_cpu
-    Ex. osmo config show POD_TEMPLATE:3 amlfs
+Positional Arguments
+====================
+
+:kbd:`config_type`
+   Config to show in format <CONFIG_TYPE>[:<revision>]
+
+
+:kbd:`names`
+   Optional names/indices to index into the config. Can be used to show a named config.
 
 
 Examples
---------
+========
 
 Show a service configuration in JSON format:
 
@@ -50,24 +55,18 @@ Show a service configuration in JSON format:
     {
       "agent_queue_size": 1024,
       "cli_config": {
-        "cli_name": "5.0.0.5a0e9b81",
-        "credential": {
-          "access_key": "**********",
-          "access_key_id": "exampleuser:AUTH_team-osmo-ops",
-          "endpoint": "|data_path|",
-          "region": "us-east-1"
-        },
+        "latest_version": "6.0.0",
         "min_supported_version": null
       },
       "max_pod_restart_limit": "30m",
       "service_auth": {
-        "active_key": "366307e9-49eb-4f58-97b6-a24c99276884",
+        "active_key": "12345678-1234-5678-1234-567812345678",
         "audience": "osmo",
         "issuer": "osmo",
         "keys": {
-          "366307e9-49eb-4f58-97b6-a24c99276884": {
+          "12345678-1234-5678-1234-567812345678": {
             "private_key": "**********",
-            "public_key": {"e":"AQAB","kid":"366307e9-49eb-4f58-97b6-a24c99276884","kty":"RSA","n":"umeClqylEFb8OvoiNxLe5ozY1d7nQL7YFCZSKs0NYIfSgzKzueflEwGtBg8dsx27VdihcP_wSJjNU_NHa2RQEpoqvHSKvZ20NF72U6sumZc8f5h4k8BVD77KYwt-3797eCIVXq-z2ufpT9LOpGuV9oLJAMrGuuJkhvFae2pVlbQndekjLnzQGpedUIqdSGcHJM_g_rLyJjwVqag5wWTJJqW15HosDVhMqm1CW5VrjwtJNkYS4gydU1669VwYcGtfD1AHn99siW0DJS1_YjBxvD0vXA5MiFC0xG5bypHe4SxntDpEmKVEzGzLhm7JaNZQjatU7oLuDnjcBW8rTknh_Q"}
+            "public_key": {"e":"AQAB","kid":"12345678-1234-5678-1234-567812345678","kty":"RSA","n":"**********"}
           }
         },
         "user_roles": ["osmo-user"],
@@ -98,74 +97,12 @@ Show the ``default_cpu`` resource validation rule:
     ]
 
 
-Show the ``amlfs`` pod template in a previous revision:
+Show the ``user_workflow_limits`` workflow configuration in a previous revision:
 
 .. code-block:: bash
 
-    $ osmo config show POD_TEMPLATE:3 amlfs
+    $ osmo config show WORKFLOW:3 user_workflow_limits
     {
-      "spec": {
-        "containers": [
-          {
-            "name": "{{USER_CONTAINER_NAME}}",
-            "volumeMounts": [
-              {
-                "mountPath": "/mnt/amlfs-01",
-                "name": "amlfs-01",
-                "subPath": "gear"
-              },
-              {
-                "mountPath": "/mnt/amlfs-02",
-                "name": "amlfs-02",
-                "subPath": "gear"
-              },
-              {
-                "mountPath": "/mnt/amlfs-03",
-                "name": "amlfs-03",
-                "subPath": "gear"
-              }
-            ]
-          },
-          {
-            "name": "osmo-ctrl",
-            "volumeMounts": [
-              {
-                "mountPath": "/mnt/amlfs-01",
-                "name": "amlfs-01",
-                "subPath": "gear"
-              },
-              {
-                "mountPath": "/mnt/amlfs-02",
-                "name": "amlfs-02",
-                "subPath": "gear"
-              },
-              {
-                "mountPath": "/mnt/amlfs-03",
-                "name": "amlfs-03",
-                "subPath": "gear"
-              }
-            ]
-          }
-        ],
-        "volumes": [
-          {
-            "name": "amlfs-01",
-            "persistentVolumeClaim": {
-              "claimName": "amlfs-01"
-            }
-          },
-          {
-            "name": "amlfs-02",
-            "persistentVolumeClaim": {
-              "claimName": "amlfs-02"
-            }
-          },
-          {
-            "name": "amlfs-03",
-            "persistentVolumeClaim": {
-              "claimName": "amlfs-03"
-            }
-          }
-        ]
-      }
+      "max_num_workflows": null,
+      "max_num_tasks": 6000
     }

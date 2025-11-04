@@ -18,61 +18,29 @@
 
 .. _tutorials_hello_world:
 
-===========
-Hello World
-===========
-
-.. _getting_started_ui:
-
-Using the Web UI
-----------------
-
-The easiest way to get started with submitting workflows to OSMO is to use the Web UI.
-A workflow is essentially a job that will be executed in the compute cluster.
-This section will walk you through using the Web UI to
-submit your first workflow to OSMO and to track its progress as it runs.
-
-.. note::
-
-  The recommended web browsers are Google Chrome or Microsoft Edge.
-
-.. image:: ui_getting_started.gif
-  :alt: OSMO Web UI workflow
-  :align: center
-  :width: 100%
-
-.. _getting_started_cli:
+================================
+Your First Workflow: Hello World
+================================
 
 Using the CLI
 -------------
-
-Now that you have submitted your first workflow, it is time to try out the OSMO CLI.
 
 .. note::
 
    For CLI installation and setup instructions, see :ref:`cli_install`.
 
-The CLI encompasses many commands that allow you to manage your workflows and datasets,
-and get information about compute resources available to you, without leaving your terminal.
+The CLI encompasses many commands that allow you to manage your workflows without leaving your
+terminal. This tutorial will walk you through using the CLI to submit your first workflow to OSMO.
 
 Creating a Workflow File
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can copy the following workflow definition into a file called `hello_world.yaml`.
+You can download the workflow definition here: :download:`hello_world.yaml <hello_world.yaml>`.
+Below is the contents of the file:
 
-.. code-block:: yaml
-
-  workflow:
-    name: hello-osmo
-    tasks:
-      - name: hello
-        image: ubuntu:24.04
-        command: ["bash"]
-        args: ["/tmp/entry.sh"]
-        files:
-          - path: /tmp/entry.sh
-            contents: |
-              echo "Hello from OSMO!"
+.. literalinclude:: hello_world.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 Submitting a Workflow
 ~~~~~~~~~~~~~~~~~~~~~
@@ -116,3 +84,29 @@ This will output the logs for all of the tasks in the workflow.
 .. note::
 
   For more detailed information on the workflow CLI, see :ref:`Workflow CLI Reference <cli_reference_workflow>`.
+
+.. _getting_started_ui:
+
+Using the Web UI
+----------------
+
+Another way to try out submitting workflows to OSMO is to use the Web UI.
+
+The following steps will guide you through submitting a workflow to OSMO using the Web UI.
+
+1. Navigate to the OSMO web interface in your browser
+2. Click **"Submit Workflow"** or the **+** button
+3. Paste your workflow YAML definition or upload a workflow file
+4. Configure any parameters or select a compute pool
+5. Click **Submit**
+
+.. seealso::
+
+  Please refer to :ref:`System Requirements <system_requirements>` for the recommended web browsers.
+
+.. image:: ui_hello_world.gif
+  :alt: OSMO Web UI workflow
+  :align: center
+  :width: 100%
+
+.. _getting_started_cli:

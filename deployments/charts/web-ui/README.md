@@ -26,10 +26,10 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvstaging/osmo` |
+| `global.osmoImageLocation` | Location of OSMO images | `nvcr.io/nvidia/osmo` |
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the image pull secret | `imagepullsecret` |
-| `global.nodeSelector` | Global node selector | `kubernetes.io/arch: amd64` |
+| `global.nodeSelector` | Global node selector | `{}` |
 
 ### Global Logging Settings
 
@@ -47,7 +47,6 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `services.ui.imagePullPolicy` | Image pull policy | `Always` |
 | `services.ui.serviceName` | Name of the service | `osmo-ui` |
 | `services.ui.hostname` | Hostname for the service | `""` (empty, must be configured) |
-| `services.ui.vaultComponentConfigMapPrefix` | Prefix for Vault ConfigMap | `ui` |
 | `services.ui.nodeSelector` | Node selector constraints for UI pod scheduling | `{}` |
 | `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
 | `services.ui.tolerations` | Tolerations for pod scheduling on tainted nodes | `[]` |
@@ -88,8 +87,8 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 |-----------|-------------|---------|
 | `sidecars.envoy.enabled` | Enable Envoy proxy sidecar | `true` |
 | `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets for Envoy | `false` |
-| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret file | `/home/osmo/vault-agent/secrets/oidc_secret.txt` |
-| `sidecars.envoy.secretPaths.hmacSecret` | Path to OAuth2 HMAC secret file | `/home/osmo/vault-agent/secrets/oidc_hmac.txt` |
+| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret file | `/etc/envoy/secrets/client_secret` |
+| `sidecars.envoy.secretPaths.hmacSecret` | Path to OAuth2 HMAC secret file | `/etc/envoy/secrets/hmac_secret` |
 | `sidecars.envoy.image.repository` | Envoy image repository | `envoyproxy/envoy:v1.29.0` |
 | `sidecars.envoy.image.pullPolicy` | Envoy image pull policy | `IfNotPresent` |
 | `sidecars.envoy.service.address` | Backend service address | `127.0.0.1` |
@@ -124,24 +123,6 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name (when useKubernetesSecrets is true) | `oidc-secrets` |
 | `sidecars.envoy.oauth2Filter.clientSecretKey` | Secret key for OAuth2 client secret | `client_secret` |
 | `sidecars.envoy.oauth2Filter.hmacSecretKey` | Secret key for OAuth2 HMAC secret | `hmac_secret` |
-
-#### Vault Integration (Optional)
-
-Vault integration is configured via `extraConfigMaps` and `extraPodAnnotations` rather than built-in templates. This provides maximum flexibility for different Vault configurations.
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `extraConfigMaps` | Custom ConfigMaps (can include Vault agent configuration) | `[]` |
-| `extraPodAnnotations` | Custom pod annotations (can include Vault injection annotations) | `{}` |
-| `extraContainers` | Custom containers (can include Vault agent containers) | `[]` |
-
-**Example Vault Configuration via extraPodAnnotations:**
-```yaml
-extraPodAnnotations:
-  vault.hashicorp.com/agent-inject: 'true'
-  vault.hashicorp.com/agent-configmap: 'vault-config'
-  vault.hashicorp.com/secret-volume-path: '/home/osmo/vault-agent/secrets'
-```
 
 #### Log Agent Sidecar
 
@@ -190,105 +171,6 @@ This chart is self-contained and requires:
 - Properly configured OAuth2 provider
 
 **Optional Dependencies:**
-- Vault server (if using Vault for secret management)
 - OpenTelemetry collector (if OTEL sidecar injection is enabled)
 - AWS CloudWatch (if log agent with CloudWatch is enabled)
 - Kubernetes secrets (if using `useKubernetesSecrets: true` for OAuth2 credentials)
-
-## Notes
-
-### Architecture
-- This chart is **self-contained** and no longer depends on the `service-sidecar` chart
-- **Vault-agnostic design**: Templates contain no hardcoded Vault logic
-- All sidecar containers (Envoy, Log Agent) are native to this chart
-- Vault integration is optional via `extraConfigMaps`, `extraPodAnnotations`, and `extraContainers`
-- The service supports both `unique_name` and `preferred_username` JWT claims
-- Envoy is used as a proxy sidecar for handling authentication and routing
-
-### Configuration
-- The service can be configured to use either ALB or NGINX ingress
-- **Flexible secret management**: Choose between Vault Agent injection or Kubernetes secrets
-- Set `sidecars.envoy.useKubernetesSecrets: true` for direct Kubernetes secret usage
-- Set `sidecars.envoy.useKubernetesSecrets: false` when using Vault or other secret management
-- Log agent (FluentBit) can forward logs to AWS CloudWatch when enabled
-- OpenTelemetry is available for observability via sidecar injection
-- Additional custom containers can be added via `extraContainers`
-
-### Security
-- JWT authentication is handled by Envoy proxy
-- OAuth2 flow is managed through Envoy filters
-- **Multiple secret sources**: Supports Vault Agent injection, Kubernetes secrets, or custom solutions
-- Envoy uses consistent secret paths (`/etc/envoy/secrets/`) regardless of secret source
-- All sidecar containers can be individually enabled/disabled
-
-### Logging
-- Application logs are written to `/var/log/` volume
-- Envoy access logs are captured and can be forwarded
-- Log rotation is available when log agent is enabled
-- Centralized logging can be configured through NFS storage
-
-## Secret Management Configuration
-
-This chart supports multiple approaches for managing OAuth2 secrets:
-
-### Option 1: Vault Agent Injection (Recommended for Production)
-
-```yaml
-sidecars:
-  envoy:
-    useKubernetesSecrets: false  # Use Vault instead
-    secretPaths:
-      clientSecret: /home/osmo/vault-agent/secrets/oidc_secret.txt
-      hmacSecret: /home/osmo/vault-agent/secrets/oidc_hmac.txt
-
-extraPodAnnotations:
-  vault.hashicorp.com/agent-inject: 'true'
-  vault.hashicorp.com/agent-configmap: 'vault-agent-config'
-  vault.hashicorp.com/secret-volume-path: '/home/osmo/vault-agent/secrets'
-
-extraConfigMaps:
-- name: vault-agent-config
-  data:
-    config.hcl: |
-      # Vault agent configuration
-      auto_auth { ... }
-      template { ... }
-```
-
-### Option 2: Kubernetes Secrets (Simple Deployments)
-
-```yaml
-sidecars:
-  envoy:
-    useKubernetesSecrets: true
-    secretPaths:
-      clientSecret: /etc/envoy/secrets/client_secret
-      hmacSecret: /etc/envoy/secrets/hmac_secret
-    oauth2Filter:
-      secretName: oauth2-secrets
-      clientSecretKey: client_secret
-      hmacSecretKey: hmac_secret
-
-# Create the secret separately:
-# kubectl create secret generic oauth2-secrets \
-#   --from-literal=client_secret=your-client-secret \
-#   --from-literal=hmac_secret=your-hmac-secret
-```
-
-### Option 3: Custom Secret Management
-
-```yaml
-sidecars:
-  envoy:
-    useKubernetesSecrets: false  # Disable built-in secret handling
-    secretPaths:
-      clientSecret: /custom/path/to/client_secret
-      hmacSecret: /custom/path/to/hmac_secret
-
-extraContainers:
-- name: custom-secret-manager
-  image: your-secret-manager:latest
-  # Custom secret management logic
-
-# Secrets populated by your custom solution at the configured paths
-```

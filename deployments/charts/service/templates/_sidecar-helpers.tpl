@@ -245,8 +245,16 @@ Rate limit sidecar container
     runAsUser: 1001
   command: ["sh", "-c"]
   args:
-    - |
-      source /home/osmo/vault-agent/secrets/env_vars && /bin/ratelimit
+    {{- if .Values.sidecars.rateLimit.extraArgs }}
+    {{- if kindIs "slice" .Values.sidecars.rateLimit.extraArgs }}
+    {{- range .Values.sidecars.rateLimit.extraArgs }}
+    - {{ . }}
+    {{- end }}
+    {{- else }}
+    - {{ .Values.sidecars.rateLimit.extraArgs }}
+    {{- end }}
+    {{- end }}
+    - /bin/ratelimit
   resources:
   {{- toYaml .Values.sidecars.rateLimit.resources | nindent 10 }}
   env:

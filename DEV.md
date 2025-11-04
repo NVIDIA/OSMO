@@ -28,7 +28,6 @@ Install the [required tools](./README.md#prerequisites) for developing OSMO.
 Set the following environment variables:
 
 ```sh
-export CONTAINER_REGISTRY_PASSWORD="<NGC API key>"
 export HOST_IP=$(ifconfig | grep "inet " | grep -Fv 127.0.0.1 | grep 10. | awk '{print $2}' | head -1)
 ```
 
@@ -65,7 +64,7 @@ This command:
 ### Update Configuration
 
 ```sh
-bazel run @osmo_workspace//run:update_configs -- --container-registry-password="$CONTAINER_REGISTRY_PASSWORD" --mode bazel
+bazel run @osmo_workspace//run:update_configs -- --mode bazel
 ```
 
 This command:
@@ -89,7 +88,7 @@ bazel run @osmo_workspace//src/cli -- login http://$HOST_IP:8000 --method=dev --
 Test your setup with:
 
 ```sh
-bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflow_examples/basics/hello_world/hello_world.yaml
+bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflows/basics/hello_world/hello_world.yaml
 ```
 
 The workflow should successfully submit and run to a "completed" state.

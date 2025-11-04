@@ -24,11 +24,11 @@ This section describes how to configure OSMO using the ``osmo config`` commands.
 Management
 ----------
 
-OSMO maintains a history of all configuration changes, allowing you to:
+OSMO maintains a history of all configuration changes. Each change to a config is tracked as a new "revision", allowing you to:
 
 * Track who made changes and when
 * View previous configurations
-* Roll back to previous versions if needed
+* Roll back to previous revisions if needed
 
 You can use ``--description`` and ``--tags`` to add additional information about configuration changes made with ``osmo config update``, ``osmo config delete``, and ``osmo config rollback``.
 
@@ -44,12 +44,13 @@ The ``osmo config`` command provides the following sub-commands:
 .. toctree::
    :maxdepth: 1
 
-   config_delete
-   config_diff
-   config_history
-   config_list
-   config_rollback
-   config_set
    config_show
-   config_tag
    config_update
+   config_list
+   config_history
+   config_diff
+   config_delete
+   config_set
+   config_rollback
+   config_tag
+

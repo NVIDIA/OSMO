@@ -26,7 +26,7 @@ Credentials are secrets required to run workflows or perform data operations in 
 OSMO supports the following types of credentials:
 
 * :ref:`Registry <credentials_registry>` - for accessing private container registries where Docker images are stored
-* :ref:`Dataset <credentials_dataset>`/:ref:`Data <credentials_data>` - for accessing data storage solutions where workflow data is stored
+* :ref:`Data <credentials_data>` - for accessing data storage solutions to read/write data in your workflows
 * :ref:`Generic <credentials_generic>` - for storing and dereferencing generic key value pairs in the workflows
 
 .. _credentials_registry:
@@ -132,48 +132,21 @@ Registry
                     username=<gitlab_username> \
                     auth=<gitlab_password_or_token>
 
-.. _credentials_dataset:
-
-Datasets
-========
-
-OSMO provides a **dataset** management system (built on top of supported cloud storage providers)
-that greatly enhances data access and management capabilities.
-
-.. auto-include:: ../data/datasets/what_is_a_dataset.in.rst
-
-To check which dataset buckets are available, run the following command:
-
-.. code-block:: bash
-
-    $ osmo bucket list
-
-    Bucket              Description       Location                                   Mode         Default Cred
-    ==========================================================================================================
-    osmo-s3 (default)   Default storage   s3://osmo-bucket/datasets                  read-write   Yes
-    osmo-azure                            azure://osmoteam/osmo-container/datasets   read-write   No
-
-Any buckets with ``Default Cred`` set to ``Yes`` are already accessible to your workflows without
-additional actions needed.
-
-.. important::
-
-    You are **required** to set up a :ref:`data credential <credentials_data>` if you want to:
-
-    - Access a dataset bucket without default credentials
-    - Operate on datasets **outside** of workflows (e.g., from your workstation via the CLI)
-
 .. _credentials_data:
 
 Data
 ====
 
-While OSMO's dataset system is the recommended approach for managing workflow data,
-you may want direct access to object storage.
+OSMO integrates with the following data storage solutions:
 
-OSMO operates seamlessly with data from any of the below supported data storage providers:
+.. auto-include:: supported_storage.in.rst
 
-.. auto-include:: ../data/object_storage/supported_storage.in.rst
+To access your data storage within workflows, you'll need to set the appropriate credentials.
+
+.. important::
+
+    For assistance with **creating credentials** for your data storage provider, please
+    contact your OSMO administrator.
 
 .. tab-set::
 
@@ -195,7 +168,8 @@ OSMO operates seamlessly with data from any of the below supported data storage 
 
         .. seealso::
 
-            For more information on S3 credentials, see :ref:`data_object_storage_s3`.
+            Please refer to `AWS Access Key Documentation <https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html>`_
+            for additional information on managing AWS access keys.
 
     .. tab-item:: GCP Cloud Storage
 
@@ -218,7 +192,8 @@ OSMO operates seamlessly with data from any of the below supported data storage 
 
         .. seealso::
 
-            For more information on GCS credentials, see :ref:`data_object_storage_gcs`.
+            Please refer to `GCS HMAC Keys Documentation <https://docs.cloud.google.com/storage/docs/authentication/managing-hmackeys#console>`_
+            for additional information on managing **interoperable** access keys.
 
     .. tab-item:: Azure Blob Storage
 
@@ -242,7 +217,8 @@ OSMO operates seamlessly with data from any of the below supported data storage 
 
         .. seealso::
 
-            For more information on Azure Blob Storage credentials, see :ref:`data_object_storage_azure`.
+            Please refer to `Azure Storage Connection String Documentation <https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string>`_
+            for additional information on managing Azure Storage Connection Strings.
 
     .. tab-item:: Torch Object Storage
 
@@ -266,7 +242,8 @@ OSMO operates seamlessly with data from any of the below supported data storage 
 
         .. seealso::
 
-            For more information on TOS credentials, see :ref:`data_object_storage_tos`.
+           Please refer to `TOS Access Keys Documentation <https://docs.byteplus.com/en/docs/byteplus-platform/docs-creating-an-accesskey>`_
+           for additional information on managing access keys.
 
 .. _credentials_generic:
 
@@ -284,10 +261,18 @@ For example, to access the Omniverse Nucleus server:
         --payload omni_user='$omni-api-token' \
         omni_pass=<token>
 
+Another example is to access Weights and Biases (W&B) for logging and tracking your experiments:
+
+.. code-block:: bash
+
+  $ osmo credential set wb-auth \
+        --type GENERIC \
+        --payload wb_api_key=<api_key>
+
 .. seealso::
 
   Your registry and data credentials are picked up automatically when you submit a workflow.
-  To specify a generic credential in the workflow, refer to :ref:`concepts_wf_secrets`.
+  To specify a generic credential in the workflow, refer to :ref:`workflow_spec_secrets`.
 
 .. _credentials_cli:
 

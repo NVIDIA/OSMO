@@ -20,7 +20,7 @@
 global:
   ## Base location for Osmo Docker images in the registry
   ##
-  osmoImageLocation: nvcr.io/nvstaging/osmo
+  osmoImageLocation: nvcr.io/nvidia/osmo
 
 
   ## Docker image tag for Osmo server components
@@ -33,11 +33,10 @@ global:
 
   ## Node selector constraints for pod scheduling
   ##
-  nodeSelector:
-    # Schedule pods only on AMD64 architecture nodes
-    kubernetes.io/arch: amd64
-    # Add additional node selectors here as needed
-    # node-type: compute
+  nodeSelector: {}
+    # Add node selectors here as needed
+    # kubernetes.io/arch: amd64
+    # node-type: cpu
     # zone: us-west-2a
 
   ## Logging configuration for all Osmo services
@@ -80,10 +79,6 @@ services:
     ## Container port for the UI service
     ##
     containerPort: 8000
-
-    ## Prefix for Vault component configuration maps
-    ##
-    vaultComponentConfigMapPrefix: ui
 
     ## Kubernetes service account name for the pods
     ##
@@ -360,7 +355,7 @@ sidecars:
   ##
   envoy:
     ## Use Kubernetes secrets for Envoy credentials
-    ## Set to false when managing secrets using Vault or other secrets management solution
+    ## Set to false when managing secrets with custom secrets management solution
     ##
     useKubernetesSecrets: false
 
@@ -669,5 +664,4 @@ extraContainers: []
 ## Additional pod annotations
 ##
 extraPodAnnotations: {}
-# vault.hashicorp.com/agent-inject: 'true'
-# vault.hashicorp.com/agent-configmap: 'vault-config'
+# custom-annotations: custom-value

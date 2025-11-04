@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# By default this workflow will run a NIM server as part of the workflow.
+#
+# To submit and use a NIM hosted in NGC, submit with the following flag:
+# osmo workflow submit use_nim.yaml --set external_nim_server_url='https://integrate.api.nvidia.com'
+# To run the NIM server as part of the workflow, submit with no flags:
+# osmo workflow submit use_nim.yaml
+
+workflow:
+  name: use-nim
+  # Define the resources used by the NIM server and client tasks
+  resources:
+    {% if not external_nim_server_url %}
+    nim-server:
+      gpu: {{nim_gpu_count}}
+      cpu: {{nim_cpu_count}}
+      memory: {{nim_memory}}
+      storage: {{nim_storage}}
+    {% endif %}
+
+    nim-client:
+      cpu: 1
+      memory: 1Gi
+
+  # Use a "group" to run the NIM server and client tasks together
+  groups:
+  - name: nim
+    tasks:
+      {% if not external_nim_server_url %}
+      # Run the NIM server in a container
+    - name: run-server
+      image: {{nim_image}}
+      credentials:
+        {{api_key_credential.credential_name}}:
+          NGC_API_KEY: {{api_key_credential.credential_key}}
+      command: [/opt/nvidia/nvidia_entrypoint.sh, /opt/nim/start_server.sh]
+      resource: nim-server
+      {% endif %}
+
+    # Run another container to call the NIM server
+    - name: nim-client
+      resource: nim-client
+      image: ubuntu:24.04
+      lead: true
+      credentials:
+        {{api_key_credential.credential_name}}:
+          NGC_API_KEY: {{api_key_credential.credential_key}}
+      files:
+      - path: /use_nim.sh
+        localpath: use_nim.sh
+      command:
+      - bash
+      - -c
+      - |
+          # Install curl and jq to make API calls to the NIM API
+          apt update && apt install -y curl jq
+
+          # Connect to NIM server
+          {% if external_nim_server_url %}
+            bash use_nim.sh --url "{{external_nim_server_url}}" --model "{{model_name}}" --wait-seconds 600
+          {% else %}
+            bash use_nim.sh --url "http://{{host:nim-server}}:8000" --model "{{model_name}}" --wait-seconds 600
+          {% endif %}
+
+
+default-values:
+  nim_gpu_count: 1
+  nim_cpu_count: 8
+  nim_memory: 16Gi
+  nim_storage: 16Gi
+  nim_image: nvcr.io/nim/meta/llama-3.2-1b-instruct
+  api_key_credential:
+    credential_name: ngc-api-key
+    credential_key: key
+  model_name: meta/llama-3.2-1b-instruct
+  external_nim_server_url: ''

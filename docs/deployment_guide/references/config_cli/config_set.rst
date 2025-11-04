@@ -15,42 +15,55 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _config_set:
+.. _cli_reference_config_set:
 
-Set
-======
+===============
+osmo config set
+===============
 
-The ``osmo config set`` command allows you to add to a configuration a predefined template.
-
-.. code-block:: bash
-
-    $ osmo config set -h
-    usage: osmo config set [-h] config_type name type [--field FIELD] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
-
-    positional arguments:
-      config_type           Config type to set (CONFIG_TYPE)
-      name                  Name of the role
-      type                  Type of field
-
-    options:
-      -h, --help            show this help message and exit
-      --field FIELD         Field name in context. For example, the backend to target.
-      --description DESCRIPTION
-                            Optional description for the set action
-      --tags TAGS [TAGS ...]
-                            Optional tags for the set action
-
-    Available config types (CONFIG_TYPE): ROLE
-
-    Ex. osmo config set ROLE my-backend-role backend --field name-of-backend
-    Ex. osmo config set ROLE osmo-<pool-name-prefix> pool
-
+Set a field into the config
 
 Currently, the only supported config type is ``ROLE`` and the only supported field type for ``ROLE``
 is ``backend`` and ``pool``.
 
+.. code-block::
+
+   osmo config set [-h] config_type name type [--field FIELD] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
+
+   Available config types (CONFIG_TYPE): ROLE
+
+   Ex. osmo config set ROLE my-backend-role backend --field name-of-backend 
+   Ex. osmo config set ROLE osmo-<pool-name-prefix> pool
+
+Positional Arguments
+====================
+
+:kbd:`config_type`
+   Config type to set (CONFIG_TYPE)
+
+
+:kbd:`name`
+   Name of the role
+
+
+:kbd:`type`
+   Type of field
+
+
+Named Arguments
+===============
+
+--field
+   Field name in context. For example, the backend to target.
+
+--description
+   Optional description for the set action
+
+--tags
+   Optional tags for the set action
+
 Examples
---------
+========
 
 Creating a new pool role:
 

@@ -24,6 +24,7 @@ import os
 import posixpath
 import tempfile
 import time
+from typing import Any, Dict
 
 from run.check_tools import check_required_tools
 from run.host_ip import get_host_ip
@@ -41,7 +42,6 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 
 
-
 def _update_workflow_config(
     container_registry: str,
     container_registry_username: str,
@@ -57,7 +57,7 @@ def _update_workflow_config(
     logger.info('⚙️  Updating workflow config...')
 
     try:
-        workflow_config = {
+        workflow_config: Dict[str, Any] = {
             'workflow_data': {
                 'credential': {
                     'endpoint': posixpath.join(object_storage_endpoint, 'workflows'),
@@ -83,24 +83,20 @@ def _update_workflow_config(
                 }
             },
             'backend_images': {
-                'init': {
-                    'amd64': f'{image_location}/init-container:{image_tag}',
-                    'arm64': f'{image_location}/init-container:{image_tag}'
-                },
-                'client': {
-                    'amd64': f'{image_location}/client:{image_tag}',
-                    'arm64': f'{image_location}/client:{image_tag}'
-                },
-                'credential': {
-                    'registry': container_registry,
-                    'username': container_registry_username,
-                    'auth': container_registry_password
-                }
+                'init': f'{image_location}/init-container:{image_tag}',
+                'client': f'{image_location}/client:{image_tag}'
             },
             'credential_config': {
                 'disable_data_validation': ['s3'],
             }
         }
+
+        if container_registry and container_registry_username and container_registry_password:
+            workflow_config['backend_images']['credential'] = {
+                'registry': container_registry,
+                'username': container_registry_username,
+                'auth': container_registry_password
+            }
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(workflow_config, f, indent=2)
@@ -426,11 +422,11 @@ def main():
         '--container-registry-username', default='$oauthtoken',
         help='Container registry username (default: $oauthtoken)')
     parser.add_argument(
-        '--container-registry-password', required=True,
+        '--container-registry-password',
         help='Container registry password')
     parser.add_argument(
-        '--image-location', default='nvcr.io/nvstaging/osmo',
-        help='OSMO image location (default: nvcr.io/nvstaging/osmo)')
+        '--image-location', default='nvcr.io/nvidia/osmo',
+        help='OSMO image location (default: nvcr.io/nvidia/osmo)')
     parser.add_argument(
         '--image-tag', default='latest',
         help='Tag of OSMO images to use (default: latest)')

@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _concepts_wf_file_injection:
+.. _workflow_spec_file_injection:
 
 ================================================
 File Injection
@@ -26,6 +26,11 @@ Files
 
 Local files can be injected into a task's container image. You can define file contents inline
 or pass a relative path. The file path must be relative to the where the spec resides.
+
+.. note::
+
+  File injection is not supported when submitting a workflow through the **UI**. Please use the CLI to submit workflows with local files.
+  For more information, see :ref:`submit_cli`.
 
 Inline
 --------------
@@ -77,7 +82,7 @@ The following example defines a file with its relative path on the host machine:
 
 .. warning::
 
-  The ``localpath`` field only support files. **NOT** directories.
+  The ``localpath`` field only supports files. **NOT** directories.
 
 .. _ds_localpath:
 

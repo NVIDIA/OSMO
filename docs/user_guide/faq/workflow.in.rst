@@ -17,8 +17,8 @@
 
 .. _faq_workflow:
 
-Workflow
-========
+Workflows
+=========
 
 What pools and platforms are available?
 ---------------------------------------
@@ -28,48 +28,39 @@ For pool/platform availability, refer to :ref:`Pool CLI Reference <cli_reference
 How to fix 403 error when accessing OSMO UI?
 --------------------------------------------
 
-Try to clear your browser cache and cookies. If the problem persists, contact the admin to verify
-your role mapping.
+Clear your browser cache and cookies. If the problem persists, contact the admin to verify
+your roles.
 
 How to fix 403 error when submitting a workflow?
 ------------------------------------------------
 
-403 errors mean that the user does not have access to submit workflows to the specified pool.
-To fix this, the user needs to do a couple of things:
+403 error indicates a permission issue when submitting workflows to the specified pool. To fix this,
 
-1. Contact the admin to add the user to the corresponding role mapping for the pool.
+1. Contact your admin to confirm your roles.
 
-2. Once the admin has given the user access, the user has to completely
-   :ref:`logout from the UI <logout_ui>`.
+2. Clear your browser cache and cookies.
 
-3. The user can then login through the UI or the CLI and be able to see the pool in their profile.
+3. Logout and re-login. Follow the :ref:`Login CLI <cli_reference_login>`.
 
-.. image:: ui_profile.png
-  :width: 1100
+3. Check if the pool is accessible in your profile using the :ref:`Profile List CLI <cli_reference_profile_list>`.
 
-.. code-block:: bash
-  :substitutions:
+How to fix OSMO exec hangs?
+---------------------------
 
-  $ osmo profile list
-  user:
-    name: <user>
-    email: <user>@email.com
-  notifications:
-    email: False
-    slack: True
-  bucket:
-    default: <bucket>
-  pool:
-    default: <pool>
-    accessible:
-    - <pool>
-    - <new_pool>
+If you encounter a hang when using ``osmo workflow exec``, you can check the following:
+
+1. Check if the task has RUNNING status
+
+2. If the task shows RUNNING, check if the user command (the command defined for the task in the workflow spec) is running by looking at the logs.
+   Sometimes the task is running and downloading inputs, but the user command has not started.
+
+3. If the user command is not running, wait for 5 minutes and try ``osmo workflow exec`` again after it starts running.
 
 How to pause and debug a workflow?
 ----------------------------------
 
-Typically, when debugging a workflow that crashes or misbehaves, forcing the workflow to ``pause``
-can help you diagnose the problem. Pausing the process gives developers a chance to get a remote
+Typically, when debugging a workflow that crashes or hangs, forcing the workflow to ``pause``
+can help you diagnose the problem. Pausing the process gives you a chance to get a remote
 shell into the workflow, look inside the container, determine or fix the issue, and then ``unpause``
 the workflow when ready.
 
@@ -98,40 +89,13 @@ For example, your workflow might contain the following:
           # The rest of script here ...
 
 
-After the workflow starts and halts, this should give you a chance to use the workflow dash or CLI
-to get a shell into the workflow, look around inside the task, and potentially modify files.
-After you are finished with the shell, you can resume the workflow by creating the /done.txt
+After the workflow starts and halts, this should give you a chance to shell into the workflow (See :ref:`Interactive Workflows <workflow_interactive_exec>`) and potentially modify files. After you are finished with the shell, you can resume the workflow by creating the `/done.txt`
 file with the following command:
 
 .. code-block:: bash
 
   $ touch /done.txt
 
-.. raw:: html
-
-  <video width="640" height="360" controls>
-        <source src="https://swiftstack-maglev.ngc.nvidia.com/v1/AUTH_team-osmo-svc/osmo/dev-flow/WF_Debug_Demo.mp4" type="video/mp4">
-  </video>
-
-
-How to restart a failed a workflow?
------------------------------------
-
-If you have a workflow which has failed and you want to rerun the same workflow without rerunning
-all the completed tasks, use the workflow restart CLI. This reran workflow will grab the outputs
-from the parent workflow as inputs to the reran tasks.
-
-.. code-block:: bash
-
-  $ osmo workflow restart <workflow_id>
-
-.. image:: wf_restart1.gif
-  :width: 1100
-
-.. note::
-
-  Restarting workflows restarts at the **group level**. If a COMPLETED task is in a FAILED group,
-  the COMPLETED task is still restarted. To learn more about the restart CLI, go to :ref:`cli_reference_workflow_restart`.
 
 How to force cancel a workflow?
 --------------------------------
@@ -178,15 +142,14 @@ How to determine the resource usage of a workflow?
 
 Follow the ``grafana_url`` for your workflow fetched using the :ref:`cli_reference_workflow_query` CLI to determine the resource usage of your workflows.
 
-Users can click on the ``Resource Usage`` button in the UI on the detailed workflow information page.
+Alternately, you can click on the ``Resource Usage`` button in the UI on the detailed workflow information page.
 
-.. image:: workflow_ui_with_resource_usage_highlighted.png
+.. image:: workflow_ui_resource_usage.png
   :width: 1200
   :alt: Alternative text
   :align: center
 
-On the dashboard, review the stats, such as the memory, disk, CPU and GPU utilization & Memory.
-Note that the data on grafana has a retention limit of up to 2 weeks.
+Grafana dashboard displays resource usage metrics for CPU, memory, and GPU for your workflow.
 
 .. image:: grafana.png
   :width: 1200
@@ -197,33 +160,33 @@ Note that the data on grafana has a retention limit of up to 2 weeks.
 How to browse previously submitted workflows?
 ---------------------------------------------
 
-Go to the `OSMO Workflows Page <osmo_ui_workflows_>`_.
+Refer to :ref:`workflow list <cli_reference_workflow_list>` to list workflows.
 
 How to mount datasets inside the workflow?
 ------------------------------------------
 
-Mounting inputs inside a workflow is not supported.
+Mounting inputs inside a workflow is not supported. Contact your admin to setup NAS or LFS support.
 
 How to update datasets inside the workflow?
 -------------------------------------------
 
-Multiple tasks of a workflow or multiple workflows can operate and update the same dataset. See :ref:`concepts_ds_update`.
+Multiple tasks of a workflow or multiple workflows can operate and update the same dataset. See :ref:`Update Dataset <cli_reference_dataset_update>`.
 
 How to Handle Failed Tasks?
 ---------------------------
 
 To manually rerun tasks in a workflow that have failed, see :ref:`cli_reference_workflow_restart`
 
-To have your workflow automatically reschedule and retry failed tasks, see  :ref:`concepts_wf_actions`
+To have your workflow automatically reschedule and retry failed tasks, see  :ref:`workflow_spec_exit_actions`
 
-For a practical example of rescheduling training workflows for backend errors, see `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/dnn_training/torchrun_reschedule>`__.
+For a practical example of rescheduling training workflows for backend errors, see `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_reschedule>`__.
 
-My workflow is stuck, how can I save my data?
----------------------------------------------
+How to save the intermediate data when the workflow is stuck or hangs?
+-----------------------------------------------------------------------
 
 You can save your data in the workflow by running the OSMO CLI while exec'd into the workflow.
 
-The tutorial `here <https://github.com/NVIDIA/OSMO/tree/main/workflow_examples/basics/osmo_cli>`__ shows how to perform this operation.
+The tutorial `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/basics/osmo_cli>`__ shows how to perform this operation.
 
 How to access a private GitHub repository from a workflow?
 ----------------------------------------------------------
@@ -277,7 +240,7 @@ How to find a task's IP address from another task within the same group?
 ------------------------------------------------------------------------
 
 Tasks in the same group can communicate with each other through network.
-OSMO token ``{{host:<task_name>}}`` (see :ref:`concepts_special_tokens`) can be used as the hostname of a task.
+OSMO token ``{{host:<task_name>}}`` (see :ref:`workflow_spec_special_tokens`) can be used as the hostname of a task.
 In case you need to find the IP address of a task, you can use the following command to resolve the hostname to an IP address:
 
 .. code-block:: bash
@@ -299,11 +262,13 @@ When a task is preempted, it will have the status ``FAILED_PREEMPTED`` and exit 
 You can also check task events to see preemption events from the scheduler.
 
 If you need to automatically retry preempted tasks, you can configure exit actions to reschedule the task when it receives exit code ``3006``.
-See :ref:`concepts_wf_exit_codes` for more information.
+See :ref:`workflow_exit_codes` for more information.
 
-Admin can configure the default exit action to ``RESCHEDULE`` the task when it receives exit code ``3006``.
+Your admin can configure the default exit action to ``RESCHEDULE`` the task when it receives exit code ``3006``.
 The preempted task will be rescheduled with the same priority up to maximum time limit before it fails with status ``FAILED_PREEMPTED``.
 Check with the admin about current configurations.
+
+.. _faq_why_is_my_workflow_not_getting_scheduled_quickly:
 
 Why is my workflow not getting scheduled quickly?
 -------------------------------------------------
@@ -325,7 +290,7 @@ Here are the most common causes and how to investigate them:
 
    - Use the :ref:`Pool CLI <cli_reference_pool>` commands to check if your pool has reached its quota limit
 
-   - You can not exceed the quota for non-preemptible workflows (HIGH/NORMAL priority)
+   - You cannot exceed the quota for non-preemptible workflows (HIGH/NORMAL priority)
 
    - Submit preemptible workflows if you want to use shared quotas.
 
@@ -335,7 +300,7 @@ Here are the most common causes and how to investigate them:
 
                                                             Quota Used   Quota Limit   Total Usage   Total Capacity
     ============================================================================================================
-    example-pool   Join role: access-osmo       ONLINE      96           100           96            200
+    example-pool   Join role: example-role      ONLINE      96           100           96            200
     ============================================================================================================
                                                             96           100           96            200
 
@@ -375,7 +340,7 @@ For example, if the total capacity is greater than the quota limit:
 
                                                           Quota Used   Quota Limit   Total Usage   Total Capacity
   ============================================================================================================
-  example-pool   Join role: Access-osmo       ONLINE      96           100           96            200
+  example-pool   Join role: example-role      ONLINE      96           100           96            200
   ============================================================================================================
                                                           96           100           96            200
 
@@ -383,3 +348,75 @@ This usually means that the pool is sharing resources with another pool.
 The quota limit for each pool guarantees that users of that pool always has access to those GPUs through normal/high priority workflows.
 The difference between total capacity and quota limit (200 - 100 = 100) is the number of GPUs that can be used by low priority workflows
 when the other pool is not using its quota limit. But when the other pool is using its quota limit, the low priority workflows will be preempted.
+
+How to use NVIDIA NIM with OSMO?
+--------------------------------
+
+NVIDIA NIM allows you to easily deploy containerized models anywhere.
+
+OSMO can be used to both run a NIM as part of a workflow, or it can connect to NIMs hosted through NGC.
+
+First, you will need a NGC API key. If you don't have one, you can follow the instructions at `NIM Getting Started <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#generate-an-api-key>`_ to create one.
+
+Next, you will need to create an OSMO secret for the api key.
+
+.. code-block:: bash
+
+  export NGC_API_KEY=<your-api-key>
+  osmo credential set ngc-api-key --type GENERIC --payload "key=$NGC_API_KEY"
+
+
+Using a NIM hosted in NGC
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following workflow shows an example of using a NIM hosted in NGC.
+
+.. code-block:: yaml
+
+  workflow:
+    name: use-nim-from-ngc
+    tasks:
+    - name: use-nim
+      image: ubuntu:24.04
+      credentials:
+        ngc-api-key:
+          NGC_API_KEY: key
+      command:
+      - bash
+      - -c
+      - |
+          # Install curl and jq to make API calls to the NIM API
+          apt update && apt install -y curl jq
+
+          # Define the prompt to send to the NIM API
+          data=$'{
+            "model": "meta/llama-3.2-1b-instruct",
+            "messages": [
+              {
+                "role": "user",
+                "content": "Write a limerick about the wonders of GPU computing."
+              }
+            ],
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+            "max_tokens": 48,
+            "stream": false
+          }'
+
+          # Make the API call to the NIM hosted in NGC and parse the response
+          curl -X POST \
+          --url "https://integrate.api.nvidia.com/v1/chat/completions" \
+          --header "Authorization: Bearer $NGC_API_KEY" \
+          --header "Accept: application/json" \
+          --header "Content-Type: application/json" \
+          --data "$data" |
+          jq -r '.choices[0].message.content'
+
+
+Running a NIM in an OSMO workflow
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+You can run NVIDIA Inference Microservices (NIMs) directly in your OSMO workflows. This allows you to either host a NIM server as part of your workflow or connect to an external NIM service.
+
+For a complete guide with examples, see the `NIM workflow example <https://github.com/NVIDIA/OSMO/tree/main/workflows/nims>`_.

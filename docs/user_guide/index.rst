@@ -21,6 +21,9 @@
 
 OSMO is a cloud native platform for Robotics developers that provides a single interface to manage all steps of AI and robotics development, from compute to data storage.
 
+.. image:: overview.svg
+	:width: 800
+
 What you get
 ------------
 
@@ -86,8 +89,6 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
 
   Overview <self>
   high_level_architecture
-  deploy_locally
-  scaling_to_the_cloud
   whats_next
 
 .. toctree::
@@ -96,7 +97,7 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
 
   getting_started/system_requirements
   getting_started/install/index
-  getting_started/profile/index
+  getting_started/profile
   getting_started/credentials
   getting_started/next_steps
 
@@ -104,33 +105,49 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
   :hidden:
   :caption: Tutorials
 
-  tutorials/hello_world/index
-  tutorials/workflow_types/index
-  tutorials/isaac_sim_sdg
-  tutorials/reinforcement_learning
-  tutorials/training
-  tutorials/isaac_groot_notebook
-  tutorials/hil
+  tutorials/overview
+  1. Hello World <tutorials/hello_world/index>
+  2. Requesting Resources <tutorials/requesting_resources>
+  3. Template and Tokens <tutorials/template_and_token/index>
+  4. Working with Data <tutorials/data/index>
+  5. Serial Workflows <tutorials/serial_workflows>
+  6. Parallel Workflows <tutorials/parallel_workflows>
+  7. Combination Workflows <tutorials/combination_workflows/index>
+  8. Hardware In The Loop <tutorials/hardware_in_the_loop/index>
+  9. Advanced Patterns <tutorials/advanced_patterns>
 
-.. auto-include:: tutorials/*.in.rst
+.. toctree::
+  :hidden:
+  :caption: How-to Guides
+
+  how_to/isaac_sim_sdg
+  how_to/reinforcement_learning
+  how_to/ros2_comm
+  how_to/training
+  how_to/isaac_groot_notebook
+  how_to/hil
+
+..
+  Optional how-to guides section can be included
+..
+.. auto-include:: how_to/*.in.rst
 
 .. toctree::
   :hidden:
 
-  tutorials/workflow_examples
+  More Examples <https://github.com/NVIDIA/OSMO/tree/main/workflows>
 
 .. toctree::
   :hidden:
-  :caption: Running Workflows
+  :caption: Workflows
 
   workflows/index
   workflows/specification/index
   workflows/submission
   workflows/lifecycle/index
-  workflows/interaction/index
-  workflows/exit/exit_codes
-  workflows/exit/exit_actions
-  workflows/apps/index
+  workflows/interactive/index
+  workflows/exit_codes
+  workflows/apps
 
 .. toctree::
   :hidden:
@@ -141,16 +158,6 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
 
 .. toctree::
   :hidden:
-  :caption: Managing Data
-
-  data/object_storage/index
-  data/datasets/index
-  data/local/index
-
-.. auto-include:: data/*.in.rst
-
-.. toctree::
-  :hidden:
   :caption: Help
 
   faq/index
@@ -158,8 +165,11 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
 
 .. toctree::
   :hidden:
-  :caption: Reference
+  :caption: Appendix
 
-  reference/cli/index
+  appendix/cli/index
 
-.. auto-include:: whats_new/*.in.rst
+..
+  Optional appendix section can be included
+..
+.. auto-include:: appendix/index.in.rst

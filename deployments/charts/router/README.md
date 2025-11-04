@@ -26,7 +26,6 @@ The router deployment includes:
 - **Main Router Container**: The core OSMO router service
 - **Envoy Proxy Sidecar**: Handles authentication, routing, and SSL termination
 - **Log Agent Sidecar**: Centralized logging with Fluent Bit
-- **Vault Integration**: Optional secret management via HashiCorp Vault
 
 ## Quick Start
 
@@ -50,7 +49,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `global.osmoImageLocation` | Base location for OSMO Docker images | `nvcr.io/nvidia/osmo` |
 | `global.osmoImageTag` | Docker image tag for OSMO router service | `latest` |
 | `global.imagePullSecret` | Name of the Kubernetes secret for Docker registry credentials | `imagepullsecret` |
-| `global.nodeSelector` | Global node selector constraints | `kubernetes.io/arch: amd64` |
+| `global.nodeSelector` | Global node selector constraints | `{}` |
 | `global.logs.enabled` | Enable centralized logging collection | `true` |
 | `global.logs.logLevel` | Application log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `DEBUG` |
 | `global.logs.k8sLogLevel` | Kubernetes system log level | `WARNING` |
@@ -126,7 +125,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `services.postgres.port` | PostgreSQL service port | `5432` |
 | `services.postgres.db` | PostgreSQL database name | `osmo` |
 | `services.postgres.user` | PostgreSQL username | `postgres` |
-| `services.postgres.password` | PostgreSQL password (optional, can use Vault) | `""` |
+| `services.postgres.password` | PostgreSQL password | `""` |
 
 ## Sidecar Configuration
 
@@ -192,12 +191,12 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.envoy.osmoauth.hostname` | OSMO auth hostname | `""` |
 | `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
 
-#### Secret Paths (for Vault Integration)
+#### Secret Paths
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret | `/home/osmo/vault-agent/secrets/oidc_secret.txt` |
-| `sidecars.envoy.secretPaths.hmacSecret` | Path to HMAC secret | `/home/osmo/vault-agent/secrets/oidc_hmac.txt` |
+| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret | `/etc/envoy/secrets/client_secret` |
+| `sidecars.envoy.secretPaths.hmacSecret` | Path to HMAC secret | `/etc/envoy/secrets/hmac_secret` |
 
 ### Log Agent Sidecar
 
@@ -243,70 +242,6 @@ The chart provides several extension points for customization:
 | `extraVolumeMounts` | Additional volume mounts | `[]` |
 | `extraConfigMaps` | Additional ConfigMaps to create | `[]` |
 
-## Secret Management
-
-The chart supports two secret management approaches:
-
-### Vault Integration
-
-To integrate with HashiCorp Vault, configure the following in your values file:
-
-```yaml
-extraPodAnnotations:
-  vault.hashicorp.com/agent-inject: 'true'
-  vault.hashicorp.com/agent-init-first: 'true'
-  vault.hashicorp.com/agent-inject-status: 'update'
-  vault.hashicorp.com/secret-volume-path: '/home/osmo/vault-agent/secrets'
-  vault.hashicorp.com/agent-configmap: 'my-vault-agent-configmap'
-
-extraVolumes:
-- name: token
-  projected:
-    sources:
-    - serviceAccountToken:
-        path: token
-        expirationSeconds: 3600
-        audience: https://your-vault-server:443
-
-extraVolumeMounts:
-- name: token
-  mountPath: /var/run/secrets/vault/serviceaccount
-
-extraConfigMaps:
-- name: my-vault-agent-configmap
-  data:
-    config.hcl: |
-      # Your Vault agent configuration here
-```
-
-### Kubernetes Secrets Integration
-
-For environments that don't use Vault, configure Kubernetes secrets:
-
-```yaml
-sidecars:
-  envoy:
-    useKubernetesSecrets: true
-    oauth2Filter:
-      clientSecretKey: client_secret
-      hmacSecretKey: hmac_secret
-    extraVolumeMounts:
-    - name: oauth-secrets
-      mountPath: /etc/envoy/secrets
-      readOnly: true
-
-extraVolumes:
-- name: oauth-secrets
-  secret:
-    secretName: my-oauth-secrets
-```
-
-Create the secret with:
-```bash
-kubectl create secret generic my-oauth-secrets \
-  --from-literal=client_secret="your-oauth2-client-secret" \
-  --from-literal=hmac_secret="your-hmac-secret"
-```
 
 ## Health Checks
 
@@ -318,8 +253,6 @@ The chart includes comprehensive health checks:
 - **Startup Probe**: `/api/router/version` on port `8000`
 
 
-
-
 ## Dependencies
 
 This chart requires:
@@ -328,18 +261,8 @@ This chart requires:
 - PostgreSQL database
 - OAuth2 authentication provider (Keycloak, Auth0, etc.)
 - Ingress controller (NGINX or AWS ALB)
-- Optional: HashiCorp Vault for secret management
 - Optional: CloudWatch for centralized logging
 
-## Migration from Previous Versions
-
-If upgrading from a version that used the `service-sidecar` dependency:
-
-1. Remove the `service-sidecar` section from your values
-2. Move Envoy configuration to `sidecars.envoy`
-3. Move log agent configuration to `sidecars.logAgent`
-4. Move Vault configuration to `extraConfigMaps` and `extraPodAnnotations`
-5. Update any custom configurations to use the new structure
 
 ## Troubleshooting
 
@@ -348,7 +271,6 @@ If upgrading from a version that used the `service-sidecar` dependency:
 1. **Authentication failures**: Check OAuth2 configuration and secret paths
 2. **SSL/TLS issues**: Verify certificate configuration and ingress settings
 3. **Database connection**: Ensure PostgreSQL settings and network connectivity
-4. **Vault integration**: Check service account permissions and Vault policies
 
 ### Debugging
 

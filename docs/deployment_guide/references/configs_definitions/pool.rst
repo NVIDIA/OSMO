@@ -18,7 +18,7 @@
 .. _pool_config:
 
 ===========================
-Pool Config
+/api/configs/pool
 ===========================
 
 Pool config is used to configure compute pools for workload distribution and resource management.
@@ -30,73 +30,92 @@ Top-level configuration is used to configure compute pools.
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 30 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``pools``
      - Dict[String, `Pool`_]
      - Dictionary of pool name to compute pool configurations.
+     - ``{}``
 
 Pool
 ====
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 40 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``name``
      - String
      - Unique identifier for the pool.
+     - Required field
    * - ``description``
      - String
      - Human-readable description of the pool and its purpose.
+     - ``None``
    * - ``enable_maintenance``
      - Boolean
      - Whether maintenance mode is enabled for the pool.
+     - ``False``
    * - ``backend``
      - String
      - Name of the backend associated with this pool.
+     - ``None``
    * - ``default_platform``
      - String
      - Default platform identifier to use for tasks in this pool.
+     - ``None``
    * - ``default_exec_timeout``
      - String
-     - Default execution timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d). Default is 60d.
+     - Default execution timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Inherited from ``default_exec_timeout`` workflow config
    * - ``default_queue_timeout``
      - String
-     - Default queue timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d). Default is 60d.
+     - Default queue timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Inherited from ``default_queue_timeout`` workflow config
    * - ``max_exec_timeout``
      - String
-     - Maximum allowed execution timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d). Default is 60d.
+     - Maximum allowed execution timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Inherited from ``max_exec_timeout`` workflow config
    * - ``max_queue_timeout``
      - String
-     - Maximum allowed queue timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d). Default is 60d.
+     - Maximum allowed queue timeout for tasks. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Inherited from ``max_queue_timeout`` workflow config
    * - ``default_exit_actions``
      - Dict[String, Integer]
      - Default actions to perform when tasks exit with a specific exit code. The available actions are: `COMPLETE`, `FAIL`, `RESCHEDULE`.
+     - ``{}``
    * - ``action_permissions``
      - `Action Permissions`_
      - Permissions for various pool actions.
+     - Default configuration
    * - ``resources``
      - Dict[String, `Resource Constraint`_]
      - Resource allocation configuration for the pool.
+     - ``{}``
    * - ``common_default_variables``
      - Dict[String, String]
      - Default values for variables used in pod templates.
+     - ``{}``
    * - ``common_resource_validations``
      - Array[String]
      - List of resource validation names applied to all platforms in the pool. Read more about resource validation in :ref:`resource_validation`.
+     - ``[]``
    * - ``common_pod_template``
      - Array[String]
      - List of pod template names applied to all platforms in the pool. Read more about pod templates in :ref:`pod_template`.
+     - ``[]``
    * - ``platforms``
      - Dict[String, `Platform`_]
      - Dictionary of platform configurations available in this pool.
+     - ``{}``
 
 Permission Level
 ================
@@ -119,23 +138,28 @@ Action Permissions
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 30 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``execute``
      - `Permission Level`_
      - Permission level required to execute tasks.
+     - ``POOL``
    * - ``portforward``
      - `Permission Level`_
      - Permission level required for port forwarding operations.
+     - ``POOL``
    * - ``cancel``
      - `Permission Level`_
      - Permission level required to cancel tasks.
+     - ``POOL``
    * - ``rsync``
      - `Permission Level`_
      - Permission level required for rsync operations.
+     - ``POOL``
 
 
 .. _pool_config-resource-constraint:
@@ -147,20 +171,24 @@ For more explanations and examples, see :ref:`scheduler`.
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``guarantee``
      - Integer
-     - Guaranteed minimum number of resources allocated to the pool for non-preemptible workflows. Default is -1 (unlimited).
+     - Guaranteed minimum number of resources allocated to the pool for non-preemptible workflows.
+     - ``-1``
    * - ``maximum``
      - Integer
-     - Maximum number of resources that can be allocated to the pool. Default is -1 (unlimited).
+     - Maximum number of resources that can be allocated to the pool.
+     - ``-1``
    * - ``weight``
      - Integer
-     - Scheduling weight for resource allocation priority relative to other pools. Default is 1.
+     - Scheduling weight for resource allocation priority relative to other pools.
+     - ``1``
 
 .. warning::
 
@@ -173,32 +201,41 @@ Platform
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 40 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``description``
      - String
      - Human-readable description of the platform.
+     - ``None``
    * - ``host_network_allowed``
      - Boolean
      - Whether tasks can use host networking.
+     - ``False``
    * - ``privileged_allowed``
      - Boolean
      - Whether privileged containers are allowed.
+     - ``False``
    * - ``allowed_mounts``
      - Array[String]
      - List of mount paths that are allowed for tasks.
+     - ``[]``
    * - ``default_mounts``
      - Array[String]
      - Default mount configurations applied to tasks.
+     - ``[]``
    * - ``default_variables``
      - Dict[String, String]
      - Default values for variables used in pod templates. If the variable is defined in the pool setting, this will override the pool setting.
+     - ``{}``
    * - ``resource_validations``
      - Array[String]
      - Platform-specific resource validation rules. Read more about resource validation in :ref:`resource_validation`.
+     - ``[]``
    * - ``override_pod_template``
      - Array[String]
      - Pod template overrides specific to this platform. Read more about pod templates in :ref:`pod_template`.
+     - ``[]``

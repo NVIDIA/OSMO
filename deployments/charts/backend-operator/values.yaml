@@ -35,11 +35,11 @@ global:
 
   ## Node selector constraints for pod scheduling
   ##
-  nodeSelector:
-    # Schedule pods only on AMD64 architecture nodes
-    kubernetes.io/arch: amd64
-    # kubernetes.io/os: linux
-    # node-type: operator
+  nodeSelector: {}
+    # Add node selectors here as needed
+    # kubernetes.io/arch: amd64
+    # node-type: cpu
+    # zone: us-west-2a
 
   ## Network configuration for backend operators
   ##
@@ -536,7 +536,7 @@ backendTestRunner:
     image:
       ## Docker image for backend test runner
       ##
-      repository: "nvcr.io/nvstaging/osmo/backend-test-runner"
+      repository: "nvcr.io/nvidia/osmo/backend-test-runner"
 
       ## Image tag (if not specified, uses global.osmoImageTag)
       ##

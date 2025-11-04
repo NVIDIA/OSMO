@@ -18,7 +18,7 @@
 .. _roles_config:
 
 ===========================
-Roles Config
+/api/configs/role
 ===========================
 
 Roles config is used to configure user roles and permissions for access control.
@@ -28,23 +28,28 @@ Role
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 40 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``name``
      - String
      - Name of the role.
+     - Required field
    * - ``description``
      - String
      - Quick explanation of the purpose of the role.
+     - Required field
    * - ``immutable``
      - Boolean
      - If true, the role cannot be modified. This cannot be set for any role besides the admin role.
+     - ``False``
    * - ``policies``
      - List[`Policy`_]
      - List of policies which define actions/apis the role can perform/reach.
+     - ``[]``
 
 Policy
 ======

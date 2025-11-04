@@ -1,0 +1,348 @@
+/* SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0 */
+
+/* ==================== Lifecycle Timeline Component ==================== */
+
+:root {
+  --timeline-height: 90px;
+  --timeline-spacing-unit: calc(100% / 14);
+  --dot-size: 12px;
+  --dot-border-width: 3px;
+  --label-width: 13%;
+  --label-offset: 6.5%;
+  --font-size: 0.8rem;
+  --label-padding-top: 0.8rem;
+  --label-padding-bottom: 0.5rem;
+  --label-padding-inline: 0.3rem;
+  --dot-margin-bottom: 0.6rem;
+  --line-offset: 6px;
+  --line-top: 14px;
+  --color-text-default: #495057;
+  --color-border: #dee2e6;
+  --color-bg-content: #fafbfc;
+  --color-dot-inactive: #adb5bd;
+  --color-dot-border: white;
+  --color-pending: #924c00;
+  --color-running: #2a63ba;
+  --color-completed: #2e7d32;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-mode="light"]) {
+    --color-text-default: #adb5bd;
+    --color-border: #495057;
+    --color-bg-content: #1a1d20;
+    --color-dot-inactive: #6c757d;
+    --color-dot-border: #212529;
+    --color-pending: #f9f4ca;
+    --color-running: #64b5f6;
+    --color-completed: #81c784;
+  }
+
+  html[data-theme="light"],
+  html[data-mode="light"] {
+    --color-text-default: #495057;
+    --color-border: #dee2e6;
+    --color-bg-content: #fafbfc;
+    --color-dot-inactive: #adb5bd;
+    --color-dot-border: white;
+    --color-pending: #924c00;
+    --color-running: #2a63ba;
+    --color-completed: #2e7d32;
+  }
+}
+
+[data-theme="dark"],
+html[data-mode="dark"] {
+  --color-text-default: #adb5bd;
+  --color-border: #495057;
+  --color-bg-content: #1a1d20;
+  --color-dot-inactive: #6c757d;
+  --color-dot-border: #212529;
+  --color-pending: #ffa726;
+  --color-running: #64b5f6;
+  --color-completed: #81c784;
+}
+
+/* ==================== Container ==================== */
+
+.lifecycle-tabs.sd-tab-set {
+  display: flex !important;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 2rem;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.lifecycle-tabs.sd-tab-set::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: var(--timeline-height);
+  flex-shrink: 0;
+}
+
+.lifecycle-tabs.sd-tab-set::after {
+  content: '';
+  position: absolute;
+  top: var(--line-top);
+  left: calc(var(--timeline-spacing-unit) + var(--line-offset));
+  right: calc(var(--timeline-spacing-unit) - var(--line-offset));
+  height: 2px;
+  background: var(--color-border);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ==================== Radio Inputs ==================== */
+
+.lifecycle-tabs.sd-tab-set > input[type="radio"] {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ==================== Labels ==================== */
+
+.lifecycle-tabs.sd-tab-set > label {
+  position: absolute !important;
+  top: 0;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer !important;
+  padding: var(--label-padding-top) var(--label-padding-inline) var(--label-padding-bottom) !important;
+  margin: 0 !important;
+  width: var(--label-width);
+  color: var(--color-text-default) !important;
+  font-size: var(--font-size) !important;
+  font-weight: normal !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  transition: all 0.2s;
+}
+
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(1) { left: calc(var(--timeline-spacing-unit) * 1 - var(--label-offset)); }
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(2) { left: calc(var(--timeline-spacing-unit) * 3 - var(--label-offset)); }
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(3) { left: calc(var(--timeline-spacing-unit) * 5 - var(--label-offset)); }
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(4) { left: calc(var(--timeline-spacing-unit) * 7 - var(--label-offset)); }
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(5) { left: calc(var(--timeline-spacing-unit) * 9 - var(--label-offset)); }
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(6) { left: calc(var(--timeline-spacing-unit) * 11 - var(--label-offset)); }
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(7) { left: calc(var(--timeline-spacing-unit) * 13 - var(--label-offset)); }
+
+/* ==================== Dots ==================== */
+
+.lifecycle-tabs.sd-tab-set > label::before {
+  content: '' !important;
+  display: block;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: 50%;
+  background: var(--color-dot-inactive);
+  border: var(--dot-border-width) solid var(--color-dot-border);
+  box-shadow: 0 0 0 1px var(--color-border);
+  margin-bottom: var(--dot-margin-bottom);
+  flex-shrink: 0;
+  transition: all 0.2s;
+  position: relative;
+  z-index: 2;
+}
+
+.lifecycle-tabs.sd-tab-set > label::after {
+  display: none;
+}
+
+/* ==================== Interactive States ==================== */
+
+/* Pending phases: SUBMITTING, WAITING, PROCESSING, SCHEDULING, INITIALIZING (tabs 1-5) */
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(1):hover,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(2):hover,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(3):hover,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(4):hover,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(5):hover {
+  color: var(--color-pending) !important;
+}
+
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(1):hover::before,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(2):hover::before,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(3):hover::before,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(4):hover::before,
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(5):hover::before {
+  background: var(--color-pending) !important;
+  transform: scale(1.15);
+}
+
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(1):checked + label,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(2):checked + label,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(3):checked + label,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(4):checked + label,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(5):checked + label {
+  color: var(--color-pending) !important;
+  font-weight: 600 !important;
+}
+
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(1):checked + label::before,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(2):checked + label::before,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(3):checked + label::before,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(4):checked + label::before,
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(5):checked + label::before {
+  background: var(--color-pending) !important;
+  box-shadow: 0 0 0 4px rgba(146, 76, 0, 0.2), 0 0 0 1px var(--color-pending);
+  transform: scale(1.33);
+}
+
+/* Running phase: RUNNING (tab 6) */
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(6):hover {
+  color: var(--color-running) !important;
+}
+
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(6):hover::before {
+  background: var(--color-running) !important;
+  transform: scale(1.15);
+}
+
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(6):checked + label {
+  color: var(--color-running) !important;
+  font-weight: 600 !important;
+}
+
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(6):checked + label::before {
+  background: var(--color-running) !important;
+  box-shadow: 0 0 0 4px rgba(42, 99, 186, 0.2), 0 0 0 1px var(--color-running);
+  transform: scale(1.33);
+}
+
+/* Completed phase: COMPLETED (tab 7) */
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(7):hover {
+  color: var(--color-completed) !important;
+}
+
+.lifecycle-tabs.sd-tab-set > label:nth-of-type(7):hover::before {
+  background: var(--color-completed) !important;
+  transform: scale(1.15);
+}
+
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(7):checked + label {
+  color: var(--color-completed) !important;
+  font-weight: 600 !important;
+}
+
+.lifecycle-tabs.sd-tab-set > input:nth-of-type(7):checked + label::before {
+  background: var(--color-completed) !important;
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.2), 0 0 0 1px var(--color-completed);
+  transform: scale(1.33);
+}
+
+/* ==================== Content ==================== */
+
+/* Override default transparent tab content styling for lifecycle tabs */
+body .bd-content .lifecycle-tabs.sd-tab-set > .sd-tab-content,
+html[data-theme="dark"] body .bd-content .lifecycle-tabs.sd-tab-set > .sd-tab-content,
+body[data-theme="dark"] .bd-content .lifecycle-tabs.sd-tab-set > .sd-tab-content {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  background: var(--color-bg-content) !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* ==================== Responsive Breakpoints ==================== */
+
+@media (min-width: 1400px) {
+  :root {
+    --dot-size: 14px;
+    --label-width: 13.5%;
+    --label-offset: 6.75%;
+    --font-size: 0.9rem;
+    --label-padding-inline: 0.4rem;
+    --line-offset: 7px;
+    --line-top: 15px;
+  }
+}
+
+@media (max-width: 1400px) and (min-width: 1000px) {
+  :root {
+    --label-padding-top: 0.7rem;
+    --dot-margin-bottom: 0.5rem;
+  }
+}
+
+@media (max-width: 1000px) and (min-width: 700px) {
+  :root {
+    --dot-size: 10px;
+    --label-width: 12.5%;
+    --label-offset: 6.25%;
+    --font-size: 0.75rem;
+    --label-padding-top: 0.6rem;
+    --label-padding-inline: 0.2rem;
+    --dot-margin-bottom: 0.4rem;
+    --line-offset: 5px;
+    --line-top: 13px;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --dot-size: 11px;
+    --font-size: 0.8rem;
+    --dot-margin-bottom: 0.5rem;
+    --line-top: 13px;
+    --mobile-timeline-width: 850px;
+    --mobile-label-width: 100px;
+    --mobile-spacing: 120px;
+    --mobile-start-offset: 20px;
+  }
+
+  .lifecycle-tabs.sd-tab-set {
+    overflow-x: auto;
+  }
+
+  .lifecycle-tabs.sd-tab-set::before {
+    min-width: var(--mobile-timeline-width);
+    width: var(--mobile-timeline-width);
+  }
+
+  .lifecycle-tabs.sd-tab-set > label {
+    min-width: var(--mobile-label-width);
+    max-width: var(--mobile-label-width);
+  }
+
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(1) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 0); }
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(2) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 1); }
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(3) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 2); }
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(4) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 3); }
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(5) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 4); }
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(6) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 5); }
+  .lifecycle-tabs.sd-tab-set > label:nth-of-type(7) { left: calc(var(--mobile-start-offset) + var(--mobile-spacing) * 6); }
+
+  .lifecycle-tabs.sd-tab-set::after {
+    top: var(--line-top);
+    left: calc(var(--mobile-start-offset) + var(--mobile-label-width) / 2 + 5.5px);
+    right: calc(var(--mobile-timeline-width) - var(--mobile-start-offset) - var(--mobile-spacing) * 6 - var(--mobile-label-width) / 2 - 5.5px);
+  }
+}

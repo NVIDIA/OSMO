@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 
 import pydantic
 
-from src.lib.utils import common as common_utils, osmo_errors, priority as wf_priority
+from src.lib.utils import common as common_utils, priority as wf_priority
 from src.utils.job import common, backend_job_defs
 from src.utils import connectors
 
@@ -110,7 +110,6 @@ class K8sObjectFactory:
 
     def create_init_container(
         self,
-        arch: str,
         login_config: Dict,
         user_config: Dict,
         extra_args: List[str],
@@ -119,24 +118,14 @@ class K8sObjectFactory:
         Init containers for OSMO exec.
 
         Args:
-            arch (str): Container cpu architecture.
             login_config (Dict): User login config to be copied into ctrl and user container paths
             user_config (Dict): User data config to be copied into user container path
-
-        Raises:
-            OSMOServerError: Unrecognized arch.
 
         Returns:
             Dict: The init container dict.
         """
-        workflow_images_config: connectors.OsmoImageConfig = \
-            connectors.PostgresConnector.get_instance().get_workflow_configs().backend_images
-        if arch == 'amd64':
-            container = workflow_images_config.init.amd64
-        elif arch == 'arm64':
-            container = workflow_images_config.init.arm64
-        else:
-            raise osmo_errors.OSMOServerError(f'Cannot recognize container arch {arch}.')
+        container: str = \
+            connectors.PostgresConnector.get_instance().get_workflow_configs().backend_images.init
 
         return {
             'imagePullPolicy': 'Always',

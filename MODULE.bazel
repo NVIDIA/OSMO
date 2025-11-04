@@ -147,21 +147,6 @@ pip.parse(
 )
 use_repo(pip, "osmo_tests_python_deps")
 
-# Docs Python Dependencies
-pip.parse(
-    experimental_index_url = "https://pypi.org/simple/",
-    extra_pip_args = [
-        "--retries",
-        "10",
-        "--timeout",
-        "30",
-    ],
-    hub_name = "osmo_docs_deps",
-    python_version = "3.10.18",
-    requirements_lock = "//docs:locked_requirements.txt",
-)
-use_repo(pip, "osmo_docs_deps")
-
 ################
 #     MyPy     #
 ################
@@ -279,8 +264,8 @@ apt.install(
 
 oci.pull(
     name = "distroless_python3_10",
-    digest = "sha256:cb33a05ca0f5d95c93cdee237f16b4f1227c1f9781e6a78bae5459c5efa779ea",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.4.16",
+    digest = "sha256:b2d83caab9ff9876536b886b627743f99470469ce4fccd4348a9907a51d1c734",
+    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.5.1",
     platforms = [
         "linux/arm64/v8",
         "linux/amd64",
@@ -290,12 +275,12 @@ oci.pull(
 # Used for local debugging
 # oci.pull(
 #     name = "distroless_python3_10_dev",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.4.16-dev",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.5.1-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"
 #     ],
-#     digest = "sha256:223a7180bb96a16b98f555ccb158cb0ced234e8d0ce2afde1075816c6fd2a761",
+#     digest = "sha256:8fdee6a0f8e887f8337ccfe14daabc316ca9e9048ad5e6a84e9f965089db35bc",
 # )
 
 oci.pull(
@@ -309,8 +294,8 @@ oci.pull(
 )
 oci.pull(
     name = "node_22_distroless",
-    digest = "sha256:53be04b7e9c3fae6af567e006efd1e36ccc37eacf5c4e879ae2823d4f1fd8c97",
-    image = BASE_DISTROLESS_IMAGE_URL + "node:22-v3.0.18",
+    digest = "sha256:8e61b86b48345cf29192bbbd1d152c6e3dfee007e82709146781e46c7cc3eb9a",
+    image = BASE_DISTROLESS_IMAGE_URL + "node:22-v3.1.1",
     platforms = [
         "linux/amd64",
         "linux/arm64/v8",

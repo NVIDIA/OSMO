@@ -92,10 +92,8 @@ class BaseResourceUsage:
 
 @router_pool.get('/api/pool', response_class=common.PrettyJSONResponse)
 def get_pools(all_pools: bool = True,
-              pools: List[str] | None = fastapi.Query(default = None),
-              roles_header: Optional[str] =
-               fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
-                    connectors.MinimalPoolConfig | objects.PoolResponse:
+              pools: List[str] | None = fastapi.Query(default = None)) -> \
+                   connectors.MinimalPoolConfig | objects.PoolResponse:
     """
     Returns information regarding pools to users.
 
@@ -105,21 +103,19 @@ def get_pools(all_pools: bool = True,
     """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.fetch_minimal_pool_config(
-            postgres, access_names=login.construct_roles_list(roles_header),
+            postgres,
             pools=pools,
             all_pools=all_pools)
 
 
 @router_pool.get('/api/pool_quota', response_class=common.PrettyJSONResponse)
 def get_pool_quotas(all_pools: bool = True,
-                    pools: List[str] | None = fastapi.Query(default = None),
-                    roles_header: Optional[str] =
-                     fastapi.Header(alias=login.OSMO_USER_ROLES, default=None)) -> \
+                    pools: List[str] | None = fastapi.Query(default = None)) -> \
                         objects.PoolResponse:
     postgres = connectors.PostgresConnector.get_instance()
     pool_configs = \
         connectors.fetch_minimal_pool_config(
-            postgres, access_names=login.construct_roles_list(roles_header),
+            postgres,
             pools=pools,
             all_pools=all_pools).pools
 

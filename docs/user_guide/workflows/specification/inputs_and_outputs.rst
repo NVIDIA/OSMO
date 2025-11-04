@@ -15,13 +15,13 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _concepts_wf_inputs_and_outputs:
+.. _workflow_spec_inputs_and_outputs:
 
 ================================================
 Inputs and Outputs
 ================================================
 
-.. _concepts_wf_inputs:
+.. _workflow_spec_inputs:
 
 Inputs
 ======
@@ -33,13 +33,13 @@ There are 3 types of inputs supported:
   implies that the current task cannot be scheduled until the upstream task has ``COMPLETED``.
   All files uploaded from the upstream tasks' output directory will be downloaded.
 * ``url``: Downloads files from an external object storage bucket using a URI.
-  Learn more about the URI syntax at :ref:`concepts_uri`.
-* ``dataset``: Downloads the files from a dataset. Learn more about datasets at :ref:`concepts_ds`.
+  Learn more about the URI syntax at :ref:`Storage URLs <tutorials_working_with_data_storage_urls>`.
+* ``dataset``: Downloads the files from a dataset. Learn more about datasets at :ref:`Working with Data <tutorials_working_with_data_datasets>`.
 
 .. note::
 
   ``dataset`` can also be used to download the user's local files/directories with the ``localpath``
-  attribute. For more information, see :ref:`concepts_wf_file_injection`.
+  attribute. For more information, see :ref:`workflow_spec_file_injection`.
 
 For example:
 
@@ -86,7 +86,7 @@ include ``.txt`` files:
           name: workflow_example
           regex: .*\.txt$
 
-These inputs can be referenced in the task using :ref:`concepts_special_tokens`.
+These inputs can be referenced in the task using :ref:`workflow_spec_special_tokens`.
 
 Dataset
 -------
@@ -105,7 +105,7 @@ Dataset and collection inputs has the additional fields:
     - A regex to filter the files to download.
   * - localpath
     - When this is specified, this path is taken from the user's local machine and uploaded as
-      a dataset to be downloaded in the task. Learn more about localpath at :ref:`concepts_wf_file_injection`.
+      a dataset to be downloaded in the task. Learn more about localpath at :ref:`workflow_spec_file_injection`.
 
 Examples of some regex usage:
 
@@ -132,7 +132,7 @@ Examples of some regex usage:
   3. Downloads all files inside the folder or subfolder ``my_folder``.
   4. Downloads all files inside the folder or subfolder ``my_folder`` ending with ``.jpg``.
 
-.. _concepts_wf_outputs:
+.. _workflow_spec_outputs:
 
 Outputs
 =========
@@ -142,10 +142,10 @@ To define a task output, use the **outputs** field when defining a task. There a
 types of supported output types:
 
 * ``url``: Upload files to an external object storage bucket using a URI.
-  Learn more about the URI syntax at :ref:`concepts_uri`.
-* ``dataset``: Uploads the files to a dataset. Learn more about datasets at :ref:`concepts_ds`.
+  Learn more about the URI syntax at :ref:`Storage URLs <tutorials_working_with_data_storage_urls>`.
+* ``dataset``: Uploads the files to a dataset. Learn more about datasets at :ref:`Working with Data <tutorials_working_with_data_datasets>`.
 * ``update_dataset``: Creates a new dataset version with the combined files from the task's
-  output folder and the existing dataset version. Learn more about datasets at :ref:`concepts_ds_update`.
+  output folder and the existing dataset version. Learn more about datasets at :ref:`Update Dataset <cli_reference_dataset_update>`.
 
 For example:
 
@@ -191,7 +191,7 @@ a filter to only include ``.txt`` files:
           name: workflow_example
           regex: .*\.txt$
 
-On how to specify which files to be uploaded, go to :ref:`concepts_special_tokens`.
+On how to specify which files to be uploaded, go to :ref:`workflow_spec_templates_and_special_tokens`.
 
 Dataset
 -------
@@ -211,9 +211,9 @@ Dataset
   * - regex
     - A regex to filter the files to upload.
   * - metadata
-    - A list of metadata files to apply to the dataset version. Learn more at :ref:`concepts_ds_labels_and_metadata`.
+    - A list of metadata files to apply to the dataset version. Learn more at :ref:`Dataset Metadata CLI Command <cli_reference_dataset_metadata>`.
   * - labels
-    - A list of labels files to apply to the dataset. Learn more at :ref:`concepts_ds_labels_and_metadata`.
+    - A list of labels files to apply to the dataset. Learn more at :ref:`Dataset Labels CLI Command <cli_reference_dataset_label>`.
 
 ``update_dataset`` has the additional fields:
 
@@ -228,9 +228,9 @@ Dataset
   * - path
     - A relative path from ``{{output}}`` to upload. If no path is specified, the entire output folder will be uploaded.
   * - metadata
-    - A list of metadata files to apply to the dataset version. Learn more at :ref:`concepts_ds_labels_and_metadata`.
+    - A list of metadata files to apply to the dataset version. Learn more at :ref:`Dataset Metadata CLI Command <cli_reference_dataset_metadata>`.
   * - labels
-    - A list of labels files to apply to the dataset. Learn more at :ref:`concepts_ds_labels_and_metadata`.
+    - A list of labels files to apply to the dataset. Learn more at :ref:`Dataset Labels CLI Command <cli_reference_dataset_label>`.
 
 .. note::
 

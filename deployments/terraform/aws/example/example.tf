@@ -59,7 +59,7 @@ module "vpc" {
   private_subnets = var.private_subnets
   public_subnets  = var.public_subnets
   database_subnets = var.database_subnets
-  elasticache_subnets = var.database_subnets
+  elasticache_subnets = var.elasticache_subnets
 
   enable_nat_gateway     = true
   single_nat_gateway     = var.single_nat_gateway
@@ -124,16 +124,8 @@ module "eks" {
     }
   }
 
-  # aws-auth configmap
-  manage_aws_auth_configmap = true
-
-  aws_auth_roles = [
-    {
-      rolearn  = aws_iam_role.eks_admin_role.arn
-      username = "eks-admin"
-      groups   = ["system:masters"]
-    },
-  ]
+  # aws-auth configmap to be set manually
+  manage_aws_auth_configmap = false
 
   tags = local.tags
 }
@@ -245,7 +237,10 @@ module "elasticache" {
   engine_version = var.redis_engine_version
 
   # Network
+  create_subnet_group = false
   subnet_group_name = module.vpc.elasticache_subnet_group_name
+
+  create_security_group = false
   security_group_ids = [aws_security_group.redis.id]
 
   # Backup

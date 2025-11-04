@@ -70,13 +70,6 @@ DEFAULT_POD_TEMPLATES : dict[str, dict] = {
                 }
             ]
         }
-    },
-    'default_amd64': {
-        'spec': {
-            'nodeSelector': {
-                'kubernetes.io/arch': 'amd64'
-            }
-        }
     }
 }
 

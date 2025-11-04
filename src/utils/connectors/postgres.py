@@ -1054,18 +1054,10 @@ class PostgresConnector:
         if self.config.osmo_image_location and self.config.osmo_image_tag:
             # Override default backend_images with deployment values
             workflow_configs.backend_images = OsmoImageConfig(
-                init=ImageConfig(
-                    amd64=(f'{self.config.osmo_image_location}/'
-                          f'init-container:{self.config.osmo_image_tag}'),
-                    arm64=(f'{self.config.osmo_image_location}/'
-                          f'init-container:{self.config.osmo_image_tag}')
-                ),
-                client=ImageConfig(
-                    amd64=(f'{self.config.osmo_image_location}/'
-                          f'client:{self.config.osmo_image_tag}'),
-                    arm64=(f'{self.config.osmo_image_location}/'
-                          f'client:{self.config.osmo_image_tag}')
-                )
+                init=f'{self.config.osmo_image_location}/'
+                     f'init-container:{self.config.osmo_image_tag}',
+                client=f'{self.config.osmo_image_location}/'
+                       f'client:{self.config.osmo_image_tag}',
             )
             logging.info(
                 'Using deployment values for backend_images: %s:%s',
@@ -1508,19 +1500,13 @@ class ExtraArgBaseModel(pydantic.BaseModel):
         cls.__config__.extra = extra_type.value
 
 
-class ImageConfig(ExtraArgBaseModel):
-    """ Class to store image URLs for both architectures. """
-    amd64: str = ''
-    arm64: str = ''
-
-
 class OsmoImageConfig(ExtraArgBaseModel):
     """
     Dynamic Config for storing the image URLs for service images and the credentials needed
     to pull them.
     """
-    init: ImageConfig = ImageConfig()
-    client: ImageConfig = ImageConfig()
+    init: str = ''
+    client: str = ''
     credential: credentials.RegistryCredential = credentials.RegistryCredential(
         registry='', username='', auth='')
 

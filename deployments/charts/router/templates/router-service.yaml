@@ -95,7 +95,7 @@ spec:
         - {{ .Values.services.configFile.path }}
         {{- else }}
         - --config
-        - /home/osmo/vault-agent/secrets/osmo_config.yaml
+        - {{ .Values.services.configFile.path }}
         {{- end }}
         {{- if .Values.global.logs.enabled }}
         - --log_level

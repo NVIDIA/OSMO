@@ -67,7 +67,13 @@ variable "public_subnets" {
 variable "database_subnets" {
   description = "Database subnets CIDR blocks"
   type        = list(string)
-  default     = ["10.0.201.0/24", "10.0.202.0/24", "10.0.203.0/24"]
+  default     = ["10.0.201.0/24", "10.0.202.0/24"]
+}
+
+variable "elasticache_subnets" {
+  description = "ElastiCache subnets CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.211.0/24", "10.0.212.0/24"]
 }
 
 variable "single_nat_gateway" {

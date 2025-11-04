@@ -30,6 +30,16 @@ A ``resource`` refers to the machine which is used to run a workflow. These reso
 into ``pools`` and ``platforms`` so that you can share resources between other users and specify
 what type of hardware you want to run your workflow on.
 
+The diagram below illustrates the organizational hierarchy in an OSMO cluster. Click on pools or
+platforms to learn more about each layer.
+
+.. figure:: pool_organization.svg
+   :width: 100%
+   :align: center
+   :class: transparent-bg
+
+The following sections explain each layer (i.e. ``pools`` and ``platforms``) in detail.
+
 .. _concepts_pools:
 
 Pools
@@ -39,40 +49,47 @@ A ``pool`` is a group of resources that are shared between users which contains 
 to differentiate between different types of hardware. These pools are access controlled to enable
 different teams to share resources.
 
-Depending on the scheduler on the backend, the ``pool`` can have a quota imposed to limit the
-number of ``HIGH`` or ``NORMAL`` priority workflows that can run on the pool. However, ``LOW``
-priority workflows can go beyond the pool quota by borrowing unused GPUs available in the cluster.
+.. dropdown:: How do pools manage workflow priority and preemption?
+    :color: primary
+    :icon: question
 
-Learn more about priority and preemption in :ref:`concepts_priority`.
+    Depending on the scheduler on the backend, a ``pool`` can have a quota imposed to limit the
+    number of ``HIGH`` or ``NORMAL`` priority workflows (see :ref:`concepts_priority`).
 
-Pools have 3 types of statuses:
+    ``LOW`` priority workflows can go beyond the pool quota by borrowing unused GPUs
+    available in the cluster. However, ``LOW`` maybe subjected to preemption (see :ref:`concepts_borrowing`).
 
-..  list-table::
-  :header-rows: 1
-  :widths: auto
+.. card:: Pool Statuses
 
-  * - **Status**
-    - **Description**
-  * - ONLINE
-    - The pool is ready to run workflows.
-  * - OFFLINE
-    - Workflows can be submitted to the pool, but will be queued until the pool is online.
-  * - MAINTENANCE
-    - The pool is undergoing maintenance. You won't be able to submit workflows to the pool Unless
-      you have administrative access.
+   .. list-table::
+      :header-rows: 1
+      :widths: 25 75
 
-Resources in a pool can have two types:
+      * - **Status**
+        - **Description**
+      * - :tag-online:`ONLINE`
+        - The pool is ready to run workflows.
+      * - :tag-offline:`OFFLINE`
+        - Workflows can be submitted to the pool, but will be queued until the pool is online.
+      * - :tag-maintenance:`MAINTENANCE`
+        - The pool is undergoing maintenance. You won't be able to submit workflows to the pool.
 
-..  list-table::
-  :header-rows: 1
-  :widths: auto
+          .. note::
 
-  * - **Type**
-    - **Description**
-  * - SHARED
-    - The resource is shared with another pool.
-  * - PRIVATE
-    - The resource is only available to the pool.
+            Please contact your administrator for more information on pools under maintenance.
+
+.. card:: Resource Types
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 25 75
+
+      * - **Type**
+        - **Description**
+      * - :tag-online:`SHARED`
+        - The resource is shared with another pool.
+      * - :tag-maintenance:`RESERVED`
+        - The resource is only available to the pool.
 
 To view the pools, you can use :ref:`Pool List <cli_reference_pool_list>`.
 
@@ -85,17 +102,35 @@ Platforms
 
 A ``platform`` is a group of resources in a pool and denotes a specific type of hardware.
 
-Each platform can also have different access types:
+Resources are already assigned to a platform by the administrator. You can view more information
+about the resource and its access configurations using :ref:`Resource Info <cli_reference_resource_info>`.
 
-- **privileged**: Whether the platform allows privileged containers.
-- **host network**: Whether the platform allows host networking.
-- **allowed mounts**: Whether the platform allows specific volume mounts from the node to the task container.
-- **default mounts**: The default volume mounts from the node to the task container for the platform.
+.. card:: Platform Access Configurations
 
-You can see if these access types are allowed in the :ref:`resource info <cli_reference_resource_info>` output.
+   .. list-table::
+      :header-rows: 1
+      :widths: 30 20 50
 
-If **privileged**, **host network**, or **allowed mounts** are allowed, you can set them in the
-workflow spec. Learn more at :ref:`concepts_tasks`.
+      * - **Configuration**
+        - **Type**
+        - **Description**
+      * - ``Privileged Mode Allowed``
+        - ``boolean``
+        - Whether the platform allows privileged containers. If enabled, you can set :kbd:`privileged`
+          to ``true`` in the workflow spec (see :ref:`workflow_spec_task`).
+      * - ``Host Network Allowed``
+        - ``boolean``
+        - Whether the platform allows host networking. If enabled, you can set :kbd:`hostNetwork`
+          to ``true`` in the workflow spec (see :ref:`workflow_spec_task`).
+      * - ``Default Mounts``
+        - ``list[string]``
+        - Default volume mounts from the node to the task container for the platform.
+      * - ``Allowed Mounts``
+        - ``list[string]``
+        - Volume mounts that are **allowed** for the platform. These are **not** mounted by default.
+          You may add these to :kbd:`volumeMounts` in the workflow spec (see :ref:`workflow_spec_task`).
 
-When you are submitting a workflow, you will need to specify a platform to target in the
-workflow resource spec. Learn more at :ref:`concepts_wf_resources`.
+.. important::
+
+  When you are submitting a workflow, you will need to specify a platform to target in the
+  workflow resource spec. Learn more at :ref:`workflow_spec_resources`.

@@ -478,7 +478,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                     logs += '\nPlease check available resources with "osmo resource list".'
                     raise osmo_errors.OSMOResourceError(logs, workflow_id=self.name)
 
-    def validate_credentials(self, user: str, platforms: Dict[str, connectors.Platform]):
+    def validate_credentials(self, user: str):
         # Whether or not we have validated the user can access datasets
         # We only need to do it once since all datasets are stored in the same location
         # A list of size 1 is used to allow passing by reference instead of by copy
@@ -490,39 +490,36 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         database = connectors.PostgresConnector.get_instance()
         workflow_config = database.get_workflow_configs()
         dataset_config = database.get_dataset_configs()
-        image_hash_map: Dict[str, Dict[str, str]] = {'amd64': {}, 'arm64': {}}
+        image_hash_map: Dict[str, str] = {}
         for group in self.groups:
             for group_task in group.tasks:
                 response = self.validate_registry(
                     user, group_task, seen_registries,
                     workflow_config.credential_config.disable_registry_validation)
                 if response:
-                    arch = group_task.get_arch(self.pool, platforms)
                     if '@sha256' not in group_task.image:
-                        if group_task.image not in image_hash_map.get(arch, {}):
+                        if group_task.image not in image_hash_map:
                             try:
-                                if response.headers['Content-Type'] in \
-                                    [common.DOCKER_MANIFEST_LIST_ENCODING,
-                                     common.OCI_IMAGE_INDEX_ENCODING]:
-                                    for manifest in response.json()['manifests']:
-                                        if manifest['platform']['architecture'] == arch:
-                                            image_hash_map[arch][group_task.image] = \
-                                                manifest['digest']
-                                            break
+                                if response.headers['Content-Type'] == \
+                                        common.DOCKER_MANIFEST_LIST_ENCODING:
+                                    # Docker multi-arch manifests have a digest
+                                    # OCI multi-arch image indices do not have a digest
+                                    image_hash_map[group_task.image] = response.json()['digest']
                                 else:
+                                    # Single-arch image: use content digest
                                     if 'docker-content-digest' in response.headers:
-                                        image_hash_map[arch][group_task.image] = \
+                                        image_hash_map[group_task.image] = \
                                             response.headers['docker-content-digest']
                                     elif 'Docker-Content-Digest' in response.headers:
-                                        image_hash_map[arch][group_task.image] = \
+                                        image_hash_map[group_task.image] = \
                                             response.headers['Docker-Content-Digest']
                             except KeyError as e:
                                 logging.warning(
                                     'Missing keys in docker response to retrieve image hash: %s',
                                     str(e))
-                        if group_task.image in image_hash_map.get(arch, {}):
+                        if group_task.image in image_hash_map:
                             group_task.image += \
-                                f'@{image_hash_map[arch][group_task.image]}'
+                                f'@{image_hash_map[group_task.image]}'
                 self.validate_data(
                     user, dataset_config, group_task, seen_data_input,
                     seen_data_output, workflow_config.credential_config.disable_data_validation,

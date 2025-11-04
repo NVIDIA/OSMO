@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 global:
-  osmoImageLocation: nvcr.io/nvstaging/osmo
+  osmoImageLocation: nvcr.io/nvidia/osmo
   osmoImageTag: latest
   imagePullSecret: imagepullsecret
   serviceUrl: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local

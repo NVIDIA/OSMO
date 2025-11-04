@@ -18,7 +18,7 @@
 .. _backend_config:
 
 ===========================
-Backend Config
+/api/configs/backend
 ===========================
 
 Backend config is used to configure compute backends that execute workflows.
@@ -31,55 +31,56 @@ Top-level configuration is used to configure the compute backend.
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``backends``
      - Array[`Backend`_]
      - List of compute backend configurations.
+     - ``[]``
 
 Backend
 =======
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``name``
      - String
      - Unique identifier for the backend.
+     - ``None``
    * - ``description``
      - String
      - Human-readable description of the backend and its purpose.
-   * - ``version``
-     - String
-     - Version identifier of the backend software.
-   * - ``k8s_uid``
-     - String
-     - Kubernetes cluster unique identifier.
-   * - ``k8s_namespace``
-     - String
-     - Kubernetes namespace where the backend operates.
+     - ``None``
    * - ``dashboard_url``
      - String
      - URL to the backend's management dashboard.
+     - ``None``
    * - ``grafana_url``
      - String
      - URL to the backend's Grafana monitoring dashboard.
+     - ``None``
    * - ``scheduler_settings``
      - `Scheduler Settings`_
      - Configuration for the Kubernetes scheduler.
+     - Default configuration
    * - ``node_conditions``
      - `Node Conditions`_
      - Configuration for node health and condition monitoring.
+     - Default configuration
    * - ``router_address``
      - String
      - WebSocket address for backend communication.
+     - ``None``
 
 
 Scheduler Settings
@@ -87,51 +88,61 @@ Scheduler Settings
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``scheduler_type``
      - String
-     - Type of Kubernetes scheduler to use. Supported values: "default", "scheduler-plugins", "volcano", "kai". Default is "default".
+     - Type of Kubernetes scheduler to use. Supported values: "default", "scheduler-plugins", "volcano", "kai".
+     - ``default``
    * - ``scheduler_name``
      - String
-     - Name of the kubernetes scheduler or scheduler plugin to use. This should match the name of the scheduler or scheduler plugin in the kubernetes cluster. e.g., "scheduler-plugins-scheduler", "kai-scheduler". Default is "default-scheduler".
+     - Name of the kubernetes scheduler or scheduler plugin to use. This should match the name of the scheduler or scheduler plugin in the kubernetes cluster. e.g., "scheduler-plugins-scheduler", "kai-scheduler".
+     - ``default-scheduler``
    * - ``coscheduling``
      - Boolean
-     - Whether to enable co-scheduling for group workflows. Default is false.
+     - Whether to enable co-scheduling for group workflows.
+     - ``False``
    * - ``scheduler_timeout``
      - Integer
      - Timeout in seconds for scheduling operations.
+     - ``30``
 
 Node Conditions
 ================
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``rules``
      - Map[String, String]
      - Mapping of condition type regex to allowed status regex. Status combinations use ``|`` over ``True``, ``False``, ``Unknown``. Examples: ``{"^Ready$": "True"}``, ``{"^Sample.*$": "False|Unknown"}``.
+     - ``{"Ready": "True"}``
    * - ``prefix``
      - String
      - Prefix to apply to custom node condition labels.
+     - ``osmo.nvidia.com/``
 
 Cache Config
 ============
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 25 12 43 20
 
    * - **Field**
      - **Type**
      - **Description**
+     - **Default Values**
    * - ``endpoints``
      - Array[String]
      - List of cache endpoint configurations for the backend.
+     - ``[]``

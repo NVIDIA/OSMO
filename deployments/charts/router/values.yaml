@@ -30,10 +30,9 @@ global:
 
   ## Node selector constraints for pod scheduling
   ##
-  nodeSelector:
-    # Schedule pods only on AMD64 architecture nodes
-    kubernetes.io/arch: amd64
-    # Add additional node selectors here as needed
+  nodeSelector: {}
+    # Add node selectors here as needed
+    # kubernetes.io/arch: amd64
     # node-type: cpu
     # zone: us-west-2a
 
@@ -410,11 +409,11 @@ sidecars:
       ##
       address: osmo-service
 
-    ## Secret paths for OAuth2 secrets (when using Vault)
+    ## Secret paths for OAuth2 secrets
     ##
     secretPaths:
-      clientSecret: /home/osmo/vault-agent/secrets/oidc_secret.txt
-      hmacSecret: /home/osmo/vault-agent/secrets/oidc_hmac.txt
+      clientSecret: /etc/envoy/secrets/client_secret
+      hmacSecret: /etc/envoy/secrets/hmac_secret
 
     ## Additional volume mounts for the Envoy container
     ##

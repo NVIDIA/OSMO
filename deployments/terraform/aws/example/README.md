@@ -196,6 +196,8 @@ To destroy all resources:
 terraform destroy
 ```
 
+You may need to run `terraform destroy` twice due to deletion delays to clean up all resources.
+
 **Warning**: This will permanently delete all resources. Ensure you have backups if needed.
 
 ## Troubleshooting

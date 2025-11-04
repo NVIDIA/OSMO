@@ -121,7 +121,7 @@ export const HomepageCards = () => {
               .
             </p>
           }
-          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/training/single_node.html`}
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}how_to/training/single_node.html`}
           workflowLink="/workflows/submit/mnist_training"
         />
         <HomepageCard

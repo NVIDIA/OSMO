@@ -20,8 +20,10 @@
 High Level Architecture
 =======================
 
-.. image:: arch.png
-	:width: 800
+.. figure:: arch.svg
+   :width: 1000
+   :align: center
+   :class: mb-4
 
 OSMO follows a modular, cloud-native architecture designed to orchestrate complex AI and robotics workflows across heterogeneous compute resources. The platform consists of several key components working together:
 

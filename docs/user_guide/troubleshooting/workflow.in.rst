@@ -21,7 +21,7 @@ Workflow
 ================================================
 
 When a workflow fails, refer to :ref:`cli_reference_workflow_query` to gain an overview of the workflow tasks
-statuses on which pods failed as well as their failure messages. Refer to :ref:`concepts_wf_status`
+statuses on which pods failed as well as their failure messages. Refer to :ref:`workflow_lifecycle_status`
 that contains more information regarding different workflow statuses.
 
 Use :ref:`cli_reference_workflow_logs` for a better insight of what happened during the workflow runtime.

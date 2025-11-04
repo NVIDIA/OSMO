@@ -15,11 +15,15 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _concepts_wf_actions:
+.. _workflow_spec_exit_actions:
 
 ============
 Exit Actions
 ============
+
+.. seealso::
+
+  For a full list of exit codes, see :ref:`workflow_exit_codes`.
 
 You can define task actions based on the **exit code** for every task in a workflow.
 Supported actions are:
@@ -37,7 +41,7 @@ Supported actions are:
   * - RESCHEDULE
     - Task will be marked as RESCHEDULED and the same task with an incremented retry ID
       will be scheduled. If you want all other tasks in the same group to be restarted,
-      please set ``ignoreNonleadStatus`` to ``false`` for the group (see :ref:`concepts_groups`).
+      please set ``ignoreNonleadStatus`` to ``false`` for the group (see :ref:`workflow_spec_group`).
 
 .. note::
 

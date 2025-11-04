@@ -38,6 +38,7 @@ Livestream
 LkXFR
 Luhansk
 Majeure
+Memorystore
 Metrics
 MiB
 ModuleNotFoundError
@@ -51,6 +52,7 @@ Omniverse
 Onboarding
 Preconfigured
 Preflight
+Preprocess
 Pytorch
 Quickstart
 RTX
@@ -85,6 +87,7 @@ arg
 args
 arm
 arm64
+asc
 arn
 auth
 autoscaling
@@ -143,6 +146,7 @@ filesystem
 fs
 gapped
 gb
+gibibytes
 gitlab
 gp
 gpu
@@ -155,10 +159,13 @@ hostfile
 hostname
 hostnames
 https
+hyperparameter
+hyperparameters
 iam
 inferencing
 ingressClassName
 ini
+init
 instantiation
 io
 ip
@@ -167,6 +174,7 @@ iss
 iteratively
 jetson
 json
+jwt
 kai
 keycloak
 kpi
@@ -186,6 +194,7 @@ localpath
 lustre
 maglev
 mailgw
+mebibytes
 metrics
 microservice
 microservices
@@ -263,8 +272,12 @@ sqa
 srl
 sshing
 stateful
+stderr
+stdin
+stdout
 sts
 subnet
+subnets
 subfolder
 sudo
 svc

@@ -26,7 +26,6 @@ import { UrlTypes, useStore } from "~/components/StoreProvider";
 export const getTopLevelLinks = (
   sidebarData: Map<UrlTypes, string>,
 ): { label: string; to: string; icon: React.ReactNode }[] => [
-  { label: "Home", to: "/", icon: <OutlinedIcon name="home" /> },
   {
     label: "Pools",
     to: `/pools${sidebarData.get(UrlTypes.Pools) ?? ""}`,

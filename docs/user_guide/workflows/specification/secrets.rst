@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _concepts_wf_secrets:
+.. _workflow_spec_secrets:
 
 ================================================
 Secrets
