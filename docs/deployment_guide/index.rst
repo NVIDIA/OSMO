@@ -274,12 +274,11 @@ The deployment process follows these high-level steps:
 
 **Phase 3: Deploy Backend**
 
-   6. Review :doc:`backend system requirements <install_backend/system_requirement>`
-   7. Create backend cluster (cloud: :doc:`cloud <install_backend/create_backend/cloud_setup>` or on-premises: :doc:`on-premises <install_backend/create_backend/onprem_setup>`)
-   8. Install :doc:`required dependencies <install_backend/dependencies/dependencies>`
-   9. :doc:`Deploy backend operator <install_backend/deploy_backend>`
-   10. :doc:`Configure compute pools <install_backend/configure_pool>`
-   11. :doc:`Validate deployment <install_backend/validate_osmo>`
+   6. Create backend cluster (cloud: :doc:`cloud <install_backend/create_backend/cloud_setup>` or on-premises: :doc:`on-premises <install_backend/create_backend/onprem_setup>`)
+   7. Install :doc:`required dependencies <install_backend/dependencies/dependencies>`
+   8. :doc:`Deploy backend operator <install_backend/deploy_backend>`
+   9. :doc:`Configure compute pools <install_backend/configure_pool>`
+   10. :doc:`Validate deployment <install_backend/validate_osmo>`
 
 
 Ready to Begin?
@@ -322,7 +321,6 @@ Choose your deployment path:
   :hidden:
   :caption: Install Backend
 
-  install_backend/system_requirement
   install_backend/create_backend/index
   install_backend/dependencies/dependencies
   install_backend/deploy_backend

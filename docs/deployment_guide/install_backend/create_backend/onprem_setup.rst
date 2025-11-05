@@ -26,7 +26,136 @@ Create a Kubernetes cluster to be used as a backend for job execution on your ow
 Prerequisites
 =============
 
-Before setting up your on-premises Kubernetes cluster, review the :ref:`system_requirements` to understand the requirements for control plane, node pools, networking, storage, and security.
+Before setting up your on-premises Kubernetes cluster, ensure you have the necessary hardware and software infrastructure available.
+
+System Requirements
+-------------------
+
+Kubernetes Cluster
+~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Requirements
+   * - Kubernetes Version
+     - v1.30.0 or later
+   * - Architecture
+     - x86_64 or arm64
+   * - CPU
+     - 12 cores minimum
+   * - Memory
+     - 24 GB minimum
+   * - Disk
+     - 200 GB minimum
+   * - High Availability
+     - Recommended for production (3+ control plane nodes)
+   * - Operating System
+     - Ubuntu 22.04+ or equivalent enterprise Linux distribution
+
+Backend-Operator Nodes
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Requirements
+   * - Purpose
+     - Dedicated nodes for running the osmo-backend-operator
+   * - Recommended For
+     - Production deployments
+   * - Architecture
+     - x86_64 or arm64
+   * - CPU
+     - 4 cores minimum
+   * - Memory
+     - 8 GB minimum
+   * - Disk
+     - 50 GB minimum
+   * - Auto-scaling
+     - Configure as needed (1-3 nodes recommended)
+   * - Taints
+     - Optional, to ensure only operator workloads are scheduled and no osmo workflow pods are scheduled on these nodes
+   * - GPU Requirements
+     - None
+
+Compute Nodes (User Workflows)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Requirements
+   * - CPU Workloads
+     - Size according to workload requirements
+   * - GPU Workloads
+     - x86_64 nodes (e.g., OVX/DGX) or Jetson nodes
+   * - Operating System (GPU nodes)
+     - Ubuntu 22.04+ (x86_64) or JetPack 6.2 (Jetson)
+   * - NVIDIA Driver
+     - 535.216.03+ (x86_64)
+   * - CUDA
+     - 12.6+ (x86_64) or included in JetPack 6.2 (Jetson)
+   * - Container Runtime
+     - containerd 1.7.27+
+   * - Auto-scaling
+     - Configure as needed
+   * - Node Labels
+     - ``node-type=compute``, ``node-type=gpu``, ``node-type=jetson`` (as appropriate)
+   * - Taints
+     - Optional, to ensure only osmo workflow pods are scheduled and no operator or system workloads are scheduled on these nodes
+
+Container Runtime
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Requirements
+   * - Runtime
+     - containerd 1.7.27+
+   * - Image Registry Access
+     - Ensure nodes can pull from required registries
+
+Networking
+~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Requirements
+   * - Cluster Networking
+     - All nodes must be routable with stable IP addresses and DNS resolution
+   * - Internet Access
+     - Required for image pulls and access to the osmo service
+   * - Internal Communication
+     - Ensure proper inter-node communication for Kubernetes networking
+
+Security Considerations
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Component
+     - Requirements
+   * - Encryption at Rest
+     - Enable for etcd and persistent volumes. Refer to the `official documentation <https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/>`__ for more details
+   * - Encryption in Transit
+     - TLS for all communications
+   * - Secrets Management
+     - Secure handling of sensitive data and credentials
 
 Kubernetes Distribution Options
 ================================

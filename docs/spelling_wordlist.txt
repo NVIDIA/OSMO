@@ -153,6 +153,7 @@ gpu
 gpus
 grafana
 groot
+highgpu
 hil
 hostNetwork
 hostfile
