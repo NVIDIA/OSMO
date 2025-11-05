@@ -14,63 +14,50 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("//bzl:py.bzl", "osmo_py_binary")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
-
-###################################
-# Osmo init Pyinstaller Packaging #
-###################################
-
-osmo_py_library(
+osmo_py_binary(
     name = "init",
+    main = "init.py",
     srcs = ["init.py"],
     deps = [
         requirement("pydantic"),
     ],
 )
 
-osmo_py_binary(
-    name = "builder",
-    main = "builder.py",
-    srcs = ["builder.py"],
-    deps = [
-        requirement("pyinstaller"),
-        ":init",
-    ],
-)
-
-run_binary(
-    name = "init_onedir",
-    args = [
-        "--output_dir $(@D)",
-        "--main $(location :init.py)",
-    ],
-    out_dirs = ["osmo_init_onedir"],
-    tool = ":builder",
-    srcs = [
-        "init.py",
-        ":init",
-    ],
-    visibility = ["//visibility:public"],
+# Create a distroless-compatible wrapper that calls the Bazel wrapper
+genrule(
+    name = "osmo_init_wrapper",
+    outs = ["osmo_init"],
+    cmd = """
+        cat > $@ << 'EOF'
+#!/usr/bin/python3
+import os, sys
+os.execv('/usr/bin/python3', ['/usr/bin/python3', '/osmo/init'] + sys.argv[1:])
+EOF
+        chmod +x $@
+    """,
 )
 
 pkg_tar(
-    name = "init_onedir_pkg",
+    name = "init_pkg",
     extension = "tgz",
-    remap_paths = {
-        "/osmo_init_onedir": ".",
-    },
-    srcs = [":init_onedir"],
-    symlinks = {
-        "/usr/bin/osmo_init": "/osmo/osmo-init/osmo-init",
-    },
+    srcs = [":init"],
+    include_runfiles = True,
     mode = "0755",
-    visibility = ["//visibility:public"],
+    package_dir = "/osmo",
+)
+
+pkg_tar(
+    name = "init_wrapper_pkg",
+    extension = "tgz",
+    srcs = [":osmo_init_wrapper"],
+    mode = "0755",
+    package_dir = "/usr/bin",
 )
 
 ################
@@ -81,7 +68,8 @@ oci_image(
     name = "init_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":init_onedir_pkg",
+        ":init_pkg",
+        ":init_wrapper_pkg",
         "//src/cli:osmo_cli_pkg_amd64",
         "//src/runtime/cmd/ctrl:osmo_ctrl_x86_64_pkg",
         "//src/runtime/cmd/user:osmo_exec_x86_64_pkg",
@@ -127,7 +115,8 @@ oci_image(
     name = "init_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":init_onedir_pkg",
+        ":init_pkg",
+        ":init_wrapper_pkg",
         "//src/cli:osmo_cli_pkg_arm64",
         "//src/runtime/cmd/ctrl:osmo_ctrl_arm64_pkg",
         "//src/runtime/cmd/user:osmo_exec_arm64_pkg",
