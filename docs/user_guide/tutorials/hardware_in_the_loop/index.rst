@@ -140,39 +140,6 @@ Let's create a workflow that runs a physics simulation on a GPU and a robot cont
   Please make sure to modify the timeout to your needs. For more information, please refer to the
   :ref:`Timeouts <workflow_spec_timeouts>` documentation.
 
-.. _tutorials_hardware_in_the_loop_task_communication:
-
-Task Communication
-==================
-
-Tasks within a workflow group can communicate over the network using the token ``{{host:task-name}}``.
-The token is replaced with the IP address of the task when the task is running.
-
-**Example:**
-
-.. code-block:: yaml
-
-  - name: client-task
-    command: ["bash", "-c"]
-    args:
-    - |
-      # Wait for server to be ready
-      while ! nslookup {{host:server-task}} > /dev/null 2>&1; do
-        sleep 2
-      done
-      
-      # Now communicate
-      curl http://{{host:server-task}}:8080/data
-
-.. tip::
-
-  **Best practices for communication:**
-
-  - ✅ Use ``nslookup`` or ``nc`` to wait for services to be ready
-  - ✅ Start with simple protocols (HTTP) before complex ones
-  - ✅ Handle connection retries gracefully
-  - ✅ Consider network latency between different platforms
-
 Next Steps
 ==========
 

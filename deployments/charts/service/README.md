@@ -168,6 +168,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `services.service.ingress.enabled` | Enable ingress for external access | `true`|
 | `services.service.ingress.prefix` | URL path prefix | `/` |
 | `services.service.ingress.ingressClass` | Ingress controller class | `nginx` |
 | `services.service.ingress.sslEnabled` | Enable SSL | `true` |

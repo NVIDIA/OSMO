@@ -80,6 +80,7 @@ helm upgrade my-router ./router -f my-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `services.service.ingress.enabled` | Enable ingress for external access | `true`|
 | `services.service.ingress.prefix` | URL path prefix for ingress rules | `/` |
 | `services.service.ingress.ingressClass` | Ingress controller class | `nginx` |
 | `services.service.ingress.sslEnabled` | Enable SSL/TLS encryption | `true` |

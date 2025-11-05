@@ -230,6 +230,13 @@ variable "redis_snapshot_retention_limit" {
   default     = 5
 }
 
+variable "redis_auth_token" {
+  description = "Auth token for Redis (password). Must be at least 16 characters."
+  type        = string
+  sensitive   = true
+  default     = "changeme-redis-password-123!"
+}
+
 # ALB Variables
 variable "alb_enable_deletion_protection" {
   description = "Enable deletion protection for ALB"

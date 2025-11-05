@@ -47,6 +47,8 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `services.ui.imagePullPolicy` | Image pull policy | `Always` |
 | `services.ui.serviceName` | Name of the service | `osmo-ui` |
 | `services.ui.hostname` | Hostname for the service | `""` (empty, must be configured) |
+| `services.ui.apiHostname` | Hostname on which the API is served | `"osmo-service.osmo.svc.cluster.local:80"` |
+| `service.ui.nextjsSslEnabled` | SSL/TLS encryption for nextjs server to connect to the osmo API server | `false` |
 | `services.ui.nodeSelector` | Node selector constraints for UI pod scheduling | `{}` |
 | `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
 | `services.ui.tolerations` | Tolerations for pod scheduling on tainted nodes | `[]` |
@@ -67,6 +69,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `services.service.ingress.enabled` | Enable ingress for external access | `true`|
 | `services.ui.ingress.prefix` | URL path prefix | `/` |
 | `services.ui.ingress.ingressClass` | Ingress controller class | `nginx` |
 | `services.ui.ingress.sslEnabled` | Enable SSL | `true` |

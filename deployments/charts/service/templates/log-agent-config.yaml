@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
+{{- if .Values.sidecars.logAgent.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -194,3 +195,4 @@ data:
         Time_Format %Y-%m-%dT%H:%M:%S.%L%z
         Time_Keep   On
         Time_Key    start_time
+{{- end }}

@@ -70,6 +70,12 @@ Understanding Data Flow
 When you declare a task dependency, OSMO automatically handles data transfer between tasks. Below
 is an example of how **data flows between tasks** when a task dependency is declared.
 
+.. figure:: data_flow.svg
+  :align: center
+  :width: 50%
+  :class: transparent-bg no-scaled-link
+  :alt: Data Flow
+
 .. code-block:: yaml
 
   tasks:
@@ -108,7 +114,11 @@ Your First Serial Workflow
 
 Let's build a **three-stage** serial workflow:
 
-.. include:: diagrams/serial_workflow.in.rst
+.. figure:: serial_workflow.svg
+  :align: center
+  :width: 60%
+  :class: transparent-bg no-scaled-link
+  :alt: Serial Workflow
 
 .. code-block:: bash
 
@@ -188,6 +198,12 @@ Conditional Execution
 =====================
 
 Tasks only run if their dependencies succeed. If a task fails, downstream tasks are canceled:
+
+.. figure:: conditional_execution.svg
+  :align: center
+  :width: 60%
+  :class: transparent-bg no-scaled-link
+  :alt: Conditional Execution
 
 .. code-block:: yaml
 

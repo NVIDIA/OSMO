@@ -52,6 +52,12 @@ Simple Example
 Let's build a data processing pipeline with multiple stages by downloading the workflow definition
 here: :download:`combination_workflow_simple.yaml <combination_workflow_simple.yaml>`.
 
+.. figure:: combination_workflow_simple.svg
+  :align: center
+  :width: 80%
+  :class: transparent-bg no-scaled-link
+  :alt: Simple Combination Workflow
+
 .. literalinclude:: combination_workflow_simple.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
@@ -63,9 +69,9 @@ here: :download:`combination_workflow_simple.yaml <combination_workflow_simple.y
 
 **Execution Flow:**
 
-1. Group ``prepare-data`` starts → ``generate-dataset`` and ``validate-data`` run together
-2. Group ``prepare-data`` completes → Group ``train-models`` starts
-3. Group ``train-models`` starts → ``train-model-a`` and ``train-model-b`` run together
+1. Group ``prepare-data`` starts → ``generate-dataset`` and ``validate-data`` run in parallel.
+2. Task ``generate-dataset`` completes → Group ``train-models`` dependencies are satisfied.
+3. Group ``train-models`` starts → ``train-model-a`` and ``train-model-b`` run in parallel.
 
 .. important::
 
@@ -87,6 +93,12 @@ Complex Example
 Let's build a more complex data processing pipeline by downloading the workflow definition
 here: :download:`combination_workflow_complex.yaml <combination_workflow_complex.yaml>`.
 
+.. figure:: combination_workflow_complex.svg
+  :align: center
+  :width: 100%
+  :class: transparent-bg no-scaled-link
+  :alt: Complex Combination Workflow
+
 .. literalinclude:: combination_workflow_complex.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
@@ -99,9 +111,12 @@ here: :download:`combination_workflow_complex.yaml <combination_workflow_complex
 
 **Execution:**
 
-1. Group ``fetch`` runs → ``download`` task
-2. Group ``process`` runs → ``transform-a`` and ``transform-b`` in parallel
-3. Group ``aggregate`` runs → ``combine`` task with outputs from both transforms
+1. Group ``fetch`` starts → ``download`` task runs
+2. ``download`` task completes → Group ``process`` dependencies are satisfied.
+3. Group ``process`` starts → ``transform-a`` and ``transform-b`` run in parallel.
+4. ``transform-b`` task completes → Group ``aggregate`` dependencies not yet satisfied.
+5. ``transform-a`` task completes → Group ``aggregate`` dependencies are satisfied.
+6. Group ``aggregate`` starts → ``combine`` task runs with outputs from both transforms.
 
 .. caution::
 

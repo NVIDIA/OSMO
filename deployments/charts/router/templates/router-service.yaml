@@ -261,16 +261,17 @@ kind: Ingress
 metadata:
   name: {{ .Values.services.service.serviceName }}
   annotations:
-    {{- range $k, $v := .Values.services.service.ingress.annotations }}
-    {{$k}}: {{$v}}
-    {{- end }}
     {{- if .Values.services.service.ingress.albAnnotations.enabled}}
-    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.name: osmo
     alb.ingress.kubernetes.io/group.order: "50"
+    alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
     {{- if .Values.services.service.webserverEnabled }}
     alb.ingress.kubernetes.io/hostnames: '["*.{{ .Values.services.service.hostname }}", "{{ .Values.services.service.hostname }}"]'
     {{- end }}
+    {{- end }}
+    {{- range $k, $v := .Values.services.service.ingress.annotations }}
+    {{$k}}: {{$v}}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.services.service.ingress.ingressClass }}

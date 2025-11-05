@@ -43,6 +43,7 @@ redis_automatic_failover_enabled = false  # Set to true for production
 redis_multi_az_enabled           = false  # Set to true for production
 redis_engine_version             = "7.0"
 redis_snapshot_retention_limit   = 5
+redis_auth_token                 = "REPLACE_WITH_SECURE_PASSWORD_16_CHARS_MIN"  # Must be at least 16 characters
 
 # ALB Configuration
 alb_enable_deletion_protection = false  # Set to true for production

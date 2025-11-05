@@ -53,17 +53,24 @@ that maximize resource utilization.
   Use **tasks** for independent parallel work. Use **groups** when tasks need to coordinate
   or communicate (e.g., distributed training, client-server patterns).
 
-Understanding Parallelism
-=========================
+**Independent Tasks**
+=====================
 
-**Independent Tasks** (Asynchronous Parallelism)
---------------------------------------------------
+**Asynchronous Parallelism**
 
 Independent tasks run in parallel asynchronously when they:
 
 1. Have no dependencies on each other
 2. Are defined at the workflow level under ``tasks:``
 3. Have available compute resources
+
+**For example:**
+
+.. figure:: independent_tasks.svg
+  :align: center
+  :width: 40%
+  :class: transparent-bg no-scaled-link
+  :alt: Independent Tasks
 
 .. code-block:: yaml
 
@@ -82,8 +89,10 @@ Independent tasks run in parallel asynchronously when they:
 All three tasks start simultaneously (resource availability permitting). They cannot
 communicate with each other over the network.
 
-**Groups** (Synchronized Parallelism)
--------------------------------------
+**Groups**
+==========
+
+**Synchronized Parallelism**
 
 .. important::
 
@@ -93,10 +102,18 @@ communicate with each other over the network.
 Key characteristics of groups:
 
 - All tasks in a group start together (synchronized execution)
-- Tasks can communicate with each other using ``{{host:task-name}}`` (see more at :ref:`Task Communication <tutorials_hardware_in_the_loop_task_communication>`)
+- Tasks can communicate with each other using ``{{host:task-name}}`` (see more at :ref:`Task Communication <tutorials_parallel_workflows_task_communication>`)
 - One task must be designated as the **lead** task
 - Groups run serially based on dependencies between them
 - Tasks may run on the same node or different nodes
+
+**For example:**
+
+.. figure:: synchronized_groups.svg
+  :align: center
+  :width: 40%
+  :class: transparent-bg no-scaled-link
+  :alt: Groups
 
 .. code-block:: yaml
 
@@ -119,6 +136,38 @@ Key characteristics of groups:
 
   The ``workflow`` level ``groups`` and ``tasks`` fields are **mutually exclusive**.
   You **cannot** use both in the same workflow.
+
+.. _tutorials_parallel_workflows_task_communication:
+
+Task Communication
+==================
+
+Tasks **within a workflow group** can communicate over the network using the token ``{{host:task-name}}``.
+The token is replaced with the IP address of the task when the task is running.
+
+**Example:**
+
+.. code-block:: yaml
+
+  - name: client-task
+    command: ["bash", "-c"]
+    args:
+    - |
+      # Wait for server to be ready
+      while ! nslookup {{host:server-task}} > /dev/null 2>&1; do
+        sleep 2
+      done
+      
+      # Now communicate
+      curl http://{{host:server-task}}:8080/data
+
+.. tip::
+
+  **Best practices for communication:**
+
+  - ✅ Use ``nslookup`` or ``nc`` to wait for services to be ready
+  - ✅ Start with simple protocols (HTTP) before complex ones
+  - ✅ Handle connection retries gracefully
 
 Next Steps
 ==========

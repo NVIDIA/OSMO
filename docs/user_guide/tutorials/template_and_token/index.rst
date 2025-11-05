@@ -97,7 +97,7 @@ Each submission gets a unique ``{{workflow_id}}`` (e.g., ``my-experiment-1``,
 
   The other tokens (:kbd:`{{input:N}}`, :kbd:`{{output}}`, :kbd:`{{host:task_name}}`) are covered
   in later tutorials when you learn about :ref:`Working with Data <tutorials_working_with_data>` and
-  :ref:`Task Communication <tutorials_hardware_in_the_loop_task_communication>`.
+  :ref:`Task Communication <tutorials_parallel_workflows_task_communication>`.
 
 Next Steps
 ==========

@@ -110,8 +110,8 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
   2. Requesting Resources <tutorials/requesting_resources>
   3. Template and Tokens <tutorials/template_and_token/index>
   4. Working with Data <tutorials/data/index>
-  5. Serial Workflows <tutorials/serial_workflows>
-  6. Parallel Workflows <tutorials/parallel_workflows>
+  5. Serial Workflows <tutorials/serial_workflows/index>
+  6. Parallel Workflows <tutorials/parallel_workflows/index>
   7. Combination Workflows <tutorials/combination_workflows/index>
   8. Hardware In The Loop <tutorials/hardware_in_the_loop/index>
   9. Advanced Patterns <tutorials/advanced_patterns>

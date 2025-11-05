@@ -35,26 +35,65 @@ OSMO deployment consists of several main components:
 
 .. image:: osmo_full.png
 
-Step 1: Configure Dependencies
-===============================
+Step 1: Configure PostgreSQL
+============================
 
-PostgreSQL Setup
-----------------
-
-Create a database for OSMO using the following command:
+Create a database for OSMO using the following command. Omit ``export OSMO_PGPASSWORD=...``
+and ``PGPASSWORD=$OSMO_PGPASSWORD`` if PostgreSQL was configured without a password.
 
 .. code-block:: bash
 
-   $ psql -U postgres -h your-db-host -p 5432 -d postgres
-   $ CREATE DATABASE osmo_db;
+   $ export OSMO_DB_HOST=<your-db-host>
+   $ export OSMO_PGPASSWORD=<your-postgres-password>
+   $ kubectl apply -f - <<EOF
+     apiVersion: v1
+     kind: Pod
+     metadata:
+       name: osmo-db-ops
+     spec:
+       containers:
+         - name: osmo-db-ops
+           image: alpine/psql:17.5
+           command: ["/bin/sh", "-c"]
+           args:
+             - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo_db;'"
+       restartPolicy: Never
+     EOF
 
-
-If using keycloak as the SSO provider, create a database for keycloak using the following command:
+Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then delete the pod with:
 
 .. code-block:: bash
 
-   $ psql -U postgres -h your-db-host -p 5432 -d postgres
-   $ CREATE DATABASE keycloak;
+   $ kubectl delete pod osmo-db-ops
+
+If using keycloak as the SSO provider, create a database for keycloak using the following command.
+Omit ``export OSMO_PGPASSWORD=...`` and ``PGPASSWORD=$OSMO_PGPASSWORD`` if PostgreSQL was
+configured without a password.
+
+.. code-block:: bash
+
+   $ export OSMO_DB_HOST=<your-db-host>
+   $ export OSMO_PGPASSWORD=<your-postgres-password>
+   $ kubectl apply -f - <<EOF
+     apiVersion: v1
+     kind: Pod
+     metadata:
+       name: osmo-db-ops
+     spec:
+       containers:
+         - name: osmo-db-ops
+           image: alpine/psql:17.5
+           command: ["/bin/sh", "-c"]
+           args:
+             - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE keycloak;'"
+       restartPolicy: Never
+     EOF
+
+Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then delete the pod with:
+
+.. code-block:: bash
+
+   $ kubectl delete pod osmo-db-ops
 
 Step 2: Configure Authentication with Keycloak
 ===============================================
@@ -131,20 +170,20 @@ b. Create a ``keycloak-values.yaml`` file with the following configuration:
       memory: "1Gi"
 
   # Database configuration
-  # Option 1: Built-in PostgreSQL (for testing)
+  # Option 1: External Database
   postgresql:
-    enabled: true  # Set to false if using external database
+    enabled: false
+  externalDatabase:
+    host: "[your-db-host]"
+    port: 5432
+    user: "[your-db-user]"
+    database: "keycloak"
+    existingSecret: "keycloak-db-secret"
+    existingSecretPasswordKey: "postgres-password"
 
-  # Option 2: External Database
+  # Option 2: Built-in PostgreSQL (for testing)
   # postgresql:
-  #   enabled: false
-  # externalDatabase:
-  #   host: "[your-db-host]"
-  #   port: 5432
-  #   user: "[your-db-user]"
-  #   database: "keycloak"
-  #   existingSecret: "keycloak-db-secret"
-  #   existingSecretPasswordKey: "postgres-password"
+  #   enabled: true
 
   # Additional environment variables
   extraEnvVars:
@@ -420,7 +459,7 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
 
     # PostgreSQL database configuration
     postgres:
-      enabled: false  # Set to false if using external PostgreSQL
+      enabled: false
       serviceName: <your-postgres-host>
       port: 5432
       db: <your-database-name>

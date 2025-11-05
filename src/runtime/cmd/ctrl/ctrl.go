@@ -261,7 +261,8 @@ func connWorkflowService(url string, cmdArgs args.CtrlArgs) {
 					if e.ErrorType == string(PendingError) {
 						log.Println("Waiting for task status to update to RUNNING.")
 					} else {
-						log.Printf("Failed to connect to websocket %s with error: %s", url, err)
+						log.Printf("Failed to connect to websocket %s with %s error: %s",
+							url, e.ErrorType, e.Message)
 					}
 				default:
 					log.Printf("Failed to connect to websocket %s with error: %s", url, err)

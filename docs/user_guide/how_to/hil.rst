@@ -24,13 +24,13 @@ Hardware-in-the-Loop: Evaluate Policy on Jetson
 Introduction
 ------------
 
-This workflow demonstrates how to run *hardware-in-the-loop (HIL)* using ROS2 on an embedded system (i.e. Jetson Orin) and
+This workflow demonstrates how to run *hardware-in-the-loop (HIL)* using ROS 2 on an embedded system (i.e. Jetson Orin) and
 running simulation using Isaac Lab on a separate machine with a desktop GPU.
 
 This tutorial is for users who want to implement their own HIL workflows with Isaac Sim or Isaac Lab, especially in an
 environment where the embedded system and the simulation machine are not on the same LAN/subnet.
 
-To learn the basics of the ROS2 Discovery Server, see the :ref:`ROS2: Multi-Node Communication <guides_ros2_comm>` guide.
+To learn the basics of the ROS 2 Discovery Server, see the :ref:`ROS 2: Multi-Node Communication <guides_ros2_comm>` guide.
 
 Architecture
 ------------
@@ -73,7 +73,7 @@ This HIL workflow orchestrates **three tasks** running in parallel to create a h
 
       🌐 **Message Router**
 
-      ROS2 communication server that routes messages between policy and simulation.
+      ROS 2 communication server that routes messages between policy and simulation.
 
       *Runs on: Any x86_64 machine*
 
@@ -148,7 +148,7 @@ The following files will be mounted into the the tasks running the robot policy 
     .. code-annotations::
 
       1. Fetch the source code of the locomotion policy from the Isaac Sim GitHub repository.
-      2. Build the ROS2 package from the repository.
+      2. Build the ROS 2 package from the repository.
       3. Install the torch package, which is required by the locomotion policy.
 
 Building the Workflow

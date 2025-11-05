@@ -18,9 +18,10 @@ import { fileURLToPath } from "url";
 import { env } from "./src/env.mjs";
 
 const appDir = import.meta.dirname || dirname(fileURLToPath(import.meta.url));
-const API_URL = env.NODE_ENV === 'development' && !env.NEXT_PUBLIC_OSMO_API_HOSTNAME.includes(":")
-  ? `https://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}`
-  : '';
+// Construct the API URL for proxying /api/* requests to the backend
+// This handles both development and production scenarios where the UI needs to proxy to a backend service
+const scheme = env.NEXT_PUBLIC_OSMO_SSL_ENABLED ? 'https' : 'http';
+const API_URL = `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}`;
 
 // Import mini-css-extract-plugin at the top level to avoid SSR issues
 let MiniCssExtractPlugin;

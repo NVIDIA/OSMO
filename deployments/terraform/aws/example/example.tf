@@ -61,6 +61,12 @@ module "vpc" {
   database_subnets = var.database_subnets
   elasticache_subnets = var.elasticache_subnets
 
+  # Tags for public subnets to enable ALB discovery by AWS Load Balancer Controller
+  public_subnet_tags = {
+    "kubernetes.io/role/elb"             = "1"
+    "kubernetes.io/cluster/${local.name}" = "shared"
+  }
+
   enable_nat_gateway     = true
   single_nat_gateway     = var.single_nat_gateway
   enable_vpn_gateway     = false
@@ -90,7 +96,8 @@ module "eks" {
   cluster_version = var.kubernetes_version
 
   vpc_id                          = module.vpc.vpc_id
-  subnet_ids                      = module.vpc.private_subnets
+  # Control plane needs access to both public and private subnets for ALB integration
+  subnet_ids                      = concat(module.vpc.private_subnets, module.vpc.public_subnets)
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
 
@@ -104,6 +111,9 @@ module "eks" {
   eks_managed_node_groups = {
     main = {
       name = "${local.name}-nodes"
+
+      # Node groups should only be in private subnets for security
+      subnet_ids = module.vpc.private_subnets
 
       min_size     = var.node_group_min_size
       max_size     = var.node_group_max_size
@@ -128,6 +138,8 @@ module "eks" {
   manage_aws_auth_configmap = false
 
   tags = local.tags
+
+  depends_on = [module.vpc]
 }
 
 # IAM role for EKS admin
@@ -189,6 +201,8 @@ module "rds" {
   create_monitoring_role = true
 
   tags = local.tags
+
+  depends_on = [module.vpc, aws_security_group.rds]
 }
 
 # Security group for RDS
@@ -212,6 +226,8 @@ resource "aws_security_group" "rds" {
   }
 
   tags = merge(local.tags, { Name = "${local.name}-rds" })
+
+  depends_on = [module.eks]
 }
 
 ################################################################################
@@ -236,6 +252,10 @@ module "elasticache" {
 
   engine_version = var.redis_engine_version
 
+  # Security - Enable auth token (password)
+  transit_encryption_enabled = true
+  auth_token                 = var.redis_auth_token
+
   # Network
   create_subnet_group = false
   subnet_group_name = module.vpc.elasticache_subnet_group_name
@@ -248,6 +268,8 @@ module "elasticache" {
   snapshot_window         = "03:00-05:00"
 
   tags = local.tags
+
+  depends_on = [module.vpc, aws_security_group.redis]
 }
 
 # Security group for Redis
@@ -271,6 +293,8 @@ resource "aws_security_group" "redis" {
   }
 
   tags = merge(local.tags, { Name = "${local.name}-redis" })
+
+  depends_on = [module.eks]
 }
 
 ################################################################################
@@ -312,7 +336,7 @@ module "alb" {
   security_group_egress_rules = {
     all = {
       ip_protocol = "-1"
-      cidr_ipv4   = "10.0.0.0/8"
+      cidr_ipv4   = "0.0.0.0/0"
     }
   }
 
@@ -321,6 +345,8 @@ module "alb" {
   # based on your Kubernetes Ingress resources
 
   tags = local.tags
+
+  depends_on = [module.vpc, module.eks]
 }
 
 # Security group for ALB to EKS communication
@@ -332,4 +358,6 @@ resource "aws_security_group_rule" "alb_to_eks" {
   source_security_group_id = module.alb.security_group_id
   security_group_id        = module.eks.cluster_primary_security_group_id
   description              = "Allow ALB to communicate with EKS nodes"
+
+  depends_on = [module.alb, module.eks]
 }

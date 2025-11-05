@@ -102,7 +102,10 @@ class FrontendJob(Job):
         """
         pass
 
-    def prepare_execute(self, context: JobExecutionContext) -> Tuple[bool, str]:
+    def prepare_execute(self, context: JobExecutionContext,
+                        progress_writer: progress.ProgressWriter,
+                        progress_iter_freq: datetime.timedelta = \
+                            datetime.timedelta(seconds=15)) -> Tuple[bool, str]:
         # pylint: disable=unused-argument
         """
         Runs execute checks and prerequisites.
@@ -268,18 +271,7 @@ class SubmitWorkflow(WorkflowJob):
                 if not group_obj.remaining_upstream_groups:
                     backend_name = group_obj.spec.tasks[0].backend
                     backend = backend_config_cache.get(backend_name)
-                    resources, pod_specs = group_obj.get_kb_specs(
-                        workflow_obj.workflow_uuid,
-                        self.user,
-                        workflow_config,
-                        backend_config_cache,
-                        backend_name,
-                        workflow_obj.pool,
-                        progress_writer,
-                        progress_iter_freq,
-                        workflow_obj.plugins,
-                        workflow_obj.priority,
-                    )
+
                     group_obj.set_tasks_to_processing()
                     group_obj.update_status_to_db(
                         common.current_time(),
@@ -290,15 +282,8 @@ class SubmitWorkflow(WorkflowJob):
                         group_name=group_obj.name,
                         workflow_id=workflow_obj.workflow_id,
                         workflow_uuid=self.workflow_uuid,
-                        k8s_resources=resources,
                         user=self.user)
                     submit_task.send_job_to_queue()
-                    upload_task = UploadWorkflowFiles(
-                        workflow_id=workflow_obj.workflow_id,
-                        workflow_uuid=self.workflow_uuid,
-                        files=[File(f'{task_name}.spec', yaml.dump(pod_spec))
-                               for task_name, pod_spec in pod_specs.items()])
-                    upload_task.send_job_to_queue()
 
         return JobResult()
 
@@ -429,6 +414,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
     that is put in backend queue and worked on by backend worker. It's execute function
     will be called only if the backend's execute function succeeds """
     user: str
+    k8s_resources: List[Dict] | None = None  # type: ignore[assignment]
 
     @classmethod
     def _get_job_id(cls, values):
@@ -452,18 +438,50 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
         # Status update is executed before sending the CreateGroup job to the queue
         return JobResult()
 
-    def prepare_execute(self, context: JobExecutionContext) -> Tuple[bool, str]:
+    def prepare_execute(self, context: JobExecutionContext,
+                        progress_writer: progress.ProgressWriter,
+                        progress_iter_freq: datetime.timedelta = \
+                            datetime.timedelta(seconds=15)) -> Tuple[bool, str]:
         """
         Runs execute checks and prerequisites.
 
         Returns whether execute is ready to run and error message if failed
         """
-        job_group = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
+        group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
                                                  self.group_name)
-        return (job_group.status in \
-                [task.TaskGroupStatus.WAITING, task.TaskGroupStatus.PROCESSING],
-                f'Create Group Failed: Group {job_group.name} has status: ' +\
-                f'{job_group.status.value}.')
+
+        if group_obj.status not in \
+            (task.TaskGroupStatus.WAITING, task.TaskGroupStatus.PROCESSING):
+            return False, f'Create Group Failed: Group {group_obj.name} has status: ' +\
+            f'{group_obj.status.value}.'
+
+        if not self.k8s_resources:
+            workflow_config = context.postgres.get_workflow_configs()
+            backend_config_cache = connectors.BackendConfigCache()
+            workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+            resources, pod_specs = group_obj.get_kb_specs(
+                self.workflow_uuid,
+                self.user,
+                workflow_config,
+                backend_config_cache,
+                group_obj.spec.tasks[0].backend,
+                workflow_obj.pool or '',  # pool is validated in SubmitWorkflow
+                progress_writer,
+                progress_iter_freq,
+                workflow_obj.plugins,
+                workflow_obj.priority,
+            )
+
+            self.k8s_resources = resources
+
+            upload_task = UploadWorkflowFiles(
+                workflow_id=workflow_obj.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+                files=[File(f'{task_name}.spec', yaml.dump(pod_spec))
+                        for task_name, pod_spec in pod_specs.items()])
+            upload_task.send_job_to_queue()
+
+        return True, ''
 
     def handle_failure(self, context: JobExecutionContext, error: str):
         """
@@ -507,7 +525,11 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
         cleanup_workflow_group(context, self.workflow_id, self.workflow_uuid, self.group_name)
         return JobResult()
 
-    def prepare_execute(self, context: JobExecutionContext) -> Tuple[bool, str]:
+    def prepare_execute(self, context: JobExecutionContext,
+                        progress_writer: progress.ProgressWriter,
+                        progress_iter_freq: datetime.timedelta = \
+                            datetime.timedelta(seconds=15)) -> Tuple[bool, str]:
+        # pylint: disable=unused-argument
         """
         Runs execute checks and prerequisites.
 
@@ -917,7 +939,6 @@ class UpdateGroup(WorkflowJob):
         elif group_obj.status == task.TaskGroupStatus.COMPLETED:
             downstream_groups = group_obj.update_downstream_groups_in_db()
             for downstream_group_obj in downstream_groups:
-                backend_name = downstream_group_obj.spec.tasks[0].backend
                 if not workflow_obj.pool:
                     raise osmo_errors.OSMOUserError('No Pool Specified')
                 downstream_group_obj.set_tasks_to_processing()
@@ -925,32 +946,13 @@ class UpdateGroup(WorkflowJob):
                     common.current_time(),
                     task.TaskGroupStatus.PROCESSING,
                     scheduler_settings=backend.scheduler_settings)
-                resources, pod_specs = downstream_group_obj.get_kb_specs(
-                    workflow_obj.workflow_uuid,
-                    workflow_obj.user,
-                    workflow_config,
-                    backend_config_cache,
-                    backend_name,
-                    workflow_obj.pool,
-                    progress_writer,
-                    progress_iter_freq,
-                    workflow_obj.plugins,
-                    workflow_obj.priority,
-                )
                 submit_task = CreateGroup(
                     backend=workflow_obj.backend,
                     group_name=downstream_group_obj.name,
                     workflow_id=self.workflow_id,
                     workflow_uuid=self.workflow_uuid,
-                    k8s_resources=resources,
                     user=self.user)
                 submit_task.send_job_to_queue()
-                upload_task = UploadWorkflowFiles(
-                    workflow_id=workflow_obj.workflow_id,
-                    workflow_uuid=self.workflow_uuid,
-                    files=[File(f'{task_name}.spec', yaml.dump(pod_spec))
-                            for task_name, pod_spec in pod_specs.items()])
-                upload_task.send_job_to_queue()
 
         return JobResult()
 
@@ -1204,7 +1206,11 @@ class RescheduleTask(BackendJob, WorkflowJob):
             self._delay_cleanup_pod()
         return JobResult()
 
-    def prepare_execute(self, context: JobExecutionContext) -> Tuple[bool, str]:
+    def prepare_execute(self, context: JobExecutionContext,
+                        progress_writer: progress.ProgressWriter,
+                        progress_iter_freq: datetime.timedelta = \
+                            datetime.timedelta(seconds=15)) -> Tuple[bool, str]:
+        # pylint: disable=unused-argument
         """
         Runs execute checks and prerequisites:
         Inserts task entry into database.

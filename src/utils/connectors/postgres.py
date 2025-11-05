@@ -1043,26 +1043,8 @@ class PostgresConnector:
         """ Initializes configs table. """
         # Create config objects with deployment values if provided
         service_configs = ServiceConfig()
-        if self.config.service_hostname:
-            # Override default service_base_url with deployment hostname
-            service_configs.service_base_url = f'https://{self.config.service_hostname}'
-            logging.info(
-                'Using deployment hostname for service_base_url: %s',
-                service_configs.service_base_url)
 
         workflow_configs = WorkflowConfig()
-        if self.config.osmo_image_location and self.config.osmo_image_tag:
-            # Override default backend_images with deployment values
-            workflow_configs.backend_images = OsmoImageConfig(
-                init=f'{self.config.osmo_image_location}/'
-                     f'init-container:{self.config.osmo_image_tag}',
-                client=f'{self.config.osmo_image_location}/'
-                       f'client:{self.config.osmo_image_tag}',
-            )
-            logging.info(
-                'Using deployment values for backend_images: %s:%s',
-                self.config.osmo_image_location,
-                self.config.osmo_image_tag)
 
         dataset_configs = DatasetConfig()
 

@@ -222,8 +222,62 @@ def create_default_pool(postgres: connectors.PostgresConnector):
             request=config_objects.PutPoolsRequest(
                 configs={'default': default_pool},
             ),
-            username='',
+            username='System',
         )
+
+
+def set_default_backend_images(postgres: connectors.PostgresConnector):
+    curr_workflow_configs = postgres.get_workflow_configs()
+
+    # If backend_images are already set, do not override them
+    if curr_workflow_configs.backend_images.init and \
+        curr_workflow_configs.backend_images.client:
+        return
+
+    if postgres.config.osmo_image_location and \
+        postgres.config.osmo_image_tag:
+        # Override default backend_images with deployment values
+        backend_images = connectors.OsmoImageConfig(
+            init=f'{postgres.config.osmo_image_location}/'
+                    f'init-container:{postgres.config.osmo_image_tag}',
+            client=f'{postgres.config.osmo_image_location}/'
+                    f'client:{postgres.config.osmo_image_tag}',
+        )
+        config_service.patch_workflow_configs(
+            request=config_objects.PatchConfigRequest(
+                configs_dict={
+                    'backend_images': backend_images.dict()
+                }
+            ),
+            username='System',
+        )
+
+        logging.info(
+            'Using deployment values for backend_images: %s:%s',
+            postgres.config.osmo_image_location,
+            postgres.config.osmo_image_tag)
+
+
+def set_default_service_url(postgres: connectors.PostgresConnector):
+    curr_service_configs = postgres.get_service_configs()
+
+    # If service_base_url is already set, do not override it
+    if curr_service_configs.service_base_url:
+        return
+
+    if postgres.config.service_hostname:
+        config_service.patch_service_configs(
+            request=config_objects.PatchConfigRequest(
+                configs_dict={
+                    'service_base_url': f'https://{postgres.config.service_hostname}'
+                }
+            ),
+            username='System',
+        )
+
+        logging.info(
+            'Using deployment hostname for service_base_url: %s',
+            postgres.config.service_hostname)
 
 
 def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceConfig):
@@ -264,6 +318,8 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         )
 
     create_default_pool(postgres)
+    set_default_backend_images(postgres)
+    set_default_service_url(postgres)
 
     # Instantiate QueryParser
     query.QueryParser()

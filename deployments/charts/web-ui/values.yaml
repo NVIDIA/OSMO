@@ -75,6 +75,16 @@ services:
     ##
     hostname: ""
 
+    ## Hostname on which the osmo API server is hosted
+    ## Default is the local cluster hostname
+    ## Can be overridden to serve the API from public domain
+    ## e.g. "osmo.your-domain.com"
+    ##
+    apiHostname: "osmo-service.osmo.svc.cluster.local:80"
+
+    ## Enable SSL/TLS encryption for nextjs server to connect to the osmo API server
+    ##
+    nextjsSslEnabled: false
 
     ## Container port for the UI service
     ##
@@ -178,6 +188,10 @@ services:
     ## Ingress configuration for external access to the UI service
     ##
     ingress:
+      ## Enable ingress for the UI service
+      ##
+      enabled: true
+
       ## URL path prefix for all ingress rules
       ##
       prefix: /

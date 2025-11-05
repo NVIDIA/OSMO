@@ -565,6 +565,10 @@ services:
     ## Ingress configuration for external access to the API service
     ##
     ingress:
+      ## Enable ingress for external access
+      ##
+      enabled: true
+
       ## URL path prefix for all ingress rules
       ##
       prefix: /

@@ -17,22 +17,22 @@
 
 .. _guides_ros2_comm:
 
-==============================
-ROS2: Multi-Node Communication
-==============================
+===============================
+ROS 2: Multi-Node Communication
+===============================
 
-This tutorial demonstrates how to set up ROS2 multi-node communication using a centralized Discovery Server architecture in OSMO.
-You will learn how to orchestrate multiple ROS2 nodes across different containers to communicate in a distributed environment,
+This tutorial demonstrates how to set up ROS 2 multi-node communication using a centralized Discovery Server architecture in OSMO.
+You will learn how to orchestrate multiple ROS 2 nodes across different containers to communicate in a distributed environment,
 which is essential for building scalable robotics applications.
 
-This tutorial is based on the official `ROS2 Discovery Server tutorial <https://docs.ros.org/en/foxy/Tutorials/Advanced/Discovery-Server/Discovery-Server.html#run-this-tutorial>`_.
+This tutorial is based on the official `ROS 2 Discovery Server tutorial <https://docs.ros.org/en/foxy/Tutorials/Advanced/Discovery-Server/Discovery-Server.html#run-this-tutorial>`_.
 
 The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/ros/comm>`_.
 
 Architecture
 ------------
 
-This workflow orchestrates **three tasks** running in parallel to demonstrate ROS2 inter-node communication:
+This workflow orchestrates **three tasks** running in parallel to demonstrate ROS 2 inter-node communication:
 
 .. grid:: 1 1 3 3
    :gutter: 3
@@ -52,7 +52,7 @@ This workflow orchestrates **three tasks** running in parallel to demonstrate RO
 
       📢 **Publisher Node**
 
-      A ROS2 node that publishes "Hello World" messages to a topic at regular intervals.
+      A ROS 2 node that publishes "Hello World" messages to a topic at regular intervals.
 
    .. grid-item-card::
       :class-header: bg-info text-white
@@ -60,12 +60,12 @@ This workflow orchestrates **three tasks** running in parallel to demonstrate RO
 
       👂 **Subscriber Node**
 
-      A ROS2 node that subscribes to the topic and receives messages from the talker.
+      A ROS 2 node that subscribes to the topic and receives messages from the talker.
 
 Building the Workflow
 ----------------------
 
-Let's examine the key components of the ROS2 communication workflow:
+Let's examine the key components of the ROS 2 communication workflow:
 
 .. code-block:: yaml
    :emphasize-lines: 5, 17, 41

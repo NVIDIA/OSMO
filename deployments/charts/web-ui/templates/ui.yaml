@@ -82,7 +82,9 @@ spec:
         - name: PORT
           value: '{{ .Values.services.ui.containerPort }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
-          value: {{ .Values.services.ui.hostname }}
+          value: {{ .Values.services.ui.apiHostname }}
+        - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
+          value: {{ .Values.services.ui.nextjsSslEnabled | quote }}
         - name: DOCS_BASE_URL
           value: {{ .Values.services.ui.docsBaseUrl }}
         - name: CLI_INSTALL_SCRIPT_URL
@@ -291,20 +293,21 @@ spec:
       {{- toYaml . | nindent 4 }}
     {{- end }}
 
+{{ if .Values.services.ui.ingress.enabled }}
 ---
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .Values.services.ui.serviceName }}
   annotations:
-    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
-    {{$k}}: {{$v}}
-    {{- end }}
     {{- if .Values.services.ui.ingress.albAnnotations.enabled}}
-    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: osmo
     alb.ingress.kubernetes.io/group.order: "200"
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
+    {{- end }}
+    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
+    {{$k}}: {{$v}}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.services.ui.ingress.ingressClass }}
@@ -325,21 +328,23 @@ spec:
     - {{ .Values.services.ui.hostname }}
     secretName: {{.Values.services.ui.ingress.sslSecret }}
   {{- end }}
+{{- end }}
 
+{{ if .Values.services.ui.ingress.enabled }}
 ---
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .Values.services.ui.serviceName }}-trpc
   annotations:
-    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
-    {{$k}}: {{$v}}
-    {{- end }}
     {{- if .Values.services.ui.ingress.albAnnotations.enabled}}
-    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: osmo
     alb.ingress.kubernetes.io/group.order: "50"
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
+    {{- end }}
+    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
+    {{$k}}: {{$v}}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.services.ui.ingress.ingressClass }}
@@ -367,6 +372,7 @@ spec:
     - {{ .Values.services.ui.hostname }}
     secretName: {{.Values.services.ui.ingress.sslSecret }}
   {{- end }}
+{{- end }}
 
 {{- if .Values.services.ui.scaling.enabled }}
 ---

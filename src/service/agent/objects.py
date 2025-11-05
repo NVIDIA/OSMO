@@ -238,7 +238,8 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     start_time=time.time())
 
                 # Do not Create the Group unless the status is Scheduling
-                pre_complete, message = job.prepare_execute(self.context)
+                pre_complete, message = job.prepare_execute(
+                    self.context, self._progress_writer, self._progress_iter_freq)
                 if not pre_complete:
                     result = jobs.JobResult(
                         status=jobs_base.JobStatus.FAILED_NO_RETRY,

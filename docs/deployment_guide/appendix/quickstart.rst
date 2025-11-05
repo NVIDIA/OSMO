@@ -177,8 +177,38 @@ The MEK should be a JSON Web Key (JWK) with the following format:
          key1: $ENCODED_JWK
    EOF
 
+Step 4: Configure PostgreSQL
+============================
 
-Step 4: Prepare Service Values Files
+Create a database for OSMO using the following command. Omit ``export OSMO_PGPASSWORD=...``
+and ``PGPASSWORD=$OSMO_PGPASSWORD`` if PostgreSQL was configured without a password.
+
+.. code-block:: bash
+
+   $ export OSMO_DB_HOST=<your-db-host>
+   $ export OSMO_PGPASSWORD=<your-postgres-password>
+   $ kubectl apply -f - <<EOF
+     apiVersion: v1
+     kind: Pod
+     metadata:
+       name: osmo-db-ops
+     spec:
+       containers:
+         - name: osmo-db-ops
+           image: alpine/psql:17.5
+           command: ["/bin/sh", "-c"]
+           args:
+             - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo_db;'"
+       restartPolicy: Never
+     EOF
+
+Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then delete the pod with:
+
+.. code-block:: bash
+
+   $ kubectl delete pod osmo-db-ops
+
+Step 5: Prepare Service Values Files
 ====================================
 
 Create the following values files for the minimal deployment:
@@ -194,10 +224,9 @@ Create the following values files for the minimal deployment:
    services:
      configFile:
        enabled: true
-       path: /opt/osmo/config.yaml
 
      postgres:
-       enabled: false # Set to false if using external PostgreSQL
+       enabled: false
        serviceName: <your-postgres-host>
        db: <your-database-name>
 
@@ -213,19 +242,19 @@ Create the following values files for the minimal deployment:
          maxReplicas: 1
        hostname: <your-domain>  # Set your domain for ingress
        ingress:
-         enabled: true  # Enable ingress for external access
-         ingressClass: nginx  # Set your ingress class (nginx, alb, etc.)
-         sslEnabled: false
-         albAnnotations:  # Set to true if using AWS ALB
-           enabled: false
-           # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-         annotations: {}
-           # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-           # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-           # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-           # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-           # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-           # nginx.ingress.kubernetes.io/rewrite-target: /
+         enabled: false  # Set to true if you want to enable ingress for external access
+         # only set the following if you want to enable ingress for external access
+         # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
+         # sslEnabled: false
+         # albAnnotations:  # Set to true if using AWS ALB
+         #   enabled: false
+         #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+         # annotations:
+         #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+         #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+         #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+         #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+         #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
      agent:
       scaling:
@@ -271,21 +300,19 @@ Create the following values files for the minimal deployment:
        skipAuth: true
        hostname: <your-domain>  # Set your domain for UI ingress
        ingress:
-         enabled: true  # Enable ingress for external access
-         ingressClass: nginx  # Set your ingress class (nginx, alb, etc.)
-         sslEnabled: false
-         albAnnotations:  # Set to true if using AWS ALB
-           enabled: false
-           # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-         annotations: {}
-           # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-           # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-           # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-           # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-           # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-       extraEnvs:
-        - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
-          value: false
+         enabled: false  # Set to true if you want to enable ingress for external access
+         # only set the following if you want to enable ingress for external access
+         # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
+         # sslEnabled: false
+         # albAnnotations:  # Set to true if using AWS ALB
+         #   enabled: false
+         #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+         # annotations:
+         #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+         #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+         #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+         #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+         #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
    sidecars:
      envoy:
@@ -302,7 +329,6 @@ Create the following values files for the minimal deployment:
    services:
      configFile:
        enabled: true
-       path: /opt/osmo/config.yaml
 
      postgres:
        serviceName: <your-postgres-host>
@@ -313,18 +339,19 @@ Create the following values files for the minimal deployment:
          maxReplicas: 1
        hostname: <your-domain>  # Set your domain for router ingress
        ingress:
-         enabled: true  # Enable ingress for external access
-         ingressClass: nginx  # Set your ingress class (nginx, alb, etc.)
-         sslEnabled: false
-         albAnnotations:  # Set to true if using AWS ALB
-           enabled: false
-           # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-         annotations:
-           # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-           # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-           # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-           # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-           # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+         enabled: false  # Set to true if you want to enable ingress for external access
+         # only set the following if you want to enable ingress for external access
+         # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
+         # sslEnabled: false
+         # albAnnotations:  # Set to true if using AWS ALB
+         #   enabled: false
+         #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+         # annotations:
+         #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+         #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+         #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+         #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+         #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
    sidecars:
      envoy:
@@ -344,7 +371,7 @@ Create the following values files for the minimal deployment:
    - The ``--skip_auth=true`` flag disables authentication for minimal setup
    - Ensure your DNS points to the ingress controller's load balancer
 
-Step 5: Deploy OSMO Components
+Step 6: Deploy OSMO Components
 ===============================
 
 Deploy the OSMO components using the minimal configuration:
@@ -373,7 +400,7 @@ Deploy the OSMO components using the minimal configuration:
      -f ./router_values.yaml \
      --namespace osmo-minimal
 
-Step 6: Verify Deployment
+Step 7: Verify Deployment
 ==========================
 
 1. Check that all pods are running:
@@ -403,6 +430,9 @@ You should see pods similar to:
 
 3. Check ingress configuration:
 
+.. note::
+   If you have enabled ingress for external access, you should see ingress resources similar to the following:
+
 .. code-block:: bash
 
    $ kubectl get ingress -n osmo-minimal
@@ -418,7 +448,15 @@ You should see ingress resources similar to:
    osmo-ui-ingress          nginx   <your-domain>      <lb-ip>         80      2m
    osmo-router-ingress      nginx   <your-domain>      <lb-ip>         80      2m
 
-Step 7: Setup OSMO Backend Operator
+4. Visualize the OSMO UI:
+
+.. code-block:: bash
+
+   $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
+
+Then access the OSMO UI at ``http://localhost:3000`` in your web browser. You should be able to see the OSMO UI dashboard as a guest user.
+
+Step 8: Setup OSMO Backend Operator
 ===================================
 
 1. prepare the backend operator values file:
@@ -426,9 +464,9 @@ Step 7: Setup OSMO Backend Operator
 .. code-block:: yaml
 
    global:
+    osmoImageLocation: <insert-osmo-image-registry>
     osmoImageTag: <insert-osmo-image-tag>
-    imagePullSecret: imagepullsecret
-    serviceUrl: https://<your-domain>
+    serviceUrl: http://osmo-agent.osmo-minimal.svc.cluster.local # update to the actual service URL if you have enabled ingress for external access
     agentNamespace: osmo-operator
     backendNamespace: osmo-workflows
     backendName: default
@@ -461,11 +499,25 @@ Step 7: Setup OSMO Backend Operator
 
 2. create the account token secret:
 
-Generate a token for the backend operator with OSMO CLI:
+When ingress is disabled, you can port forward to the OSMO API server and login to OSMO using the CLI:
+
+.. code-block:: bash
+
+   $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
+
+   $ osmo login http://localhost:9000 --method=dev --username=testuser
+
+
+Otherwise, you can login to OSMO through your domain:
 
 .. code-block:: bash
 
    $ osmo login https://<your-domain> --method=dev --username=testuser
+
+
+Generate a token for the backend operator with OSMO CLI:
+
+.. code-block:: bash
 
    $ export BACKEND_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
 
@@ -481,7 +533,7 @@ Generate a token for the backend operator with OSMO CLI:
      --namespace osmo-operator
 
 
-Step 8: Access OSMO
+Step 9: Access OSMO
 ====================
 
 With ingress enabled, you can access OSMO directly through your domain:
@@ -510,6 +562,17 @@ If you haven't set up DNS yet, you can still access OSMO using port forwarding:
    $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
 
 Then access the OSMO API at ``http://localhost:9000`` in your web browser.
+You can interact with the API using the OSMO CLI.
+
+.. code-block:: bash
+
+   $ osmo login http://localhost:9000 --method=dev --username=testuser
+
+   $ osmo resource list -p default
+   Node             Pool      Platform      Storage [Gi]   CPU [#]   Memory [Gi]   GPU [#]
+   ========================================================================================
+   <node-name>       default   default        0/2028         0/2       1/32         0/8
+   ========================================================================================
 
 2. **Access OSMO UI** (in a separate terminal):
 
@@ -517,27 +580,14 @@ Then access the OSMO API at ``http://localhost:9000`` in your web browser.
 
    $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
 
-Then access the OSMO UI at ``http://localhost:3000`` in your web browser.
+Then access the OSMO UI at ``http://localhost:3000`` in your web browser. You should be able to see the OSMO UI dashboard as a guest user.
 
-Step 9: Basic Configuration
+Step 10: Basic Configuration
 ============================
 
-After deployment, you can perform basic configuration:
+After deployment, you need to configure a central storage for workflow spec, workflow logs, and task's artifacts data before you can start running workflows:
 
-1. Set up the OSMO CLI to point to your instance:
-
-.. code-block:: json
-
-   {
-     "service_base_url": "https://<your-domain>"
-   }
-
-.. code-block:: bash
-
-   $ osmo config update SERVICE --file service_config.json
-
-
-2. Setup data storage:
+1. Setup data storage:
 
 follow the :ref:`configure_data` guide to setup data storage.
 
@@ -545,12 +595,7 @@ follow the :ref:`configure_data` guide to setup data storage.
 Testing Your Deployment
 ========================
 
-You can now test basic OSMO functionality:
-
-1. Create a simple workflow
-2. Submit jobs
-3. Monitor execution
-4. Review results
+You can now test basic OSMO functionality following the :ref:`validate_osmo` guide.
 
 .. note::
    Since there's no authentication in minimal deployment, all operations will be performed as an anonymous user.
@@ -592,4 +637,4 @@ Common Issues
 
 1. **Pods not starting**: Check resource availability and image pull secrets
 2. **Database connection issues**: Verify PostgreSQL pod is running and accessible
-3. **Port forwarding issues**: Ensure no other services are using port 8000
+3. **Port forwarding issues**: Ensure no other services are using the same port

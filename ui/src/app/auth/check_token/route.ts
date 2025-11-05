@@ -14,6 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 import { env } from "~/env.mjs";
+import { getRequestScheme } from "~/utils/common";
 
 export async function GET(request: Request) {
   const id_token = request.headers.get("x-osmo-auth") ?? "";
@@ -21,8 +22,9 @@ export async function GET(request: Request) {
 
   // Check if the token is valid by fetching workflows. This is the same as the kubernetes readiness
   // probe. all_pools=true is important for users that don't have a default pool
+  const scheme = getRequestScheme();
   const response = await fetch(
-    `https://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/workflow?limit=1&all_pools=true`,
+    `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/workflow?limit=1&all_pools=true`,
     osmoHeaders,
   );
 
