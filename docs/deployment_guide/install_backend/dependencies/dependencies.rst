@@ -38,7 +38,7 @@ Prerequisites
 Install the KAI Scheduler
 --------------------------
 
-`KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ is the recommended backend scheduler for OSMO. KAI scheduler supports gang scheduling, which allows OSMO to efficiently
+OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ for gang scheduling, which allows OSMO to efficiently
 schedule groups.
 
 For more information on the scheduler, see :ref:`scheduler`.

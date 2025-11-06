@@ -96,11 +96,11 @@ Scheduler Settings
      - **Default Values**
    * - ``scheduler_type``
      - String
-     - Type of Kubernetes scheduler to use. Supported values: "default", "scheduler-plugins", "volcano", "kai".
+     - Type of Kubernetes scheduler to use. Supported values: "default", "kai".
      - ``default``
    * - ``scheduler_name``
      - String
-     - Name of the kubernetes scheduler or scheduler plugin to use. This should match the name of the scheduler or scheduler plugin in the kubernetes cluster. e.g., "scheduler-plugins-scheduler", "kai-scheduler".
+     - Name of the kubernetes scheduler or scheduler plugin to use. This should match the name of the scheduler or scheduler plugin in the kubernetes cluster. e.g., "kai-scheduler".
      - ``default-scheduler``
    * - ``coscheduling``
      - Boolean

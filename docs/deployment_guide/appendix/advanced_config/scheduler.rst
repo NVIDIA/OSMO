@@ -23,7 +23,7 @@ Scheduler
 
 A scheduler is a component that is responsible for orchestrating tasks in a backend.
 
-There are three supported schedulers:
+OSMO uses KAI scheduler for advanced scheduling features.
 
 .. list-table:: Supported Schedulers
   :header-rows: 1
@@ -49,13 +49,10 @@ This enables many unique and essential use cases, such as:
 - Running hardware-in-the-loop simulations, where one task runs a simulation application and another task runs applications on robotics hardware (such as NVIDIA AGX platform)
 - Running many instances of synthetic data generation in parallel
 
-We **strongly recommend** using the KAI scheduler for OSMO.
-
 KAI Scheduler
 ~~~~~~~~~~~~~
 
-`KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ is the recommended backend scheduler for OSMO.
-It is the most compatible scheduler with OSMO, supporting:
+OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ , which supports:
 
 - Workload priority and preemption with a hierarchical queue system
 - Fair sharing of resources between different teams and pools
