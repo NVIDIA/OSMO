@@ -271,7 +271,7 @@ And finally, we will add the locomotion-policy task:
           source IsaacSim-ros_workspaces/humble_ws/install/setup.bash
         export LD_LIBRARY_PATH=/opt/hpcx/ucx/lib:$LD_LIBRARY_PATH
         source /tmp/setup_discovery_server.sh
-        ros2 launch h1_fullbody_controller h1_fullbody_controller.launch.py  # (2)
+        ros2 launch h1_fullbody_controller h1_fullbody_controller.launch.py publish_period_ms:=1 # (2)
       path: /tmp/entry.sh
     - path: /tmp/setup_discovery_server.sh
       localpath: setup_discovery_server.sh

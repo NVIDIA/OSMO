@@ -237,7 +237,7 @@ Follow these steps to manually create the infrastructure:
    - Use managed Kubernetes service (EKS, AKS, or GKE)
    - Kubernetes version v1.30.0 or higher
    - Configure with at least 3 worker nodes for high availability
-   - See :doc:`system_reqs` for detailed requirements
+   - See :ref:`system_requirements` for detailed requirements
 
    **Cloud Provider Guides:**
 
@@ -278,7 +278,7 @@ Follow these steps to manually create the infrastructure:
    - Create storage bucket (S3, Azure Blob, GCS bucket, or other supported cloud storage)
    - Enable versioning (recommended)
    - Configure lifecycle policies for log retention
-   - See :doc:`create_storage/index` for provider-specific instructions
+   - See :ref:`create_data_storage` for provider-specific instructions
 
 
 Cloud Provider Mapping
@@ -335,4 +335,4 @@ Best Practices
 Next Steps
 ==========
 
-Once you have set up the infrastructure, proceed to :doc:`create_storage/index` to configure cloud storage credentials for OSMO.
+Once you have set up the infrastructure, proceed to :ref:`deploy_service` to deploy the OSMO service.

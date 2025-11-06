@@ -16,7 +16,6 @@
   SPDX-License-Identifier: Apache-2.0
 
 .. _deploy_service:
-.. _deploy_single_tenant:
 
 ============================
 Service Deployment
@@ -234,6 +233,16 @@ g. Verify the installation:
   $ kubectl get pods -n keycloak
   $ kubectl get ingress -n keycloak
 
+.. note::
+  To access the Keycloak instance, you need to configure DNS records to point to your load balancer, for example you should create a record for ``auth-<example.com>`` to point to the load balancer IP.
+
+If you have DNS configured, you can access the Keycloak instance at ``https://auth-<example.com>``.
+If you do not have DNS configured, you can access the Keycloak via port forwarding:
+
+.. code-block:: bash
+
+  $ kubectl port-forward service/keycloak 32080:80 -n [your-namespace]
+
 .. _keycloak_post_installation_configuration:
 
 Post-Installation Keycloak Configuration
@@ -432,7 +441,7 @@ The MEK should be a JSON Web Key (JWK) with the following format:
 
    - Store the original JWK securely as you'll need it for backups and recovery
    - Never commit the MEK to version control
-   - Use a secure key management system, such as Vault in production
+   - Use a secure key management system, such as Vault or secrets manager in production
    - The MEK is used to encrypt sensitive data in the database
 
 **Example MEK generation script**:

@@ -46,16 +46,31 @@ Tools
 Networking
 ------------------------
 
-- Kubernetes load balancer (see the `Kubernetes Ingress Controllers <https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/>`_) installed in your Kubernetes cluster
-- Fully Qualified Domain Name (FQDN) and a certificate for your domain (i.e., ``osmo.my-domain.com``).
-- When using keycloak as the SSO provider, an additional FQDN and certificate for the keycloak instance (i.e., ``auth-osmo.my-domain.com``) is required.
+.. important::
+
+   Setting up networking for OSMO requires cloud networking experience, including:
+
+   - Creating and managing SSL/TLS certificates
+   - Configuring DNS records and CNAMEs
+   - Associating certificates with load balancers
+
+   If you do not have experience with these tasks, work with someone who does (e.g., your cloud infrastructure or DevOps team) or refer to the cloud provider guides below.
+
+**Required Networking Components:**
+
+- Kubernetes load balancer (see `Kubernetes Ingress Controllers <https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/>`_) installed in your Kubernetes cluster
+- Fully Qualified Domain Name (FQDN) and a certificate for your domain (e.g., ``osmo.my-domain.com``)
+- DNS CNAME record pointing your FQDN to the load balancer endpoint
+- When using keycloak as the SSO provider, an additional FQDN and certificate for the keycloak instance (e.g., ``auth-osmo.my-domain.com``) is required
 
 .. seealso::
 
-   Cloud provider domain name and certificate documentation:
+   **Cloud Provider Networking Documentation:**
 
-   - **AWS**: `Route 53 for DNS <https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html>`_ | `AWS Certificate Manager <https://docs.aws.amazon.com/acm/latest/userguide/gs.html>`_
-   - **Azure**: `Azure DNS <https://learn.microsoft.com/en-us/azure/dns/dns-overview>`_ | `Azure App Service Certificates <https://learn.microsoft.com/en-us/azure/app-service/configure-ssl-certificate>`_
-   - **GCP**: `Cloud DNS <https://cloud.google.com/dns/docs/overview>`_ | `Certificate Manager <https://cloud.google.com/certificate-manager/docs/overview>`_
+   - **AWS**: `Route 53 for DNS <https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html>`_ | `AWS Certificate Manager <https://docs.aws.amazon.com/acm/latest/userguide/gs.html>`_ | `ELB Certificate Management <https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html>`_
+   - **Azure**: `Azure DNS <https://learn.microsoft.com/en-us/azure/dns/dns-overview>`_ | `Azure Certificates <https://learn.microsoft.com/en-us/azure/app-service/configure-ssl-certificate>`_ | `Application Gateway SSL <https://learn.microsoft.com/en-us/azure/application-gateway/ssl-overview>`_
+   - **GCP**: `Cloud DNS <https://cloud.google.com/dns/docs/overview>`_ | `Certificate Manager <https://cloud.google.com/certificate-manager/docs/overview>`_ | `Load Balancer SSL <https://cloud.google.com/load-balancing/docs/ssl-certificates>`_
 
-- (Optional) FQDN and a certificate for wildcard subdomain (i.e., ``*.osmo.my-domain.com``) for UI port forwarding
+**Optional:**
+
+- FQDN and certificate for wildcard subdomain (e.g., ``*.osmo.my-domain.com``) for UI port forwarding

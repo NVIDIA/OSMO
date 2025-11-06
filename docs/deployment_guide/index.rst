@@ -264,11 +264,11 @@ The deployment process follows these high-level steps:
 **Phase 1: Preparation**
 
    1. Review :doc:`prerequisites <getting_started/prereqs>` and :doc:`system requirements <getting_started/system_reqs>`
-   2. Set up :doc:`infrastructure <getting_started/infrastructure_setup>` (Kubernetes, PostgreSQL, Redis)
-   3. Create :doc:`cloud storage <getting_started/create_storage/index>` for workflow data
+   2. Create :doc:`cloud storage <getting_started/create_storage/index>` for workflow data
 
 **Phase 2: Deploy Service**
 
+   3. :doc:`Set up infrastructure <install_service/infrastructure_setup>` (Kubernetes, PostgreSQL, Redis)
    4. :doc:`Deploy OSMO service <install_service/deploy_service>` (API, UI, core components)
    5. :doc:`Configure data storage <install_service/configure_data>` (logs, artifacts, datasets)
 
@@ -307,13 +307,13 @@ Choose your deployment path:
 
   getting_started/prereqs
   getting_started/system_reqs
-  getting_started/infrastructure_setup
   getting_started/create_storage/index
 
 .. toctree::
   :hidden:
   :caption: Install Service
 
+  install_service/infrastructure_setup
   install_service/deploy_service
   install_service/configure_data
 
