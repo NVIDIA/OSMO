@@ -215,155 +215,167 @@ Create the following values files for the minimal deployment:
 
 **OSMO Service Values** (``osmo_values.yaml``):
 
-.. code-block:: yaml
+.. dropdown:: ``osmo_values.yaml``
+  :color: info
+  :icon: file
 
-   global:
-     osmoImageLocation: <insert-osmo-image-registry>
-     osmoImageTag: <insert-osmo-image-tag>
+  .. code-block:: yaml
 
-   services:
-     configFile:
-       enabled: true
+    global:
+      osmoImageLocation: <insert-osmo-image-registry>
+      osmoImageTag: <insert-osmo-image-tag>
 
-     postgres:
-       enabled: false
-       serviceName: <your-postgres-host>
-       db: <your-database-name>
+    services:
+      configFile:
+        enabled: true
 
-     redis:
-       enabled: false # Set to false if using external Redis
-       serviceName: <your-redis-host>
-       port: 6379
-       tlsEnabled: false
+      postgres:
+        enabled: false
+        serviceName: <your-postgres-host>
+        db: <your-database-name>
 
-     service:
-       scaling:
-         minReplicas: 1
-         maxReplicas: 1
-       hostname: <your-domain>  # Set your domain for ingress
-       ingress:
-         enabled: false  # Set to true if you want to enable ingress for external access
-         # only set the following if you want to enable ingress for external access
-         # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
-         # sslEnabled: false
-         # albAnnotations:  # Set to true if using AWS ALB
-         #   enabled: false
-         #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-         # annotations:
-         #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-         #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-         #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-         #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-         #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+      redis:
+        enabled: false # Set to false if using external Redis
+        serviceName: <your-redis-host>
+        port: 6379
+        tlsEnabled: false
 
-     agent:
-      scaling:
-        minReplicas: 1
-        maxReplicas: 1
+      service:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
+        hostname: <your-domain>  # Set your domain for ingress
+        ingress:
+          enabled: false  # Set to true if you want to enable ingress for external access
+          # only set the following if you want to enable ingress for external access
+          # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
+          # sslEnabled: false
+          # albAnnotations:  # Set to true if using AWS ALB
+          #   enabled: false
+          #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+          # annotations:
+          #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+          #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+          #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+          #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+          #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
-     worker:
-       scaling:
-         minReplicas: 1
-         maxReplicas: 1
+      agent:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
 
-     logger:
-       scaling:
-         minReplicas: 1
-         maxReplicas: 1
+      worker:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
 
-   sidecars:
-     envoy:
-       enabled: false
+      logger:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
 
-     logAgent:
-       enabled: false
+    sidecars:
+      envoy:
+        enabled: false
 
-       logrotate:
-         enabled: false
+      logAgent:
+        enabled: false
 
-     otel:
-       enabled: false
+        logrotate:
+          enabled: false
 
-     rateLimit:
-       enabled: false
+      otel:
+        enabled: false
+
+      rateLimit:
+        enabled: false
 
 **UI Service Values** (``ui_values.yaml``):
 
-.. code-block:: yaml
+.. dropdown:: ``ui_values.yaml``
+  :color: info
+  :icon: file
 
-   global:
-     osmoImageLocation: <insert-osmo-image-registry>
-     osmoImageTag: <insert-osmo-image-tag>
+  .. code-block:: yaml
 
-   services:
-     ui:
-       skipAuth: true
-       hostname: <your-domain>  # Set your domain for UI ingress
-       ingress:
-         enabled: false  # Set to true if you want to enable ingress for external access
-         # only set the following if you want to enable ingress for external access
-         # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
-         # sslEnabled: false
-         # albAnnotations:  # Set to true if using AWS ALB
-         #   enabled: false
-         #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-         # annotations:
-         #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-         #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-         #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-         #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-         #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+    global:
+      osmoImageLocation: <insert-osmo-image-registry>
+      osmoImageTag: <insert-osmo-image-tag>
 
-   sidecars:
-     envoy:
-       enabled: false
+    services:
+      ui:
+        skipAuth: true
+        hostname: <your-domain>  # Set your domain for UI ingress
+        ingress:
+          enabled: false  # Set to true if you want to enable ingress for external access
+          # only set the following if you want to enable ingress for external access
+          # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
+          # sslEnabled: false
+          # albAnnotations:  # Set to true if using AWS ALB
+          #   enabled: false
+          #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+          # annotations:
+          #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+          #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+          #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+          #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+          #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+
+    sidecars:
+      envoy:
+        enabled: false
 
 **Router Service Values** (``router_values.yaml``):
 
-.. code-block:: yaml
+.. dropdown:: ``router_values.yaml``
+  :color: info
+  :icon: file
 
-   global:
-     osmoImageLocation: <insert-osmo-image-registry>
-     osmoImageTag: <insert-osmo-image-tag>
+  .. code-block:: yaml
 
-   services:
-     configFile:
-       enabled: true
+    global:
+      osmoImageLocation: <insert-osmo-image-registry>
+      osmoImageTag: <insert-osmo-image-tag>
 
-     postgres:
-       serviceName: <your-postgres-host>
+    services:
+      configFile:
+        enabled: true
 
-     service:
-       scaling:
-         minReplicas: 1
-         maxReplicas: 1
-       hostname: <your-domain>  # Set your domain for router ingress
-       ingress:
-         enabled: false  # Set to true if you want to enable ingress for external access
-         # only set the following if you want to enable ingress for external access
-         # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
-         # sslEnabled: false
-         # albAnnotations:  # Set to true if using AWS ALB
-         #   enabled: false
-         #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-         # annotations:
-         #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-         #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-         #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-         #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-         #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+      postgres:
+        serviceName: <your-postgres-host>
 
-   sidecars:
-     envoy:
-       enabled: false
+      service:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
+        hostname: <your-domain>  # Set your domain for router ingress
+        ingress:
+          enabled: false  # Set to true if you want to enable ingress for external access
+          # only set the following if you want to enable ingress for external access
+          # ingressClass: alb  # Set your ingress class (nginx, alb, etc.)
+          # sslEnabled: false
+          # albAnnotations:  # Set to true if using AWS ALB
+          #   enabled: false
+          #   # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
+          # annotations:
+          #   # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+          #   # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+          #   # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
+          #   # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
+          #   # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
-     logAgent:
-       enabled: false
+    sidecars:
+      envoy:
+        enabled: false
 
-     otel:
-       enabled: false
+      logAgent:
+        enabled: false
 
-.. note::
+      otel:
+        enabled: false
+
+.. important::
    - Replace ``<insert-osmo-image-tag>`` with the actual OSMO version you want to deploy
    - Replace ``<your-domain>`` with your actual domain name (e.g., ``osmo.example.com``)
    - Update the ``serviceName`` for postgres and redis to match your external services
@@ -459,45 +471,48 @@ Then access the OSMO UI at ``http://localhost:3000`` in your web browser. You sh
 Step 8: Setup OSMO Backend Operator
 ===================================
 
-1. prepare the backend operator values file:
+1. Prepare the ``backend_operator_values.yaml`` file:
 
-.. code-block:: yaml
+.. dropdown:: ``backend_operator_values.yaml``
+  :color: info
+  :icon: file
 
-   global:
-    osmoImageLocation: <insert-osmo-image-registry>
-    osmoImageTag: <insert-osmo-image-tag>
-    serviceUrl: http://osmo-agent.osmo-minimal.svc.cluster.local # update to the actual service URL if you have enabled ingress for external access
-    agentNamespace: osmo-operator
-    backendNamespace: osmo-workflows
-    backendName: default
-    accountTokenSecret: osmo-operator-token
-    loginMethod: token
+  .. code-block:: yaml
 
-    services:
-      backendListener:
-        resources:
-          requests:
-              cpu: "125m"
-              memory: "128Mi"
-          limits:
-              cpu: "250m"
-              memory: "256Mi"
-      backendWorker:
-        resources:
-          requests:
-              cpu: "125m"
-              memory: "128Mi"
-          limits:
-              cpu: "250m"
-              memory: "256Mi"
+    global:
+      osmoImageLocation: <insert-osmo-image-registry>
+      osmoImageTag: <insert-osmo-image-tag>
+      serviceUrl: http://osmo-agent.osmo-minimal.svc.cluster.local # update to the actual service URL if you have enabled ingress for external access
+      agentNamespace: osmo-operator
+      backendNamespace: osmo-workflows
+      backendName: default
+      accountTokenSecret: osmo-operator-token
+      loginMethod: token
 
-    sidecars:
-      otel:
-        enabled: false
+      services:
+        backendListener:
+          resources:
+            requests:
+                cpu: "125m"
+                memory: "128Mi"
+            limits:
+                cpu: "250m"
+                memory: "256Mi"
+        backendWorker:
+          resources:
+            requests:
+                cpu: "125m"
+                memory: "128Mi"
+            limits:
+                cpu: "250m"
+                memory: "256Mi"
+
+      sidecars:
+        otel:
+          enabled: false
 
 
-
-2. create the account token secret:
+2. Create the account token secret:
 
 When ingress is disabled, you can port forward to the OSMO API server and login to OSMO using the CLI:
 

@@ -1741,17 +1741,21 @@ class TaskGroup(pydantic.BaseModel):
         """
         update_cmd = '''
             UPDATE groups SET remaining_upstream_groups = delete(remaining_upstream_groups, %s)
-            WHERE workflow_id = %s AND name = %s;'''
-        fetch_cmd = '''
-            SELECT * FROM groups WHERE workflow_id = %s AND name = %s;'''
+            WHERE workflow_id = %s AND name = %s
+            RETURNING *
+        '''
 
         downstream_groups = []
-        for task in self.downstream_groups:
-            self.database.execute_commit_command(
-                update_cmd, (self.name, self.workflow_id, task))
-            task_row = self.database.execute_fetch_command(fetch_cmd, (self.workflow_id, task))[0]
-            if not task_row.remaining_upstream_groups:
-                downstream_groups.append(TaskGroup.from_db_row(task_row, self.database))
+        for group_name in self.downstream_groups:
+            group_rows = self.database.execute_fetch_command(
+                update_cmd, (self.name, self.workflow_id, group_name))
+            try:
+                group_row = group_rows[0]
+            except (IndexError, TypeError) as err:
+                raise osmo_errors.OSMODatabaseError(
+                    f'Group {group_name} of workflow {self.workflow_id} is not found.') from err
+            if not group_row.remaining_upstream_groups:
+                downstream_groups.append(TaskGroup.from_db_row(group_row, self.database))
         return downstream_groups
 
     def set_tasks_to_processing(self):

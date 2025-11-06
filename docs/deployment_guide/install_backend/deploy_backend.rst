@@ -77,38 +77,41 @@ Step 3: Deploy Backend Operator
 
 Deploy the backend operator to the backend kubernetes cluster.
 
-Prepare the backend operator values file:
+Prepare the ``backend_operator_values.yaml`` file:
 
-.. code-block:: yaml
+.. dropdown:: ``backend_operator_values.yaml``
+  :color: info
+  :icon: file
 
-   global:
-    osmoImageTag: <insert-osmo-image-tag> # insert osmo image tag here
-    imagePullSecret: imagepullsecret
-    serviceUrl: https://<your-domain>
-    agentNamespace: osmo-operator
-    backendNamespace: osmo-workflows
-    backendName: default # update to reflect the name of your backend
-    accountTokenSecret: osmo-operator-token
-    loginMethod: token
+  .. code-block:: yaml
 
-    services:
-      backendListener:
-        resources:
-          requests:
-              cpu: "1"
-              memory: "1Gi"
-          limits:
-              memory: "1Gi"
-      backendWorker:
-        resources:
-          requests:
-              cpu: "1"
-              memory: "1Gi"
-          limits:
-              memory: "1Gi"
+    global:
+      osmoImageTag: <insert-osmo-image-tag> # insert osmo image tag here
+      imagePullSecret: imagepullsecret
+      serviceUrl: https://<your-domain>
+      agentNamespace: osmo-operator
+      backendNamespace: osmo-workflows
+      backendName: default # update to reflect the name of your backend
+      accountTokenSecret: osmo-operator-token
+      loginMethod: token
 
+      services:
+        backendListener:
+          resources:
+            requests:
+                cpu: "1"
+                memory: "1Gi"
+            limits:
+                memory: "1Gi"
+        backendWorker:
+          resources:
+            requests:
+                cpu: "1"
+                memory: "1Gi"
+            limits:
+                memory: "1Gi"
 
-deploy the backend operator:
+Deploy the backend operator:
 
 .. code-block:: bash
 
