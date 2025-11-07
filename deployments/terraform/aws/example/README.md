@@ -41,13 +41,14 @@ All resources are deployed in the same VPC and properly networked together.
 
 1. **Clone and navigate to the directory:**
    ```bash
-   cd deployment/aws/example
+   cd deployments/terraform/aws/example
    ```
 
 2. **Copy and customize the variables:**
    ```bash
    cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with your desired values, remember to replace password for database.
+   # Edit terraform.tfvars with your desired values
+   # IMPORTANT: Replace default passwords for RDS and Redis before deployment
    ```
 
 3. **Initialize Terraform:**
@@ -74,17 +75,23 @@ All resources are deployed in the same VPC and properly networked together.
 | `aws_region` | AWS region | `us-west-2` | Choose region closest to users |
 | `cluster_name` | EKS cluster name | `osmo-cluster` | Use descriptive name |
 | `single_nat_gateway` | Use single NAT gateway | `false` | `false` for HA |
+| `eks_admin_principal_arns` | IAM ARNs for cluster access | `[]` | Add your admin users/roles |
+| `rds_password` | RDS master password | `changeme123!` | **Must change before deploy** |
 | `rds_instance_class` | RDS instance type | `db.t3.micro` | `db.r5.large+` |
 | `rds_multi_az` | RDS Multi-AZ | `false` | `true` |
+| `redis_auth_token` | Redis password (16+ chars) | See tfvars | **Must change before deploy** |
 | `redis_node_type` | Redis node type | `cache.t3.micro` | `cache.r5.large+` |
 | `alb_enable_deletion_protection` | ALB deletion protection | `false` | `true` |
 
 ### Security Considerations
 
-- **RDS Password**: Change the default password in `terraform.tfvars`
-- **Security Groups**: Configured to allow access only from EKS nodes
-- **Private Subnets**: Database resources are isolated in private subnets
-- **Network ACLs**: Default VPC NACLs provide additional security layer
+- **RDS Password**: Change the default password in `terraform.tfvars` before deployment. Password is marked as sensitive in Terraform state.
+- **Redis Password**: Change `redis_auth_token` in `terraform.tfvars` (minimum 16 characters). Transit encryption is enabled automatically.
+- **EKS Access Management**: Uses AWS-native EKS Access Entries (not aws-auth ConfigMap). Node groups authenticate automatically via IAM.
+- **Security Groups**: Configured to allow access only from EKS nodes to databases
+- **Private Subnets**: EKS nodes and database resources are isolated in private subnets
+- **Network Isolation**: Public subnets tagged for ALB discovery only; no worker nodes exposed publicly
+- **Dependency Management**: Resources created in proper order with explicit `depends_on` declarations
 
 ## Connecting to Resources
 
@@ -95,6 +102,24 @@ After deployment, configure kubectl:
 ```bash
 aws eks update-kubeconfig --region $(terraform output -raw aws_region) --name $(terraform output -raw cluster_name)
 ```
+
+**EKS Access Management (Module v20.0+)**
+
+This configuration uses AWS-native **EKS Access Entries** instead of the deprecated aws-auth ConfigMap:
+
+1. **Cluster Creator**: Automatically gets admin permissions via `enable_cluster_creator_admin_permissions = true`
+
+2. **Additional Admins**: Add IAM principal ARNs in `terraform.tfvars`:
+   ```hcl
+   eks_admin_principal_arns = [
+     "arn:aws:iam::123456789012:user/alice",
+     "arn:aws:iam::123456789012:role/DevOpsTeam"
+   ]
+   ```
+
+3. **Node Groups**: Authenticate automatically via IAM instance profiles (no manual configuration needed)
+
+**Note**: If you need to grant access after deployment, add the ARN to `eks_admin_principal_arns` and run `terraform apply`.
 
 ### RDS Database
 
@@ -114,52 +139,29 @@ psql -h $(terraform output -raw rds_instance_address) -p $(terraform output -raw
 Connection details:
 - **Primary Endpoint**: `terraform output redis_primary_endpoint_address`
 - **Port**: `6379`
+- **Authentication**: Enabled with `redis_auth_token` (transit encryption enabled)
 
-Connect from within the VPC:
+Connect from within the VPC (e.g., from a pod in EKS):
 ```bash
-redis-cli -h $(terraform output -raw redis_primary_endpoint_address) -p 6379
+# Connect with authentication
+redis-cli -h $(terraform output -raw redis_primary_endpoint_address) -p 6379 --tls --insecure -a <your-redis-password>
+
+# Or authenticate after connecting
+redis-cli -h $(terraform output -raw redis_primary_endpoint_address) -p 6379 --tls --insecure
+> AUTH <your-redis-password>
 ```
 
-### Application Load Balancer
-
-Connection details:
-- **DNS Name**: `terraform output alb_dns_name`
-- **Zone ID**: `terraform output alb_hosted_zone_id` (for Route 53 alias records)
-
-The ALB is configured to work with the AWS Load Balancer Controller in your EKS cluster. Create Kubernetes Ingress resources to automatically configure routing:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: my-app
-  annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/load-balancer-name: your-cluster-name-alb
-    alb.ingress.kubernetes.io/target-type: ip
-spec:
-  rules:
-  - host: my-app.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: my-app-service
-            port:
-              number: 80
-```
+**Note**: Your application must authenticate using the `redis_auth_token` value from your `terraform.tfvars`.
 
 ## Terraform Modules Used
 
 This configuration uses the following community modules:
 
-- [`terraform-aws-modules/vpc/aws`](https://github.com/terraform-aws-modules/terraform-aws-vpc) - VPC with subnets, NAT gateway, etc.
-- [`terraform-aws-modules/eks/aws`](https://github.com/terraform-aws-modules/terraform-aws-eks) - EKS cluster with managed node groups
-- [`terraform-aws-modules/alb/aws`](https://github.com/terraform-aws-modules/terraform-aws-alb) - Application Load Balancer with security groups
-- [`terraform-aws-modules/rds/aws`](https://github.com/terraform-aws-modules/terraform-aws-rds) - RDS instance with proper configuration
-- [`terraform-aws-modules/elasticache/aws`](https://github.com/terraform-aws-modules/terraform-aws-elasticache) - ElastiCache Redis cluster
+- [`terraform-aws-modules/vpc/aws`](https://github.com/terraform-aws-modules/terraform-aws-vpc) `~> 5.0` - VPC with subnets, NAT gateway, and ALB discovery tags
+- [`terraform-aws-modules/eks/aws`](https://github.com/terraform-aws-modules/terraform-aws-eks) `~> 20.0` - EKS cluster with managed node groups and Access Entries
+- [`terraform-aws-modules/alb/aws`](https://github.com/terraform-aws-modules/terraform-aws-alb) `~> 9.0` - Application Load Balancer with security groups
+- [`terraform-aws-modules/rds/aws`](https://github.com/terraform-aws-modules/terraform-aws-rds) `~> 6.0` - RDS PostgreSQL instance with encryption
+- [`terraform-aws-modules/elasticache/aws`](https://github.com/terraform-aws-modules/terraform-aws-elasticache) `~> 1.0` - ElastiCache Redis with auth token and transit encryption
 
 ## Cost Optimization
 
@@ -196,7 +198,11 @@ To destroy all resources:
 terraform destroy
 ```
 
-You may need to run `terraform destroy` twice due to deletion delays to clean up all resources.
+**Important Notes:**
+- Resources are configured with explicit `depends_on` declarations for proper deletion order
+- You may need to run `terraform destroy` twice due to AWS deletion delays
+- EKS cluster and associated resources (node groups, ENIs) may take several minutes to delete
+- RDS and ElastiCache snapshots may be retained based on your snapshot retention settings
 
 **Warning**: This will permanently delete all resources. Ensure you have backups if needed.
 
@@ -209,6 +215,17 @@ You may need to run `terraform destroy` twice due to deletion delays to clean up
 2. **Resource limits**: Check AWS service limits in your region for EKS, RDS, and ElastiCache.
 
 3. **AZ availability**: Some instance types may not be available in all AZs. The configuration automatically selects available AZs.
+
+4. **EKS Access Issues**: If you can't access the cluster after deployment:
+   - Verify you're using the AWS identity that created the cluster (automatic admin access)
+   - Or ensure your IAM ARN is in the `eks_admin_principal_arns` list
+   - Run `terraform apply` after adding your ARN to update access entries
+
+5. **Redis Authentication Errors**: If Redis connections fail:
+   - Ensure you're using the `--tls` flag (transit encryption is enabled)
+   - Verify you're authenticating with the correct `redis_auth_token`
+   - Password must be at least 16 characters
+
 
 ### Getting Help
 

@@ -271,7 +271,7 @@ metadata:
     {{- end }}
     {{- end }}
     {{- range $k, $v := .Values.services.service.ingress.annotations }}
-    {{$k}}: {{$v}}
+    {{$k}}: {{ $v | quote }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.services.service.ingress.ingressClass }}

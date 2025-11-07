@@ -113,6 +113,12 @@ variable "node_group_desired_size" {
   default     = 3
 }
 
+variable "eks_admin_principal_arns" {
+  description = "List of IAM principal ARNs to grant admin access to EKS cluster"
+  type        = list(string)
+  default     = []
+}
+
 # RDS Variables
 variable "rds_engine" {
   description = "RDS engine"

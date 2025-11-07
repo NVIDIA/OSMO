@@ -47,6 +47,7 @@ extensions = [
     # Custom extensions
     '_extensions.auto_include',
     '_extensions.code_annotations',
+    '_extensions.collapsible_code_block',
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',

@@ -90,7 +90,7 @@ module "vpc" {
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 19.21"
+  version = "~> 20.0"
 
   cluster_name    = local.name
   cluster_version = var.kubernetes_version
@@ -101,9 +101,16 @@ module "eks" {
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
 
+  # Node security group configuration
+  node_security_group_tags = {
+    Name = "${local.name}-node-sg"
+  }
+
   # EKS Managed Node Group(s)
   eks_managed_node_group_defaults = {
     instance_types = var.node_instance_types
+    # All node groups should only use private subnets for security
+    subnet_ids = module.vpc.private_subnets
 
     attach_cluster_primary_security_group = true
   }
@@ -111,9 +118,6 @@ module "eks" {
   eks_managed_node_groups = {
     main = {
       name = "${local.name}-nodes"
-
-      # Node groups should only be in private subnets for security
-      subnet_ids = module.vpc.private_subnets
 
       min_size     = var.node_group_min_size
       max_size     = var.node_group_max_size
@@ -134,8 +138,24 @@ module "eks" {
     }
   }
 
-  # aws-auth configmap to be set manually
-  manage_aws_auth_configmap = false
+  # EKS Access Entries (replaces aws-auth ConfigMap in module v20+)
+  # This is the new AWS-native way to manage cluster access
+  enable_cluster_creator_admin_permissions = true
+
+  # Dynamically create access entries for additional IAM principals
+  access_entries = {
+    for idx, principal_arn in var.eks_admin_principal_arns : "admin-${idx}" => {
+      principal_arn = principal_arn
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 
   tags = local.tags
 
@@ -185,6 +205,8 @@ module "rds" {
   username = var.rds_username
   password = var.rds_password
   port     = var.rds_port
+
+  manage_master_user_password = false  # Disable AWS Secrets Manager, use password parameter
 
   multi_az               = var.rds_multi_az
   publicly_accessible    = false

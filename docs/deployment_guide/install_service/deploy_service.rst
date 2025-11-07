@@ -155,6 +155,9 @@ b. Create a ``keycloak-values.yaml`` file with the following configuration:
       hostname: auth-<your-domain>
       annotations:
         # Add additional ingress-specific annotations here to match your ingress controller's annotations
+        # alb.ingress.kubernetes.io/scheme: internet-facing
+        # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+        # alb.ingress.kubernetes.io/ssl-redirect: '443'
       path: /
       pathType: Prefix
       servicePort: 80
@@ -517,7 +520,7 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
         serviceName: <your-postgres-host>
         port: 5432
         db: <your-database-name>
-        user: <your-database-user>
+        user: postgres
 
       # Redis cache configuration
       redis:

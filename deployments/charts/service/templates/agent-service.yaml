@@ -249,7 +249,7 @@ metadata:
   name: {{ .Values.services.agent.serviceName }}
   annotations:
     {{- range $k, $v := .Values.services.service.ingress.annotations }}
-    {{$k}}: {{$v}}
+    {{$k}}: {{ $v | quote }}
     {{- end }}
     {{- if .Values.services.service.ingress.albAnnotations.enabled}}
     alb.ingress.kubernetes.io/target-type: ip
