@@ -17,12 +17,13 @@
 name: Trigger GitLab Submodule Update
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main  # Triggers when changes are merged into main branch
-
-  # Allow manual triggering for testing
-  workflow_dispatch:
+  # TODO: Remove this pipeline is validated
+  pull_request:
+    branches: [ main ] # Triggers on PRs targeting the main branch
 
 jobs:
   trigger-gitlab:
