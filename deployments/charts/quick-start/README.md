@@ -136,7 +136,6 @@ This chart installs and configures:
 | `web-ui.services.ui.skipAuth` | Skip authentication for UI service | `true` |
 | `web-ui.services.ui.hostname` | Hostname for UI service | `quick-start.osmo` |
 | `web-ui.services.ui.ingress.sslEnabled` | Enable SSL for UI ingress | `false` |
-| `web-ui.services.ui.extraEnvs` | Additional environment variables for the UI service | `[{name: NEXT_PUBLIC_OSMO_SSL_ENABLED, value: false}]` |
 | `web-ui.sidecars.envoy.enabled` | Enable Envoy proxy sidecar container | `false` |
 
 ### Router Service Configuration

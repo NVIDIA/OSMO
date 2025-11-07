@@ -582,13 +582,6 @@ web-ui:
         ## Enable SSL/TLS encryption for the ingress
         ##
         sslEnabled: false
-      ## Additional environment variables for the UI service
-      ##
-      extraEnvs:
-        ## Disable SSL in Next.js public configuration
-        ##
-        - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
-          value: false
 
   ## Configuration for web UI sidecar containers
   ##

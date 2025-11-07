@@ -236,6 +236,13 @@ spec:
               "description": "Update service base url"
             }'
 
+          echo "Waiting for backend default to exist..."
+          until curl -s -f "$BASE_URL/api/configs/backend/default" > /dev/null 2>&1; do
+            echo "Backend default not ready yet, waiting..."
+            sleep 5
+          done
+          echo "Backend default is now available"
+
           echo "Configuring backend settings..."
 
           # Update backend configuration (POST /api/configs/backend/default)

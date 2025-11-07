@@ -145,14 +145,16 @@ If you are not using a GPU, create the KIND cluster with `kind`:
 kind create cluster --config kind-osmo-cluster-config.yaml --name osmo
 ```
 
-If you are using a GPU, you will use `nvkind` to create the cluster. First, update which GPUs are
-exposed to the compute node by updating the following line of the KIND config:
+If you are using a GPU, you will use `nvkind` to create the cluster. First, expose the GPUs
+to the compute node by adding the following `extraMounts` to the KIND config:
 
 ```yaml
 # ...
 # Last worker node labeled "compute"
 - role: worker
-  devices: [0] # <- Add GPU devices from `nvidia-smi -L`, e.g. [0, 1, 2, 3] for 4 available GPUs
+  extraMounts:
+    - hostPath: /dev/null
+      containerPath: /var/run/nvidia-container-devices/all
   kubeadmConfigPatches:
     - |
       kind: JoinConfiguration
@@ -164,7 +166,7 @@ exposed to the compute node by updating the following line of the KIND config:
 Then create the cluster with `nvkind`:
 
 ```bash
-nvkind create cluster --config kind-osmo-cluster-config.yaml --name osmo
+nvkind cluster create --config-template=kind-osmo-cluster-config.yaml
 ```
 
 Both `kind` and `nvkind` commands create a Kubernetes cluster on your workstation with a control
@@ -234,7 +236,7 @@ See [Configuration Options](./deployments/charts/quick-start/README.md#configura
 
 ### Add Host Entry
 
-Add the following line to your `/etc/hosts` file:
+Add an entry to `/etc/hosts` by running this command. This allows you to visit `http://quick-start.osmo` in your browser.
 
 ```bash
 echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
@@ -251,7 +253,7 @@ start running your robotics workflows on OSMO.
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
 ```
 
-### Login to OSMO
+### Log in to OSMO
 
 ```bash
 osmo login http://quick-start.osmo --method=dev --username=testuser
@@ -278,4 +280,3 @@ database that was created.
 ```sh
 kind delete cluster --name osmo
 ```
-

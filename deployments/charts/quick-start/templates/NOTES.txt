@@ -18,18 +18,14 @@
 
  Next Steps:
 
-1. Add the following line to your /etc/hosts file:
-   127.0.0.1 quick-start.osmo
+1. Add an entry to /etc/hosts:
+   echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 
-2. Login to OSMO:
+2. Download and install the OSMO CLI:
+   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+
+3. Log in to OSMO:
    osmo login http://quick-start.osmo --method=dev --username=testuser
 
-3. Access the OSMO Web UI:
-   http://quick-start.osmo
-
-🧪 Test Your Installation:
-
-Run a simple workflow to verify everything is working:
-   osmo workflow submit <your-workflow.yaml>
-
-Happy computing with OSMO! 🎉
+4. Explore next steps:
+   https://nvidia.github.io/OSMO/user_guide/getting_started/next_steps.html
