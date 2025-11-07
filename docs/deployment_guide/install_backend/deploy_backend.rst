@@ -33,7 +33,8 @@ Prerequisites
 Step 1: Create OSMO service access token
 -----------------------------------------
 
-Use the OSMO CLI to create a service access token for the backend. This token will be used to authenticate the backend operator with the OSMO service.
+Use the OSMO CLI to create a service access token for the backend. This token will be used to
+authenticate the backend operator with the OSMO service.
 
 .. code-block:: bash
 
@@ -41,7 +42,12 @@ Use the OSMO CLI to create a service access token for the backend. This token wi
 
    $export OSMO_SERVICE_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
 
-Save the token in a secure location as it will not be shown again. Export it as an environment variable to use in the next step.
+Save the token in a secure location as it will not be shown again. Export it as an environment
+variable to use in the next step.
+
+.. note::
+
+  ``expires-at`` is based on UTC time and has the format: YYYY-MM-DD
 
 .. note::
 

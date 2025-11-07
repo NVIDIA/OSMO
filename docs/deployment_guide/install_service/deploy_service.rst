@@ -42,22 +42,22 @@ and ``PGPASSWORD=$OSMO_PGPASSWORD`` if PostgreSQL was configured without a passw
 
 .. code-block:: bash
 
-   $ export OSMO_DB_HOST=<your-db-host>
-   $ export OSMO_PGPASSWORD=<your-postgres-password>
-   $ kubectl apply -f - <<EOF
-     apiVersion: v1
-     kind: Pod
-     metadata:
-       name: osmo-db-ops
-     spec:
-       containers:
-         - name: osmo-db-ops
-           image: alpine/psql:17.5
-           command: ["/bin/sh", "-c"]
-           args:
-             - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo_db;'"
-       restartPolicy: Never
-     EOF
+  $ export OSMO_DB_HOST=<your-db-host>
+  $ export OSMO_PGPASSWORD=<your-postgres-password>
+  $ kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: osmo-db-ops
+  spec:
+    containers:
+      - name: osmo-db-ops
+        image: alpine/psql:17.5
+        command: ["/bin/sh", "-c"]
+        args:
+          - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo_db;'"
+    restartPolicy: Never
+  EOF
 
 Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then delete the pod with:
 
@@ -71,22 +71,22 @@ configured without a password.
 
 .. code-block:: bash
 
-   $ export OSMO_DB_HOST=<your-db-host>
-   $ export OSMO_PGPASSWORD=<your-postgres-password>
-   $ kubectl apply -f - <<EOF
-     apiVersion: v1
-     kind: Pod
-     metadata:
-       name: osmo-db-ops
-     spec:
-       containers:
-         - name: osmo-db-ops
-           image: alpine/psql:17.5
-           command: ["/bin/sh", "-c"]
-           args:
-             - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE keycloak;'"
-       restartPolicy: Never
-     EOF
+  $ export OSMO_DB_HOST=<your-db-host>
+  $ export OSMO_PGPASSWORD=<your-postgres-password>
+  $ kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: osmo-db-ops
+  spec:
+    containers:
+      - name: osmo-db-ops
+        image: alpine/psql:17.5
+        command: ["/bin/sh", "-c"]
+        args:
+          - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE keycloak;'"
+    restartPolicy: Never
+  EOF
 
 Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then delete the pod with:
 
