@@ -344,7 +344,7 @@ metadata:
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
     {{- end }}
     {{- range $k, $v := .Values.services.ui.ingress.annotations }}
-    {{$k}}: {{$v}}
+    {{$k}}: {{ $v | quote }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.services.ui.ingress.ingressClass }}

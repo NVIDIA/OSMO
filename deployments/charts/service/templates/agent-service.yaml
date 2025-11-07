@@ -253,7 +253,7 @@ metadata:
     {{- end }}
     {{- if .Values.services.service.ingress.albAnnotations.enabled}}
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: osmo2
+    alb.ingress.kubernetes.io/group.name: osmo
     alb.ingress.kubernetes.io/group.order: "50"
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
     {{- end }}
