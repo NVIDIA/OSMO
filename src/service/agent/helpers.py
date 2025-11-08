@@ -67,12 +67,15 @@ def create_backend(postgres: connectors.PostgresConnector,
                    message: backend_messages.InitBody):
     # Initialize router_address with hostname from config if available
     router_address = ''
-    if hasattr(postgres.config, 'host') and postgres.config.host:
-        parsed_url = urlparse(postgres.config.host)
+    if postgres.config.service_hostname:
+        parsed_url = urlparse(postgres.config.service_hostname)
         if parsed_url.hostname:
             router_address = f'wss://{parsed_url.hostname}'
-            logging.info('Initializing router_address for backend %s to: %s',
-                        name, router_address)
+        else:
+            router_address = f'wss://{postgres.config.service_hostname}'
+
+        logging.info('Initializing router_address for backend %s to: %s',
+                     name, router_address)
 
     insert_cmd = '''
         WITH input_rows(name, k8s_uid, k8s_namespace, dashboard_url, grafana_url,

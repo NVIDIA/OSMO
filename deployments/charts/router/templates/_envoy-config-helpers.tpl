@@ -67,7 +67,7 @@ listeners:
   address:
     socket_address:
       address: 0.0.0.0
-      port_value: {{ .Values.sidecars.envoy.listenerPort | default 80 }}
+      port_value: {{ .Values.sidecars.envoy.listenerPort }}
   filter_chains:
   - filters:
     - name: envoy.filters.network.http_connection_manager

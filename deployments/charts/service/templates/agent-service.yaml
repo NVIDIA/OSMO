@@ -91,6 +91,10 @@ spec:
         - --redis_db_number
         - {{ .Values.services.redis.dbNumber | quote }}
         {{- end}}
+        {{- if .Values.services.service.hostname }}
+        - --service_hostname
+        - {{ .Values.services.service.hostname }}
+        {{- end }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
         - --postgres_port
@@ -248,14 +252,14 @@ kind: Ingress
 metadata:
   name: {{ .Values.services.agent.serviceName }}
   annotations:
-    {{- range $k, $v := .Values.services.service.ingress.annotations }}
-    {{$k}}: {{ $v | quote }}
-    {{- end }}
     {{- if .Values.services.service.ingress.albAnnotations.enabled}}
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/group.name: osmo
     alb.ingress.kubernetes.io/group.order: "50"
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
+    {{- end }}
+    {{- range $k, $v := .Values.services.service.ingress.annotations }}
+    {{$k}}: {{ $v | quote }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.services.service.ingress.ingressClass }}

@@ -966,7 +966,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         self.assertEqual(history['configs'][-1]['config_type'], 'SERVICE')
         self.assertEqual(sorted(history['configs'][-1]['tags']), sorted(service_tags))
         self.assertEqual(history['configs'][-1]['data']
-                         ['service_base_url'], 'https://0.0.0.0')
+                         ['service_base_url'], '')
 
         # Test filtering by multiple config types
         history = self._get_config_history(config_types=['SERVICE', 'BACKEND'])
@@ -1012,7 +1012,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         self.assertEqual(history['configs'][0]['config_type'], 'SERVICE')
         self.assertEqual(sorted(history['configs'][0]['tags']), sorted(service_tags))
         self.assertEqual(history['configs'][0]['data']
-                         ['service_base_url'], 'https://0.0.0.0')
+                         ['service_base_url'], '')
 
         # Test filtering by non-existent tags
         history = self._get_config_history(tags=['non-existent-tag'])

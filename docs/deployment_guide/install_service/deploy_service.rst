@@ -527,7 +527,7 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
         enabled: false  # Set to false when using external Redis
         serviceName: <your-redis-host>
         port: 6379
-        tlsEnabled: false  # Set to true if your Redis requires TLS
+        tlsEnabled: true  # Set to false if your Redis does not require TLS
 
       # Main API service configuration
       service:
@@ -767,11 +767,9 @@ Create ``router_values.yaml`` for router with the following sample configuration
 
         skipAuthPaths:
         - /api/router/version
+
         image: envoyproxy/envoy:v1.29.0
         imagePullPolicy: IfNotPresent
-        listenerPort: 80
-        maxHeadersSizeKb: 128
-        logLevel: info
 
         # Service configuration
         service:
@@ -809,9 +807,9 @@ Create ``router_values.yaml`` for router with the following sample configuration
             cluster: oauth
           - issuer: osmo
             audience: osmo
-            jwks_uri: http://localhost:8000/api/auth/keys
+            jwks_uri: http://osmo-service/api/auth/keys
             user_claim: unique_name
-            cluster: service
+            cluster: osmoauth
 
         # OSMO auth service configuration
         osmoauth:

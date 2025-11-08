@@ -1288,6 +1288,10 @@ sidecars:
       ##
       logoutPath: logout
 
+      ## Forward bearer token to upstream service
+      ##
+      forwardBearerToken: true
+
       ## Kubernetes secret keys (when useKubernetesSecrets is true)
       ##
       secretName: oidc-secrets

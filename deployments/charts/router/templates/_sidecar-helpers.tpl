@@ -31,8 +31,6 @@ Envoy sidecar container
       {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
       # For Kubernetes secrets, just wait and start
       sleep 5
-      echo "$(date -Iseconds) Starting Envoy..."
-      exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level {{ .Values.sidecars.envoy.logLevel | default "info" }} --log-path /logs/envoy.txt
       {{- else }}
       # For Other secrets, wait for files and process config
       while [ ! -f "{{ .Values.sidecars.envoy.secretPaths.clientSecret }}" ] || [ ! -s "{{ .Values.sidecars.envoy.secretPaths.clientSecret }}" ]; do
@@ -48,7 +46,7 @@ Envoy sidecar container
       echo "$(date -Iseconds) Starting Envoy..."
       exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level {{ .Values.sidecars.envoy.logLevel | default "info" }} --log-path /logs/envoy.txt
   ports:
-    - containerPort: {{ .Values.sidecars.envoy.listenerPort | default 80 }}
+    - containerPort: {{ .Values.sidecars.envoy.listenerPort }}
       name: envoy-http
     - containerPort: 9901
       name: envoy-admin

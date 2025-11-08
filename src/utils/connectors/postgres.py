@@ -2519,7 +2519,7 @@ class CliConfig(ExtraArgBaseModel):
 
 class ServiceConfig(DynamicConfig):
     """ Stores any configs OSMO Admins control """
-    service_base_url: str = 'https://0.0.0.0'
+    service_base_url: str = ''
 
     service_auth: auth.AuthenticationConfig = auth.AuthenticationConfig.generate_default()
 
