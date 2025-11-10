@@ -138,10 +138,8 @@ html_last_updated_fmt = '%b %d, %Y'
 
 # Constants that can be substituted in the document with |config_name|
 constants = {
-    'osmo_url': "https://" + osmo_domain + ".osmo.nvidia.com",
-    'osmo_auth_url': "https://auth-" + osmo_domain + ".osmo.nvidia.com",
+    'osmo_url': "https://osmo-example-url.com",
     'osmo_client_install_url': "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh",
-    'osmo_pypi_url': "https://" + osmo_domain + ".osmo.nvidia.com/client/pypi/simple",
     'data_solution': 'S3',
     'data_path': 's3://<location>/data_folder',
     'data_full_prefix': 's3://',
@@ -179,7 +177,7 @@ for key, value in link_constants.items():
 # Custom badge roles
 rst_prolog += '''
 .. role:: bdg-pending
-   :class: badge bg-pending badge-pending 
+   :class: badge bg-pending badge-pending
 
 .. role:: bdg-running
    :class: badge bg-running badge-running

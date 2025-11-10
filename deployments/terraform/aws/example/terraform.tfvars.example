@@ -16,7 +16,7 @@ single_nat_gateway  = false  # Set to true for cost savings in dev environments
 
 # EKS Configuration
 kubernetes_version        = "1.30"
-node_instance_types      = ["t3.medium"] # Use m5a.xlarge for production
+node_instance_types      = ["t3.xlarge"] # Use m5a.xlarge for production
 node_group_min_size      = 1
 node_group_max_size      = 5
 node_group_desired_size  = 3
