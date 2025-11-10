@@ -176,6 +176,8 @@ this shows how to submit the workflow with 4 nodes and 4 GPUs per node:
 
   $ osmo workflow submit <your workflow spec path> --set n_nodes=4 n_gpus_per_node=4
 
+.. _training_multi_node_sync:
+
 Synchronizing Training Start Time (Optional)
 --------------------------------------------
 

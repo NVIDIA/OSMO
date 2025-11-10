@@ -145,8 +145,8 @@ If you are not using a GPU, create the KIND cluster with `kind`:
 kind create cluster --config kind-osmo-cluster-config.yaml --name osmo
 ```
 
-If you are using a GPU, you will use `nvkind` to create the cluster. First, expose the GPUs
-to the compute node by adding the following `extraMounts` to the KIND config:
+If you are using a GPU, you will use `nvkind` to create the cluster. First, expose the GPUs to the
+compute node by adding the following `extraMounts` to the KIND config:
 
 ```yaml
 # ...
@@ -168,6 +168,10 @@ Then create the cluster with `nvkind`:
 ```bash
 nvkind cluster create --config-template=kind-osmo-cluster-config.yaml
 ```
+
+> [!NOTE]
+> You can ignore any `umount` errors printed by the above command as long as
+> `nvkind cluster print-gpus` shows your GPUs.
 
 Both `kind` and `nvkind` commands create a Kubernetes cluster on your workstation with a control
 plane node and several worker nodes. The
@@ -236,7 +240,8 @@ See [Configuration Options](./deployments/charts/quick-start/README.md#configura
 
 ### Add Host Entry
 
-Add an entry to `/etc/hosts` by running this command. This allows you to visit `http://quick-start.osmo` in your browser.
+Add an entry to `/etc/hosts` by running this command. This allows you to visit
+`http://quick-start.osmo` in your browser.
 
 ```bash
 echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts

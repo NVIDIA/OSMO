@@ -28,3 +28,8 @@ Troubleshooting
 .. include:: resources.in.rst
 
 .. include:: workflow.in.rst
+
+.. toctree::
+   :hidden:
+
+   nccl.rst
