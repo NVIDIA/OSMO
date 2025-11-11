@@ -2,6 +2,8 @@ Alertmanager
 Ansible
 Args
 Artifactory
+AuthN
+AuthZ
 Bitnami
 CQ
 Checkpointing

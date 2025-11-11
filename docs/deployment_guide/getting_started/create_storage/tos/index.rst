@@ -18,7 +18,7 @@
 .. _tos_permissions:
 
 =============================
-Torch Object Storage (TOS)
+Torch Object Storage
 =============================
 
 To handle who can access Datasets, the necessary IAM resources/policies must be created.

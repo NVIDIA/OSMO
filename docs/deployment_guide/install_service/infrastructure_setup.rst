@@ -18,310 +18,210 @@
 Setup Infrastructure
 ====================
 
-Before deploying OSMO, you need to setup the infrastructure for deploying OSMO. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
+Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in :doc:`../getting_started/prereqs`. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
 
-Infrastructure Overview
-========================
+.. only:: html
 
-The following diagram illustrates the infrastructure components needed for OSMO deployment on any cloud provider:
+  .. grid:: 1 2 2 2
+      :gutter: 3
 
-.. raw:: html
+      .. grid-item-card:: :octicon:`lock` Virtual Private Network (VPC)
 
-    <style>
-        .infra-diagram {
-            margin: 2em auto;
-            max-width: 900px;
-        }
+          Create isolated network infrastructure with subnets, route tables, and security groups for cloud resources.
 
-        .infra-section {
-            margin-bottom: 2em;
-        }
+          +++
 
-        .section-label {
-            color: #76B900;
-            font-weight: bold;
-            font-size: 0.9em;
-            margin-bottom: 1em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+          **Requirements:**
 
-        .vpc-container {
-            border: 3px dashed #76B900;
-            border-radius: 12px;
-            padding: 2em;
-            position: relative;
-            background: rgba(118, 185, 0, 0.05);
-            margin-bottom: 2em;
-        }
+          • VPC with appropriate CIDR blocks
+          • Public and private subnets
+          • Internet gateway and route tables
+          • Security groups / Network security groups
 
-        .vpc-label {
-            position: absolute;
-            top: -12px;
-            left: 20px;
-            background: var(--color-background-primary, #1a1a1a);
-            padding: 0 10px;
-            color: #76B900;
-            font-weight: bold;
-            font-size: 0.95em;
-        }
+      .. grid-item-card:: :octicon:`container` Kubernetes Cluster
 
-        /* Light mode override for label background */
-        @media (prefers-color-scheme: light) {
-            .vpc-label {
-                background: white;
-            }
-        }
+          Managed Kubernetes service for running OSMO Service components on compute infrastructure clusters.
 
-        [data-theme="light"] .vpc-label,
-        html[data-theme="light"] .vpc-label,
-        body[data-theme="light"] .vpc-label,
-        .theme-light .vpc-label {
-            background: white;
-        }
+          +++
 
-        .infra-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.2em;
-        }
+          **Requirements:**
 
-        .infra-component {
-            border: 2px solid #76B900;
-            border-radius: 8px;
-            padding: 1.5em 1em;
-            text-align: center;
-            background: rgba(118, 185, 0, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
+          • Kubernetes v1.30.0 or higher
+          • At least 3 worker nodes (HA)
+          • Managed K8s from cloud provider
+          • See :ref:`system_requirements` for minimum requirements
 
-        .infra-component:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 16px rgba(118, 185, 0, 0.25);
-        }
+      .. grid-item-card:: :octicon:`database` PostgreSQL Database
 
-        .infra-name {
-            font-weight: bold;
-            color: #76B900;
-            margin-bottom: 0.8em;
-            font-size: 1.05em;
-        }
+          Managed database service for storing OSMO application data and metadata.
 
-        .infra-details {
-            font-size: 0.85em;
-            opacity: 0.85;
-            line-height: 1.5;
-        }
+          +++
 
-        .external-storage {
-            max-width: 400px;
-            margin: 0 auto;
-        }
+          **Requirements:**
 
-        .vpc-note {
-            text-align: center;
-            margin-top: 1.2em;
-            padding-top: 1.2em;
-            border-top: 1px solid rgba(118, 185, 0, 0.3);
-            font-size: 0.88em;
-            opacity: 0.8;
-        }
+          • PostgreSQL v15.0 or higher
+          • Minimum 32 GB storage
+          • Automatic backups enabled
+          • Private subnet placement
 
-        .connection-note {
-            text-align: center;
-            margin: 1.5em 0;
-            font-size: 0.9em;
-            color: #76B900;
-            font-style: italic;
-        }
+      .. grid-item-card:: :octicon:`zap` Redis Instance
 
-        @media (max-width: 768px) {
-            .infra-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+          Managed cache service for session management and real-time data.
 
-    <div class="infra-diagram">
-        <div class="vpc-container">
-            <div class="vpc-label">VPC / VNet (Private Network)</div>
+          +++
 
-            <div class="infra-grid">
-                <div class="infra-component">
-                    <div class="infra-name">Kubernetes Cluster</div>
-                    <div class="infra-details">
-                        Service Cluster<br/>
-                        v1.30+<br/>
-                        Multi-node recommended
-                    </div>
-                </div>
+          **Requirements:**
 
-                <div class="infra-component">
-                    <div class="infra-name">PostgreSQL</div>
-                    <div class="infra-details">
-                        v15.0+<br/>
-                        Managed service<br/>
-                        32 GB storage min
-                    </div>
-                </div>
+          • Redis v7.0 or higher
+          • Minimum 4 GB memory
+          • Encryption in transit enabled
+          • Private subnet placement
 
-                <div class="infra-component">
-                    <div class="infra-name">Redis</div>
-                    <div class="infra-details">
-                        v7.0+<br/>
-                        Managed service<br/>
-                        4 GB memory min
-                    </div>
-                </div>
-            </div>
+      .. grid-item-card:: :octicon:`file` Cloud Storage
 
-            <div class="vpc-note">
-                Components within VPC communicate over private network
-            </div>
-        </div>
+          Object storage bucket for workflow artifacts, logs, and data.
 
-        <div class="connection-note">
-            ↕ Outbound Internet Access
-        </div>
+          +++
 
-        <div class="infra-section">
-            <div class="infra-component external-storage">
-                <div class="infra-name">Cloud Storage</div>
-                <div class="infra-details">
-                    S3 / GCS / Azure Blob / TOS<br/>
-                    For workflow logs and artifacts<br/>
-                    Accessed via internet or VPC endpoint
-                </div>
-            </div>
-        </div>
-    </div>
+          **Requirements:**
+
+          • Storage bucket (S3, Blob, GCS)
+          • Versioning enabled (recommended)
+          • Lifecycle policies configured
+          • See :ref:`create_data_storage`
 
 Setup Options
 =============
 
-Option 1: Automated Setup with Terraform (Recommended)
+Option 1: Using Terraform (Recommended)
 -------------------------------------------------------
 
-The fastest way to set up infrastructure is using our reference Terraform scripts:
+This is the recommended way to set up infrastructure for OSMO and the quickest way to get started.
 
-**AWS**:
-   - `AWS Terraform Example <https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example>`_
-   - Creates: VPC, EKS cluster, RDS PostgreSQL, ElastiCache Redis, S3 bucket
-   - Time: ~20-30 minutes
+.. only:: html
 
-**Azure**:
-   - `Azure Terraform Example <https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example>`_
-   - Creates: VNet, AKS cluster, Azure Database for PostgreSQL, Azure Cache for Redis, Blob Storage
-   - Time: ~20-30 minutes
+  .. grid:: 1 2 2 2
+      :gutter: 3
 
-Option 2: Manual Setup
+      .. grid-item-card:: :octicon:`cloud` AWS Terraform
+          :link: https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/aws/example
+          :class-card: tool-card
+
+          Automated infrastructure setup for AWS with complete reference implementation.
+
+          +++
+
+          **Creates:**
+
+          • VPC
+          • EKS cluster
+          • RDS PostgreSQL
+          • ElastiCache Redis
+
+          **Time**: ~20-30 minutes
+
+      .. grid-item-card:: :octicon:`cloud` Azure Terraform
+          :link: https://github.com/NVIDIA/OSMO/tree/main/deployments/terraform/azure/example
+          :class-card: tool-card
+
+          Automated infrastructure setup for Azure with complete reference implementation.
+
+          +++
+
+          **Creates:**
+
+          • VNet
+          • AKS cluster
+          • Azure Database for PostgreSQL
+          • Azure Cache for Redis
+
+          **Time**: ~20-30 minutes
+
+Option 2: Manually
 -----------------------
 
-Follow these steps to manually create the infrastructure:
+.. note::
 
-1. **Create Network Infrastructure**
-
-   - Create VPC (AWS), VNet (Azure), or VPC (GCP)
-   - Configure subnets with appropriate CIDR blocks
-   - Set up route tables and internet gateway
-   - Configure security groups/network security groups
-
-   **Cloud Provider Guides:**
-
-   - **AWS**: `Working with VPCs <https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html>`__
-   - **Azure**: `Create a virtual network <https://learn.microsoft.com/en-us/azure/virtual-network/quick-create-portal>`__
-   - **GCP**: `Create VPC networks <https://cloud.google.com/vpc/docs/create-modify-vpc-networks>`__
-
-2. **Create Kubernetes Cluster**
-
-   - Use managed Kubernetes service (EKS, AKS, or GKE)
-   - Kubernetes version v1.30.0 or higher
-   - Configure with at least 3 worker nodes for high availability
-   - See :ref:`system_requirements` for detailed requirements
-
-   **Cloud Provider Guides:**
-
-   - **AWS**: `Getting started with Amazon EKS <https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html>`__
-   - **Azure**: `Deploy an AKS cluster <https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal>`__
-   - **GCP**: `Deploy a GKE cluster <https://cloud.google.com/kubernetes-engine/docs/deploy-app-cluster>`__
-
-3. **Create PostgreSQL Database**
-
-   - Use managed database service (RDS, Azure Database, Cloud SQL)
-   - PostgreSQL version 15.0 or higher
-   - Minimum 32 GB storage
-   - Enable automatic backups
-   - Place in private subnet within VPC
-
-   **Cloud Provider Guides:**
-
-   - **AWS**: `Amazon RDS for PostgreSQL <https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html>`__
-   - **Azure**: `Azure Database for PostgreSQL <https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/quickstart-create-server-portal>`__
-   - **GCP**: `Cloud SQL for PostgreSQL <https://cloud.google.com/sql/docs/postgres/create-instance>`__
-
-4. **Create Redis Instance**
-
-   - Use managed cache service (ElastiCache, Azure Cache, Memorystore)
-   - Redis version 7.0 or higher
-   - Minimum 4 GB memory
-   - Enable encryption in transit
-   - Place in private subnet within VPC
-
-   **Cloud Provider Guides:**
-
-   - **AWS**: `Amazon ElastiCache for Redis <https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.html>`__
-   - **Azure**: `Azure Cache for Redis <https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis>`__
-   - **GCP**: `Memorystore for Redis <https://cloud.google.com/memorystore/docs/redis/create-instance-console>`__
-
-5. **Create Cloud Storage**
-
-   - Create storage bucket (S3, Azure Blob, GCS bucket, or other supported cloud storage)
-   - Enable versioning (recommended)
-   - Configure lifecycle policies for log retention
-   - See :ref:`create_data_storage` for provider-specific instructions
+   Creating infrastructure manually requires familiarity with cloud resources and networking. Consider using the Terraform examples from Option 1 if you're new to cloud infrastructure setup.
 
 
-Cloud Provider Mapping
-=======================
+Follow the below guides to setup the infrastructure manually based on your cloud service provider of choice
 
-.. list-table::
-   :header-rows: 1
-   :widths: 25 25 25 25
+.. only:: html
 
-   * - Component
-     - AWS
-     - Azure
-     - GCP
-   * - Network
-     - VPC
-     - Virtual Network
-     - VPC
-   * - Kubernetes
-     - EKS
-     - AKS
-     - GKE
-   * - PostgreSQL
-     - RDS for PostgreSQL
-     - Azure Database for PostgreSQL
-     - Cloud SQL for PostgreSQL
-   * - Redis
-     - ElastiCache for Redis
-     - Azure Cache for Redis
-     - Memorystore for Redis
-   * - Storage
-     - S3
-     - Blob Storage
-     - Cloud Storage
+  .. grid:: 1 2 2 2
+      :gutter: 3
 
-Networking Configuration
+      .. grid-item-card:: :octicon:`lock` Network (VPC/VNet)
+
+          Create isolated network infrastructure for your cloud resources.
+
+          +++
+
+          `AWS - VPC <https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html>`_
+
+          `Azure - Virtual Network <https://learn.microsoft.com/en-us/azure/virtual-network/quick-create-portal>`_
+
+          `GCP - VPC <https://cloud.google.com/vpc/docs/create-modify-vpc-networks>`_
+
+      .. grid-item-card:: :octicon:`container` Kubernetes Cluster
+
+          Deploy managed Kubernetes service to run OSMO Service components.
+
+          +++
+
+          `AWS - EKS <https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html>`_
+
+          `Azure - AKS <https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal>`_
+
+          `GCP - GKE <https://cloud.google.com/kubernetes-engine/docs/deploy-app-cluster>`_
+
+      .. grid-item-card:: :octicon:`database` PostgreSQL Database
+
+          Create managed PostgreSQL database for application data storage.
+
+          +++
+
+          `AWS - RDS for PostgreSQL <https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html>`_
+
+          `Azure - Azure Database for PostgreSQL <https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/quickstart-create-server-portal>`_
+
+          `GCP - Cloud SQL for PostgreSQL <https://cloud.google.com/sql/docs/postgres/create-instance>`_
+
+      .. grid-item-card:: :octicon:`zap` Redis Cache
+
+          Set up managed Redis cache for session management and real-time data.
+
+          +++
+
+          `AWS - ElastiCache Redis <https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.html>`_
+
+          `Azure - Azure Cache for Redis <https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis>`_
+
+          `GCP - Memorystore for Redis <https://cloud.google.com/memorystore/docs/redis/create-instance-console>`_
+
+
+Configure Networking
 ========================
 
-Ensure the following network connectivity:
+.. important::
 
-- **Kubernetes ↔ PostgreSQL**: Private connection within VPC
-- **Kubernetes ↔ Redis**: Private connection within VPC
-- **Kubernetes → Cloud Storage**: Outbound internet access or VPC endpoint
-- **User → Kubernetes**: Internet access via load balancer/ingress
+   **Required Network Connectivity:**
+
+   Ensure proper network connectivity between components for OSMO to function correctly.
+
+.. rst-class:: connectivity-list
+
+**Internal VPC Connections (Private Network):**
+
+- Kubernetes ↔ PostgreSQL
+- Kubernetes ↔ Redis
+
+**External Connections:**
+
+- Kubernetes → Cloud Storage *(Outbound internet or VPC endpoint)*
+- User → Kubernetes *(Internet access via load balancer/ingress)*
+
 
 Best Practices
 ========================
@@ -332,7 +232,4 @@ Best Practices
 4. **Minimal access**: Use security groups to restrict access to only required ports
 5. **Service accounts**: Use cloud provider IAM for service-to-service authentication
 
-Next Steps
-==========
 
-Once you have set up the infrastructure, proceed to :ref:`deploy_service` to deploy the OSMO service.

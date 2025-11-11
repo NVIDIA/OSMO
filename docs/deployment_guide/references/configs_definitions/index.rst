@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 
 ===========================
-API Configurations
+Configuration API
 ===========================
 
 OSMO hosts a Swagger UI that provides a full overview of the available API endpoints.

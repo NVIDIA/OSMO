@@ -47,7 +47,10 @@ The minimal deployment includes:
 Prerequisites
 =============
 
-see :ref:`prerequisites` for the prerequisites.
+see :ref:`prerequisites` for the setup of the Kubernetes cluster, PostgreSQL database, and Redis instance.
+
+.. note::
+   Minimal deployment can be deployed without networking setup, you will be **not** able to access OSMO using port forwarding with limited functionality.
 
 Step 1: Create Namespace
 ========================
@@ -238,13 +241,14 @@ Create the following values files for the minimal deployment:
         enabled: false # Set to false if using external Redis
         serviceName: <your-redis-host>
         port: 6379
-        tlsEnabled: false
+        tlsEnabled: true # Set to false if your Redis does not require TLS
 
       service:
         scaling:
           minReplicas: 1
           maxReplicas: 1
-        hostname: <your-domain>  # Set your domain for ingress
+        # Set your domain for ingress if you want to enable ingress for external access
+        # hostname: <your-domain>
         ingress:
           enabled: false  # Set to true if you want to enable ingress for external access
           # only set the following if you want to enable ingress for external access
@@ -305,8 +309,8 @@ Create the following values files for the minimal deployment:
 
     services:
       ui:
-        skipAuth: true
-        hostname: <your-domain>  # Set your domain for UI ingress
+        # Set your domain for UI ingress if you want to enable ingress for external access
+        # hostname: <your-domain>
         ingress:
           enabled: false  # Set to true if you want to enable ingress for external access
           # only set the following if you want to enable ingress for external access
@@ -349,7 +353,8 @@ Create the following values files for the minimal deployment:
         scaling:
           minReplicas: 1
           maxReplicas: 1
-        hostname: <your-domain>  # Set your domain for router ingress
+        # Set your domain for router ingress if you want to enable ingress for external access
+        # hostname: <your-domain>
         ingress:
           enabled: false  # Set to true if you want to enable ingress for external access
           # only set the following if you want to enable ingress for external access
@@ -377,11 +382,10 @@ Create the following values files for the minimal deployment:
 
 .. important::
    - Replace ``<insert-osmo-image-tag>`` with the actual OSMO version you want to deploy
-   - Replace ``<your-domain>`` with your actual domain name (e.g., ``osmo.example.com``)
+   - Replace ``<your-domain>`` with your actual domain name (e.g., ``osmo.example.com``) if you want to enable ingress for external access
    - Update the ``serviceName`` for postgres and redis to match your external services
-   - Update ``ingressClass`` to match your cluster's ingress controller (nginx, alb, etc.)
-   - The ``--skip_auth=true`` flag disables authentication for minimal setup
-   - Ensure your DNS points to the ingress controller's load balancer
+   - Update ``ingressClass`` and ``ingress`` to match your cluster's ingress controller and ingress configuration
+   - Ensure your DNS points to the ingress controller's load balancer if you want to enable ingress for external access
 
 Step 6: Deploy OSMO Components
 ===============================
@@ -566,7 +570,10 @@ With ingress enabled, you can access OSMO directly through your domain:
    - Ensure your DNS is configured to point to your ingress controller's load balancer
    - If you need to test without DNS setup, you can use port forwarding as an alternative
 
-**Alternative: Port Forwarding (if DNS not configured)**:
+**Alternative: Port Forwarding (if Ingress and DNS are not configured)**:
+
+.. important::
+   When accessing OSMO using port forwarding, router service is not accessible and you can not use `osmo workflow port-forward` or `osmo workflow exec` commands to port forward or exec into a task in a workflow.
 
 If you haven't set up DNS yet, you can still access OSMO using port forwarding:
 
@@ -576,7 +583,7 @@ If you haven't set up DNS yet, you can still access OSMO using port forwarding:
 
    $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
 
-Then access the OSMO API at ``http://localhost:9000`` in your web browser.
+Then access the OSMO API at ``http://localhost:9000/api/docs`` in your web browser.
 You can interact with the API using the OSMO CLI.
 
 .. code-block:: bash
@@ -602,10 +609,13 @@ Step 10: Basic Configuration
 
 After deployment, you need to configure a central storage for workflow spec, workflow logs, and task's artifacts data before you can start running workflows:
 
-1. Setup data storage:
+**Setup data storage**:
 
 follow the :ref:`configure_data` guide to setup data storage.
 
+**Setup KAI scheduler**:
+
+follow the :ref:`installing_required_dependencies` guide to install the KAI scheduler to allow coscheduling and preemption of workflows.
 
 Testing Your Deployment
 ========================
@@ -613,7 +623,7 @@ Testing Your Deployment
 You can now test basic OSMO functionality following the :ref:`validate_osmo` guide.
 
 .. note::
-   Since there's no authentication in minimal deployment, all operations will be performed as an anonymous user.
+   When accessing OSMO using port forwarding you will not be able to run workflows involving port-forwarding or exec.
 
 Next Steps
 ==========
@@ -651,5 +661,9 @@ Common Issues
 -------------
 
 1. **Pods not starting**: Check resource availability and image pull secrets
-2. **Database connection issues**: Verify PostgreSQL pod is running and accessible
-3. **Port forwarding issues**: Ensure no other services are using the same port
+2. **Database connection issues**: Verify PostgreSQL database is accessible from the OSMO service and you have the correct credentials
+3. **Redis connection issues**: Verify Redis is accessible from the OSMO service and you have the correct credentials, common issues are:
+
+   - TLS is enabled but `tlsEnabled` is set to false in the values file
+
+4. **Port forwarding issues**: Ensure no other services are using the same port

@@ -18,7 +18,7 @@
 .. _cloud_cb:
 
 ================================================
-Create Backend (Cloud)
+Cloud Provider
 ================================================
 
 Create a managed Kubernetes cluster in the cloud to be used as a backend for job execution. This guide provides links to setup instructions for various cloud providers.

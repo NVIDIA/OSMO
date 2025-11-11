@@ -18,7 +18,7 @@
 .. _aws_s3_permissions:
 
 =============================
-S3 (AWS)
+AWS S3
 =============================
 
 To handle who can access Datasets, the necessary AWS resources/policies must be created. This includes

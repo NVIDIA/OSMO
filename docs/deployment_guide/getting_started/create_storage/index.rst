@@ -21,19 +21,21 @@
 Create Data Storage
 ================================================
 
-Buckets are used to isolate data storage so that each team or service has access to only their data.
-It is recommended that each team has their own bucket that is also different from the bucket that is
-used for storing service logs and intermediate data.
+OSMO uses cloud storage buckets to power workflow execution and enable seamless data management:
 
-Once the desired buckets are created, follow instructions at :ref:`configure_data` to configure the created
-buckets for OSMO.
+- **Service Bucket**: OSMO requires a dedicated bucket to function. This bucket stores workflow logs, manages intermediate data between tasks, and ensures smooth workflow execution.
+- **Team Buckets**: Development teams bring their own buckets to store, access, and manage their workflow data with complete isolation and control.
+
+This separation ensures secure data isolation while giving teams the flexibility to manage their data independently.
+
+Follow the below guides to create the required buckets:
 
 .. only:: html
 
   .. grid:: 1 2 2 2
       :gutter: 3
 
-      .. grid-item-card:: :octicon:`cloud` S3 (AWS)
+      .. grid-item-card:: :octicon:`cloud` AWS S3
           :link: ./s3/index
           :link-type: doc
 
@@ -45,7 +47,7 @@ buckets for OSMO.
 
           Configure Azure Blob Storage accounts, containers, and networking permissions.
 
-      .. grid-item-card:: :octicon:`cloud` Google Storage (GCP)
+      .. grid-item-card:: :octicon:`cloud` Google Cloud Storage (GCS)
           :link: ./gcp/index
           :link-type: doc
 
@@ -65,3 +67,5 @@ buckets for OSMO.
    azure/index
    gcp/index
    tos/index
+
+Once the desired buckets are created, follow instructions at :ref:`configure_data` to use them with OSMO.

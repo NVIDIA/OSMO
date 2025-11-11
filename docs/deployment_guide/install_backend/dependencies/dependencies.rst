@@ -18,7 +18,7 @@
 .. _installing_required_dependencies:
 
 ================================
-Dependencies
+Install Dependencies
 ================================
 
 Required Dependencies

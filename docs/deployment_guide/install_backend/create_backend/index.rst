@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 
 ================================================
-Create Backend Cluster
+Create K8s Cluster
 ================================================
 
 Choose your deployment environment to create a Kubernetes cluster for OSMO backend execution.

@@ -511,3 +511,22 @@ a.reference.internal > img.no-lightbox,
 a.reference.internal > img.transparent-bg {
   pointer-events: auto;
 }
+
+/* ==================== Code Block Emphasis Color ==================== */
+
+/* Light green background for emphasized lines in code blocks */
+.highlight .hll {
+  background-color: #d4edda !important; /* Light green (slightly darker) */
+}
+
+/* Dark mode - darker green for better contrast */
+[data-theme="dark"] .highlight .hll,
+html[data-mode="dark"] .highlight .hll {
+  background-color: #2d4a2f !important; /* Darker green for dark mode */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-mode="light"]) .highlight .hll {
+    background-color: #2d4a2f !important; /* Darker green for dark mode */
+  }
+}

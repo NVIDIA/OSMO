@@ -18,7 +18,7 @@
 .. _setup_concepts:
 
 =======================================================
-Concepts and Advanced Configuration
+Advanced Configuration
 =======================================================
 
 This section contains high-level overview of important concepts used in OSMO.
@@ -58,6 +58,12 @@ This section contains high-level overview of important concepts used in OSMO.
 
           File synchronization configuration for seamless data transfer in workflows.
 
+      .. grid-item-card:: :octicon:`file` Dataset Buckets
+          :link: ./dataset_buckets
+          :link-type: doc
+
+          Configure additional data buckets for managing team datasets and isolated storage.
+
 .. toctree::
    :hidden:
    :maxdepth: 1
@@ -67,3 +73,4 @@ This section contains high-level overview of important concepts used in OSMO.
    pool
    scheduler
    rsync
+   dataset_buckets

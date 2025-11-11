@@ -18,7 +18,7 @@
 .. _configure_pool:
 
 ================================================
-Configure Pool
+Configure Resource Pool
 ================================================
 
 Once the backend operators are deployed, a pool must be configured so users can target the compute resources in their workflow.

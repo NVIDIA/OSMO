@@ -18,10 +18,10 @@
 .. _gcp_gs_permissions:
 
 =============================
-Google Storage (GCP)
+Google Cloud Storage
 =============================
 
-To handle who can access Datasets, the necessary AWS resources/policies must be created. This includes
+To handle who can access Datasets, the necessary Google Cloud resources/policies must be created. This includes
 
 - A GS Bucket
 - An Special IAM Role (Optional)

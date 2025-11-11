@@ -18,7 +18,7 @@
 .. _onprem_cb:
 
 ================================================
-Create Backend (On-Premises)
+On-Premise
 ================================================
 
 Create a Kubernetes cluster to be used as a backend for job execution on your own infrastructure. This guide provides links to setup instructions for various on-premises Kubernetes distributions.

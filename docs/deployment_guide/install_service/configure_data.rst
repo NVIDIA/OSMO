@@ -21,19 +21,17 @@
 Configure Data Storage
 ================================================
 
-OSMO uses a data backend to store workflow spec, workflow logs, and task's artifacts data in a workflow.
+.. note::
 
-Prerequisites
-================================================
-
-- Data storage created: :ref:`create_data_storage`
+  Ensure you have created the required data storage before configuring OSMO to use them: :ref:`create_data_storage`
 
 Workflow Logs
 ===============
 
-To configure where the workflow spec/log storage location, run the following command:
+Run the following commands to configure the workflow spec and log storage location in OSMO. Make sure to replace the placeholders with the actual values.
 
 .. code-block:: bash
+  :emphasize-lines: 2, 4, 5, 8
 
   # URI of your s3 bucket e.g. s3://my_bucket
   BACKEND_URI=...
@@ -65,9 +63,10 @@ Then, update the workflow configuration using the OSMO CLI.
 Workflow Data
 ========================
 
-To configure where the intermediate data storage location, run the following command:
+Configure the storage location for intermediate data that OSMO uses to pass outputs between workflow tasks. Replace the placeholders with your actual values.
 
 .. code-block:: bash
+  :emphasize-lines: 2, 4, 5, 8
 
   # URI of your s3 bucket e.g. s3://my_bucket
   BACKEND_URI=...
@@ -96,83 +95,8 @@ Then, update the workflow data configuration using the OSMO CLI.
   osmo config update WORKFLOW --file /tmp/workflow_data_config.json
 
 
-Datasets (Optional)
-====================
+.. seealso::
 
-Datasets are optional and are used if users have preexisting data buckets or want to store data in isolated buckets. This option allows users to register that bucket with osmo and use our datasets concept to manage their data.
+   **Datasets (Optional)**
 
-With the URI, decide on a name for the URI which will be OSMO's reference. For example, if the name is ``decided_name``,
-datasets which are placed in that bucket will be referenced by ``decided_name/dataset_name``.
-
-Create the configuration of the new bucket with the following command:
-
-.. code-block:: bash
-
-  # Name of Bucket
-  BUCKET_NAME=...
-
-  # URI of your s3 bucket e.g. s3://my_bucket
-  BACKEND_URI=...
-
-  echo '{
-    "buckets": {
-        "'$BUCKET_NAME'": {
-            "dataset_path": "'$BACKEND_URI'"
-        }
-    }
-  }' > /tmp/dataset_config.json
-
-Then, update the dataset configuration using the OSMO CLI.
-
-.. code-block:: bash
-
-  osmo config update DATASET --file /tmp/dataset_config.json
-
-
-If there are multiple buckets to be included, add each bucket to the dictionary of buckets in ``buckets``.
-For example, if there were two buckets, the json would look like:
-
-.. code-block:: json
-  :class: no-copybutton
-
-  {
-    "buckets": {
-        "bucket1": {
-            "dataset_path": "s3://bucket1"
-        },
-        "bucket2": {
-            "dataset_path": "gs://bucket2"
-        }
-    }
-  }
-
-For example, if the bucket name is ``my_bucket`` and the URI is ``s3://my_bucket``:
-
-If this bucket will be the default bucket users will use, create this configuration:
-
-.. code-block:: bash
-
-  # Name of Bucket
-  BUCKET_NAME=...
-
-  echo '{
-    "default_bucket": "'$BUCKET_NAME'"
-  }' > /tmp/dataset_default_bucket_config.json
-
-Then, update the dataset configuration using the OSMO CLI.
-
-.. code-block:: bash
-
-  osmo config update DATASET --file /tmp/dataset_default_bucket_config.json
-
-
-Once the bucket has been added to OSMO, verify the installation using ``osmo bucket list``.
-
-.. code-block:: bash
-  :substitutions:
-
-  $ osmo bucket list
-
-  Bucket               Location
-  ============================================
-  my_bucket (default)  s3://my_bucket_location
+   To configure storage buckets for users to store OSMO datasets, see :ref:`dataset_buckets` in the Advanced Configuration section.

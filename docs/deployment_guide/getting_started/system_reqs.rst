@@ -17,56 +17,46 @@
 
 .. _system_requirements:
 
-System Requirements
-===================
+====================
+Instances
+====================
 
-This section provides the system requirements for deploying OSMO.
+Minimum system instance requirements to deploy OSMO and its related cloud components as below:
 
-Service
-----------------------------
+.. only:: html
 
-.. list-table:: Node Configuration
-   :widths: auto
-   :header-rows: 1
+  .. grid:: 1 2 2 3
+      :gutter: 3
 
-   * - Compute Node
-     - Minimum Requirements
-   * - CPU Cores
-     - 8 cores
-   * - Memory
-     - 32 GB
-   * - Disk
-     - 100 GB
-   * - Operating System
-     - Ubuntu 22.04+ or equivalent enterprise Linux distribution
+      .. grid-item-card:: :octicon:`server` OSMO Service
+          :class-card: requirement-card
+
+          **Node Configuration:**
+
+          - **CPU**: 8 cores
+          - **Memory**: 32 GB
+          - **Storage**: 100 GB
+          - **OS**: Ubuntu 22.04+ or equivalent enterprise Linux
+
+      .. grid-item-card:: :octicon:`database` PostgreSQL
+          :class-card: requirement-card
+
+          **Database Configuration:**
+
+          - **Version**: 15.0+
+          - **CPU**: 2 cores
+          - **Memory**: 4 GB
+          - **Storage**: 32 GB
+
+      .. grid-item-card:: :octicon:`cache` Redis
+          :class-card: requirement-card
+
+          **Cache Configuration:**
+
+          - **Version**: 7.0+
+          - **CPU**: 1 core
+          - **Memory**: 4 GB
 
 .. note::
-  The compute node can be a single node or a cluster of nodes. If you are using a cluster of nodes, the nodes cpu cores and memory should add up to the minimum requirements.
-
-.. list-table:: PostgreSQL Configuration
-   :widths: auto
-   :header-rows: 1
-
-   * - PostgreSQL
-     - Minimum Requirements
-   * - Version
-     - 15.0+
-   * - Storage
-     - 32 GB
-   * - CPU Cores
-     - 2 cores
-   * - Memory
-     - 4 GB
-
-.. list-table:: Redis Configuration
-   :widths: auto
-   :header-rows: 1
-
-   * - Redis
-     - Minimum Requirements
-   * - Version
-     - 7.0+
-   * - Memory
-     - 4 GB
-   * - CPU Cores
-     - 1 core
+    System instance can be a single node or cluster of nodes.
+    For clusters, resources should aggregate to minimum requirements mentioned above.

@@ -18,21 +18,40 @@
 .. _deploy_service:
 
 ============================
-Service Deployment
+Deploy Service
 ============================
 
-This guide provides step-by-step instructions for deploying OSMO on a Kubernetes cluster.
+This guide provides step-by-step instructions for deploying OSMO service components on a Kubernetes cluster.
 
 Components Overview
 ====================
 
 OSMO deployment consists of several main components:
 
-1. OSMO Service
-2. Router Service
-3. Web UI Service
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-.. image:: osmo_full.png
+   * - Component
+     - Description
+   * - API Service
+     - Workflow operations and API endpoints
+   * - Router Service
+     - Routing traffic to the API Service
+   * - Web UI Service
+     - Web interface for users
+   * - Worker Service
+     - Background job processing
+   * - Logger Service
+     - Log collection and streaming
+   * - Agent Service
+     - Client communication and status updates
+   * - Delayed Job Monitor
+     - Monitoring and managing delayed background jobs
+
+.. image:: service_components.svg
+   :width: 80%
+   :align: center
 
 Step 1: Configure PostgreSQL
 ============================
@@ -155,9 +174,17 @@ b. Create a ``keycloak-values.yaml`` file with the following configuration:
       hostname: auth-<your-domain>
       annotations:
         # Add additional ingress-specific annotations here to match your ingress controller's annotations
+        # Example for AWS ALB:
+        # alb.ingress.kubernetes.io/target-type: ip
+        ## the group name and order are used to group the ingress rules together and ensure they are processed in the correct order
+        # alb.ingress.kubernetes.io/group.name: osmo
+        # alb.ingress.kubernetes.io/group.order: "0"
+        ## the scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB
         # alb.ingress.kubernetes.io/scheme: internet-facing
+        # alb.ingress.kubernetes.io/certificate-arn: <your-ssl-cert-arn>
         # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
         # alb.ingress.kubernetes.io/ssl-redirect: '443'
+
       path: /
       pathType: Prefix
       servicePort: 80
@@ -225,10 +252,6 @@ f. Install Keycloak using Helm:
     --namespace keycloak \
     -f keycloak-values.yaml
 
-.. note::
-
-  OSMO has only been validated with Keycloak version 24.4.9.
-
 g. Verify the installation:
 
 .. code-block:: bash
@@ -237,9 +260,9 @@ g. Verify the installation:
   $ kubectl get ingress -n keycloak
 
 .. note::
-  To access the Keycloak instance, you need to configure DNS records to point to your load balancer, for example you should create a record for ``auth-<example.com>`` to point to the load balancer IP.
+  To access the Keycloak instance, you need to configure DNS records to point to your load balancer, for example you should create a record for ``auth-osmo.my-domain.com`` to point to the load balancer IP.
 
-If you have DNS configured, you can access the Keycloak instance at ``https://auth-<example.com>``.
+If you have DNS configured, you can access the Keycloak instance at ``https://auth-osmo.my-domain.com``.
 If you do not have DNS configured, you can access the Keycloak via port forwarding:
 
 .. code-block:: bash
@@ -251,7 +274,7 @@ If you do not have DNS configured, you can access the Keycloak via port forwardi
 Post-Installation Keycloak Configuration
 ----------------------------------------
 
-a. Access your Keycloak instance at ``https://auth-<example.com>``
+a. Access your Keycloak instance at ``https://auth-osmo.my-domain.com``
 b. Log in with the admin credentials specified in the values file
 
 .. image:: keycloak_login.png
@@ -264,13 +287,13 @@ c. Create a new realm for OSMO:
   2. Click on the dropdown menu on the top left which says ``master`` and select ``Create Realm``
 
   .. image:: realm.png
-    :width: 400px
+    :width: 300px
     :align: center
 
   3. Enter the downloaded realm file in the ``Resource file`` field and click on ``Create``
 
   .. image:: create_realm.png
-    :width: 600px
+    :width: 900px
     :align: center
 
   4. You will then be redirected to the ``osmo`` realm
@@ -283,11 +306,11 @@ d. Click on the ``Clients`` tab and for each of the ``osmo-browser-flow`` and ``
   :align: center
 ..
 
-  * Root URL: ``https://<example.com>``
-  * Home URL: ``https://<example.com>``
-  * Admin URL: ``https://<example.com>``
-  * Valid Redirect URIs: ``https://<example.com>/*``
-  * Web Origins: ``https://<example.com>``
+  * Root URL: ``https://osmo.my-domain.com``
+  * Home URL: ``https://osmo.my-domain.com``
+  * Admin URL: ``https://osmo.my-domain.com``
+  * Valid Redirect URIs: ``https://osmo.my-domain.com/*``
+  * Web Origins: ``https://osmo.my-domain.com``
 
 e. On the ``osmo-browser-flow`` client details page, click on the ``Credentials`` tab and
    create and save a client secret that will be used for envoy later.
@@ -297,82 +320,40 @@ Creating Users
 
 * Users can be created directly in the Keycloak admin console. There are two options to create users:
 
-  1. Create a user and with their email and temporary password. During their first login, they will be prompted to reset their password.
+  1. Create a user with the email and a temporary password. During their first login, they will be prompted to reset their password.
 
-    a. Go to the Users tab
-    b. Click on the "Add User" button
-    c. Fill in the user details, add the user to the group "User" and save the user
-    d. Click on the user's ID to access their settings, in the Credentials tab enter a password and confirm it with the temporary password setting enabled
+    a. Go to the ``Users`` tab
+    b. Click on the ``Add User`` button
+    c. Fill in the user details, add the user to the group ``User`` and save the user
+    d. Click on the user's ID to access their settings, in the ``Credentials`` tab enter a password and confirm it with the temporary password setting enabled
     e. When the temporary password setting is enabled, the user will be forced to change their password upon their first login
 
   2. Create a user and allow them to self-service password reset via email. This requires a smtp email server to be configured in the Keycloak realm configuration.
 
     a. Go to the Users tab
-    b. Click on the "Add User" button
-    c. Fill in the user details, add the user to the group "User" and save the user
-    d. In the realm settings, under login, enable the "Forgot password" option.
-    e. Users will be able to reset their password upon their first login.
+    b. Click on the ``Add User`` button
+    c. Fill in the user details, add the user to the group ``User`` and save the user
+    d. In the realm settings, under login, enable the ``Forgot password`` option
+    e. User will be able to reset their password upon their first login
 
 .. seealso::
 
-   Keycloak can also be configured to log in with an identity provider. For detailed instructions
-   on configuring identity providers in Keycloak, refer to the `official Keycloak documentation <https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker>`__.
-
-..
-   Identity Provider (IdP)
-   -----------------------
-
-   Learn more at :ref:`authentication_flow_with_idp`.
-
-   1. Fetch your IdP application details. For example, if you are using Microsoft Azure AD, you can follow the steps below:
-
-      a. Go to the Azure portal and go to App registrations.
-      b. Click on the application you want to use for OSMO.
-      c. Click on the "Overview" tab.
-      d. Note down the following details:
-
-         * Application (client) ID
-         * Directory (tenant) ID
-
-   2. Configure the auth URL in your OSMO values file:
-
-      .. code-block:: yaml
-
-         auth:
-           enabled: true
-           device_endpoint: <device code endpoint>
-           device_client_id: <application-id>
-           browser_endpoint: <authorization endpoint>
-           browser_client_id: <application-id>
-           token_endpoint: <token endpoint>
-           logout_endpoint: <logout endpoint>
-
-   For example, if you are using Microsoft Azure AD, you can follow the steps below:
-
-      .. code-block:: yaml
-
-         auth:
-           enabled: true
-           device_endpoint: https://login.microsoftonline.com/<directory-id>/oauth2/v2.0/devicecode
-           device_client_id: <application-id>
-           browser_endpoint: https://login.microsoftonline.com/<directory-id>/oauth2/v2.0/authorize
-           browser_client_id: <application-id>
-           token_endpoint: https://login.microsoftonline.com/<directory-id>/oauth2/v2.0/token
-           logout_endpoint: https://login.microsoftonline.com/<directory-id>/oauth2/v2.0/logout
+   Keycloak can also be configured to log in with your chosen identity provider. For detailed instructions
+   on configuring SSO with identity providers in Keycloak, refer to the `official Keycloak documentation <https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker>`__.
 
 
 
 Step 3: Create Namespace and Secrets
 ====================================
 
-Create a namespace for OSMO:
+Create a namespace to deploy OSMO:
 
 .. code-block:: bash
 
    $ kubectl create namespace osmo
 
 
-Create secret for database and redis passwords:
+Create a secret for database and redis passwords:
 
 .. code-block:: bash
 
@@ -483,10 +464,6 @@ Step 4: Prepare Values
 ============================
 Create a values files for each OSMO component
 
-.. note::
-
-   - Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for all configuration options.
-
 Create ``osmo_values.yaml`` for osmo with the following sample configurations:
 
 .. dropdown:: ``osmo_values.yaml``
@@ -552,11 +529,16 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
             # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
           sslEnabled: false  # Set to true if managing SSL at the ingress level
           annotations:
-            # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
+            ## when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
             # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
             # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
             # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
             # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+            ## when using AWS ALB in addtional to the default alb annotations,
+            ## add the following annotations to specify the scheme of the ingress rules
+            # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
+            # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+            # alb.ingress.kubernetes.io/ssl-redirect: '443'
         # Resource allocation
         resources:
           requests:
@@ -742,6 +724,11 @@ Create ``router_values.yaml`` for router with the following sample configuration
             # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
             # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
             # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+            ## when using AWS ALB in addtional to the default alb annotations,
+            ## add the following annotations to specify the scheme of the ingress rules
+            # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
+            # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+            # alb.ingress.kubernetes.io/ssl-redirect: '443'
 
         # Resource allocation
         resources:
@@ -874,6 +861,11 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
             # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
             # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
             # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+            ## when using AWS ALB in addtional to the default alb annotations,
+            ## add the following annotations to specify the scheme of the ingress rules
+            # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
+            # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+            # alb.ingress.kubernetes.io/ssl-redirect: '443'
 
         # Resource allocation
         resources:
@@ -932,18 +924,19 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
         #   clusterName: <your-cluster-name>
 
 .. important::
-   Replace all ``<your-*>`` placeholders with your actual values before applying.
+   Replace all ``<your-*>`` placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.
 
-For full configurations, please refer to the helm chart README page or the sample values files.
+.. note::
+   Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options.
 
-Similar values files should be created for other components (Router, UI, Docs) with their specific configurations.
+Similar values files should be created for other components (Router, UI) with their specific configurations.
 
 Step 4: Deploy Components
 =========================
 
 Deploy the components in the following order:
 
-1. Deploy OSMO Service:
+1. Deploy **API Service**:
 
 .. code-block:: bash
 
@@ -954,13 +947,13 @@ Deploy the components in the following order:
    # deploy the service
    $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
 
-2. Deploy Router:
+2. Deploy **Router**:
 
 .. code-block:: bash
 
    $ helm upgrade --install router osmo/router -f ./router_values.yaml -n osmo
 
-3. Deploy UI:
+3. Deploy **UI**:
 
 .. code-block:: bash
 
@@ -969,7 +962,7 @@ Deploy the components in the following order:
 Step 5: Verify Deployment
 =========================
 
-1. Check pod status:
+1. Verify all pods are running:
 
 .. code-block:: bash
 
@@ -983,7 +976,7 @@ Step 5: Verify Deployment
     osmo-ui-xxx                     2/2     Running   0              <age>
     osmo-worker-xxx                 1/1     Running   0              <age>
 
-2. Verify services are running:
+2. Verify all services are running:
 
 .. code-block:: bash
 
@@ -995,7 +988,7 @@ Step 5: Verify Deployment
     osmo-service   ClusterIP   xxx               <none>        80/TCP    <age>
     osmo-ui        ClusterIP   xxx               <none>        80/TCP    <age>
 
-3. Check ingress configuration:
+3. Verify ingress configuration:
 
 .. code-block:: bash
 
@@ -1011,17 +1004,13 @@ Step 5: Verify Deployment
 Step 6: Post-deployment Configuration
 =====================================
 
-1. Configure DNS records to point to your load balancer, for example you should create a record for ``osmo.my-domain.com`` to point to the load balancer IP.
+1. Configure DNS records to point to your load balancer. For example, create a record for ``osmo.my-domain.com`` to point to the load balancer IP.
 
 2. Test authentication flow
 
-3. Verify access to the UI through your domain
+3. Verify access to the UI at https://osmo.my-domain.com through your domain
 
-4. Configure osmo service to register compute backends, pools and data backends
-
-   - :ref:`deploy_backend` - Register compute backends with OSMO
-   - :ref:`configure_pool` - Register pools for user access control
-   - :ref:`configure_data` - Register data storage buckets
+4. Create and configure data storage to store service data: :ref:`configure_data`
 
 
 Troubleshooting
@@ -1031,14 +1020,15 @@ Troubleshooting
 
 .. code-block:: bash
 
-   kubectl get pods -n <namespace>
-   # check if all pods are running, if not, check the logs for more details
-   kubectl logs -f <pod-name> -n <namespace>
+  kubectl get pods -n <namespace>
 
-2. Common issues:
+  # check if all pods are running, if not, check the logs for more details
+  kubectl logs -f <pod-name> -n <namespace>
 
-   * Database connection failures
-   * Authentication configuration issues
-   * Ingress routing problems
-   * Resource constraints
-   * Missing secrets or incorrect configurations
+2. Common issues and their resolutions:
+
+   * **Database connection failures**: Verify the database is running and accessible
+   * **Authentication configuration issues**: Verify the authentication configuration is correct
+   * **Ingress routing problems**: Verify the ingress is configured correctly
+   * **Resource constraints**: Verify the resource limits are set correctly
+   * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct

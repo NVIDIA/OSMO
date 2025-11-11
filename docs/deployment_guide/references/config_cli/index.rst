@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 
 =================
-Configs CLI
+Configuration CLI
 =================
 
 This section describes how to configure OSMO using the ``osmo config`` commands.

@@ -18,7 +18,7 @@
 .. _authentication_authorization:
 
 ================================================
-Authentication and Authorization
+AuthN/AuthZ
 ================================================
 
 This section provides comprehensive information about authentication and authorization in OSMO, including how to configure identity providers, manage roles, and control access to resources.
