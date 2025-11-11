@@ -52,7 +52,7 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
               {workflow.status && (
                 <a
                   className="tag-container-round"
-                  href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#workflow-statuses`}
+                  href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#status-reference`}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={getStatusDescription(workflow.status)}

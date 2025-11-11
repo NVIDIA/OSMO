@@ -170,7 +170,7 @@ export const TasksTable = ({
           row.original.exit_code !== null ? (
             <a
               color={row.original.exit_code === 0 ? Colors.tag : Colors.error}
-              href={`${runtimeEnv.DOCS_BASE_URL}workflows/exit/exit_codes.html`}
+              href={`${runtimeEnv.DOCS_BASE_URL}workflows/exit_codes.html`}
               target="_blank"
               rel="noopener noreferrer"
               className="tag-container"

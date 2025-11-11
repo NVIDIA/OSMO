@@ -178,7 +178,7 @@ export const TasksTable = ({
         cell: ({ row }) => (
           <a
             className="tag-container-round"
-            href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#task-statuses`}
+            href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#status-reference`}
             target="_blank"
             rel="noopener noreferrer"
             title={getStatusDescription(row.original.status)}
@@ -196,7 +196,7 @@ export const TasksTable = ({
         header: "Priority",
         cell: ({ row }) => (
           <a
-            href={`${runtimeEnv.DOCS_BASE_URL}concepts/workflows_tasks/priority.html`}
+            href={`${runtimeEnv.DOCS_BASE_URL}resource_pools/scheduling/index.html#priority`}
             target="_blank"
             rel="noopener noreferrer"
             className="tag-container"

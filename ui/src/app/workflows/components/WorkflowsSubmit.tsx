@@ -118,7 +118,7 @@ export const WorkflowsSubmit = ({
       warnings.push(<p key="low-priority-warning">LOW priority workflows can be preempted during the run</p>);
     }
     setWarningList(warnings);
-  }, [warnLocalPath, selectedPriority]);
+  }, [warnLocalPath, selectedPriority, runtimeEnv.DOCS_BASE_URL]);
 
   const parsedProfileData = useMemo(() => {
     if (!profileData) {

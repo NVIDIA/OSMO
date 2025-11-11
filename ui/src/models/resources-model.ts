@@ -184,17 +184,6 @@ export const roundResources = (value: ResourceAllocation): ResourceAllocation =>
   };
 };
 
-export const ALLOCATABLE_RESOURCES_LABELS: AllocatableResource[] = [
-  {
-    name: "Storage",
-    kubeLabel: "ephemeral-storage",
-    nodeResourceLabel: "Storage [Gi]",
-  },
-  { name: "CPU", kubeLabel: "cpu", nodeResourceLabel: "CPU [#]" },
-  { name: "Memory", kubeLabel: "memory", nodeResourceLabel: "Memory [Gi]" },
-  { name: "GPU", kubeLabel: "nvidia.com/gpu", nodeResourceLabel: "GPU [#]" },
-];
-
 /**
  * @see resources.py for implementation
  */

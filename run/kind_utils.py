@@ -198,6 +198,7 @@ def setup_kai_scheduler() -> None:
             kai_config = """scheduler:
   additionalArgs:
   - --default-staleness-grace-period=-1s  # Disable stalegangeviction
+  - --update-pod-eviction-condition=true  # Enable OSMO to read preemption conditions
 """
 
             # Write the configuration to a temporary file
@@ -207,10 +208,10 @@ def setup_kai_scheduler() -> None:
 
             # Fetch the KAI scheduler helm chart to temp directory
             logger.info('   Fetching KAI scheduler helm chart...')
-            chart_file = os.path.join(tmpdir, 'kai-scheduler-v0.5.5.tgz')
+            chart_file = os.path.join(tmpdir, 'kai-scheduler-v0.8.1.tgz')
             process = run_command_with_logging([
                 'helm', 'fetch', 'oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler',
-                '--version', 'v0.5.5',
+                '--version', 'v0.8.1',
                 '--destination', tmpdir
             ], 'Fetching KAI scheduler chart')
 

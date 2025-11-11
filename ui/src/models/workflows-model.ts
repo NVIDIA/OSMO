@@ -72,39 +72,6 @@ export const PriorityValues = ["LOW", "NORMAL", "HIGH"] as const;
 
 export const OrderValues = ["DESC", "ASC"] as const;
 
-/**
- * @see GET api/workflow
- * @example
- * {
- *   "workflows": [
- *     {
- *       "user": "albertos@nvidia.com",
- *       "name": "hello-osmo-yi76ywvscvg6hipvhieg4wzhgq",
- *       "submit_time": "2023-11-03T21:28:54.157866",
- *       "start_time": "2023-11-03T21:29:00.026839",
- *       "end_time": "2023-11-03T21:29:07.161254",
- *       "queued_time": 5.868973,
- *       "duration": 7.134415,
- *       "status": "COMPLETED",
- *       "logs":
- *   "https://stg2.osmo.nvidia.com:443/api/workflow/hello-osmo-yi76ywvscvg6hipvhieg4wzhgq/logs"
- *     },
- *     {
- *       "user": "albertos@nvidia.com",
- *       "name": "hello-osmo-ceryhaymvbextcb35g67uijxpq",
- *       "submit_time": "2023-11-03T21:29:20.954774",
- *       "start_time": "2023-11-03T21:29:27.320703",
- *       "end_time": "2023-11-03T21:29:34.662007",
- *       "queued_time": 6.365929,
- *       "duration": 7.341304,
- *       "status": "COMPLETED",
- *       "logs":
- *   "https://stg2.osmo.nvidia.com:443/api/workflow/hello-osmo-ceryhaymvbextcb35g67uijxpq/logs"
- *     },
- *   ]
- * }
- */
-
 const WorkflowListItemSchema = z.object({
   user: z.string(),
   name: z.string(),
@@ -142,60 +109,6 @@ export const WorkflowListRequestSchema = z.object({
   tags: z.array(z.string()).optional().default([]),
   priority: z.enum(PriorityValues).optional(),
 });
-
-/**
- * @see GET api/workflow/{name}
- * @example
- * {
- *   "name": "hello-osmo-4yqjgwvlz5fqxk3k2lqvohgnii",
- *   "uuid": "4yqjgwvlz5fqxk3k2lqvohgnii",
- *   "submitted_by": "albertos@nvidia.com",
- *   "cancelled_by": null,
- *   "logs":
- *   "https://us-west-2-aws.osmo.nvidia.com/api/workflow/hello-osmo-4yqjgwvlz5fqxk3k2lqvohgnii/logs",
- *   "dashboard_url":
- *   "https://isaac-hil-control.nvidia.com/dashboard/#/search?namespace=_all&q=4yqjgwvlz5fqxk3k2lqvohgnii",
- *   "grafana_url":
- *   "https://isaac-hil-control.nvidia.com/grafana/d/HExS-0HVk/workflow-resources?var-namespace=default&var-uuid=4yqjgwvlz5fqxk3k2lqvohgnii&from=now-19h&to=now-18h",
- *   "submit_time": "2023-11-28T23:04:48.371720",
- *   "start_time": "2023-11-28T23:04:55.685924",
- *   "end_time": "2023-11-28T23:05:02.371288",
- *   "exec_timeout": 21600,
- *   "queue_timeout": 86400,
- *   "duration": 6.685364,
- *   "queued_time": 7.314204,
- *   "status": "COMPLETED",
- *   "outputs": "",
- *   "groups": [
- *     {
- *       "name": "hello-group",
- *       "status": "COMPLETED",
- *       "start_time": "2023-11-28T23:04:55.685924",
- *       "end_time": "2023-11-28T23:05:02.371288",
- *       "remaining_upstream_groups": [],
- *       "downstream_groups": [],
- *       "failure_message": null,
- *       "tasks": [
- *         {
- *           "name": "hello",
- *           "status": "COMPLETED",
- *           "failure_message": null,
- *           "exit_code": 0,
- *           "start_time": "2023-11-28T23:04:55.685924",
- *           "end_time": "2023-11-28T23:05:02.371288",
- *           "input_download_start_time": "2023-11-28T23:04:55.248000",
- *           "input_download_end_time": "2023-11-28T23:04:55.249000",
- *           "output_upload_start_time": "2023-11-28T23:04:55.264000",
- *           "output_upload_end_time": "2023-11-28T23:04:55.265000",
- *           "pod_name": "hello-4yqjgwvlz5fqxk3k2lqvohgnii",
- *           "node_name": "osmo-x86-rtx3090-01"
- *         }
- *       ]
- *     }
- *   ],
- *   "backend": "isaac"
- * }
- */
 
 export const TaskSchema = z.object({
   name: z.string(),

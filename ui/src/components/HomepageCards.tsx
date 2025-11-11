@@ -100,11 +100,11 @@ export const HomepageCards = () => {
               .
             </p>
           }
-          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/isaac_sim_sdg.html`}
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}how_to/isaac_sim_sdg.html`}
           workflowLink="/workflows/submit/isaac_sim_sdg"
         />
         <HomepageCard
-          title="TorchRun: Training Deep Neural Networks"
+          title="TorchRun: Training Deep Learning Models"
           imageUrl="/train.jpg"
           imageAlt="Training"
           body={
@@ -125,7 +125,7 @@ export const HomepageCards = () => {
           workflowLink="/workflows/submit/mnist_training"
         />
         <HomepageCard
-          title="Isaac Lab: Training Reinforcement Learning Policy"
+          title="Isaac Lab: Training robot policy with Reinforcement Learning (RL)"
           imageUrl="/robot.png"
           imageAlt="Humanoid in Isaac Lab"
           body={
@@ -142,7 +142,7 @@ export const HomepageCards = () => {
               and generate a video of the policy running on a robot in simulation.
             </p>
           }
-          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/reinforcement_learning.html`}
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}how_to/reinforcement_learning.html`}
           workflowLink="/workflows/submit/reinforcement_learning"
         />
         <HomepageCard
@@ -163,7 +163,7 @@ export const HomepageCards = () => {
               (a foundation model for robotics) using a <strong>Jupyter notebook</strong>.
             </p>
           }
-          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}tutorials/isaac_groot_notebook.html`}
+          tutorialLink={`${runtimeEnv.DOCS_BASE_URL}how_to/isaac_groot_notebook.html`}
           workflowLink="/workflows/submit/groot"
         />
       </div>

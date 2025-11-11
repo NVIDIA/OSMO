@@ -19,23 +19,6 @@ export const UserFilterChoicesSchema = z.array(z.string());
 
 export const UserListResponseSchema = z.array(z.string());
 
-/**
- * @see GET api/users
- * @example
- *
- * [
-    "svc-worker@stg2.osmo.nvidia.com",
-    "albertos@nvidia.com",
-    "ethany@nvidia.com",
-    "svc-osmo-admin@nvidia.com",
-    "aruns@nvidia.com",
-    "tdewan@nvidia.com",
-    "ecolter@nvidia.com",
-    "xutongr@nvidia.com",
-    "ryali@nvidia.com",
-    "vivianp@nvidia.com"
-   ]
- */
 export const UserListRequestSchema = z.undefined();
 
 export type UserListRequestSchema = z.infer<typeof UserListRequestSchema>;

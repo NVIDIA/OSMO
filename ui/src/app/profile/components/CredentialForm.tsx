@@ -234,7 +234,7 @@ const CredentialForm = ({
               <strong>{env.NEXT_PUBLIC_APP_NAME}</strong> lets you run containers from multiple registries. Visit our
               <a
                 className="link-inline"
-                href={`${runtimeEnv.DOCS_BASE_URL}getting_started/credentials/registry.html#registry`}
+                href={`${runtimeEnv.DOCS_BASE_URL}getting_started/credentials.html#registry`}
                 target="_blank"
                 rel="noopener noreferrer"
               >

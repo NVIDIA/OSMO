@@ -830,24 +830,31 @@ def check_failure_pod_conditions(pod: Any) -> Tuple[bool, task.TaskGroupStatus |
     if pod.status.conditions:
         for condition in pod.status.conditions:
             # In the future, add more condition checks to match the right errors and exit code
-            if condition.type == 'DisruptionTarget' and condition.status is True:
+            if condition.type == 'DisruptionTarget' and condition.status == 'True':
                 return True, task.TaskGroupStatus.FAILED_BACKEND_ERROR, \
                     task.ExitCode.FAILED_BACKEND_ERROR.value
     return False, None, None
 
 
+def check_preemption_by_scheduler(pod: Any) -> Tuple[bool, str]:
+    """
+    Check if the pod is preempted by the scheduler.
+    """
+    if pod.status.conditions:
+        for condition in pod.status.conditions:
+            if condition.status == 'True' \
+                and condition.reason == 'PreemptionByScheduler':
+                return True, f'Pod was preempted at {condition.last_transition_time}. '
+    return False, ''
+
+
 def calculate_pod_status(pod: Any) \
     -> Tuple[task.TaskGroupStatus, str, Optional[int]]:
     """ Determines Pod Status """
-
-    # If there is a deletion timestamp but the finalizer is still present, and there was
-    # no reason, then the pod was preempted.
-    finalizer = pod.metadata.finalizers or []
-    if pod.metadata.deletion_timestamp and \
-        'osmo.nvidia.com/cleanup' in finalizer and \
-            pod.status.reason is None:
+    is_preempted, message = check_preemption_by_scheduler(pod)
+    if is_preempted:
         return (task.TaskGroupStatus.FAILED_PREEMPTED,
-                f'Pod was preempted at {pod.metadata.deletion_timestamp}. ',
+                message,
                 task.ExitCode.FAILED_PREEMPTED.value)
 
     pod_waiting_status = get_container_waiting_error_info(pod)

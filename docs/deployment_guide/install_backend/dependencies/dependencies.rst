@@ -56,6 +56,7 @@ nodes the KAI scheduler should run on.
   scheduler:
     additionalArgs:
     - --default-staleness-grace-period=-1s  # Disable stalegangeviction
+    - --update-pod-eviction-condition=true  # Enable OSMO to read preemption conditions
 
 Next, install KAI using ``helm``
 

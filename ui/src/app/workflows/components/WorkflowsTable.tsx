@@ -131,7 +131,7 @@ export const WorkflowsTable = ({
         cell: ({ row }) => (
           <a
             className="tag-container-round"
-            href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#workflow-statuses`}
+            href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#status-reference`}
             target="_blank"
             rel="noopener noreferrer"
             title={getStatusDescription(row.original.status)}

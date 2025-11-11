@@ -85,7 +85,7 @@ const TaskStatusInfo = ({ status, failureMessage, onClick }: Props) => {
   return (
     <div className="flex flex-row gap-1 items-center">
       <a
-        href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#task-statuses`}
+        href={`${runtimeEnv.DOCS_BASE_URL}workflows/lifecycle/index.html#status-reference`}
         target="_blank"
         rel="noopener noreferrer"
         className="tag-container-round"

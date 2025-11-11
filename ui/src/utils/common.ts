@@ -49,9 +49,6 @@ interface ContextProps {
  * - Path: Add parameter to the URL
  * - Query: Add in searchParams with URLSearchParams()
  * - Body: Pass in a request body and set includeContentType to true
- *
- * @see https://stg2.osmo.nvidia.com/api/docs
- *
  */
 export const OsmoApiFetch = async (
   apiPath: string,

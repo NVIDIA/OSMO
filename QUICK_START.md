@@ -209,10 +209,11 @@ helm upgrade --install gpu-operator gpu-operator-v25.10.0.tgz \
 ```bash
 helm upgrade --install kai-scheduler \
   oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-  --version v0.5.5 \
+  --version v0.8.1 \
   --create-namespace -n kai-scheduler \
   --set global.nodeSelector.node_group=kai-scheduler \
   --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
+  --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
   --wait
 ```
 

@@ -46,6 +46,15 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
     logout_endpoint: `${scheme}://${env.NEXT_PUBLIC_OSMO_AUTH_HOSTNAME}/realms/osmo/protocol/openid-connect/logout`,
   };
 
+  // Avoid network calls during static generation (build/export)
+  const isStaticGeneration =
+    typeof window === "undefined" &&
+    (process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export");
+
+  if (isStaticGeneration) {
+    return loginInfo;
+  }
+
   try {
     const res = await fetch(`${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/auth/login`, { cache: "no-store" });
     loginInfo = (await res.json()) as LoginInfo;
