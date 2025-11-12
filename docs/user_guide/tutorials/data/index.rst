@@ -27,6 +27,17 @@ OSMO makes it easy to upload and download data for your workflows. This tutorial
 * How to work with :ref:`storage URLs <tutorials_working_with_data_storage_urls>`
 * How to work with :ref:`datasets <tutorials_working_with_data_datasets>`
 
+.. admonition:: Prerequisites
+  :class: important
+
+  Before you start, please make sure you have configured your data credentials.
+  See :ref:`credentials_data` for more details.
+
+.. hint::
+
+  The examples below demonstrate reading and writing from remote storage. Please replace any URLs
+  with your own storage URLs.
+
 .. _tutorials_working_with_data_inside_a_workflow:
 
 Inside a Workflow
@@ -46,7 +57,7 @@ OSMO provides two directories for data management in every task:
 **How it works:**
 
 1. **Before task starts** → OSMO downloads data specified in ``inputs:`` to ``/osmo/input/``
-2. **During task execution** → Your code reads from ``{{input:0}}/``
+2. **During task execution** → Your code reads from ``{{input:#}}/``
 3. **After task completes** → OSMO uploads ``/osmo/output/`` to locations specified in ``outputs:``
 
 **Example:**
@@ -207,13 +218,10 @@ Once uploaded, you can download a dataset to your local machine using the CLI:
 .. code-block:: bash
 
   # Download latest version
-  $ osmo dataset download my_dataset
+  $ osmo dataset download my_dataset /tmp
 
   # Download specific version
-  $ osmo dataset download my_dataset:v1.0.0
-
-  # Download to specific directory
-  $ osmo dataset download my_dataset -o /path/to/dir
+  $ osmo dataset download my_dataset:1 /tmp
 
 Downloading a Dataset
 ---------------------

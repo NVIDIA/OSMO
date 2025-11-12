@@ -20,7 +20,7 @@ load("@pip_types//:types.bzl", "types")
 load("@rules_mypy//mypy:mypy.bzl", "mypy")
 
 mypy_aspect = mypy(
-    mypy_ini = "@@//bzl/mypy:mypy.ini",
-    mypy_cli = "@@//bzl/mypy:mypy_cli",
+    mypy_ini = Label("//bzl/mypy:mypy.ini"),
+    mypy_cli = Label("//bzl/mypy:mypy_cli"),
     types = types,
 )
