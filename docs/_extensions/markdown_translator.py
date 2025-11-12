@@ -209,6 +209,25 @@ class ExtendedMarkdownTranslator(MarkdownTranslator):
         """End passthrough text element"""
         pass
 
+    # ========================================================================
+    # Mermaid diagram handlers
+    # ========================================================================
+
+    def visit_mermaid(self, node):
+        """Handle mermaid diagram nodes"""
+        # Convert mermaid diagrams to markdown code blocks
+        self.ensure_eol(2)
+        self.add('```mermaid\n')
+        self.add(node['code'])
+        if not node['code'].endswith('\n'):
+            self.add('\n')
+        self.add('```\n')
+        raise nodes.SkipNode
+
+    def depart_mermaid(self, node):
+        """End mermaid diagram"""
+        pass
+
 
 def setup(app):
     """Setup the extension"""

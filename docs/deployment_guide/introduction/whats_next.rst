@@ -34,7 +34,7 @@ Select one of the deployment options below depending on your needs and deploymen
       :gutter: 3
 
       .. grid-item-card:: :octicon:`rocket` Minimal Deployment
-          :link: ../appendix/quickstart
+          :link: ../appendix/deploy_minimal
           :link-type: doc
 
           **Time**: ~30 minutes
@@ -76,29 +76,6 @@ Select one of the deployment options below depending on your needs and deploymen
 
           Complete production-ready deployment with SSO authentication, data storage, monitoring, and multi-backend support.
 
-      .. grid-item-card:: :octicon:`organization` Multi Tenant Deployment
-          :link: ../appendix/deploy_multitenant
-          :link-type: doc
-
-          **Time**: 4-8 hours
-
-          **Best for**: SaaS providers, Enterprises, Large organizations
-
-          **Key Benefits**:
-
-          ✓ Complete tenant isolation
-
-          ✓ Per-tenant auth
-
-          ✓ Per-tenant storage
-
-          ✓ Resource quotas
-
-          **Summary**:
-
-          Advanced deployment with complete tenant isolation to serve multiple organizations requiring separate environments for multiple teams
-
-          Includes per-tenant databases, authentication realms, and network policies.
 
 
 

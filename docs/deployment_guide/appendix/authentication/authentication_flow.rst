@@ -208,6 +208,8 @@ Token Refresh
 2. If the refresh token is valid, Keycloak issues a new access token without requiring re-authentication
 3. If the refresh token is expired or invalid, the user is redirected to the authentication flow
 
+.. _authentication_flow_sso:
+
 Identity Provider Configuration
 ================================
 

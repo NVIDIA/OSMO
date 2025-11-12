@@ -42,6 +42,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
+    'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
 
     # Custom extensions
@@ -119,13 +120,17 @@ html_static_path = ['../_static']
 html_css_files = [
     'css/base.css',
     'css/lifecycle-timeline.css',
+    'mermaid_custom.css',
+    'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
 
 # JavaScript files to include in the HTML output
 # Files are loaded in the order they appear in this list
 html_js_files = [
+    'https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js',
     'js/code_annotation.js',
     'js/tab-set.js',
+    'js/glightbox-init.js',
 ]
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
@@ -206,3 +211,7 @@ autodoc_member_order = 'bysource'
 autodoc_unqualified_typehints = True
 add_module_names = False
 autodoc_typehints_format = 'short'
+
+# -- Options for Mermaid -------------------------------------------------
+
+mermaid_version = '11.12.1'

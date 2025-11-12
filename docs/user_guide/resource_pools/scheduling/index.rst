@@ -99,7 +99,7 @@ For workflows with the **same** priority level, workflows are scheduled in the o
 
     .. image:: priority_queueing_order.svg
       :align: center
-      :class: transparent-bg
+      :class: transparent-bg no-scaled-link
       :width: 100%
 
 .. seealso::
@@ -172,7 +172,7 @@ for the higher priority workflow.
 
     .. image:: priority_preemption.svg
       :align: center
-      :class: transparent-bg
+      :class: transparent-bg no-scaled-link
       :width: 100%
 
 .. dropdown:: Why should I use ``LOW`` priority workflows?
@@ -247,12 +247,12 @@ OSMO will automatically **borrow GPUs** from other pools that are sharing the sa
 
     .. image:: priority_borrowing.svg
       :align: center
-      :class: transparent-bg
+      :class: transparent-bg no-scaled-link
       :width: 75%
 
     When a user submits ``WF5`` with ``NORMAL`` priority to ``pool2``, the scheduler will **preempt** ``WF3`` to allow ``WF5`` to start, effectively **reclaiming** the borrowed GPU.
 
     .. image:: priority_reclaim.svg
       :align: center
-      :class: transparent-bg
+      :class: transparent-bg no-scaled-link
       :width: 75%

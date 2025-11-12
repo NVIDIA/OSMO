@@ -81,7 +81,7 @@ This HIL workflow orchestrates **three tasks** running in parallel to create a h
 .. figure:: images/hil.svg
    :width: 600
    :align: center
-   :class: mb-4
+   :class: transparent-bg no-scaled-link
 
 
 Setting up Startup Scripts

@@ -153,6 +153,10 @@ spec:
                           {
                             "name": "OSMO_LOGIN_DEV",
                             "value": "true"
+                          },
+                          {
+                            "name": "OSMO_SKIP_DATA_AUTH",
+                            "value": "1"
                           }
                         ]
                       },
@@ -174,6 +178,10 @@ spec:
                           {
                             "name": "OSMO_LOGIN_DEV",
                             "value": "true"
+                          },
+                          {
+                            "name": "OSMO_SKIP_DATA_AUTH",
+                            "value": "1"
                           }
                         ]
                       }
@@ -272,6 +280,22 @@ spec:
             "$BASE_URL/api/profile/settings" \
             -d '{
               "pool": "default"
+            }'
+
+          echo "Setting data credential..."
+
+          # Set data credential (POST /api/credentials/osmo)
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-osmo-user: testuser" \
+            "$BASE_URL/api/credentials/osmo" \
+            -d '{
+              "data_credential": {
+                "access_key_id": "'"${OBJECT_STORAGE_ACCESS_KEY_ID}"'",
+                "access_key": "'"${OBJECT_STORAGE_ACCESS_KEY}"'",
+                "endpoint": "'"${OBJECT_STORAGE_ENDPOINT}"'",
+                "region": "'"${OBJECT_STORAGE_REGION}"'"
+              }
             }'
 
           echo "OSMO configuration completed successfully!"
