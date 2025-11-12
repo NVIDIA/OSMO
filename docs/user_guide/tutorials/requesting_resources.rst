@@ -138,7 +138,7 @@ the default platform for the pool is used (if configured by administrators):
 
     - name: gpu-task
       image: nvcr.io/nvidia/pytorch:24.01-py3
-      command: ["python", "train.py"]
+      command: ["bash", "-c", "echo 'Running on DGX H100 with GPU'"]
       resource: x86_gpu  # Uses x86_gpu resource with dgx-h100 platform
 
 To see available platforms and pools, use:

@@ -178,6 +178,18 @@ class ExtendedMarkdownTranslator(MarkdownTranslator):
         """End error admonition"""
         self._depart_admonition(node)
 
+    def visit_admonition(self, node):
+        """Handle generic admonition with custom title"""
+        # Extract title from the first child (title node)
+        title = 'Admonition'  # Default title
+        if node.children and isinstance(node.children[0], nodes.title):
+            title = node.children[0].astext()
+        self._visit_admonition(node, title)
+
+    def depart_admonition(self, node):
+        """End generic admonition"""
+        self._depart_admonition(node)
+
     # ========================================================================
     # sphinx_design PassthroughTextElement handlers (for emojis, etc.)
     # ========================================================================

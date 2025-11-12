@@ -1008,9 +1008,14 @@ def _get_spec(service_client: client.ServiceClient, args: argparse.Namespace):
     result = service_client.request(
         client.RequestMethod.GET,
         f'api/workflow/{args.workflow_id}/spec',
-        mode=client.ResponseMode.PLAIN_TEXT,
+        mode=client.ResponseMode.STREAMING,
         params=params)
-    print(result)
+    try:
+        for line in result.iter_lines():
+            print(line.decode('utf-8'))
+    # Give friendly message on broken connection
+    except requests.exceptions.ChunkedEncodingError as error:
+        raise osmo_errors.OSMOServerError(f'Failed to fetch spec: {error}') from error
 
 
 def _load_workflow_text(workflow_file: str) -> str:
