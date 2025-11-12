@@ -32,6 +32,7 @@ You get access to GPU compute and storage, and you don’t have to worry about b
 How you work
 ------------
 
+bbbbbbb
 * You create a workflow specification (YAML) describing your tasks
 * You submit workflows with either the CLI or the web UI
 * OSMO runs multiple containers as defined in your workflow on the OSMO backend
