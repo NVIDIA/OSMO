@@ -64,7 +64,7 @@ jobs:
             has_spelling_errors=true
           fi
 
-          if [ $has_build_errors -eq true ] || [ $has_spelling_errors -eq true ]; then
+          if [ "$has_build_errors" = "true" ] || [ "$has_spelling_errors" = "true" ]; then
             exit 1
           else
             echo "Build completed successfully with no errors"
