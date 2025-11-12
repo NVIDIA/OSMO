@@ -19,6 +19,7 @@
 **Welcome to NVIDIA OSMO**
 ================================
 
+aaaaaaa
 OSMO is a cloud native platform for Robotics developers that provides a single interface to manage all steps of AI and robotics development, from compute to data storage.
 
 .. image:: overview.svg
