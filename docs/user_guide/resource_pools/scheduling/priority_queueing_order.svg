@@ -31,6 +31,7 @@ SPDX-License-Identifier: Apache-2.0
       .wf-title{font-size:20px}
       .wf-label{font-size:14px}
       .label{font-size:16px;fill:#333}
+      .arrow{stroke:#333;stroke-width:2;fill:none;marker-end:url(#arrowhead)}
       .wf6 .wf-title,.wf6 .wf-label{fill:#e8f5e8}
       .wf4 .wf-title,.wf4 .wf-label{fill:#555;opacity:.85}
       .wf1,.wf2{opacity:1}
@@ -81,16 +82,21 @@ SPDX-License-Identifier: Apache-2.0
         .node-box{fill:#2b2b2b;stroke:#555}
         .running-border{stroke:#555}
         .label,.wf-title,.wf-label{fill:#e0e0e0}
+        .arrow{stroke:#b0b0b0}
+        #arrowhead polygon{fill:#b0b0b0}
         .wf6 .wf-title,.wf6 .wf-label{fill:#1a1a1a}
         .wf4 .wf-title,.wf4 .wf-label{fill:#b0b0b0;opacity:.9}
       }
     </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#333" />
+    </marker>
   </defs>
   <text x="405" y="30" class="label">Priority Queue</text>
   <text x="910" y="90" class="label">Running</text>
   <text x="120" y="60" class="label">Back</text>
   <text x="680" y="60" class="label">Front</text>
-  <line x1="655" y1="55" x2="155" y2="55" stroke="#333" stroke-width="2" fill="none"/>
+  <line x1="655" y1="55" x2="155" y2="55" class="arrow" />
   <rect x="755" y="60" width="310" height="160" class="running-border" rx="5"/>
   <g transform="translate(0,120)">
     <rect x="770" class="wf-box node-box"/>

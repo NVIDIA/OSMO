@@ -21,7 +21,7 @@ Tools
 
 .. only:: html
 
-  .. grid:: 1 2 2 3
+  .. grid:: 1 2 2 2
       :gutter: 3
 
       .. grid-item-card:: :octicon:`package` Helm CLI
@@ -48,3 +48,10 @@ Tools
 
           Required for database initialization and management tasks.
 
+      .. grid-item-card:: :octicon:`file-code` OSMO Client
+          :link: https://nvidia.github.io/OSMO/user_guide/getting_started/install
+          :class-card: tool-card
+
+          OSMO client.
+
+          Required for accessing the OSMO service.

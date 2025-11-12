@@ -259,6 +259,7 @@ repo
 requeued
 reschedulable
 restitutions
+retryable
 ros
 routable
 rpc

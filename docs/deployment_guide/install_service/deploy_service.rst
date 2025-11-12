@@ -318,23 +318,23 @@ e. On the ``osmo-browser-flow`` client details page, click on the ``Credentials`
 Creating Users
 --------------
 
-* Users can be created directly in the Keycloak admin console. There are two options to create users:
+* Users can be created directly in the Keycloak admin console. Create a user with the email and a temporary password. During their first login, they will be prompted to reset their password.
 
-  1. Create a user with the email and a temporary password. During their first login, they will be prompted to reset their password.
+  a. Go to the ``Users`` tab
+  b. Click on the ``Add User`` button
+  c. Fill in the user details, add the user to the group ``User`` and save the user
 
-    a. Go to the ``Users`` tab
-    b. Click on the ``Add User`` button
-    c. Fill in the user details, add the user to the group ``User`` and save the user
-    d. Click on the user's ID to access their settings, in the ``Credentials`` tab enter a password and confirm it with the temporary password setting enabled
-    e. When the temporary password setting is enabled, the user will be forced to change their password upon their first login
+  .. image:: add_user_group.png
+    :width: 500px
+    :align: center
 
-  2. Create a user and allow them to self-service password reset via email. This requires a smtp email server to be configured in the Keycloak realm configuration.
+  d. Click on the user's ID to access their settings, in the ``Credentials`` tab enter a password and confirm it with the temporary password setting enabled
 
-    a. Go to the Users tab
-    b. Click on the ``Add User`` button
-    c. Fill in the user details, add the user to the group ``User`` and save the user
-    d. In the realm settings, under login, enable the ``Forgot password`` option
-    e. User will be able to reset their password upon their first login
+  .. image:: set_credentials.png
+    :width: 500px
+    :align: center
+
+  e. When the temporary password setting is enabled, the user will be forced to change their password upon their first login
 
 .. seealso::
 
@@ -931,7 +931,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 
 Similar values files should be created for other components (Router, UI) with their specific configurations.
 
-Step 4: Deploy Components
+Step 5: Deploy Components
 =========================
 
 Deploy the components in the following order:
@@ -959,7 +959,7 @@ Deploy the components in the following order:
 
    $ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
 
-Step 5: Verify Deployment
+Step 6: Verify Deployment
 =========================
 
 1. Verify all pods are running:
@@ -1001,7 +1001,7 @@ Step 5: Verify Deployment
    osmo-ui        nginx   <your-domain>                  <lb-ip>        80, 443    <age>
    osmo-ui-trpc   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
 
-Step 6: Post-deployment Configuration
+Step 7: Post-deployment Configuration
 =====================================
 
 1. Configure DNS records to point to your load balancer. For example, create a record for ``osmo.my-domain.com`` to point to the load balancer IP.

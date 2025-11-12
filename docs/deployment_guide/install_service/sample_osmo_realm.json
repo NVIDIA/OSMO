@@ -400,24 +400,6 @@
           "clientRole": true,
           "containerId": "76cd6c90-2b1a-40d8-a1d4-d2469859cac5",
           "attributes": {}
-        },
-        {
-          "id": "424f539f-8277-485d-bf98-caf1c0352a55",
-          "name": "osmo-default",
-          "description": "",
-          "composite": false,
-          "clientRole": true,
-          "containerId": "76cd6c90-2b1a-40d8-a1d4-d2469859cac5",
-          "attributes": {}
-        },
-        {
-          "id": "25af643d-3f78-4091-82e9-484cb1fbcc41",
-          "name": "osmo-sre",
-          "description": "A Site Reliability Engineer who has full access to OSMO",
-          "composite": false,
-          "clientRole": true,
-          "containerId": "76cd6c90-2b1a-40d8-a1d4-d2469859cac5",
-          "attributes": {}
         }
       ],
       "security-admin-console": [],
@@ -445,24 +427,6 @@
           "attributes": {}
         },
         {
-          "id": "7b3ce9a7-7dab-459f-b811-f9d3b1b0d0bc",
-          "name": "osmo-backend-worker",
-          "description": "",
-          "composite": false,
-          "clientRole": true,
-          "containerId": "82b4ce74-5ff3-440f-b2f6-2c7786230e35",
-          "attributes": {}
-        },
-        {
-          "id": "4cda8006-b184-415a-8415-e4695973555b",
-          "name": "osmo-sre",
-          "description": "",
-          "composite": false,
-          "clientRole": true,
-          "containerId": "82b4ce74-5ff3-440f-b2f6-2c7786230e35",
-          "attributes": {}
-        },
-        {
           "id": "20874405-f96b-456b-a3b8-86cfe8740144",
           "name": "osmo-admin",
           "description": "Admin access to the osmo service",
@@ -472,8 +436,8 @@
           "attributes": {}
         },
         {
-          "id": "cc9fb53c-e02b-44b6-a300-c43a40fce627",
-          "name": "osmo-default",
+          "id": "94a41f7f-9927-489f-aa76-a9e3dafb4ed5",
+          "name": "osmo-backend",
           "description": "",
           "composite": false,
           "clientRole": true,
@@ -592,67 +556,16 @@
     },
     {
       "id": "2fc39861-b636-47c8-b57b-d1719466759c",
-      "name": "Backend Worker",
-      "path": "/Backend Worker",
+      "name": "Backend Operator",
+      "path": "/Backend Operator",
       "subGroups": [],
       "attributes": {},
       "realmRoles": [],
       "clientRoles": {
         "osmo-device": [
-          "osmo-backend-worker"
+          "osmo-backend"
         ]
       }
-    },
-    {
-      "id": "91256cf3-692d-46de-9138-91fa33bfc1b0",
-      "name": "OSMO default",
-      "path": "/OSMO default",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {
-        "osmo-browser-flow": [
-          "osmo-default"
-        ],
-        "osmo-device": [
-          "osmo-default"
-        ]
-      }
-    },
-    {
-      "id": "f4aebeb5-64a2-496e-8b5e-3f94dc3f24d3",
-      "name": "SRE",
-      "path": "/SRE",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [
-        "admin"
-      ],
-      "clientRoles": {
-        "osmo-browser-flow": [
-          "grafana-user",
-          "dashboard-admin",
-          "osmo-user",
-          "grafana-admin",
-          "dashboard-user",
-          "osmo-admin",
-          "osmo-sre"
-        ],
-        "osmo-device": [
-          "osmo-user",
-          "osmo-sre",
-          "osmo-admin"
-        ]
-      }
-    },
-    {
-      "id": "44ca9ce6-0c88-46f9-bd09-f0dd4200baf2",
-      "name": "TEST",
-      "path": "/TEST",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {}
     },
     {
       "id": "57a9b7f0-36ec-46c5-9781-49d53b1c6468",
@@ -947,10 +860,6 @@
         "",
         "https://default.com/setup/getAToken",
         "https://default.com/getAToken",
-        "https://default.com/user-guide/getAToken",
-        "https://default.com/dashboard/getAToken",
-        "https://default.com/grafana/login/generic_oauth",
-        "http://localhost:3000/*",
         "https://default.com/api/auth/getAToken"
       ],
       "webOrigins": [
@@ -968,8 +877,9 @@
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "attributes": {
-        "client.secret.creation.time": "1740174100",
+        "client.secret.creation.time": "1762965594",
         "post.logout.redirect.uris": "+",
+        "frontchannel.logout.session.required": "true",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false",
         "use.refresh.tokens": "true",
@@ -1052,6 +962,7 @@
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
         "post.logout.redirect.uris": "+",
+        "frontchannel.logout.session.required": "true",
         "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "true",
         "backchannel.logout.revoke.offline.tokens": "false"
@@ -1255,8 +1166,9 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "AUTH_TIME",
-            "id.token.claim": "true",
             "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "auth_time",
             "jsonType.label": "long"
@@ -1664,8 +1576,9 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "client_id",
-            "id.token.claim": "true",
             "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "client_id",
             "jsonType.label": "String"
@@ -1679,8 +1592,9 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "clientHost",
-            "id.token.claim": "true",
             "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "clientHost",
             "jsonType.label": "String"
@@ -1694,8 +1608,9 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "clientAddress",
-            "id.token.claim": "true",
             "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "clientAddress",
             "jsonType.label": "String"
@@ -1941,14 +1856,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-sha256-pairwise-sub-mapper",
-            "oidc-usermodel-attribute-mapper",
-            "saml-user-attribute-mapper",
+            "oidc-address-mapper",
             "saml-user-property-mapper",
+            "oidc-usermodel-attribute-mapper",
+            "oidc-usermodel-property-mapper",
             "oidc-full-name-mapper",
             "saml-role-list-mapper",
-            "oidc-usermodel-property-mapper",
-            "oidc-address-mapper"
+            "saml-user-attribute-mapper",
+            "oidc-sha256-pairwise-sub-mapper"
           ]
         }
       },
@@ -1972,12 +1887,12 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "saml-role-list-mapper",
-            "oidc-address-mapper",
-            "oidc-usermodel-attribute-mapper",
-            "oidc-usermodel-property-mapper",
             "saml-user-property-mapper",
             "oidc-full-name-mapper",
+            "oidc-address-mapper",
+            "saml-role-list-mapper",
+            "oidc-usermodel-attribute-mapper",
+            "oidc-usermodel-property-mapper",
             "oidc-sha256-pairwise-sub-mapper",
             "saml-user-attribute-mapper"
           ]

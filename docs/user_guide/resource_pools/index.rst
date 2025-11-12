@@ -36,7 +36,7 @@ platforms to learn more about each layer.
 .. figure:: pool_organization.svg
    :width: 100%
    :align: center
-   :class: transparent-bg
+   :class: transparent-bg no-scaled-link
 
 The following sections explain each layer (i.e. ``pools`` and ``platforms``) in detail.
 

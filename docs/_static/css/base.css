@@ -499,17 +499,61 @@ object[type="image/svg+xml"] {
   background: transparent !important;
 }
 
-/* Prevent clicking on image wrapper to open in new tab */
-a.reference.internal:has(> img.no-lightbox),
-a.reference.internal:has(> img.transparent-bg) {
-  pointer-events: none !important;
-  cursor: default !important;
+/* ==================== GLightbox Image Zoom ==================== */
+
+/* Only make zoomable images clickable and show zoom cursor */
+img.zoomable {
+  cursor: zoom-in;
+  transition: opacity 0.2s ease;
 }
 
-/* Re-enable pointer events for the SVG itself so internal links work */
-a.reference.internal > img.no-lightbox,
-a.reference.internal > img.transparent-bg {
-  pointer-events: auto;
+img.zoomable:hover {
+  opacity: 0.9;
+}
+
+/* Style for glightbox wrapper and links */
+.glightbox,
+a.glightbox {
+  cursor: zoom-in;
+  display: inline-block;
+  line-height: 0;
+}
+
+.glightbox-wrapper {
+  display: inline-block;
+  line-height: 0;
+}
+
+/* GLightbox modal background - match page background for theme consistency */
+/* Target the actual image/content container, not the full slide area */
+.glightbox-container .gslide-image,
+.glightbox-container .gslide-media {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  width: auto !important;
+  max-width: 90vw;
+}
+
+/* Dark mode modal background */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-mode="light"]) .glightbox-container .gslide-image,
+  :root:not([data-theme="light"]):not([data-mode="light"]) .glightbox-container .gslide-media {
+    background-color: #1a1a1a;
+  }
+}
+
+[data-theme="dark"] .glightbox-container .gslide-image,
+[data-theme="dark"] .glightbox-container .gslide-media,
+html[data-mode="dark"] .glightbox-container .gslide-image,
+html[data-mode="dark"] .glightbox-container .gslide-media {
+  background-color: #1a1a1a;
+}
+
+/* Ensure SVGs in modal maintain their transparency */
+.glightbox-container .gslide-media img,
+.glightbox-container .gslide-media svg {
+  background: transparent;
 }
 
 /* ==================== Code Block Emphasis Color ==================== */

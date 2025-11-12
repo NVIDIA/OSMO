@@ -118,7 +118,7 @@ class RedisConnector:
             raise osmo_errors.OSMOError(
                 'Only one instance of Redis Connector can exist!')
 
-        logging.debug('Connecting to redis database at %s...', config.redis_url)
+        logging.debug('Connecting to redis database at %s...', config.redis_host)
         self.config = config
         self.client = redis.from_url(config.redis_url)
         logging.debug('Finished connecting to redis database')

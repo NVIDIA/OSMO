@@ -19,7 +19,7 @@
 Create K8s Cluster
 ================================================
 
-Choose your deployment environment to create a Kubernetes cluster for OSMO backend execution.
+Each OSMO backend is a Kubernetes cluster of compute nodes that are dedicated to running AI workflows for development and testing purposes. You can create a K8s cluster in either a cloud or on-premises environment using the following guides.
 
 .. only:: html
 

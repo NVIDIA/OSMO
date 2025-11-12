@@ -88,7 +88,7 @@ You can connect any S3 API compatible object storage and Azure Blob Storage to O
   :caption: Introduction
 
   Overview <self>
-  high_level_architecture
+  architecture
   whats_next
 
 .. toctree::

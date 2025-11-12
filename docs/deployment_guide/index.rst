@@ -87,16 +87,12 @@ An OSMO deployment consists of two main components:
 
 .. note::
 
-   OSMO does not need network access to your compute cluster. Your compute clusters can run anywhere behind corporate firewalls, in restricted networks, or across geographically distributed locations. When you deploy our backend
+   OSMO does **not** need network access to your compute cluster. Your compute clusters can run anywhere behind corporate firewalls, in restricted networks, or across geographically distributed locations. When you deploy our backend
    operator, it will initiate outbound connections to OSMO for registration and works like a plug and play model.
 
 .. seealso::
 
     See :doc:`introduction/architecture` for a detailed overview of the deployment architecture.
-
-
-
-
 
 
 
@@ -148,8 +144,9 @@ An OSMO deployment consists of two main components:
   :hidden:
   :caption: Appendix
 
+  appendix/deploy_minimal
+  appendix/authentication/index
   appendix/workflow_execution
   appendix/advanced_config/index
-  appendix/authentication/index
-  appendix/quickstart
-  appendix/deploy_multitenant
+
+

@@ -28,104 +28,44 @@ Prerequisites
 
 You will need access to a cloud provider account (AWS, Azure, or GCP) with permissions to create and manage Kubernetes clusters.
 
-Minimum Requirements
---------------------
+.. important::
 
-Your Kubernetes cluster should meet the following minimum requirements:
+    * **Kubernetes Version**: v1.30.0 or later
+    * **Networking**: Ensure the nodes in the cluster have outbound internet access to container registries and access to the OSMO service
 
-* **Kubernetes Version**: v1.30.0 or later
-* **Node Requirements**:
+Setup Guides
+===============
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 40 30
+   :widths: 20 35 45
 
-   * - Node Type
-     - Specifications
+   * - Cloud Provider
+     - Documentation
      - Recommended Instance Types
-   * - Backend-Operator
-     - 4 vCPUs, 8 GB RAM (minimum)
+   * - **Amazon Web Services (EKS)**
+     - * `Getting started with EKS <https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html>`__
+       * `Creating an EKS cluster <https://docs.aws.amazon.com/eks/latest/userguide/create-cluster.html>`__
+       * `EKS nodes <https://docs.aws.amazon.com/eks/latest/userguide/eks-compute.html>`__
+     - * **Backend-Operator**: m5.xlarge (4 vCPUs, 8 GB RAM, auto-scaling: 1-3 nodes)
+       * **Compute (CPU)**: m5.2xlarge
+       * **Compute (GPU)**: p3.2xlarge, p4d.24xlarge (A100), p5.48xlarge (H100) - `GPU instances <https://docs.aws.amazon.com/dlami/latest/devguide/gpu.html>`__
+   * - **Microsoft Azure (AKS)**
+     - * `Quickstart: Deploy AKS <https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal>`__
+       * `Create an AKS cluster <https://learn.microsoft.com/en-us/azure/aks/tutorial-kubernetes-deploy-cluster>`__
+       * `Use multiple node pools <https://learn.microsoft.com/en-us/azure/aks/use-multiple-node-pools>`__
+     - * **Backend-Operator**: Standard_D4s_v3 (4 vCPUs, 8 GB RAM, auto-scaling: 1-3 nodes)
+       * **Compute (CPU)**: Standard_D8s_v3
+       * **Compute (GPU)**: Standard_NC6s_v3, Standard_ND96asr_v4 (A100), Standard_ND96isr_H100_v5 (H100) - `GPU VMs <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes-gpu>`__
+   * - **Google Cloud Platform (GKE)**
+     - * `Quickstart: Deploy GKE <https://cloud.google.com/kubernetes-engine/docs/deploy-app-cluster>`__
+       * `Creating a GKE cluster <https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-zonal-cluster>`__
+       * `Node pools <https://cloud.google.com/kubernetes-engine/docs/concepts/node-pools>`__
+     - * **Backend-Operator**: n1-standard-4 (4 vCPUs, 8 GB RAM, auto-scaling: 1-3 nodes)
+       * **Compute (CPU)**: n1-standard-8
+       * **Compute (GPU)**: n1-standard-4 with T4/A100, a2-highgpu-1g (A100), a3-highgpu-8g (H100) - `GPUs on Compute Engine <https://cloud.google.com/compute/docs/gpus>`__
 
-       Use auto-scaling: 1-3 nodes
-     - **AWS:** m5.xlarge
+.. note::
 
-       **Azure:** Standard_D4s_v3
+   Configure auto-scaling for compute nodes based on your expected workload patterns.
 
-       **GCP:** n1-standard-4
-   * - Compute (CPU)
-     - Size per workload needs, adjust based on workload requirements. If your workloads do not require CPU nodes, you can use GPU node types instead.
-
-       Configure auto-scaling based on expected workload patterns
-     - **AWS:** m5.2xlarge
-
-       **Azure:** Standard_D8s_v3
-
-       **GCP:** n1-standard-8
-   * - Compute (GPU)
-     - Size per workload needs, adjust based on workload requirements. If your workloads do not require GPU nodes, you can use CPU node types instead.
-
-       Configure auto-scaling based on expected workload patterns
-     - **AWS:** p4d.24xlarge (A100), p5.48xlarge (H100) - `GPU instances <https://docs.aws.amazon.com/dlami/latest/devguide/gpu.html>`__
-
-       **Azure:** Standard_ND96asr_v4 (A100), Standard_ND96isr_H100_v5 (H100) - `GPU VMs <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes-gpu>`__
-
-       **GCP:** a2-highgpu-1g (A100), a3-highgpu-8g (H100) - `GPUs on Compute Engine <https://cloud.google.com/compute/docs/gpus>`__
-
-* **Networking**: Ensure nodes have outbound internet access for image pulls and access to the OSMO service
-
-Setup Guides by Cloud Provider
-================================
-
-Amazon Web Services (EKS)
---------------------------
-
-Follow the official AWS documentation to create an Amazon EKS cluster:
-
-* `Getting started with Amazon EKS <https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html>`__
-* `Creating an Amazon EKS cluster <https://docs.aws.amazon.com/eks/latest/userguide/create-cluster.html>`__
-* `Amazon EKS nodes <https://docs.aws.amazon.com/eks/latest/userguide/eks-compute.html>`__
-
-**Key Configuration Points:**
-
-* Use Kubernetes version v1.30.0 or later
-* Create node groups for backend-operator nodes (general purpose instances like m5.xlarge)
-* Create node groups for compute workloads (CPU: m5.2xlarge or GPU: p3.2xlarge, p4d.24xlarge)
-* Ensure nodes have outbound internet access for image pulls
-
-Microsoft Azure (AKS)
-----------------------
-
-Follow the official Azure documentation to create an Azure Kubernetes Service cluster:
-
-* `Quickstart: Deploy an AKS cluster <https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal>`__
-* `Create an AKS cluster <https://learn.microsoft.com/en-us/azure/aks/tutorial-kubernetes-deploy-cluster>`__
-* `Use multiple node pools in AKS <https://learn.microsoft.com/en-us/azure/aks/use-multiple-node-pools>`__
-
-**Key Configuration Points:**
-
-* Use Kubernetes version v1.30.0 or later
-* Create node pools for backend-operator nodes (general purpose VMs like Standard_D4s_v3)
-* Create node pools for compute workloads (CPU: Standard_D8s_v3 or GPU: Standard_NC6s_v3, Standard_ND96asr_v4)
-* Ensure nodes have outbound internet access for image pulls
-
-Google Cloud Platform (GKE)
-----------------------------
-
-Follow the official Google Cloud documentation to create a Google Kubernetes Engine cluster:
-
-* `Quickstart: Deploy a GKE cluster <https://cloud.google.com/kubernetes-engine/docs/deploy-app-cluster>`__
-* `Creating a GKE cluster <https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-zonal-cluster>`__
-* `Node pools <https://cloud.google.com/kubernetes-engine/docs/concepts/node-pools>`__
-
-**Key Configuration Points:**
-
-* Use Kubernetes version v1.30.0 or later
-* Create node pools for backend-operator nodes (general purpose machines like n1-standard-4)
-* Create node pools for compute workloads (CPU: n1-standard-8 or GPU: n1-standard-4 with NVIDIA T4, A100)
-* Ensure nodes have outbound internet access for image pulls
-
-
-Next Steps
-==========
-
-Once your cloud-based Kubernetes cluster is set up and configured, proceed to :ref:`deploy_backend` to enable it as an OSMO backend.
