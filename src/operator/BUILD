@@ -14,11 +14,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 ################################################################
@@ -54,45 +53,22 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "backend_listener",
+    name = "backend_listener_binary",
     main = "backend_listener.py",
     srcs = ["backend_listener.py"],
     deps = [":backend_listener_lib"],
 )
 
-run_binary(
-    name = "backend_listener_onedir",
-    args = [
-        "--name osmo-backend-listener",
-        "--main $(location :backend_listener.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--additional-hooks $(locations //src/operator/builder:extra_hooks)",
-        "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
-    ],
-    out_dirs = ["osmo_backend_listener_onedir"],
-    tool = "//src/operator/builder:service_builder",
-    srcs = [
-        ":backend_listener_lib",
-        "backend_listener.py",
-        "//src/operator/builder:extra_hooks",
-        "//src/lib/data/storage:extra_hooks",
-        "//src/lib/utils:version.yaml",
-    ],
+py_image_layer(
+    name = "backend_listener_layer",
+    binary = ":backend_listener_binary",
 )
 
-pkg_tar(
-    name = "backend_listener_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_backend_listener_onedir": ".",
-    },
-    srcs = [":backend_listener_onedir"],
-    symlinks = {
-        "/usr/bin/backend_listener": "/osmo/osmo-backend-listener/osmo-backend-listener",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
+osmo_python_wrapper(
+    name = "backend_listener_wrapper",
+    bin_name = "backend_listener",
+    main = "/src/operator/backend_listener.py",
+    runfiles_dir = "/src/operator/backend_listener_binary.runfiles",
 )
 
 ################
@@ -103,7 +79,9 @@ oci_image(
     name = "backend_listener_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":backend_listener_onedir_pkg",
+        ":backend_listener_layer_default",
+        ":backend_listener_layer_packages",
+        ":backend_listener_wrapper",
         "//src/utils/progress_check:progress_check_onedir_pkg",
     ],
     visibility = ["//visibility:public"],
@@ -144,7 +122,9 @@ oci_image(
     name = "backend_listener_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":backend_listener_onedir_pkg",
+        ":backend_listener_layer_default",
+        ":backend_listener_layer_packages",
+        ":backend_listener_wrapper",
         "//src/utils/progress_check:progress_check_onedir_pkg",
     ],
     visibility = ["//visibility:public"],
@@ -201,45 +181,22 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "backend_worker",
+    name = "backend_worker_binary",
     main = "backend_worker.py",
     srcs = ["backend_worker.py"],
     deps = [":backend_worker_lib"],
 )
 
-run_binary(
-    name = "backend_worker_onedir",
-    args = [
-        "--name osmo-backend-worker",
-        "--main $(location :backend_worker.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--additional-hooks $(locations //src/operator/builder:extra_hooks)",
-        "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
-    ],
-    out_dirs = ["osmo_backend_worker_onedir"],
-    tool = "//src/operator/builder:service_builder",
-    srcs = [
-        ":backend_worker_lib",
-        "backend_worker.py",
-        "//src/operator/builder:extra_hooks",
-        "//src/lib/data/storage:extra_hooks",
-        "//src/lib/utils:version.yaml",
-    ]
+py_image_layer(
+    name = "backend_worker_layer",
+    binary = ":backend_worker_binary",
 )
 
-pkg_tar(
-    name = "backend_worker_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_backend_worker_onedir": ".",
-    },
-    srcs = [":backend_worker_onedir"],
-    symlinks = {
-        "/usr/bin/backend_worker": "/osmo/osmo-backend-worker/osmo-backend-worker",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
+osmo_python_wrapper(
+    name = "backend_worker_wrapper",
+    bin_name = "backend_worker",
+    main = "/src/operator/backend_worker.py",
+    runfiles_dir = "/src/operator/backend_worker_binary.runfiles",
 )
 
 ################
@@ -250,7 +207,9 @@ oci_image(
     name = "backend_worker_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":backend_worker_onedir_pkg",
+        ":backend_worker_layer_default",
+        ":backend_worker_layer_packages",
+        ":backend_worker_wrapper",
         "//src/utils/progress_check:progress_check_onedir_pkg",
     ],
     visibility = ["//visibility:public"],
@@ -291,7 +250,9 @@ oci_image(
     name = "backend_worker_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":backend_worker_onedir_pkg",
+        ":backend_worker_layer_default",
+        ":backend_worker_layer_packages",
+        ":backend_worker_wrapper",
         "//src/utils/progress_check:progress_check_onedir_pkg",
     ],
     visibility = ["//visibility:public"],
