@@ -60,6 +60,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/router/router_binary.runfiles",
 )
 
+filegroup(
+    name = "router_image_layers",
+    srcs = [
+        ":router_layer_default",
+        ":router_layer_packages",
+        ":router_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -68,10 +77,8 @@ oci_image(
     name = "router_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":router_layer_default",
-        ":router_layer_packages",
-        ":router_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":router_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -109,10 +116,8 @@ oci_image(
     name = "router_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":router_layer_default",
-        ":router_layer_packages",
-        ":router_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":router_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

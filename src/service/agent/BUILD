@@ -33,7 +33,7 @@ osmo_py_library(
         requirement("uvicorn"),
         "//src/utils:backend_messages",
         "//src/utils/metrics",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
         "//src/service/core/auth",
         "//src/service/core/config",
         "//src/service/core/workflow",
@@ -60,6 +60,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/agent/agent_service_binary.runfiles",
 )
 
+filegroup(
+    name = "agent_service_image_layers",
+    srcs = [
+        ":agent_service_layer_default",
+        ":agent_service_layer_packages",
+        ":agent_service_wrapper",
+    ],
+)
+
 osmo_py_library(
     name = "helpers",
     srcs = [
@@ -80,7 +89,7 @@ osmo_py_library(
         "//src/utils/metrics",
         "//src/utils/job",
         "//src/utils/job:backend_job",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     visibility = ["//src/service:__subpackages__"],
 )
@@ -93,10 +102,8 @@ oci_image(
     name = "agent_service_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":agent_service_layer_default",
-        ":agent_service_layer_packages",
-        ":agent_service_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":agent_service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -134,10 +141,8 @@ oci_image(
     name = "agent_service_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":agent_service_layer_default",
-        ":agent_service_layer_packages",
-        ":agent_service_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":agent_service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

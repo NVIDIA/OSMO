@@ -73,6 +73,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/core/service_binary.runfiles",
 )
 
+filegroup(
+    name = "service_image_layers",
+    srcs = [
+        ":service_layer_default",
+        ":service_layer_packages",
+        ":service_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -81,10 +90,8 @@ oci_image(
     name = "service_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":service_layer_default",
-        ":service_layer_packages",
-        ":service_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -124,10 +131,8 @@ oci_image(
     name = "service_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":service_layer_default",
-        ":service_layer_packages",
-        ":service_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

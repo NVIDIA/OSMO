@@ -39,6 +39,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/runtime/init.runfiles",
 )
 
+filegroup(
+    name = "init_image_layers",
+    srcs = [
+        ":init_layer_default",
+        ":init_layer_packages",
+        ":init_wrapper",
+    ],
+)
+
 ################
 # x86_64 image #
 ################
@@ -47,10 +56,7 @@ oci_image(
     name = "init_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":init_layer_default",
-        ":init_layer_packages",
-        # ":init_layer_interpreter", # EXCLUDED - Python interpreter not added to image
-        ":init_wrapper",
+        ":init_image_layers",
         "//src/cli:osmo_cli_pkg_amd64",
         "//src/runtime/cmd/ctrl:osmo_ctrl_x86_64_pkg",
         "//src/runtime/cmd/user:osmo_exec_x86_64_pkg",
@@ -96,10 +102,7 @@ oci_image(
     name = "init_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":init_layer_default",
-        ":init_layer_packages",
-        # ":init_layer_interpreter", # EXCLUDED - Python interpreter not added to image
-        ":init_wrapper_pkg",
+        ":init_image_layers",
         "//src/cli:osmo_cli_pkg_arm64",
         "//src/runtime/cmd/ctrl:osmo_ctrl_arm64_pkg",
         "//src/runtime/cmd/user:osmo_exec_arm64_pkg",

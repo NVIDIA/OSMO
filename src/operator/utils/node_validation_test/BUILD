@@ -78,6 +78,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/operator/utils/node_validation_test/resource_validator_binary.runfiles",
 )
 
+filegroup(
+    name = "resource_validator_image_layers",
+    srcs = [
+        ":resource_validator_layer_default",
+        ":resource_validator_layer_packages",
+        ":resource_validator_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -86,9 +95,7 @@ oci_image(
     name = "resource_validator_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":resource_validator_layer_default",
-        ":resource_validator_layer_packages",
-        ":resource_validator_wrapper",
+        ":resource_validator_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -127,9 +134,7 @@ oci_image(
     name = "resource_validator_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":resource_validator_layer_default",
-        ":resource_validator_layer_packages",
-        ":resource_validator_wrapper",
+        ":resource_validator_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -201,6 +206,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/operator/utils/node_validation_test/lfs_validator_binary.runfiles",
 )
 
+filegroup(
+    name = "lfs_validator_image_layers",
+    srcs = [
+        ":lfs_validator_layer_default",
+        ":lfs_validator_layer_packages",
+        ":lfs_validator_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -209,9 +223,7 @@ oci_image(
     name = "lfs_validator_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":lfs_validator_layer_default",
-        ":lfs_validator_layer_packages",
-        ":lfs_validator_wrapper",
+        ":lfs_validator_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -250,9 +262,7 @@ oci_image(
     name = "lfs_validator_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":lfs_validator_layer_default",
-        ":lfs_validator_layer_packages",
-        ":lfs_validator_wrapper",
+        ":lfs_validator_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -328,6 +338,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/operator/utils/node_validation_test/connection_validator_binary.runfiles",
 )
 
+filegroup(
+    name = "connection_validator_image_layers",
+    srcs = [
+        ":connection_validator_layer_default",
+        ":connection_validator_layer_packages",
+        ":connection_validator_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -336,9 +355,7 @@ oci_image(
     name = "connection_validator_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":connection_validator_layer_default",
-        ":connection_validator_layer_packages",
-        ":connection_validator_wrapper",
+        ":connection_validator_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -377,9 +394,7 @@ oci_image(
     name = "connection_validator_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":connection_validator_layer_default",
-        ":connection_validator_layer_packages",
-        ":connection_validator_wrapper",
+        ":connection_validator_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

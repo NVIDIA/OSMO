@@ -37,7 +37,7 @@ osmo_py_library(
         "//src/lib/utils:logging",
         "//src/utils:static_config",
         "//src/utils/job",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     data = [
         "//src/lib/utils:version.yaml",
@@ -66,6 +66,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/worker/worker_binary.runfiles",
 )
 
+filegroup(
+    name = "worker_image_layers",
+    srcs = [
+        ":worker_layer_default",
+        ":worker_layer_packages",
+        ":worker_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -74,10 +83,8 @@ oci_image(
     name = "worker_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":worker_layer_default",
-        ":worker_layer_packages",
-        ":worker_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":worker_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -117,10 +124,8 @@ oci_image(
     name = "worker_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":worker_layer_default",
-        ":worker_layer_packages",
-        ":worker_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":worker_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

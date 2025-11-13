@@ -39,7 +39,7 @@ osmo_py_library(
         "//src/lib/utils:logging",
         "//src/utils:static_config",
         "//src/utils/job",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     visibility = ["//visibility:public"],
 )
@@ -63,6 +63,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/delayed_job_monitor/delayed_job_monitor_binary.runfiles",
 )
 
+filegroup(
+    name = "delayed_job_monitor_image_layers",
+    srcs = [
+        ":delayed_job_monitor_layer_default",
+        ":delayed_job_monitor_layer_packages",
+        ":delayed_job_monitor_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -71,10 +80,8 @@ oci_image(
     name = "delayed_job_monitor_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":delayed_job_monitor_layer_default",
-        ":delayed_job_monitor_layer_packages",
-        ":delayed_job_monitor_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":delayed_job_monitor_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -112,10 +119,8 @@ oci_image(
     name = "delayed_job_monitor_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":delayed_job_monitor_layer_default",
-        ":delayed_job_monitor_layer_packages",
-        ":delayed_job_monitor_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":delayed_job_monitor_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

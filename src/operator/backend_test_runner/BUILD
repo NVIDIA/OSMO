@@ -60,6 +60,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/operator/backend_test_runner/backend_test_runner_binary.runfiles",
 )
 
+filegroup(
+    name = "backend_test_runner_image_layers",
+    srcs = [
+        ":backend_test_runner_layer_default",
+        ":backend_test_runner_layer_packages",
+        ":backend_test_runner_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -68,9 +77,7 @@ oci_image(
     name = "backend_test_runner_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":backend_test_runner_layer_default",
-        ":backend_test_runner_layer_packages",
-        ":backend_test_runner_wrapper",
+        ":backend_test_runner_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -109,9 +116,7 @@ oci_image(
     name = "backend_test_runner_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":backend_test_runner_layer_default",
-        ":backend_test_runner_layer_packages",
-        ":backend_test_runner_wrapper",
+        ":backend_test_runner_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

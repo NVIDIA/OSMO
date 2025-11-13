@@ -44,7 +44,7 @@ osmo_py_library(
         requirement("redis"),
         requirement("uvicorn"),
         "//src/lib/utils:logging",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
         "//src/service/core/auth",
         "//src/service/core/workflow",
         "//src/utils:static_config",
@@ -74,6 +74,15 @@ osmo_python_wrapper(
     runfiles_dir = "/src/service/logger/logger_binary.runfiles",
 )
 
+filegroup(
+    name = "logger_image_layers",
+    srcs = [
+        ":logger_layer_default",
+        ":logger_layer_packages",
+        ":logger_wrapper",
+    ],
+)
+
 ################
 #    x86_64    #
 ################
@@ -82,10 +91,8 @@ oci_image(
     name = "logger_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":logger_layer_default",
-        ":logger_layer_packages",
-        ":logger_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":logger_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -123,10 +130,8 @@ oci_image(
     name = "logger_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":logger_layer_default",
-        ":logger_layer_packages",
-        ":logger_wrapper",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":logger_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     target_compatible_with = [
         "@platforms//cpu:arm64",
