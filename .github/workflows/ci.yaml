@@ -29,19 +29,6 @@ jobs:
   bazel-build-test:
     runs-on: ubuntu-latest
 
-    env:
-      DOCKER_HOST: "tcp://localhost:2375"
-
-    services:
-      docker:
-        image: docker:29.0.0-dind
-        env:
-          DOCKER_TLS_CERTDIR: ""
-          DOCKER_DRIVER: overlay2
-        options: --privileged
-        ports:
-          - 2375:2375
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,9 +56,5 @@ jobs:
 
       - name: Bazel Test
         run: |
-          bazel test \
-            --test_env=DOCKER_HOST=tcp://localhost:2375 \
-            --test_output=errors \
-            -- \
-            //... \
-            -//ui/...
+          # Test everything except the UI
+          bazel test --test_output=errors -- //... -//ui/...
