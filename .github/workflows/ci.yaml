@@ -71,7 +71,7 @@ jobs:
 
       - name: Bazel Test
         run: |
-          bazel test --remote_cache=https://bazel-remote.osmo.nvidia.com \
+          bazel test \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
