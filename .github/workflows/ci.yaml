@@ -28,7 +28,7 @@ on:
 
 jobs:
   bazel-build-test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     container:
       image: python:3.10-bullseye
       env:

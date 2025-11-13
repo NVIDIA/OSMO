@@ -46,6 +46,7 @@ DEFAULT_POD_TEMPLATE = '{}'
 
 def get_task_info(postgres: connectors.PostgresConnector, workflow_uuid: str, task_uuid: str,
                   retry_id: int) -> Dict:
+    print('hello')
     fetch_cmd = '''
         SELECT tasks.*, w.submitted_by FROM tasks
         INNER JOIN
