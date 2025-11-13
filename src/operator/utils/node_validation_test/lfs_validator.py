@@ -169,6 +169,11 @@ class LFSValidator(test_base.NodeTestBase):
                 'nodeSelector': {
                     'kubernetes.io/hostname': self.config.node_name
                 },
+                'tolerations': [
+                    {
+                        'operator': 'Exists'
+                    }
+                ],
                 'restartPolicy': 'Never',
                 'imagePullSecrets': [{'name': self.config.image_pull_secret}],
                 'containers': [

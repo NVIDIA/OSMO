@@ -539,27 +539,6 @@ data:
                   socket_address:
                     address: {{ .Values.sidecars.envoy.service.address }}
                     port_value: {{ .Values.sidecars.envoy.service.port }}
-      {{- if .Values.sidecars.envoy.osmoauth.enabled }}
-      - name: osmoauth
-        connect_timeout: 3s
-        type: STRICT_DNS
-        dns_lookup_family: V4_ONLY
-        lb_policy: ROUND_ROBIN
-        {{- if .Values.sidecars.envoy.maxRequests }}
-        circuit_breakers:
-          thresholds:
-          - priority: DEFAULT
-            max_requests: {{.Values.sidecars.envoy.maxRequests}}
-        {{- end }}
-        load_assignment:
-          cluster_name: osmoauth
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: {{ .Values.sidecars.envoy.osmoauth.address }}
-                    port_value: {{ .Values.sidecars.envoy.osmoauth.port }}
-      {{- end }}
+
 {{- end }}
 {{- end }}

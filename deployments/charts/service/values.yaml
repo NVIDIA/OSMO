@@ -1249,14 +1249,6 @@ sidecars:
       ##
       address: 127.0.0.1
 
-    ## Osmo auth service configuration
-    ##
-    osmoauth:
-      enabled: false
-      port: 80
-      hostname: stg2.osmo.nvidia.com
-      address: osmo-service
-
     ## OAuth2 authentication filter configuration
     ##
     oauth2Filter:

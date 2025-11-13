@@ -23,7 +23,6 @@ on:
     paths:
       - 'src/**'
       - 'run/**'
-      - 'docs/**'
       - 'ui/**'
 
 jobs:
