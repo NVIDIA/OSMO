@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      DOCKER_HOST: "tcp://docker:2375"
+      DOCKER_HOST: "tcp://localhost:2375"
 
     services:
       docker:
@@ -70,8 +70,7 @@ jobs:
       - name: Bazel Test
         run: |
           bazel test \
-            --test_env=DOCKER_HOST=tcp://docker:2375 \
-            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
+            --test_env=DOCKER_HOST=tcp://localhost:2375 \
             --test_output=errors \
             -- \
             //... \
