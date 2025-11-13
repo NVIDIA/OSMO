@@ -26,10 +26,13 @@ on:
       - 'run/**'
 
 jobs:
-  bazel-public-build-test:
+
+  #######################
+  #      Public CI      #
+  #######################
+  public-bazel-build-test:
     if: |
-      github.event_name == 'workflow_dispatch' || 
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork ==true)
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
 
     runs-on: ubuntu-latest
 
@@ -62,3 +65,57 @@ jobs:
         run: |
           # Test everything except the UI
           bazel test --test_output=errors -- //... -//ui/...
+
+  #######################
+  #      Internal CI     #
+  #######################
+  internal-bazel-build-test:
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork ==false)
+
+    runs-on: self-hosted
+    environment:
+      name: internal-ci
+    container:
+      image: python:3.10-bullseye
+      env:
+        DOCKER_HOST: "tcp://docker:2375"
+        DOCKER_TLS_CERTDIR: ""
+    services:
+      docker:
+        image: docker:dind
+        env:
+          DOCKER_TLS_CERTDIR: ""
+          DOCKER_DRIVER: overlay2
+        options: --privileged
+        ports:
+          - 2375:2375
+
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+
+      - name: Bazel Test
+        run: |
+          # Test everything except the UI
+          bazel test --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+            --test_env=DOCKER_HOST=tcp://docker:2375 \
+            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
+            --test_output=errors \
+            -- \
+            //... \
+            -//ui/...
