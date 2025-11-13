@@ -32,6 +32,7 @@ pkg_tar(
     package_dir = "etc",
 )
 
+
 passwd_entry(
     name = 'osmo_user',
     username = 'osmo',
