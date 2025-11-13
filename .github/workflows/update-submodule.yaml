@@ -14,22 +14,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-name: Trigger GitLab Submodule Update
+name: Update Submodule
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main  # Triggers when changes are merged into main branch
-  # TODO: Remove this pipeline is validated
-  pull_request:
-    branches: [ main ] # Triggers on PRs targeting the main branch
 
 jobs:
   trigger-gitlab:
     runs-on: self-hosted
+    # TODO: Remove this once we are fully released
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+        name: update-submodule
     steps:
-      - name: Trigger GitLab Pipeline
+      - name: Trigger Submodule Update
         env:
           GITLAB_TRIGGER_TOKEN: ${{ secrets.GITLAB_TRIGGER_TOKEN }}
           GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
@@ -39,7 +40,7 @@ jobs:
 
           RESPONSE=$(curl -X POST \
             -F token="${GITLAB_TRIGGER_TOKEN}" \
-            -F ref=fernandol/submodule \
+            -F ref="${{ github.ref_name }}" \
             -F "variables[GITHUB_COMMIT_SHA]=${{ github.sha }}" \
             -F "variables[TRIGGER_SOURCE]=github_main_merge" \
             -F "variables[GITHUB_REPO]=${{ github.repository }}" \
@@ -63,7 +64,7 @@ jobs:
       - name: Log trigger details
         if: success()
         run: |
-          echo "Triggered GitLab submodule update"
+          echo "Triggered GitLab pipeline"
           echo "GitHub Commit: ${{ github.sha }}"
           echo "Commit Message: ${{ github.event.head_commit.message }}"
           echo "Triggered By: ${{ github.actor }}"

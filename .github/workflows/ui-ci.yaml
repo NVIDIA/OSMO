@@ -14,33 +14,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-name: PR build and test
+name: UI build and test
 
 on:
   workflow_dispatch:
   pull_request:
     branches: [ main ] # Triggers on PRs targeting the main branch
     paths:
-      - 'bzl/**'
-      - 'src/**'
-      - 'run/**'
+      - 'ui/**'
 
 jobs:
   bazel-build-test:
     runs-on: ubuntu-latest
-
-    env:
-      DOCKER_HOST: "tcp://docker:2375"
-
-    services:
-      docker:
-        image: docker:29.0.0-dind
-        env:
-          DOCKER_TLS_CERTDIR: ""
-          DOCKER_DRIVER: overlay2
-        options: --privileged
-        ports:
-          - 2375:2375
 
     steps:
       - name: Checkout
@@ -57,21 +42,8 @@ jobs:
           repository-cache: true
           external-cache: |
             manifest:
-              # Python dependencies
-              osmo_python_deps: src/locked_requirements.txt
-              osmo_tests_python_deps: src/tests/locked_requirements.txt
-              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
-              pylint_python_deps: bzl/linting/locked_requirements.txt
-
-              # Go dependencies
-              io_bazel_rules_go: src/runtime/go.mod
-              bazel_gazelle: src/runtime/go.sum
+              npm: ui/pnpm-lock.yaml
 
       - name: Bazel Test
         run: |
-          bazel test \
-            --test_env=DOCKER_HOST=tcp://docker:2375 \
-            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
-            --test_output=errors \
-            //... \
-            -//ui/...
+          bazel test --test_output=errors //ui/...
