@@ -34,7 +34,7 @@ jobs:
           lfs: true
 
       - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@0.15.0
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
