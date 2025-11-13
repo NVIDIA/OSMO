@@ -62,7 +62,6 @@ osmo_py_binary(
     ],
 )
 
-# "//src/lib/utils:version.yaml",??? TODO
 py_image_layer(
     name = "logger_layer",
     binary = ":logger_binary",

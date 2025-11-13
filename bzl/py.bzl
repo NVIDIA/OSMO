@@ -137,16 +137,22 @@ import glob
 
 # Set up PYTHONPATH to include app code and dependencies
 pythonpath = ["{runfiles_dir}/_main"]
+local_runfiles_dir = "{runfiles_dir}"
+local_main_dir = "{runfiles_dir}/_main"
+if os.path.isdir("/osmo_workspace+"):
+    local_runfiles_dir = "/osmo_workspace+" + local_runfiles_dir
+    local_main_dir = local_runfiles_dir + "/osmo_workspace+"
+    pythonpath.append(local_runfiles_dir + "/osmo_workspace+")
 
 # Add all site-packages directories
-site_packages = glob.glob("{runfiles_dir}/rules_python++pip+*/site-packages")
+site_packages = glob.glob(local_runfiles_dir + "/rules_python++pip+*/site-packages")
 pythonpath.extend(site_packages)
 
 # Set PYTHONPATH
 os.environ["PYTHONPATH"] = ":".join(pythonpath)
 
 # Execute target script directly with system Python
-os.execv("{python_interpreter}", ["{python_interpreter}", "{main}"] + sys.argv[1:])
+os.execv("{python_interpreter}", ["{python_interpreter}", local_main_dir + "{main}"] + sys.argv[1:])
 EOF
             chmod +x $@
         """.format(
