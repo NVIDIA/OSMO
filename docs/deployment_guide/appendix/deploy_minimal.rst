@@ -670,9 +670,11 @@ After deployment, you need to configure a central storage for workflow spec, wor
 
 .. code-block:: bash
 
-   $ echo '{
+   $ cat << EOF > /tmp/osmo_logger_config.json
+   {
    "service_base_url": "http://osmo-logger.osmo-minimal.svc.cluster.local:80"
-   }' > /tmp/osmo_logger_config.json
+   }
+   EOF
 
    $ osmo config update SERVICE --file /tmp/osmo_logger_config.json
 

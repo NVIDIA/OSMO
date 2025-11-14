@@ -35,15 +35,16 @@ Run the following commands to configure the workflow spec and log storage locati
   :emphasize-lines: 2, 4, 5, 8
 
   # URI of your s3 bucket e.g. s3://my_bucket
-  BACKEND_URI=...
+  $ export BACKEND_URI=...
 
-  ACCESS_KEY_ID=...
-  ACCESS_KEY=...
+  $ export ACCESS_KEY_ID=...
+  $ export ACCESS_KEY=...
 
   # Bucket Region
-  REGION=...
+  $ export REGION=...
 
-  echo '{
+  $ cat << EOF > /tmp/workflow_log_config.json
+  {
     "workflow_log": {
         "credential": {
             "endpoint": "'$BACKEND_URI'",
@@ -52,13 +53,14 @@ Run the following commands to configure the workflow spec and log storage locati
             "region": "'$REGION'"
         }
     }
-  }' > /tmp/workflow_log_config.json
+  }
+  EOF
 
 Then, update the workflow configuration using the OSMO CLI. Please make sure you're logged in to your OSMO instance before running the following command.
 
 .. code-block:: bash
 
-  osmo config update WORKFLOW --file /tmp/workflow_log_config.json
+  $ osmo config update WORKFLOW --file /tmp/workflow_log_config.json
 
 
 Workflow Data
@@ -70,15 +72,16 @@ Configure the storage location for intermediate data that OSMO uses to pass outp
   :emphasize-lines: 2, 4, 5, 8
 
   # URI of your s3 bucket e.g. s3://my_bucket
-  BACKEND_URI=...
+  $ export BACKEND_URI=...
 
-  ACCESS_KEY_ID=...
-  ACCESS_KEY=...
+  $ export ACCESS_KEY_ID=...
+  $ export ACCESS_KEY=...
 
   # Bucket Region
-  REGION=...
+  $ export REGION=...
 
-  echo '{
+  $ cat << EOF > /tmp/workflow_data_config.json
+  {
     "workflow_data": {
         "credential": {
             "endpoint": "'$BACKEND_URI'",
@@ -87,13 +90,14 @@ Configure the storage location for intermediate data that OSMO uses to pass outp
             "region": "'$REGION'"
         }
     }
-  }' > /tmp/workflow_data_config.json
+  }
+  EOF
 
 Then, update the workflow data configuration using the OSMO CLI. Please make sure you're logged in to your OSMO instance before running the following command.
 
 .. code-block:: bash
 
-  osmo config update WORKFLOW --file /tmp/workflow_data_config.json
+  $ osmo config update WORKFLOW --file /tmp/workflow_data_config.json
 
 
 .. seealso::

@@ -64,7 +64,7 @@ Independent tasks run in parallel asynchronously when they:
 2. Are defined at the workflow level under ``tasks:``
 3. Have available compute resources
 
-**For example:**
+**For example:** (:download:`parallel_tasks.yaml <parallel_tasks.yaml>`)
 
 .. figure:: independent_tasks.svg
   :align: center
@@ -72,19 +72,9 @@ Independent tasks run in parallel asynchronously when they:
   :class: transparent-bg no-scaled-link
   :alt: Independent Tasks
 
-.. code-block:: yaml
-
-  workflow:
-    name: parallel-workflow
-    tasks:
-    - name: task-a
-      # Runs in parallel with task-b and task-c
-
-    - name: task-b
-      # Runs in parallel with task-a and task-c
-
-    - name: task-c
-      # Runs in parallel with task-a and task-b
+.. literalinclude:: parallel_tasks.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 All three tasks start simultaneously (resource availability permitting). They cannot
 communicate with each other over the network.
@@ -107,7 +97,7 @@ Key characteristics of groups:
 - Groups run serially based on dependencies between them
 - Tasks may run on the same node or different nodes
 
-**For example:**
+**For example:** (:download:`group_tasks.yaml <group_tasks.yaml>`)
 
 .. figure:: synchronized_groups.svg
   :align: center
@@ -115,22 +105,9 @@ Key characteristics of groups:
   :class: transparent-bg no-scaled-link
   :alt: Groups
 
-.. code-block:: yaml
-
-  workflow:
-    name: grouped-workflow
-    groups:
-    - name: parallel-group
-      tasks:
-      - name: task-a
-        lead: true  # One task must be the leader
-        # Can communicate with task-b and task-c
-
-      - name: task-b
-        # Can communicate with task-a and task-c
-
-      - name: task-c
-        # Can communicate with task-a and task-b
+.. literalinclude:: group_tasks.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. caution::
 
@@ -140,34 +117,16 @@ Key characteristics of groups:
 .. _tutorials_parallel_workflows_task_communication:
 
 Task Communication
-==================
+------------------
 
 Tasks **within a workflow group** can communicate over the network using the token ``{{host:task-name}}``.
 The token is replaced with the IP address of the task when the task is running.
 
-**Example:**
+**Example:** (:download:`group_tasks_communication.yaml <group_tasks_communication.yaml>`)
 
-.. code-block:: yaml
-
-  - name: client-task
-    command: ["bash", "-c"]
-    args:
-    - |
-      # Wait for server to be ready
-      while ! nslookup {{host:server-task}} > /dev/null 2>&1; do
-        sleep 2
-      done
-      
-      # Now communicate
-      curl http://{{host:server-task}}:8080/data
-
-.. tip::
-
-  **Best practices for communication:**
-
-  - ✅ Use ``nslookup`` or ``nc`` to wait for services to be ready
-  - ✅ Start with simple protocols (HTTP) before complex ones
-  - ✅ Handle connection retries gracefully
+.. literalinclude:: group_tasks_communication.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 Next Steps
 ==========

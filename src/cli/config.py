@@ -22,9 +22,8 @@ import json
 import subprocess
 from typing import Any, Dict, Literal, Set, TypedDict
 
-from src.lib.utils import client, common, config_history, osmo_errors, role, validation
 from src.cli import editor
-
+from src.lib.utils import client, common, config_history, osmo_errors, role, validation
 
 CONFIG_TYPES_STRING = ', '.join(config_history.CONFIG_TYPES)
 
@@ -284,27 +283,54 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
         print(table.draw())
 
 
-def fetch_data_from_config(config_info: Any) -> Any:
+def _fetch_data_from_config(config_info: Any) -> Any:
     """
     Fetch data from a config
     """
-    # Check if this is a list of objects with 'name' field
-    # which makes `osmo config show/update BACKEND my-backend` and
-    # `osmo config show/update ROLE my-role` nice
-    if isinstance(config_info, list) and config_info and \
-        isinstance(config_info[0], dict) and 'name' in config_info[0]:
-        return {item['name']: item for item in config_info}
+    # Check if this is a backends config, which makes
+    # `osmo config show/update BACKEND my-backend` nice
+    if isinstance(config_info, dict) and 'backends' in config_info:
+        config_info = config_info['backends']
 
-    # Check if this is a pools config, which makes `osmo config show/update POOL my-pool` nice
+    # Check if this is a pools config, which makes
+    # `osmo config show/update POOL my-pool` nice
     if isinstance(config_info, dict) and 'pools' in config_info:
-        return config_info['pools']
+        config_info = config_info['pools']
 
     # Check if this is a datasets config, which makes
     # `osmo config show/update DATASET my-dataset` nice
     if isinstance(config_info, dict) and 'buckets' in config_info:
-        return config_info['buckets']
+        config_info = config_info['buckets']
+
+    # Check if this is a list of objects with 'name' field
+    # which makes `osmo config show/update BACKEND my-backend` and
+    # `osmo config show/update ROLE my-role` nice
+    if (
+        isinstance(config_info, list)
+        and config_info
+        and isinstance(config_info[0], dict)
+        and 'name' in config_info[0]
+    ):
+        config_info = {item['name']: item for item in config_info}
 
     return config_info
+
+
+def _get_current_config(service_client: client.ServiceClient, config_type: str) -> Any:
+    """
+    Get the current config
+    Args:
+        service_client: The service client instance
+        config_type: The string config type from parsed arguments
+    """
+    if config_type not in [t.value for t in config_history.ConfigHistoryType]:
+        raise osmo_errors.OSMOUserError(
+            f'Invalid config type "{config_type}". '
+            f'Available types: {CONFIG_TYPES_STRING}'
+        )
+    return service_client.request(
+        client.RequestMethod.GET, f'api/configs/{config_type.lower()}'
+    )
 
 
 def _run_show_command(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -314,59 +340,51 @@ def _run_show_command(service_client: client.ServiceClient, args: argparse.Names
         service_client: The service client instance
         args: Parsed command line arguments
     """
-    # Build query parameters
-    params: Dict[str, Any] = {
-        'omit_data': False,  # We want the actual config data
-    }
-
     # Parse the config identifier
     if ':' in args.config:
         # Format is <CONFIG_TYPE>:<revision>
         revision = config_history.ConfigHistoryRevision(args.config)
-        params['config_types'] = [revision.config_type.value]
-        params['revision'] = revision.revision
-    else:
-        # Format is <CONFIG_TYPE> or <CONFIG_TYPE> <name>
-        if args.config not in [t.value for t in config_history.ConfigHistoryType]:
+        params: Dict[str, Any] = {
+            'config_types': [revision.config_type.value],
+            'omit_data': False,
+            'revision': revision.revision,
+        }
+        result = service_client.request(
+            client.RequestMethod.GET, 'api/configs/history', params=params
+        )
+
+        if not result['configs']:
             raise osmo_errors.OSMOUserError(
-                f'Invalid config type "{args.config}". '
-                f'Available types: {CONFIG_TYPES_STRING}')
-        params['config_types'] = [args.config]
-        # Get the latest revision
-        params['order'] = 'DESC'
-        params['limit'] = 1
-    result = service_client.request(client.RequestMethod.GET, 'api/configs/history', params=params)
+                'No config found matching the specified criteria'
+            )
 
-    if not result['configs']:
-        raise osmo_errors.OSMOUserError('No config found matching the specified criteria')
-
-    data = result['configs'][0]['data']
+        data = result['configs'][0]['data']
+    else:
+        # Format is <CONFIG_TYPE>
+        data = _get_current_config(service_client, args.config)
 
     # Handle multiple name arguments for indexing
     if args.names:
-        data = fetch_data_from_config(data)
-
-        current = data
+        data = _fetch_data_from_config(data)
         path = []
         for name in args.names:
             path.append(name)
-            if isinstance(current, dict) and name in current:
-                current = current[name]
-            elif isinstance(current, list):
+            if isinstance(data, dict) and name in data:
+                data = data[name]
+            elif isinstance(data, list):
                 try:
                     index = int(name)
-                    if 0 <= index < len(current):
-                        current = current[index]
+                    if 0 <= index < len(data):
+                        data = data[index]
                     else:
                         raise osmo_errors.OSMOUserError(
-                            f'Index {index} out of range for list of length {len(current)}')
+                            f'Index {index} out of range for list of length {len(data)}')
                 except ValueError as e:
                     raise osmo_errors.OSMOUserError(
                         f'Expected integer index for list, got "{name}"') from e
             else:
                 raise osmo_errors.OSMOUserError(
-                    f'Cannot index into {type(current).__name__} with "{name}"')
-        data = current
+                    f'Cannot index into {type(data).__name__} with "{name}"')
 
     print(json.dumps(data, indent=2))
 
@@ -417,31 +435,14 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
         if is_named:
             raise osmo_errors.OSMOUserError(
                 f'Named config updates not supported for {args.config}')
-        else:
-            raise osmo_errors.OSMOUserError(
-                f'Whole config updates not supported for {args.config}')
+        raise osmo_errors.OSMOUserError(
+            f'Whole config updates not supported for {args.config}'
+        )
 
-    # Get current config
-    params: Dict[str, Any] = {
-        'config_types': [args.config],
-        'order': 'DESC',
-        'limit': 1,
-        'omit_data': False,
-    }
-
-    result = service_client.request(
-        client.RequestMethod.GET,
-        'api/configs/history',
-        params=params)
-
-    if not result['configs']:
-        raise osmo_errors.OSMOUserError('No config found matching the specified criteria')
-
-    current_config = result['configs'][0]['data']
+    current_config = _get_current_config(service_client, args.config)
 
     if args.name:
-        current_config = fetch_data_from_config(current_config)
-
+        current_config = _fetch_data_from_config(current_config)
         if args.name not in current_config:
             raise osmo_errors.OSMOUserError(
                 f'Config name "{args.name}" not found in {args.config}')
@@ -468,7 +469,8 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
             directory='/tmp/',
             prefix=f'{args.config}{f"-{args.name}" if args.name else ""}-update_')
         raise osmo_errors.OSMOUserError(
-            f'Invalid JSON: {e}\nAttempted changes saved to {temp_file}')
+            f'Invalid JSON: {e}\nAttempted changes saved to {temp_file}'
+        ) from e
 
     # Compute diff between current and updated config
     if api_mapping['method'] == client.RequestMethod.PATCH:
@@ -493,6 +495,10 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
     if diff is None:
         print('No changes were made to the config.')
         return
+
+    # PATCH /api/configs/pool does not expect the pools key
+    if args.config == config_history.ConfigHistoryType.POOL.value and args.name is None:
+        diff = diff['pools']
 
     try:
         endpoint = f'api/configs/{args.config.lower()}'
@@ -524,7 +530,8 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
             directory='/tmp/',
             prefix=f'{args.config}{f"-{args.name}" if args.name else ""}-update_')
         raise osmo_errors.OSMOUserError(
-            f'Error updating config: {e}\nAttempted changes saved to {temp_file}')
+            f'Error updating config: {e}\nAttempted changes saved to {temp_file}'
+        ) from e
 
 
 def _run_delete_command(service_client: client.ServiceClient, args: argparse.Namespace):

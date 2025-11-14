@@ -63,9 +63,10 @@ spelling_warning = True
 spelling_word_list_filename = '../spelling_wordlist.txt'
 
 # Copybutton
-copybutton_prompt_text = "$ "
-copybutton_copy_empty_lines = False
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
 copybutton_line_continuation_character = "\\"
+copybutton_here_doc_delimiter = "EOF"
 copybutton_selector = "div:not(.no-copybutton) > div.highlight > pre"
 
 # New tab link

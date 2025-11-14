@@ -40,7 +40,7 @@ authenticate the backend operator with the OSMO service.
 
    $ osmo login https://<your-domain>
 
-   $export OSMO_SERVICE_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
+   $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
 
 Save the token in a secure location as it will not be shown again. Export it as an environment
 variable to use in the next step.
@@ -141,14 +141,16 @@ To configure the workflow backend with the KAI scheduler, use the following `sch
 
 .. code-block:: bash
 
-  $ echo '{
+  $ cat << EOF > /tmp/scheduler_settings.json
+  {
     "scheduler_settings": {
       "scheduler_type": "kai",
       "scheduler_name": "kai-scheduler",
       "coscheduling": true,
       "scheduler_timeout": 30
     }
-  }' > /tmp/scheduler_settings.json
+  }
+  EOF
 
 
 .. note::
