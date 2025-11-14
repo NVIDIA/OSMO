@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Isaac Lab: Running Groot Mimic through Imitation Learning
+# Isaac Groot: Running Groot Mimic through Imitation Learning
 
 ## Overview
 

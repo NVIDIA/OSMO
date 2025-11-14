@@ -441,6 +441,12 @@ class S3Backend(Boto3Backend):
         def _validate_auth():
             arn = sts_client.get_caller_identity()['Arn']
             path = f'{self.container}/{self.path if self.path else "*"}'
+
+            if path.endswith('/'):
+                # S3 IAM simulation will validate against an object with a trailing slash,
+                # therefore we need to add a wildcard to the path.
+                path += '*'
+
             bucket_objects_arn = f'arn:aws:s3:::{path}'
 
             results = iam_client.simulate_principal_policy(

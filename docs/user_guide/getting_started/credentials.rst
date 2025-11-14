@@ -72,7 +72,7 @@ Registry
             $ osmo credential set my-ngc-cred \
                     --type REGISTRY \
                     --payload registry=nvcr.io \
-                    username=$oauthtoken \
+                    username='$oauthtoken' \
                     auth=<ngc_api_key>
 
     .. tab-item:: Docker Hub

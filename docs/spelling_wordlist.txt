@@ -299,6 +299,7 @@ tmp
 tolerations
 torchrun
 txt
+ubuntu
 ui
 unallowed
 unicast

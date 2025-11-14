@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Hardware-in-the-Loop: Evaluate Policy on Jetson
+# Hardware-in-the-Loop: Deploying Policy on Jetson
 
 ## Overview
 

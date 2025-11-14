@@ -34,7 +34,7 @@ The ``checkpoint`` field in the task spec can be used to specify the following p
       - The local path within the task to checkpoint.
     * - url (required)
       - The remote path in the data store to checkpoint to.
-    * - checkpoint_cadence (required)
+    * - frequency (required)
       - How long to wait _between_ one checkpoint ending and the next one beginning.
         This should be in the format of ``Xd, Xh, Xm, Xs``
         where ``X`` is a number. If no unit is specified, the value is assumed to be in seconds.
@@ -53,8 +53,8 @@ The ``checkpoint`` field in the task spec can be used to specify the following p
     tasks:
     - name: task1
       checkpoint:
-      - source: /local/path/to/checkpoint
-        destination: s3://my-bucket/my-folder
+      - path: /local/path/to/checkpoint
+        url: s3://my-bucket/my-folder
         frequency: 30m
         regex: .*.json
 

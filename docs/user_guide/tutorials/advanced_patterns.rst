@@ -155,17 +155,32 @@ Basic Checkpointing
 
 .. code-block:: yaml
 
-  tasks:
-  - name: train-with-checkpointing
-    image: nvcr.io/nvidia/pytorch:24.01-py3
-    command: ["python", "train.py"]
-    args: ["--output-dir=/workspace/checkpoints"]
-    checkpoint:
-    - source: /workspace/checkpoints
-      destination: s3://my-bucket/training-checkpoints
-      frequency: 30m
+  workflow:
+    name: train-with-checkpointing
+    tasks:
+    - name: train-with-checkpointing
+      image: ubuntu:24.04
+      command: [/bin/bash]
+      args: [/tmp/run.sh]
+      files:
+      - path: /tmp/run.sh
+        contents: |-
+          #!/bin/bash
+          set -ex
 
-This will automatically upload the contents of ``/workspace/checkpoints`` to S3 every 30 minutes
+          mkdir -p /tmp/data
+          for i in {1..30}; do
+              filename="/tmp/data/file_$i.txt"
+              dd if=/dev/urandom of=$filename bs=1M count=5
+              sleep 1s
+          done
+          sleep 60s
+      checkpoint:
+      - path: /tmp/data
+        url: s3://my-bucket/model-checkpoints
+        frequency: 10s
+
+This will automatically upload the contents of ``/tmp/data`` to S3 every 10 seconds
 while the task is running. When the task completes, a final checkpoint is automatically uploaded.
 
 Checkpointing Specific Files
@@ -175,22 +190,69 @@ You can use regex patterns to checkpoint only specific files:
 
 .. code-block:: yaml
 
-  tasks:
-  - name: train-with-selective-checkpointing
-    image: nvcr.io/nvidia/pytorch:24.01-py3
-    command: ["python", "train.py"]
-    args: ["--output-dir=/workspace/output"]
-    checkpoint:
-    - source: /workspace/output
-      destination: s3://my-bucket/model-checkpoints
-      frequency: 1h
-      regex: .*\.(pt|pth|ckpt)$
+  workflow:
+    name: train-with-selective-checkpointing
+    tasks:
+    - name: train-with-selective-checkpointing
+      image: ubuntu:24.04
+      command: [/bin/bash]
+      args: [/tmp/run.sh]
+      files:
+      - path: /tmp/run.sh
+        contents: |-
+          #!/bin/bash
+          set -ex
 
-This will checkpoint only PyTorch model files (`.pt`, `.pth`, `.ckpt`) every hour.
+          mkdir -p /tmp/data
+          for i in {1..30}; do
+              # Alternate file type for odd/even files
+              if (( $i % 2 == 0 )); then
+                  filename="/tmp/data/file_$i.bin"
+              else
+                  filename="/tmp/data/file_$i.txt"
+              fi
+              dd if=/dev/urandom of=$filename bs=1M count=5
+              sleep 1s
+          done
+          sleep 60s
+      checkpoint:
+      - path: /tmp/data
+        url: s3://my-bucket/model-selective-checkpoints
+        frequency: 10s
+        regex: .*\.(bin)$
+
+This will checkpoint only binary files (`.bin`) every 10 seconds.
 
 .. seealso::
 
    See :ref:`workflow_spec_checkpointing` for complete checkpointing documentation.
+
+.. _tutorials_advanced_patterns_osmo_cli_wf:
+
+Running OSMO CLI in a Workflow
+==============================
+
+Users can use the OSMO CLI from within their workflow. OSMO CLI is always injected into the workflow.
+
+.. code-block:: yaml
+
+  workflow:
+    name: osmo-cli
+    tasks:
+    - name: task1
+      resource: default
+      image: ubuntu:24.04
+      command: ['sh']
+      args: ['/tmp/run.sh']
+      files:
+      - contents: |
+          echo "Invoking OSMO client from a script"
+          osmo version # (1)
+        path: /tmp/run.sh
+
+.. code-annotations::
+
+  1. You can run any OSMO CLI command here.
 
 .. _tutorials_advanced_patterns_exit_actions:
 

@@ -25,6 +25,7 @@ Configure Data Storage
 
   Ensure you have created the required data storage before configuring OSMO to use them: :ref:`create_data_storage`
 
+
 Workflow Logs
 ===============
 
@@ -53,7 +54,7 @@ Run the following commands to configure the workflow spec and log storage locati
     }
   }' > /tmp/workflow_log_config.json
 
-Then, update the workflow configuration using the OSMO CLI.
+Then, update the workflow configuration using the OSMO CLI. Please make sure you're logged in to your OSMO instance before running the following command.
 
 .. code-block:: bash
 
@@ -88,7 +89,7 @@ Configure the storage location for intermediate data that OSMO uses to pass outp
     }
   }' > /tmp/workflow_data_config.json
 
-Then, update the workflow data configuration using the OSMO CLI.
+Then, update the workflow data configuration using the OSMO CLI. Please make sure you're logged in to your OSMO instance before running the following command.
 
 .. code-block:: bash
 

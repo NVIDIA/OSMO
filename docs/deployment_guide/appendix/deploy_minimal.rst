@@ -370,7 +370,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,10,17
+    :emphasize-lines: 2,3,10
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>

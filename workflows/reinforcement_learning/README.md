@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Isaac Lab: Training Reinforcement Learning Policy
+# Isaac Lab: Training Robot Policy with Reinforcement Learning
 
 This example demonstrates how to run a reinforcement learning training job on a single node using OSMO. It trains a robot policy based on [Stable Baselines 3](https://stable-baselines3.readthedocs.io/en/master/) and showcases key OSMO features including resource management, dataset handling, and TensorBoard integration.
 

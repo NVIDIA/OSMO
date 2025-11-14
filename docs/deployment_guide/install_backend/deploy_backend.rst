@@ -160,7 +160,7 @@ Then update the backend configuration using the OSMO CLI. Once the change is app
 .. code-block:: bash
   :substitutions:
 
-  BACKEND_NAME=...
+  $ export BACKEND_NAME=default # update to reflect the name of your backend specified in the backend_operator_values.yaml file
   $ osmo config update BACKEND $BACKEND_NAME --file /tmp/scheduler_settings.json
 
 
@@ -172,7 +172,7 @@ Use the OSMO CLI to validate the backend configuration.
 .. code-block:: bash
   :substitutions:
 
-  BACKEND_NAME=...
+  $ export BACKEND_NAME=default # update to reflect the name of your backend specified in the backend_operator_values.yaml file
   $ osmo config show BACKEND $BACKEND_NAME | grep "online"
     "online": true,
 

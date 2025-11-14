@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# TorchRun: Training on Multiple Nodes with Rescheduling
+# TorchRun: Training with Rescheduling
 
 This example demonstrates how to run a PyTorch training job across multiple nodes using OSMO with torchrun and automatic rescheduling capabilities.
 The workflow uses Jinja2 templating for flexible configuration of node count, GPUs, and checkpoint settings.

@@ -21,13 +21,64 @@ on:
   pull_request:
     branches: [ main ] # Triggers on PRs targeting the main branch
     paths:
+      - 'BUILD'
+      - 'MODULE.bazel'
+      - 'bzl/**'
       - 'src/**'
       - 'run/**'
-      - 'ui/**'
 
 jobs:
-  bazel-build-test:
+
+  #######################
+  #      Public CI      #
+  #######################
+  public-bazel-build-test:
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+          external-cache: |
+            manifest:
+              # Python dependencies
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+
+              # Go dependencies
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
+
+      - name: Bazel Test
+        run: |
+          # Test everything except the UI
+          bazel test --test_output=errors -- //... -//ui/...
+
+  #######################
+  #      Internal CI     #
+  #######################
+  internal-bazel-build-test:
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
+
     runs-on: self-hosted
+    environment:
+      name: internal-ci
     container:
       image: python:3.10-bullseye
       env:
@@ -42,44 +93,31 @@ jobs:
         options: --privileged
         ports:
           - 2375:2375
+
     steps:
-      - name: Clean workspace before checkout
+      - name: Install dependencies
         run: |
-          rm -rf $GITHUB_WORKSPACE/* || true
-
-      - name: Fix workspace permissions
-        run: |
-          chown -R $USER:$USER $GITHUB_WORKSPACE || true
-          chmod -R u+rwX $GITHUB_WORKSPACE || true
-
-      - name: Install Dependencies
-        run: |
-          # Install required packages
           apt-get update
-          apt-get install -y git git-lfs curl enchant-2
-
-          # Download and install Bazelisk
-          curl -Lo bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64
-          chmod +x bazelisk
-          mv bazelisk /usr/local/bin/bazel
+          apt-get install -y git-lfs
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+
       - name: Bazel Test
         run: |
-          bazel test --remote_cache=https://bazel-remote.osmo.nvidia.com \
+          # Test everything except the UI
+          bazel test --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
-            //...
-      - name: Cleanup Bazel cache
-        if: always()
-        run: |
-          # Clean up Bazel's cache to prevent permission issues during runner cleanup
-          bazel clean --expunge || true
-          # Remove any remaining files in temp directories
-          rm -rf $HOME/.cache/bazel || true
-          rm -rf /tmp/bazel* || true
+            -- \
+            //... \
+            -//ui/...

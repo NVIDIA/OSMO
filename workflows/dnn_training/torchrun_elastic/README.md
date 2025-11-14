@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# TorchRun: Training on Multiple Nodes using TorchRun Elastic
+# TorchRun: Elastic Training on Multiple Nodes
 
 This example demonstrates how to run a PyTorch elastic training job across multiple nodes using OSMO with torchrun.
 Elastic training allows the job to dynamically scale between a minimum and maximum number of nodes, and automatically handles node failures with restarts.

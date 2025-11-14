@@ -139,7 +139,7 @@ b. Create a ``keycloak-values.yaml`` file with the following configuration:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 12, 24, 30-33, 56-69
+    :emphasize-lines: 12, 24, 30-43, 66-80
 
     # Override the default image to use our own registry to not rely on the bitnami registry
     global:
@@ -312,6 +312,9 @@ d. Click on the ``Clients`` tab and for each of the ``osmo-browser-flow`` and ``
   * Valid Redirect URIs: ``https://osmo.my-domain.com/*``
   * Web Origins: ``https://osmo.my-domain.com``
 
+  .. note::
+    Please replace ``osmo.my-domain.com`` with your actual OSMO domain name.
+
 e. On the ``osmo-browser-flow`` client details page, click on the ``Credentials`` tab and
    create and save a client secret that will be used for envoy later.
 
@@ -322,7 +325,11 @@ Creating Users
 
   a. Go to the ``Users`` tab
   b. Click on the ``Add User`` button
-  c. Fill in the user details, add the user to the group ``User`` and save the user
+  c. Fill in the user details, add the user to the group ``User`` or ``Admin`` depending on the role you want to assign to the user and save the user
+
+  .. note::
+    The ``Admin`` group is reserved for administrators with elevated permissions for configuring OSMO and managing users.
+    The ``User`` group is reserved for users with basic permissions for submitting workflows and managing their own workflows.
 
   .. image:: add_user_group.png
     :width: 500px
@@ -471,7 +478,7 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 20-32, 39-47, 50-61, 137, 144-145, 147, 156-165
+    :emphasize-lines: 4, 20-32, 39-47, 50-66, 142, 149-152, 161-170
 
     # Global configuration shared across all OSMO services
     global:
@@ -681,7 +688,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 23, 28-41, 52-56, 75, 82-83, 85, 97-106, 117
+    :emphasize-lines: 4, 23, 28-46, 58-61, 78, 85-88, 100-109, 120-121
 
     # Global configuration shared across router services
     global:
@@ -832,7 +839,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 11, 14-27, 45, 52-53, 56, 66-75
+    :emphasize-lines: 4, 11, 14-32, 50, 57-61, 71-80
 
     # Global configuration shared across UI services
     global:

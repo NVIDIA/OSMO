@@ -18,9 +18,9 @@
 
 .. _guides_reinforcement_learning:
 
-==================================================================
-Isaac Lab: Training robot policy with Reinforcement Learning (RL)
-==================================================================
+============================================================
+Isaac Lab: Training Robot Policy with Reinforcement Learning
+============================================================
 
 This tutorial walks you through running a reinforcement learning training job on a single node with OSMO,
 using `Isaac Lab <https://developer.nvidia.com/isaac/lab>`_, NVIDIA's framework for robot learning.

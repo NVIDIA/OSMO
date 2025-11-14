@@ -286,3 +286,35 @@ database that was created.
 ```sh
 kind delete cluster --name osmo
 ```
+
+## Troubleshooting
+
+### Too many files open
+
+If you encounter "too many files open" errors or pods are unable to start, you need to raise the
+inotify limits:
+
+```bash
+echo "fs.inotify.max_user_watches=1048576" | sudo tee -a /etc/sysctl.conf
+echo "fs.inotify.max_user_instances=512" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+For more details, see:
+[Pod errors due to "too many open files"](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files)
+
+### Docker permission denied
+
+If you see "permission denied" errors when running Docker or KIND commands, add your user to the
+docker group:
+
+```bash
+sudo usermod -aG docker $USER && newgrp docker
+```
+
+> [!NOTE]
+> If you continue to see permission errors, you may need to log out and log back in
+> for the group membership changes to take effect.
+
+For more details, see:
+[Docker permission denied](https://kind.sigs.k8s.io/docs/user/known-issues/#docker-permission-denied)

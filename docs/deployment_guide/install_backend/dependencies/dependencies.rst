@@ -81,7 +81,7 @@ The `NVIDIA GPU-Operator <https://github.com/NVIDIA/gpu-operator>`_ is required 
 
   helm repo add nvidia https://nvidia.github.io/gpu-operator
   helm repo update
-  helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator
+  helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator --create-namespace
 
 
 

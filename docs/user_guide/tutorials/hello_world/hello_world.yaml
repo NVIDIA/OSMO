@@ -16,6 +16,11 @@
 
 workflow:
   name: hello-osmo
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
   tasks:
   - name: hello
     image: ubuntu:24.04
