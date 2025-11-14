@@ -42,12 +42,14 @@ To link the pool to the backend defined in previous steps, update the pool confi
 
 .. code-block:: bash
 
-  echo '{
+  $ cat << EOF > /tmp/pool_config.json
+  {
     "default": {
       "backend": "<backend name>",
       "description": "<pool description>"
     }
-  }' > /tmp/pool_config.json
+  }
+  EOF
 
 Then, update the pool configuration using the OSMO CLI.
 

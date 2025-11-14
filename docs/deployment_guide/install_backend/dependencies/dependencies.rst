@@ -131,11 +131,13 @@ Grafana and Kubernetes Dashboard Configuration
 
 .. code-block:: bash
 
-  echo '{
+  $ cat << EOF > /tmp/backend_config.json
+  {
     "description": "...",
     "dashboard_url": "...",
     "grafana_url": "..."
-  }' > /tmp/backend_config.json
+  }
+  EOF
 
 ..  list-table::
     :header-rows: 1

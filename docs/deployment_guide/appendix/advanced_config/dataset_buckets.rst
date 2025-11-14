@@ -34,18 +34,20 @@ Create the configuration of the new bucket with the following command:
 .. code-block:: bash
 
   # Name of Bucket
-  BUCKET_NAME=...
+  $ export BUCKET_NAME=...
 
   # URI of your s3 bucket e.g. s3://my_bucket
-  BACKEND_URI=...
+  $ export BACKEND_URI=...
 
-  echo '{
+  $ cat << EOF > /tmp/dataset_config.json
+  {
     "buckets": {
         "'$BUCKET_NAME'": {
             "dataset_path": "'$BACKEND_URI'"
         }
     }
-  }' > /tmp/dataset_config.json
+  }
+  EOF
 
 Then, update the dataset configuration using the OSMO CLI.
 
@@ -81,11 +83,13 @@ If this bucket will be the default bucket users will use, create this configurat
 .. code-block:: bash
 
   # Name of Bucket
-  BUCKET_NAME=...
+  $ export BUCKET_NAME=...
 
-  echo '{
+  $ cat << EOF > /tmp/dataset_default_bucket_config.json
+  {
     "default_bucket": "'$BUCKET_NAME'"
-  }' > /tmp/dataset_default_bucket_config.json
+  }
+  EOF
 
 Then, update the dataset configuration using the OSMO CLI.
 

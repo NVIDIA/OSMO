@@ -242,7 +242,8 @@ For example, if we have nodes with the label ``nvidia.com/gpu.product`` set to `
 
 .. code-block:: bash
 
-  $ echo '{
+  $ cat << EOF > l40s_pod_template.json
+  {
     "l40s": {
       "spec": {
         "nodeSelector": {
@@ -250,7 +251,8 @@ For example, if we have nodes with the label ``nvidia.com/gpu.product`` set to `
         }
       }
     }
-  }' > l40s_pod_template.json
+  }
+  EOF
 
 Then, update the pod template using the OSMO CLI.
 
@@ -263,7 +265,8 @@ If you have another node with the label ``nvidia.com/gpu.product`` set to ``NVID
 
 .. code-block:: bash
 
-  $ echo '{
+  $ cat << EOF > a100_pod_template.json
+  {
     "a100": {
       "spec": {
         "nodeSelector": {
@@ -279,7 +282,8 @@ If you have another node with the label ``nvidia.com/gpu.product`` set to ``NVID
         }
       }
     }
-  }' > a100_pod_template.json
+  }
+  EOF
 
 Then, update the pod template using the OSMO CLI.
 
@@ -294,7 +298,8 @@ With the pod templates created, we can create a pool or modify an existing pool 
 
 .. code-block:: bash
 
-  $ echo '{
+  $ cat << EOF > platform_config.json
+  {
     "name": "shared_simulation_training_pool",
     "backend": "default",
     "default_platform": "l40s_platform",
@@ -334,7 +339,8 @@ With the pod templates created, we can create a pool or modify an existing pool 
             "allowed_mounts": []
         }
     }
-  }' > platform_config.json
+  }
+  EOF
 
 **Key configuration fields:**
 
@@ -368,7 +374,8 @@ For example, if the pool name is ``shared_simulation_training_pool``, the role n
 
 .. code-block:: bash
 
-  $ echo '{
+  $ cat << EOF > role_config.json
+  {
     "name": "osmo-shared",
     "description": "Role for shared simulation training pool",
     "actions": [
@@ -383,7 +390,8 @@ For example, if the pool name is ``shared_simulation_training_pool``, the role n
         "method": "*"
       }
     ]
-  }' > role_config.json
+  }
+  EOF
 
 Then, the role can be created using the OSMO CLI.
 

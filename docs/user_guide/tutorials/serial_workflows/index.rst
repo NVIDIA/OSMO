@@ -112,7 +112,7 @@ OSMO automatically:
 Your First Serial Workflow
 ===========================
 
-Let's build a **three-stage** serial workflow:
+Let's build a **three-stage** serial workflow (:download:`serial_workflow.yaml <serial_workflow.yaml>`):
 
 .. figure:: serial_workflow.svg
   :align: center
@@ -120,75 +120,9 @@ Let's build a **three-stage** serial workflow:
   :class: transparent-bg no-scaled-link
   :alt: Serial Workflow
 
-.. code-block:: bash
-
-  workflow:
-    name: serial-tasks
-    tasks:
-
-    ##############################
-    # Task 1
-    ##############################
-    - name: task1
-      image: ubuntu:22.04
-      command: [sh]
-      args: [/tmp/run.sh]
-      files:
-      - contents: |
-          echo "Hello from task1 $(hostname)"
-          echo "Data from task 1" > {{output}}/test_read.txt # (1)
-        path: /tmp/run.sh
-
-
-    ##############################
-    # Task 2 (depends on Task 1)
-    ##############################
-    - name: task2
-      image: ubuntu:22.04
-      command: ['sh']
-      args: ['/tmp/run.sh']
-      files:
-      - contents: |
-          echo "Hello from task2 {{output}}"
-
-          echo "Reading from task 1"
-          while IFS= read -r line; do
-            echo "a line: $line"
-          done < {{input:0}}/test_read.txt
-
-          echo "Data from task 2" > {{output}}/test_read.txt
-        path: /tmp/run.sh
-      resource: default
-      inputs:
-      - task: task1 # (2)
-
-
-    #########################################
-    # Task 3 (depends on Task 1 and Task 2)
-    #########################################
-    - name: task3
-      image: ubuntu:22.04
-      command: ['sh']
-      args: ['/tmp/run.sh']
-      files:
-      - contents: |
-          echo "Hello from task3 {{output}}"
-
-          echo "Reading from task 1"
-          while IFS= read -r line; do
-            echo "a line: $line"
-          done < {{input:0}}/test_read.txt
-
-          echo "Reading from task 2"
-          while IFS= read -r line; do
-            echo "a line: $line"
-          done < {{input:1}}/test_read.txt
-
-          echo "Data from task 3" > {{output}}/test_read.txt
-        path: /tmp/run.sh
-      inputs:
-      - task: task1
-      - task: task2
+.. literalinclude:: serial_workflow.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
   1. No ``outputs:`` section is required for the downstream task to download.
