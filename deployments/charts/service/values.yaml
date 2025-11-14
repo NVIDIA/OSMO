@@ -26,7 +26,7 @@ global:
 
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
-  imagePullSecret: imagepullsecret
+  imagePullSecret: null
 
   ## Node selector constraints for pod scheduling
   ##

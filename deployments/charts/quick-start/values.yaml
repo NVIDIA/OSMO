@@ -34,7 +34,7 @@ global:
 
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
-  imagePullSecret: imagepullsecret
+  imagePullSecret: null
 
   ## Container registry configuration for OSMO images
   ##

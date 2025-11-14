@@ -48,7 +48,7 @@ helm upgrade my-router ./router -f my-values.yaml
 |-----------|-------------|---------|
 | `global.osmoImageLocation` | Base location for OSMO Docker images | `nvcr.io/nvidia/osmo` |
 | `global.osmoImageTag` | Docker image tag for OSMO router service | `latest` |
-| `global.imagePullSecret` | Name of the Kubernetes secret for Docker registry credentials | `imagepullsecret` |
+| `global.imagePullSecret` | Name of the Kubernetes secret for Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector constraints | `{}` |
 | `global.logs.enabled` | Enable centralized logging collection | `true` |
 | `global.logs.logLevel` | Application log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `DEBUG` |

@@ -66,28 +66,16 @@ Create a dedicated namespace to deploy OSMO service:
 Step 2: Add Helm Repository
 ==================================
 
-Add the NVIDIA OSMO Helm repository using your NGC token:
+Add the NVIDIA OSMO Helm repository:
 
 .. code-block:: bash
 
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidian/osmo \
-     --username \$oauthtoken \
-     --password <ngc-token>
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
 
    $ helm repo update
 
 Step 3: Create K8s Secrets
 =================================
-
-Create a secret for pulling images from NVIDIA's container registry:
-
-.. code-block:: bash
-
-   $ kubectl create secret docker-registry imagepullsecret \
-     --docker-server=nvcr.io \
-     --docker-username=\$oauthtoken \
-     --docker-password=<ngc-token> \
-     --namespace osmo-minimal
 
 Create secret for database and redis passwords:
 
@@ -230,7 +218,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,11,12,16,26
+    :emphasize-lines: 2,3,14,17,24
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -241,12 +229,20 @@ Create the following values files for the minimal deployment:
         enabled: true
 
       postgres:
+        # Set to true if you want Postgres to be deployed as
+        # part of the OSMO install, otherwise set to false to
+        # use an external Postgres database
         enabled: false
         serviceName: <your-postgres-host>
-        db: <your-database-name>
+
+        # This should match the database name in the prior configuration step
+        db: osmo_db
 
       redis:
-        enabled: false # Set to false if using external Redis
+        # Set to true if you want Redis to be deployed as
+        # part of the OSMO install, otherwise set to false to
+        # use an external Redis cache
+        enabled: false
         serviceName: <your-redis-host>
         port: 6379
         tlsEnabled: true # Set to false if your Redis does not require TLS
@@ -370,7 +366,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,10
+    :emphasize-lines: 2,3,10,13
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -382,6 +378,9 @@ Create the following values files for the minimal deployment:
 
       postgres:
         serviceName: <your-postgres-host>
+
+        # This should match the database name in the prior configuration step
+        db: osmo_db
 
       service:
         scaling:
