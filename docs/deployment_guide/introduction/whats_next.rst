@@ -57,7 +57,7 @@ Select one of the deployment options below depending on your needs and deploymen
           Get a feel for the platform and explore the capabilities with this minimal deployment.
 
       .. grid-item-card:: :octicon:`cloud` Production Deployment
-          :link: ../getting_started/prereqs
+          :link: ../requirements/prereqs
           :link-type: doc
 
           **Time**: 2-4 hours
@@ -71,6 +71,8 @@ Select one of the deployment options below depending on your needs and deploymen
           ✓ SSO authentication
 
           ✓ Multi-backend support
+
+          ✓ Interactive workflows
 
           **Summary**:
 

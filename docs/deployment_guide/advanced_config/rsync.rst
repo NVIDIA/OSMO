@@ -33,7 +33,7 @@ This appendix describes how to setup rsync for OSMO.
 Configuration Process Overview
 -------------------------------
 
-Use the configuration CLI (:doc:`../../references/config_cli/config_update`) to configure the rsync plugin:
+Use the configuration CLI (:doc:`../references/config_cli/config_update`) to configure the rsync plugin:
 
 .. code-block:: bash
 

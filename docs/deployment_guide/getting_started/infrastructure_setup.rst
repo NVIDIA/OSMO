@@ -18,7 +18,7 @@
 Setup Infrastructure
 ====================
 
-Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in :doc:`../getting_started/prereqs`. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
+Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in :doc:`../requirements/prereqs`. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
 
 Setup Options
 =============

@@ -106,21 +106,21 @@ An OSMO deployment consists of two main components:
 
 .. toctree::
   :hidden:
-  :caption: Prerequisites
+  :caption: Requirements
 
-  getting_started/prereqs
-  getting_started/tools
-  getting_started/networking
-  getting_started/system_reqs
+  requirements/prereqs
+  requirements/tools
+  requirements/networking
+  requirements/system_reqs
 
 .. toctree::
   :hidden:
   :caption: Getting Started
 
-  install_service/infrastructure_setup
-  install_service/deploy_service
+  getting_started/infrastructure_setup
+  getting_started/deploy_service
   getting_started/create_storage/index
-  install_service/configure_data
+  getting_started/configure_data
 
 .. toctree::
   :hidden:
@@ -135,6 +135,18 @@ An OSMO deployment consists of two main components:
 
 .. toctree::
   :hidden:
+  :caption: Advanced Configuration
+
+  advanced_config/index
+  advanced_config/pool
+  advanced_config/resource_validation
+  advanced_config/pod_template
+  advanced_config/scheduler
+  advanced_config/rsync
+  advanced_config/dataset_buckets
+
+.. toctree::
+  :hidden:
   :caption: References
 
   references/configs_definitions/index
@@ -142,11 +154,10 @@ An OSMO deployment consists of two main components:
 
 .. toctree::
   :hidden:
-  :caption: Appendix
+  :caption: Additional Resources
 
   appendix/deploy_minimal
-  appendix/authentication/index
   appendix/workflow_execution
-  appendix/advanced_config/index
+  appendix/authentication/index
 
 

@@ -283,37 +283,36 @@ b. Log in with the admin credentials specified in the values file
 
 c. Create a new realm for OSMO:
 
-  1. Download the sample realm file: :download:`sample_osmo_realm.json <sample_osmo_realm.json>`
-  2. Click on the dropdown menu on the top left which says ``master`` and select ``Create Realm``
+   1. Download the sample realm file: :download:`sample_osmo_realm.json <sample_osmo_realm.json>`
+   2. Click on the dropdown menu on the top left which says ``master`` and select ``Create Realm``
 
-  .. image:: realm.png
-    :width: 300px
-    :align: center
+   .. image:: realm.png
+     :width: 300px
+     :align: center
 
-  3. Enter the downloaded realm file in the ``Resource file`` field and click on ``Create``
+   3. Enter the downloaded realm file in the ``Resource file`` field and click on ``Create``
 
-  .. image:: create_realm.png
-    :width: 900px
-    :align: center
+   .. image:: create_realm.png
+     :width: 900px
+     :align: center
 
-  4. You will then be redirected to the ``osmo`` realm
+   4. You will then be redirected to the ``osmo`` realm
 
 d. Click on the ``Clients`` tab and for each of the ``osmo-browser-flow`` and ``osmo-device``
    clients, update the client settings to the following:
 
-.. image:: clients.png
-  :width: 500px
-  :align: center
-..
+   .. image:: clients.png
+     :width: 500px
+     :align: center
 
-  * Root URL: ``https://osmo.example.com``
-  * Home URL: ``https://osmo.example.com``
-  * Admin URL: ``https://osmo.example.com``
-  * Valid Redirect URIs: ``https://osmo.example.com/*``
-  * Web Origins: ``https://osmo.example.com``
+   * Root URL: ``https://osmo.example.com``
+   * Home URL: ``https://osmo.example.com``
+   * Admin URL: ``https://osmo.example.com``
+   * Valid Redirect URIs: ``https://osmo.example.com/*``
+   * Web Origins: ``https://osmo.example.com``
 
-  .. note::
-    Please replace ``osmo.example.com`` with your actual OSMO domain name.
+   .. note::
+     Please replace ``osmo.example.com`` with your actual OSMO domain name.
 
 e. On the ``osmo-browser-flow`` client details page, click on the ``Credentials`` tab and
    create and save a client secret that will be used for envoy later.
