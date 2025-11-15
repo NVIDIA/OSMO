@@ -53,7 +53,7 @@ Requirements
           - Fully Qualified Domain Name (FQDN) for your OSMO instance
           - Valid SSL/TLS certificate for your domain
 
-          **Example**: ``osmo.my-domain.com``
+          **Example**: ``osmo.example.com``
 
       .. grid-item-card:: :octicon:`globe` DNS Configuration
 
@@ -65,14 +65,14 @@ Requirements
 
           Dedicated FQDN and certificate for the Keycloak instance.
 
-          **Example**: ``auth-osmo.my-domain.com``
+          **Example**: ``auth-osmo.example.com``
 
       .. grid-item-card:: :octicon:`plug` Port Forwarding (Optional)
           :class-card: optional-card
 
           FQDN and certificate for wildcard subdomain for UI port forwarding.
 
-          **Example**: ``*.osmo.my-domain.com``
+          **Example**: ``*.osmo.example.com``
 
 .. image:: network_components.svg
    :width: 80%

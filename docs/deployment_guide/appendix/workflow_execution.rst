@@ -22,20 +22,45 @@
 Workflow Execution
 ================================================
 
-This page explains how OSMO executes workflows at the technical level, focusing on the workflow pod that powers every workflow task.
+When you submit a workflow to OSMO, each task runs as a Kubernetes pod on your backend cluster. This page explains the technical architecture of these pods—how they're structured, how they communicate, and what happens during execution.
 
-Overview
-========
+.. tip::
 
-When you submit a workflow to OSMO, each task in the workflow becomes a Kubernetes pod on a backend cluster. Understanding how these pods are structured helps you:
+   **Why read this?** Understanding pod architecture helps you debug issues, optimize data operations, and effectively use interactive features like ``exec`` and ``port-forward``.
 
-- Debug workflow issues
-- Optimize data operations
-- Understand resource usage
-- Use interactive features (exec, port-forward, rsync)
+At a Glance
+===========
 
-Workflow Pod
-========================
+Each workflow task executes as a Kubernetes pod containing three specialized containers:
+
+.. grid:: 1 1 3 3
+    :gutter: 2
+    :class-container: text-center
+
+    .. grid-item::
+
+        **1. osmo-init**
+
+        Sets up the environment
+
+    .. grid-item::
+
+        **2. osmo-ctrl**
+
+        Manages data & coordination
+
+    .. grid-item::
+
+        **3. Your Container**
+
+        Runs your workload
+
+These containers share volumes (``/osmo/data/input`` and ``/osmo/data/output``) and communicate via Unix sockets to seamlessly orchestrate your task from data download through execution to results upload.
+
+----
+
+Pod Architecture
+=================
 
 Every workflow task runs in a pod with three containers that work together:
 
@@ -192,121 +217,117 @@ Every workflow task runs in a pod with three containers that work together:
         </div>
     </div>
 
-Container Roles and Responsibilities
-=====================================
+The Three Containers
+=====================
 
-osmo-init: Setup Container
----------------------------
+Each pod contains three containers working together to execute your task:
 
-**Type**: Init Container (runs first, then exits)
+.. grid:: 3
+    :gutter: 3
 
-**Purpose**: Prepare the environment before user code runs
+    .. grid-item-card:: :octicon:`gear` osmo-init
+        :class-card: sd-border-primary
 
-**Responsibilities**:
+        **Init Container**
 
-1. **Directory Setup**
+        Prepares the environment before your code runs:
 
-   - Creates directory structure for data operations
-   - Sets proper permissions for shared volumes
-   - Configures paths for input/output data
+        - Creates ``/osmo/data/input`` and ``/osmo/data/output`` directories
+        - Installs OSMO CLI (available in your container)
+        - Sets up Unix socket for inter-container communication
 
-2. **OSMO CLI Installation**
+        :bdg-info:`Runs once` → Exits after setup
 
-   - Makes the OSMO CLI available inside user container
-   - Enables user to use ``osmo`` commands in user workflow tasks
-   - No need to install OSMO CLI in user container image
+    .. grid-item-card:: :octicon:`sync` osmo-ctrl
+        :class-card: sd-border-success
 
-3. **Environment Preparation**
+        **Sidecar Container**
 
-   - Populates login directory with necessary files
-   - Sets up shared state between containers
-   - Configures Unix socket for inter-container communication
+        Coordinates task execution and data:
 
-**Lifecycle**: Runs once at pod startup, exits when setup complete
+        - Downloads input data from cloud storage
+        - Streams logs to OSMO service in real-time
+        - Uploads output artifacts after completion
+        - Handles interactive requests (exec, port-forward)
 
-osmo-ctrl: Coordinator Container
----------------------------------
+        :bdg-success:`Runs throughout` task lifetime
 
-**Type**: Sidecar (runs throughout task lifetime)
+    .. grid-item-card:: :octicon:`package` User Container
+        :class-card: sd-border-warning
 
-**Purpose**: Bridge between user container and OSMO service
+        **Main Container**
 
-**Responsibilities**:
+        Your actual workload:
 
-1. **Service Communication**
+        - Executes the command you specified
+        - Reads from ``/osmo/data/input``
+        - Writes to ``/osmo/data/output``
+        - Gets all requested CPU/GPU/memory resources
 
-   - Maintains WebSocket connection to OSMO service
-   - Sends logs and metrics in real-time
-   - Receives user commands (exec, port-forward, rsync)
+        :bdg-warning:`Runs` your code from start to exit
 
-2. **Data Management**
+How It Works: Execution Flow
+==============================
 
-   - Downloads input data before task starts
-   - Monitors output directory for artifacts
-   - Uploads results to cloud storage after completion
+When a task pod starts, the containers execute in this sequence:
 
-3. **Task Orchestration**
+.. tab-set::
 
-   - Signals user container when to start execution
-   - Coordinates interactive access requests
-   - Handles graceful shutdown
+   .. tab-item:: 1. Initialize
+      :sync: init
 
-4. **Interactive Features**
+      **osmo-init** prepares the environment
 
-   - Enables ``osmo exec`` for terminal access
-   - Supports ``osmo port-forward`` for service access
-   - Facilitates ``osmo rsync`` for file transfers
+      - Creates directory structure (``/osmo/data/input``, ``/osmo/data/output``)
+      - Sets up Unix socket at ``/osmo/data/socket/data.sock``
+      - Installs OSMO CLI binary
+      - Exits when complete
 
-**Communication**: Uses Unix socket at ``/osmo/data/socket/data.sock``
+      ⏱️ **Duration:** ~2-5 seconds
 
-**Lifecycle**: Runs for entire task duration
+   .. tab-item:: 2. Download Data
+      :sync: download
 
-User Container: Workload Container
------------------------------------
+      **osmo-ctrl** fetches input data
 
-**Type**: Main Container (user actual workload)
+      - Connects to OSMO service via WebSocket
+      - Downloads datasets specified in workflow
+      - Extracts to ``/osmo/data/input``
+      - Reports progress
 
-**Purpose**: Run the user's code
+      ⏱️ **Duration:** Depends on data size
 
-**Responsibilities**:
+   .. tab-item:: 3. Execute
+      :sync: execute
 
-1. **Execute User Code**
+      **User Container** runs your workload
 
-   - Runs the image and command you specified in the workflow
-   - Has full access to GPUs and compute resources
-   - Executes user's custom logic
+      **Your code:**
+      - Reads from ``/osmo/data/input``
+      - Writes to ``/osmo/data/output``
+      - Logs to stdout/stderr
 
-2. **Data Operations**
+      **osmo-ctrl** (in parallel):
+      - Streams logs to OSMO service
+      - Handles interactive requests
+      - Monitors for completion
 
-   - Read input data from ``/osmo/data/input``
-   - Write output data to ``/osmo/data/output``
-   - Access shared volumes
+      ⏱️ **Duration:** Your workload time
 
-3. **Interactive Response**
+   .. tab-item:: 4. Upload Results
+      :sync: upload
 
-   - Respond to exec requests (terminal access)
-   - Serve port-forward connections
-   - Handle rsync file transfers
+      **osmo-ctrl** uploads outputs
 
-**Communication**: Receives signals from osmo-ctrl via Unix socket
+      - Detects user container exit
+      - Uploads ``/osmo/data/output`` contents
+      - Sends final status
+      - Pod terminates
 
-**Lifecycle**: Runs user's command from start to exit
+      ⏱️ **Duration:** Depends on output size
 
-Container Interaction Flow
-===========================
-
-Here's how the containers work together during a task's lifecycle:
-
-1. **osmo-init**: Creates directories and sets up environment
-2. **osmo-init**: Exits after setup complete
-3. **osmo-ctrl**: Starts and connects to OSMO service
-4. **osmo-ctrl**: Downloads input data to shared volume
-5. **osmo-ctrl**: Signals **User Container** to start
-6. **User Container**: Executes user's command, reads input, writes output
-7. **osmo-ctrl**: Uploads output data after user container exits
-
-Detailed Execution Phases
-==========================
+Visual Timeline
+===============
 
 Phase 1: Initialization
 -----------------------
@@ -534,134 +555,141 @@ Phase 4: Upload and Cleanup
 
 **Duration**: Depends on output data size
 
-Shared Volumes and Communication
-=================================
+Data and Communication
+=======================
 
-Volume Mounts
--------------
+Shared Volumes
+--------------
 
-All three containers share these volumes:
+All containers share these mounted volumes:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
+.. grid:: 3
+    :gutter: 2
 
-   * - Mount Path
-     - Purpose
-   * - ``/osmo/data/input``
-     - Input data downloaded by osmo-ctrl, read by user container
-   * - ``/osmo/data/output``
-     - Output data written by user container, uploaded by osmo-ctrl
-   * - ``/tmp/osmo/``
-     - Unix socket for inter-container communication
+    .. grid-item-card::
+        :class-card: sd-text-center
+
+        ``/osmo/data/input``
+        ^^^
+        Input datasets downloaded by **osmo-ctrl**, read by your code
+
+    .. grid-item-card::
+        :class-card: sd-text-center
+
+        ``/osmo/data/output``
+        ^^^
+        Outputs written by your code, uploaded by **osmo-ctrl**
+
+    .. grid-item-card::
+        :class-card: sd-text-center
+
+        ``/osmo/data/socket/``
+        ^^^
+        Unix socket for container communication
 
 Inter-Container Communication
-------------------------------
+-------------------------------
 
-**osmo-ctrl ↔ User Container**: Unix socket at ``/osmo/data/socket/data.sock``
+**osmo-ctrl** and **User Container** communicate via Unix socket (``/osmo/data/socket/data.sock``) to coordinate:
 
-**Messages**:
+- Start signals for task execution
+- Interactive access requests (exec, port-forward, rsync)
+- Status updates and health checks
 
-- **Start signal**: "Begin executing user's command"
-- **Exec request**: "User wants terminal access"
-- **Port-forward request**: "Forward port X to user"
-- **Rsync request**: "Transfer files to/from user"
+Example: Interactive Exec Flow
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Example: Interactive Exec
---------------------------
-
-Here's what happens when user runs ``osmo exec my-workflow task-1 -- bash``:
-
-1. **User → OSMO Service**: "I want exec access to task-1"
-2. **OSMO Service → osmo-ctrl**: WebSocket message with exec request
-3. **osmo-ctrl → User Container**: Unix socket message "Start bash shell"
-4. **User Container**: Spawns bash process
-5. **User Container ↔ osmo-ctrl**: Bidirectional stream (stdin/stdout)
-6. **osmo-ctrl ↔ OSMO Service**: WebSocket streams terminal I/O
-7. **OSMO Service → User**: Terminal session active
-
-
-Practical Implications
-======================
-
-For Workflow Authors
---------------------
-
-**Directory Structure User Container Sees**:
+When you run ``osmo exec my-workflow task-1 -- bash``:
 
 .. code-block:: text
 
-   /osmo/
-   ├── input/              ← Read input data here
+   You → OSMO Service → osmo-ctrl → User Container
+                                      ↓
+                          Spawns bash shell
+                                      ↓
+   Terminal ← OSMO Service ← osmo-ctrl ← bash I/O
+
+
+Quick Reference
+================
+
+Writing Workflows
+------------------
+
+Your container has automatic access to input/output directories:
+
+.. code-block:: text
+
+   /osmo/data/
+   ├── input/              ← Your input datasets
    │   ├── dataset1/
    │   └── dataset2/
-   └── output/             ← Write results here
-       └── (user outputs)
-
-**Example Task**:
+   └── output/             ← Write your results here
+       └── (artifacts)
 
 .. code-block:: yaml
+   :caption: Example Task
 
    tasks:
      - name: train-model
        image: nvcr.io/nvidia/pytorch:24.01-py3
-       command:
-         - python
-         - train.py
+       command: ["python", "train.py"]
+       args:
          - --input=/osmo/data/input/dataset
          - --output=/osmo/data/output/model
 
-The data operations are automatic—osmo-ctrl handles downloading and uploading!
+.. tip::
 
-For Debugging
--------------
+   **Data handling is automatic!** Just read from ``/osmo/data/input`` and write to ``/osmo/data/output``. The osmo-ctrl container handles all downloading and uploading.
 
-**Check osmo-ctrl logs**:
+Debugging
+----------
 
-.. code-block:: bash
+.. tab-set::
 
-   $ kubectl logs <pod-name> -c osmo-ctrl
+   .. tab-item:: View Logs
 
-Shows data download/upload progress and issues.
+      Check osmo-ctrl logs for data operations:
 
-**Check user container logs**:
+      .. code-block:: bash
 
-.. code-block:: bash
+         $ kubectl logs <pod-name> -c osmo-ctrl
 
-   $ kubectl logs <pod-name> -c <task-name>
+      Check your container logs:
 
-Shows user's application output.
+      .. code-block:: bash
 
-**Exec into user container**:
+         $ kubectl logs <pod-name> -c <task-name>
 
-.. code-block:: bash
+   .. tab-item:: Interactive Access
 
-   $ osmo exec my-workflow task-1 -- bash
+      Get a shell in your running container:
 
-Access user container with full environment.
+      .. code-block:: bash
 
-Resource Considerations
------------------------
+         $ osmo exec my-workflow task-1 -- bash
 
-**User container gets**:
+      Access with full environment and installed tools.
 
-- All CPU/GPU resources user requested
-- User specified memory limits
-- Full compute allocation
+   .. tab-item:: Resource Usage
 
-**osmo-ctrl overhead**:
+      **Your container receives:**
 
-- ~50-100 MB memory
-- Minimal CPU (only during data operations)
-- Negligible network overhead
+      - All requested CPU/GPU/memory resources
 
-**Total pod resources** = User request + small sidecar overhead
+      **osmo-ctrl overhead:**
+
+      - ~50-100 MB memory
+      - Minimal CPU (active during data transfers only)
+
+      Total pod = Your request + small sidecar overhead
 
 See Also
-========
+=========
 
-- :doc:`../introduction/architecture` for overall OSMO architecture
-- :doc:`advanced_config/pool` for pool configuration
-- :doc:`advanced_config/scheduler` for scheduling behavior
-- User Guide for workflow specification details
+.. seealso::
+
+   - `Workflow Overview <https://nvidia.github.io/OSMO/user_guide/workflows/index.html>`__ - User guide for writing workflows
+   - `Workflow Lifecycle <https://nvidia.github.io/OSMO/user_guide/workflows/lifecycle/index.html>`__ - Understanding workflow states
+   - :ref:`architecture` - Overall OSMO system architecture
 
