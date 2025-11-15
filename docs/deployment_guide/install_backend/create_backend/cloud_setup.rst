@@ -33,7 +33,7 @@ You will need access to a cloud provider account (AWS, Azure, or GCP) with permi
     * **Kubernetes Version**: v1.30.0 or later
     * **Networking**: Ensure the nodes in the cluster have outbound internet access to container registries and access to the OSMO service
 
-Setup Guides
+Setup Guide
 ===============
 
 .. list-table::
