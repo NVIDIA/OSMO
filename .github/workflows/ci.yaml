@@ -69,7 +69,7 @@ jobs:
           bazel test --test_output=errors -- //... -//ui/...
 
   #######################
-  #      Internal CI     #
+  #     Internal CI     #
   #######################
   internal-bazel-build-test:
     if: |
