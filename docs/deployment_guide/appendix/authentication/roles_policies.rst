@@ -123,6 +123,8 @@ Examples:
   - ``http:/api/pool:*`` - Allow all methods on the pool endpoint
   - ``http:!/api/configs/*:*`` - Deny all requests to config endpoints
 
+.. _roles_policies_example:
+
 Policy Examples
 ===============
 

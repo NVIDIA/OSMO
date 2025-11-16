@@ -19,229 +19,142 @@
 .. _pool:
 
 =======================================================
-Pool
+Resource Pools
 =======================================================
 
-Pools in OSMO serve as an abstraction layer over compute backends that enables fine-grained access control and resource management.
-Pools allow administrators to define which users can access which compute resources, while providing a simplified interface for users to select appropriate hardware for their workflows.
+After successfully :ref:`configuring the default pool <configure_pool>`, you can create additional pools to organize and control how users access your compute resources.
 
 
-Understanding OSMO Pools
-========================
+Why Create Multiple Pools?
+===========================
 
-A pool represents a logical grouping of compute resources within a backend that can be configured with:
+Pools divide your compute backend into logical resource groupings that enable:
 
-- **Access Control**: Define which user groups can access the pool
-- **Resource Templates**: Specify pod templates and resource validation rules
-- **Default Settings**: Set default resource allocations and timeouts
-- **Platforms**: Create sub-divisions within pools for different hardware types
-- **Variables**: Define common variables used across templates
+✓ **Simplified User Experience**
+  Apply :ref:`Pod Templates <pod_template>` to pools so users don't repeat Kubernetes specifications in every workflow. Templates automatically handle node selectors, tolerations, and other scheduling requirements.
+
+✓ **Resource Guardrails**
+  Use :ref:`Resource Validation <resource_validation>` rules to reject workflows that request more resources than available on your nodes, preventing scheduling failures.
+
+✓ **Hardware Differentiation**
+  For heterogeneous clusters with multiple GPU types, create platforms within pools to route workflows to specific hardware (A100, H100, L40S, etc.).
+
+✓ **User Access Control**
+  Integrate pools with user groups and roles to manage permissions. See :ref:`authentication_authorization` for authentication and authorization details. For example, control which user groups can access specific compute resources based on workload type (training, simulation, inference) or project teams.
 
 Pool Architecture
-------------------
+=================
 
-OSMO pools follow a hierarchical structure:
+Pools organize compute resources in a hierarchical structure:
 
 .. code-block:: text
 
-  Backend
-  └── Pool (e.g., "training-pool")
-      ├── Platform 1 (e.g., "a100")
-      ├── Platform 2 (e.g., "h100")
-      └── Platform 3 (e.g., "gb200")
+  Backend (Kubernetes Cluster)
+  ├── Pool: training-pool
+  │   ├── Platform: a100
+  │   └── Platform: h100
+  ├── Pool: simulation-pool
+  │   ├── Platform: l40s
+  │   └── Platform: l40
+  └── Pool: inference-pool
+      └── Platform: jetson-agx-orin
 
-**Backend**: The underlying Kubernetes cluster or compute infrastructure
+**Workflow Submission Flow:**
 
-**Pool**: A logical grouping with access control and common configuration
+.. grid:: 5
+    :gutter: 2
 
-**Platform**: Specific hardware configurations within a pool (optional)
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
 
-This structure enables users to:
+        **1. Access Control** 🔐
+        ^^^
 
-1. Select a pool based on their workflow type (training, simulation, inference)
+        Check user permissions
 
-2. Optionally select a platform for specific hardware requirements in their workflow spec
+        +++
 
-3. Have their workflows automatically scheduled on appropriate nodes
+        Verify pool access rights
 
-Pool Access Control
--------------------
+    .. grid-item-card::
+        :class-header: sd-bg-warning sd-text-white
 
-OSMO implements a naming-based access control system for pools:
+        **2. Resource Check** ⚖️
+        ^^^
 
-**Access Rule**: A Pool ``<pool_name>`` can be accessed via role ``osmo-<team_name>`` if ``<pool_name>`` begins with ``<team_name>``.
+        Validate requests
 
-**Examples if <team_name> is ``team``**:
+        +++
 
-- ✅ Can access pools: ``teamcluster01``, ``team-cluster-02``, ``team-gpu-pool``
+        Ensure node capacity
 
-- ❌ Cannot access pools: ``myteam-cluster-01``, ``other-team-pool``
+    .. grid-item-card::
+        :class-header: sd-bg-primary sd-text-white
 
+        **3. Apply Templates** 📋
+        ^^^
 
-How OSMO Uses Pools
-===================
+        Build K8s specs
 
-Workflow Submission Process
----------------------------
+        +++
 
-When users submit workflows to OSMO pools, the following process occurs:
+        Merge pod templates
 
-1. **Pool Selection**: User specifies a pool name in their workflow submission
-2. **Access Validation**: OSMO verifies the user's group membership allows access to the pool
-3. **Resource Validation**: User's resource requests are validated against pool's validation rules
-4. **Template Building**: Pool's pod templates are applied to create Kubernetes pod specifications
-5. **Scheduling**: Kubernetes scheduler places the pod on appropriate nodes based on selectors and tolerations
+    .. grid-item-card::
+        :class-header: sd-bg-primary sd-text-white
 
-Integration with Pod Templates and Resource Validation
-----------------------------------------------------------
+        **4. Select Platform** 🎯
+        ^^^
 
-Pools serve as the integration point between pod templates and resource validation:
+        Route to hardware
 
-**Pod Template Integration**
-  Pools reference pod templates through the ``common_pod_template`` field. These templates define the Kubernetes pod specifications that will be used for workflows. For detailed information, see :ref:`Pod Template <pod_template>`.
+        +++
 
-**Resource Validation Integration**
-  Pools reference validation rules through the ``common_resource_validations`` field. These rules ensure users don't request more resources than available on nodes. For comprehensive details, see :ref:`Resource Validation <resource_validation>`.
+        A100, H100, L40S, etc.
 
-**Template Inheritance**
-  Pools can specify multiple pod templates that are merged in order, with later templates overriding earlier ones. This enables composition patterns like:
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
 
-.. code-block:: json
+        **5. Schedule & Run** ▶️
+        ^^^
 
-  {
-    "common_pod_template": [
-      "default_amd64",      // Architecture requirement
-      "training_a100",      // GPU-specific configuration
-      "security_template"   // Security policies
-    ]
-  }
+        Identify a node in cluster
 
-Pod templates are explained in more detail in :ref:`Pod Template <pod_template>`.
+        +++
 
-Resource validation rules are explained in more detail in :ref:`Resource Validation <resource_validation>`.
+        Pod is running on the node
 
-Pool Configuration
-===================
+.. note::
 
-Core Pool Fields
-----------------
-
-.. list-table:: Pool Configuration Fields
-   :header-rows: 1
-   :widths: 25 75
-
-   * - **Field**
-     - **Description**
-   * - ``name`` (Required)
-     - Name of the pool
-   * - ``description``
-     - Human-readable description of the pool's purpose and resources
-   * - ``backend`` (Required)
-     - Name of the compute backend this pool targets
-   * - ``default_platform``
-     - Default platform to use if user doesn't specify one
-   * - ``default_exit_actions``
-     - Default exit actions to use if not set by user
-   * - ``action_permissions``
-     - Action permissions to use if not set by user
-   * - ``resources``
-     - Resources to use if not set by user
-   * - ``enable_maintenance``
-     - Whether to enable maintenance mode
-   * - ``common_default_variables``
-     - Variables used in pod templates and resource validation
-   * - ``common_resource_validations``
-     - List of resource validation template names (merged in order)
-   * - ``common_pod_template``
-     - List of pod template names (merged in order)
-   * - ``platforms``
-     - Dictionary of platform configurations within this pool
-
-Timeout Configuration (Optional)
----------------------------------
-
-Timeout configurations are optional fields which overrides fields that can be set in the workflow configs.
-
-.. list-table:: Timeout Configuration Fields
-   :header-rows: 1
-   :widths: 25 75
-
-   * - **Field**
-     - **Description**
-   * - ``default_exec_timeout``
-     - Default execution timeout if not set by user
-   * - ``default_queue_timeout``
-     - Default queue timeout if not set by user
-   * - ``max_exec_timeout``
-     - Maximum execution timeout users can set
-   * - ``max_queue_timeout``
-     - Maximum queue timeout users can set
-
-
-
-Platform Configuration
-=======================
-
-Understanding Platforms
------------------------
-
-If your cluster contain nodes with different hardware specs (e.g. different kinds of GPUs),
-platforms can provide fine-grained resource differentiation within pools.
-They enable:
-
-- **Hardware Specialization**: Different platforms for different GPU types
-- **Resource Isolation**: Different resource limits per platform
-
-Platform Fields
----------------
-
-.. list-table:: Platform Configuration Fields
-   :header-rows: 1
-   :widths: 25 75
-
-   * - **Field**
-     - **Description**
-   * - ``description``
-     - Description of the platform's specific resources
-   * - ``host_network_allowed``
-     - Whether host networking is allowed (default: false)
-   * - ``privileged_allowed``
-     - Whether privileged containers are allowed (default: false)
-   * - ``default_variables``
-     - Platform-specific variables (inherit from pool)
-   * - ``resource_validations``
-     - Additional validation rules (merged with pool rules)
-   * - ``override_pod_template``
-     - Additional pod templates (merged with pool templates)
-   * - ``allowed_mounts``
-     - List of volume mounts available to users
+   For detailed pool and platform configuration fields, see :ref:`pool_config` in the API reference documentation.
 
 
 .. _advanced_pool_configuration:
 
-Pool Configuration Examples
-===========================
+Practical Guide
+===============
 
 Heterogeneous Pools
-----------------------------
+---------------------
 
-Pools can be configured to handle heterogeneous nodes (e.g., different host machine types such as AGX Jetson Orin, L40s, A100, H100, GB200) by creating and assigning a platform for each machine type.
+For clusters with multiple GPU types (L40S, A100, H100, etc.), use platforms to route workflows to specific hardware.
 
-1. Create a pod template for each kind of host machine.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Step 1: Identify Node Labels**
 
-To assign a platform to a pool, you need to create a pod template for each kind of host machine. A pod template is a used to define the Kubernetes pod specification for node selectors and tolerations. You can find the labels and tolerations for each kind of node using the following command:
+Discover node labels and tolerations for your hardware:
 
 .. code-block:: bash
 
   $ kubectl get nodes -o jsonpath='{.items[*].metadata.labels}' | jq -r 'to_entries[] | select(.key | startswith("nvidia.com/gpu.product")) | .value'
   $ kubectl get nodes -o jsonpath='{.items[*].metadata.tolerations}'
 
+**Step 2: Create Pod Templates for Each GPU Type**
 
-For example, if we have nodes with the label ``nvidia.com/gpu.product`` set to ``NVIDIA-L40S``, we can set the pod template for it to be:
+Create pod templates that target specific hardware using node selectors and tolerations:
 
 .. code-block:: bash
 
+  # L40S pod template
   $ cat << EOF > l40s_pod_template.json
   {
     "l40s": {
@@ -254,17 +167,9 @@ For example, if we have nodes with the label ``nvidia.com/gpu.product`` set to `
   }
   EOF
 
-Then, update the pod template using the OSMO CLI.
-
 .. code-block:: bash
 
-  $ osmo config update POD_TEMPLATE l40s --file l40s_pod_template.json
-
-
-If you have another node with the label ``nvidia.com/gpu.product`` set to ``NVIDIA-A100`` and a toleration with the key ``nvidia.com/gpu.product`` and value ``NVIDIA-A100``, you can create another pod template for it.
-
-.. code-block:: bash
-
+  # A100 pod template with tolerations
   $ cat << EOF > a100_pod_template.json
   {
     "a100": {
@@ -285,22 +190,21 @@ If you have another node with the label ``nvidia.com/gpu.product`` set to ``NVID
   }
   EOF
 
-Then, update the pod template using the OSMO CLI.
-
 .. code-block:: bash
+
+  $ osmo config update POD_TEMPLATE l40s --file l40s_pod_template.json
 
   $ osmo config update POD_TEMPLATE a100 --file a100_pod_template.json
 
-2. Create a platform for each kind of node.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Step 3: Create Pool with Platforms**
 
-With the pod templates created, we can create a pool or modify an existing pool with platforms and their associated pod templates.
+Configure the pool that references both pod templates via ``platforms``:
 
 .. code-block:: bash
 
   $ cat << EOF > platform_config.json
   {
-    "name": "shared_simulation_training_pool",
+    "name": "heterogeneous_pool",
     "backend": "default",
     "default_platform": "l40s_platform",
     "description": "Simulation and training pool",
@@ -342,288 +246,193 @@ With the pod templates created, we can create a pool or modify an existing pool 
   }
   EOF
 
-**Key configuration fields:**
-
-- ``default_platform``: The default platform to use if a user does not specify a platform
-- ``common_pod_template``: The common pod templates to use for all platforms
-- ``override_pod_template``: The pod templates to use for the platform, in addition to the common pod templates
-
-Then, add the pool configuration using the OSMO CLI.
+Apply the pool configuration:
 
 .. code-block:: bash
 
-  $ osmo config update POOL shared_simulation_training_pool --file platform_config.json
+  $ osmo config update POOL heterogeneous_pool --file platform_config.json
 
-
-You can validate the pool configuration and see the available nodes in the pool using the OSMO CLI.
-
-.. code-block:: bash
-
-  $ osmo resource list --pool shared_simulation_training_pool
-
-
-Refer to :ref:`pool_config` for more information on the pool and platform configurations.
-
-
-3. Pool Access Control
-~~~~~~~~~~~~~~~~~~~~~~~
-
-When a new pool is created, a new role should be created with the name ``osmo-<pool_name_prefix>``. This role is used to give access to the pool to a user with roles.
-
-For example, if the pool name is ``shared_simulation_training_pool``, the role name should be ``osmo-shared`` with the following policies:
+Validate the pool configuration:
 
 .. code-block:: bash
 
-  $ cat << EOF > role_config.json
-  {
-    "name": "osmo-shared",
-    "description": "Role for shared simulation training pool",
-    "actions": [
-      {
-        "base": "http",
-        "path": "/api/pool/shared_simulation_training_pool*",
-        "method": "post"
-      },
-      {
-        "base": "http",
-        "path": "http:/api/profile/*",
-        "method": "*"
-      }
-    ]
-  }
-  EOF
-
-Then, the role can be created using the OSMO CLI.
-
-.. code-block:: bash
-
-  $ osmo config set ROLE osmo-shared -f role_config.json
-
-Each action in the list specifies a path and method that the user can access. The first action allows the user to create a workflow in the pool. The second action allows the user to access the pool in their profile.
-If you have a multiple pools with the same name prefix, you can use the glob pattern to allow the user to access all the pools. example: ``api/pool/shared*`` will allow the user to access all the pools with the name prefix "shared".
-
-Refer to :ref:`roles_config` for more information on the role configurations.
-
-
-Robotics Training Pools
------------------------
-
-**High-Performance Training Pool**
-  Pool targeting latest GPU hardware for large model training:
-
-.. code-block:: json
-
-  {
-    "robotics-training": {
-      "description": "High-performance GPU pool for robotics model training",
-      "backend": "gpu-cluster-01",
-      "default_platform": "h100-platform",
-      "common_default_variables": {
-        "USER_CPU": 16,
-        "USER_GPU": 1,
-        "USER_MEMORY": "64Gi",
-        "USER_STORAGE": "500Gi"
-      },
-      "common_resource_validations": [
-        "default_cpu",
-        "default_memory",
-        "default_storage",
-        "gpu_training_validation"
-      ],
-      "common_pod_template": [
-        "default_amd64",
-        "training_optimized",
-        "high_memory"
-      ],
-      "platforms": {
-        "a100-platform": {
-          "description": "A100 GPUs for standard training workloads",
-          "override_pod_template": ["training_a100_template"],
-          "default_variables": {
-            "USER_MEMORY": "80Gi"
-          }
-        },
-        "h100-platform": {
-          "description": "H100 GPUs for large-scale training",
-          "override_pod_template": ["training_h100_template"],
-          "default_variables": {
-            "USER_MEMORY": "128Gi"
-          }
-        },
-        "gb200-platform": {
-          "description": "GB200 GPUs for ultra-large models",
-          "override_pod_template": ["training_gb200_template"],
-          "default_variables": {
-            "USER_MEMORY": "256Gi"
-          }
-        }
-      }
-    }
-  }
-
-Robotics Simulation Pool
-------------------------
-
-**Graphics-Optimized Simulation Pool**
-  Pool targeting graphics GPUs for robotics simulation:
-
-.. code-block:: json
-
-  {
-    "robotics-simulation": {
-      "description": "Graphics-optimized pool for robotics simulation workloads",
-      "backend": "graphics-cluster-01",
-      "default_platform": "l40-platform",
-      "common_default_variables": {
-        "USER_CPU": 8,
-        "USER_GPU": 1,
-        "USER_MEMORY": "32Gi",
-        "USER_STORAGE": "200Gi"
-      },
-      "common_resource_validations": [
-        "default_cpu",
-        "default_memory",
-        "default_storage",
-        "simulation_gpu_validation"
-      ],
-      "common_pod_template": [
-        "default_amd64",
-        "simulation_optimized",
-        "graphics_drivers"
-      ],
-      "platforms": {
-        "l40-platform": {
-          "description": "L40 GPUs for standard simulation",
-          "override_pod_template": ["simulation_l40_template"]
-        },
-        "l40s-platform": {
-          "description": "L40S GPUs for high-fidelity simulation",
-          "override_pod_template": ["simulation_l40s_template"],
-          "default_variables": {
-            "USER_MEMORY": "48Gi"
-          }
-        }
-      }
-    }
-  }
-
-Inference Pool
---------------
-
-**Cost-Optimized Inference Pool**
-  Pool targeting efficient hardware for model inference:
-
-.. code-block:: json
-
-  {
-    "robotics-inference": {
-      "description": "Cost-optimized pool for model inference workloads",
-      "backend": "inference-cluster-01",
-      "default_platform": "cpu-platform",
-      "common_default_variables": {
-        "USER_CPU": 4,
-        "USER_GPU": 0,
-        "USER_MEMORY": "16Gi",
-        "USER_STORAGE": "50Gi"
-      },
-      "common_resource_validations": [
-        "default_cpu",
-        "default_memory",
-        "default_storage",
-        "inference_validation"
-      ],
-      "common_pod_template": [
-        "default_amd64",
-        "inference_optimized",
-        "low_latency"
-      ],
-      "platforms": {
-        "cpu-platform": {
-          "description": "CPU-only inference for lightweight models",
-          "override_pod_template": ["inference_cpu_template"]
-        },
-        "t4-platform": {
-          "description": "T4 GPUs for accelerated inference",
-          "override_pod_template": ["inference_t4_template"],
-          "default_variables": {
-            "USER_GPU": 1,
-            "USER_MEMORY": "24Gi"
-          }
-        }
-      }
-    }
-  }
-
-
-
-Troubleshooting
----------------
-
-Common Issues
-~~~~~~~~~~~~~
-
-**Pool Access Denied**
-Verify that the user's group name matches the pool naming convention and that they're a member of the correct group.
-
-**Resource Validation Failures**
-Check that pool's resource validation rules are appropriate for the intended workloads and node capacity.
-
-**Template Conflicts**
-Review template merge order and ensure later templates properly override earlier ones without conflicts.
-
-**Platform Not Available**
-Verify that platform names are correctly specified and that the platform exists in the pool configuration.
-
-Debugging Tips
-~~~~~~~~~~~~~~
-
-1. **Check Pool Status**: Use ``osmo pool list`` to verify pool availability and status
-
-2. **Validate Templates**: Ensure referenced pod templates and validation rules exist in the system
-
-3. **Test Access**: Test pool access with different user accounts to verify access control
-
-4. **Review Logs**: Examine OSMO service logs for detailed error messages during pool operations
-
-5. **Incremental Configuration**: Start with simple pool configurations and add complexity gradually
-
-Pool Management Operations
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**List Pools**
-View available pools and their status:
-
-.. code-block:: bash
-
-  osmo pool list
-
-**Pool Details**
-Get detailed resource information about a specific pool:
-
-.. code-block:: bash
-
-  osmo resource list -p <pool_name>
-
-**Update Pool Configuration**
-Modify existing pool configuration:
-
-.. code-block:: bash
-
-  osmo config update POOL --file updated_pool_config.json
-
-**Delete Pool**
-Remove a pool configuration:
-
-.. code-block:: bash
-
-  osmo config delete POOL <pool_name>
+  $ osmo resource list --pool heterogeneous_pool
 
 .. note::
 
-   Pool configurations integrate closely with pod templates and resource validation rules.
-   Changes to referenced templates or validation rules will affect all pools that use them.
+   **Access Control:** To control which users can access this pool, configure roles and policies using the pattern ``osmo-<pool_name_prefix>``. For a comprehensive example of configuring pool access control, see the appendix: :ref:`Roles and Policies Example <roles_policies_example>`.
+
+
+Additional Examples
+------------------------
+
+.. dropdown:: **Training Pool** - High-Performance GPU Pool
+    :color: info
+    :icon: stack
+
+    Configure a pool for training workloads with GB200 platform:
+
+    .. code-block:: json
+
+      {
+        "robotics-training": {
+          "description": "High-performance GPU pool for robotics model training",
+          "backend": "gpu-cluster-01",
+          "default_platform": "h100-platform",
+          "common_default_variables": {
+            "USER_CPU": 16,
+            "USER_GPU": 1,
+            "USER_MEMORY": "64Gi",
+            "USER_STORAGE": "500Gi"
+          },
+          "common_resource_validations": [
+            "default_cpu",
+            "default_memory",
+            "default_storage",
+            "gpu_training_validation"
+          ],
+          "common_pod_template": [
+            "default_amd64",
+            "training_optimized",
+            "high_memory"
+          ],
+          "platforms": {
+            "gb200-platform": {
+              "description": "GB200 GPUs for high performance training",
+              "override_pod_template": [
+                "training_gb200_template"
+              ],
+              "default_variables": {
+                "USER_MEMORY": "80Gi"
+              }
+            }
+          }
+          }
+        }
+      }
+
+.. dropdown:: **Simulation Pool** - Graphics-Optimized Pool
+    :color: info
+    :icon: image
+
+    Configure a pool for simulation workloads with L40/L40S platforms:
+
+    .. code-block:: json
+
+      {
+        "robotics-simulation": {
+          "description": "Graphics-optimized pool for robotics simulation",
+          "backend": "graphics-cluster-01",
+          "default_platform": "l40-platform",
+          "common_default_variables": {
+            "USER_CPU": 8,
+            "USER_GPU": 1,
+            "USER_MEMORY": "32Gi",
+            "USER_STORAGE": "200Gi"
+          },
+          "common_resource_validations": [
+            "default_cpu",
+            "default_memory",
+            "default_storage",
+            "simulation_gpu_validation"
+          ],
+          "common_pod_template": [
+            "default_amd64",
+            "simulation_optimized",
+            "graphics_drivers"
+          ],
+          "platforms": {
+            "l40-platform": {
+              "description": "L40 GPUs for standard simulation",
+              "override_pod_template": [
+                "simulation_l40_template"
+              ]
+            },
+            "l40s-platform": {
+              "description": "L40S GPUs for high-fidelity simulation",
+              "override_pod_template": [
+                "simulation_l40s_template"
+              ],
+              "default_variables": {
+                "USER_MEMORY": "48Gi"
+              }
+            }
+          }
+          }
+        }
+      }
+
+.. dropdown:: **Inference Pool** - NVIDIA Jetsons Pool
+    :color: info
+    :icon: dependabot
+
+    Configure a pool for inference workloads with NVIDIA Jetsons:
+
+    .. code-block:: json
+
+      {
+        "robotics-inference": {
+          "description": "NVIDIA Jetsons pool for model inference",
+          "backend": "inference-cluster-01",
+          "default_platform": "jetson-thor-platform",
+          "common_default_variables": {
+            "USER_CPU": 4,
+            "USER_GPU": 0,
+            "USER_MEMORY": "16Gi",
+            "USER_STORAGE": "50Gi"
+          },
+          "common_resource_validations": [
+            "default_cpu",
+            "default_memory",
+            "default_storage",
+            "inference_validation"
+          ],
+          "common_pod_template": [
+            "default_amd64",
+            "inference_optimized",
+            "low_latency"
+          ],
+          "platforms": {
+            "jetson-thor-platform": {
+              "description": "Jetson Thor platform for edge AI inference",
+              "override_pod_template": [
+                "inference_jetson_thor_template"
+              ],
+              "default_variables": {
+                "USER_GPU": 1,
+                "USER_MEMORY": "8Gi"
+              }
+            }
+          }
+        }
+      }
+
+
+Troubleshooting
+----------------
+
+
+**Pool Access Denied**
+  - Verify user's group membership matches pool naming convention
+  - Check role configuration includes correct pool path
+
+**Resource Validation Failures**
+  - Ensure validation rules match node capacity
+  - Verify resource requests don't exceed platform limits
+
+**Template Conflicts**
+  - Review template merge order (later templates override earlier ones)
+  - Check for conflicting fields in merged templates
+
+**Platform Not Available**
+  - Verify platform name is correctly specified in pool configuration
+  - Ensure referenced pod templates exist
+
+**Debugging Tips**
+  - Start with simple configurations and add complexity gradually
+  - Test access with different user accounts
+  - Examine OSMO service logs for detailed error messages
 
 .. warning::
 
-   Deleting or modifying pools that are actively used by running workflows may cause
-   scheduling issues. Always verify that pools are not in use before making changes.
+   Deleting or modifying pools used by running workflows may cause scheduling issues. Always verify pools are not in use before making changes.

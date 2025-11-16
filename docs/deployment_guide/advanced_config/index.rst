@@ -28,7 +28,7 @@ This section provides additional advanced configurations to customize and optimi
   .. grid:: 1 2 2 2
       :gutter: 3
 
-      .. grid-item-card:: :octicon:`database` Pool
+      .. grid-item-card:: :octicon:`database` Resource Pools
           :link: ./pool
           :link-type: doc
 
@@ -40,19 +40,19 @@ This section provides additional advanced configurations to customize and optimi
 
           Pre-flight checks that validate workflow resource requests before submission.
 
-      .. grid-item-card:: :octicon:`package` Pod Template
+      .. grid-item-card:: :octicon:`package` Pod Templates
           :link: ./pod_template
           :link-type: doc
 
           Reusable Kubernetes pod specifications for defining workflow task execution.
 
-      .. grid-item-card:: :octicon:`workflow` Scheduler
+      .. grid-item-card:: :octicon:`workflow` Scheduler Configs
           :link: ./scheduler
           :link-type: doc
 
           KAI scheduler configuration for advanced features.
 
-      .. grid-item-card:: :octicon:`sync` Rsync Setup
+      .. grid-item-card:: :octicon:`sync` Rsync Configs
           :link: ./rsync
           :link-type: doc
 

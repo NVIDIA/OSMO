@@ -22,27 +22,74 @@
 Resource Validation
 =======================================================
 
-Resource validation acts as a pre-flight check that occurs when workflows are submitted to OSMO.
-The validation process prevents common issues such as:
+After configuring :ref:`pools <pool>`, add resource validation rules to prevent workflows from requesting more resources than available on your nodes. Validation acts as a pre-flight check that rejects invalid requests before they reach the scheduler.
 
-- Requesting more resources than any node can provide
-- Submitting workflows with zero or negative resource values
 
-Validation Lifecycle
-~~~~~~~~~~~~~~~~~~~~~
+Why Use Resource Validation?
+=============================
 
-When a workflow is submitted to OSMO, the following validation process occurs:
+Resource validation provides guardrails that protect your cluster and improve user experience:
 
-1. **Rule Processing**: OSMO selects applicable validation rules based on pool/platform configuration,
-   resolves all validation variables (``{{USER_CPU}}``, ``{{K8_CPU}}``, etc.) using workflow specifications
-   and cluster state, then evaluates each rule against the resolved values
-2. **Validation Result**: If all rules pass, the workflow proceeds; if any rule fails, the workflow is rejected with the assert message
-3. **Resource Allocation**: Validated workflows are queued for execution
+✓ **Prevent Scheduling Failures**
+  Reject workflows that request more CPU, memory, or GPU than any node can provide, avoiding pods stuck in pending state.
 
-Validation Rule Structure
--------------------------
+✓ **Catch Configuration Errors**
+  Detect invalid resource specifications (negative values, zero allocations, incorrect units) before submission.
 
-Each validation rule consists of four essential components:
+✓ **Provide Clear Feedback**
+  Give users immediate, actionable error messages explaining what's wrong and how to fix it.
+
+✓ **Optimize Resource Utilization**
+  Enforce safety margins and best practices for resource allocation across your cluster.
+
+
+How It Works
+============
+
+**Validation Flow:**
+
+.. grid:: 3
+    :gutter: 2
+
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
+
+        **1. Submit Workflow** 📤
+        ^^^
+
+        User requests resources
+
+        +++
+
+        CPU, memory, GPU, storage
+
+    .. grid-item-card::
+        :class-header: sd-bg-warning sd-text-white
+
+        **2. Validate Rules** ⚖️
+        ^^^
+
+        Check against capacity
+
+        +++
+
+        Compare with node specs
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **3. Proceed or Reject** ✓✗
+        ^^^
+
+        Accept or deny
+
+        +++
+
+        Queue or show error message
+
+**Rule Structure:**
+
+Each validation rule has four components:
 
 .. code-block:: json
 
@@ -50,163 +97,71 @@ Each validation rule consists of four essential components:
     "operator": "LE",
     "left_operand": "{{USER_CPU}}",
     "right_operand": "{{K8_CPU}}",
-    "assert_message": "CPU value {{USER_CPU}} exceeds available node capacity {{K8_CPU}}"
+    "assert_message": "CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}"
   }
 
+- **operator**: Comparison type (EQ, LT, LE, GT, GE)
+- **left_operand**: User-requested value (e.g., ``{{USER_CPU}}``)
+- **right_operand**: Limit or node capacity (e.g., ``{{K8_CPU}}``)
+- **assert_message**: Error shown when validation fails
 
-**operator**: Defines the comparison operation (EQ, LT, LE, GT, GE)
+.. note::
 
-**left_operand**: The first value in the comparison (typically user-requested resources)
-
-**right_operand**: The second value in the comparison (limits, node capacity, or static values)
-
-**assert_message**: Error message displayed when validation fails (supports variable substitution)
+   For detailed configuration fields and all available variables, see :ref:`resource_validation_config` in the API reference documentation.
 
 
-Configuration Process
----------------------
+Practical Guide
+===============
 
-Resource validation rules are configured using the OSMO CLI with ``RESOURCE_VALIDATION``:
+Creating Standard Validation Rules
+-----------------------------------
+
+Create validation templates for common resources: CPU, GPU, memory, and storage.
+
+**Step 1: Create Validation Configuration**
+
+Define validation rules using variables for user requests (``{{USER_*}}``) and node capacity (``{{K8_*}}``):
+
+.. dropdown:: **Available Variables**
+    :color: info
+    :icon: code
+
+    **User Request Variables:**
+      - ``{{USER_CPU}}`` - CPU count requested
+      - ``{{USER_GPU}}`` - GPU count requested
+      - ``{{USER_MEMORY}}`` - Memory requested (e.g., "8Gi")
+      - ``{{USER_STORAGE}}`` - Storage requested (e.g., "100Gi")
+
+    **Node Capacity Variables:**
+      - ``{{K8_CPU}}`` - Available CPU on nodes
+      - ``{{K8_GPU}}`` - Available GPU on nodes
+      - ``{{K8_MEMORY}}`` - Available memory on nodes
+      - ``{{K8_STORAGE}}`` - Available storage on nodes
+
+    **Operators:** EQ (equal), LT (less than), LE (less/equal), GT (greater than), GE (greater/equal)
+
+    For all available variables and detailed configuration fields, see :ref:`resource_validation_config`.
+
+**Step 2: Apply Standard Validation Rules**
+
+Create a file with recommended validation templates:
 
 .. code-block:: bash
 
-  osmo config update RESOURCE_VALIDATION --file /path/to/resource_validation_config.json
-
-The configuration file should contain a JSON object where each key represents a validation template name and the value contains an array of validation rules.
-
-
-Validation Variables
---------------------
-
-Resource validation supports dynamic variable substitution using special tokens enclosed in double curly braces (``{{TOKEN_NAME}}``).
-These variables are resolved at validation time based on workflow specifications and cluster state.
-
-User Resource Variables
-~~~~~~~~~~~~~~~~~~~~~~~
-
-These variables represent the resources requested by users in their workflow specifications:
-
-.. list-table:: User Resource Variables
-   :header-rows: 1
-   :widths: 25 75
-
-   * - **Token**
-     - **Description**
-   * - ``USER_CPU``
-     - CPU count value requested by the user (e.g., "4", "8")
-   * - ``USER_MEMORY``
-     - Memory value requested by the user (e.g., "8Gi", "16Gi")
-   * - ``USER_MEMORY_VAL``
-     - Numeric value of the memory request without units
-   * - ``USER_MEMORY_UNIT``
-     - Unit of the memory request (e.g., "Gi", "Mi")
-   * - ``USER_MEMORY_<UNIT>``
-     - Memory value converted to specified unit (e.g., ``USER_MEMORY_Gi``)
-   * - ``USER_STORAGE``
-     - Storage value requested by the user (e.g., "100Gi", "1Ti")
-   * - ``USER_STORAGE_VAL``
-     - Numeric value of the storage request without units
-   * - ``USER_STORAGE_UNIT``
-     - Unit of the storage request (e.g., "Gi", "Ti")
-   * - ``USER_STORAGE_<UNIT>``
-     - Storage value converted to specified unit (e.g., ``USER_STORAGE_Gi``)
-   * - ``USER_GPU``
-     - GPU count requested by the user (e.g., "1", "4", "8")
-   * - ``USER_CACHE``
-     - Cache size requested for user mounted inputs
-
-Kubernetes Node Variables
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-These variables represent the actual resources available on Kubernetes nodes:
-
-.. list-table:: Kubernetes Node Variables
-   :header-rows: 1
-   :widths: 25 75
-
-   * - **Token**
-     - **Description**
-   * - ``K8_CPU``
-     - Available CPU count on Kubernetes nodes
-   * - ``K8_MEMORY``
-     - Available memory on Kubernetes nodes
-   * - ``K8_STORAGE``
-     - Available storage on Kubernetes nodes
-   * - ``K8_GPU``
-     - Available GPU count on Kubernetes nodes
-
-When a resource validation rule uses Kubernetes node variables (``K8_*``), the workflow's resource request is evaluated
-against each available node in the cluster.
-Validation passes if the rule succeeds for at least one node, ensuring the workflow can be scheduled.
-
-.. warning::
-
-   Workflow-specific variables (``WF_*``) cannot be used in resource validation rules because
-   these values are generated after validation passes and the workflow is successfully submitted.
-
-Validation Operators
---------------------
-
-OSMO supports the following comparison operators for resource validation rules:
-
-.. list-table:: Validation Operators
-   :header-rows: 1
-   :widths: 15 25 60
-
-   * - **Operator**
-     - **Description**
-     - **Example Usage**
-   * - ``EQ``
-     - Equal to
-     - Ensure exact resource match: ``{{USER_GPU}} EQ 1``
-   * - ``LT``
-     - Less than
-     - Enforce upper bounds: ``{{USER_STORAGE}} LT {{K8_STORAGE}}``
-   * - ``LE``
-     - Less than or equal to
-     - Allow maximum utilization: ``{{USER_CPU}} LE {{K8_CPU}}``
-   * - ``GT``
-     - Greater than
-     - Enforce minimum values: ``{{USER_MEMORY}} GT 0``
-   * - ``GE``
-     - Greater than or equal to
-     - Ensure minimum requirements: ``{{USER_GPU}} GE 0``
-
-
-Recommended Validation Templates
---------------------------------
-
-The following are recommended resource validation templates that cover common use cases:
-
-**default_cpu**
-  Validates CPU requests against node capacity and ensures positive values.
-
-**default_gpu**
-  Validates GPU requests against available GPUs and prevents negative allocations.
-
-**default_memory**
-  Validates memory requests against node memory capacity with appropriate bounds checking.
-
-**default_storage**
-  Validates storage requests against available node storage with safety margins.
-
-Here's the complete recommended configuration:
-
-.. code-block:: json
-
+  $ cat << EOF > validation_config.json
   {
     "default_cpu": [
       {
         "operator": "LE",
         "left_operand": "{{USER_CPU}}",
         "right_operand": "{{K8_CPU}}",
-        "assert_message": "CPU value {{USER_CPU}} exceeds available node capacity {{K8_CPU}}"
+        "assert_message": "CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}"
       },
       {
         "operator": "GT",
         "left_operand": "{{USER_CPU}}",
         "right_operand": "0",
-        "assert_message": "CPU value {{USER_CPU}} must be greater than 0"
+        "assert_message": "CPU {{USER_CPU}} must be greater than 0"
       }
     ],
     "default_gpu": [
@@ -214,13 +169,13 @@ Here's the complete recommended configuration:
         "operator": "LE",
         "left_operand": "{{USER_GPU}}",
         "right_operand": "{{K8_GPU}}",
-        "assert_message": "GPU value {{USER_GPU}} exceeds available node capacity {{K8_GPU}}"
+        "assert_message": "GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}"
       },
       {
         "operator": "GE",
         "left_operand": "{{USER_GPU}}",
         "right_operand": "0",
-        "assert_message": "GPU value {{USER_GPU}} cannot be negative"
+        "assert_message": "GPU {{USER_GPU}} cannot be negative"
       }
     ],
     "default_memory": [
@@ -228,13 +183,13 @@ Here's the complete recommended configuration:
         "operator": "LT",
         "left_operand": "{{USER_MEMORY}}",
         "right_operand": "{{K8_MEMORY}}",
-        "assert_message": "Memory value {{USER_MEMORY}} exceeds available node capacity {{K8_MEMORY}}"
+        "assert_message": "Memory {{USER_MEMORY}} exceeds node capacity {{K8_MEMORY}}"
       },
       {
         "operator": "GT",
         "left_operand": "{{USER_MEMORY}}",
         "right_operand": "0",
-        "assert_message": "Memory value {{USER_MEMORY}} must be greater than 0"
+        "assert_message": "Memory {{USER_MEMORY}} must be greater than 0"
       }
     ],
     "default_storage": [
@@ -242,51 +197,133 @@ Here's the complete recommended configuration:
         "operator": "LT",
         "left_operand": "{{USER_STORAGE}}",
         "right_operand": "{{K8_STORAGE}}",
-        "assert_message": "Storage value {{USER_STORAGE}} exceeds available node capacity {{K8_STORAGE}}"
+        "assert_message": "Storage {{USER_STORAGE}} exceeds node capacity {{K8_STORAGE}}"
       },
       {
         "operator": "GT",
         "left_operand": "{{USER_STORAGE}}",
         "right_operand": "0",
-        "assert_message": "Storage value {{USER_STORAGE}} must be greater than 0"
+        "assert_message": "Storage {{USER_STORAGE}} must be greater than 0"
       }
     ]
   }
+  EOF
 
-Best Practices
---------------
+  $ osmo config update RESOURCE_VALIDATION --file validation_config.json
 
-Validation Rule Design
-~~~~~~~~~~~~~~~~~~~~~~
+**Step 3: Reference in Pool Configuration**
 
-1. **Layered Validation**: Implement multiple layers of validation (basic bounds checking, node capacity).
+Add validation templates to your pool's ``common_resource_validations`` field:
 
-2. **Clear Error Messages**: Write descriptive error messages that help users understand what went wrong and how to fix it. Include the variable values that caused the validation to fail.
+.. code-block:: json
 
-3. **Safety Margins**: Don't allow 100% resource utilization; leave margins for system overhead and unexpected spikes.
+  {
+    "name": "my-pool",
+    "backend": "default",
+    "common_resource_validations": [
+      "default_cpu",
+      "default_memory",
+      "default_storage",
+      "default_gpu"
+    ]
+  }
+
+
+Additional Examples
+-------------------
+
+.. dropdown:: **Custom GPU Validation** - Enforce Minimum GPU Requirements
+    :color: info
+    :icon: cpu
+
+    Create validation for workloads requiring at least 2 GPUs:
+
+    .. code-block:: json
+
+      {
+        "min_2_gpu": [
+          {
+            "operator": "GE",
+            "left_operand": "{{USER_GPU}}",
+            "right_operand": "2",
+            "assert_message": "This pool requires minimum 2 GPUs, you requested {{USER_GPU}}"
+          },
+          {
+            "operator": "LE",
+            "left_operand": "{{USER_GPU}}",
+            "right_operand": "{{K8_GPU}}",
+            "assert_message": "GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}"
+          }
+        ]
+      }
+
+.. dropdown:: **Memory Safety Margins** - Prevent 100% Utilization
+    :color: info
+    :icon: shield
+
+    Enforce 80% maximum memory usage to leave headroom:
+
+    .. code-block:: json
+
+      {
+        "memory_80_percent": [
+          {
+            "operator": "LT",
+            "left_operand": "{{USER_MEMORY}}",
+            "right_operand": "{{K8_MEMORY}} * 0.8",
+            "assert_message": "Memory {{USER_MEMORY}} exceeds 80% of node capacity"
+          }
+        ]
+      }
+
+.. dropdown:: **Platform-Specific Rules** - Different Limits Per Platform
+    :color: info
+    :icon: stack
+
+    Create different validation rules for different hardware platforms:
+
+    .. code-block:: json
+
+      {
+        "a100_validation": [
+          {
+            "operator": "LE",
+            "left_operand": "{{USER_GPU}}",
+            "right_operand": "8",
+            "assert_message": "A100 platform supports max 8 GPUs"
+          }
+        ],
+        "h100_validation": [
+          {
+            "operator": "LE",
+            "left_operand": "{{USER_GPU}}",
+            "right_operand": "8",
+            "assert_message": "H100 platform supports max 8 GPUs"
+          }
+        ]
+      }
 
 
 Troubleshooting
 ---------------
 
-Common Issues
-~~~~~~~~~~~~~
-
 **Validation Always Fails**
-  Check that Kubernetes node variables are being populated correctly and that nodes are properly labeled and available.
+  - Check Kubernetes nodes are properly labeled and available
+  - Verify node variables are populated: ``kubectl describe nodes``
 
-**Inconsistent Validation Results**
-  Verify that all nodes in the cluster have consistent resource reporting and that no nodes are in unschedulable states.
+**Inconsistent Results**
+  - Ensure all nodes report resources consistently
+  - Check no nodes are in unschedulable state
 
 **Unit Conversion Errors**
-  Ensure that resource units are consistent between user requests and validation rules (e.g., Gi vs GB).
+  - Use consistent units between requests and validation (Gi vs GB)
+  - Review variable substitution in error messages
 
+**Debugging Tips**
+  - Start with simple rules and add complexity gradually
+  - Test validation with different resource values
+  - Examine OSMO service logs for detailed rule evaluation
 
-Debugging Tips
-~~~~~~~~~~~~~~
+.. warning::
 
-1. **Test Rules Incrementally**: Start with simple validation rules and add complexity gradually.
-
-2. **Check Node Status**: Verify that Kubernetes nodes are reporting resources correctly using ``kubectl describe nodes``.
-
-3. **Review Logs**: Examine OSMO service logs for validation rule evaluation details and errors.
+   Don't allow 100% resource utilization. Leave margins for system overhead and unexpected spikes. Use ``LT`` (less than) instead of ``LE`` (less/equal) for memory and storage.
