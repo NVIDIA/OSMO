@@ -186,7 +186,7 @@ The flow contains the following steps:
 Initialization
 --------------
 
-1. During system initialization, the OSMO service will generate a public/private key pair for signing/validating tokens if one is not already present (See :ref:`service_authentication` for more information).
+1. During system initialization, the OSMO service will generate a public/private key pair for signing/validating tokens if one is not already present (See :ref:`service_config` for more information).
 2. Envoy will request the public key from the OSMO service by making a request to ``GET <osmo>/api/auth/jwt/public_key``
 3. OSMO will return the public key (HTTP 200) used to verify JWT token signatures
 
@@ -263,7 +263,7 @@ Advanced Keycloak Configuration
 
 Keycloak can be configured to allow users to log in directly with a username and password.
 
-Keycloak can also be configured to integrate with an external identity provider (such as Azure AD, Google Workspace, and others) for improved integration with your organization's authentication systems. For more information on integrating external identity providers with Keycloak, refer to the `Keycloak documentation <https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker>`_.
+Keycloak can also be configured to integrate with an external identity provider (such as Azure AD, Google Workspace, and others) for improved integration with your organization's authentication systems. For more information on integrating external identity providers with Keycloak, refer to the `Keycloak documentation <https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker>`__.
 
 Troubleshooting
 ===============
@@ -288,7 +288,7 @@ Common Authentication Issues
 
 .. seealso::
 
-   - `Keycloak Documentation <https://www.keycloak.org/documentation>`_
+   - `Keycloak Documentation <https://www.keycloak.org/documentation>`__
    - `OAuth 2.0 RFC 6749 <https://datatracker.ietf.org/doc/html/rfc6749>`_
    - :doc:`keycloak_setup` for configuring Keycloak roles and groups
    - :doc:`roles_policies` for understanding OSMO roles and policies
