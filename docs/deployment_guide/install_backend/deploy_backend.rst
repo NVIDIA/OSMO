@@ -76,11 +76,10 @@ Prepare the ``backend_operator_values.yaml`` file:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2, 7
+    :emphasize-lines: 2, 6
 
     global:
       osmoImageTag: <insert-osmo-image-tag>  # REQUIRED: Update with OSMO image tag
-      imagePullSecret: imagepullsecret
       serviceUrl: https://osmo.example.com
       agentNamespace: osmo-operator
       backendNamespace: osmo-workflows

@@ -477,7 +477,7 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 20-32, 39-47, 50-66, 142, 149-152, 161-170
+    :emphasize-lines: 4, 19-31, 38-46, 49-65, 141, 148-151, 160-169
 
     # Global configuration shared across all OSMO services
     global:
@@ -686,7 +686,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 23, 28-46, 58-61, 78, 85-88, 100-109, 120-121
+    :emphasize-lines: 4, 22, 27-45, 57-60, 77, 84-87, 99-108, 119-120
 
     # Global configuration shared across router services
     global:
@@ -836,7 +836,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 11, 14-32, 50, 57-61, 71-80
+    :emphasize-lines: 4, 10, 13-31, 49, 56-60, 70-79
 
     # Global configuration shared across UI services
     global:
