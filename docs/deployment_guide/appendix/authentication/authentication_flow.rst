@@ -256,6 +256,8 @@ Below is an example of a JWT token payload used in the authentication flow:
 
 Envoy will then extract the ``roles`` claim and set the ``x-osmo-roles`` header to a comma separated list of the roles. It will also extract the ``preferred_username`` claim and set the ``x-osmo-user`` header to the username.
 
+.. _authentication_flow_sso:
+
 Advanced Keycloak Configuration
 ===============================
 

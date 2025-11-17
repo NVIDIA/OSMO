@@ -37,7 +37,7 @@ It can be configured a few different ways:
    Use Keycloak to manage users and allow login directly through Keycloak.
    Use keycloak to control RBAC permissions by maintaining a mapping of users to groups and groups to roles.
 
-**3. Keycloak with external IdP**
+**3. Keycloak with External Identity Provider**
    Use Keycloak as an identity broker that integrates with your organization's identity provider (Azure AD, Google Workspace, etc.).
    Use keycloak to control RBAC permissions by maintaining a mapping of users to groups and groups to roles.
    This is recommended for production deployments.
@@ -293,7 +293,7 @@ Quick Navigation
 
 .. seealso::
 
-   - :doc:`../../install_service/deploy_service` for service deployment with authentication
+   - :doc:`../../getting_started/deploy_service` for service deployment with authentication
    - :doc:`../../install_backend/configure_pool` for pool configuration
    - :ref:`roles_config` for role configuration reference
 
