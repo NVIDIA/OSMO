@@ -242,5 +242,5 @@ Troubleshooting
 
 .. seealso::
 
-  - Learn more about KAI scheduler at `github.com/NVIDIA/kai-scheduler <https://github.com/NVIDIA/kai-scheduler>`_
-  - Learn more about scheduling in OSMO at `github.com/NVIDIA/OSMO/scheduling <https://nvidia.github.io/OSMO/user_guide/resource_pools/scheduling/index.html#scheduling>`_
+  - Learn more about `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_
+  - Learn more about `scheduling in OSMO <https://nvidia.github.io/OSMO/user_guide/resource_pools/scheduling/index.html#scheduling>`_

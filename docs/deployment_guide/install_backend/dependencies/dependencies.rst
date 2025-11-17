@@ -65,7 +65,7 @@ Next, install KAI using ``helm``
 .. note::
    Replace ``<insert-chart-version>`` with the actual chart version.
    OSMO supports up to date chart versions.
-   For more information on the chart version, refer to the `official KAI scheduler documentation <https://github.com/NVIDIA/kai-scheduler/releases>`__.
+   For more information on the chart version, refer to the `official KAI scheduler release notes <https://github.com/NVIDIA/kai-scheduler/releases>`__.
 
 Install the GPU Operator
 =========================
