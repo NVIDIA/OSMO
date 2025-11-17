@@ -116,7 +116,7 @@ Deploy the backend operator:
      --version <insert-chart-version> \
      --namespace osmo-operator
 
-After verifying that the backend operator is running, you should be able to see the backend in the `GET API <backend_config_get_>`_ and see a non-empty list in backend.
+After verifying that the backend operator is running, you should be able to see the backend using the `config CLI <cli_reference_config_show>`_: ``osmo config show BACKEND``
 
 
 Step 4: Configure KAI Scheduler

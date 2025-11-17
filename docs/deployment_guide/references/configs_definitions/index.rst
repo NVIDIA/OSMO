@@ -46,7 +46,7 @@ The following table provides a list of API endpoints that admins can use to conf
    * - :ref:`/api/configs/role <roles_config>`
      - User roles and permissions
 
-Admins can access the Swagger UI at ``/api/docs`` to use the Swagger UI to configure the service.
+Admins can access the Swagger UI at ``http://osmo.example.com/api/docs`` to use the Swagger UI to configure the service.
 
 .. image:: swagger.png
    :alt: Swagger UI

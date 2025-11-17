@@ -118,7 +118,7 @@ Step 2: Configure Keycloak
 
 Keycloak enables OSMO to authenticate users with different identity providers and efficiently manage users in groups and roles. Learn more at :ref:`authentication_flow_with_keycloak`.
 
-For more details of keycloak setup see the `Keycloak Documentation <https://github.com/bitnami/charts/blob/main/bitnami/keycloak/values.yaml>`_
+For more details of keycloak setup see the `Keycloak Documentation <https://www.keycloak.org/documentation>`_
 
 Follow the steps below to set up Keycloak.
 
