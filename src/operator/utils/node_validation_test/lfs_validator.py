@@ -80,7 +80,7 @@ class LFSTestConfig(test_base.NodeTestConfig):
         description='Namespace of the pod to create')
     pod_image: str = pydantic.Field(
         command_line='pod_image',
-        default='nvcr.io/nvidian/osmo/alpine:latest',
+        default='alpine:latest',
         description='Image for the test pod')
     image_pull_secret: str = pydantic.Field(
         command_line='image_pull_secret',
