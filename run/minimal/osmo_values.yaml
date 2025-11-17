@@ -17,6 +17,7 @@
 global:
   osmoImageLocation: nvcr.io/nvidia/osmo
   osmoImageTag: latest
+  imagePullSecret: imagepullsecret
   nodeSelector:
     node_group: service
 

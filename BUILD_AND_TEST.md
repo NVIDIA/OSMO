@@ -111,16 +111,11 @@ To push images to your own container registry, you need to modify the `BASE_IMAG
 1. **Update the BASE_IMAGE_URL and IMAGE_TAG**:
 
    ```bash
-   BASE_IMAGE_URL="your-registry.com/your-namespace/osmo/"
+   BASE_IMAGE_URL="your-registry.com/your-namespace/osmo"
    IMAGE_TAG="your-image-tag"
 
-   # For Linux (GNU sed)
-   sed -i "s|BASE_IMAGE_URL = \"nvcr.io/nvidia/osmo/\"|BASE_IMAGE_URL = \"${BASE_IMAGE_URL}\"|" MODULE.bazel
+   sed -i "s|BASE_IMAGE_URL = \"nvcr.io/nvidia/osmo/\"|BASE_IMAGE_URL = \"${BASE_IMAGE_URL}/\"|" MODULE.bazel
    sed -i "s|IMAGE_TAG = \"\"|IMAGE_TAG = \"${IMAGE_TAG}\"|" MODULE.bazel
-
-   # For macOS (BSD sed)
-   # sed -i "" "s|BASE_IMAGE_URL = \"nvcr.io/nvidia/osmo/\"|BASE_IMAGE_URL = \"${BASE_IMAGE_URL}\"|" MODULE.bazel
-   # sed -i "" "s|IMAGE_TAG = \"\"|IMAGE_TAG = \"${IMAGE_TAG}\"|" MODULE.bazel
    ```
 
 2. **Ensure you're authenticated** to your registry from within the builder environment.
