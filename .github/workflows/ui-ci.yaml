@@ -20,14 +20,31 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ main ] # Triggers on PRs targeting the main branch
-    paths:
-      - 'BUILD'
-      - 'MODULE.bazel'
-      - 'bzl/**'
-      - 'ui/**'
 
 jobs:
+  # Check if UI paths changed
+  check-paths:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.ui }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if UI paths changed
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ui:
+              - 'BUILD'
+              - 'MODULE.bazel'
+              - 'bzl/**'
+              - 'ui/**'
+
   bazel-build-test:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -51,3 +68,40 @@ jobs:
         run: |
           # Build the UI
           bazel build //ui/...
+
+  # Status check job that always runs and can be used as a required check
+  ui-status:
+    if: always()
+    needs: [check-paths, bazel-build-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check UI build results
+        run: |
+          SHOULD_RUN="${{ needs.check-paths.outputs.should_run }}"
+          BUILD_RESULT="${{ needs.bazel-build-test.result }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          echo "Event: $EVENT_NAME"
+          echo "Should run build: $SHOULD_RUN"
+          echo "UI build result: $BUILD_RESULT"
+
+          # If no UI changes and it's not a manual trigger, pass the check
+          if [[ "$SHOULD_RUN" == "false" ]] && [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "✅ UI build passed (no UI changes)"
+            exit 0
+          fi
+
+          # At this point, the build should have run - check if it succeeded
+          if [[ "$BUILD_RESULT" == "success" ]]; then
+            echo "✅ UI build passed"
+            exit 0
+          fi
+
+          # Fail if the build failed
+          if [[ "$BUILD_RESULT" == "failure" ]]; then
+            echo "❌ UI build failed"
+            exit 1
+          fi
+
+          echo "❌ Unexpected build result: $BUILD_RESULT"
+          exit 1

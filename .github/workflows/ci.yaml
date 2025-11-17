@@ -20,20 +20,39 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ main ] # Triggers on PRs targeting the main branch
-    paths:
-      - 'BUILD'
-      - 'MODULE.bazel'
-      - 'bzl/**'
-      - 'src/**'
-      - 'run/**'
 
 jobs:
+
+  #######################
+  #    Path Filter      #
+  #######################
+  check-paths:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.ci }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if relevant paths changed
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ci:
+              - 'BUILD'
+              - 'MODULE.bazel'
+              - 'bzl/**'
+              - 'src/**'
+              - 'run/**'
 
   #######################
   #      Public CI      #
   #######################
   public-bazel-build-test:
+    needs: [check-paths]
     if: |
+      (needs.check-paths.outputs.should_run == 'true') &&
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
 
     runs-on: ubuntu-latest
@@ -72,9 +91,14 @@ jobs:
   #     Internal CI     #
   #######################
   internal-bazel-build-test:
+    needs: [check-paths]
     if: |
-      github.event_name == 'workflow_dispatch' || 
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
+      (github.event_name == 'workflow_dispatch') ||
+      (
+        needs.check-paths.outputs.should_run == 'true' && 
+        github.event_name == 'pull_request' && 
+        github.event.pull_request.head.repo.fork == false
+      )
 
     runs-on: self-hosted
     environment:
@@ -121,3 +145,51 @@ jobs:
             -- \
             //... \
             -//ui/...
+
+  #######################
+  #    Status Check     #
+  #######################
+  ci-status:
+    # This job always runs and is used as a required status check for branch protection
+    if: always()
+    needs: [check-paths, public-bazel-build-test, internal-bazel-build-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI results
+        run: |
+          SHOULD_RUN="${{ needs.check-paths.outputs.should_run }}"
+          PUBLIC_RESULT="${{ needs.public-bazel-build-test.result }}"
+          INTERNAL_RESULT="${{ needs.internal-bazel-build-test.result }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          echo "Event: $EVENT_NAME"
+          echo "Should run tests: $SHOULD_RUN"
+          echo "Public CI result: $PUBLIC_RESULT"
+          echo "Internal CI result: $INTERNAL_RESULT"
+
+          # If no relevant paths changed and it's not a manual trigger, pass the check
+          if [[ "$SHOULD_RUN" == "false" ]] && [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "✅ CI passed (no relevant changes)"
+            exit 0
+          fi
+
+          # Fail if any job that ran has failed
+          if [[ "$PUBLIC_RESULT" == "failure" ]] || [[ "$INTERNAL_RESULT" == "failure" ]]; then
+            echo "❌ CI failed"
+            exit 1
+          fi
+
+          # Fail if both jobs were skipped (shouldn't happen with current conditions)
+          if [[ "$PUBLIC_RESULT" == "skipped" ]] && [[ "$INTERNAL_RESULT" == "skipped" ]]; then
+            echo "❌ No CI jobs ran"
+            exit 1
+          fi
+
+          # Success if at least one job succeeded
+          if [[ "$PUBLIC_RESULT" == "success" ]] || [[ "$INTERNAL_RESULT" == "success" ]]; then
+            echo "✅ CI passed"
+            exit 0
+          fi
+
+          echo "❌ Unexpected job results"
+          exit 1

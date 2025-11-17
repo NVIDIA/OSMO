@@ -20,12 +20,29 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ main ] # Triggers on PRs targeting the main branch
-    paths:
-      - 'docs/**'
 
 jobs:
+  # Check if docs paths changed
+  check-paths:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if docs paths changed
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+
   # Build job for Sphinx documentation
   build:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -76,3 +93,40 @@ jobs:
             docs/build_error_logs/
             docs/spelling_error_logs/
           retention-days: 3
+
+  # Status check job that always runs and can be used as a required check
+  docs-status:
+    if: always()
+    needs: [check-paths, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check docs build results
+        run: |
+          SHOULD_RUN="${{ needs.check-paths.outputs.should_run }}"
+          BUILD_RESULT="${{ needs.build.result }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          echo "Event: $EVENT_NAME"
+          echo "Should run build: $SHOULD_RUN"
+          echo "Docs build result: $BUILD_RESULT"
+
+          # If no docs changed and it's not a manual trigger, pass the check
+          if [[ "$SHOULD_RUN" == "false" ]] && [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "✅ Docs validation passed (no docs changes)"
+            exit 0
+          fi
+
+          # At this point, the build should have run - check if it succeeded
+          if [[ "$BUILD_RESULT" == "success" ]]; then
+            echo "✅ Docs validation passed"
+            exit 0
+          fi
+
+          # Fail if the build failed
+          if [[ "$BUILD_RESULT" == "failure" ]]; then
+            echo "❌ Docs validation failed"
+            exit 1
+          fi
+
+          echo "❌ Unexpected build result: $BUILD_RESULT"
+          exit 1
