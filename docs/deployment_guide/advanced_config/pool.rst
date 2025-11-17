@@ -258,9 +258,31 @@ Validate the pool configuration:
 
   $ osmo resource list --pool heterogeneous_pool
 
+
+**Step 4: Create a Role for the Pool**
+
+Create a role to allow submitting to the pool using the ``osmo config set`` CLI:
+
+.. code-block:: bash
+
+  $ osmo config set ROLE osmo-heterogeneous_pool pool
+
+Users that have this role will now be able to submit workflows to the newly created pool.
+
 .. note::
 
-   **Access Control:** To control which users can access this pool, configure roles and policies using the pattern ``osmo-<pool_name_prefix>``. For a comprehensive example of configuring pool access control, see the appendix: :ref:`Roles and Policies Example <roles_policies_example>`.
+  For more info, see :ref:`auto_generating_pool_roles`.
+
+**Step 5: Assign the Role to Users in Keycloak**
+
+To assign users to the role, the following steps must be completed:
+
+1. Create the role ``osmo-heterogeneous_pool`` in keycloak (see :ref:`keycloak_create_roles`). Even though we created the role in OSMO, we also must
+   create a matching role in Keycloak.
+2. Create the group in keycloak (see :ref:`keycloak_create_groups`). You can pick any name for this group, for example ``OSMO Heterogeneous Pool``.
+3. Assign the role ``osmo-heterogeneous_pool`` to the group ``OSMO Heterogeneous Pool`` (see :ref:`keycloak_assign_roles_to_groups`). Any users who are
+   in this group will now have access to the pool.
+4. Add users to the group ``OSMO Heterogeneous Pool`` (see :ref:`keycloak_assign_users_to_groups`). These users will now have access to the pool.
 
 
 Additional Examples

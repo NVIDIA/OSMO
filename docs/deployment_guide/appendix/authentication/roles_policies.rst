@@ -48,43 +48,42 @@ By default, OSMO includes the following preconfigured roles:
 
    * - **Role**
      - **Description**
-   * - Admin
-     - User who is responsible to deploy, setup & manage OSMO. They are able to:
+   * - ``osmo-admin``
+     - User who is responsible to deploy, setup & manage OSMO. They are able to access all APIs except websocket APIs used for backend or tasks (``osmo-backend`` and ``osmo-ctrl`` roles).
+       For example, they can:
+       * Submit/cancel workflows from any pool
+       * Create and modify pools
+       * Modify other configuration like workflow and dataset settings
+       * Create, modify and delete roles and policies.
+       * Create service account tokens for backend registration
 
-       * Manage compute resources for OSMO deployment
-       * Deploy OSMO using self-hosting deployment guide
-       * Configure OSMO keycloak authentication
-       * Create service accounts for backend registration
-       * Manage user privileges for OSMO instance
-       * Register compute and data backends for workflows
-
-       They can access all APIs except websocket APIs used for backend or tasks.
-
-   * - Users
+   * - ``osmo-user``
      - OSMO users who are AI developers that use OSMO platform to run workflows and do not need management access to OSMO. They are able to:
 
-       * Log into OSMO securely with Customer SSO
-       * Log into OSMO with ``user`` privileges & run workflows
+       * View and search workflows
+       * View and search pools
+       * Create and use apps
+       * Store and modify user credentials
+       * Submit/cancel workflows in the ``default`` pool and port-forward/exec into those workflows
 
-   * - Backend
+   * - ``osmo-backend``
      - Role for backend agents to communicate with OSMO. They are able to:
 
        * Register compute backend to OSMO
        * Create and delete user pods
        * Monitor the health of the backend
 
-   * - Ctrl
+   * - ``osmo-ctrl``
      - Role for user tasks to communicate with OSMO. They are able to:
 
        * Send user logs to OSMO
        * Allow user access to port-forward and exec into the user task
 
-   * - Default
+   * - ``osmo-default``
      - Role for unauthenticated users. They are able to:
 
        * View the service version
        * Fetch new JWT tokens from service/user access tokens
-       * Install the python library
 
 .. note::
 
@@ -115,13 +114,26 @@ Action Format
 
 Actions follow the format: ``http:<path>:<method>``
 
-- **Path**: The API endpoint (supports wildcards ``*``)
+- **Path**: The API endpoint (supports wildcards ``*``. Wildcards are evaluated like the bash glob syntax)
 - **Method**: HTTP method (``GET``, ``POST``, ``PUT``, ``DELETE``, ``PATCH``, or ``*`` for all)
 
 Examples:
   - ``http:/api/workflows/*:GET`` - Allow GET requests to all workflow endpoints
   - ``http:/api/pool:*`` - Allow all methods on the pool endpoint
   - ``http:!/api/configs/*:*`` - Deny all requests to config endpoints
+
+.. _role_naming_for_pools:
+
+Role Naming for Pools
+---------------------
+
+Although the ``actions`` and ``policies`` assigned to a role ultimately determine what that role allows a user to do (e.g., submit workflows to a pool),
+the **name** of the role determines which pools are visible to the user (In the UI and when using ``osmo pool list`` CLI command).
+OSMO will check if a user has roles of the format ``osmo-<prefix>`` and will show that user all pools
+that start with the given prefix.
+
+For this reason, roles for accessing a pool should follow the pattern ``osmo-<pool-name>`` or for a role that gives access to a group of similarly named pools,
+``osmo-<pool-prefix>``.
 
 .. _roles_policies_example:
 
@@ -248,6 +260,8 @@ To create a custom role using the OSMO CLI:
 Quality of Life Features
 =========================
 
+.. _auto_generating_pool_roles:
+
 Auto-Generating Pool Roles
 ---------------------------
 
@@ -255,8 +269,8 @@ For pool and backend roles, use the ``osmo config set`` CLI to automatically gen
 
 .. code-block:: bash
 
-   $ osmo config set ROLE osmo-my-pool -p my-pool
-   Successfully created ROLE config
+   $ osmo config set ROLE osmo-my-pool pool
+   Successfully set ROLE config "osmo-my-pool"
 
 This generates a role with the necessary permissions:
 
@@ -279,7 +293,7 @@ This generates a role with the necessary permissions:
 
 .. note::
 
-   Pool role names must start with ``osmo-`` to be recognized as pool roles.
+   Pool role names must start with ``osmo-<pool-prefix>`` to be recognized as pool roles (See :ref:`role_naming_for_pools` for more information).
 
 Learn more about the CLI at :ref:`cli_reference_config_set`.
 
@@ -350,7 +364,7 @@ Best Practices
 
 6. **Test Thoroughly**: Test new roles with a test user before deploying to production
 
-7. **Version Control**: Keep role configurations in version control for tracking changes
+.. _troubleshooting_roles_policies:
 
 Troubleshooting
 ===============
