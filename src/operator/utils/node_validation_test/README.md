@@ -185,7 +185,6 @@ bazel run @osmo_workspace///src/operator/utils/node_validation_test:lfs_validato
 
 
 Typical container settings:
-- `imagePullSecrets`: include your `nvcr.io` secret (e.g., `nvcr-secret`)
 - Env:
   - `OSMO_NODE_NAME` via `fieldRef: spec.nodeName`
   - `OSMO_NODE_CONDITION_PREFIX` set to `osmo.nvidia.com/`
