@@ -65,6 +65,10 @@ Integrate with your existing storage infrastructure:
 * Azure Blob Storage
 
 
+.. seealso::
+
+   Learn more about OSMO in the `What is OSMO? <https://nvidia.github.io/OSMO/user_guide/index.html#what-is-osmo>`_ section of the User Guide.
+
 What You'll Deploy
 ==================
 
