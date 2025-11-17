@@ -159,9 +159,9 @@ bazel run @osmo_workspace///src/operator/utils/node_validation_test:lfs_validato
 ## Running in Kubernetes (DaemonSet pattern)
 
 Reference container images (as used in docs/backend tests):
-- `nvcr.io/nvidian/osmo/resource-validator:latest`
-- `nvcr.io/nvidian/osmo/connection-validator:latest`
-- `nvcr.io/nvidian/osmo/lfs-validator:latest`
+- `osmo.local/resource-validator:latest`
+- `osmo.local/connection-validator:latest`
+- `osmo.local/lfs-validator:latest`
 
 Typical container settings:
 - `imagePullSecrets`: include your `nvcr.io` secret (e.g., `nvcr-secret`)
