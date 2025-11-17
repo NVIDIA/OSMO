@@ -116,11 +116,7 @@ global:
 
       ## Host aliases for custom DNS resolution within proxy pods
       ##
-      hostAliases:
-        - ip: "127.10.0.1"
-          hostnames:
-            - "omnipackages.nvidia.com"
-            - "isaac-dev.ov.nvidia.com"
+      hostAliases: {}
 
   ## Kubernetes scheduler configuration
   ##
