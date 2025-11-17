@@ -139,7 +139,7 @@ Logging In
    a. The OSMO CLI will call Keycloak's device authorization endpoint to get a device code and user code ``POST <keycloak>/realms/osmo/protocol/openid-connect/auth/device``
    b. Keycloak returns a device code, user code, and verification URL to the OSMO CLI.
    c. The OSMO CLI will display the user code and Keycloak URL to the user to visit to complete the authentication.
-   d. The user visits the Keycloak verification URL (eg., ``<keycloak>/realms/osmo/device?user_code=<user-code>``) and completes authentication.
+   d. The user visits the Keycloak verification URL (e.g. ``<keycloak>/realms/osmo/device?user_code=<user-code>``) and completes authentication.
    e. The OSMO CLI continuously polls keycloak using the device code to check if authentication is complete.
    f. Once authentication is complete, Keycloak will return an access token, id token and refresh token to the OSMO CLI.
 
