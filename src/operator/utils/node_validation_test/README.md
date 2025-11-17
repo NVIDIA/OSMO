@@ -138,7 +138,7 @@ Modes:
 All list arguments per mode must have the same length.
 
 Additional flags:
-- `--pod_namespace` (required), `--pod_image` (default `nvcr.io/nvidian/osmo/alpine:latest`)
+- `--pod_namespace` (required), `--pod_image` (default `alpine:latest`)
 - `--image_pull_secret` (default `nvcr-secret`)
 - `--pod_succeeded_timeout` (default `120` seconds)
 - `--condition_name` (default `LFSMountFailure`)
