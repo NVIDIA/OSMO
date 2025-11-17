@@ -74,7 +74,7 @@ and ``PGPASSWORD=$OSMO_PGPASSWORD`` if PostgreSQL was configured without a passw
         image: alpine/psql:17.5
         command: ["/bin/sh", "-c"]
         args:
-          - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo_db;'"
+          - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo;'"
     restartPolicy: Never
   EOF
 
@@ -483,7 +483,6 @@ Create ``osmo_values.yaml`` for osmo with the following sample configurations:
     global:
       osmoImageLocation: nvcr.io/nvidia/osmo
       osmoImageTag: <version>
-      imagePullSecret: imagepullsecret
       serviceAccountName: osmo
 
       logs:
@@ -693,7 +692,6 @@ Create ``router_values.yaml`` for router with the following sample configuration
     global:
       osmoImageLocation: nvcr.io/nvidia/osmo
       osmoImageTag: <version>
-      imagePullSecret: imagepullsecret
 
       logs:
         enabled: true
@@ -748,7 +746,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
       postgres:
         serviceName: <your-postgres-hostname>
         port: 5432
-        db: <your-postgres-db>
+        db: osmo
         user: postgres
 
     # Sidecar container configurations
@@ -844,7 +842,6 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
     global:
       osmoImageLocation: nvcr.io/nvidia/osmo
       osmoImageTag: <version>
-      imagePullSecret: imagepullsecret
 
     # UI service configurations
     services:
