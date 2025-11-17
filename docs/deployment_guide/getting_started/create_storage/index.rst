@@ -59,6 +59,11 @@ Follow the below guides to create the required buckets:
 
           Configure TOS buckets with IAM policies and user access.
 
+..
+  Optional storage sections can be included
+
+.. auto-include:: ./**.in.rst
+
 .. toctree::
    :hidden:
    :maxdepth: 1
