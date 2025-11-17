@@ -18,15 +18,21 @@
 .. _setup_concepts:
 
 =======================================================
-Advanced Configuration
+Overview
 =======================================================
 
-This section contains high-level overview of important concepts used in OSMO.
+This section provides additional advanced configurations to customize and optimize your OSMO deployment. While OSMO works with default settings, these configurations enable you to fine-tune resource management, scheduling behavior, and data access patterns for your specific needs. Most configurations are optional and can be applied as your requirements evolve.
 
 .. only:: html
 
   .. grid:: 1 2 2 2
       :gutter: 3
+
+      .. grid-item-card:: :octicon:`database` Resource Pools
+          :link: ./pool
+          :link-type: doc
+
+          Abstraction layer for compute backends with fine-grained access control.
 
       .. grid-item-card:: :octicon:`checklist` Resource Validation
           :link: ./resource_validation
@@ -34,25 +40,19 @@ This section contains high-level overview of important concepts used in OSMO.
 
           Pre-flight checks that validate workflow resource requests before submission.
 
-      .. grid-item-card:: :octicon:`package` Pod Template
+      .. grid-item-card:: :octicon:`package` Pod Templates
           :link: ./pod_template
           :link-type: doc
 
           Reusable Kubernetes pod specifications for defining workflow task execution.
 
-      .. grid-item-card:: :octicon:`database` Pool
-          :link: ./pool
-          :link-type: doc
-
-          Abstraction layer for compute backends with fine-grained access control.
-
-      .. grid-item-card:: :octicon:`workflow` Scheduler
+      .. grid-item-card:: :octicon:`workflow` Scheduler Configs
           :link: ./scheduler
           :link-type: doc
 
-          Task orchestration components including KAI, Volcano, and Default schedulers.
+          KAI scheduler configuration for advanced features.
 
-      .. grid-item-card:: :octicon:`sync` Rsync Setup
+      .. grid-item-card:: :octicon:`sync` Rsync Configs
           :link: ./rsync
           :link-type: doc
 
@@ -64,13 +64,3 @@ This section contains high-level overview of important concepts used in OSMO.
 
           Configure additional data buckets for managing team datasets and isolated storage.
 
-.. toctree::
-   :hidden:
-   :maxdepth: 1
-
-   resource_validation
-   pod_template
-   pool
-   scheduler
-   rsync
-   dataset_buckets

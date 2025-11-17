@@ -18,54 +18,42 @@
 .. _validate_osmo:
 
 ================================================
-Running Workflows
+Run Workflows
 ================================================
 
-Backend
-===========================
+Run sample workflows to validate the backend and pool configuration.
 
-Once the backend operator is deployed you can validate the backend configuration by using the OSMO CLI.
+.. grid:: 2
+    :gutter: 3
 
-.. code-block:: bash
+    .. grid-item-card:: :octicon:`workflow` Simple Workflow
+        :link: https://nvidia.github.io/OSMO/user_guide/tutorials/hello_world/
+        :link-type: url
 
-  $ osmo config show BACKEND $BACKEND_NAME | grep "online"
-  "online": true,
+        **Validates:** Basic workflow execution, logging, data access and scheduling
 
+        Submit the `hello world tutorial <https://nvidia.github.io/OSMO/user_guide/tutorials/hello_world/>`__ to verify core functionality.
 
-Pool
-========================
+    .. grid-item-card:: :octicon:`workflow` Parallel Workflow
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/basics/parallel_tasks/README.md
+        :link-type: url
 
-You can validate the pool configuration by using the OSMO CLI.
+        **Validates:** Co-scheduling and parallel task execution
 
-.. code-block:: bash
+        Submit the `parallel tasks workflow <https://github.com/NVIDIA/OSMO/blob/main/workflows/basics/parallel_tasks/README.md>`_ to test concurrent execution.
 
-  $ osmo pool list
-  Pool      Description    Status   GPU [#]
-                                 Quota Used   Quota Limit   Total Usage   Total Capacity
-  =========================================================================================
-  default   Default pool   ONLINE   0            12            0             19
-  =========================================================================================
-                                    0            12            0             19
+    .. grid-item-card:: :octicon:`workflow` GPU Workflow
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/single_node/README.md
+        :link-type: url
 
+        **Validates:** GPU resource allocation and usage
 
-Workflow
-========================
+        Submit the `single node GPU workflow <https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/single_node/README.md>`_ to verify GPU access.
 
-Once the backend and pool are configured, you can validate end to end functionality by submitting the following workflows.
+    .. grid-item-card:: :octicon:`workflow` Router Workflow
+        :link: https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab/README.md
+        :link-type: url
 
-+-------------------+-----------------------------------------------+-----------------------------------------------------------------------------------------+
-| Workflow Name     | Validates                                     | Workflow to Submit                                                                      |
-+===================+===============================================+=========================================================================================+
-| Simple Workflow   | Basic workflow execution, logging, data       | Submit the `hello world tutorial <https://nvidia.github.io/OSMO/user_guide/tutorials/   |
-|                   | access and scheduling                         | hello_world/>`__ workflow and verify it completes successfully.                         |
-+-------------------+-----------------------------------------------+-----------------------------------------------------------------------------------------+
-| Parallel Workflow | Co-scheduling and parallel task execution     | Submit the `parallel tasks workflow <https://github.com/NVIDIA/OSMO/blob/main/          |
-|                   |                                               | workflows/basics/parallel_tasks/README.md>`_ and verify it completes successfully.      |
-+-------------------+-----------------------------------------------+-----------------------------------------------------------------------------------------+
-| GPU Workflow      | GPU resource allocation and usage             | Submit the `single node GPU workflow <https://github.com/NVIDIA/OSMO/blob/main/         |
-|                   |                                               | workflows/dnn_training/single_node/README.md>`_ and verify it completes successfully.   |
-+-------------------+-----------------------------------------------+-----------------------------------------------------------------------------------------+
-| Router Workflow   | Router functionality                          | Submit the `Jupyter workflow <https://github.com/NVIDIA/OSMO/tree/main/workflows/       |
-|                   |                                               | integration_and_tools/jupyterlab/README.md>`_ and verify you can access the JupyterLab  |
-|                   |                                               | via `osmo workflow port-forward` command.                                               |
-+-------------------+-----------------------------------------------+-----------------------------------------------------------------------------------------+
+        **Validates:** Router functionality
+
+        Submit the `Jupyter workflow <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab/README.md>`_ and verify JupyterLab access via ``osmo workflow port-forward``.

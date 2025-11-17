@@ -71,7 +71,7 @@ Quick Navigation
 
 .. seealso::
 
-   - :doc:`../../install_service/deploy_service` for service deployment with authentication
+   - :doc:`../../getting_started/deploy_service` for service deployment with authentication
    - :doc:`../../install_backend/configure_pool` for pool configuration
    - :ref:`roles_config` for role configuration reference
 

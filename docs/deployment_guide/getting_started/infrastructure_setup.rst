@@ -18,7 +18,10 @@
 Setup Infrastructure
 ====================
 
-Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in :doc:`../getting_started/prereqs`. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
+.. admonition:: Prerequisites
+  :class: important
+
+  Before setting up infrastructure for OSMO, ensure you have the prerequisites as specified in :doc:`../requirements/prereqs`. This includes creating a VPC and subnets for the Kubernetes cluster, PostgreSQL database, and Redis instance.
 
 Setup Options
 =============
@@ -134,11 +137,10 @@ Follow the below guides to setup the infrastructure manually based on your cloud
 Configure Networking
 ========================
 
-.. important::
+.. admonition:: Required Network Connectivity
+  :class: important
 
-   **Required Network Connectivity:**
-
-   Ensure proper network connectivity between components for OSMO to function correctly.
+  Ensure proper network connectivity between components for OSMO to function correctly.
 
 .. rst-class:: connectivity-list
 

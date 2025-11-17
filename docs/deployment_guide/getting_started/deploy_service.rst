@@ -113,7 +113,7 @@ Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then 
 
    $ kubectl delete pod osmo-db-ops
 
-Step 2: Configure Authentication with Keycloak
+Step 2: Configure Keycloak
 ===============================================
 
 Keycloak enables OSMO to authenticate users with different identity providers and efficiently manage users in groups and roles. Learn more at :ref:`authentication_flow_with_keycloak`.
@@ -260,9 +260,9 @@ g. Verify the installation:
   $ kubectl get ingress -n keycloak
 
 .. note::
-  To access the Keycloak instance, you need to configure DNS records to point to your load balancer, for example you should create a record for ``auth-osmo.my-domain.com`` to point to the load balancer IP.
+  To access the Keycloak instance, you need to configure DNS records to point to your load balancer, for example you should create a record for ``auth-osmo.example.com`` to point to the load balancer IP.
 
-If you have DNS configured, you can access the Keycloak instance at ``https://auth-osmo.my-domain.com``.
+If you have DNS configured, you can access the Keycloak instance at ``https://auth-osmo.example.com``.
 If you do not have DNS configured, you can access the Keycloak via port forwarding:
 
 .. code-block:: bash
@@ -274,7 +274,7 @@ If you do not have DNS configured, you can access the Keycloak via port forwardi
 Post-Installation Keycloak Configuration
 ----------------------------------------
 
-a. Access your Keycloak instance at ``https://auth-osmo.my-domain.com``
+a. Access your Keycloak instance at ``https://auth-osmo.example.com``
 b. Log in with the admin credentials specified in the values file
 
 .. image:: keycloak_login.png
@@ -283,37 +283,36 @@ b. Log in with the admin credentials specified in the values file
 
 c. Create a new realm for OSMO:
 
-  1. Download the sample realm file: :download:`sample_osmo_realm.json <sample_osmo_realm.json>`
-  2. Click on the dropdown menu on the top left which says ``master`` and select ``Create Realm``
+   1. Download the sample realm file: :download:`sample_osmo_realm.json <sample_osmo_realm.json>`
+   2. Click on the dropdown menu on the top left which says ``master`` and select ``Create Realm``
 
-  .. image:: realm.png
-    :width: 300px
-    :align: center
+   .. image:: realm.png
+     :width: 300px
+     :align: center
 
-  3. Enter the downloaded realm file in the ``Resource file`` field and click on ``Create``
+   3. Enter the downloaded realm file in the ``Resource file`` field and click on ``Create``
 
-  .. image:: create_realm.png
-    :width: 900px
-    :align: center
+   .. image:: create_realm.png
+     :width: 900px
+     :align: center
 
-  4. You will then be redirected to the ``osmo`` realm
+   4. You will then be redirected to the ``osmo`` realm
 
 d. Click on the ``Clients`` tab and for each of the ``osmo-browser-flow`` and ``osmo-device``
    clients, update the client settings to the following:
 
-.. image:: clients.png
-  :width: 500px
-  :align: center
-..
+   .. image:: clients.png
+     :width: 500px
+     :align: center
 
-  * Root URL: ``https://osmo.my-domain.com``
-  * Home URL: ``https://osmo.my-domain.com``
-  * Admin URL: ``https://osmo.my-domain.com``
-  * Valid Redirect URIs: ``https://osmo.my-domain.com/*``
-  * Web Origins: ``https://osmo.my-domain.com``
+   * Root URL: ``https://osmo.example.com``
+   * Home URL: ``https://osmo.example.com``
+   * Admin URL: ``https://osmo.example.com``
+   * Valid Redirect URIs: ``https://osmo.example.com/*``
+   * Web Origins: ``https://osmo.example.com``
 
-  .. note::
-    Please replace ``osmo.my-domain.com`` with your actual OSMO domain name.
+   .. note::
+     Please replace ``osmo.example.com`` with your actual OSMO domain name.
 
 e. On the ``osmo-browser-flow`` client details page, click on the ``Credentials`` tab and
    create and save a client secret that will be used for envoy later.
@@ -387,45 +386,45 @@ Create the master encryption key (MEK) for database encryption:
 
 1. **Generate a new master encryption key**:
 
-The MEK should be a JSON Web Key (JWK) with the following format:
+   The MEK should be a JSON Web Key (JWK) with the following format:
 
-.. code-block:: json
+   .. code-block:: json
 
-   {"k":"<base64-encoded-32-byte-key>","kid":"key1","kty":"oct"}
+      {"k":"<base64-encoded-32-byte-key>","kid":"key1","kty":"oct"}
 
 2. **Generate the key using OpenSSL**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   # Generate a 32-byte (256-bit) random key and base64 encode it
-   $ export RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
+      # Generate a 32-byte (256-bit) random key and base64 encode it
+      $ export RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
 
-   # Create the JWK format
-   $ export JWK_JSON="{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
+      # Create the JWK format
+      $ export JWK_JSON="{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
 
 3. **Base64 encode the entire JWK**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
-   $ echo $ENCODED_JWK
+      $ export ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
+      $ echo $ENCODED_JWK
 
 4. **Create the ConfigMap with your generated MEK**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl apply -f - <<EOF
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: mek-config
-     namespace: osmo
-   data:
-     mek.yaml: |
-       currentMek: key1
-       meks:
-         key1: $ENCODED_JWK
-   EOF
+      $ kubectl apply -f - <<EOF
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: mek-config
+        namespace: osmo
+      data:
+        mek.yaml: |
+          currentMek: key1
+          meks:
+            key1: $ENCODED_JWK
+      EOF
 
 .. warning::
    **Security Considerations**:
@@ -971,9 +970,9 @@ Step 6: Verify Deployment
 
 1. Verify all pods are running:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl get pods -n osmo
+    $ kubectl get pods -n osmo
     NAME                            READY   STATUS    RESTARTS       AGE
     osmo-agent-xxx                  2/2     Running   0              <age>
     osmo-delayed-job-monitor-xxx    1/1     Running   0              <age>
@@ -985,37 +984,37 @@ Step 6: Verify Deployment
 
 2. Verify all services are running:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl get services -n osmo
-    NAME           TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)   AGE
-    osmo-agent     ClusterIP   xxx               <none>        80/TCP    <age>
-    osmo-logger    ClusterIP   xxx               <none>        80/TCP    <age>
-    osmo-router    ClusterIP   xxx               <none>        80/TCP    <age>
-    osmo-service   ClusterIP   xxx               <none>        80/TCP    <age>
-    osmo-ui        ClusterIP   xxx               <none>        80/TCP    <age>
+    $ kubectl get services -n osmo
+      NAME           TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)   AGE
+      osmo-agent     ClusterIP   xxx               <none>        80/TCP    <age>
+      osmo-logger    ClusterIP   xxx               <none>        80/TCP    <age>
+      osmo-router    ClusterIP   xxx               <none>        80/TCP    <age>
+      osmo-service   ClusterIP   xxx               <none>        80/TCP    <age>
+      osmo-ui        ClusterIP   xxx               <none>        80/TCP    <age>
 
 3. Verify ingress configuration:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   kubectl get ingress -n osmo
-   NAME           CLASS   HOSTS                          ADDRESS         PORTS     AGE
-   osmo-agent     nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-   osmo-logger    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-   osmo-router    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-   osmo-service   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-   osmo-ui        nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-   osmo-ui-trpc   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    $ kubectl get ingress -n osmo
+    NAME           CLASS   HOSTS                          ADDRESS         PORTS     AGE
+    osmo-agent     nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    osmo-logger    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    osmo-router    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    osmo-service   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    osmo-ui        nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    osmo-ui-trpc   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
 
 Step 7: Post-deployment Configuration
 =====================================
 
-1. Configure DNS records to point to your load balancer. For example, create a record for ``osmo.my-domain.com`` to point to the load balancer IP.
+1. Configure DNS records to point to your load balancer. For example, create a record for ``osmo.example.com`` to point to the load balancer IP.
 
 2. Test authentication flow
 
-3. Verify access to the UI at https://osmo.my-domain.com through your domain
+3. Verify access to the UI at https://osmo.example.com through your domain
 
 4. Create and configure data storage to store service data: :ref:`configure_data`
 
@@ -1025,12 +1024,12 @@ Troubleshooting
 
 1. Check pod status and logs:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-  kubectl get pods -n <namespace>
+     kubectl get pods -n <namespace>
 
-  # check if all pods are running, if not, check the logs for more details
-  kubectl logs -f <pod-name> -n <namespace>
+     # check if all pods are running, if not, check the logs for more details
+     kubectl logs -f <pod-name> -n <namespace>
 
 2. Common issues and their resolutions:
 

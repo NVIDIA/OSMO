@@ -18,41 +18,79 @@
 .. _adding_observability:
 
 ================================================
-Adding Observability (Optional)
+Add Observability (Optional)
 ================================================
 
-OSMO can be integrated with Grafana and Kubernetes dashboard for monitoring backend clusters for users and admins. They can provide improved observability, easier management, and a better user experience.
+Integrate OSMO with `Grafana <https://grafana.com/>`__ and `Kubernetes Dashboard <https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/>`__ to monitor backend clusters, track resource usage, and improve operational visibility.
 
-For detailed instructions on setting up observability tools, see the optional dependencies section in :ref:`installing_required_dependencies`.
+.. admonition:: Prerequisites
+  :class: important
 
-Key Observability Components
+  Install the following components in your compute cluster for full observability support:
+
+  - `Ingress controller <https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/>`__
+  - `Prometheus <https://prometheus.io/docs/prometheus/latest/installation/>`__
+  - `Grafana <https://grafana.com/docs/grafana/latest/setup-grafana/installation/>`__
+  - `Kubernetes Dashboard <https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/>`__
+
+
+Install Grafana Dashboards
+============================
+
+OSMO provides pre-configured dashboards for monitoring workflows and backend operators.
+
+Download Dashboard Files
+--------------------------
+
+Download the following dashboard JSON files:
+
+- :download:`osmo-workflow-resources.json <../dashboards/workflow_resources_usage.json>` - Monitor CPU, memory, and GPU usage for running workflows
+- :download:`osmo-backend-operators.json <../dashboards/backend_operator_observability.json>` - Monitor backend operator health and performance
+
+Import to Grafana
+-------------------
+
+Import the dashboards using `Grafana's Import Dashboard <https://grafana.com/docs/grafana/latest/dashboards/export-import/#import-a-dashboard>`__ documentation.
+
+Configure Alerts
+-----------------
+
+Set up alerts using Grafana's `alert configuration <https://grafana.com/docs/grafana/latest/alerting/alerting-rules/>`__.
+
+
+Install Storage Metrics
+====================================
+
+To enable usage metrics for ephemeral storage in Grafana, install the `k8s-ephemeral-storage-metrics <https://github.com/jmcgrath207/k8s-ephemeral-storage-metrics#installation>`__ plugin in your compute cluster.
+
+Update Backend Configs
 =============================
 
-Workflow Dashboard and Metrics
--------------------------------
+Next, update your OSMO backend configuration to include the Grafana and Kubernetes Dashboard URLs:
 
-OSMO can be integrated with Grafana for monitoring backend clusters. For detailed installation instructions, refer to the Dependencies section which covers:
+.. code-block:: bash
+  :emphasize-lines: 4, 5
 
-- Ingress controller configuration
-- Prometheus setup
-- Grafana installation
-- Kubernetes Dashboard setup
+  $ cat << EOF > /tmp/backend_config.json
+  {
+    "description": "<backend-description>",
+    "dashboard_url": "<kubernetes-dashboard-url>",
+    "grafana_url": "<grafana-url>"
+  }
+  EOF
 
-Grafana Dashboards
-------------------
-
-OSMO provides sample dashboards for monitoring:
-
-- **Workflow Resources Usage**: CPU, memory, GPU usage information for users' running workflows
-- **Backend Operator Observability**: Monitoring for the backend operator
-
-See :ref:`installing_required_dependencies` for detailed setup instructions.
-
-Storage Metrics
----------------
-
-Additional metrics can be collected for ephemeral storage usage. This is optional and only required if you want your ephemeral storage usage graphs in Grafana to be populated.
-
-For more information, see the "Install Storage Metrics" section in :ref:`installing_required_dependencies`.
+  $ export BACKEND_NAME=default  # Update to your backend name
+  $ osmo config update BACKEND $BACKEND_NAME --file /tmp/backend_config.json
 
 
+Once configured, you can access dashboard and resource usage links for each workflow in the OSMO UI. See the `Workflow Resource Usage <https://nvidia.github.io/OSMO/user_guide/faq/index.html#how-to-determine-the-resource-usage-of-a-workflow>`__ for details.
+
+
+Security Considerations
+========================
+
+Configure secure access to monitoring tools:
+
+- **Grafana**: Configure user authentication and access control using the `Grafana security documentation <https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/>`__
+
+- **Kubernetes Dashboard**: Implement token-based login, user roles, and RBAC configuration. See `Kubernetes Dashboard access control <https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md#login-view>`__

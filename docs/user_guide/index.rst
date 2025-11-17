@@ -16,72 +16,196 @@
   SPDX-License-Identifier: Apache-2.0
 
 ================================
-**Welcome to NVIDIA OSMO**
+**Welcome to OSMO**
 ================================
 
-OSMO is a cloud native platform for Robotics developers that provides a single interface to manage all steps of AI and robotics development, from compute to data storage.
+`Physical AI <https://www.nvidia.com/en-us/glossary/generative-physical-ai/>`_ development uniquely requires orchestrating three types of compute:
+
+* 🧠 **Training GPUs** (GB200/H100) for deep learning and reinforcement learning
+
+* 🌐 **Simulation Hardware** (L40/RTX Pro) for realistic physics and sensor rendering
+
+* 🤖 **Edge Devices** (Jetson AGX Thor) for hardware-in-the-loop testing and validation
+
+**OSMO** solves the `Three Computer Problem <https://blogs.nvidia.com/blog/three-computers-robotics/>`_ for robotics by orchestrating your entire robotics pipeline with simple YAML workflows—no custom scripts, no infrastructure expertise required.
+
+.. tip::
+
+   **🤹 Stop juggling three computers. 🤖 Start building robots.**
+
+What is OSMO
+-------------
+
+**OSMO** is an open-source workflow orchestration platform purpose-built for Physical AI and robotics development.
+
+Write your entire development pipeline for physical AI (training, simulation, hardware-in-loop testing) in declarative **YAML**. OSMO automatically coordinates tasks across heterogeneous compute, managing dependencies and resource allocation for you.
 
 .. image:: overview.svg
 	:width: 800
+	:align: center
 
-What you get
+.. admonition:: 🚀 From workstation to cloud in minutes
+  :class: info
+
+  Develop on your laptop. Deploy to EKS, AKS, GKE, on-premise, or air-gapped clusters. **Zero code changes.**
+
+
+
+Why Choose OSMO
+----------------
+
+.. grid:: 2
+    :gutter: 3
+
+    .. grid-item-card:: 🚀 Zero-Code Orchestration
+        :class-card: sd-border-1
+
+        Write workflows in **simple YAML** - no coding overhead. Define what you want to run, OSMO handles the rest.
+
+    .. grid-item-card:: ⚡ Group Scheduling
+        :class-card: sd-border-1
+
+        Run training, simulation, and edge testing **simultaneously** across heterogeneous hardware in a single workflow.
+
+    .. grid-item-card:: 🌐 Truly Portable
+        :class-card: sd-border-1
+
+        Same workflow runs on your **laptop, cloud, or on-premise**—no infrastructure rewrites as you scale.
+
+    .. grid-item-card:: 💾 Smart Storage
+        :class-card: sd-border-1
+
+        Content-addressable datasets with **automatic deduplication** save 10-100x on storage costs.
+
+    .. grid-item-card:: 🔧 Interactive Development
+        :class-card: sd-border-1
+
+        Launch **VSCode, Jupyter, or SSH** into running tasks for live debugging and development.
+
+    .. grid-item-card:: 🎯 Infrastructure-Agnostic
+        :class-card: sd-border-1
+
+        Write workflows without knowing (or caring) about underlying infrastructure. **Focus on robotics, not DevOps.**
+
+
+How It Works
+----------------
+
+.. grid:: 4
+    :gutter: 2
+
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
+
+        **1. Define** 📝
+        ^^^
+
+        Write your workflow in YAML
+
+        +++
+
+        Describe tasks, resources, and dependencies
+
+    .. grid-item-card::
+        :class-header: sd-bg-primary sd-text-white
+
+        **2. Submit** 🚀
+        ^^^
+
+        Launch via CLI or web UI
+
+        +++
+
+        Submit workflow, notified on completion
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **3. Execute** ⚙️
+        ^^^
+
+        OSMO orchestrates tasks in workflow
+
+        +++
+
+        Schedule tasks, manage dependencies
+
+    .. grid-item-card::
+        :class-header: sd-bg-warning sd-text-white
+
+        **4. Iterate** 🔄
+        ^^^
+
+        Access results and refine
+
+        +++
+
+        Versioned datasets, real-time monitoring
+
+**Example Workflow:**
+
+.. code-block:: yaml
+
+   # Your entire physical AI pipeline in one file
+   workflow:
+     tasks:
+     - name: isaac-simulation
+       image: nvcr.io/nvidia/isaac-sim
+       platform: ovx-l40                # Runs on NVIDIA L40 GPUs
+
+     - name: train-policy
+       image: nvcr.io/nvidia/pytorch
+       platform: dgxh100                # Runs on NVIDIA DGX H100 GPUs
+       resources:
+         gpu: 8
+       inputs:
+        - task: isaac-simulation
+
+     - name: evaluate-thor
+       image: my-robot:latest
+       platform: jetson-agx-thor        # Runs on NVIDIA Jetson AGX Thor
+       inputs:
+        - task: train-policy
+       outputs:
+        - dataset:
+            name: thor-benchmark
+
+
+Key Benefits
 ------------
 
-You get access to GPU compute and storage, and you don’t have to worry about backend infrastructure setup complexity to develop your AI workflows. You can scale workflows to large-sized clusters. You can develop workflows, test them in simulation, and benchmark on the hardware used to build the robot.
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
 
-How you work
-------------
-
-* You create a workflow specification (YAML) describing your tasks
-* You submit workflows with either the CLI or the web UI
-* OSMO runs multiple containers as defined in your workflow on the OSMO backend
-* Each OSMO backend is a Kubernetes cluster of compute nodes
-
-
-What you do
-------------
-
-* Interactively develop on remote nodes with VSCode or SSH or Jupyter notebooks
-* Generate your synthetic Data
-* Train your models using diverse datasets
-* Train policies for your robots using data-parallel reinforcement learning
-* Validate your models in simulation with hardware in the loop
-* Transform and post process your data for iteration
-* Validate your system software with robot hardware
-
-Lifecycle at a glance
-----------------------
-
-* Define your workflow in YAML
-* Submit workflows after authentication
-* Scheduler assigns tasks to resources as defined in your workflow
-* Tasks run on the compute nodes
-* Results and data go to your preconfigured data storage
-* Iterate as needed
+   * - **What You Can Do**
+     - **Example Tutorial**
+   * - **Interactively develop** on remote GPU nodes with VSCode, SSH, or Jupyter notebooks
+     - :doc:`Interactive Workflows <workflows/interactive/index>`
+   * - **Generate synthetic data** at scale using Isaac Sim or custom simulation environments
+     - :doc:`Isaac Sim SDG <how_to/isaac_sim_sdg>`
+   * - **Train models** with diverse datasets across distributed GPU clusters
+     - :doc:`Model Training <how_to/training>`
+   * - **Train policies** for robots using data-parallel reinforcement learning
+     - :doc:`Reinforcement Learning <how_to/reinforcement_learning>`
+   * - **Validate models** in simulation with hardware-in-the-loop testing
+     - :doc:`Hardware In The Loop <tutorials/hardware_in_the_loop/index>`
+   * - **Transform and post-process data** for iterative improvement
+     - :doc:`Working with Data <tutorials/data/index>`
+   * - **Benchmark system software** on actual robot hardware (NVIDIA Jetson, custom platforms)
+     - :doc:`Hardware Testing <how_to/hil>`
 
 
-Why choose OSMO
----------------
+Bring Your Own Infrastructure
+------------------------------
 
-OSMO makes it easy for developers to scale from PC or workstations to large sized compute clusters in the cloud without any code change. Complex workflows that run across multiple compute nodes are reduced to YAML "recipes" that are:
+**Flexible Compute**
 
-* Easy to write and share with your team
-* Templated to allow for easy reuse and scale/override on the fly
-* Reproducible
+Connect any Kubernetes cluster to OSMO—cloud (AWS EKS, Azure AKS, Google GKE), on-premise clusters, or embedded devices like NVIDIA Jetson. OSMO enables you to share resources efficiently, optimizing for GPU utilization across heterogeneous hardware.
 
-OSMO provides a single interface of abstraction for managing your compute, data and enables you to iteratively run all of your workflows.
+**Flexible Storage**
 
-
-**Bring your own compute**
-
-You can connect any Kubernetes cluster to OSMO. Scale with cloud clusters like AKS, EKS, or GKE. Include on-premise bare-metal clusters and embedded devices such as NVIDIA Jetson for hardware-in-the-loop testing and simulation.
-
-OSMO uses NVIDIA Run:AI scheduler to share resources efficiently optimizing for GPU utilization.
-
-**Bring your own storage**
-
-You can connect any S3 API compatible object storage and Azure Blob Storage to OSMO. Store your data and models with version control. Use content-addressable storage to deduplicate data across dataset versions, reducing costs and speeding uploads/downloads.
-
+Connect any S3-compatible object storage or Azure Blob Storage. Store datasets and models with automatic version control, content-addressable deduplication, and seamless access across all compute backends.
 
 .. toctree::
   :hidden:

@@ -18,59 +18,49 @@
 .. _configure_pool:
 
 ================================================
-Configure Resource Pool
+Create Resource Pools
 ================================================
 
-Once the backend operators are deployed, a pool must be configured so users can target the compute resources in their workflow.
-For a refresher, see :ref:`pool`.
+After registering a backend to OSMO, you must configure resource pools to organize and allocate compute resources. Users submit AI workflows to these pools, which define what resources are available and how they can be accessed. This configuration allows you to control resource allocation, set quotas, and manage access across different user groups.
 
-
-Prerequisites
-================================================
-
-- Install and configure the OSMO CLI: `Install the OSMO CLI <../../../../docs/reference/cli/install.html>`_
-- Backend operator deployed: :ref:`deploy_backend`
+For detailed information about pools, see :ref:`pool`.
 
 Configure Default Pool
-================================================
+========================
 
-During the initial deployment of the service, a default pool is created.
-To link the pool to the backend defined in previous steps, update the pool configuration using the OSMO CLI.
-
-.. note::
-  If you have named your backend ``default``, you can skip this step and use the default pool.
+OSMO automatically creates a default pool during initial service deployment. Link this pool to your registered backend by updating the pool configuration using the OSMO CLI:
 
 .. code-block:: bash
 
   $ cat << EOF > /tmp/pool_config.json
   {
     "default": {
-      "backend": "<backend name>",
-      "description": "<pool description>"
+      "backend": "<backend-name>",
+      "description": "<pool-description>"
     }
   }
   EOF
 
-Then, update the pool configuration using the OSMO CLI.
+  $ osmo config update POOL --file /tmp/pool_config.json
+
+.. note::
+  If your backend is named ``default``, you can skip this configuration step.
+
+Validate Pool Configs
+========================
+
+Verify the pool configuration:
 
 .. code-block:: bash
-
-  osmo config update POOL --file /tmp/pool_config.json
-
-Validate
---------------------------
-
-Using the OSMO CLI, run ``osmo pool list`` to see if the newly added pool is available.
-
-.. code-block:: bash
-  :substitutions:
 
   $ osmo pool list
   Pool      Description    Status    GPU [#]
-                                    Quota Used   Quota Limit   Total Usage   Total Capacity
+                                   Quota Used   Quota Limit   Total Usage   Total Capacity
   =============================================================================================
   default   Default pool   ONLINE    N/A          N/A           0             24
   =============================================================================================
                                                                 0             24
 
-For more information on advanced pool configuration, see :ref:`advanced_pool_configuration`.
+.. seealso::
+
+  See :ref:`advanced_pool_configuration` to add new resource pools

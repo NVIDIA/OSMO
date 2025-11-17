@@ -88,55 +88,55 @@ Create the master encryption key (MEK) for database encryption:
 
 1. **Generate a new master encryption key**:
 
-The MEK should be a JSON Web Key (JWK) with the following format:
+   The MEK should be a JSON Web Key (JWK) with the following format:
 
-.. code-block:: json
+   .. code-block:: json
 
-   {"k":"<base64-encoded-32-byte-key>","kid":"key1","kty":"oct"}
+     {"k":"<base64-encoded-32-byte-key>","kid":"key1","kty":"oct"}
 
 2. **Generate the key using OpenSSL**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   # Generate a 32-byte (256-bit) random key and base64 encode it
-   RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
+      # Generate a 32-byte (256-bit) random key and base64 encode it
+      RANDOM_KEY=$(openssl rand -base64 32 | tr -d '\n')
 
-   # Create the JWK format
-   echo "{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
+      # Create the JWK format
+      echo "{\"k\":\"$RANDOM_KEY\",\"kid\":\"key1\",\"kty\":\"oct\"}"
 
 3. **Base64 encode the entire JWK**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   # Take the JWK output from step 2 and base64 encode it
-   JWK_JSON='{"k":"<your-base64-key>","kid":"key1","kty":"oct"}'
-   ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
-   echo $ENCODED_JWK
+      # Take the JWK output from step 2 and base64 encode it
+      JWK_JSON='{"k":"<your-base64-key>","kid":"key1","kty":"oct"}'
+      ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
+      echo $ENCODED_JWK
 
 4. **Create the ConfigMap with your generated MEK**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl apply -f - <<EOF
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: mek-config
-     namespace: osmo-minimal
-   data:
-     mek.yaml: |
-       currentMek: key1
-       meks:
-         key1: $ENCODED_JWK
-   EOF
+     $ kubectl apply -f - <<EOF
+     apiVersion: v1
+     kind: ConfigMap
+     metadata:
+       name: mek-config
+       namespace: osmo-minimal
+     data:
+       mek.yaml: |
+         currentMek: key1
+         meks:
+           key1: $ENCODED_JWK
+     EOF
 
-.. warning::
-   **Security Considerations**:
+.. admonition:: Security Considerations
+  :class: important
 
-   - Store the original JWK securely as you'll need it for backups and recovery
-   - Never commit the MEK to version control
-   - Use a secure key management system, such as Vault in production
-   - The MEK is used to encrypt sensitive data in the database
+  - Store the original JWK securely as you'll need it for backups and recovery
+  - Never commit the MEK to version control
+  - Use a secure key management system, such as Vault in production
+  - The MEK is used to encrypt sensitive data in the database
 
 **Example MEK generation script**:
 
@@ -426,7 +426,7 @@ Create the following values files for the minimal deployment:
 .. important::
 
    1. Replace ``<insert-osmo-image-tag>`` with the desired OSMO version you want to deploy
-   2. Replace ``<your-domain>`` with your domain name (e.g., ``osmo.my-domain.com``) if you want to enable ingress for external access
+   2. Replace ``<your-domain>`` with your domain name (e.g., ``osmo.example.com``) if you want to enable ingress for external access
    3. Update the ``serviceName`` for postgres and redis to match your external services
    4. Update ``ingressClass`` and ``ingress`` to match your cluster's ingress controller and ingress configuration
    5. Ensure your DNS points to the ingress controller's load balancer if you want to enable ingress for external access
@@ -438,129 +438,129 @@ Deploy the OSMO components using the minimal configuration:
 
 1. **Deploy OSMO Service**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ helm upgrade --install osmo-minimal osmo/service \
-     -f ./osmo_values.yaml \
-     --namespace osmo-minimal
+      $ helm upgrade --install osmo-minimal osmo/service \
+        -f ./osmo_values.yaml \
+        --namespace osmo-minimal
 
 2. **Deploy OSMO UI**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ helm upgrade --install ui-minimal osmo/web-ui \
-     -f ./ui_values.yaml \
-     --namespace osmo-minimal
+      $ helm upgrade --install ui-minimal osmo/web-ui \
+        -f ./ui_values.yaml \
+        --namespace osmo-minimal
 
 3. **Deploy OSMO Router**:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ helm upgrade --install router-minimal osmo/router \
-     -f ./router_values.yaml \
-     --namespace osmo-minimal
+      $ helm upgrade --install router-minimal osmo/router \
+        -f ./router_values.yaml \
+        --namespace osmo-minimal
 
 Step 7: Verify Deployment
 ==========================
 
 1. Verify that all pods are running:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl get pods -n osmo-minimal
+      $ kubectl get pods -n osmo-minimal
 
-You should see pods similar to the following example:
+   You should see pods similar to the following example:
 
-.. code-block:: text
+   .. code-block:: text
 
-   NAME                                    READY   STATUS    RESTARTS   AGE
-   osmo-agent-xxx                          1/1     Running   0          2m
-   osmo-delayed-job-monitor-xxx            1/1     Running   0          2m
-   osmo-service-xxx                        1/1     Running   0          2m
-   osmo-worker-xxx                         1/1     Running   0          2m
-   osmo-logger-xxx                         1/1     Running   0          2m
-   osmo-ui-xxx                             1/1     Running   0          2m
-   osmo-router-xxx                         1/1     Running   0          2m
+      NAME                                    READY   STATUS    RESTARTS   AGE
+      osmo-agent-xxx                          1/1     Running   0          2m
+      osmo-delayed-job-monitor-xxx            1/1     Running   0          2m
+      osmo-service-xxx                        1/1     Running   0          2m
+      osmo-worker-xxx                         1/1     Running   0          2m
+      osmo-logger-xxx                         1/1     Running   0          2m
+      osmo-ui-xxx                             1/1     Running   0          2m
+      osmo-router-xxx                         1/1     Running   0          2m
 
 2. Verify that all services are running:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl get services -n osmo-minimal
+      $ kubectl get services -n osmo-minimal
 
 3. Verify that ingress configuration is set up correctly:
 
-.. note::
+   .. note::
 
-   If you have enabled ingress for external access, you should see ingress resources similar to the following:
+      If you have enabled ingress for external access, you should see ingress resources similar to the following:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl get ingress -n osmo-minimal
+      $ kubectl get ingress -n osmo-minimal
 
-You should see ingress resources similar to:
+   You should see ingress resources similar to:
 
-.. code-block:: text
+   .. code-block:: text
 
-   NAME                     CLASS   HOSTS              ADDRESS         PORTS   AGE
-   osmo-agent-ingress       nginx   <your-domain>      <lb-ip>         80      2m
-   osmo-service-ingress     nginx   <your-domain>      <lb-ip>         80      2m
-   osmo-logger-ingress      nginx   <your-domain>      <lb-ip>         80      2m
-   osmo-ui-ingress          nginx   <your-domain>      <lb-ip>         80      2m
-   osmo-router-ingress      nginx   <your-domain>      <lb-ip>         80      2m
+      NAME                     CLASS   HOSTS              ADDRESS         PORTS   AGE
+      osmo-agent-ingress       nginx   <your-domain>      <lb-ip>         80      2m
+      osmo-service-ingress     nginx   <your-domain>      <lb-ip>         80      2m
+      osmo-logger-ingress      nginx   <your-domain>      <lb-ip>         80      2m
+      osmo-ui-ingress          nginx   <your-domain>      <lb-ip>         80      2m
+      osmo-router-ingress      nginx   <your-domain>      <lb-ip>         80      2m
 
 4. Port forward to access the OSMO UI:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
+      $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
 
-Visit http://localhost:3000 in your web browser to access the OSMO UI dashboard as a guest user.
+   Visit http://localhost:3000 in your web browser to access the OSMO UI dashboard as a guest user.
 
 Step 8: Install Backend Operator
 ===================================
 
 1. Prepare ``backend_operator_values.yaml`` file:
 
-.. dropdown:: ``backend_operator_values.yaml``
-  :color: info
-  :icon: file
+   .. dropdown:: ``backend_operator_values.yaml``
+     :color: info
+     :icon: file
 
-  .. code-block:: yaml
-    :emphasize-lines: 2,3,5
+     .. code-block:: yaml
+       :emphasize-lines: 2,3,5
 
-    global:
-      osmoImageLocation: <insert-osmo-image-registry>
-      osmoImageTag: <insert-osmo-image-tag>
-      # update to the actual service URL if you have enabled ingress for external access
-      serviceUrl: http://osmo-agent.osmo-minimal.svc.cluster.local
-      agentNamespace: osmo-operator
-      backendNamespace: osmo-workflows
-      backendName: default
-      accountTokenSecret: osmo-operator-token
-      loginMethod: token
+       global:
+         osmoImageLocation: <insert-osmo-image-registry>
+         osmoImageTag: <insert-osmo-image-tag>
+         # update to the actual service URL if you have enabled ingress for external access
+         serviceUrl: http://osmo-agent.osmo-minimal.svc.cluster.local
+         agentNamespace: osmo-operator
+         backendNamespace: osmo-workflows
+         backendName: default
+         accountTokenSecret: osmo-operator-token
+         loginMethod: token
 
-    services:
-      backendListener:
-        resources:
-          requests:
-            cpu: "125m"
-            memory: "128Mi"
-          limits:
-            cpu: "250m"
-            memory: "256Mi"
-      backendWorker:
-        resources:
-          requests:
-            cpu: "125m"
-            memory: "128Mi"
-          limits:
-            cpu: "250m"
-            memory: "256Mi"
+       services:
+         backendListener:
+           resources:
+             requests:
+               cpu: "125m"
+               memory: "128Mi"
+             limits:
+               cpu: "250m"
+               memory: "256Mi"
+         backendWorker:
+           resources:
+             requests:
+               cpu: "125m"
+               memory: "128Mi"
+             limits:
+               cpu: "250m"
+               memory: "256Mi"
 
-    sidecars:
-      otel:
-        enabled: false
+       sidecars:
+         otel:
+           enabled: false
 
 
 2. Login to OSMO:
@@ -579,7 +579,7 @@ Step 8: Install Backend Operator
 
    .. code-block:: bash
 
-      $ osmo login https://osmo.my-domain.com --method=dev --username=testuser
+      $ osmo login https://<your-domain> --method=dev --username=testuser
 
 
 3. Create the account token secret:
@@ -605,56 +605,58 @@ Step 8: Install Backend Operator
 Step 9: Access OSMO
 ====================
 
-If ingress is enabled, you can access OSMO directly through your domain:
+With Ingress
+-------------
 
 1. **Access OSMO Service API**:
 
-   Visit https://osmo.my-domain.com/api/docs in your web browser to access the OSMO API.
+   Visit https://<your-domain>/api/docs in your web browser to access the OSMO API.
 
 2. **Access OSMO UI**:
 
-   Visit https://osmo.my-domain.com in your web browser to access the OSMO UI.
+   Visit https://<your-domain> in your web browser to access the OSMO UI.
 
 .. note::
-   1. Replace ``osmo.my-domain.com`` with your domain name or use the alternative approach below
+   1. Replace ``<your-domain>`` with your domain name or use the alternative approach below
    2. Ensure your DNS is configured to point to your ingress controller's load balancer
    3. If you need to test without DNS setup, you can use port forwarding as an alternative as well
 
-Alternative Approach: Port Forwarding (if Ingress and DNS are not configured)
------------------------------------------------------------------------------
+Without Ingress
+-------------------
+
+If you haven't set up DNS yet, you can access OSMO using port forwarding as an alternative:
+
+1. **Access OSMO Service API**:
+
+   .. code-block:: bash
+
+      $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
+
+   Then access the OSMO API at http://localhost:9000/api/docs in your web browser. You can interact with the API using the OSMO CLI.
+
+   .. code-block:: bash
+
+      $ osmo login http://localhost:9000 --method=dev --username=testuser
+
+      $ osmo resource list -p default
+      Node             Pool      Platform      Storage [Gi]   CPU [#]   Memory [Gi]   GPU [#]
+      ========================================================================================
+      <node-name>       default   default        0/2028         0/2       1/32         0/8
+      ========================================================================================
+
+2. **Access OSMO UI** (in a separate terminal):
+
+   .. code-block:: bash
+
+      $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
+
+   Then access the OSMO UI at http://localhost:3000 in your web browser. You should be able to see the OSMO UI dashboard as a guest user.
 
 .. important::
 
    - If you are accessing OSMO with port forwarding, the router service will not be accessible
    - Consequently, ``osmo workflow port-forward`` or ``osmo workflow exec`` commands are not expected to work
 
-If you haven't set up DNS yet, you can access OSMO using port forwarding as an alternative:
-
-1. **Access OSMO Service API**:
-
-.. code-block:: bash
-
-   $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
-
-Then access the OSMO API at http://localhost:9000/api/docs in your web browser. You can interact with the API using the OSMO CLI.
-
-.. code-block:: bash
-
-   $ osmo login http://localhost:9000 --method=dev --username=testuser
-
-   $ osmo resource list -p default
-   Node             Pool      Platform      Storage [Gi]   CPU [#]   Memory [Gi]   GPU [#]
-   ========================================================================================
-   <node-name>       default   default        0/2028         0/2       1/32         0/8
-   ========================================================================================
-
-2. **Access OSMO UI** (in a separate terminal):
-
-.. code-block:: bash
-
-   $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
-
-Then access the OSMO UI at http://localhost:3000 in your web browser. You should be able to see the OSMO UI dashboard as a guest user.
 
 Step 10: Basic Configuration
 ============================
@@ -663,19 +665,19 @@ After deployment, you need to configure a central storage for workflow spec, wor
 
 1. Follow the :ref:`configure_data` guide to setup data storage.
 
-2. Follow the :ref:`installing_required_dependencies` guide to install the KAI scheduler for coscheduling and preemption of workflows.
+2. Follow the :ref:`installing_required_dependencies` guide to install the KAI scheduler for running workflows.
 
 3. **(Optional)** If you your ingress is not configured, you will need to set the following config with OSMO CLI for workflows to run:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ cat << EOF > /tmp/osmo_logger_config.json
-   {
-   "service_base_url": "http://osmo-logger.osmo-minimal.svc.cluster.local:80"
-   }
-   EOF
+      $ cat << EOF > /tmp/osmo_logger_config.json
+      {
+      "service_base_url": "http://osmo-logger.osmo-minimal.svc.cluster.local:80"
+      }
+      EOF
 
-   $ osmo config update SERVICE --file /tmp/osmo_logger_config.json
+      $ osmo config update SERVICE --file /tmp/osmo_logger_config.json
 
 Testing Your Deployment
 ========================

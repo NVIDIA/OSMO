@@ -94,7 +94,7 @@ suppress_warnings = [
 #
 html_theme = "nvidia_sphinx_theme"
 
-html_title = 'OSMO Documentation'
+html_title = 'OSMO User Guide'
 html_show_sourcelink = False
 html_favicon = '../_static/osmo_favicon.png'
 html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'

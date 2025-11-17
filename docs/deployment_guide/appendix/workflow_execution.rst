@@ -16,652 +16,223 @@
   SPDX-License-Identifier: Apache-2.0
 
 .. _workflow_execution:
-.. _workflow_containers:
 
 ================================================
-Workflow Execution
+Understanding Task Execution
 ================================================
 
-This page explains how OSMO executes workflows at the technical level, focusing on the workflow pod that powers every workflow task.
+When you submit a workflow to OSMO, each task runs as a Kubernetes pod on your backend cluster. This page explains the technical architecture of these pods—how they're structured, how the containers inside the pod communicate, and what happens during execution.
 
-Overview
-========
+.. tip::
 
-When you submit a workflow to OSMO, each task in the workflow becomes a Kubernetes pod on a backend cluster. Understanding how these pods are structured helps you:
+   **Why read this?** Understanding OSMO workflow pod execution helps you debug issues, optimize data operations, and provide necessary support to users in case of workflow failures or when they use interactive features like ``exec`` and ``port-forward``.
 
-- Debug workflow issues
-- Optimize data operations
-- Understand resource usage
-- Use interactive features (exec, port-forward, rsync)
 
-Workflow Pod
-========================
-
-Every workflow task runs in a pod with three containers that work together:
-
-.. raw:: html
-
-    <style>
-        .container-diagram {
-            text-align: center;
-            margin: 2em 0;
-            padding: 2em;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-            border: 2px solid #76B900;
-            border-radius: 8px;
-        }
-
-        /* Light mode overrides - system preference */
-        @media (prefers-color-scheme: light) {
-            .container-diagram {
-                background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-            }
-        }
-
-        /* Light mode overrides - theme toggle */
-        [data-theme="light"] .container-diagram,
-        html[data-theme="light"] .container-diagram,
-        body[data-theme="light"] .container-diagram,
-        .theme-light .container-diagram {
-            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-        }
-
-        /* Dark mode overrides - theme toggle (explicit) */
-        [data-theme="dark"] .container-diagram,
-        html[data-theme="dark"] .container-diagram,
-        body[data-theme="dark"] .container-diagram,
-        .theme-dark .container-diagram {
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-        }
-
-        .container-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 2em;
-            margin: 2em 0;
-        }
-
-        .container-box {
-            background: rgba(118, 185, 0, 0.1);
-            border: 2px solid #76B900;
-            padding: 1.5em;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(118, 185, 0, 0.2);
-            min-width: 180px;
-            opacity: 0;
-            animation: fadeInUp 0.6s ease-out forwards;
-        }
-
-        .container-box.init { animation-delay: 0.2s; }
-        .container-box.ctrl { animation-delay: 0.6s; }
-        .container-box.user { animation-delay: 1.0s; }
-
-        .container-title {
-            font-weight: bold;
-            color: #76B900;
-            margin-bottom: 0.5em;
-            font-size: 1.1em;
-        }
-
-        .container-type {
-            font-size: 0.85em;
-            opacity: 0.8;
-            font-style: italic;
-        }
-
-        .arrow {
-            position: relative;
-            width: 40px;
-            height: 3px;
-            background-color: var(--nv-green);
-            opacity: 0;
-            animation: fadeIn 0.6s ease-out forwards;
-        }
-
-        .arrow::after {
-            content: "";
-            position: absolute;
-            right: -8px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 0;
-            height: 0;
-            border-left: 10px solid var(--nv-green);
-            border-top: 6px solid transparent;
-            border-bottom: 6px solid transparent;
-        }
-
-        .arrow.bidirectional::before {
-            content: "";
-            position: absolute;
-            left: -8px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 0;
-            height: 0;
-            border-right: 10px solid var(--nv-green);
-            border-top: 6px solid transparent;
-            border-bottom: 6px solid transparent;
-        }
-
-        .arrow.a1 { animation-delay: 0.4s; }
-        .arrow.a2 { animation-delay: 0.8s; }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .pod-label {
-            color: #76B900;
-            font-size: 1.2em;
-            font-weight: bold;
-            margin-bottom: 1em;
-        }
-    </style>
-
-    <div class="container-diagram">
-        <div class="pod-label"> Kubernetes Pod (One per Task)</div>
-        <div class="container-row">
-            <div class="container-box init">
-                <div class="container-title">osmo-init</div>
-                <div class="container-type">Init Container</div>
-            </div>
-            <div class="arrow a1"></div>
-            <div class="container-box ctrl">
-                <div class="container-title">osmo-ctrl</div>
-                <div class="container-type">Sidecar</div>
-            </div>
-            <div class="arrow a2 bidirectional"></div>
-            <div class="container-box user">
-                <div class="container-title">User Container</div>
-                <div class="container-type">Main Container</div>
-            </div>
-        </div>
-    </div>
-
-Container Roles and Responsibilities
-=====================================
-
-osmo-init: Setup Container
----------------------------
-
-**Type**: Init Container (runs first, then exits)
-
-**Purpose**: Prepare the environment before user code runs
-
-**Responsibilities**:
-
-1. **Directory Setup**
-
-   - Creates directory structure for data operations
-   - Sets proper permissions for shared volumes
-   - Configures paths for input/output data
-
-2. **OSMO CLI Installation**
-
-   - Makes the OSMO CLI available inside user container
-   - Enables user to use ``osmo`` commands in user workflow tasks
-   - No need to install OSMO CLI in user container image
-
-3. **Environment Preparation**
-
-   - Populates login directory with necessary files
-   - Sets up shared state between containers
-   - Configures Unix socket for inter-container communication
-
-**Lifecycle**: Runs once at pod startup, exits when setup complete
-
-osmo-ctrl: Coordinator Container
----------------------------------
-
-**Type**: Sidecar (runs throughout task lifetime)
-
-**Purpose**: Bridge between user container and OSMO service
-
-**Responsibilities**:
-
-1. **Service Communication**
-
-   - Maintains WebSocket connection to OSMO service
-   - Sends logs and metrics in real-time
-   - Receives user commands (exec, port-forward, rsync)
-
-2. **Data Management**
-
-   - Downloads input data before task starts
-   - Monitors output directory for artifacts
-   - Uploads results to cloud storage after completion
-
-3. **Task Orchestration**
-
-   - Signals user container when to start execution
-   - Coordinates interactive access requests
-   - Handles graceful shutdown
-
-4. **Interactive Features**
-
-   - Enables ``osmo exec`` for terminal access
-   - Supports ``osmo port-forward`` for service access
-   - Facilitates ``osmo rsync`` for file transfers
-
-**Communication**: Uses Unix socket at ``/osmo/data/socket/data.sock``
-
-**Lifecycle**: Runs for entire task duration
-
-User Container: Workload Container
------------------------------------
-
-**Type**: Main Container (user actual workload)
-
-**Purpose**: Run the user's code
-
-**Responsibilities**:
-
-1. **Execute User Code**
-
-   - Runs the image and command you specified in the workflow
-   - Has full access to GPUs and compute resources
-   - Executes user's custom logic
-
-2. **Data Operations**
-
-   - Read input data from ``/osmo/data/input``
-   - Write output data to ``/osmo/data/output``
-   - Access shared volumes
-
-3. **Interactive Response**
-
-   - Respond to exec requests (terminal access)
-   - Serve port-forward connections
-   - Handle rsync file transfers
-
-**Communication**: Receives signals from osmo-ctrl via Unix socket
-
-**Lifecycle**: Runs user's command from start to exit
-
-Container Interaction Flow
-===========================
-
-Here's how the containers work together during a task's lifecycle:
-
-1. **osmo-init**: Creates directories and sets up environment
-2. **osmo-init**: Exits after setup complete
-3. **osmo-ctrl**: Starts and connects to OSMO service
-4. **osmo-ctrl**: Downloads input data to shared volume
-5. **osmo-ctrl**: Signals **User Container** to start
-6. **User Container**: Executes user's command, reads input, writes output
-7. **osmo-ctrl**: Uploads output data after user container exits
-
-Detailed Execution Phases
-==========================
-
-Phase 1: Initialization
------------------------
-
-**What happens**: Pod starts, osmo-init runs
-
-.. raw:: html
-
-    <style>
-        .phase-diagram {
-            margin: 1.5em auto;
-            max-width: 400px;
-        }
-
-        .phase-container {
-            border: 2px solid #76B900;
-            border-radius: 4px;
-            margin-bottom: -2px;
-        }
-
-        .phase-container:first-child {
-            border-radius: 8px 8px 0 0;
-        }
-
-        .phase-container:last-child {
-            border-radius: 0 0 8px 8px;
-            margin-bottom: 0;
-        }
-
-        .phase-header {
-            padding: 0.8em 1em;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(118, 185, 0, 0.1);
-        }
-
-        .phase-name {
-            font-weight: bold;
-            color: #76B900;
-        }
-
-        .phase-status {
-            font-size: 0.9em;
-            padding: 0.3em 0.8em;
-            border-radius: 12px;
-            font-weight: 500;
-        }
-
-        .phase-status.running {
-            background: #76B900;
-            color: #1a1a1a;
-        }
-
-        .phase-status.waiting {
-            background: rgba(128, 128, 128, 0.3);
-            opacity: 0.7;
-        }
-
-        .phase-status.exited {
-            background: rgba(118, 185, 0, 0.3);
-            opacity: 0.7;
-        }
-
-        /* Light mode adjustments */
-        @media (prefers-color-scheme: light) {
-            .phase-status.running {
-                color: white;
-            }
-        }
-
-        [data-theme="light"] .phase-status.running,
-        html[data-theme="light"] .phase-status.running,
-        body[data-theme="light"] .phase-status.running,
-        .theme-light .phase-status.running {
-            color: white;
-        }
-    </style>
-
-    <div class="phase-diagram">
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-init</span>
-                <span class="phase-status running">Running</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-ctrl</span>
-                <span class="phase-status waiting">Waiting</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">User Container</span>
-                <span class="phase-status waiting">Waiting</span>
-            </div>
-        </div>
-    </div>
-
-**Actions**:
-
-- Creates ``/osmo/data/input``, ``/osmo/data/output``
-- Sets up shared volume mounts
-- Copies OSMO CLI binary
-- Creates Unix socket at ``/osmo/data/socket/data.sock``
-
-**Duration**: Typically 2-5 seconds
-
-Phase 2: Data Download
------------------------
-
-**What happens**: osmo-ctrl downloads input data
-
-.. raw:: html
-
-    <div class="phase-diagram">
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-init</span>
-                <span class="phase-status exited">Exited</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-ctrl</span>
-                <span class="phase-status running">Running</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">User Container</span>
-                <span class="phase-status waiting">Waiting</span>
-            </div>
-        </div>
-    </div>
-
-**Actions**:
-
-- Connects to OSMO service via WebSocket
-- Downloads datasets specified in workflow
-- Extracts data to ``/osmo/data/input``
-- Reports download progress
-
-**Duration**: Depends on data size (seconds to minutes)
-
-Phase 3: Workload Execution
-----------------------------
-
-**What happens**: User code runs
-
-.. raw:: html
-
-    <div class="phase-diagram">
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-init</span>
-                <span class="phase-status exited">Exited</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-ctrl</span>
-                <span class="phase-status running">Running</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">User Container</span>
-                <span class="phase-status running">Running</span>
-            </div>
-        </div>
-    </div>
-
-**Actions**:
-
-- **User Container**: Executes user's command
-
-  - Reads from ``/osmo/data/input``
-  - Writes to ``/osmo/data/output``
-  - Logs to stdout/stderr
-
-- **osmo-ctrl**: Monitors and reports
-
-  - Streams user container logs to OSMO service
-  - Watches for output files in ``/osmo/data/output``
-  - Handles interactive requests
-
-**Duration**: Depends on user's workload
-
-Phase 4: Upload and Cleanup
-----------------------------
-
-**What happens**: Results uploaded, pod terminates
-
-.. raw:: html
-
-    <div class="phase-diagram">
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-init</span>
-                <span class="phase-status exited">Exited</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">osmo-ctrl</span>
-                <span class="phase-status running">Running</span>
-            </div>
-        </div>
-        <div class="phase-container">
-            <div class="phase-header">
-                <span class="phase-name">User Container</span>
-                <span class="phase-status exited">Exited</span>
-            </div>
-        </div>
-    </div>
-
-**Actions**:
-
-- osmo-ctrl detects when user container exits
-- Uploads contents of ``/osmo/data/output`` to cloud storage
-- Sends final status to OSMO service
-- Pod terminates
-
-**Duration**: Depends on output data size
-
-Shared Volumes and Communication
-=================================
-
-Volume Mounts
--------------
-
-All three containers share these volumes:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Mount Path
-     - Purpose
-   * - ``/osmo/data/input``
-     - Input data downloaded by osmo-ctrl, read by user container
-   * - ``/osmo/data/output``
-     - Output data written by user container, uploaded by osmo-ctrl
-   * - ``/tmp/osmo/``
-     - Unix socket for inter-container communication
-
-Inter-Container Communication
-------------------------------
-
-**osmo-ctrl ↔ User Container**: Unix socket at ``/osmo/data/socket/data.sock``
-
-**Messages**:
-
-- **Start signal**: "Begin executing user's command"
-- **Exec request**: "User wants terminal access"
-- **Port-forward request**: "Forward port X to user"
-- **Rsync request**: "Transfer files to/from user"
-
-Example: Interactive Exec
---------------------------
-
-Here's what happens when user runs ``osmo exec my-workflow task-1 -- bash``:
-
-1. **User → OSMO Service**: "I want exec access to task-1"
-2. **OSMO Service → osmo-ctrl**: WebSocket message with exec request
-3. **osmo-ctrl → User Container**: Unix socket message "Start bash shell"
-4. **User Container**: Spawns bash process
-5. **User Container ↔ osmo-ctrl**: Bidirectional stream (stdin/stdout)
-6. **osmo-ctrl ↔ OSMO Service**: WebSocket streams terminal I/O
-7. **OSMO Service → User**: Terminal session active
-
-
-Practical Implications
+Task Pod Architecture
 ======================
 
-For Workflow Authors
+Every workflow task executes as a Kubernetes pod with three containers that work together. These containers share volumes (``/osmo/data/input`` and ``/osmo/data/output``) and communicate via Unix sockets to seamlessly orchestrate your task from data download through execution to results upload.
+
+
+.. image:: pod_architecture.svg
+   :align: center
+   :width: 80%
+
+
+The Three Containers
+=====================
+
+Each pod contains three containers working together to execute your task:
+
+.. grid:: 3
+    :gutter: 3
+
+    .. grid-item-card:: :octicon:`gear` OSMO Init
+        :class-card: sd-border-primary
+
+        **(Init Container)**
+
+        Prepares the environment before your code runs:
+
+        - Creates ``/osmo/data/input`` and ``/osmo/data/output`` directories
+        - Installs OSMO CLI (available in your container)
+        - Sets up Unix socket for inter-container communication
+
+        :bdg-info:`Runs once` → Exits after setup
+
+    .. grid-item-card:: :octicon:`sync` OSMO Ctrl
+        :class-card: sd-border-success
+
+        **(Sidecar Container)**
+
+        Coordinates task execution and data:
+
+        - Downloads input data from cloud storage
+        - Streams logs to OSMO service in real-time for monitoring
+        - Uploads output artifacts after completion
+        - Handles interactive requests (exec, port-forward)
+
+        :bdg-success:`Runs throughout` task lifetime
+
+    .. grid-item-card:: :octicon:`package` User Container
+        :class-card: sd-border-warning
+
+        **(Main Container)**
+
+        Runs your code as a process:
+
+        - Executes the command you specified
+        - Uses requested CPU/GPU/memory resources
+        - Reads input data from ``/osmo/data/input``
+        - Writes output data to ``/osmo/data/output``
+        - Logs to stdout/stderr
+
+        :bdg-warning:`Runs` your code from start to exit
+
+Execution Flow
+===============
+
+Every task follows this four-phase progression:
+
+.. grid:: 4
+    :gutter: 2
+
+    .. grid-item-card::
+        :class-header: sd-bg-primary sd-text-white
+
+        **1. Initialize** 🔧
+        ^^^
+
+        **OSMO Init** sets up environment
+
+        Creates directories, installs OSMO CLI, configures Unix socket for inter-container communication
+
+        +++
+
+        Time in the order of 5-10 seconds
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **2. Download** ⬇️
+        ^^^
+
+        **OSMO Ctrl** fetches data
+
+        Downloads and extracts input datasets to ``/osmo/data/input``
+
+        +++
+
+        Time varies by download size
+
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
+
+        **3. Execute** ▶️
+        ^^^
+
+        **Your code** runs inside the container
+
+        Reads inputs, writes outputs, logs streamed in real-time
+
+        +++
+
+        Time varies by code runtime
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **4. Upload** ⬆️
+        ^^^
+
+        **OSMO Ctrl** saves results
+
+        Uploads artifacts from ``/osmo/data/output``
+
+        +++
+
+        Time varies by upload size
+
+.. note::
+
+   **Data handling is automatic.** Your code only needs to read from ``{{input}}`` (``/osmo/data/input``) and write to ``{{output}}`` (``/osmo/data/output``). The **Ctrl** container manages all transfers.
+
+Practical Guide
+================
+
+Directory Structure
 --------------------
 
-**Directory Structure User Container Sees**:
+Your container automatically has access to these paths:
 
 .. code-block:: text
 
-   /osmo/
-   ├── input/              ← Read input data here
-   │   ├── dataset1/
-   │   └── dataset2/
-   └── output/             ← Write results here
-       └── (user outputs)
+   /osmo/data/
+   ├── input/              ← Read input datasets here
+   │   ├── 0/dataset1/
+   │   └── 1/dataset2/
+   ├── output/             ← Write results here
+   │   └── (your artifacts)
+   └── socket/             ← Unix socket (managed by OSMO)
+       └── data.sock
 
-**Example Task**:
+Example Task Configuration
+----------------------------
 
 .. code-block:: yaml
+   :emphasize-lines: 6-8
 
    tasks:
      - name: train-model
        image: nvcr.io/nvidia/pytorch:24.01-py3
-       command:
-         - python
-         - train.py
-         - --input=/osmo/data/input/dataset
-         - --output=/osmo/data/output/model
+       command: ["python", "train.py"]
+       args:
+         - --input={{input:0}}/dataset1
+         - --input={{input:1}}/dataset2
+         - --output={{output}}/model
 
-The data operations are automatic—osmo-ctrl handles downloading and uploading!
+Debugging
+------------
 
-For Debugging
--------------
+.. dropdown:: View Container Logs
+   :icon: file-code
 
-**Check osmo-ctrl logs**:
+   **osmo-ctrl logs** (data operations):
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   $ kubectl logs <pod-name> -c osmo-ctrl
+      $ kubectl logs <pod-name> -c osmo-ctrl
 
-Shows data download/upload progress and issues.
+   **Your container logs** (application output):
 
-**Check user container logs**:
+   .. code-block:: bash
 
-.. code-block:: bash
+      $ kubectl logs <pod-name> -c <task-name>
 
-   $ kubectl logs <pod-name> -c <task-name>
+.. dropdown:: Interactive Access
+   :icon: terminal
 
-Shows user's application output.
+   Access your running container with a shell:
 
-**Exec into user container**:
+   .. code-block:: bash
 
-.. code-block:: bash
+      $ osmo exec my-workflow task-1 -- bash
 
-   $ osmo exec my-workflow task-1 -- bash
+   **How it works:** Command flows through OSMO Service → osmo-ctrl → User Container via Unix socket
 
-Access user container with full environment.
+.. dropdown:: Resource Allocation
+   :icon: cpu
 
-Resource Considerations
------------------------
+   **Your container:** All requested CPU/GPU/memory
 
-**User container gets**:
+   **osmo-ctrl overhead:** ~50-100 MB memory, minimal CPU (active during transfers only)
 
-- All CPU/GPU resources user requested
-- User specified memory limits
-- Full compute allocation
+Learn More
+==========
 
-**osmo-ctrl overhead**:
+.. seealso::
 
-- ~50-100 MB memory
-- Minimal CPU (only during data operations)
-- Negligible network overhead
-
-**Total pod resources** = User request + small sidecar overhead
-
-See Also
-========
-
-- :doc:`../introduction/architecture` for overall OSMO architecture
-- :doc:`advanced_config/pool` for pool configuration
-- :doc:`advanced_config/scheduler` for scheduling behavior
-- User Guide for workflow specification details
+   - `Workflow Overview <https://nvidia.github.io/OSMO/user_guide/workflows/index.html>`__ - User guide for writing workflows
+   - `Workflow Lifecycle <https://nvidia.github.io/OSMO/user_guide/workflows/lifecycle/index.html>`__ - Understanding workflow states
+   - :ref:`architecture` - Overall OSMO system architecture
 

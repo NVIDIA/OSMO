@@ -21,47 +21,33 @@
 Deploy Backend Operator
 ================================================
 
-A compute backend must be created and registered with OSMO to run workflows. Follow below steps to
-deploy the backend operator with OSMO.
+Deploying the backend operator will register your compute backend with OSMO, making its resources available for running workflows. Follow these steps to deploy and connect your backend to OSMO.
 
-Prerequisites
------------------------------
+.. admonition:: Prerequisites
+  :class: important
 
-- :ref:`Create an on-premises backend <onprem_cb>` or :ref:`Create a cloud-based backend <cloud_cb>`
-- `Install the OSMO CLI <https://nvidia.github.io/OSMO/user_guide/getting_started/install>`_
+  - Install `OSMO CLI <https://nvidia.github.io/OSMO/user_guide/getting_started/install>`_ before you begin
+  - Replace ``osmo.example.com`` with your domain name in the commands below
 
-Step 1: Create OSMO service access token
+.. _create_osmo_token:
+
+Step 1: Create OSMO Service Token
 -----------------------------------------
 
-Use the OSMO CLI to create a service access token for the backend. This token will be used to
-authenticate the backend operator with the OSMO service.
+Create a service access token using OSMO CLI for backend operator authentication:
 
 .. code-block:: bash
 
-   $ osmo login https://<your-domain>
+   $ osmo login https://osmo.example.com
 
    $ export OSMO_SERVICE_TOKEN=$(osmo token set backend-token --expires-at <insert-date> --description "Backend Operator Token" --service --roles osmo-backend -t json | jq -r '.token')
 
-Save the token in a secure location as it will not be shown again. Export it as an environment
-variable to use in the next step.
-
 .. note::
 
-  ``expires-at`` is based on UTC time and has the format: YYYY-MM-DD
-
-.. note::
-
-  If you get an error like:
-
-  .. code-block:: text
-
-    Connection failed with error: {OSMOUserError: Token is expired, but no refresh token is present}
-
-  Check the ``osmo token list --service`` command to see if the token is expired.
-  If it is, you can create a new token using the OSMO CLI following the steps above.
+  Replace ``<insert-date>`` with an expiration date in UTC format (YYYY-MM-DD). Save the token securely as it will not be shown again.
 
 
-Step 2: Create Kubernetes Namespaces and Secrets
+Step 2: Create K8s Namespaces and Secrets
 ------------------------------------------------
 
 Create Kubernetes namespaces and secrets necessary for the backend deployment.
@@ -90,14 +76,15 @@ Prepare the ``backend_operator_values.yaml`` file:
   :icon: file
 
   .. code-block:: yaml
+    :emphasize-lines: 2, 7
 
     global:
-      osmoImageTag: <insert-osmo-image-tag> # insert osmo image tag here
+      osmoImageTag: <insert-osmo-image-tag>  # REQUIRED: Update with OSMO image tag
       imagePullSecret: imagepullsecret
-      serviceUrl: https://<your-domain>
+      serviceUrl: https://osmo.example.com
       agentNamespace: osmo-operator
       backendNamespace: osmo-workflows
-      backendName: default # update to reflect the name of your backend
+      backendName: default  # REQUIRED: Update with your backend name
       accountTokenSecret: osmo-operator-token
       loginMethod: token
 
@@ -133,11 +120,9 @@ Deploy the backend operator:
 After verifying that the backend operator is running, you should be able to see the backend in the `GET API <backend_config_get_>`_ and see a non-empty list in backend.
 
 
-Step 4: Configure Scheduler Settings
+Step 4: Configure KAI Scheduler
 ------------------------------------
-We strongly recommend using the KAI scheduler (KAI), if it is not already installed follow :ref:`installing_required_dependencies` to install it.
-
-To configure the workflow backend with the KAI scheduler, use the following `scheduler_settings`:
+Install the KAI scheduler (see :ref:`installing_kai`), then configure it for the backend:
 
 .. code-block:: bash
 
@@ -152,34 +137,76 @@ To configure the workflow backend with the KAI scheduler, use the following `sch
   }
   EOF
 
-
-.. note::
-  refer to :ref:`scheduler` for more information on the scheduler settings.
-
-Then update the backend configuration using the OSMO CLI. Once the change is applied, the new submissions will use the new scheduler. Old submissions that have already been submitted will continue to use the old scheduler.
-
-
-.. code-block:: bash
-  :substitutions:
-
-  $ export BACKEND_NAME=default # update to reflect the name of your backend specified in the backend_operator_values.yaml file
+  $ export BACKEND_NAME=default  #Update with your backend name
   $ osmo config update BACKEND $BACKEND_NAME --file /tmp/scheduler_settings.json
 
+.. note::
 
-Step 5: Validate
---------------------------
+  See :ref:`scheduler` for detailed scheduler configuration options.
 
-Use the OSMO CLI to validate the backend configuration.
+
+Step 5: Validate Deployment
+----------------------------
+
+Use the OSMO CLI to validate the backend configuration
 
 .. code-block:: bash
   :substitutions:
 
-  $ export BACKEND_NAME=default # update to reflect the name of your backend specified in the backend_operator_values.yaml file
-  $ osmo config show BACKEND $BACKEND_NAME | grep "online"
-    "online": true,
+  $ export BACKEND_NAME=default  # Update with your backend name
+
+  $ osmo config show BACKEND $BACKEND_NAME
+
+Alternatively, visit http://osmo.example.com/api/configs/backend in your browser.
+
+Ensure the backend is online (see the highlighted line in the JSON output):
+
+.. code-block:: json
+  :emphasize-lines: 25
+
+  {
+    "backends": [
+        {
+            "name": "default",
+            "description": "Default backend",
+            "version": "6.0.0",
+            "k8s_uid": "6bae3562-6d32-4ff1-9317-09dd973c17a2",
+            "k8s_namespace": "osmo-workflows",
+            "dashboard_url": "",
+            "grafana_url": "",
+            "tests": [],
+            "scheduler_settings": {
+                "scheduler_type": "kai",
+                "scheduler_name": "kai-scheduler",
+                "coscheduling": true,
+                "scheduler_timeout": 30
+            },
+            "node_conditions": {
+                "rules": null,
+                "prefix": "osmo.example.com/"
+            },
+            "last_heartbeat": "2025-11-15T02:35:17.957569",
+            "created_date": "2025-09-03T19:48:21.969688",
+            "router_address": "wss://osmo.example.com",
+            "online": true
+        }
+    ]
+  }
+
+.. seealso::
+
+  See :ref:`backend_config` for more information
 
 
-Next Steps
-----------
-You can now start submitting workflows to the backend to test the deployment. Refer to :ref:`validate_osmo` for more information on how to submit workflows.
-If you want to configure complex pool configurations, you can do so by following the steps in :ref:`configure_pool`.
+Troubleshooting
+---------------
+
+Token Expiration Error
+~~~~~~~~~~~~~~~~~~~~~~
+
+
+.. code-block:: bash
+
+  Connection failed with error: {OSMOUserError: Token is expired, but no refresh token is present}
+
+Check the ``osmo token list --service`` command to see if the token is expired. Follow :ref:`create_osmo_token` to create a new token.

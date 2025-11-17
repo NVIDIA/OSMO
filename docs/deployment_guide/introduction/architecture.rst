@@ -140,14 +140,13 @@ Compute Plane
 
 The Backend Operator runs on each compute backend cluster (i.e., compute plane) and serves as the execution engine for workflows.
 
-.. note::
+.. admonition:: Key Architecture Points
+  :class: info
 
-   **Key Architecture Points**
-
-   - Backend operators **initiate connections to** OSMO (not the other way around)
-   - The service cluster does not need network access to backend clusters
-   - This allows backends to be deployed behind firewalls and in restricted networks
-   - Backends can be in different clouds, on-premises, or edge locations
+  - Backend operators **initiate connections to** OSMO (not the other way around)
+  - The service cluster does not need network access to backend clusters
+  - This allows backends to be deployed behind firewalls and in restricted networks
+  - Backends can be in different clouds, on-premises, or edge locations
 
 
 .. only:: html
