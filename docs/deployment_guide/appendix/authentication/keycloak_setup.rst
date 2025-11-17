@@ -47,6 +47,8 @@ The typical workflow for setting up access control is:
 5. Create matching pools in OSMO
 6. Verify access
 
+.. _keycloak_create_roles:
+
 Creating Roles in Keycloak
 ===========================
 
@@ -66,6 +68,8 @@ Roles must be created in both Keycloak clients that OSMO uses:
 
    The role name is format-sensitive. You must use the exact format ``osmo-<pool-group-name>`` for pool access roles.
 
+.. _keycloak_create_groups:
+
 Creating Groups in Keycloak
 ============================
 
@@ -78,6 +82,8 @@ Groups are used to organize users and assign roles to multiple users at once:
    For example: ``OSMO group1``
 
 4. Click "Save"
+
+.. _keycloak_assign_roles_to_groups:
 
 Assigning Roles to Groups
 --------------------------
@@ -97,6 +103,8 @@ After creating the group, assign the appropriate roles:
    The ``osmo-browser-flow`` client is used for the Web UI and the ``osmo-device`` client is used for the CLI.
    You must assign roles from both clients for full functionality.
 
+.. _keycloak_assign_users_to_groups:
+
 Managing Users
 ==============
 
@@ -111,6 +119,8 @@ To manually add users to groups:
 4. Click "Join Group"
 5. Select the group you want to add the user to
 6. Click "Join"
+
+.. _identity_provider_mappings:
 
 Configuring Identity Provider Mappings
 --------------------------------------
@@ -181,6 +191,11 @@ User Cannot Access Pool
 4. **Verify Group Membership**:
 
    - In Keycloak admin console, check if the user appears in the group
+   - If using IdP Mappings (see :ref:`identity_provider_mappings`):
+
+      - Verify the mapping configuration
+      - Check IdP logs to ensure claims are being sent
+      - Have the user log out and log back in again. Check Keycloak logs during login and verify that the IdP claim matches the mapper configuration.
 
 Roles Not Appearing in JWT Token
 ---------------------------------

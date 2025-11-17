@@ -109,14 +109,12 @@ Policies can specify actions to allow or deny:
 
 **Important**: Any path that is denied (using the ``!`` operator) takes precedence over allowed paths, regardless of how specific the allowed paths are.
 
-If a path is denied by one policies and allowed by another policy, the path is allowed
-
 Action Format
 -------------
 
 Actions follow the format: ``http:<path>:<method>``
 
-- **Path**: The API endpoint (supports wildcards ``*``. Wildcards are evaluated like the bash globbing syntax)
+- **Path**: The API endpoint (supports wildcards ``*``. Wildcards are evaluated like the bash glob syntax)
 - **Method**: HTTP method (``GET``, ``POST``, ``PUT``, ``DELETE``, ``PATCH``, or ``*`` for all)
 
 Examples:
@@ -130,10 +128,11 @@ Role Naming for Pools
 ---------------------
 
 Although the ``actions`` and ``policies`` assigned to a role ultimately determine what that role allows a user to do (e.g., submit workflows to a pool),
-the **name** of the role determines which pools are visible to the user (In the UI and when using ``osmo pool list`` CLI command). OSMO will check if a user has roles of the format ``osmo-<prefix>`` and will show that user all pools
-that start with the given prefix to the user.
+the **name** of the role determines which pools are visible to the user (In the UI and when using ``osmo pool list`` CLI command).
+OSMO will check if a user has roles of the format ``osmo-<prefix>`` and will show that user all pools
+that start with the given prefix.
 
-For this reason, roles for accessing a pool should follow the pattern ``osmo-<pool-name>`` or for a role tha gives access to a group of similarly named pools,
+For this reason, roles for accessing a pool should follow the pattern ``osmo-<pool-name>`` or for a role that gives access to a group of similarly named pools,
 ``osmo-<pool-prefix>``.
 
 .. _roles_policies_example:
@@ -261,6 +260,8 @@ To create a custom role using the OSMO CLI:
 Quality of Life Features
 =========================
 
+.. _auto_generating_pool_roles:
+
 Auto-Generating Pool Roles
 ---------------------------
 
@@ -268,8 +269,8 @@ For pool and backend roles, use the ``osmo config set`` CLI to automatically gen
 
 .. code-block:: bash
 
-   $ osmo config set ROLE osmo-my-pool -p my-pool
-   Successfully created ROLE config
+   $ osmo config set ROLE osmo-my-pool pool
+   Successfully set ROLE config "osmo-my-pool"
 
 This generates a role with the necessary permissions:
 
