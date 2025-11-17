@@ -22,151 +22,207 @@
 Authentication Flow
 ================================================
 
-This guide describes the authentication flow in the OSMO platform when configured with Keycloak as the identity management solution and integrated with an external identity provider (IdP).
-
-.. note::
-
-   - This flow is used when your identity provider doesn't support passing roles/groups through OIDC, requiring Keycloak for user/group management
-   - This flow also enables using multiple identity providers for login, where Keycloak redirects to the appropriate IdP and connects back to OSMO
+This guide describes the detailed authentication flow in the OSMO platform.
 
 Architecture Components
 =======================
 
 The authentication system consists of the following components:
 
-1. **User**: The end-user accessing the OSMO platform
-2. **Keycloak**: Identity and access management solution serving as an intermediary between users and identity providers
-3. **Identity Provider (IdP)**: External authentication service (e.g., Microsoft Azure AD, etc.) that verifies user identity
-4. **Envoy**: API gateway that handles authentication and routing
+1. **User**: The end-user or entity accessing the OSMO platform. To use OSMO, the user must first acquire a signed JWT with roles and username claims (From Keycloak or from OSMO itself in the case of service accounts). Then it can make a request to OSMO using the JWT.
+2. **Keycloak**: Stores mapping between users and groups and between groups and roles. It can be used to handle user authentication directly, or as an intermediary between users and external identity providers.
+3. **Identity Provider (IdP)**: Optional external authentication service (e.g., Microsoft Azure AD, etc.) that verifies user identity
+4. **Envoy**: API gateway that ensures requests to OSMO are authenticated with a properly signed and validated JWT. All requests to OSMO must pass through the following two internal components (or filters) of Envoy:
 
-   - **OAuth2 Filter**: Validates authentication tokens and cookies
-   - **JWT Filter**: Validates JWT tokens and their claims
-   - **OPA Filter**: Performs authorization based on policies
+   - **OAuth2 Filter**: Redirects the user to Keycloak's authentication endpoint if the user is not authenticated (Missing or invalid ``OAuthHMAC`` cookie or ``x-osmo-auth`` header is not present).
+   - **JWT Filter**: Validates JWT token (provided either through the ``IdToken`` cookie or the ``x-osmo-auth`` header)
 
-5. **OSMO Service**: Backend services providing platform functionality
+5. **OSMO Service**: Backend services providing platform functionality. They evaluate the roles provided in the JWT and determine if the user has access to the requested resource.
 
-Authentication Flow Diagram
-============================
 
-The diagram below illustrates the authentication flow between the user, Keycloak, identity provider, and OSMO services:
 
-.. image:: ../auth_flow_keycloak.png
-   :alt: Authentication Flow Diagram
+User Login with Keycloak
+========================
+
+For a human user, logging in is done through a web browser using Keycloak.
+
+Overview
+--------
+
+The below diagram illustrates the high level flow for a human user logging into OSMO.
+
+.. image:: authn_authz_arch_user.png
+   :alt: Authentication and Authorization flow
    :width: 100%
    :align: center
 
-.. note::
-   The authentication flow is based on the `OAuth 2.0 Authorization Framework <https://datatracker.ietf.org/doc/html/rfc6749#section-4.1>`_ specification.
+The flow contains the following steps:
 
-Detailed Authentication Flow
-=============================
+1. **Login:** A user logs in with Keycloak. Keycloak supports multiple OAuth 2.0 flows such as device flow, and code flow. Keycloak may be configured to accept username and password directly, or redirect to an external identity provider.
+2. **Lookup roles:** Keycloak looks up what roles a user has based on their group memberships. The roles from all groups are aggregated into a single list of roles.
+3. **Grant JWT:** Keycloak issues a JWT token containing the user's username (in the ``preferred_username`` claim) and roles (in the ``roles`` claim).
+4. **Make request with JWT:** The user makes a request to OSMO using the JWT token in the ``IdToken`` cookie (For the Web UI accessed through a browser) or ``x-osmo-auth`` header (For the CLI client).
+5. **Validate and unpack JWT:** Envoy validates the JWT token (Correct signature, not expired, correct ``aud`` and ``iss`` claims). It then unpacks the ``roles`` claim into a comma separated list in the ``x-osmo-roles`` header and the ``preferred_username`` claim into the ``x-osmo-user`` header.
+6. **Make request with headers:** Envoy then forwards the request to the OSMO service with the ``x-osmo-user`` and ``x-osmo-roles`` headers set.
+7. **Check request is allowed by roles:** The OSMO service checks the definitions of the roles in its database, and compares with the request the user is trying to perform. If none of hte roles provided allow the request, then OSMO will return a ``403 Forbidden`` error.
+8. **Handle request:** The OSMO service will now handle the request and return the response to the user.
 
-The authentication process follows these steps:
+.. warning::
+
+   The OSMO service accepts the ``x-osmo-user`` and ``x-osmo-roles`` headers sent to it and does not validate the JWT.
+   To use OSMO securely, be sure to only allow access to the OSMO service through Envoy or some other reverse proxy that does the following:
+
+   - Validates the authenticity of the JWT passed to it.
+   - Strips ``x-osmo-user`` and ``x-osmo-roles`` headers from the downstream request.
+   - Sets the ``x-osmo-user`` and ``x-osmo-roles`` headers in the upstream request from the contents of the JWT.
 
 Initialization
 --------------
 
-1. During system initialization, the OSMO service retrieves public keys from Keycloak by making a request to ``GET <keycloak>/realms/osmo/protocol/openid-connect/certs``
+1. During system initialization, Envoy retrieves public keys from Keycloak by making a request to ``GET <keycloak>/realms/osmo/protocol/openid-connect/certs``
 2. Keycloak returns the public keys (HTTP 200) used to verify JWT token signatures
 
-Initial Access Attempt
-----------------------
+Browser Based Login
+-------------------
 
-1. The user attempts to access OSMO resources (e.g., ``GET <osmo>/api/workflows``)
+Users attempting to access OSMO through the Web UI will go through the browser based login flow.
+
+Logging In
+~~~~~~~~~~
+
+1. The user attempts to access the OSMO web UI, or an OSMO API resources (e.g., ``GET <osmo>/api/workflows``)
 2. The OAuth2 Filter in Envoy checks for authentication credentials and determines that:
 
-   - No OAuthHMAC cookie is present
-   - No x-osmo-auth header is present
+   - No ``OAuthHMAC`` cookie is present
+   - No ``x-osmo-auth`` header is present
 
-3. Since the user is not authenticated, the OAuth2 Filter returns a redirect (HTTP 302) to Keycloak's authentication endpoint
+3. Since the user is not authenticated, the OAuth2 Filter initiates the OAuth 2.0 Authorization Code flow (`RFC 6749 Section 4.1 <https://datatracker.ietf.org/doc/html/rfc6749#section-4.1>`_).
+   In the Oauth 2.0 flow, Envoy acts as the client, Keycloak acts as the authorization server, and the user's web browser acts as the user agent.
 
-Keycloak Authentication
------------------------
+   a. Envoy returns a redirect (HTTP 302) to Keycloak's authentication endpoint: ``GET <keycloak>/realms/osmo/protocol/openid-connect/auth``.
+   b. The user authenticates with Keycloak. The user may authenticate directly with Keycloak using a username and password, or Keycloak may be configured to delegate authetnication with the Oauth 2.0 Authorization Code flow to an external identity provider.
+   c. Keycloak redirects the user back to Envoy with a Keycloak authorization code (HTTP 302 to ``<osmo>/api/auth/getAToken?code=<keycloak-code>``).
+   d. Envoy exchanges the Keycloak authorization code for a JWT token by requesting from Keycloak (``GET <keycloak>/realms/osmo/protocol/openid-connect/token?code=<keycloak-code>&...&grant_type=authorization_code``).
+   e. Keycloak generates JWT tokens with user roles based on the user's group memberships and returns them to the OSMO service, as well as a refresh token (HTTP 200).
+   f. Envoy finally redirects the user back to the original request (e.g., ``GET <osmo>/api/workflows``) with the following cookies set:
 
-1. The user is redirected to Keycloak's authentication endpoint (``GET <keycloak>/realms/osmo/protocol/openid-connect/auth``)
-2. Keycloak presents login options to the user, who selects SSO to authenticate with the external identity provider
-3. Keycloak redirects the user to the identity provider's login page (HTTP 302 to ``<idp>/login``)
+      - **OAuthHMAC**: A hash-based message authentication code for session identification
+      - **BearerToken**: The access token for API requests
+      - **IdToken**: Contains user identity information (username, roles, etc.). This is the JWT token validated by the JWT filter and whose roles are extracted and passed to the OSMO Service.
+      - **RefreshToken**: Used to obtain new tokens when the current ones expire
 
-Identity Provider Authentication
----------------------------------
+Authenticated Requests
+~~~~~~~~~~~~~~~~~~~~~~
 
-1. The user completes the login process with the identity provider
-2. Upon successful authentication, the identity provider redirects the user back to Keycloak with an authorization code (HTTP 302 to ``<keycloak>/realms/auth/broker/nvidia/endpoint?code=<idp-code>``)
+After logging in, all subsequent requests to OSMO will include the ``OAuthHMAC`` cookie (So they will not go back through the OAuth 2.0 Authorization Code flow again). They contain a valid ``IdToken``, so they will pass the JWT filter as well.
 
-Token Exchange and User Mapping
---------------------------------
+Using Refresh Tokens
+~~~~~~~~~~~~~~~~~~~~
+Eventually, the ``IdToken`` and ``BearerToken`` will expire. When the user makes a request after these tokens expire, the Oauth2 filter will attempt to automatically use the refresh token as described in `RFC 6749 Section 6 <https://datatracker.ietf.org/doc/html/rfc6749#section-6>`_.
 
-1. Keycloak receives the authorization code and exchanges it for tokens by requesting from the identity provider's token endpoint (``GET <idp>/oauth2/v2.0/token?code=<idp-code>&...&grant_type=authorization_code``)
-2. The identity provider returns JWT tokens (HTTP 200) to Keycloak
-3. Keycloak processes the user information:
+1. Envoy will call Keycloak's token endpoint to get a new access token and id token ``POST <keycloak>/realms/osmo/protocol/openid-connect/token?grant_type=refresh_token&refresh_token=<refresh_token>&...``
+2. Envoy will include these new tokens as cookies as the request passes through the JWT filter and on to the OSMO Service.
+3. When envoy returns the response, it will include ``Set-Cookie`` headers for the new tokens so they will be used in subsequent requests.
 
-   - The user is logged in to Keycloak
-   - Identity provider roles are mapped to Keycloak groups
+CLI Based Login
+---------------
 
-OSMO Token Generation
-----------------------
+Users attempting to access OSMO through the CLI will go through the CLI based login flow.
 
-1. The user is redirected to OSMO with a Keycloak authorization code (HTTP 302 to ``<osmo>/api/auth/getAToken?code=<keycloak-code>``)
-2. The OSMO service exchanges this code for tokens by requesting from Keycloak (``GET <keycloak>/realms/osmo/protocol/openid-connect/token?code=<keycloak-code>&...&grant_type=authorization_code``)
-3. Keycloak generates JWT tokens with user roles based on the user's group memberships and returns them to the OSMO service (HTTP 200)
+Logging In
+~~~~~~~~~~
 
-Session Establishment
----------------------
+1. The user runs the ``osmo login https://<osmo>`` command. The OSMO CLI calls the ``GET <osmo>/api/auth/login`` endpoint to get the endpoint that will be used for device authorization login.
+2. The OSMO CLI client will initiate the OAuth 2.0 Device Authorization flow as specified in `RFC 8628 <https://datatracker.ietf.org/doc/html/rfc8628>`_.
+   In the Oauth 2.0 flow, Keycloak acts as the authorization server, and the OSMO CLI acts as the device client.
 
-1. The OSMO service receives the tokens and establishes a session for the user
-2. The service sets several cookies in the response (HTTP 302):
+   a. The OSMO CLI will call Keycloak's device authorization endpoint to get a device code and user code ``POST <keycloak>/realms/osmo/protocol/openid-connect/auth/device``
+   b. Keycloak returns a device code, user code, and verification URL to the OSMO CLI.
+   c. The OSMO CLI will display the user code and Keycloak URL to the user to visit to complete the authentication.
+   d. The user visits the Keycloak verification URL (eg ``<keycloak>/realms/osmo/device?user_code=<user-code>``) and completes authentication.
+   e. The OSMO CLI continuously polls keycloak using the device code to check if authentication is complete.
+   f. Once authentication is complete, Keycloak will return an access token, id token and refresh token to the OSMO CLI.
 
-   - **OAuthHMAC**: A hash-based message authentication code for session identification
-   - **BearerToken**: The access token for API requests
-   - **IdToken**: Contains user identity information
-   - **RefreshToken**: Used to obtain new tokens when the current ones expire
+Authenticated Requests
+~~~~~~~~~~~~~~~~~~~~~~
+
+The OSMO CLI client will now include the id token in the ``x-osmo-auth`` header for all requests to the OSMO service.
+
+Using Refresh Tokens
+~~~~~~~~~~~~~~~~~~~~
+
+Eventually, the ``IdToken`` will expire. When the user attempts the use the CLI, the CLI will check if the id token is expired. If it is, the CLI will use the refresh token as described in `RFC 6749 Section 6 <https://datatracker.ietf.org/doc/html/rfc6749#section-6>`_ to get a new id token before making the request.
+
+
+
+Token Based Login Directly through OSMO
+=======================================
+
+For a service account or script, logging in through Keycloak is cumbersome due to the usage of a web browser in the auth flow. For usecases like this,
+OSMO allows the creation of tokens that can be exchanged for a JWT that is signed by OSMO.
+
+Overview
+--------
+
+The below diagram illustrates the high level flow for a service account or script logging into OSMO.
+
+.. image:: authn_authz_arch_token.png
+   :alt: Authentication and Authorization flow
+   :width: 100%
+   :align: center
+
+The flow contains the following steps:
+
+1. **Use token to get JWT:** The script uses the token (With either the ``/api/auth/jwt/access_token`` or ``/api/auth/jwt/refresh_token`` endpoints depending on the token type)
+   to request a signed JWT token from OSMO. Envoy will allow requests to these endpoints to proceed without authentication.
+2. **Validate token, lookup roles:** OSMO will validate that the token is valid and not expired and will lookup the roles corresponding to the token.
+3. **Grant JWT:** OSMO will generate a JWT token containing the roles and username corresponding to the name of the token.
+4. **Make request with JWT:** The user makes a request to OSMO using the JWT token in the ``IdToken`` cookie (For the Web UI accessed through a browser) or ``x-osmo-auth`` header (For the CLI client).
+5. **Validate and unpack JWT:** Envoy validates the JWT token (Correct signature, not expired, correct ``aud`` and ``iss`` claims). It then unpacks the ``roles`` claim into a comma separated list in the ``x-osmo-roles`` header and the ``preferred_username`` claim into the ``x-osmo-user`` header.
+6. **Make request with headers:** Envoy then forwards the request to the OSMO service with the ``x-osmo-user`` and ``x-osmo-roles`` headers set.
+7. **Check request is allowed by roles:** The OSMO service checks the definitions of the roles in its database, and compares with the request the user is trying to perform. If none of hte roles provided allow the request, then OSMO will return a ``403 Forbidden`` error.
+8. **Handle request:** The OSMO service will now handle the request and return the response to the user.
+
+Initialization
+--------------
+
+1. During system initialization, the OSMO service will generate a public/private key pair for signing/validiating tokens if one is not already present (See :ref:`service_authentication` for more information).
+2. Envoy will request the public key from the OSMO service by making a request to ``GET <osmo>/api/auth/jwt/public_key``
+3. OSMO will return the public key (HTTP 200) used to verify JWT token signatures
+
+Logging In
+----------
+
+When token based login is used, the CLI or other serivce will use the ``/api/auth/jwt/access_token`` or ``/api/auth/jwt/refresh_token`` endpoints to get a JWT token.
+
+- Tokens created through the ``osmo token`` API will use the ``/api/auth/jwt/access_token`` endpoint.
+- Running workflows that need to log in to OSMO to push logs will use the ``/api/auth/jwt/refresh_token`` endpoint.
 
 Authenticated Requests
 ----------------------
 
-1. The user makes a subsequent request to access OSMO resources (``GET <osmo>/api/workflows``)
-2. The request now includes the OAuthHMAC cookie set in the previous step
-3. The OAuth2 Filter validates the cookie and allows the request to proceed
-4. The request is forwarded to the JWT Filter, which:
+Authenticated requests will include the returned JWT token in the ``x-osmo-auth`` header. This JWT token will be signed by OSMO rather than Keycloak, so
+Envoy's JWT filter must be configured to recognize OSMO's public key as well as the Keycloak public key.
 
-   - Checks the JWT token signature
-   - Validates the audience and issuer claims
+If the JWT token is expired or will expire soon, the CLI or workflow will request a new one using the same ``/api/auth/jwt/access_token`` or ``/api/auth/jwt/refresh_token`` endpoint.
 
-5. The request then passes through the OPA Filter, which:
-
-   - Checks the JWT roles against the requested URL
-   - Ensures the user has appropriate permissions
-
-6. If all checks pass, the request is forwarded to the OSMO Service
-7. The OSMO Service processes the request and returns the workflow list (HTTP 200) to the user
 
 Token Validation and Authorization
 ===================================
 
-JWT Token Validation
---------------------
+The JWT filter will look for a JWT either in the ``IdToken`` cookie or the ``x-osmo-auth`` header.
 
 The JWT Filter performs the following validations on each request:
 
-1. **Signature Verification**: Ensures the token was issued by Keycloak using the public keys obtained during initialization
-2. **Expiration Check**: Verifies that the token has not expired
+1. **Signature Verification**: Ensures the token was issued by Keycloak or by OSMO using the public keys obtained during initialization
+2. **Expiration Check**: Verifies that the token has not expired (``exp`` claim is in the past)
 3. **Claim Validation**: Validates essential claims such as:
 
    - ``iss`` (Issuer): Must match the expected Keycloak realm URL
    - ``aud`` (Audience): Must include the OSMO client ID
    - ``sub`` (Subject): Identifies the user
 
-Role-Based Authorization
--------------------------
 
-The OPA Filter performs authorization based on the roles included in the JWT token:
-
-1. **Role Extraction**: Extracts roles from the JWT token
-2. **URL Matching**: Matches the requested URL against access control policies
-3. **Permission Check**: Determines if the user's roles grant access to the requested resource
-
-Example JWT Token
------------------
 
 Below is an example of a JWT token payload used in the authentication flow:
 
@@ -198,87 +254,14 @@ Below is an example of a JWT token payload used in the authentication flow:
      "family_name": "<user-last-name>"
    }
 
-Token Lifecycle Management
-===========================
+Envoy will then extract the ``roles`` claim and set the ``x-osmo-roles`` header to a comma separated list of the roles. It will also extract the ``preferred_username`` claim and set the ``x-osmo-user`` header to the username.
 
-Token Refresh
--------------
+Advanced Keycloak Configuration
+===============================
 
-1. When the access token expires, the OSMO service uses the refresh token to obtain a new access token
-2. If the refresh token is valid, Keycloak issues a new access token without requiring re-authentication
-3. If the refresh token is expired or invalid, the user is redirected to the authentication flow
+Keycloak can be configured to allow users to log in directly with a username and password.
 
-.. _authentication_flow_sso:
-
-Identity Provider Configuration
-================================
-
-Configuring an External Identity Provider
-------------------------------------------
-
-An example of identity provider settings for the OSMO platform with Microsoft Azure AD as the identity provider:
-
-.. code-block:: json
-
-   {
-     "alias": "nvidia",
-     "displayName": "NVIDIA (Microsoft AD)",
-     "providerId": "oidc",
-     "enabled": true,
-     "updateProfileFirstLoginMode": "on",
-     "trustEmail": false,
-     "storeToken": false,
-     "addReadTokenRoleOnCreate": false,
-     "authenticateByDefault": false,
-     "linkOnly": false,
-     "firstBrokerLoginFlowAlias": "first broker login",
-     "config": {
-       "userInfoUrl": "https://graph.microsoft.com/oidc/userinfo",
-       "validateSignature": "true",
-       "tokenUrl": "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
-       "clientId": "{client-id}",
-       "jwksUrl": "https://login.microsoftonline.com/{tenant-id}/discovery/v2.0/keys",
-       "issuer": "https://login.microsoftonline.com/{tenant-id}/v2.0",
-       "useJwksUrl": "true",
-       "pkceEnabled": "false",
-       "authorizationUrl": "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/authorize",
-       "clientAuthMethod": "client_secret_post",
-       "logoutUrl": "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/logout",
-       "clientSecret": "{client-secret}"
-     }
-   }
-
-Adding a New Identity Provider
--------------------------------
-
-To add a new identity provider to the OSMO Keycloak configuration:
-
-1. **Create Identity Provider in Keycloak**:
-
-   - Log in to the Keycloak Admin Console
-   - Navigate to Identity Providers
-   - Click "Add provider" and select the appropriate provider type (OIDC, SAML, etc.)
-   - Configure the provider with the necessary endpoints and credentials
-
-2. **Configure Authentication Flow**:
-
-   - Ensure the "browser" flow includes the "identity-provider-redirect" authenticator
-   - Configure the "first broker login" flow according to your requirements
-
-3. **Set Up Identity Provider Mappers**:
-
-   - Create mappers to map identity provider claims to Keycloak user attributes
-   - Set up group mappers to assign users to appropriate groups based on claims
-
-4. **Update Realm Configuration**:
-
-   - Add the identity provider configuration to the appropriate realm JSON file
-   - Include any necessary identity provider mappers
-
-5. **Deploy Updated Configuration**:
-
-   - Apply the updated configuration to your Keycloak instance
-   - Test the authentication flow with the new identity provider
+Keycloak can also be configured to integrate with an external identity provider (such as Azure AD, Google Workspace, and others) for improved integration with your organization's authentication systems. For more information on integrating external identity providers with Keycloak, refer to the `Keycloak documentation <https://www.keycloak.org/docs/latest/server_admin/index.html#_identity_broker>`_.
 
 Troubleshooting
 ===============
