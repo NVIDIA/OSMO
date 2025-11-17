@@ -405,6 +405,8 @@ Plugins
      - Configuration for the rsync plugin.
      - See Rsync Plugin section
 
+.. _rsync_plugin:
+
 Rsync Plugin
 ============
 

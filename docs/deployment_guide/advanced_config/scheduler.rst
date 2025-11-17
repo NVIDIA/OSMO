@@ -18,132 +18,229 @@
 .. _scheduler:
 
 =======================================================
-Scheduler
+Scheduler Configuration
 =======================================================
 
-A scheduler is a component that is responsible for orchestrating tasks in a backend.
+After configuring :ref:`pools <pool>`, you can enable advanced scheduling features using the `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_. This configuration controls how workflows compete for resources, enabling co-scheduling, preemption, and fair sharing across teams.
 
-OSMO uses KAI scheduler for advanced scheduling features.
 
-.. list-table:: Supported Schedulers
-  :header-rows: 1
-  :widths: auto
+Why Use KAI Scheduler?
+=============================
 
-  * -
-    - **KAI (Recommended)**
-    - **Default**
-  * - **Co-scheduling**
-    - Yes
-    - No
-  * - **Performance for large groups**
-    - Good
-    - Not Supported
-  * - **Preemption supported with groups**
-    - Yes
-    - No
+The KAI scheduler provides enterprise-grade resource management capabilities:
 
-`Co-scheduling` allows multiple tasks to be scheduled together.
-This enables many unique and essential use cases, such as:
+✓ **Co-Scheduling**
+  Schedule multiple tasks together for distributed training, hardware-in-the-loop simulations, and parallel synthetic data generation.
 
-- Spinning up a distributed training cluster
-- Running hardware-in-the-loop simulations, where one task runs a simulation application and another task runs applications on robotics hardware (such as NVIDIA AGX platform)
-- Running many instances of synthetic data generation in parallel
+✓ **Priority & Preemption**
+  High-priority workflows can preempt low-priority ones, ensuring critical work proceeds even when clusters are fully utilized.
 
-KAI Scheduler
-~~~~~~~~~~~~~
+✓ **Fair Resource Sharing**
+  Guarantee minimum resources per pool while allowing teams to burst above their baseline when capacity is available.
 
-OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ , which supports:
+✓ **Maximize Utilization**
+  Reclaim idle resources and redistribute them across pools based on configurable weights, minimizing waste.
 
-- Workload priority and preemption with a hierarchical queue system
-- Fair sharing of resources between different teams and pools
-- Reclaim resources and maximize utilization across different teams and pools
 
-Each pool has three configurable settings:
+How It Works
+============
 
-- **Guarantee**: The minimum number of resources that the pool can use which cannot be preempted
-- **Weight**: When multiple pools in a cluster are consuming resources over their limit, they are given resources proportional to their weight
-- **Maximum**: The maximum number of resources that the pool can use (both preemptible and non-preemptible)
+GPU Allocation Model
+-------------------------
 
-To see the config settings for priority, please refer to the :ref:`pool_config-resource-constraint` section in Pool Configs.
+.. grid:: 3
+    :gutter: 2
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **Guarantee** 🔒
+        ^^^
+
+        Minimum resources
+
+        +++
+
+        Reserved, cannot be preempted
+
+    .. grid-item-card::
+        :class-header: sd-bg-warning sd-text-white
+
+        **Weight** ⚖️
+        ^^^
+
+        Fair share ratio
+
+        +++
+
+        Proportional allocation above guarantee
+
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
+
+        **Maximum** 🚧
+        ^^^
+
+        Upper limit
+
+        +++
+
+        Cap total pool usage (-1 = unlimited)
+
+Key Concepts
+------------
+
+- **Guarantee**: Minimum GPUs/resources reserved for a pool (non-preemptible workflows)
+- **Weight**: Proportional share when pools exceed their guarantee (e.g., 1:3 ratio)
+- **Maximum**: Hard cap on total resources a pool can use (-1 means unlimited)
+- **Preemptible Workflows**: Use ``LOW`` priority; can be stopped to free resources
+- **Non-Preemptible Workflows**: Use ``HIGH``/``NORMAL`` priority; protected from preemption
+
+.. note::
+
+   For detailed configuration fields, see :ref:`pool_config-resource-constraint` in the API reference.
 
 .. warning::
 
-  To set up priority and preemption for pools sharing the same resource nodes, admins need to configure ALL pools
-  with the `guarantee`, `weight`, and `maximum` settings. Otherwise, preemption will not be enabled.
+   To enable preemption, ALL pools sharing the same nodes must configure ``guarantee``, ``weight``, and ``maximum``. Partial configuration disables preemption.
 
-Example
--------
+Practical Guide
+===============
 
-For example, if a compute cluster has 100 GPUs and two pools with the following settings:
+GPU Allocation
+----------------------------------
 
-.. list-table:: Example Pool Configuration
+**Example Cluster:** Assume a cluster with 100 GPUs total divided into two pools: Training (A) and Simulation (B).
+
+.. list-table::
   :header-rows: 1
-  :widths: auto
+  :widths: 20 20 15 20
 
   * - **Pool**
     - **Guarantee**
     - **Weight**
     - **Maximum**
-  * - Pool A
-    - 30
+  * - Training (A)
+    - 30 GPUs
     - 1
-    - 70
-  * - Pool B
-    - 50
+    - 70 GPUs
+  * - Simulation (B)
+    - 50 GPUs
     - 3
-    - -1
+    - Unlimited (-1)
 
-Basic behavior
-~~~~~~~~~~~~~~
+**Basic Allocation Behavior:**
 
-- Pool A is guaranteed 30 GPUs that can be used by non-preemptible workflows (`HIGH`/`NORMAL` priority)
-- Pool B is guaranteed 50 GPUs that can be used by non-preemptible workflows
-- Pool A can use up to 70 GPUs for both preemptible and non-preemptible workflows
-- Setting `Maximum` to `-1` means that Pool B can use as many GPUs as it wants for both preemptible and non-preemptible workflows
-- When both pools exceed their guarantee, resources are allocated proportionally based on their weights (1:3 ratio):
+- **Pool A** gets 30 GPUs guaranteed (non-preemptible workflows)
+- **Pool B** gets 50 GPUs guaranteed (non-preemptible workflows)
+- **Pool A** can burst up to 70 GPUs total (including preemptible)
+- **Pool B** can use unlimited GPUs (including preemptible)
 
-  * Scheduler schedules 1 GPU for `Pool A` for every 3 GPUs for `Pool B`
-  * These workflows need to be preemptible (`LOW` priority)
+.. warning::
 
-Preemption Example
-~~~~~~~~~~~~~~~~~~
+   When both pools exceed ``guarantees``, **Pool B** gets 3x **Pool A**'s allocation (weight ratio 1:3)
 
-Using the previous example, we now introduce a new scenario:
+**Weight Ratio Example:**
 
-.. code-block:: text
+When 20 GPUs become available and both pools want more:
 
-  Pool A is using 70 GPUs: 30 non-preemptible and 40 preemptible.
-  Pool B is using 30 GPUs: 30 non-preemptible only.
+- Pool A gets 5 GPUs (1 part)
+- Pool B gets 15 GPUs (3 parts)
 
-With this scenario, the pools will have the following preemption behavior:
 
-- When Pool B receives a `non-preemptible` workflow for 4 GPUs, Pool B will preempt a workflow from Pool A to get 4 GPUs
+Preemption Scenarios
+--------------------
 
-  * This is because Pool B has not hit its guarantee of 50 GPUs
-  * This workflow is `non-preemptible` and has higher priority, so it will preempt a `preemptible` workflow from Pool A
-  * A workflow needs to be preempted because the cluster is completely occupied
+.. dropdown:: **Scenario 1: Pool Below Guarantee Preempts**
+    :color: info
+    :icon: info
 
-Here we have another scenario:
+    **Current State:**
 
-.. code-block:: text
+    - Pool A: 70 GPUs (30 non-preemptible + 40 preemptible)
+    - Pool B: 30 GPUs (30 non-preemptible)
+    - Cluster: Fully utilized (100/100)
 
-  Pool A is using 65 GPUs: 25 non-preemptible and 40 preemptible.
-  Pool B is using 35 GPUs: 35 non-preemptible only.
+    **New Workflow:** Pool B submits 4-GPU **non-preemptible** workflow
 
-For the next workflow submission, let's consider the following cases:
+    **Result:** Pool B preempts 4 GPUs from Pool A's preemptible workflows
 
-- When Pool A receives a `non-preemptible` workflow for 5 GPUs, Pool A will preempt a workflow from its own pool to get 5 GPUs
+    **Why?**
 
-  * This is because Pool A has not hit its guarantee of 30 GPUs
-  * This workflow is `non-preemptible` and has higher priority, so it will preempt a `non-preemptible` workflow from its own pool
-  * A workflow needs to be preempted because the cluster is completely occupied
+    - Pool B is below its guarantee (30/50)
+    - Non-preemptible workflows have priority over preemptible
+    - Cluster is full, so preemption is necessary
 
-- When Pool A receives a `preemptible` workflow for 5 GPUs instead, this new workflow will be in pending
+.. dropdown:: **Scenario 2: Pool Cannot Preempt Itself with Low Priority**
+    :color: info
+    :icon: info
 
-  * Preemptible workflows cannot preempt other workflows
-  * This new workflow will only schedule once a workflow from either pool has finished
+    **Current State:**
 
-- When Pool B receives a `non-preemptible` workflow for 5 GPUs, Pool B will preempt a `preemptible` workflow from Pool A to get 5 GPUs
+    - Pool A: 65 GPUs (25 non-preemptible + 40 preemptible)
+    - Pool B: 35 GPUs (35 non-preemptible)
+    - Cluster: Fully utilized (100/100)
 
-  * This is because Pool B has not hit its guarantee of 30 GPUs
-  * A `preemptible` workflow will be preempted to allow this `non-preemptible` workflow to schedule
+    **New Workflow:** Pool A submits 5-GPU **preemptible** workflow
+
+    **Result:** Workflow stays pending
+
+    **Why?**
+
+    - Preemptible workflows cannot preempt any other workflows
+    - Must wait for resources to free up naturally
+
+.. dropdown:: **Scenario 3: Pool Preempts Own Workflows**
+    :color: info
+    :icon: info
+
+    **Current State:**
+
+    - Pool A: 65 GPUs (25 non-preemptible + 40 preemptible)
+    - Pool B: 35 GPUs (35 non-preemptible)
+    - Cluster: Fully utilized (100/100)
+
+    **New Workflow:** Pool A submits 5-GPU **non-preemptible** workflow
+
+    **Result:** Pool A preempts 5 GPUs from its own preemptible workflows
+
+    **Why?**
+
+    - Pool A is below its guarantee (25/30 non-preemptible)
+    - Non-preemptible workflows take priority
+    - Pool preempts its own low-priority work
+
+
+Troubleshooting
+---------------
+
+**Preemption Not Working**
+  - Verify ALL pools have ``guarantee``, ``weight``, and ``maximum`` configured
+  - Check pools share the same compute nodes
+  - Ensure workflows use correct priority levels (``HIGH``/``NORMAL``/``LOW``)
+
+**Unfair Resource Distribution**
+  - Review weight ratios across pools
+  - Verify guarantee values don't exceed cluster capacity
+  - Check if pools are hitting their maximum limits
+
+**Workflows Stuck in Pending**
+  - Confirm total guarantees don't exceed cluster capacity
+  - Check if pool has reached its maximum limit
+  - Verify preemptible workflows are marked with ``LOW`` priority
+
+.. tip::
+
+   **Best Practices**
+
+   - Set guarantees to cover baseline workload for each team
+   - Use weights to reflect team priorities (higher weight = more burst capacity)
+   - Set reasonable maximums to prevent one team from monopolizing resources
+   - Mark exploratory/dev work as ``LOW`` priority (preemptible)
+   - Reserve ``HIGH``/``NORMAL`` priority for production workloads
+   - Monitor pool utilization and adjust settings quarterly
+
+.. seealso::
+
+  - Learn more about KAI scheduler at `github.com/NVIDIA/kai-scheduler <https://github.com/NVIDIA/kai-scheduler>`_
+  - Learn more about scheduling in OSMO at `github.com/NVIDIA/OSMO/scheduling <https://nvidia.github.io/OSMO/user_guide/resource_pools/scheduling/index.html#scheduling>`_

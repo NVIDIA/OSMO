@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 
 ================================
-**Welcome to NVIDIA OSMO**
+**Welcome to OSMO**
 ================================
 
 OSMO is a cloud native platform for Robotics developers that provides a single interface to manage all steps of AI and robotics development, from compute to data storage.

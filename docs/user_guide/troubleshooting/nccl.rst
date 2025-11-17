@@ -80,7 +80,7 @@ When Do You Hit NCCL Timeouts?
 **3. Resource Contention**
 
 * GPU out-of-memory conditions causing swapping or allocation delays
-* CPU oversubscription affecting data processing
+* CPU over-subscription affecting data processing
 * I/O bottlenecks from writing to local storage or mounted file systems
 * Local storage or mounted file systems out of space blocking checkpointing or writing logs
 

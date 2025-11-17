@@ -130,13 +130,13 @@ Create the master encryption key (MEK) for database encryption:
            key1: $ENCODED_JWK
      EOF
 
-.. warning::
-   **Security Considerations**:
+.. admonition:: Security Considerations
+  :class: important
 
-   - Store the original JWK securely as you'll need it for backups and recovery
-   - Never commit the MEK to version control
-   - Use a secure key management system, such as Vault in production
-   - The MEK is used to encrypt sensitive data in the database
+  - Store the original JWK securely as you'll need it for backups and recovery
+  - Never commit the MEK to version control
+  - Use a secure key management system, such as Vault in production
+  - The MEK is used to encrypt sensitive data in the database
 
 **Example MEK generation script**:
 

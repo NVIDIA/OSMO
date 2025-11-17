@@ -19,98 +19,240 @@
 .. _rsync_setup:
 
 =======================================================
-Rsync Setup
+Rsync Configuration
 =======================================================
 
-This appendix describes how to setup rsync for OSMO.
+Enable rsync integration to sync files between user workstations and running workflow tasks. This configuration is optional but enables live code editing and real-time collaboration during development on a remote machine.
+
+
+Why Use Rsync?
+==============
+
+Rsync integration provides seamless file synchronization during workflow execution:
+
+✓ **Live Development**
+  Edit code locally and sync changes to running tasks in real-time without restarting workflows.
+
+✓ **Bandwidth Control**
+  Prevent network saturation with configurable rate limits for uploads and downloads.
+
+✓ **Flexible Sync Paths**
+  Define custom mount points beyond the default ``/osmo/run/workspace`` for specialized workflows.
+
+
+How It Works
+============
+
+Sync Flow
+---------
+
+.. grid:: 3
+    :gutter: 2
+
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
+
+        **1. Local Edit** ✏️
+        ^^^
+
+        Modify files
+
+        +++
+
+        Change code locally
+
+    .. grid-item-card::
+        :class-header: sd-bg-primary sd-text-white
+
+        **2. Daemon Detects** 👁️
+        ^^^
+
+        Monitor changes
+
+        +++
+
+        Wait for debounce delay
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **3. Auto Sync** 🔄
+        ^^^
+
+        Transfer files
+
+        +++
+
+        Push to running task
+
+Key Settings
+------------
+
+- **Bandwidth Limits**: Control upload/download rates to prevent network congestion
+- **Debounce Delay**: Wait period after file changes before syncing (batches rapid edits)
+- **Poll Interval**: How often to check task status
+- **Allowed Paths**: Additional directories accessible for sync operations
 
 .. note::
 
-    Rsync is a file synchronization tool that allows you to sync files between a source and a destination.
-    OSMO has integrated rsync into user workflows and the OSMO CLI to allow for seamless file synchronization
-    between a user workstation and remote tasks.
+   For detailed configuration fields and defaults, see :ref:`rsync_plugin`.
 
-Configuration Process Overview
--------------------------------
 
-Use the configuration CLI (:doc:`../references/config_cli/config_update`) to configure the rsync plugin:
+Practical Guide
+===============
+
+Enabling Rsync
+--------------
+
+**Step 1: Update Workflow Configuration**
+
+Enable the rsync plugin in your OSMO configuration:
 
 .. code-block:: bash
 
   $ osmo config update WORKFLOW
 
-Navigate to ``plugins_config`` section and update the ``rsync`` configuration:
+Edit the ``plugins_config.rsync`` section:
 
 .. code-block:: json
 
-  "plugins_config": {
-    "rsync": {
-      "enabled": false,
-      "enable_telemetry": false,
-      "read_bandwidth_limit": 2621440,
-      "write_bandwidth_limit": 2621440,
-      "allowed_paths": {},
-      "daemon_debounce_delay": 30,
-      "daemon_poll_interval": 120,
-      "daemon_reconcile_interval": 60,
-      "client_upload_rate_limit": 2097152
+  {
+    "plugins_config": {
+      "rsync": {
+        "enabled": true,
+        "enable_telemetry": false,
+        "read_bandwidth_limit": 2621440,
+        "write_bandwidth_limit": 2621440,
+        "allowed_paths": {},
+        "daemon_debounce_delay": 30,
+        "daemon_poll_interval": 120,
+        "daemon_reconcile_interval": 60,
+        "client_upload_rate_limit": 2097152
+      }
     }
   }
 
-Adjust the ``rsync`` properties as needed:
+**Step 2: Configure Settings**
+
+.. dropdown:: **Bandwidth Configuration**
+    :color: info
+    :icon: meter
+
+    Control network usage with rate limits (bytes per second):
+
+    .. code-block:: json
+
+      {
+        "read_bandwidth_limit": 5242880,
+        "write_bandwidth_limit": 5242880,
+        "client_upload_rate_limit": 4194304
+      }
+
+    **Limits:**
+
+    - ``read_bandwidth_limit``: 5 MB/s container read (5242880 bytes/sec)
+    - ``write_bandwidth_limit``: 5 MB/s container write (5242880 bytes/sec)
+    - ``client_upload_rate_limit``: 4 MB/s client upload (4194304 bytes/sec)
+
+    **Recommended Values:**
+
+    - Low-bandwidth: 1 MB/s (1048576)
+    - Medium-bandwidth: 5 MB/s (5242880)
+    - High-bandwidth: 10 MB/s (10485760)
+
+.. dropdown:: **Timing Configuration**
+    :color: info
+    :icon: clock
+
+    Adjust sync timing for your workflow patterns:
+
+    .. code-block:: json
+
+      {
+        "daemon_debounce_delay": 10,
+        "daemon_poll_interval": 60,
+        "daemon_reconcile_interval": 30
+      }
+
+    **Timing Values:**
+
+    - ``daemon_debounce_delay``: 10 seconds (faster sync)
+    - ``daemon_poll_interval``: 60 seconds (check status every minute)
+    - ``daemon_reconcile_interval``: 30 seconds (reconcile uploads)
+
+    **Guidelines:**
+
+    - **Debounce Delay**: Lower for rapid iteration (10s), higher for stability (60s)
+    - **Poll Interval**: Balance between responsiveness and API load
+    - **Reconcile Interval**: How often to verify sync consistency
+
+.. dropdown:: **Remote Path Configuration**
+    :color: info
+    :icon: file-directory
+
+    Add additional sync destinations beyond ``/osmo/run/workspace``:
+
+    .. code-block:: json
+      :emphasize-lines: 4,7
+
+      {
+        "allowed_paths": {
+          "dataset": {
+            "path": "/mnt/shared/datasets/",
+            "writable": true
+          },
+          "models": {
+            "path": "/mnt/models/",
+            "writable": false
+          }
+        }
+      }
+
+    Users can then sync to new remote paths
+
+    .. code-block:: bash
+
+      $ osmo workflow rsync wf-id ~/my/path:/mnt/shared/datasets/
+      $ osmo workflow rsync wf-id ~/my/path:/mnt/models/
+
+Troubleshooting
+---------------
+
+**Rsync Not Working**
+- Verify ``enabled: true`` in configuration
+- Check workflow was started AFTER configuration update
+- Confirm rsync daemon is running: ``osmo rsync status``
+
+**Slow Sync Performance**
+- Increase bandwidth limits if network capacity allows
+- Reduce debounce delay for faster detection
+- Check for network congestion or firewall rules
+
+**File Conflicts**
+- Review reconcile interval (lower = more frequent consistency checks)
+- Ensure only one user is syncing to each task
+- Check file permissions on remote paths
+
+**Path Not Accessible**
+- Verify path exists in ``allowed_paths`` configuration
+- Confirm path has correct permissions (``writable: true/false``)
+- Remember ``/osmo/run/workspace`` is always available
+
+.. tip::
+
+   **Best Practices**
+
+   - Start with default settings and adjust based on usage patterns
+   - Set bandwidth limits appropriate to your network capacity
+   - Use higher debounce delays (30-60s) for production to reduce API calls
+   - Enable telemetry initially to monitor sync behavior
+   - Test rsync with small files before large datasets
+   - Document custom paths in team onboarding materials
 
 .. warning::
 
-   Set these values based on your network and storage performance requirements.
-   Setting bandwidth limits can help prevent network saturation and ensure fair resource usage.
+   Rsync changes apply only to workflows started after the configuration update. Restart running workflows to pick up new settings.
 
-.. list-table:: Rsync Plugin Configuration Options
-   :header-rows: 1
-   :widths: 25 100 50
+.. seealso::
 
-   * - Option
-     - Description
-     - Examples
-   * - ``enabled``
-     - Enable or disable the rsync plugin.
-     - ``true`` or ``false``
-   * - ``enable_telemetry``
-     - Enable telemetry collection for rsync operations.
-     - ``true`` or ``false``
-   * - ``read_bandwidth_limit``
-     - **Maximum** workflow container rsync read bandwidth in bytes per second. Default is 2.5MB/s.
-     - ``2621440``
-   * - ``write_bandwidth_limit``
-     - **Maximum** workflow container rsync write bandwidth in bytes per second. Default is 2.5MB/s.
-     - ``2621440``
-   * - ``allowed_paths``
-     - Dictionary of allowed source/destination paths for rsync operations. Default is empty.
-       ``/osmo/run/workspace`` is always available as a remote path.
-     - .. code-block:: json
-
-          {
-            "path_1": {
-              "path": "/path/to/dest/1/",
-              "writable": true
-            },
-            "path_2": {
-              "path": "/path/to/dest/2/",
-              "writable": true
-            }
-          }
-   * - ``daemon_debounce_delay``
-     - Client daemon's **minimum** time in seconds to wait after a file change before uploading. Default is 30 seconds.
-     - ``30.0``
-   * - ``daemon_poll_interval``
-     - Client daemon's **minimum** interval in seconds for polling task status. Default is 120 seconds.
-     - ``120.0``
-   * - ``daemon_reconcile_interval``
-     - Client daemon's **minimum** interval in seconds for reconciling uploads. Default is 60 seconds.
-     - ``60.0``
-   * - ``client_upload_rate_limit``
-     - Client's **maximum** upload rate in bytes per second. Default is 2MB/s.
-     - ``2097152``
-
-.. note::
-
-    Changes will apply for any workflow tasks that are started after the configuration update.
+  - Learn more about Rsync in OSMO at `Interactive Workflows <https://nvidia.github.io/OSMO/user_guide/workflows/interactive/rsync.html>`_

@@ -23,9 +23,10 @@ Deploy Backend Operator
 
 Deploying the backend operator will register your compute backend with OSMO, making its resources available for running workflows. Follow these steps to deploy and connect your backend to OSMO.
 
-.. note::
+.. admonition:: Prerequisites
+  :class: important
 
-  - Ensure `OSMO CLI <https://nvidia.github.io/OSMO/user_guide/getting_started/install>`_ is installed before you begin.
+  - Install `OSMO CLI <https://nvidia.github.io/OSMO/user_guide/getting_started/install>`_ before you begin
   - Replace ``osmo.example.com`` with your domain name in the commands below
 
 .. _create_osmo_token:

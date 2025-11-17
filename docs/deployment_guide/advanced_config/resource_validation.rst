@@ -31,7 +31,7 @@ Why Use Resource Validation?
 Resource validation provides guardrails that protect your cluster and improve user experience:
 
 ✓ **Prevent Scheduling Failures**
-  Reject workflows that request more CPU, memory, or GPU than any node can provide, avoiding pods stuck in pending state.
+  Reject workflows that request more CPU, memory, or GPU than any node can provide, avoiding pods getting stuck in pending state.
 
 ✓ **Catch Configuration Errors**
   Detect invalid resource specifications (negative values, zero allocations, incorrect units) before submission.
@@ -46,7 +46,8 @@ Resource validation provides guardrails that protect your cluster and improve us
 How It Works
 ============
 
-**Validation Flow:**
+Validation Flow
+---------------
 
 .. grid:: 3
     :gutter: 2
@@ -54,14 +55,14 @@ How It Works
     .. grid-item-card::
         :class-header: sd-bg-info sd-text-white
 
-        **1. Submit Workflow** 📤
+        **1. Submit Workflow** 📝
         ^^^
 
         User requests resources
 
         +++
 
-        CPU, memory, GPU, storage
+        CPU, memory, GPU, storage resources
 
     .. grid-item-card::
         :class-header: sd-bg-warning sd-text-white
@@ -73,7 +74,7 @@ How It Works
 
         +++
 
-        Compare with node specs
+        Compare with rule structure set by admin
 
     .. grid-item-card::
         :class-header: sd-bg-success sd-text-white
@@ -85,9 +86,10 @@ How It Works
 
         +++
 
-        Queue or show error message
+        Submit for scheduling or show error message
 
-**Rule Structure:**
+Rule Structure
+--------------
 
 Each validation rule has four components:
 
@@ -113,8 +115,8 @@ Each validation rule has four components:
 Practical Guide
 ===============
 
-Creating Standard Validation Rules
------------------------------------
+Standard Validation Rules
+----------------------------
 
 Create validation templates for common resources: CPU, GPU, memory, and storage.
 
@@ -316,7 +318,7 @@ Troubleshooting
   - Check no nodes are in unschedulable state
 
 **Unit Conversion Errors**
-  - Use consistent units between requests and validation (Gi vs GB)
+  - Use consistent units between requests and validation (For example, use ``Gi`` vs ``GB``)
   - Review variable substitution in error messages
 
 **Debugging Tips**
@@ -324,6 +326,11 @@ Troubleshooting
   - Test validation with different resource values
   - Examine OSMO service logs for detailed rule evaluation
 
-.. warning::
+.. tip::
 
-   Don't allow 100% resource utilization. Leave margins for system overhead and unexpected spikes. Use ``LT`` (less than) instead of ``LE`` (less/equal) for memory and storage.
+  **Best Practices**
+
+  - Don't allow 100% resource utilization - leave margins for system overhead and unexpected spikes
+  - Use ``LT`` (less than) instead of ``LE`` (less/equal) for memory and storage to ensure safety margins
+  - Write clear error messages that include variable values to help users fix issues quickly
+  - Test rules with edge cases (minimum values, maximum values, invalid inputs)

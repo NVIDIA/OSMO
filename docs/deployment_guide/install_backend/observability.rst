@@ -23,15 +23,15 @@ Add Observability (Optional)
 
 Integrate OSMO with `Grafana <https://grafana.com/>`__ and `Kubernetes Dashboard <https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/>`__ to monitor backend clusters, track resource usage, and improve operational visibility.
 
-Prerequisites
-==============
+.. admonition:: Prerequisites
+  :class: important
 
-Install the following components in your compute cluster for full observability support:
+  Install the following components in your compute cluster for full observability support:
 
-- `Ingress controller <https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/>`__
-- `Prometheus <https://prometheus.io/docs/prometheus/latest/installation/>`__
-- `Grafana <https://grafana.com/docs/grafana/latest/setup-grafana/installation/>`__
-- `Kubernetes Dashboard <https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/>`__
+  - `Ingress controller <https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/>`__
+  - `Prometheus <https://prometheus.io/docs/prometheus/latest/installation/>`__
+  - `Grafana <https://grafana.com/docs/grafana/latest/setup-grafana/installation/>`__
+  - `Kubernetes Dashboard <https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/>`__
 
 
 Install Grafana Dashboards

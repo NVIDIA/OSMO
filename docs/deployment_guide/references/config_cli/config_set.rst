@@ -32,7 +32,7 @@ is ``backend`` and ``pool``.
 
    Available config types (CONFIG_TYPE): ROLE
 
-   Ex. osmo config set ROLE my-backend-role backend --field name-of-backend 
+   Ex. osmo config set ROLE my-backend-role backend --field name-of-backend
    Ex. osmo config set ROLE osmo-<pool-name-prefix> pool
 
 Positional Arguments

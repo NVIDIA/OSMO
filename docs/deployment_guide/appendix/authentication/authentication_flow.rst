@@ -130,7 +130,7 @@ Authenticated Requests
 4. The request is forwarded to the JWT Filter, which:
 
    - Checks the JWT token signature
-   - Validates the audience (aud) and issuer (iss) claims
+   - Validates the audience and issuer claims
 
 5. The request then passes through the OPA Filter, which:
 

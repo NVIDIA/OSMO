@@ -21,10 +21,10 @@
 Configure Data Storage
 ================================================
 
-.. note::
+.. admonition:: Prerequisites
+  :class: important
 
-  Ensure you have created the required data storage before configuring OSMO to use them: :ref:`create_data_storage`
-
+  Before configuring OSMO to use data storage, ensure you have created the required data storage: :ref:`create_data_storage`
 
 Workflow Logs
 ===============

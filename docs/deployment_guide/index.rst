@@ -15,11 +15,11 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-=======================
-OSMO Deployment Guide
-=======================
+===============================
+**Welcome to OSMO Deployment**
+===============================
 
-Welcome to the OSMO Deployment Guide! This guide will walk you through deploying OSMO, a cloud-native platform designed for robotics developers to manage all aspects of AI and robotics development, from compute resources to data storage.
+This guide will walk you through deploying OSMO, a cloud-native platform designed for robotics developers to manage all aspects of AI and robotics development, from compute resources to data storage.
 
 What is OSMO?
 =============

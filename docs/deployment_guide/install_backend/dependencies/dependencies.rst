@@ -21,11 +21,12 @@
 Install Dependencies
 ================================
 
-Prerequisites
-=====================
 
-- An operational Kubernetes cluster with recommended instance types (see :ref:`create_backend`)
-- `Helm <https://helm.sh/docs/intro/install>`_ CLI installed
+.. admonition:: Prerequisites
+  :class: important
+
+  - An operational Kubernetes cluster with recommended instance types (see :ref:`create_backend`)
+  - `Helm <https://helm.sh/docs/intro/install>`_ CLI installed
 
 
 .. _installing_kai:

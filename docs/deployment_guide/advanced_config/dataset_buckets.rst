@@ -21,94 +21,293 @@
 Dataset Buckets
 ===============
 
-Datasets are optional and are used if users have preexisting data buckets or want to store data in isolated buckets. This option allows users to register that bucket with osmo and use our datasets concept to manage their data.
+Register external cloud storage buckets (S3, GCS, Azure) with OSMO to organize `datasets <https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html#datasets>`_ across multiple storage locations (This configuration is optional)
 
-With the URI, decide on a name for the URI which will be OSMO's reference. For example, if the name is ``decided_name``,
-datasets which are placed in that bucket will be referenced by ``decided_name/dataset_name``.
 
-Configure Dataset Buckets
-==========================
+Why Use Dataset Buckets?
+=========================
 
-Create the configuration of the new bucket with the following command:
+Multiple dataset buckets provide flexible data management for OSMO datasets:
+
+✓ **Automatic Deduplication**
+  Content-addressed storage means identical files are stored only once across versions, saving storage costs and transfer time.
+
+✓ **Version Control**
+  Full version history for datasets—track changes, rollback to previous versions, and maintain reproducible workflows.
+
+✓ **Organize by Team or Project**
+  Separate datasets across different buckets for access control, billing, or organizational boundaries.
+
+✓ **Use Existing Infrastructure**
+  Register pre-existing S3/GCS/Azure buckets without migrating data—integrate seamlessly with existing storage.
+
+✓ **Multi-Cloud Support**
+  Mix storage providers (AWS S3, Google Cloud Storage, Azure Blob) in the same OSMO deployment.
+
+✓ **Simplified References**
+  Use short names (e.g., ``production/model-v2``) instead of full URIs (``s3://long-bucket-name/model-v2``).
+
+✓ **Persistent & Shareable**
+  Datasets persist beyond workflow execution and can be shared across workflows, teams, and accessed via CLI, workflows, or Web UI.
+
+
+How It Works
+============
+
+Bucket Registration
+-------------------
+
+.. grid:: 3
+    :gutter: 2
+
+    .. grid-item-card::
+        :class-header: sd-bg-info sd-text-white
+
+        **1. Register Bucket** 🪣
+        ^^^
+
+        Add cloud storage
+
+        +++
+
+        Map name to URI (S3, GCS, Azure)
+
+    .. grid-item-card::
+        :class-header: sd-bg-primary sd-text-white
+
+        **2. Set Default** ⭐
+        ^^^
+
+        Choose primary bucket
+
+        +++
+
+        Users reference without prefix
+
+    .. grid-item-card::
+        :class-header: sd-bg-success sd-text-white
+
+        **3. Use in Workflows** 🔗
+        ^^^
+
+        Reference datasets
+
+        +++
+
+        Usage: ``bucket-name/dataset-name``
+
+Bucket Naming
+-------------
+
+Once registered with a bucket name (say ``production``), datasets in that bucket are referenced as:
+
+- ``production/imagenet``
+- ``production/resnet50``
+
+If the bucket is set as the default bucket, datasets can be referenced without the bucket name prefix:
+
+- ``imagenet``
+- ``resnet50``
+
+Practical Guide
+===============
+
+Registering Buckets
+-------------------
+
+**Step 1: Register Single Bucket**
+
+Add your first cloud storage bucket:
 
 .. code-block:: bash
-
-  # Name of Bucket
-  $ export BUCKET_NAME=...
-
-  # URI of your s3 bucket e.g. s3://my_bucket
-  $ export BACKEND_URI=...
 
   $ cat << EOF > /tmp/dataset_config.json
   {
     "buckets": {
-        "'$BUCKET_NAME'": {
-            "dataset_path": "'$BACKEND_URI'"
-        }
+      "production": {
+        "dataset_path": "s3://my-production-bucket"
+      }
     }
   }
   EOF
 
-Then, update the dataset configuration using the OSMO CLI.
+  $ osmo config update DATASET --file /tmp/dataset_config.json
+
+**Step 2: Register Multiple Buckets**
+
+Add buckets from different cloud providers:
 
 .. code-block:: bash
 
-  osmo config update DATASET --file /tmp/dataset_config.json
-
-
-If there are multiple buckets to be included, add each bucket to the dictionary of buckets in ``buckets``.
-For example, if there were two buckets, the json would look like:
-
-.. code-block:: json
-  :class: no-copybutton
-
+  $ cat << EOF > /tmp/dataset_config.json
   {
     "buckets": {
-        "bucket1": {
-            "dataset_path": "s3://bucket1"
-        },
-        "bucket2": {
-            "dataset_path": "gs://bucket2"
-        }
+      "production": {
+        "dataset_path": "s3://prod-datasets"
+      },
+      "staging": {
+        "dataset_path": "s3://staging-datasets"
+      },
+      "research": {
+        "dataset_path": "gs://research-bucket"
+      },
+      "archive": {
+        "dataset_path": "azure://archive-storage"
+      }
     }
-  }
-
-Set Default Bucket
-==================
-
-For example, if the bucket name is ``my_bucket`` and the URI is ``s3://my_bucket``:
-
-If this bucket will be the default bucket users will use, create this configuration:
-
-.. code-block:: bash
-
-  # Name of Bucket
-  $ export BUCKET_NAME=...
-
-  $ cat << EOF > /tmp/dataset_default_bucket_config.json
-  {
-    "default_bucket": "'$BUCKET_NAME'"
   }
   EOF
 
-Then, update the dataset configuration using the OSMO CLI.
+  $ osmo config update DATASET --file /tmp/dataset_config.json
+
+**Step 3: Set Default Bucket**
+
+Designate one bucket as the default (users can omit the bucket name prefix):
 
 .. code-block:: bash
 
-  osmo config update DATASET --file /tmp/dataset_default_bucket_config.json
+  $ cat << EOF > /tmp/default_bucket_config.json
+  {
+    "default_bucket": "production"
+  }
+  EOF
 
+  $ osmo config update DATASET --file /tmp/default_bucket_config.json
 
-Verify Configuration
-====================
+**Step 4: Verify Configuration**
 
-Once the bucket has been added to OSMO, verify the installation using ``osmo bucket list``.
+List all registered buckets:
 
 .. code-block:: bash
-  :substitutions:
 
   $ osmo bucket list
 
   Bucket               Location
   ============================================
-  my_bucket (default)  s3://my_bucket_location
+  production (default) s3://prod-datasets
+  staging              s3://staging-datasets
+  research             gs://research-bucket
+  archive              azure://archive-storage
 
+
+Usage Examples
+--------------
+
+.. dropdown:: **Team-Based Buckets**
+    :color: info
+    :icon: people
+
+    Separate datasets by team or department:
+
+    .. code-block:: json
+
+      {
+        "buckets": {
+          "robotics": {
+            "dataset_path": "s3://robotics-team-data"
+          },
+          "ml-research": {
+            "dataset_path": "s3://ml-research-data"
+          },
+          "engineering": {
+            "dataset_path": "s3://engineering-shared"
+          }
+        },
+        "default_bucket": "robotics"
+      }
+
+    **Workflow Usage:**
+
+    .. code-block:: yaml
+
+      inputs:
+        - robotics/sim-data-2024      # Robotics team bucket
+        - ml-research/models          # ML research bucket
+        - synthetic-data              # Default bucket (robotics)
+
+.. dropdown:: **Environment-Based Buckets**
+    :color: info
+    :icon: gear
+
+    Organize by development stage:
+
+    .. code-block:: json
+
+      {
+        "buckets": {
+          "dev": {
+            "dataset_path": "s3://dev-datasets"
+          },
+          "staging": {
+            "dataset_path": "s3://staging-datasets"
+          },
+          "production": {
+            "dataset_path": "s3://prod-datasets"
+          }
+        },
+        "default_bucket": "dev"
+      }
+
+.. dropdown:: **Multi-Cloud Buckets**
+    :color: info
+    :icon: cloud
+
+    Mix storage providers:
+
+    .. code-block:: json
+
+      {
+        "buckets": {
+          "aws-main": {
+            "dataset_path": "s3://primary-storage"
+          },
+          "gcp-backup": {
+            "dataset_path": "gs://backup-datasets"
+          },
+          "azure-archive": {
+            "dataset_path": "azure://cold-storage"
+          }
+        },
+        "default_bucket": "aws-main"
+      }
+
+
+Troubleshooting
+---------------
+
+**Bucket Not Found**
+  - Verify bucket name matches exactly (case-sensitive)
+  - Check bucket was added before workflow submission
+  - Run ``osmo bucket list`` to see all registered buckets
+
+**Access Denied Errors**
+  - Ensure OSMO service has IAM credentials for the bucket
+  - Verify bucket permissions allow read/write operations
+  - Check bucket region matches OSMO cluster region
+
+**Default Bucket Not Working**
+  - Confirm default_bucket name matches a registered bucket
+  - Verify configuration was applied: ``osmo config get DATASET``
+  - Check workflows use correct dataset reference format
+
+.. tip::
+
+   **Best Practices**
+
+   - Use descriptive bucket names (team, project, or environment)
+   - Set a default bucket for the most common use case
+   - Document bucket purposes and access policies for teams
+   - Use separate buckets for production vs. development data
+   - Consider data locality (bucket region near compute)
+   - Review and clean up unused buckets quarterly
+
+.. note::
+
+   Supported storage protocols:
+    - ``s3://`` (AWS S3)
+    - ``gs://`` (Google Cloud Storage)
+    - ``azure://`` (Azure Blob Storage)
+
+.. seealso::
+
+  - Learn more about datasets in OSMO at `Datasets <https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html#datasets>`_
