@@ -158,10 +158,31 @@ bazel run @osmo_workspace///src/operator/utils/node_validation_test:lfs_validato
 
 ## Running in Kubernetes (DaemonSet pattern)
 
-Reference container images (as used in docs/backend tests):
-- `osmo.local/resource-validator:latest`
-- `osmo.local/connection-validator:latest`
-- `osmo.local/lfs-validator:latest`
+### Build and Push Your Own Validator Images
+
+To use these node validator tools in your cluster, you must build your own container images and push them to a registry you control. Do **not** use the example image names (like `osmo.local/resource-validator:latest`) in production.
+
+See [BUILD_AND_TEST.md](../../../../BUILD_AND_TEST.md) for instructions on how to build images and use them.
+
+The commands will build and push the images for the designated architecture.
+
+#### AMD64
+
+```bash
+
+bazel run @osmo_workspace///src/operator/utils/node_validation_test:resource_validator_push_x86_64
+bazel run @osmo_workspace///src/operator/utils/node_validation_test:connection_validator_push_x86_64
+bazel run @osmo_workspace///src/operator/utils/node_validation_test:lfs_validator_push_x86_64
+```
+
+#### ARM64
+
+```bash
+bazel run @osmo_workspace///src/operator/utils/node_validation_test:resource_validator_push_aarch64
+bazel run @osmo_workspace///src/operator/utils/node_validation_test:connection_validator_push_aarch64
+bazel run @osmo_workspace///src/operator/utils/node_validation_test:lfs_validator_push_aarch64
+```
+
 
 Typical container settings:
 - `imagePullSecrets`: include your `nvcr.io` secret (e.g., `nvcr-secret`)
