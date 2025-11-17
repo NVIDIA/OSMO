@@ -137,8 +137,7 @@ Define validation rules using variables for user requests (``{{USER_*}}``) and n
     .. note::
 
       The values from the `user request variables` are the same values that are provided in the resource
-      spec of a workflow. ``{{USER_MEMORY}}`` and ``{{USER_STORAGE}}`` support units ``B``, ``KiB``,
-      ``MiB``, ``GiB`` and ``TiB``.
+      spec of a workflow.
 
     **Node Capacity Variables:**
       - ``{{K8_CPU}}`` - Available CPU on nodes
@@ -151,6 +150,11 @@ Define validation rules using variables for user requests (``{{USER_*}}``) and n
       The values from the `node capacity variables` are the same values that are reported by the Kubernetes
       API in the `allocatable` fields. ``{{K8_MEMORY}}`` and ``{{K8_STORAGE}}`` support units ``B``, ``Ki``,
       ``Mi``, ``Gi`` and ``Ti``.
+
+    .. note::
+
+      If the CPU allocatable provided by Kubernetes is in the format of ``m``,
+      ``{{K8_CPU}}`` will be an integer value after rounding down the CPU allocatable value.
 
     **Operators:**
       - EQ (equal)
