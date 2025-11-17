@@ -45,10 +45,6 @@ need to use the a corresponding local client to access the service.
 
     To stop the port forwarding, simply hit :kbd:`Ctrl+C` in the port-forwarding terminal.
 
-.. seealso::
-
-    For examples of common services that can be port forwarded,
-    see `integration & tools <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools>`_.
 
 Browser
 =======

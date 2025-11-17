@@ -186,7 +186,7 @@ How to save the intermediate data when the workflow is stuck or hangs?
 
 You can save your data in the workflow by running the OSMO CLI while exec'd into the workflow.
 
-The tutorial `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/basics/osmo_cli>`__ shows how to perform this operation.
+See :ref:`tutorials_advanced_patterns_osmo_cli_wf` for how to perform this operation.
 
 How to access a private GitHub repository from a workflow?
 ----------------------------------------------------------

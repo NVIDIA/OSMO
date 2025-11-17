@@ -18,18 +18,18 @@
 .. _guides_isaac_groot:
 
 ===============================================================
-Isaac Groot: Interactive Notebook for Inference and Fine-tuning
+Isaac Gr00t: Interactive Notebook for Inference and Fine-tuning
 ===============================================================
 
-This workflow demonstrates how to perform inference and fine-tuning using `Isaac Groot <https://research.nvidia.com/labs/gear/gr00t-n1_5/>`_
+This workflow demonstrates how to perform inference and fine-tuning using `Isaac Gr00t <https://research.nvidia.com/labs/gear/gr00t-n1_5/>`_
 through a Jupyter notebook.
 
-This tutorial is for users who want to experiment with the Isaac Groot foundation models and libraries, and fine-tune it for their own use cases.
+This tutorial is for users who want to experiment with the Isaac Gr00t foundation models and libraries, and fine-tune it for their own use cases.
 
 Prerequisites
 -------------
 
-The libraries in Isaac Groot requires at least an Ampere GPU to run.
+The libraries in Isaac Gr00t requires at least an Ampere GPU to run.
 Please check the `system requirements <https://github.com/NVIDIA/Isaac-GR00T?tab=readme-ov-file#prerequisites>`_
 for more on the specific GPUs that are supported.
 

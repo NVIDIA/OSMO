@@ -106,6 +106,7 @@ gpu
 gpus
 grafana
 Grafana
+gr00t
 groot
 Hac
 highgpu
