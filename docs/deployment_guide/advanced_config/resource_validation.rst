@@ -134,13 +134,35 @@ Define validation rules using variables for user requests (``{{USER_*}}``) and n
       - ``{{USER_MEMORY}}`` - Memory requested (e.g., "8Gi")
       - ``{{USER_STORAGE}}`` - Storage requested (e.g., "100Gi")
 
+    .. note::
+
+      The values from the `user request variables` are the same values that are provided in the resource
+      spec of a workflow.
+
     **Node Capacity Variables:**
       - ``{{K8_CPU}}`` - Available CPU on nodes
       - ``{{K8_GPU}}`` - Available GPU on nodes
       - ``{{K8_MEMORY}}`` - Available memory on nodes
       - ``{{K8_STORAGE}}`` - Available storage on nodes
 
-    **Operators:** EQ (equal), LT (less than), LE (less/equal), GT (greater than), GE (greater/equal)
+    .. note::
+
+      The values from the `node capacity variables` are the same values that are reported by the Kubernetes
+      API in the `allocatable` fields. ``{{K8_MEMORY}}`` and ``{{K8_STORAGE}}`` support units ``B``, ``Ki``,
+      ``Mi``, ``Gi`` and ``Ti``.
+
+    .. note::
+
+      If the CPU allocatable provided by Kubernetes is in the format of ``m``,
+      ``{{K8_CPU}}`` will be an integer value after rounding down the CPU allocatable value.
+
+    **Operators:**
+      - EQ (equal)
+      - LT (less than)
+      - LE (less/equal)
+      - GT (greater than)
+      - GE (greater/equal)
+      - NE (not equal)
 
     For all available variables and detailed configuration fields, see :ref:`resource_validation_config`.
 

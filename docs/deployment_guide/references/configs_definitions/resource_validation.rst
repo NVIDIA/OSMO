@@ -104,6 +104,41 @@ The following example shows a CPU validation rule that ensures user-requested CP
 The key here is ``default_cpu``, which is the name of the resource validation set. The value is an array of resource validation rules.
 When a pool is configured using this resource validation set, the resource validation rules will be applied to workflows submitted to the pool.
 
+Rules Breakdown
+~~~~~~~~~~~~~~~
+
+In the first rule, we are comparing the values of two dynamic variables: ``{{USER_CPU}}`` and ``{{K8_CPU}}``.
+If a variable that starts with ``K8_`` is used, this validation check will be performed against **all available**
+resource nodes in the pool.
+
+In the second rule, we are comparing the values of one dynamic variable (``{{USER_CPU}}``) and a static value: ``0``.
+This **static validation check** will be performed **once**.
+
+.. note::
+
+  The static validation check can compare values with units. For example:
+
+  .. code-block:: json
+
+    {
+        "operator": "GT",
+        "left_operand": "{{USER_STORAGE}}",
+        "right_operand": "5Gi",
+        "assert_message": "Storage value {{USER_STORAGE}} needs to be greater than 5Gi"
+    }
+
+  For static values, resource validation supports units ``B``, ``Ki``, ``Mi``, ``Gi`` and ``Ti``.
+
+  Users can pick any unit specified above for the static value, and the resource validation check will
+  perform unit conversion to compare ``{{USER_STORAGE}}`` with the static value.
+
+  .. dropdown:: Does static validation support the ``m`` unit for comparing CPU?
+    :color: info
+    :icon: code
+
+    Currently, CPU validation does not support the ``m`` unit. For your static value, you will need to
+    use an integer instead.
+
 A pool can apply this resource validation set by adding the name to the ``common_resource_validations`` array,
 and a platform can apply this resource validation set by adding the name to the ``override_resource_validations`` array.
 
