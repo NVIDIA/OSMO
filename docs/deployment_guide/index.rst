@@ -164,4 +164,8 @@ An OSMO deployment consists of two main components:
   appendix/workflow_execution
   appendix/authentication/index
 
+..
+  Optional appendix sections can be included
 
+
+.. auto-include:: appendix/*.in.rst
