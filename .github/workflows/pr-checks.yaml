@@ -45,14 +45,17 @@ jobs:
           token: ''
           filters: |
             ci:
+              - '.github/workflows/pr-checks.yaml'
               - 'BUILD'
               - 'MODULE.bazel'
               - 'bzl/**'
               - 'src/**'
               - 'run/**'
             docs:
+              - '.github/workflows/pr-checks.yaml'
               - 'docs/**'
             ui:
+              - '.github/workflows/pr-checks.yaml'
               - 'BUILD'
               - 'MODULE.bazel'
               - 'bzl/**'
