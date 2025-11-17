@@ -35,12 +35,12 @@ Run sample workflows to validate the backend and pool configuration.
         Submit the `hello world tutorial <https://nvidia.github.io/OSMO/user_guide/tutorials/hello_world/>`__ to verify core functionality.
 
     .. grid-item-card:: :octicon:`workflow` Parallel Workflow
-        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/basics/parallel_tasks/README.md
+        :link: https://nvidia.github.io/OSMO/user_guide/tutorials/parallel_workflows/
         :link-type: url
 
         **Validates:** Co-scheduling and parallel task execution
 
-        Submit the `parallel tasks workflow <https://github.com/NVIDIA/OSMO/blob/main/workflows/basics/parallel_tasks/README.md>`_ to test concurrent execution.
+        Submit the `parallel tasks workflow <https://nvidia.github.io/OSMO/user_guide/tutorials/parallel_workflows/>`_ to test concurrent execution.
 
     .. grid-item-card:: :octicon:`workflow` GPU Workflow
         :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/single_node/README.md

@@ -28,8 +28,6 @@ project = 'NVIDIA OSMO'
 copyright = "2025 NVIDIA CORPORATION & AFFILIATES"
 author = "NVIDIA"
 
-osmo_domain = os.getenv("OSMO_DOMAIN", "public")
-
 # -- General configuration ---------------------------------------------------
 
 extensions = [
@@ -152,33 +150,9 @@ constants = {
     'data_prefix': 's3://'
 }
 
-link_constants = {
-    'osmo_ui': "https://" + osmo_domain + ".osmo.nvidia.com",
-    'osmo_ui_workflows': "https://" + osmo_domain + ".osmo.nvidia.com/workflows",
-    'osmo_grafana': "https://" + osmo_domain + ".osmo.nvidia.com/grafana",
-    'osmo_explorer': "https://redash-" + osmo_domain + ".osmo.nvidia.com/dashboards/2-workflows?p_time_period=d_last_7_days",
-    'data_config_patch': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/patch_dataset_configs_api_configs_dataset_patch",
-    'service_config_patch': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/patch_service_configs_api_configs_service_patch",
-    'workflow_config_patch': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/patch_workflow_configs_api_configs_workflow_patch",
-    'backend_config_patch': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/patch_backend_api_configs_backend__name__patch",
-    'backend_config_get': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/get_backend_api_configs_backend__name__get",
-    'backend_config_post': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/update_backend_api_configs_backend__name__post",
-    'backend_config_delete': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/delete_backend_api_configs_backend__name__delete",
-    'pool_config_put': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/put_pool_api_configs_pool__name__put",
-    'pool_config_delete': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/delete_pool_api_configs_pool__name__delete",
-    'platform_config_put': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/put_platform_in_pool_api_configs_pool__name__platform__platform_name__put",
-    'pod_template_config_put': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/put_pod_templates_api_configs_pod_template_put",
-    'resource_validation_config_put': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Config%20API/put_resource_validations_api_configs_resource_validation_put",
-    'notify_post': "https://" + osmo_domain + ".osmo.nvidia.com/api/docs#/Notification%20API/set_notification_settings_api_notification_post",
-    'priority_preemption_borrowing': "https://" + osmo_domain + ".osmo.nvidia.com/docs/concepts/wf/priority"
-}
-
 rst_prolog = ''
 for key, value in constants.items():
     rst_prolog += f'.. |{key}| replace:: {value}\n'
-
-for key, value in link_constants.items():
-    rst_prolog += f'.. _{key}: {value}\n'
 
 # Custom badge roles
 rst_prolog += '''
