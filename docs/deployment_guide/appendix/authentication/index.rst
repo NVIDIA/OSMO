@@ -71,7 +71,7 @@ The below diagram illustrates how these concepts are all related when a user tri
         /* Light mode overrides - system preference */
         @media (prefers-color-scheme: light) {
             .authz-flow {
-                background: #e8e8e8;
+                background: white;
             }
         }
 
@@ -80,7 +80,7 @@ The below diagram illustrates how these concepts are all related when a user tri
         html[data-theme="light"] .authz-flow,
         body[data-theme="light"] .authz-flow,
         .theme-light .authz-flow {
-            background: #e8e8e8;
+            background: white;
         }
 
         /* Dark mode overrides - theme toggle (explicit) */
@@ -139,7 +139,7 @@ The below diagram illustrates how these concepts are all related when a user tri
         /* Light mode section labels */
         @media (prefers-color-scheme: light) {
             .authz-section-label {
-                background: #e8e8e8;
+                background: white;
             }
         }
 
@@ -147,7 +147,7 @@ The below diagram illustrates how these concepts are all related when a user tri
         html[data-theme="light"] .authz-section-label,
         body[data-theme="light"] .authz-section-label,
         .theme-light .authz-section-label {
-            background: #e8e8e8;
+            background: white;
         }
 
         [data-theme="dark"] .authz-section-label,
@@ -272,18 +272,6 @@ The below diagram illustrates how these concepts are all related when a user tri
         </div>
     </div>
 
-
-
-Contents
-========
-
-.. toctree::
-   :maxdepth: 2
-
-   authentication_flow
-   roles_policies
-   keycloak_setup
-
 Quick Navigation
 ================
 
@@ -297,3 +285,11 @@ Quick Navigation
    - :doc:`../../install_backend/configure_pool` for pool configuration
    - :ref:`roles_config` for role configuration reference
 
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+
+   authentication_flow
+   roles_policies
+   keycloak_setup
