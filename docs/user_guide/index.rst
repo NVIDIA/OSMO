@@ -47,7 +47,7 @@ Write your entire development pipeline for physical AI (training, simulation, ha
 .. admonition:: 🚀 From workstation to cloud in minutes
   :class: info
 
-  Develop on your laptop. Deploy to EKS, AKS, GKE, onpremise, or air-gapped clusters. **Zero code changes.**
+  Develop on your laptop. Deploy to EKS, AKS, GKE, on-premise, or air-gapped clusters. **Zero code changes.**
 
 
 
