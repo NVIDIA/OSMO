@@ -116,7 +116,7 @@ global:
 
       ## Host aliases for custom DNS resolution within proxy pods
       ##
-      hostAliases: {}
+      hostAliases: []
 
   ## Kubernetes scheduler configuration
   ##
