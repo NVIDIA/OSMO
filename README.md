@@ -52,11 +52,11 @@ Follow these steps for cloud deployment
   * [AWS](deployments/terraform/aws/example/README.md)
   * [Azure](deployments/terraform/azure/example/README.md)
 
-* Deploy and configure OSMO using our [Deployment Guide](docs/deployment_guide/index.rst)
+* Deploy and configure OSMO using our [Deployment Guide](https://nvidia.github.io/OSMO/deployment_guide)
 
 ## Documentation
 
-If you are an AI / ML /robotics developer, follow our [User Guide](docs/user_guide/index.rst) to run OSMO workflows
+If you are an AI / ML /robotics developer, follow our [User Guide](https://nvidia.github.io/OSMO/user_guide) to run OSMO workflows
 
 
 ## 🤝 Support
@@ -87,6 +87,8 @@ To develop features in OSMO, you will need one of the below supported devices to
   command-line tool (>=2.24.7)
 - **[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)** - Package manager for Node.js (>=11.6.2)
 
-Follow [Dev Guide](DEV.md) to develop and test features on your local workstation
+### Develop
 
-Follow [Build and Test Guide](BUILD_AND_TEST.md) to containerize your features, push them to desired registry and test the container images
+Follow [Dev Guide](DEV.md) to develop and test features on your local workstation.
+
+Follow [Build and Test Guide](BUILD_AND_TEST.md) to containerize your features, push them to desired registry and test the container images.
