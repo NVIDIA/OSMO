@@ -25,7 +25,7 @@ In this tutorial, you will generate synthetic data using `Isaac Sim <https://dev
 NVIDIA's robotics simulator. By the end of the tutorial, you will have a dataset of synthetic images of warehouse scenes,
 that can be used to train neural network models.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/synthetic_data_generation>`_.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/synthetic_data_generation/isaac_sim>`_.
 
 Prerequisites
 -------------
@@ -156,7 +156,7 @@ Exploring Different SDG Workflows
 ---------------------------------
 
 Isaac Sim offers many standalone examples that you can use to generate different types of synthetic data.
-You can browse through all the available examples in the Isaac Sim `documentation <https://docs.isaacsim.omniverse.nvidia.com/5.0.0/replicator_tutorials/tutorial_replicator_overview.html>`_.
+You can browse through all the available examples in the Isaac Sim `documentation <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/replicator_tutorials/tutorial_replicator_overview.html>`_.
 
 For example, instead of using the scene-based SDG workflow, you can use the `object-based SDG workflow <https://docs.isaacsim.omniverse.nvidia.com/5.0.0/replicator_tutorials/tutorial_replicator_object_based_sdg.html>`_.
 
