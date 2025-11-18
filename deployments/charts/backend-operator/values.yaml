@@ -118,24 +118,6 @@ global:
       ##
       hostAliases: []
 
-  ## Kubernetes scheduler configuration
-  ##
-  schedulers:
-    ## Enable one of the following scheduler plugins for advanced scheduling features
-    ##
-    schedulerPlugins:
-      enabled: true
-
-    ## Enable Volcano scheduler for batch workloads
-    ##
-    volcano:
-      enabled: true
-
-    ## Enable Kai scheduler for specific workload types
-    ##
-    kai:
-      enabled: true
-
   ## OSMO service connection configuration
   ##
   ## URL of the OSMO service that backend operators will connect to
