@@ -116,19 +116,7 @@ global:
 
       ## Host aliases for custom DNS resolution within proxy pods
       ##
-      hostAliases:
-        - ip: 10.217.21.129
-          hostnames:
-            - pdx.s8k.io
-        - ip: 10.151.132.65
-          hostnames:
-            - pbss.s8k.io
-        - ip: "127.10.0.1"
-          hostnames:
-            - "gitlab-master.nvidia.com"
-            - "urm.nvidia.com"
-            - "omnipackages.nvidia.com"
-            - "isaac-dev.ov.nvidia.com"
+      hostAliases: []
 
   ## Kubernetes scheduler configuration
   ##
