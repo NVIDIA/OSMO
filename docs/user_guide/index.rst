@@ -40,9 +40,10 @@ What is OSMO
 
 Write your entire development pipeline for physical AI (training, simulation, hardware-in-loop testing) in declarative **YAML**. OSMO automatically coordinates tasks across heterogeneous compute, managing dependencies and resource allocation for you.
 
-.. image:: overview.svg
-	:width: 800
+.. figure:: overview.svg
+	:width: 100%
 	:align: center
+	:class: transparent-bg no-scaled-link zoomable
 
 .. admonition:: 🚀 From workstation to cloud in minutes
   :class: info
