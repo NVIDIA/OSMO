@@ -65,30 +65,3 @@ For support and questions:
 
 * Review our documentation at the links above
 * Create issues on Github for support
-
-## Contribute to OSMO
-
-To develop features in OSMO, you will need one of the below supported devices to build and run the service
-
-### System Requirements
-
-- Ubuntu 22.04+ (x86_64)
-- MacOS (arm64)
-
-### Install Prerequisites
-
-- **[Bazel](https://bazel.build/install/bazelisk)** - Build tool (>=8.1.1)
-- **[Docker](https://docs.docker.com/get-docker/)** - Container runtime (>=28.3.2)
-- **[Helm](https://helm.sh/docs/intro/install/)** - Package manager for Kubernetes (>=3.17.1)
-- **[KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)** - Kubernetes in Docker
-  (>=0.29.0)
-- **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Kubernetes command-line tool (>=1.32.2)
-- **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS
-  command-line tool (>=2.24.7)
-- **[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)** - Package manager for Node.js (>=11.6.2)
-
-### Develop
-
-Follow [Dev Guide](DEV.md) to develop and test features on your local workstation.
-
-Follow [Build and Test Guide](BUILD_AND_TEST.md) to containerize your features, push them to desired registry and test the container images.
