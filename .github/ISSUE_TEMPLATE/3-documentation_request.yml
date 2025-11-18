@@ -23,7 +23,7 @@ body:
     id: correction_location
     attributes:
       label: Please provide a link or source to the relevant docs
-      placeholder: "ex: https://github.com/NVIDIA/OSMO/blob/main/README.md"
+      placeholder: "ex: https://nvidia.github.io/OSMO/user_guide/"
     validations:
       required: true
 
