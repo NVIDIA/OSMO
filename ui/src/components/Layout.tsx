@@ -97,7 +97,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
             className="page-header py-1 px-1 md:px-2 bg-white lg:border-b-0 shadow-sm"
             ref={headerRef}
           >
-            <div className="flex items-center gap-global lg:gap-8 grow min-w-0">
+            <div className="flex items-center gap-global grow min-w-0">
               <div className="flex items-center gap-global">
                 <svg
                   enableBackground="new 0 0 974.7 179.7"
@@ -121,7 +121,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
               {showTopMenu ? (
                 <div role="navigation">
                   <ul
-                    className="list-none p-0 m-0 flex items-center gap-1 lg:gap-global text-base"
+                    className="list-none flex items-center gap-4 ml-2"
                     aria-label="Main menu"
                   >
                     <TopMenu
@@ -133,7 +133,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
               ) : (
                 <>
                   <button
-                    className="btn btn-tertiary px-0 gap-0 relative capitalize text-xl font-bold"
+                    className="btn btn-tertiary px-0 gap-0 relative capitalize text-lg font-bold"
                     aria-expanded={mainMenuOpen}
                     aria-haspopup="true"
                     aria-controls="main-menu"
@@ -198,7 +198,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   className="flex flex-col list-none p-global"
                   aria-label="Main menu"
                 >
-                  <TopMenu />
+                  <TopMenu className="m-0 py-0" />
                 </ul>
               </div>
             </SlideOut>

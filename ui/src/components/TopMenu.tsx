@@ -84,7 +84,7 @@ export const TopMenu = ({
     >
       <Link
         href={link.to}
-        className={`btn btn-link no-underline text-base ${activeLink === index ? "font-bold" : ""}`}
+        className={`btn btn-link no-underline text-lg p-0 ${activeLink === index ? "font-bold" : ""}`}
         aria-current={activeLink === index}
         onClick={onItemClick}
       >
