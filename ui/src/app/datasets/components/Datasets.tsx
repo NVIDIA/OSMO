@@ -29,6 +29,7 @@ import {
 } from "~/components/DateRangePicker";
 import { FilterButton } from "~/components/FilterButton";
 import FullPageModal from "~/components/FullPageModal";
+import { IconButton } from "~/components/IconButton";
 import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
 import { UserFilterType } from "~/components/UserFilter";
@@ -230,19 +231,25 @@ export default function Datasets() {
   return (
     <>
       <PageHeader>
-        {selectedRows.datasets.length > 0 && (
-          <button
-            className="btn btn-primary"
-            // Disable button if selected rows are from multiple buckets
-            disabled={!selectedRows.bucket}
-            onClick={() => {
+        <IconButton
+          icon="add"
+          text="Create Collection"
+          className="btn btn-primary"
+          // Disable button if selected rows are from multiple buckets
+          aria-disabled={!selectedRows.datasets.length || !selectedRows.bucket}
+          onClick={() => {
+            if (selectedRows.datasets.length && selectedRows.bucket) {
               setShowCreateCollectionModal(true);
-            }}
-            title={!selectedRows.bucket ? "Selected datasets must be from the same bucket" : undefined}
-          >
-            Create Collection
-          </button>
-        )}
+            }
+          }}
+          title={
+            !selectedRows.datasets.length
+              ? "Please select at least one dataset"
+              : !selectedRows.bucket
+                ? "Selected datasets must be from the same bucket"
+                : undefined
+          }
+        />
         <FilterButton
           showFilters={showFilters}
           setShowFilters={setShowFilters}
