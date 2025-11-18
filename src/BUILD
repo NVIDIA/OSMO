@@ -19,6 +19,8 @@ load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 package(default_visibility = ["//visibility:public"])
 
+# BLAHBLAH
+
 genrule(
     name = "osmo_group",
     outs = ["group"],
