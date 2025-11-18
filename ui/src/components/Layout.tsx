@@ -144,7 +144,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   >
                     {pathname.split("/")[1]}
                     <OutlinedIcon
-                      className="bg-transparent absolute bottom-[-0.5rem] lg:bottom-[-0.25rem] right-[-0.25rem] lg:right-0"
+                      className="bg-transparent absolute text-3xl! bottom-[-1rem] right-[-0.6rem]"
                       name="arrow_drop_down"
                     />
                   </button>
