@@ -36,7 +36,10 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["list", "delete", "create", "get"]
+  verbs: ["list", "delete", "create", "get", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
 - apiGroups: [""]
   resources: ["pods/exec"]
   verbs: ["get", "list", "watch", "create"]
@@ -85,6 +88,34 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: {{ $name }}-test-runner
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Role in osmo-prod for listing pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-test-runner-osmo-prod
+  namespace: {{ .Values.global.backendNamespace }}
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "get"]
+
+---
+# RoleBinding in osmo-prod for test-runner
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-test-runner-osmo-prod
+  namespace: {{ .Values.global.backendNamespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "backend-operator.testRunner.serviceAccountName" . }}
+  namespace: {{ .Values.global.backendTestNamespace }}
+roleRef:
+  kind: Role
+  name: {{ $name }}-test-runner-osmo-prod
   apiGroup: rbac.authorization.k8s.io
 {{- end }}
 
