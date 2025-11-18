@@ -148,25 +148,6 @@ export const Layout = ({ children }: PropsWithChildren) => {
                       name="arrow_drop_down"
                     />
                   </button>
-                  <SlideOut
-                    id="main-menu"
-                    open={mainMenuOpen}
-                    onClose={() => setMainMenuOpen(false)}
-                    dimBackground={false}
-                    className="border-t-0"
-                    top={(mainMenuButtonRef.current?.getBoundingClientRect().bottom ?? 0) + 9}
-                    left={mainMenuButtonRef.current?.getBoundingClientRect().left ?? 0}
-                    position="left"
-                  >
-                    <div role="navigation">
-                      <ul
-                        className="flex flex-col list-none p-global"
-                        aria-label="Main menu"
-                      >
-                        <TopMenu />
-                      </ul>
-                    </div>
-                  </SlideOut>
                 </>
               )}
               <HeaderOutlet />
@@ -203,6 +184,24 @@ export const Layout = ({ children }: PropsWithChildren) => {
             aria-label="Main content"
           >
             {children}
+            <SlideOut
+              id="main-menu"
+              open={mainMenuOpen}
+              onClose={() => setMainMenuOpen(false)}
+              dimBackground={false}
+              className="border-t-0"
+              left={mainMenuButtonRef.current?.getBoundingClientRect().left ?? 0}
+              position="left"
+            >
+              <div role="navigation">
+                <ul
+                  className="flex flex-col list-none p-global"
+                  aria-label="Main menu"
+                >
+                  <TopMenu />
+                </ul>
+              </div>
+            </SlideOut>
             <SlideOut
               id="profile-menu"
               open={profileMenuOpen}
