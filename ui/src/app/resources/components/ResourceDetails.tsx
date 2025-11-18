@@ -203,20 +203,20 @@ export const ResourceDetails = ({
         allowedMounts={platformConfig.allowed_mounts}
       >
         {fields && (
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 body-header p-3">
-            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+          <div className="grid gap-global grid-cols-2 md:grid-cols-4 body-header p-global">
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-global">
               <strong>{Math.floor(convertResourceValueStr(fields.storage?.toString() ?? "0"))}</strong>
               <p>Storage [Gi]</p>
             </div>
-            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-global">
               <strong>{Math.floor(convertResourceValueStr(fields.memory?.toString() ?? "0"))}</strong>
               <p>Memory [Gi]</p>
             </div>
-            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-global">
               <strong>{parseFloat(fields.cpu?.toString() ?? "0")}</strong>
               <p>CPU [#]</p>
             </div>
-            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-3">
+            <div className="body-component flex flex-col text-center items-center justify-center px-1 py-global">
               <strong>{parseFloat(fields.gpu?.toString() ?? "0")}</strong>
               <p>GPU [#]</p>
             </div>
@@ -250,9 +250,9 @@ export const ResourceDetails = ({
   return (
     <>
       {children}
-      <div className={`flex flex-col w-full h-full p-3`}>
+      <div className={`flex flex-col w-full h-full`}>
         {showPoolPlatformList}
-        <div className="flex flex-col xs:grid xs:grid-cols-[1fr_2fr] gap-3 py-3 w-full grow">
+        <div className="flex flex-col xs:grid xs:grid-cols-[1fr_2fr] gap-global p-global w-full grow">
           <PoolDetails
             name={selectedPoolAndPlatform?.pool}
             pool={pool}

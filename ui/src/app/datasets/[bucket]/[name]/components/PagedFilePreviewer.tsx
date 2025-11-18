@@ -29,9 +29,9 @@ export default function PagedFilePreviewer({
   };
 
   return (
-    <div className="flex flex-col body-component my-3 mr-3">
+    <div className="flex flex-col body-component shadow-xl shadow-black/50 z-10">
       <div className="popup-header brand-header items-center">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-global">
           <button
             className="btn btn-action"
             onClick={() => {

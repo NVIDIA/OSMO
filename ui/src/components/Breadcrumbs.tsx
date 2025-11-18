@@ -24,7 +24,7 @@ import { FilledIcon } from "./Icon";
 const Breadcrumbs = ({ segments }: { segments: ReactNode[] }) => {
   const count = segments.length;
   return (
-    <div className="flex flex-row gap-3 items-center breadcrumbs">
+    <div className="flex flex-row gap-global items-center breadcrumbs">
       {segments.map((segment, index) =>
         index < count - 1 ? (
           <Link

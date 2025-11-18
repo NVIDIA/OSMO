@@ -38,6 +38,7 @@ export const Multiselect: React.FC<MultiselectProps & Omit<InputHTMLAttributes<H
 }) => {
   const [searchValue, setSearchValue] = useState<string>("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [lastActionText, setLastActionText] = useState<string>("");
 
   const selectedOptions = useMemo(() => {
     return Array.from(filter.entries())
@@ -67,17 +68,26 @@ export const Multiselect: React.FC<MultiselectProps & Omit<InputHTMLAttributes<H
 
   return (
     <>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-global">
         {selectedOptions.length > 0 && (
-          <div className="flex flex-row flex-wrap gap-1 p-1">
+          <div
+            className="flex flex-row flex-wrap gap-1 p-1"
+            role="list"
+            aria-label="Selected options"
+          >
             {selectedOptions.map((o) => (
               <button
+                role="listitem"
                 type="button"
                 className="tag-container"
                 key={o.value}
                 onClick={() => {
                   setFilter(new Map(filter.set(o.value, false)));
                   searchInputRef.current?.focus();
+                  setLastActionText(`Removed ${o.label}`);
+                  setTimeout(() => {
+                    setLastActionText("");
+                  }, 3000);
                 }}
               >
                 <Tag
@@ -103,17 +113,27 @@ export const Multiselect: React.FC<MultiselectProps & Omit<InputHTMLAttributes<H
           autoComplete="off"
           {...props}
           className="w-full"
+          aria-description={lastActionText}
         />
         {filteredOptions.length > 0 && (
-          <div className="flex flex-row flex-wrap gap-1 p-1">
+          <div
+            className="flex flex-row flex-wrap gap-1 p-1"
+            role="list"
+            aria-label="Available options"
+          >
             {filteredOptions.map((o) => (
               <button
                 type="button"
+                role="listitem"
                 className="tag-container"
                 key={o.value}
                 onClick={() => {
                   setFilter(new Map(filter.set(o.value, true)));
                   searchInputRef.current?.focus();
+                  setLastActionText(`Added ${o.label}`);
+                  setTimeout(() => {
+                    setLastActionText("");
+                  }, 3000);
                 }}
               >
                 <Tag

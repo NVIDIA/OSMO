@@ -54,13 +54,13 @@ export const getTopLevelLinks = (
 ];
 
 export const TopMenu = ({
-  className,
   showIcons = true,
   onItemClick,
+  className = "",
 }: {
-  className?: string;
   showIcons?: boolean;
   onItemClick?: () => void;
+  className?: string;
 }) => {
   const { sidebarData } = useStore();
   const links = getTopLevelLinks(sidebarData);
@@ -77,20 +77,20 @@ export const TopMenu = ({
     setActiveLink(index ?? 0);
   }, [pathname, links]);
 
-  return (
-    <nav className={`flex ${className}`}>
-      {links.map((link, index) => (
-        <Link
-          key={link.to}
-          href={link.to}
-          className={`btn btn-link no-underline text-base ${activeLink === index ? "font-bold" : ""}`}
-          aria-current={activeLink === index}
-          onClick={onItemClick}
-        >
-          {showIcons && link.icon}
-          {link.label}
-        </Link>
-      ))}
-    </nav>
-  );
+  return links.map((link, index) => (
+    <li
+      key={link.to}
+      className={`${className} list-none`}
+    >
+      <Link
+        href={link.to}
+        className={`btn btn-link no-underline text-base ${activeLink === index ? "font-bold" : ""}`}
+        aria-current={activeLink === index}
+        onClick={onItemClick}
+      >
+        {showIcons && link.icon}
+        {link.label}
+      </Link>
+    </li>
+  ));
 };

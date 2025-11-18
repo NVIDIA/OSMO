@@ -270,7 +270,7 @@ const ExecTerminal: FC<ExecTerminalProps> = ({
             <div ref={divRef} />
           </div>
           <form onSubmit={onSearch}>
-            <div className="grid grid-cols-[1fr_auto] p-3 gap-3">
+            <div className="grid grid-cols-[1fr_auto] p-global gap-global">
               <TextInput
                 id="terminal-search"
                 autoFocus
@@ -281,7 +281,7 @@ const ExecTerminal: FC<ExecTerminalProps> = ({
                 className="w-full flex-1"
                 type="search"
               />
-              <div className="flex flex-row gap-3">
+              <div className="flex flex-row gap-global">
                 <button
                   className="btn btn-primary"
                   type="submit"
