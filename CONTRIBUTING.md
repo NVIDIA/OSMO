@@ -1,6 +1,29 @@
-## OSMO OSS Contribution Rules
+## OSMO OSS Contribution Guidelines & Rules
 
-#### Coding Guidelines
+### System Requirements
+
+- Ubuntu 22.04+ (x86_64)
+- MacOS (arm64)
+
+### Install Prerequisites
+
+- **[Bazel](https://bazel.build/install/bazelisk)** - Build tool (>=8.1.1)
+- **[Docker](https://docs.docker.com/get-docker/)** - Container runtime (>=28.3.2)
+- **[Helm](https://helm.sh/docs/intro/install/)** - Package manager for Kubernetes (>=3.17.1)
+- **[KIND](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)** - Kubernetes in Docker
+  (>=0.29.0)
+- **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Kubernetes command-line tool (>=1.32.2)
+- **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS
+  command-line tool (>=2.24.7)
+- **[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)** - Package manager for Node.js (>=11.6.2)
+
+### Develop
+
+Follow [Dev Guide](DEV.md) to develop and test features on your local workstation.
+
+Follow [Build and Test Guide](BUILD_AND_TEST.md) to containerize your features, push them to desired registry and test the container images.
+
+### Coding Guidelines
 
 - Please follow the existing conventions in the relevant file, submodule, module, and project when you add new code or when you extend/fix existing functionality.
 
@@ -10,7 +33,7 @@
   - Avoid committing commented-out code.
   - Wherever possible, each PR should address a single concern. If there are several otherwise-unrelated things that should be fixed to reach a desired endpoint, our recommendation is to open several PRs and indicate the dependencies in the description. The more complex the changes are in a single PR, the more time it will take to review those changes.
 
-- Write commit titles using imperative mood and [these rules](https://chris.beams.io/posts/git-commit/), and reference the Issue number corresponding to the PR. Following is the recommended format for commit texts:
+- Write commit titles using imperative mood and [these rules](https://chris.beams.io/posts/git-commit/), and reference the Issue number corresponding to the PR. Following is the format for commit texts:
 ```
 #<Issue Number> - <Commit Title>
 
@@ -22,7 +45,8 @@
 - Thanks in advance for your patience as we review your contributions; we do appreciate them!
 
 
-#### Pull Requests
+### Pull Requests
+
 Developer workflow for code contributions is as follows:
 
 1. Developers must first [fork](https://help.github.com/en/articles/fork-a-repo) the NVIDIA OSMO repository.
@@ -40,10 +64,10 @@ git push -u origin <local-branch>:<remote-branch>
   * Exercise caution when selecting the source and target branches for the PR.
     Note that versioned releases of OSMO OSS are posted to `release/` branches of the upstream repo.
   * Creation of a PR creation kicks off the code review process.
-  * At least one OSMO engineer will be assigned for the review.
-  * While under review, mark your PRs as work-in-progress by prefixing the PR title with [WIP].
+  * The OSMO engineering team will automatically be assigned for the review.
+  * Two OSMO engineers must approve your PR before it can be merged.
 
-4. Since there is no CI/CD process in place yet, the PR will be accepted and the corresponding issue closed only after adequate testing has been completed, manually, by the developer and/or OSMO engineer reviewing the code.
+4. PR Checks must pass before your work can be merged. The relevant checks will be run once an OSMO engineer manually triggers CI/CD.
 
 #### Signing Your Work
 
