@@ -31,6 +31,7 @@ body:
     id: problem
     attributes:
       label: Describe the problems in the documentation
+    validations:
       required: true
 
   - type: textarea
