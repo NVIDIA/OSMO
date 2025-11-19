@@ -29,7 +29,7 @@ similar to a deployed environment.
 
 ## Prerequisites
 
-Install the [required tools](./README.md#prerequisites) for developing OSMO.
+Install the [required tools](./CONTRIBUTING.md#prerequisites) for developing OSMO.
 
 You can push container images to your preferred container registry such as
 [NVIDIA NGC](https://www.nvidia.com/en-us/gpu-cloud/) (`nvcr.io`),
