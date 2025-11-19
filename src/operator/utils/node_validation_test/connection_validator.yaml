@@ -16,12 +16,6 @@
 
 
 url_configs:
-  - url: "https://us-west-2-aws.osmo.nvidia.com/api/version"
+  - url: "https://osmo.nvidia.com/api/version"
     timeout: 30
     condition_name: "ServiceConnectionTestFailure"
-  - url: "https://pdx.s8k.io/healthcheck"
-    timeout: 45
-    condition_name: "PDXHealthTestFailure"
-  - url: "https://pbss.s8k.io/healthcheck"
-    timeout: 45
-    condition_name: "PBSSHealthTestFailure"
