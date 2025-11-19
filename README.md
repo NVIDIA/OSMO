@@ -58,6 +58,33 @@ Follow these steps for cloud deployment
 
 If you are an AI / ML /robotics developer, follow our [User Guide](https://nvidia.github.io/OSMO/user_guide) to run OSMO workflows
 
+## Roadmap
+### Short term (Q1 2026)
+
+- **Overhaul authn/authz**
+  - Remove keycloak and allow OSMO to talk to Oauth 2.0 providers directly
+  - Verify OSMO works with many populat Oauth 2.0 providers (Azure AD, etc.)
+  - Allow OSMO to manage groups, group-role mapping and group-user mapping (ie `osmo group ...` CLIs)
+  - Allow credentials to be managed at the `pool` level instead of at the `user` level.
+  - Simplify Cookies used by OSMO in the login process
+
+- **Easy cloud deployment**
+  - Support easy deployment of OSMO in Azure with a Microsoft Marketplace App
+  - Support easy deployment of OSMO in AWS with an AWS Marketplace App
+
+- **Cloud provider integration**
+  - Integrate with IAM for Azure/AWS
+  - Don't require users to provide registry/data credentials when running in the same cloud
+
+### Long term (2026+)
+
+- Python based workflows
+- Transparent, cluster-local data caching
+- Hierarchical pools/teams for more robust resource management
+- Support dataset storage in filesystems (Lustre, NFS, etc) as well as object storage
+- Multi-backend scheduling: Allow OSMO to automatically select a pool/backend to run workflows on based on usage.
+- Time based fair-share scheduling
+- Allow groups of running workflows to be dynamically increases/decreased in size while it runs
 
 ## 🤝 Support
 
