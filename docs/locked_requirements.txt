@@ -689,11 +689,11 @@ sphinx-design==0.6.1 \
 sphinx-markdown-builder==0.6.8 \
     --hash=sha256:6141b566bf18dd1cd515a0a90efd91c6c4d10fc638554fab2fd19cba66543dd7 \
     --hash=sha256:f04ab42d52449363228b9104569c56b778534f9c41a168af8cfc721a1e0e3edc
-    # via -r ./docs_requirements.txt
-sphinx-multiversion==0.2.4 \
-    --hash=sha256:5c38d5ce785a335d8c8d768b46509bd66bfb9c6252b93b700ca8c05317f207d6 \
-    --hash=sha256:5cd1ca9ecb5eed63cb8d6ce5e9c438ca13af4fa98e7eb6f376be541dd4990bcb \
-    --hash=sha256:dec29f2a5890ad68157a790112edc0eb63140e70f9df0a363743c6258fbeb478
+    # via
+    #   -r ./docs_requirements.txt
+    #   sphinx-multiversion
+sphinx-multiversion @ https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.4.zip \
+    --hash=sha256:eff399228da663b76c6b0ee55f423b7004d0fcec29bf34f8b8546cdeeb84ed7d
     # via -r ./docs_requirements.txt
 sphinx-new-tab-link==0.8.0 \
     --hash=sha256:6c757d99f559224a04142c3971c8baa6ac90aca905f15b129d57eeca0ece9582 \
