@@ -83,6 +83,10 @@ spec:
           value: '{{ .Values.services.ui.containerPort }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
           value: {{ .Values.services.ui.apiHostname }}
+        {{- if .Values.sidecars.envoy.enabled }}
+        - name: NEXT_PUBLIC_OSMO_AUTH_HOSTNAME
+          value: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+        {{- end }}
         - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
           value: {{ .Values.services.ui.nextjsSslEnabled | quote }}
         - name: DOCS_BASE_URL

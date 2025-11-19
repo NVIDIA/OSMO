@@ -524,7 +524,9 @@ sidecars:
       ##
       clientId: ""
 
-      ## OAuth2 authentication provider identifier
+      ## OAuth2 authentication provider hostname (e.g., auth.example.com)
+      ## This value is used by both Envoy for OAuth2 authentication
+      ## and the UI for constructing logout/auth URLs
       ##
       authProvider: ""
 

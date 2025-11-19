@@ -121,7 +121,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.envoy.oauth2Filter.authEndpoint` | OAuth2 authorization endpoint URL | `""` (empty, must be configured) |
 | `sidecars.envoy.oauth2Filter.redirectPath` | OAuth2 redirect path | `getAToken` |
 | `sidecars.envoy.oauth2Filter.clientId` | OAuth2 client ID | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider | `""` (empty, must be configured) |
+| `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider hostname (used by both Envoy and UI for auth/logout URLs) | `""` (empty, must be configured) |
 | `sidecars.envoy.oauth2Filter.logoutPath` | OAuth2 logout path | `logout` |
 | `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name (when useKubernetesSecrets is true) | `oidc-secrets` |
 | `sidecars.envoy.oauth2Filter.clientSecretKey` | Secret key for OAuth2 client secret | `client_secret` |
