@@ -23,7 +23,7 @@ to run OSMO using Bazel:
 
 ## Prerequisites
 
-Install the [required tools](./README.md#prerequisites) for developing OSMO.
+Install the [required tools](./CONTRIBUTING.md#prerequisites) for developing OSMO.
 
 Set the following environment variables:
 
