@@ -101,7 +101,7 @@ export const PoolDetails = ({
         <div className="max-h-full w-full">
           {pool.resource_usage && (
             <div
-              className="flex flex-row overflow-x-hidden"
+              className="grid lg:grid-cols-2 overflow-x-hidden"
               role="list"
             >
               <AggregatePanels
