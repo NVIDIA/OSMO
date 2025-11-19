@@ -40,7 +40,6 @@ If you are interested in contributing to OSMO, your contributions will fall into
 
 1. [Fork](https://help.github.com/en/articles/fork-a-repo) the
    [NVIDIA/OSMO repository](https://github.com/NVIDIA/OSMO)
-
 2. Clone the forked repository:
 
 ```bash
@@ -53,12 +52,9 @@ As you develop your fix or feature, follow this workflow:
 
 1. **Iterate on your changes** - Follow the [Dev Guide](DEV.md) to develop and test your changes
    following [coding guidelines](#coding-guidelines)
-
 2. **Build and test container images** - Follow the [Build and Test Guide](BUILD_AND_TEST.md) to
    create containers with your changes and validate that they work
-
 3. **Test your changes** - Add or update any unit or functional tests for coverage over your changes
-
 4. **Open a pull request** - Follow [Pull Requests](#pull-requests) to propose a change to be merged
    into OSMO
 
@@ -66,12 +62,9 @@ As you develop your fix or feature, follow this workflow:
 
 - Follow the existing conventions in the relevant file, submodule, module, and project when you add
   new code or when you extend/fix existing functionality
-
 - Avoid introducing unnecessary complexity into existing code so that maintainability and
   readability are preserved
-
 - Avoid committing commented-out code
-
 - Write commit titles using imperative mood and
   [these rules](https://chris.beams.io/posts/git-commit/), and reference the Issue number
   corresponding to the PR. Following is the format for commit texts:
@@ -96,20 +89,16 @@ git push origin <local-branch>
 2. [Create a Pull Request](https://help.github.com/en/articles/creating-a-pull-request-from-a-fork)
    (PR) to merge the changes from the branch of your fork into the `main` branch of the
    `NVIDIA/OSMO` repository
-
-- Try to keep PRs as concise as possible and address a single concern. Consider multiple PRs if you
-  need to address multiple concerns.
-- Exercise caution when selecting the source and target branches for the PR.
-- Creation of a PR creation kicks off the code review process.
-
+   - Try to keep PRs as concise as possible and address a single concern. Consider multiple PRs if
+     you need to address multiple concerns.
+   - Exercise caution when selecting the source and target branches for the PR.
+   - Creation of a PR creation kicks off the code review process.
 3. Your PR will be reviewed by the OSMO engineering team:
-
-- The OSMO engineering team will automatically be assigned for the review.
-- Two OSMO engineers must approve your PR before it can be merged.
-- [Status Checks](https://help.github.com/en/articles/about-status-checks) will be manually
-  triggered by an OSMO engineer and must pass before the PR can be merged.
-- Merge conflicts must be resolved before the PR can be merged.
-
+   - The OSMO engineering team will automatically be assigned for the review.
+   - Two OSMO engineers must approve your PR before it can be merged.
+   - [Status Checks](https://help.github.com/en/articles/about-status-checks) will be manually
+     triggered by an OSMO engineer and must pass before the PR can be merged.
+   - Merge conflicts must be resolved before the PR can be merged.
 4. [Merge your PR](https://help.github.com/en/articles/merging-a-pull-request)!
 
 Your changes will be included in the next release of OSMO.
