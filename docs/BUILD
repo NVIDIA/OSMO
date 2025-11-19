@@ -25,6 +25,7 @@ filegroup(
     srcs = glob([
         "_static/**",
         "_extensions/**",
+        "_templates/**",
         "user_guide/**",
         "conf.py",
     ]),
@@ -41,6 +42,7 @@ filegroup(
     srcs = glob([
         "_static/**",
         "_extensions/**",
+        "_templates/**",
         "deployment_guide/**",
         "conf.py",
     ]),

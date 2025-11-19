@@ -42,6 +42,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
+    'sphinx_multiversion',
 
     # Custom extensions
     '_extensions.auto_include',
@@ -97,10 +98,17 @@ html_show_sourcelink = False
 html_favicon = '../_static/osmo_favicon.png'
 html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
 
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
+html_static_path = ['../_static']
+templates_path = ['../_templates']
+
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["navbar-logo", "versioning.html"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
@@ -109,17 +117,13 @@ html_extra_path_opts = {
     'follow_symlinks': True,
 }
 
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['../_static']
-
 # These paths are either relative to html_static_path
 # or fully qualified paths (eg. https://...)
 html_css_files = [
     'css/base.css',
     'css/lifecycle-timeline.css',
-    'mermaid_custom.css',
+    'css/mermaid_custom.css',
+    'css/versioning.css',
     'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
 
@@ -190,3 +194,12 @@ autodoc_typehints_format = 'short'
 # -- Options for Mermaid -------------------------------------------------
 
 mermaid_version = '11.12.1'
+
+# -- Options for Multiversion -------------------------------------------------
+
+# Allow only tags in the format '#.#.#'
+smv_tag_whitelist = r'^\d+\.\d+\.\d+$'
+# Allow only the main branch and any branches that begin with 'release-' to be rendered
+smv_branch_whitelist = r'^main$|^release-.*$'
+smv_remote_whitelist = r'^main$|^release-.*$'
+smv_prefer_remote_refs = False
