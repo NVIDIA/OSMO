@@ -92,7 +92,7 @@ git push origin <local-branch>
    - Try to keep PRs as concise as possible and address a single concern. Consider multiple PRs if
      you need to address multiple concerns.
    - Exercise caution when selecting the source and target branches for the PR.
-   - Creation of a PR creation kicks off the code review process.
+   - Creation of a PR kicks off the code review process.
 3. Your PR will be reviewed by the OSMO engineering team:
    - The OSMO engineering team will automatically be assigned for the review.
    - Two OSMO engineers must approve your PR before it can be merged.
