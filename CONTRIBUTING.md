@@ -1,4 +1,22 @@
-## OSMO OSS Contribution Guidelines & Rules
+# Contributing to OSMO
+
+If you are interested in contributing to OSMO, your contributions will fall into three categories:
+
+1. You want to report a bug, feature request, or documentation issue
+   - File an [issue](https://github.com/NVIDIA/OSMO/issues/new/choose) describing what you
+     encountered or what you want to see changed.
+   - The OSMO team will evaluate the issues and triage them, scheduling them for a release. If you
+     believe the issue needs priority attention comment on the issue to notify the team.
+2. You want to propose a new Feature and implement it
+   - Post about your intended feature, and we shall discuss the design and implementation.
+   - Once we agree that the plan looks good, go ahead and implement it, using the
+     [code contributions](#code-contributions) guide below.
+3. You want to implement a feature or bug-fix for an
+   [outstanding issue](https://github.com/NVIDIA/OSMO/issues)
+   - Follow the [code contributions](#code-contributions) guide below.
+   - If you need more context on a particular issue, please ask and we shall provide.
+
+## Code Contributions
 
 ### System Requirements
 
@@ -15,61 +33,79 @@
 - **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Kubernetes command-line tool (>=1.32.2)
 - **[aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)** - AWS
   command-line tool (>=2.24.7)
-- **[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)** - Package manager for Node.js (>=11.6.2)
+- **[npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)** - Package manager for
+  Node.js (>=11.6.2)
+
+### Fork the Repository
+
+1. [Fork](https://help.github.com/en/articles/fork-a-repo) the
+   [NVIDIA/OSMO repository](https://github.com/NVIDIA/OSMO)
+2. Clone the forked repository:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_FORK.git osmo
+```
 
 ### Develop
 
-Follow [Dev Guide](DEV.md) to develop and test features on your local workstation.
+As you develop your fix or feature, follow this workflow:
 
-Follow [Build and Test Guide](BUILD_AND_TEST.md) to containerize your features, push them to desired registry and test the container images.
+1. **Iterate on your changes** - Follow the [Dev Guide](DEV.md) to develop and test your changes
+   following [coding guidelines](#coding-guidelines)
+2. **Build and test container images** - Follow the [Build and Test Guide](BUILD_AND_TEST.md) to
+   create containers with your changes and validate that they work
+3. **Test your changes** - Add or update any unit or functional tests for coverage over your changes
+4. **Open a pull request** - Follow [Pull Requests](#pull-requests) to propose a change to be merged
+   into OSMO
 
 ### Coding Guidelines
 
-- Please follow the existing conventions in the relevant file, submodule, module, and project when you add new code or when you extend/fix existing functionality.
+- Follow the existing conventions in the relevant file, submodule, module, and project when you add
+  new code or when you extend/fix existing functionality
+- Avoid introducing unnecessary complexity into existing code so that maintainability and
+  readability are preserved
+- Avoid committing commented-out code
+- Write commit titles using imperative mood and
+  [these rules](https://chris.beams.io/posts/git-commit/), and reference the Issue number
+  corresponding to the PR. Following is the format for commit texts:
 
-- Avoid introducing unnecessary complexity into existing code so that maintainability and readability are preserved.
-
-- Try to keep pull requests (PRs) as concise as possible:
-  - Avoid committing commented-out code.
-  - Wherever possible, each PR should address a single concern. If there are several otherwise-unrelated things that should be fixed to reach a desired endpoint, our recommendation is to open several PRs and indicate the dependencies in the description. The more complex the changes are in a single PR, the more time it will take to review those changes.
-
-- Write commit titles using imperative mood and [these rules](https://chris.beams.io/posts/git-commit/), and reference the Issue number corresponding to the PR. Following is the format for commit texts:
 ```
 #<Issue Number> - <Commit Title>
 
 <Commit Body>
 ```
 
-- Make sure that you can contribute your work to open source (no license and/or patent conflict is introduced by your code).
-
-- Thanks in advance for your patience as we review your contributions; we do appreciate them!
-
+- Make sure that you can contribute your work to open source (no license and/or patent conflict is
+  introduced by your code)
 
 ### Pull Requests
 
-Developer workflow for code contributions is as follows:
+1. Push your changes to your fork:
 
-1. Developers must first [fork](https://help.github.com/en/articles/fork-a-repo) the NVIDIA OSMO repository.
+```bash
+git push origin <local-branch>
+```
 
-2. Git clone the forked repository and push changes to the personal fork.
+2. [Create a Pull Request](https://help.github.com/en/articles/creating-a-pull-request-from-a-fork)
+   (PR) to merge the changes from the branch of your fork into the `main` branch of the
+   `NVIDIA/OSMO` repository
+   - Try to keep PRs as concise as possible and address a single concern. Consider multiple PRs if
+     you need to address multiple concerns.
+   - Exercise caution when selecting the source and target branches for the PR.
+   - Creation of a PR kicks off the code review process.
+3. Your PR will be reviewed by the OSMO engineering team:
+   - The OSMO engineering team will automatically be assigned for the review.
+   - Two OSMO engineers must approve your PR before it can be merged.
+   - [Status Checks](https://help.github.com/en/articles/about-status-checks) will be manually
+     triggered by an OSMO engineer and must pass before the PR can be merged.
+   - Merge conflicts must be resolved before the PR can be merged.
+4. [Merge your PR](https://help.github.com/en/articles/merging-a-pull-request)!
 
-  ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_FORK.git osmo
-# Checkout the targeted branch and commit changes
-# Push the commits to a branch on the fork (remote).
-git push -u origin <local-branch>:<remote-branch>
-  ```
+Your changes will be included in the next release of OSMO.
 
-3. Once the code changes are staged on the fork and ready for review, a [Pull Request](https://help.github.com/en/articles/about-pull-requests) (PR) can be [requested](https://help.github.com/en/articles/creating-a-pull-request) to merge the changes from a branch of the fork into a selected branch of upstream.
-  * Exercise caution when selecting the source and target branches for the PR.
-    Note that versioned releases of OSMO OSS are posted to `release/` branches of the upstream repo.
-  * Creation of a PR creation kicks off the code review process.
-  * The OSMO engineering team will automatically be assigned for the review.
-  * Two OSMO engineers must approve your PR before it can be merged.
+### Developer Certificate of Origin
 
-4. PR Checks must pass before your work can be merged. The relevant checks will be run once an OSMO engineer manually triggers CI/CD.
-
-#### Developer Certificate of Origin
+All contributions are made according to the Developer Certificate of Origin:
 
 ```
   Developer Certificate of Origin
