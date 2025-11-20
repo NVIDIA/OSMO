@@ -57,7 +57,9 @@ This directory contains brief examples of workflows that can be used in combinat
 | Isaac Groot: Running Groot Mimic through Imitation Learning            | [README](./groot/groot_mimic/README.md)                       |
 | ROS2: Running Simulation with Foxglove Visualization                   | [README](./ros/turtlebot/README.md)                     |
 | Gazebo: Generating Synthetic Data                                      | [README](./synthetic_data_generation/gazebo/README.md)  |
-| Cosmos: Video2World Generation                                         | [README](./cosmos/README.md) |
+| Cosmos Predict: Video2World Generation                                 | [README](./cosmos/predict/README.md) |
+| Cosmos: Transfer2.5 with Isaac Sim Integration                         | [README](./cosmos/transfer/README.md)               |
+| Cosmos: Video Reasoning and Analysis                                   | [README](./cosmos/reason/README.md)                 |
 | NIMs: Using NVIDIA NIMs in a workflow                                  | [README](./nims/README.md) |
 | TorchRun: Elastic Training on Multiple Nodes                           | [README](./dnn_training/torchrun_elastic/README.md) |
 | DeepSpeed: Training on Multiple Nodes                                  | [README](./dnn_training/deepspeed_multinode/README.md) |

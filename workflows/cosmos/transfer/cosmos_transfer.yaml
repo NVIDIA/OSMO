@@ -15,10 +15,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit isaac_sim_sdg.yaml
+# osmo workflow submit cosmos_transfer.yaml
 
 workflow:
-  name: isaac-sim-cosmos-sdg
+  name: isaac-sim-cosmos-transfer
   tasks:
   - name: isaac-sim-sdg
     image: nvcr.io/nvidia/isaac-sim:5.1.0
@@ -27,6 +27,7 @@ workflow:
     environment:
       ACCEPT_EULA: Y
       NO_NUCLEUS: Y
+    resource: sim
     files:
     - contents: |
         set -e
@@ -50,36 +51,61 @@ workflow:
     credentials:
       huggingface_token:
         HF_TOKEN: token
+    resource: cosmos
+    inputs:
+    - task: isaac-sim-sdg
+    - dataset:
+        name: isaac-sim-cosmos-warehouse-sample
     files:
       - path: /tmp/entry.sh
         contents: |
           set -euxo pipefail
 
-          git clone https://github.com/nvidia-cosmos/cosmos-reason1.git && cd cosmos-reason1 && git checkout 8743e1bbed09cb5555c74091f6de8048d9551f75
+          git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git && cd cosmos-transfer2.5 && git checkout 0033b77a9e41e74f9d8d0b9cf80e0ecf94b3533b
 
           curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
+
+          # Install all dependencies including cosmos_oss
+          uv sync --extra=cu128
+          source .venv/bin/activate
 
           git config --global credential.helper store && huggingface-cli login \
             --token $HF_TOKEN --add-to-git-credential
 
-          # Caption the video
-          ./scripts/inference.py --prompt prompts/caption.yaml --videos assets/sample.mp4 -v
+          pip3 install tyro
 
-          # Ask a question about the video with reasoning
-          ./scripts/inference.py --prompt prompts/question.yaml \
-            --question 'What are the potential safety hazards?' --reasoning \
-            --videos assets/sample.mp4 -v
-
-          # Temporal caption the video and save the input frames
-          ./scripts/inference.py --prompt prompts/temporal_caption_text.yaml --videos assets/sample.mp4 \
-            --timestamp -v -o {{output}}/temporal_caption_text
-
+          # Run Transfer2.5 Inference
+          python3 ./examples/inference.py -i /params.json -o {{output}}/depth
+      - path: /params.json
+        contents: |
+          {
+              "name": "cosmos-transfer-sample",
+              "prompt": "High-quality warehouse simulation...",
+              "video_path": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/rgb.mp4",
+              "vis": {"control_weight": 0.25},
+              "edge": {"control_weight": 0.25},
+              "depth": {
+                  "input_control": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/depth.mp4",
+                  "control_weight": 0.25
+              },
+              "seg": {
+                  "input_control": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/segmentation.mp4",
+                  "control_weight": 0.25
+              }
+          }
     outputs:
       - dataset:
-          name: cosmos-reason-sample
+          name: cosmos-transfer-sample
   resources:
-    default:
+    cosmos:
+      cpu: 16
+      gpu: 1
+      storage: 64Gi
+      memory: 64Gi
+      # Specify platform to target H100 GPU
+    sim:
       cpu: 4
       gpu: 1
       memory: 32Gi
-      storage: 64Gi
+      storage: 16Gi
+      # Specify platform to target RTX GPU
