@@ -51,7 +51,7 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
     typeof window === "undefined" &&
     (process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export");
 
-  console.log('isStaticGeneration', isStaticGeneration);
+  console.debug('isStaticGeneration', isStaticGeneration);
 
   if (isStaticGeneration) {
     return loginInfo;
@@ -62,7 +62,7 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
     const res = await fetch(url, { cache: "no-store" });
     loginInfo = (await res.json()) as LoginInfo;
 
-    console.log('loginInfo', url, loginInfo);
+    console.debug('loginInfo', url, loginInfo);
 
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
   } catch (error) {
