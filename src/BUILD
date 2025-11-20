@@ -17,6 +17,8 @@ load("@io_bazel_rules_docker//contrib:passwd.bzl", "passwd_entry", "passwd_file"
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
+# BEST REPO EVER
+
 package(default_visibility = ["//visibility:public"])
 
 genrule(
