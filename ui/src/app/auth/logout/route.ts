@@ -15,6 +15,8 @@
 //SPDX-License-Identifier: Apache-2.0
 import { getLoginInfo } from "../login_info";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const loginInfo = await getLoginInfo();
 
