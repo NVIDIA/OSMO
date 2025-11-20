@@ -56,11 +56,24 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
   }
 
   try {
+    console.log('[LoginInfo] Fallback loginInfo before API call:', loginInfo);
     const res = await fetch(`${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/auth/login`, { cache: "no-store" });
-    loginInfo = (await res.json()) as LoginInfo;
+    const apiLoginInfo = (await res.json()) as LoginInfo;
+    console.log('[LoginInfo] API response loginInfo:', apiLoginInfo);
+    // Merge API response with fallback values, preferring API values when present
+    loginInfo = {
+      ...loginInfo,
+      ...apiLoginInfo,
+      // If API returns null/empty for critical fields, keep the fallback
+      logout_endpoint: apiLoginInfo.logout_endpoint || loginInfo.logout_endpoint,
+      browser_endpoint: apiLoginInfo.browser_endpoint || loginInfo.browser_endpoint,
+      token_endpoint: apiLoginInfo.token_endpoint || loginInfo.token_endpoint,
+    };
+    console.log('[LoginInfo] Final merged loginInfo:', loginInfo);
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
   } catch (error) {
     console.warn(`Host does not support /api/auth/login: ${(error as Error).message}`);
+    console.log('[LoginInfo] Using fallback loginInfo due to error:', loginInfo);
   }
 
   return loginInfo;
