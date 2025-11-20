@@ -39,11 +39,13 @@ SPDX-License-Identifier: Apache-2.0
 
 [Physical AI](https://www.nvidia.com/en-us/glossary/generative-physical-ai/) development uniquely requires orchestrating **three types of compute** working together:
 
+
 | 🧠 **Training** | 🌐 **Simulation** | 🤖 **Edge** |
-|:---|:---|:---|
+|:---:|:---:|:---:|
 | GB200, H100 | L40, RTX Pro | Jetson AGX Thor |
 | Deep learning & RL | Physics & Sensor Rendering | Hardware-in-the-Loop |
 | Cloud  | Cloud | On Premise |
+
 
 **The Challenge:**
 
@@ -53,11 +55,15 @@ Traditionally, orchestrating workflows across these heterogeneous systems requir
 
 OSMO solves [the Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
 
-<img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+<div align="center">
+  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+</div>
 
 Use OSMO to manage your workflows, version your datasets and even remotely develop on a backend node. Using OSMO's backend configuration, run your workflows seamlessly on any cloud environment. Build a data factory to manage your synthetic and real robot data, train neural networks with experiment tracking, train robot policies with reinforcement learning, evaluate your models and publish the results, test the robot in simulation with software or hardware in loop (HIL) and automate your workflows on any CI/CD systems
 
-<img src="./docs/user_guide/overview.svg" width="85%"/>
+<div align="center">
+  <img src="./docs/user_guide/overview.svg" width="85%"/>
+</div>
 
 ## Why OSMO?
 
@@ -131,7 +137,9 @@ OSMO is production-grade and proven at scale. Originally developed to power Phys
 
 Select one of the deployment options below depending on your needs and environment to get started
 
-<img src="./docs/deployment_options.png" width="85%"/>
+<p align="center">
+  <img src="./docs/deployment_options.png" width="85%"/>
+</p>
 
 
 
