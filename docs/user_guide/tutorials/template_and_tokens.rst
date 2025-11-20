@@ -33,9 +33,9 @@ the ``default-values`` section.
 
 **Hello World with template variables example:**
 
-Here's the Hello World example with template variables: :download:`hello_template.yaml <hello_template.yaml>`.
+Here's the Hello World example with template variables: :download:`template_hello_world.yaml <../../../workflows/tutorials/template_hello_world.yaml>`.
 
-.. literalinclude:: hello_template.yaml
+.. literalinclude:: ../../../workflows/tutorials/template_hello_world.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -43,14 +43,14 @@ Submit with defaults:
 
 .. code-block:: bash
 
-  $ osmo workflow submit hello_template.yaml
+  $ osmo workflow submit template_hello_world.yaml
   Workflow ID - hello-osmo-1
 
 Override values at submission:
 
 .. code-block:: bash
 
-  $ osmo workflow submit hello_template.yaml --set \
+  $ osmo workflow submit template_hello_world.yaml --set \
       workflow_name=greetings \
       ubuntu_version=24.04 \
       message='Custom message!'
@@ -67,28 +67,16 @@ Special Tokens
 Besides templates, OSMO provides **special tokens** - reserved variables that are
 automatically set by the system. Unlike templates, you **cannot** override them with ``--set``.
 
-.. include:: ../../workflows/specification/tokens_table.in.rst
+.. include:: ../workflows/specification/tokens_table.in.rst
 
 **Token example:**
 
 The ``{{workflow_id}}`` token is useful for tracking workflow runs and creating unique
 identifiers.
 
-.. code-block:: yaml
-
-  workflow:
-    name: {{experiment_name}}
-    tasks:
-    - name: experiment
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args:
-      - |
-        echo "Running experiment: {{experiment_name}}"
-        echo "Workflow ID: {{workflow_id}}"
-
-  default-values:
-    experiment_name: my-experiment
+.. literalinclude:: ../../../workflows/tutorials/token_example.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 Each submission gets a unique ``{{workflow_id}}`` (e.g., ``my-experiment-1``,
 ``my-experiment-2``), even with the same ``experiment_name``.

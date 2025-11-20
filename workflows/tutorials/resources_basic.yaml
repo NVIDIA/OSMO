@@ -14,8 +14,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+workflow:
+  name: resource-demo
+  resources:
+    default:
+      cpu: 2
+      memory: 4Gi
+      storage: 10Gi
+  tasks:
+  - name: my-task
+    image: ubuntu:24.04
+    command: ["bash", "-c", "echo 'Using default resources'"]

@@ -14,8 +14,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: download-from-s3
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  tasks:
+  - name: load-from-cloud
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args:
+    - |
+      echo "Loading data from S3..."
+      ls -la {{input:0}}/ # (1)
+      echo "Download complete"
+
+    inputs:
+    - url: s3://my-bucket/data/ # (2)

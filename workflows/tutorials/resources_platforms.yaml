@@ -14,8 +14,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: platform-demo
+  resources:
+    default:
+      cpu: 1
+      memory: 16Gi
+      storage: 1Gi
+      platform: ovx-l40
+    x86_gpu:
+      cpu: 4
+      gpu: 1
+      memory: 16Gi
+      storage: 1Gi
+      platform: dgx-h100
+  tasks:
+  - name: cpu-task
+    image: ubuntu:24.04
+    command: ["bash", "-c", "echo 'Running on L40'"]
+    # Uses default resource with ovx-l40 platform
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  - name: gpu-task
+    image: nvcr.io/nvidia/pytorch:24.01-py3
+    command: ["bash", "-c", "echo 'Running on DGX H100 with GPU'"]
+    resource: x86_gpu  # Uses x86_gpu resource with dgx-h100 platform

@@ -14,8 +14,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: upload-to-s3
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  tasks:
+  - name: save-to-cloud
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args:
+    - |
+      mkdir -p {{output}}/results
+      echo "Model checkpoint" > {{output}}/results/model.pth
+      echo "Upload complete"
+
+    outputs:
+    - url: s3://my-bucket/models/ # (1)
