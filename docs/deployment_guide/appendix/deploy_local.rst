@@ -349,7 +349,7 @@ Now that you have OSMO running locally, explore the platform:
 .. tip::
    **Ready to Scale?**
 
-   Once you've validated OSMO locally, you can scale to cloud environments (EKS, AKS, GKE) or on-premise clusters without rewriting your workflows. Contact your cloud administrator to discuss production deployment options—see the :ref:`deploy_service` guide for full production deployment.
+   Once you have validated OSMO locally, you can scale to cloud environments (EKS, AKS, GKE) or on-premise clusters without rewriting your workflows. Contact your cloud administrator to discuss production deployment options—see the :ref:`deploy_service` guide for full production deployment.
 
 Cleanup
 =======
