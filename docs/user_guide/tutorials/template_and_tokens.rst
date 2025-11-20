@@ -67,7 +67,7 @@ Special Tokens
 Besides templates, OSMO provides **special tokens** - reserved variables that are
 automatically set by the system. Unlike templates, you **cannot** override them with ``--set``.
 
-.. include:: ../../workflows/specification/tokens_table.in.rst
+.. include:: ../workflows/specification/tokens_table.in.rst
 
 **Token example:**
 
