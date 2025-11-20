@@ -1,0 +1,214 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 770" width="100%" style="max-width: 100%; height: auto;">
+  <defs>
+    <style>
+      /* Light mode (default) */
+      .card-link {
+        text-decoration: none;
+      }
+
+      .card-bg {
+        fill: #ffffff;
+        stroke: #d0d0d0;
+        stroke-width: 1.5;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+        transition: all 0.2s ease;
+      }
+
+      .card-link:hover .card-bg {
+        stroke: #1a1a1a;
+        stroke-width: 2.5;
+        filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.15));
+      }
+
+      .card-title,
+      .card-text {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 24px;
+        line-height: 1.8;
+      }
+
+      .card-title {
+        fill: #1a1a1a;
+        font-weight: 700;
+      }
+
+      .card-text {
+        fill: #333333;
+        font-weight: 400;
+      }
+
+      .icon-color {
+        color: #1a1a1a;
+      }
+      
+      /* Dark mode - system preference */
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]):not([data-mode="light"]) .card-bg {
+          fill: #0a0a0a;
+          stroke: #2a2a2a;
+          filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+        }
+
+        :root:not([data-theme="light"]):not([data-mode="light"]) .card-link:hover .card-bg {
+          stroke: #4a4a4a;
+          filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.8));
+        }
+
+        :root:not([data-theme="light"]):not([data-mode="light"]) .card-title {
+          fill: #ffffff;
+        }
+
+        :root:not([data-theme="light"]):not([data-mode="light"]) .card-text {
+          fill: #cccccc;
+        }
+
+        :root:not([data-theme="light"]):not([data-mode="light"]) .icon-color {
+          color: #ffffff;
+        }
+      }
+
+      /* Dark mode - manual selection. Must be explicit because this is embedded as raw HTML. */
+      :root[data-theme="dark"] .card-bg,
+      :root[data-mode="dark"] .card-bg {
+        fill: #0a0a0a;
+        stroke: #2a2a2a;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+      }
+
+      :root[data-theme="dark"] .card-link:hover .card-bg,
+      :root[data-mode="dark"] .card-link:hover .card-bg {
+        stroke: #4a4a4a;
+        filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.8));
+      }
+
+      :root[data-theme="dark"] .card-title,
+      :root[data-mode="dark"] .card-title {
+        fill: #ffffff;
+      }
+
+      :root[data-theme="dark"] .card-text,
+      :root[data-mode="dark"] .card-text {
+        fill: #cccccc;
+      }
+
+      :root[data-theme="dark"] .icon-color,
+      :root[data-mode="dark"] .icon-color {
+        color: #ffffff;
+      }
+    </style>
+  </defs>
+
+  <!-- Card 1: Local Deployment -->
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html" class="card-link">
+    <g id="card-local">
+      <rect class="card-bg" x="30" y="30" width="360" height="710" rx="8"/>
+      
+      <!-- Computer/Laptop Icon -->
+      <g class="icon-color" transform="translate(50, 55) scale(1.5)">
+        <path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </g>
+
+      <text class="card-title" x="95" y="78">Local Deployment</text>
+      
+      <text class="card-title" x="50" y="135">Time: <tspan class="card-text" font-weight="400">~10 minutes</tspan></text>
+      
+      <text class="card-title" x="50" y="190">Best for: <tspan class="card-text" font-weight="400">Evaluation, learning,</tspan></text>
+      <text class="card-text" x="50" y="230">testing only</text>
+      
+      <text class="card-title" x="50" y="295">Key Benefits:</text>
+      
+      <text class="card-text" x="50" y="340">✓ No cloud costs</text>
+      <text class="card-text" x="50" y="390">✓ No infrastructure setup</text>
+      <text class="card-text" x="50" y="440">✓ Single node deployment</text>
+      <text class="card-text" x="50" y="490">✓ Limited features</text>
+      
+      <text class="card-title" x="50" y="555">Summary:</text>
+      
+      <text class="card-text" x="50" y="595">Try OSMO on your workstation</text>
+      <text class="card-text" x="50" y="635">with zero cloud costs. Perfect</text>
+      <text class="card-text" x="50" y="675">for evaluating the platform.</text>
+    </g>
+  </a>
+
+  <!-- Card 2: Minimal Deployment -->
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_minimal.html" class="card-link">
+    <g id="card-minimal">
+      <rect class="card-bg" x="420" y="30" width="360" height="710" rx="8"/>
+      
+      <!-- Rocket Icon -->
+      <g class="icon-color" transform="translate(440, 55) scale(1.5)">
+        <path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+      </g>
+
+      <text class="card-title" x="485" y="78">Minimal Deployment</text>
+      
+      <text class="card-title" x="440" y="135">Time: <tspan class="card-text" font-weight="400">~30 minutes</tspan></text>
+      
+      <text class="card-title" x="440" y="190">Best for: <tspan class="card-text" font-weight="400">Evaluation, testing,</tspan></text>
+      <text class="card-text" x="440" y="230">development only</text>
+      
+      <text class="card-title" x="440" y="295">Key Benefits:</text>
+      
+      <text class="card-text" x="440" y="340">✓ Cloud-based setup</text>
+      <text class="card-text" x="440" y="390">✓ No authentication</text>
+      <text class="card-text" x="440" y="440">✓ Single namespace</text>
+      <text class="card-text" x="440" y="490">✓ Limited features</text>
+      
+      <text class="card-title" x="440" y="555">Summary:</text>
+      
+      <text class="card-text" x="440" y="595">Get a feel for the platform and</text>
+      <text class="card-text" x="440" y="635">explore capabilities with this</text>
+      <text class="card-text" x="440" y="675">minimal cloud deployment.</text>
+    </g>
+  </a>
+
+  <!-- Card 3: Production Deployment -->
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/requirements/prereqs.html" class="card-link">
+    <g id="card-production">
+      <rect class="card-bg" x="810" y="30" width="360" height="710" rx="8"/>
+      
+      <!-- Cloud Icon -->
+      <g class="icon-color" transform="translate(830, 55) scale(1.5)">
+        <path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+      </g>
+
+      <text class="card-title" x="875" y="78">Production Deployment</text>
+      
+      <text class="card-title" x="830" y="135">Time: <tspan class="card-text" font-weight="400">2-4 hours</tspan></text>
+      
+      <text class="card-title" x="830" y="190">Best for: <tspan class="card-text" font-weight="400">Production, Multi-user</tspan></text>
+      <text class="card-text" x="830" y="230">environments</text>
+      
+      <text class="card-title" x="830" y="295">Key Benefits:</text>
+      
+      <text class="card-text" x="830" y="340">✓ Production-ready</text>
+      <text class="card-text" x="830" y="390">✓ SSO authentication</text>
+      <text class="card-text" x="830" y="440">✓ Multi-backend support</text>
+      <text class="card-text" x="830" y="490">✓ Interactive workflows</text>
+      
+      <text class="card-title" x="830" y="555">Summary:</text>
+      
+      <text class="card-text" x="830" y="595">Complete production-ready</text>
+      <text class="card-text" x="830" y="635">deployment with SSO, data</text>
+      <text class="card-text" x="830" y="675">storage, monitoring, and multi-</text>
+      <text class="card-text" x="830" y="715">backend support.</text>
+    </g>
+  </a>
+</svg>
