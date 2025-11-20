@@ -78,7 +78,7 @@ nextjs_standalone_build(
     next_js_binary = ":next_js_binary",
     silent_on_success = False,
     env = {
-        "NODE_ENV": "development",
+        "NODE_ENV": "production",
         "SKIP_ENV_VALIDATION": "true",
         "NEXT_PUBLIC_APP_NAME": "OSMO",
     },
@@ -149,7 +149,7 @@ oci_image(
     ],
     env = {
         "HOSTNAME": "0.0.0.0",
-        "NODE_ENV": "development",
+        "NODE_ENV": "production",
         "NEXT_PUBLIC_APP_NAME": "OSMO",
     },
     cmd = [
@@ -201,7 +201,7 @@ oci_image(
     ],
     env = {
         "HOSTNAME": "0.0.0.0",
-        "NODE_ENV": "development",
+        "NODE_ENV": "production",
         "NEXT_PUBLIC_APP_NAME": "OSMO",
     },
     cmd = [

@@ -9,6 +9,11 @@ const API_URL = `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}`;
 const config = {
   output: "standalone",
   productionBrowserSourceMaps: true,
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+  },
   images: {
     remotePatterns: [
       {

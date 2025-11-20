@@ -46,6 +46,11 @@ const config = {
       },
     ],
   },
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+  },
   webpack: (config, { isServer, dev }) => {
     if (!isServer && MiniCssExtractPlugin) {
       // For client-side builds, use mini-css-extract-plugin to extract CSS into separate files
