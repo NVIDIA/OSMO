@@ -30,8 +30,30 @@ Select one of the deployment options below depending on your needs and deploymen
 
 .. only:: html
 
-  .. grid:: 1 2 2 2
+  .. grid:: 1 2 3 3
       :gutter: 3
+
+      .. grid-item-card:: :octicon:`desktop-download` Local Deployment
+          :link: ../appendix/deploy_local
+          :link-type: doc
+
+          **Time**: ~10 minutes
+
+          **Best for**: Evaluation, learning, testing only
+
+          **Key Benefits**:
+
+          ✓ No cloud costs
+
+          ✓ No infrastructure setup
+
+          ✓ Single node deployment
+
+          ✓ Limited features
+
+          **Summary**:
+
+          Try OSMO on your workstation with zero cloud costs. Perfect for evaluating the platform.
 
       .. grid-item-card:: :octicon:`rocket` Minimal Deployment
           :link: ../appendix/deploy_minimal
@@ -39,12 +61,12 @@ Select one of the deployment options below depending on your needs and deploymen
 
           **Time**: ~30 minutes
 
-          **Best for**: Testing, evaluation, development only
+          **Best for**: Evaluation, testing, development only
 
 
           **Key Benefits**:
 
-          ✓ Fastest setup
+          ✓ Cloud-based setup
 
           ✓ No authentication
 
@@ -54,7 +76,7 @@ Select one of the deployment options below depending on your needs and deploymen
 
           **Summary**:
 
-          Get a feel for the platform and explore the capabilities with this minimal deployment.
+          Get a feel for the platform and explore the capabilities with this minimal cloud deployment.
 
       .. grid-item-card:: :octicon:`cloud` Production Deployment
           :link: ../requirements/prereqs
