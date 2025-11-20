@@ -46,12 +46,12 @@ build-multiversion:
 	rm -rf $(OUT_DIR)/deployment_guide/_sources
 
 build-user-html:
-	export OSMO_DOMAIN=public && sphinx-build user_guide $(OUT_DIR)/user_guide
+	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
 	rm -rf $(OUT_DIR)/user_guide/_sources
 
 
 build-deployment-html:
-	export OSMO_DOMAIN=public && sphinx-build deployment_guide $(OUT_DIR)/deployment_guide
+	export OSMO_DOMAIN=public && sphinx-build -b html deployment_guide -w $(ERR_DIR)/deployment_guide.log $(OUT_DIR)/deployment_guide
 	rm -rf $(OUT_DIR)/deployment_guide/_sources
 
 
