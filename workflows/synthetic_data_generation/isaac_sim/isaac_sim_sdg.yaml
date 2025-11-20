@@ -82,4 +82,4 @@ workflow:
       cpu: 4
       gpu: 1
       memory: 32Gi
-      storage: 16Gi
+      storage: 64Gi

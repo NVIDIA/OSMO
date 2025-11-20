@@ -18,7 +18,7 @@
 # osmo workflow submit cosmos_transfer.yaml
 
 workflow:
-  name: isaac-sim-cosmos-sdg
+  name: isaac-sim-cosmos-transfer
   tasks:
   - name: isaac-sim-sdg
     image: nvcr.io/nvidia/isaac-sim:5.1.0
