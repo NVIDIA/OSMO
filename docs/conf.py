@@ -199,7 +199,7 @@ mermaid_version = '11.12.1'
 
 # Allow only tags in the format '#.#.#'
 smv_tag_whitelist = r'^\d+\.\d+\.\d+$'
-# Allow only the main branch and any branches that begin with 'release-' to be rendered
-smv_branch_whitelist = r'^main$|^release-.*$'
-smv_remote_whitelist = r'^main$|^release-.*$'
+# Allow only the main branch and any branches that begin with 'release/' to be rendered
+smv_branch_whitelist = r'^main$|^release/.*$'
+smv_remote_whitelist = r'^main$|^release/.*$'
 smv_prefer_remote_refs = False
