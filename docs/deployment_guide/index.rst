@@ -160,6 +160,7 @@ An OSMO deployment consists of two main components:
   :hidden:
   :caption: Additional Resources
 
+  appendix/deploy_local
   appendix/deploy_minimal
   appendix/workflow_execution
   appendix/authentication/index

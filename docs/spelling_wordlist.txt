@@ -1,6 +1,7 @@
 acyclic
 Alertmanager
 allocatables
+allocatable
 amazonaws
 amd
 amd64
@@ -128,6 +129,7 @@ inferencing
 ingressClassName
 ini
 init
+inotify
 instantiation
 io
 ip
@@ -201,6 +203,7 @@ nvcr
 nvidia
 NVIDIA
 nvidian
+nvkind
 nvml
 nvstaging
 OAuth

@@ -21,17 +21,22 @@
 
 `Physical AI <https://www.nvidia.com/en-us/glossary/generative-physical-ai/>`_ development uniquely requires orchestrating three types of compute:
 
-* 🧠 **Training GPUs** (GB200/H100) for deep learning and reinforcement learning
+* 🧠 **Training GPUs** (GB200, H100) for deep learning and reinforcement learning
 
-* 🌐 **Simulation Hardware** (L40/RTX Pro) for realistic physics and sensor rendering
+* 🌐 **Simulation Hardware** (RTX PRO 6000) for realistic physics and sensor rendering
 
 * 🤖 **Edge Devices** (Jetson AGX Thor) for hardware-in-the-loop testing and validation
 
-**OSMO** solves the `Three Computer Problem <https://blogs.nvidia.com/blog/three-computers-robotics/>`_ for robotics by orchestrating your entire robotics pipeline with simple YAML workflows—no custom scripts, no infrastructure expertise required.
 
-.. tip::
 
-   **🤹 Stop juggling three computers. 🤖 Start building robots.**
+.. figure:: tutorials/hardware_in_the_loop/robot_simulation.svg
+  :align: center
+  :class: transparent-bg no-scaled-link
+  :width: 85%
+
+
+**OSMO** solves the `Three Computer Problem <https://blogs.nvidia.com/blog/three-computers-robotics/>`_ for robotics by orchestrating your entire robotics pipeline with simple YAML workflows—no custom scripts, no infrastructure expertise required. By solving this fundamental challenge, OSMO brings us one step closer to making Physical AI a reality.
+
 
 What is OSMO
 -------------
@@ -147,29 +152,29 @@ How It Works
 
 .. code-block:: yaml
 
-   # Your entire physical AI pipeline in one file
+   # Your entire physical AI pipeline in a YAML file
    workflow:
      tasks:
-     - name: isaac-simulation
+     - name: simulation
        image: nvcr.io/nvidia/isaac-sim
-       platform: ovx-l40                # Runs on NVIDIA L40 GPUs
+       platform: rtx-pro-6000          # Runs on NVIDIA RTX PRO 6000 GPUs
 
      - name: train-policy
        image: nvcr.io/nvidia/pytorch
-       platform: dgxh100                # Runs on NVIDIA DGX H100 GPUs
+       platform: gb200                 # Runs on NVIDIA GB200 GPUs
        resources:
          gpu: 8
-       inputs:
-        - task: isaac-simulation
+       inputs:                         # Feed the output of simulation task into training
+        - task: simulation
 
      - name: evaluate-thor
        image: my-robot:latest
-       platform: jetson-agx-thor        # Runs on NVIDIA Jetson AGX Thor
+       platform: jetson-agx-thor       # Runs on NVIDIA Jetson AGX Thor
        inputs:
-        - task: train-policy
+        - task: train-policy           # Feed the output of the training task into eval
        outputs:
         - dataset:
-            name: thor-benchmark
+            name: thor-benchmark       # Save the output benchmark into a dataset
 
 
 Key Benefits
