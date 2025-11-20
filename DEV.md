@@ -85,10 +85,10 @@ Log into OSMO using the CLI:
 bazel run @osmo_workspace//src/cli -- login http://$HOST_IP:8000 --method=dev --username=testuser
 ```
 
-Test your setup with:
+Test your setup with [hellow_world.yaml](./workflows/tutorials/hello_world.yaml):
 
 ```sh
-bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflows/basics/hello_world/hello_world.yaml
+bazel run @osmo_workspace//src/cli -- workflow submit ~/path/to/osmo/workflows/tutorials/hello_world.yaml
 ```
 
 The workflow should successfully submit and run to a "completed" state.

@@ -20,40 +20,44 @@ SPDX-License-Identifier: Apache-2.0
 
 This directory contains brief examples of workflows that can be used in combination to make more complex workflows.
 
+## Tutorials
+
+> [Collection of workflows](./tutorials/) from the [tutorial documentation](https://nvidia.github.io/OSMO/user_guide/tutorials/overview.html)
+
 ## How-To Guides
 
 | Workflow Name                                                          | Link                                         |
 |------------------------------------------------------------------------|----------------------------------------------|
-| Isaac Sim: Generating Synthetic Data                                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/synthetic_data_generation/isaac_sim/README.md) |
-| Isaac Lab: Training Robot Policy with Reinforcement Learning           | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/reinforcement_learning/README.md) |
-| ROS2: Multi-Node Communication                                         | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/ros/comm/README.md)                            |
-| TorchRun: Training on a Single Node                                    | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/single_node/README.md) |
-| TorchRun: Training on Multiple Nodes                                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_multinode/README.md) |
-| TorchRun: Training with Rescheduling                                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_reschedule/README.md) |
-| Hardware-in-the-Loop: Deploying Policy on Jetson                        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/hil/README.md)                      |
+| Isaac Sim: Generating Synthetic Data                                   | [README](./synthetic_data_generation/isaac_sim/README.md) |
+| Isaac Lab: Training Robot Policy with Reinforcement Learning           | [README](./reinforcement_learning/README.md) |
+| ROS2: Multi-Node Communication                                         | [README](./ros/comm/README.md)                            |
+| TorchRun: Training on a Single Node                                    | [README](./dnn_training/single_node/README.md) |
+| TorchRun: Training on Multiple Nodes                                   | [README](./dnn_training/torchrun_multinode/README.md) |
+| TorchRun: Training with Rescheduling                                   | [README](./dnn_training/torchrun_reschedule/README.md) |
+| Hardware-in-the-Loop: Deploying Policy on Jetson                        | [README](./hil/README.md)                      |
 
 ## Remote Development
 
 | Workflow Name                                                          | Link                                         |
 |------------------------------------------------------------------------|----------------------------------------------|
-| JupyterLab: Host a Notebook                                            | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab/README.md)  |
-| Filebrowser: Launching a Workspace                                     | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/filebrowser/README.md)  |
-| VSCode: Spin up a Remote Server                                        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/vscode/README.md)      |
-| Github: Cloning a Private Repository                                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/github/README.md)  |
-| Ray: Create a Cluster                                                  | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/ray/README.md)         |
-| Weights & Biases: Neural Network Training                              | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/wandb/README.md)       |
-| Isaac Sim: Livestreaming Client                                        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/isaacsim/README.md)    |
+| JupyterLab: Host a Notebook                                            | [README](./integration_and_tools/jupyterlab/README.md)  |
+| Filebrowser: Launching a Workspace                                     | [README](./integration_and_tools/filebrowser/README.md)  |
+| VSCode: Spin up a Remote Server                                        | [README](./integration_and_tools/vscode/README.md)      |
+| Github: Cloning a Private Repository                                   | [README](./integration_and_tools/github/README.md)  |
+| Ray: Create a Cluster                                                  | [README](./integration_and_tools/ray/README.md)         |
+| Weights & Biases: Neural Network Training                              | [README](./integration_and_tools/wandb/README.md)       |
+| Isaac Sim: Livestreaming Client                                        | [README](./integration_and_tools/isaacsim/README.md)    |
 
 ## Additional Applications
 
 | Workflow Name                                                          | Link                                         |
 |------------------------------------------------------------------------|----------------------------------------------|
-| Isaac Groot: Interactive Notebook for Inference and Fine-tuning        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_notebook/README.md)                    |
-| Isaac Groot: Finetuning a Model                                        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_finetune/README.md)                       |
-| Isaac Groot: Running Groot Mimic through Imitation Learning              | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_mimic/README.md)                       |
-| ROS2: Running Simulation with Foxglove Visualization                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/ros/turtlebot/README.md)                     |
-| Gazebo: Generating Synthetic Data                                      | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/synthetic_data_generation/gazebo/README.md)  |
-| Cosmos: Video2World Generation                                         | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/cosmos/README.md) |
-| NIMs: Using NVIDIA NIMs in a workflow                                  | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/nims/README.md) |
-| TorchRun: Elastic Training on Multiple Nodes                           | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_elastic/README.md) |
-| DeepSpeed: Training on Multiple Nodes                                  | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/deepspeed_multinode/README.md) |
+| Isaac Groot: Interactive Notebook for Inference and Fine-tuning        | [README](./groot/groot_notebook/README.md)                    |
+| Isaac Groot: Finetuning a Model                                        | [README](./groot/groot_finetune/README.md)                       |
+| Isaac Groot: Running Groot Mimic through Imitation Learning            | [README](./groot/groot_mimic/README.md)                       |
+| ROS2: Running Simulation with Foxglove Visualization                   | [README](./ros/turtlebot/README.md)                     |
+| Gazebo: Generating Synthetic Data                                      | [README](./synthetic_data_generation/gazebo/README.md)  |
+| Cosmos: Video2World Generation                                         | [README](./cosmos/README.md) |
+| NIMs: Using NVIDIA NIMs in a workflow                                  | [README](./nims/README.md) |
+| TorchRun: Elastic Training on Multiple Nodes                           | [README](./dnn_training/torchrun_elastic/README.md) |
+| DeepSpeed: Training on Multiple Nodes                                  | [README](./dnn_training/deepspeed_multinode/README.md) |

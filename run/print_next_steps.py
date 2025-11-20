@@ -105,7 +105,7 @@ def print_next_steps(
     logger.info('%d. Test your setup with:', step_number)
     logger.info(
         '   bazel run @osmo_workspace//src/cli -- '
-        'workflow submit %s/workflows/basics/hello_world/hello_world.yaml\n',
+        'workflow submit %s/workflows/tutorials/hello_world.yaml\n',
         docs_path,
     )
     logger.info('   The workflow should successfully submit and run to a "completed" state.')
