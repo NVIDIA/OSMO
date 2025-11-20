@@ -78,7 +78,7 @@ nextjs_standalone_build(
     next_js_binary = ":next_js_binary",
     silent_on_success = False,
     env = {
-        "NODE_ENV": "production",
+        "NODE_ENV": "development",
         "SKIP_ENV_VALIDATION": "true",
         "NEXT_PUBLIC_APP_NAME": "OSMO",
     },
