@@ -139,12 +139,12 @@ Select one of the deployment options below depending on your needs and environme
 
 | Resource | Description |
 |:---------|:------------|
-| 🚀 [**Local Deployment**](./QUICK_START.md) | Run it locally on your workstation in 10 minutes |
+| 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
 | 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/deployment_guide/) | Deploy production grade on cloud providers  |
 | 📘 [**User Guide**](https://nvidia.github.io/OSMO/user_guide/) | Tutorials, workflows, and how-to guides for developers |
-| 💡 [**Examples**](./examples/) | Robotics workflow examples
-| 💻 [**CLI Reference**](https://nvidia.github.io/OSMO/user_guide/cli/) | Complete command-line interface documentation |
-| 🔧 [**API Reference**](https://nvidia.github.io/OSMO/deployment_guide/references/) | REST API and configuration specs
+| 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
+| 💻 [**Getting Started**](https://nvidia.github.io/OSMO/user_guide/getting_started/install/index.html) | Install command-line interface to get started |
+
 
 
 ## Roadmap
