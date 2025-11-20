@@ -25,6 +25,7 @@ If you are interested in contributing to OSMO, your contributions will fall into
 
 ### Install Prerequisites
 
+- **[Git LFS](https://git-lfs.com/)** - Source control for large files (>=3.7.1)
 - **[Bazel](https://bazel.build/install/bazelisk)** - Build tool (>=8.1.1)
 - **[Docker](https://docs.docker.com/get-docker/)** - Container runtime (>=28.3.2)
 - **[Helm](https://helm.sh/docs/intro/install/)** - Package manager for Kubernetes (>=3.17.1)
