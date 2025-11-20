@@ -50,7 +50,7 @@ workflow:
             path: output
   resources:
     default:
-      cpu: 1
+      cpu: 16
       gpu: 1
       storage: 64Gi
       memory: 64Gi
