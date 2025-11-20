@@ -32,19 +32,26 @@ help:
 .PHONY: help generate build generate-and-build Makefile
 
 build:
+	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
+	export OSMO_DOMAIN=public && sphinx-build -b html deployment_guide -w $(ERR_DIR)/deployment_guide.log $(OUT_DIR)/deployment_guide
+	export OSMO_DOMAIN=public && sphinx-build -b markdown user_guide $(OUT_DIR)/user_guide -w $(ERR_DIR)/user_guide_markdown.log
+	export OSMO_DOMAIN=public && sphinx-build -b markdown deployment_guide $(OUT_DIR)/deployment_guide -w $(ERR_DIR)/deployment_guide_markdown.log
+	rm -rf $(OUT_DIR)/user_guide/_sources
+	rm -rf $(OUT_DIR)/deployment_guide/_sources
+
+build-multiversion:
 	export OSMO_DOMAIN=public && $(SPHINXBUILD) user_guide $(OUT_DIR)/user_guide
 	export OSMO_DOMAIN=public && $(SPHINXBUILD) deployment_guide $(OUT_DIR)/deployment_guide
 	rm -rf $(OUT_DIR)/user_guide/_sources
 	rm -rf $(OUT_DIR)/deployment_guide/_sources
 
-
 build-user-html:
-	export OSMO_DOMAIN=public && $(SPHINXBUILD) user_guide $(OUT_DIR)/user_guide
+	export OSMO_DOMAIN=public && sphinx-build user_guide $(OUT_DIR)/user_guide
 	rm -rf $(OUT_DIR)/user_guide/_sources
 
 
 build-deployment-html:
-	export OSMO_DOMAIN=public && $(SPHINXBUILD) deployment_guide $(OUT_DIR)/deployment_guide
+	export OSMO_DOMAIN=public && sphinx-build deployment_guide $(OUT_DIR)/deployment_guide
 	rm -rf $(OUT_DIR)/deployment_guide/_sources
 
 
