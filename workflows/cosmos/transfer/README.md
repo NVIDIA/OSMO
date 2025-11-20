@@ -32,7 +32,8 @@ This approach minimizes the need for achieving high fidelity in 3D simulation wh
 ## Prerequisites
 
 - A valid Hugging Face token with access to NVIDIA Cosmos models
-- Sufficient GPU resources (1 GPU)
+- RTX-Enabled GPU for Isaac Sim Task
+- H100 (or better) GPU for Cosmos Transfer Task
 
 ## Configuration
 
