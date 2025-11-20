@@ -103,7 +103,7 @@ YAML format (see `connection_validator.yaml`):
 
 ```yaml
 url_configs:
-  - url: "https://us-west-2-aws.osmo.nvidia.com/api/version"
+  - url: "https://osmo.nvidia.com/api/version"
     timeout: 30
     condition_name: "ServiceConnectionTestFailure"
 ```
