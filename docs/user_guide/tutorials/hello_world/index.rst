@@ -35,10 +35,10 @@ terminal. This tutorial will walk you through using the CLI to submit your first
 Creating a Workflow File
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can download the workflow definition here: :download:`hello_world.yaml <hello_world.yaml>`.
+You can download the workflow definition here: :download:`hello_world.yaml <../../../../workflows/tutorials/hello_world.yaml>`.
 Below is the contents of the file:
 
-.. literalinclude:: hello_world.yaml
+.. literalinclude:: ../../../../workflows/tutorials/hello_world.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
