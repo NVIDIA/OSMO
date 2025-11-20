@@ -125,7 +125,7 @@ Use the ``platform`` field in resource specifications to target specific platfor
 Robotics Simulation Example
 ===========================
 
-Let's create a workflow (:download:`robot_simulation.yaml <robot_simulation.yaml>`) that contains
+Let's create a workflow (:download:`robot_simulation.yaml <../../../../workflows/tutorials/robot_simulation.yaml>`) that contains
 the following tasks:
 
 1. ``physics-sim`` task that generates physics data (e.g. obstacle distance)

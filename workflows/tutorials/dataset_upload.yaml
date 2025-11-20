@@ -14,8 +14,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: create-dataset
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  tasks:
+  - name: generate-data
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args:
+    - |
+      echo "Generating data..."
+      mkdir -p {{output}}/data
+      for i in {1..10}; do
+        echo "Sample data $i" > {{output}}/data/file_$i.txt
+      done
+      echo "Data generation complete"
+
+    outputs:
+    - dataset:
+        name: my_dataset # (1)

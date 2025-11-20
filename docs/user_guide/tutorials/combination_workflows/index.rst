@@ -50,7 +50,7 @@ Simple Example
 ==============
 
 Let's build a data processing pipeline with multiple stages by downloading the workflow definition
-here: :download:`combination_workflow_simple.yaml <combination_workflow_simple.yaml>`.
+here: :download:`combination_workflow_simple.yaml <../../../../workflows/tutorials/combination_workflow_simple.yaml>`.
 
 .. figure:: combination_workflow_simple.svg
   :align: center
@@ -58,7 +58,7 @@ here: :download:`combination_workflow_simple.yaml <combination_workflow_simple.y
   :class: transparent-bg no-scaled-link
   :alt: Simple Combination Workflow
 
-.. literalinclude:: combination_workflow_simple.yaml
+.. literalinclude:: ../../../../workflows/tutorials/combination_workflow_simple.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -91,7 +91,7 @@ Complex Example
 ===============
 
 Let's build a more complex data processing pipeline by downloading the workflow definition
-here: :download:`combination_workflow_complex.yaml <combination_workflow_complex.yaml>`.
+here: :download:`combination_workflow_complex.yaml <../../../../workflows/tutorials/combination_workflow_complex.yaml>`.
 
 .. figure:: combination_workflow_complex.svg
   :align: center
@@ -99,7 +99,7 @@ here: :download:`combination_workflow_complex.yaml <combination_workflow_complex
   :class: transparent-bg no-scaled-link
   :alt: Complex Combination Workflow
 
-.. literalinclude:: combination_workflow_complex.yaml
+.. literalinclude:: ../../../../workflows/tutorials/combination_workflow_complex.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 

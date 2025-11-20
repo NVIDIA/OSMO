@@ -58,19 +58,9 @@ Resources are defined under the ``workflow`` in the ``resources`` field and assi
 using the ``resource`` field in the ``tasks`` section. If a task doesn't specify a resource,
 it automatically uses the ``default`` resource spec:
 
-.. code-block:: yaml
-
-  workflow:
-    name: resource-demo
-    resources:
-      default:
-        cpu: 2
-        memory: 4Gi
-        storage: 10Gi
-    tasks:
-    - name: my-task
-      image: ubuntu:24.04
-      command: ["bash", "-c", "echo 'Using default resources'"]
+.. literalinclude:: ../../../workflows/tutorials/resources_basic.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 This task will automatically use 2 CPU cores, 4Gi of memory, and 10Gi of storage because no explicit
 ``resource`` field is specified.
@@ -80,30 +70,9 @@ Multiple Resource Specifications
 
 You can define multiple named resource specifications and assign them to different tasks:
 
-.. code-block:: yaml
-
-  workflow:
-    name: mixed-resources
-    resources:
-      default:
-        cpu: 1
-        memory: 2Gi
-        storage: 5Gi
-      gpu_resource:
-        cpu: 8
-        gpu: 1
-        memory: 32Gi
-        storage: 100Gi
-    tasks:
-    - name: light-task
-      image: ubuntu:24.04
-      command: ["bash", "-c", "echo 'Using default resources'"]
-      # No resource field specified, so 'default' is used
-
-    - name: gpu-task
-      image: ubuntu:24.04
-      command: ["bash", "-c", "nvidia-smi"]
-      resource: gpu_resource  # Explicitly uses gpu_resource
+.. literalinclude:: ../../../workflows/tutorials/resources_multiple.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 In this example, ``light-task`` uses the ``default`` resource spec automatically, while
 ``gpu-task`` explicitly requests the ``gpu_resource`` spec.
@@ -114,32 +83,9 @@ Targeting Specific Platforms
 Use the ``platform`` field to target specific compute platforms. If no platform is specified,
 the default platform for the pool is used (if configured by administrators):
 
-.. code-block:: yaml
-
-  workflow:
-    name: platform-demo
-    resources:
-      default:
-        cpu: 1
-        memory: 16Gi
-        storage: 1Gi
-        platform: ovx-l40
-      x86_gpu:
-        cpu: 4
-        gpu: 1
-        memory: 16Gi
-        storage: 1Gi
-        platform: dgx-h100
-    tasks:
-    - name: cpu-task
-      image: ubuntu:24.04
-      command: ["bash", "-c", "echo 'Running on L40'"]
-      # Uses default resource with ovx-l40 platform
-
-    - name: gpu-task
-      image: nvcr.io/nvidia/pytorch:24.01-py3
-      command: ["bash", "-c", "echo 'Running on DGX H100 with GPU'"]
-      resource: x86_gpu  # Uses x86_gpu resource with dgx-h100 platform
+.. literalinclude:: ../../../workflows/tutorials/resources_platforms.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 To see available platforms and pools, use:
 

@@ -14,8 +14,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: mixed-storage
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  tasks:
+  - name: process-multiple-sources
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args:
+    - |
+      echo "Processing data from multiple sources..."
+      cat {{input:0}}/my_dataset/data.txt
+      cat {{input:1}}/s3_data.txt
+
+      # Generate outputs
+      echo "Processed results" > {{output}}/results.txt
+
+    inputs:
+    - dataset:
+        name: my_dataset # (1)
+    - url: s3://my-bucket/raw-data/ # (2)
+
+    outputs:
+    - dataset:
+        name: processed_data # (3)
+    - url: s3://my-bucket/outputs/ # (4)

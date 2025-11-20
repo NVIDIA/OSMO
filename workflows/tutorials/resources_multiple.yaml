@@ -14,8 +14,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: mixed-resources
+  resources:
+    default:
+      cpu: 1
+      memory: 2Gi
+      storage: 5Gi
+    gpu_resource:
+      cpu: 8
+      gpu: 1
+      memory: 32Gi
+      storage: 100Gi
+  tasks:
+  - name: light-task
+    image: ubuntu:24.04
+    command: ["bash", "-c", "echo 'Using default resources'"]
+    # No resource field specified, so 'default' is used
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  - name: gpu-task
+    image: ubuntu:24.04
+    command: ["bash", "-c", "nvidia-smi"]
+    resource: gpu_resource  # Explicitly uses gpu_resource

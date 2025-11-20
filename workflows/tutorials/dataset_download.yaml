@@ -14,8 +14,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: read-dataset
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  tasks:
+  - name: process-data
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args:
+    - |
+      echo "Reading dataset..."
+      ls -la {{input:0}}/my_dataset/ # (1)
+      cat {{input:0}}/my_dataset/data/file_1.txt
+      echo "Processing complete"
+
+    inputs:
+    - dataset:
+        name: my_dataset # (2)

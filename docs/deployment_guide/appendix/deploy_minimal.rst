@@ -24,7 +24,7 @@ Minimal Deployment
 This guide provides instructions for deploying OSMO in a minimal configuration suitable for testing, development, and evaluation purposes. This setup of OSMO creates the service and backend operator in the same kubernetes cluster, is suitable for single-tenant, has no authentication, and is designed for quick setup and experimentation.
 
 .. warning::
-   Minimal deployment is **not** recommended for production use as it lacks authentication and security features.
+   Minimal deployment is **not** recommended for production use as it lacks authentication and has limited features.
 
 Overview
 ========

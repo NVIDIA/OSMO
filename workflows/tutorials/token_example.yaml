@@ -14,8 +14,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: {{experiment_name}}
+  tasks:
+  - name: experiment
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args:
+    - |
+      echo "Running experiment: {{experiment_name}}"
+      echo "Workflow ID: {{workflow_id}}"
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+default-values:
+  experiment_name: my-experiment

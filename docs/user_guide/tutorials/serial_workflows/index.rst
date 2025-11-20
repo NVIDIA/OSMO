@@ -112,7 +112,7 @@ OSMO automatically:
 Your First Serial Workflow
 ===========================
 
-Let's build a **three-stage** serial workflow (:download:`serial_workflow.yaml <serial_workflow.yaml>`):
+Let's build a **three-stage** serial workflow (:download:`serial_workflow.yaml <../../../../workflows/tutorials/serial_workflow.yaml>`):
 
 .. figure:: serial_workflow.svg
   :align: center
@@ -120,7 +120,7 @@ Let's build a **three-stage** serial workflow (:download:`serial_workflow.yaml <
   :class: transparent-bg no-scaled-link
   :alt: Serial Workflow
 
-.. literalinclude:: serial_workflow.yaml
+.. literalinclude:: ../../../../workflows/tutorials/serial_workflow.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 

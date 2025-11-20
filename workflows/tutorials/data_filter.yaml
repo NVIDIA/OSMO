@@ -14,8 +14,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+workflow:
+  name: filtered-io
 
-url_configs:
-  - url: "https://osmo.nvidia.com/api/version"
-    timeout: 30
-    condition_name: "ServiceConnectionTestFailure"
+  tasks:
+  - name: selective-download
+    image: ubuntu:24.04
+    command: ["bash", "-c"]
+    args: ["ls -la {{input:0}}/"]
+
+    inputs:
+    - dataset:
+        name: large_dataset
+        regex: .*\.txt$ # (1)
+
+    outputs:
+    - dataset:
+        name: output_dataset
+        regex: .*\.(json|yaml)$ # (2)

@@ -71,6 +71,27 @@ jobs:
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          echo "Freeing disk space..."
+          echo "Removing .NET..."
+          sudo rm -rf /usr/share/dotnet || true
+          echo "Removing Android..."
+          sudo rm -rf /usr/local/lib/android || true
+          echo "Removing GHC..."
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          echo "Removing CodeQL..."
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          echo "Pruning Docker images..."
+          sudo docker image prune --all --force || true
+
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
