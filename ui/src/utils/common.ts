@@ -73,8 +73,33 @@ export const OsmoApiFetch = async (
     fetchOptions.body = JSON.stringify(requestBody);
   }
 
-  // To inspect a fetch URL, this is where you would add a console.log
+  // Log full request details
+  console.log("OsmoApiFetch Request:", {
+    url: fetchUrl,
+    method: method,
+    headers: fetchOptions.headers,
+    body: requestBody,
+  });
+
   const response = await fetch(fetchUrl, fetchOptions);
+  
+  // Clone response to read body without consuming it
+  const clonedResponse = response.clone();
+  
+  // Log full response details
+  try {
+    const responseBody = await clonedResponse.text();
+    console.log("OsmoApiFetch Response:", {
+      url: fetchUrl,
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: responseBody,
+    });
+  } catch (error) {
+    console.error("Failed to log response body:", error);
+  }
+  
   return response;
 };
 
