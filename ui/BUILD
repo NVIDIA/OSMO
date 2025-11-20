@@ -149,7 +149,7 @@ oci_image(
     ],
     env = {
         "HOSTNAME": "0.0.0.0",
-        "NODE_ENV": "production",
+        "NODE_ENV": "development",
         "NEXT_PUBLIC_APP_NAME": "OSMO",
     },
     cmd = [
@@ -201,7 +201,7 @@ oci_image(
     ],
     env = {
         "HOSTNAME": "0.0.0.0",
-        "NODE_ENV": "production",
+        "NODE_ENV": "development",
         "NEXT_PUBLIC_APP_NAME": "OSMO",
     },
     cmd = [
