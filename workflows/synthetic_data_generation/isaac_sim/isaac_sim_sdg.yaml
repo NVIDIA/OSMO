@@ -18,7 +18,7 @@
 # osmo workflow submit isaac_sim_sdg.yaml
 
 workflow:
-  name: isaac-sim-cosmos-sdg
+  name: isaac-sim-sdg
   tasks:
   - name: isaac-sim-sdg
     image: nvcr.io/nvidia/isaac-sim:5.1.0
@@ -30,8 +30,8 @@ workflow:
     files:
     - contents: |
         set -e
-        /isaac-sim/python.sh /isaac-sim/standalone_examples/api/isaacsim.replicator.examples/cosmos_writer_warehouse.py --config /tmp/config.json
-        cp -r /isaac-sim/_out_cosmos_warehouse/. {{output}}
+        /isaac-sim/python.sh /isaac-sim/standalone_examples/replicator/scene_based_sdg/scene_based_sdg.py --config /tmp/config.json
+        cp -r /isaac-sim/_out_scene_based_sdg/. {{output}}
       path: /tmp/entry.sh
     - contents: |
         {
@@ -42,44 +42,10 @@ workflow:
       path: /tmp/config.json
     outputs:
     - dataset:
-        name: isaac-sim-cosmos-warehouse-sample
-  - name: cosmos-transfer
-    image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
-    command: ["bash"]
-    args: ["/tmp/entry.sh"]
-    credentials:
-      huggingface_token:
-        HF_TOKEN: token
-    files:
-      - path: /tmp/entry.sh
-        contents: |
-          set -euxo pipefail
-
-          git clone https://github.com/nvidia-cosmos/cosmos-reason1.git && cd cosmos-reason1 && git checkout 8743e1bbed09cb5555c74091f6de8048d9551f75
-
-          curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
-
-          git config --global credential.helper store && huggingface-cli login \
-            --token $HF_TOKEN --add-to-git-credential
-
-          # Caption the video
-          ./scripts/inference.py --prompt prompts/caption.yaml --videos assets/sample.mp4 -v
-
-          # Ask a question about the video with reasoning
-          ./scripts/inference.py --prompt prompts/question.yaml \
-            --question 'What are the potential safety hazards?' --reasoning \
-            --videos assets/sample.mp4 -v
-
-          # Temporal caption the video and save the input frames
-          ./scripts/inference.py --prompt prompts/temporal_caption_text.yaml --videos assets/sample.mp4 \
-            --timestamp -v -o {{output}}/temporal_caption_text
-
-    outputs:
-      - dataset:
-          name: cosmos-reason-sample
+        name: name: isaac-sim-sdg-sample
   resources:
     default:
       cpu: 4
       gpu: 1
       memory: 32Gi
-      storage: 64Gi
+      storage: 10Gi
