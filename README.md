@@ -138,7 +138,9 @@ OSMO is production-grade and proven at scale. Originally developed to power Phys
 Select one of the deployment options below depending on your needs and environment to get started
 
 <div align="center">
-  <img src="./docs/deployment_options.svg" width="85%"/>
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/introduction/whats_next.html">
+    <img src="./docs/deployment_options.svg" width="85%"/>
+  </a>
 </div>
 
 
