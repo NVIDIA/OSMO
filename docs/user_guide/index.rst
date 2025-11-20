@@ -238,7 +238,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store datasets a
   tutorials/overview
   1. Hello World <tutorials/hello_world/index>
   2. Requesting Resources <tutorials/requesting_resources>
-  3. Template and Tokens <tutorials/template_and_token/index>
+  3. Template and Tokens <tutorials/template_and_tokens>
   4. Working with Data <tutorials/data/index>
   5. Serial Workflows <tutorials/serial_workflows/index>
   6. Parallel Workflows <tutorials/parallel_workflows/index>
