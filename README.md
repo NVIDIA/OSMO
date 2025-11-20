@@ -137,9 +137,9 @@ OSMO is production-grade and proven at scale. Originally developed to power Phys
 
 Select one of the deployment options below depending on your needs and environment to get started
 
-<p align="center">
-  <img src="./docs/deployment_options.png" width="85%"/>
-</p>
+<div align="center">
+  <img src="./docs/deployment_options.svg" width="85%"/>
+</div>
 
 
 
