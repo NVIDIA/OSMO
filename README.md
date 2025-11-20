@@ -20,52 +20,23 @@ SPDX-License-Identifier: Apache-2.0
 <img src="./docs/front_cover.png" width="100%"/>
 
 # Welcome to OSMO
-### Open-Source Workflow Orchestration Purpose-built for Physical AI
+### Workflow Orchestration Purpose-built for Physical AI
 
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 <a href="https://nvidia.github.io/OSMO/user-guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
 <a href="https://kubernetes.io/"><img src="https://img.shields.io/badge/Kubernetes-Native-326ce5.svg" alt="Kubernetes"></a>
 
-<a href="#the-three-computer-problem">The Challenge</a>
-| <a href="#why-osmo">Why OSMO</a>
-| <a href="#key-benefits">Key Benefits</a>
-| <a href="#ready-to-begin">Get Started</a>
+<a href="#ready-to-begin">Get Started</a>
 | <a href="#documentation">Documentation</a>
-| <a href="#roadmap">Roadmap</a>
 | <a href="#community--support">Community</a>
+| <a href="#roadmap">Roadmap</a>
 
-
-## The Three Computer Problem
-
-[Physical AI](https://www.nvidia.com/en-us/glossary/generative-physical-ai/) development uniquely requires orchestrating **three types of compute** working together:
-
-
-| 🧠 **Training** | 🌐 **Simulation** | 🤖 **Edge** |
-|:---:|:---:|:---:|
-| GB200, H100 | L40, RTX Pro | Jetson AGX Thor |
-| Deep learning & RL | Physics & Sensor Rendering | Hardware-in-the-Loop |
-| Cloud  | Cloud | On Premise |
-
-
-**The Challenge:**
-
-Traditionally, orchestrating workflows across these heterogeneous systems requires custom scripts, infrastructure expertise, and separate tooling for each environment.
-
-**The Solution:**
-
-OSMO solves [the Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
-
-<div align="center">
-  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
-</div>
 
 Use OSMO to manage your workflows, version your datasets and even remotely develop on a backend node. Using OSMO's backend configuration, run your workflows seamlessly on any cloud environment. Build a data factory to manage your synthetic and real robot data, train neural networks with experiment tracking, train robot policies with reinforcement learning, evaluate your models and publish the results, test the robot in simulation with software or hardware in loop (HIL) and automate your workflows on any CI/CD systems
 
 <div align="center">
   <img src="./docs/user_guide/overview.svg" width="85%"/>
 </div>
-
-## Why OSMO?
 
 
 ### For Robotics & AI Developers
@@ -114,6 +85,32 @@ Scale infrastructure independently. Add compute backends without disrupting deve
 - ✅ **Zero-Downtime Changes** – Scale GPU compute clusters without affecting users or their workflows
 
 
+## Solving Physical AI
+
+[Physical AI](https://www.nvidia.com/en-us/glossary/generative-physical-ai/) development uniquely requires orchestrating **three types of compute** working together:
+
+
+| 🧠 **Training** | 🌐 **Simulation** | 🤖 **Edge** |
+|:---:|:---:|:---:|
+| GB200, H100 | L40, RTX Pro | Jetson AGX Thor |
+| Deep learning & RL | Physics & Sensor Rendering | Hardware-in-the-Loop |
+| Cloud  | Cloud | On Premise |
+
+
+
+Traditionally, orchestrating workflows across these heterogeneous systems requires custom scripts, infrastructure expertise, and separate tooling for each environment.
+
+
+
+OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
+
+<div align="center">
+  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+</div>
+
+
+
+
 ## Key Benefits
 
 
@@ -127,7 +124,7 @@ Scale infrastructure independently. Add compute backends without disrupting deve
 | **Transform and post-process data** for iterative improvement | [Working with Data](https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html) |
 | **Benchmark system software** on actual robot hardware (NVIDIA Jetson, custom platforms) | [Hardware Testing](https://nvidia.github.io/OSMO/user_guide/how_to/hil.html) |
 
-## Battle-Tested in Production
+### Battle-Tested in Production
 
 OSMO is production-grade and proven at scale. Originally developed to power Physical AI workloads at NVIDIA—including [Project GR00T](https://developer.nvidia.com/isaac/gr00t), [Isaac Lab](https://research.nvidia.com/publication/2025-09_isaac-lab-gpu-accelerated-simulation-framework-multi-modal-robot-learning), [Isaac Dexterity](https://developer.nvidia.com/blog/r2d2-adapting-dexterous-robots-with-nvidia-research-workflows-and-models/), [Isaac Sim](https://developer.nvidia.com/blog/build-synthetic-data-pipelines-to-train-smarter-robots-with-nvidia-isaac-sim), and [Isaac ROS](https://developer.nvidia.com/isaac/ros)—it orchestrates thousands of GPU-hours daily across heterogeneous compute spanning cloud training clusters to edge devices.
 
@@ -155,61 +152,31 @@ Select one of the deployment options below depending on your needs and environme
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
 | 💻 [**Getting Started**](https://nvidia.github.io/OSMO/user_guide/getting_started/install/index.html) | Install command-line interface to get started |
 
-
-
-## Roadmap
-### Short term (Q1 2026)
-
-- **Simplified Authentication & Authorization**
-  - **Value:** Use your existing identity provider without additional infrastructure
-  - Connect directly to Azure AD, Okta, Google Workspace, or any OAuth 2.0 provider
-  - Manage teams and permissions through simple CLI commands (`osmo group ...`)
-  - Share credentials at the pool level—eliminate repetitive individual user configuration
-  - Streamlined login experience with simplified session management
-
-- **One-Click Cloud Deployment**
-  - **Value:** Deploy production-grade OSMO in minutes
-  - Launch from Azure Marketplace or AWS Marketplace with pre-configured templates
-  - Skip complex Kubernetes setup—automated infrastructure provisioning
-  - Get up and running without deep cloud or Kubernetes expertise
-
-- **Native Cloud Integration**
-  - **Value:** Simplify credential management when running in the cloud
-  - Automatic IAM integration for Azure and AWS environments
-  - Seamless access to cloud storage (S3, Azure Blob) and container registries
-  - No manual credential configuration needed for resources in the same cloud
-
-### Long term (2026+)
-
-- **Python-Native Workflows**
-  - **Value:** Define workflows programmatically for developers who prefer code over YAML
-  - Use Python APIs to build dynamic workflows with loops, conditionals, and complex logic
-  - Integrate seamlessly with existing Python ML/robotics frameworks
-
-- **Load Aware Multi-Backend Scheduling**
-  - **Value:** Automatically optimize cost and performance across compute backends
-  - OSMO selects the best cluster/pool for each workflow based on current utilization
-  - Reduce wait times and maximize cluster efficiency without manual routing
-
-- **High-Performance Data Caching**
-  - **Value:** Faster data access and broader storage compatibility
-  - Transparent cluster-local caching reduces data transfer time for frequently used datasets
-  - Support for high-performance filesystems (Lustre, NFS) alongside object storage (S3, GCS, Azure)
-
-- **Dynamically Changing Workflows**
-  - **Value:** Adjust workflow scale on-the-fly without restarts or interruptions
-  - Scale running workflows up or down based on changing resource needs or priorities
-  - Modify workflow parameters without rescheduling tasks or losing workflow state
-  - Respond to real-time requirements (e.g., add more GPUs mid-training, reduce simulation parallelism)
-
-
----
-
 ## Community & Support
 
 **Join the community.** We welcome contributions, feedback, and collaboration from AI teams worldwide.
 
 🐛 **[Report Issues](https://github.com/NVIDIA/OSMO/issues)** – Bugs, feature requests or technical help
+
+
+## Roadmap
+### Short term (Q1 2026)
+
+| **Capability** | **How It Works** |
+|:---------------|:-----------------|
+| **Simplified Authentication & Authorization** | Use your existing identity provider without additional infrastructure. Connect directly to Azure AD, Okta, Google Workspace, or any OAuth 2.0 provider. Manage teams and permissions through simple CLI commands (`osmo group ...`). Share credentials at the pool level—eliminate repetitive individual user configuration. |
+| **One-Click Cloud Deployment** | Deploy production-grade OSMO in minutes. Launch from Azure Marketplace or AWS Marketplace with pre-configured templates. Skip complex Kubernetes setup with automated infrastructure provisioning—no deep cloud or Kubernetes expertise required. |
+| **Native Cloud Integration** | Simplify credential management when running in the cloud. Automatic IAM integration for Azure and AWS environments provides seamless access to cloud storage (S3, Azure Blob) and container registries—no manual credential configuration needed. |
+
+### Long term (2026+)
+
+| **Feature** | **What It Enables** |
+|:------------|:--------------------|
+| **Python-Native Workflows** | Define workflows programmatically for developers who prefer code over YAML. Use Python APIs to build dynamic workflows with loops, conditionals, and complex logic that integrate seamlessly with existing Python ML/robotics frameworks. |
+| **Load-Aware Multi-Backend Scheduling** | Automatically optimize cost and performance across compute backends. OSMO selects the best cluster/pool for each workflow based on current utilization, reducing wait times and maximizing cluster efficiency without manual routing. |
+| **High-Performance Data Caching** | Faster data access and broader storage compatibility. Transparent cluster-local caching reduces data transfer time for frequently used datasets, with support for high-performance filesystems (Lustre, NFS) alongside object storage (S3, GCS, Azure). |
+| **Dynamically Changing Workflows** | Adjust workflow scale on-the-fly without restarts or interruptions. Scale running workflows up or down based on changing resource needs, modify parameters without rescheduling tasks, and respond to real-time requirements (e.g., add more GPUs mid-training, reduce simulation parallelism). |
+
 
 ---
 
