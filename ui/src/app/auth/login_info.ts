@@ -51,13 +51,19 @@ export const getLoginInfo = async (): Promise<LoginInfo> => {
     typeof window === "undefined" &&
     (process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export");
 
+  console.log('isStaticGeneration', isStaticGeneration);
+
   if (isStaticGeneration) {
     return loginInfo;
   }
 
   try {
-    const res = await fetch(`${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/auth/login`, { cache: "no-store" });
+    const url = `${scheme}://${env.NEXT_PUBLIC_OSMO_API_HOSTNAME}/api/auth/login`;
+    const res = await fetch(url, { cache: "no-store" });
     loginInfo = (await res.json()) as LoginInfo;
+
+    console.log('loginInfo', url, loginInfo);
+
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
   } catch (error) {
     console.warn(`Host does not support /api/auth/login: ${(error as Error).message}`);

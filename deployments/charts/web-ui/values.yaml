@@ -289,6 +289,8 @@ services:
     #   value: "false"
     # - name: NEXT_PUBLIC_USE_MOCK_DATA
     #   value: "true"
+    - name: DEBUG
+      value: "*"
 
 
     ## Environment variables from ConfigMaps and Secrets
