@@ -196,7 +196,7 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=ingress,nvidia.com/gpu.deploy.operands=false"
+              node-labels: "node_group=ingress"
         extraPortMappings:
           - containerPort: 30080
             hostPort: 80
@@ -207,14 +207,14 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=kai-scheduler,nvidia.com/gpu.deploy.operands=false"
+              node-labels: "node_group=kai-scheduler"
       - role: worker
         kubeadmConfigPatches:
         - |
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
+              node-labels: "node_group=data"
         extraMounts:
           - hostPath: /tmp/localstack-s3
             containerPath: /var/lib/localstack
@@ -224,14 +224,14 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
+              node-labels: "node_group=service"
       - role: worker
         kubeadmConfigPatches:
         - |
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
+              node-labels: "node_group=service"
       - role: worker
         kubeadmConfigPatches:
         - |
@@ -244,7 +244,7 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
 
 .. code-block:: bash
 
-   $ kind create cluster --config kind-osmo-cluster-config.yaml --name osmo
+   $ kind create cluster --config kind-osmo-cluster-config.yaml
 
 Cluster Architecture
 --------------------
