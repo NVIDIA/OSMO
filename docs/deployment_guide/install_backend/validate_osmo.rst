@@ -27,20 +27,20 @@ Run sample workflows to validate the backend and pool configuration.
     :gutter: 3
 
     .. grid-item-card:: :octicon:`workflow` Simple Workflow
-        :link: https://nvidia.github.io/OSMO/user_guide/tutorials/hello_world/
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/tutorials/hello_world.yaml
         :link-type: url
 
         **Validates:** Basic workflow execution, logging, data access and scheduling
 
-        Submit the `hello world tutorial <https://nvidia.github.io/OSMO/user_guide/tutorials/hello_world/>`__ to verify core functionality.
+        Submit the ``Hello World`` workflow to verify core functionality.
 
     .. grid-item-card:: :octicon:`workflow` Parallel Workflow
-        :link: https://nvidia.github.io/OSMO/user_guide/tutorials/parallel_workflows/
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/tutorials/parallel_tasks.yaml
         :link-type: url
 
         **Validates:** Co-scheduling and parallel task execution
 
-        Submit the `parallel tasks workflow <https://nvidia.github.io/OSMO/user_guide/tutorials/parallel_workflows/>`_ to test concurrent execution.
+        Submit the ``Parallel Tasks`` workflow to test concurrent execution.
 
     .. grid-item-card:: :octicon:`workflow` GPU Workflow
         :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/single_node/README.md
@@ -48,7 +48,7 @@ Run sample workflows to validate the backend and pool configuration.
 
         **Validates:** GPU resource allocation and usage
 
-        Submit the `single node GPU workflow <https://github.com/NVIDIA/OSMO/blob/main/workflows/dnn_training/single_node/README.md>`_ to verify GPU access.
+        Submit the ``Single Node GPU`` workflow to verify GPU access.
 
     .. grid-item-card:: :octicon:`workflow` Router Workflow
         :link: https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab/README.md
@@ -56,4 +56,4 @@ Run sample workflows to validate the backend and pool configuration.
 
         **Validates:** Router functionality
 
-        Submit the `Jupyter workflow <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab/README.md>`_ and verify JupyterLab access via ``osmo workflow port-forward``.
+        Submit the ``Jupyter`` workflow and verify interactive access via ``osmo workflow port-forward``.
