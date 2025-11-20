@@ -108,4 +108,4 @@ workflow:
       gpu: 1
       memory: 32Gi
       storage: 16Gi
-      # Specify platfor to target RTX GPU
+      # Specify platform to target RTX GPU
