@@ -50,11 +50,11 @@ This directory contains brief examples of workflows that can be used in combinat
 |------------------------------------------------------------------------|----------------------------------------------|
 | Isaac Groot: Interactive Notebook for Inference and Fine-tuning        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_notebook/README.md)                    |
 | Isaac Groot: Finetuning a Model                                        | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_finetune/README.md)                       |
-| Isaac Groot: Running Groot Mimic through Imitation Learning              | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_mimic/README.md)                       |
+| Isaac Groot: Running Groot Mimic through Imitation Learning            | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_mimic/README.md)                       |
 | ROS2: Running Simulation with Foxglove Visualization                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/ros/turtlebot/README.md)                     |
 | Gazebo: Generating Synthetic Data                                      | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/synthetic_data_generation/gazebo/README.md)  |
-| Cosmos Predict: Video2World Generation                                         | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/cosmos/predict/README.md) |
-| Cosmos: Transfer2.5 with Isaac Sim Integration                            | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/cosmos/transfer/README.md)               |
+| Cosmos Predict: Video2World Generation                                 | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/cosmos/predict/README.md) |
+| Cosmos: Transfer2.5 with Isaac Sim Integration                         | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/cosmos/transfer/README.md)               |
 | Cosmos: Video Reasoning and Analysis                                   | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/cosmos/reason/README.md)                 |
 | NIMs: Using NVIDIA NIMs in a workflow                                  | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/nims/README.md) |
 | TorchRun: Elastic Training on Multiple Nodes                           | [README](https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_elastic/README.md) |

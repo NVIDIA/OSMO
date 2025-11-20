@@ -72,20 +72,11 @@ workflow:
 
           # Temporal caption the video and save the input frames
           ./scripts/inference.py --prompt prompts/temporal_caption_text.yaml --videos assets/sample.mp4 \
-            --timestamp -v -o outputs/temporal_caption_text
-
-          mv outputs/temporal_caption_text {{output}}/output/
+            --timestamp -v -o {{output}}/temporal_caption_text
 
     outputs:
       - dataset:
           name: cosmos-reason-sample
-          path: output
-  resources:
-    default:
-      cpu: 1
-      gpu: 1
-      storage: 64Gi
-      memory: 64Gi
   resources:
     default:
       cpu: 4

@@ -75,9 +75,7 @@ workflow:
           pip3 install tyro
 
           # Run Transfer2.5 Inference
-          python3 ./examples/inference.py -i /params.json -o outputs/depth
-
-          mv outputs/depth {{output}}/output/
+          python3 ./examples/inference.py -i /params.json -o {{output}}/depth
       - path: /params.json
         contents: |
           {
@@ -98,7 +96,6 @@ workflow:
     outputs:
       - dataset:
           name: cosmos-transfer-sample
-          path: output
   resources:
     cosmos:
       cpu: 16
