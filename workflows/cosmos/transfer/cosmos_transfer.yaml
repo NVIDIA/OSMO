@@ -102,8 +102,10 @@ workflow:
       gpu: 1
       storage: 64Gi
       memory: 64Gi
+      # Specify platform to target H100 GPU
     sim:
       cpu: 4
       gpu: 1
       memory: 32Gi
       storage: 16Gi
+      # Specify platfor to target RTX GPU
