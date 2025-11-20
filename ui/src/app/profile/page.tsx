@@ -42,7 +42,6 @@ export default function ProfileSettingsPage() {
   const [tool, setTool] = useState<ToolType | undefined>(undefined);
   const [credential, setCredential] = useState<string | undefined>(undefined);
   const [credNameFilter, setCredNameFilter] = useState("");
-  const headerRef = useRef<HTMLDivElement>(null);
   const profile = api.profile.getSettings.useQuery<ProfileResponse>(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -110,11 +109,11 @@ export default function ProfileSettingsPage() {
     <>
       <PageHeader />
       <div className={`flex md:flex-row flex-wrap w-full md:h-full gap-global p-global`}>
-        <div className="flex flex-col body-component md:h-full w-full md:w-auto">
-          <section
-            className={`popup-header brand-header`}
-            aria-labelledby="profile-details-title"
-          >
+        <section
+          className="flex flex-col body-component md:h-full w-full md:w-auto"
+          aria-labelledby="profile-details-title"
+        >
+          <div className={`popup-header brand-header`}>
             <h2 id="profile-details-title">Profile</h2>
             <button
               className="btn btn-secondary"
@@ -126,17 +125,16 @@ export default function ProfileSettingsPage() {
               <OutlinedIcon name="edit" />
               Edit
             </button>
-          </section>
+          </div>
           <div className="dag-details-body p-global sm:h-full sm:overflow-y-auto">
             <ProfileSettings profile={profile.data} />
           </div>
-        </div>
-        <div className="flex flex-col body-component md:h-full grow">
-          <section
-            className={`popup-header brand-header items-center`}
-            aria-labelledby="credentials-title"
-            ref={headerRef}
-          >
+        </section>
+        <section
+          className="flex flex-col body-component md:h-full grow"
+          aria-labelledby="credentials-title"
+        >
+          <div className={`popup-header brand-header items-center`}>
             <h2 id="credentials-title">Credentials</h2>
             <div className="flex flex-row gap-global">
               <TextInput
@@ -162,12 +160,12 @@ export default function ProfileSettingsPage() {
                 <span className="hidden md:block">Add New Credential</span>
               </button>
             </div>
-          </section>
+          </div>
           <CredentialsTable
             credentials={processCredentials}
             nameFilter={credNameFilter}
           />
-        </div>
+        </section>
       </div>
       <FullPageModal
         headerChildren={<h2 id="profile-settings-header">{toolHeading}</h2>}

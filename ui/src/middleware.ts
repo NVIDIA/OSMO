@@ -20,7 +20,7 @@ export function middleware(request: NextRequest) {
 
   // Redirect root path to /workflows
   if (pathname === "/") {
-    const newUrl = new URL(`/workflows${search}`, request.url);
+    const newUrl = new URL(`/dashboard${search}`, request.url);
     return NextResponse.redirect(newUrl, 307);
   }
 
