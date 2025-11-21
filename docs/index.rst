@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 
 ===================
-Welcome to OSMO
+OSMO Documentation
 ===================
 
 OSMO is an open-source workflow orchestration platform purpose-built for Physical AI and robotics development.

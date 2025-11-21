@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 640" width="100%" style="max-width: 100%; height: auto;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 640" style="width: 65%; max-width: 65%; height: auto; display: block; margin: 0 auto;">
   <defs>
     <style>
       /* Light mode (default) */
