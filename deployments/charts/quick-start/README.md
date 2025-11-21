@@ -22,7 +22,7 @@ This Helm chart provides a complete OSMO deployment for trying OSMO. If you are 
 OSMO, this is a good way to get a feel for OSMO without deploying in a CSP.
 
 It is recommended to install this chart in a KIND cluster instead of a CSP. See
-[Local Deployment](https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html) for
+[Local Deployment](https://nvidia.github.io/OSMO/deployment_guide/main/appendix/deploy_local.html) for
 detailed installation instructions.
 
 ## Prerequisites
