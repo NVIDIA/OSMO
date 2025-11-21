@@ -19,7 +19,7 @@ name: PR Description Check
 on:
   pull_request:
     types: [opened, edited]
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   validate-pr-description:
@@ -31,11 +31,11 @@ jobs:
         run: |
           echo "Validating PR description..."
           echo "----------------------------------------"
-          
+
           # Initialize error tracking
           has_errors=false
           error_messages=""
-          
+
           # Check 1: Verify Issue # is present (case-insensitive)
           if ! echo "$PR_BODY" | grep -qiE "Issue (#[0-9]+|#None|- None)"; then
             has_errors=true
@@ -54,19 +54,19 @@ jobs:
           else
             echo "✅ Issue reference found"
           fi
-          
+
           # Check 2: Verify all checklist items in the Checklist section are checked
           # Extract only the Checklist section - more robust approach
           # Save PR body to a temp file for easier processing
           echo "$PR_BODY" > /tmp/pr_body.txt
-          
+
           # Extract checklist section: from "## Checklist" to next "##" or end of file
           checklist_section=$(awk '
             /^## [Cc]hecklist/ { in_checklist=1; next }
             in_checklist && /^##/ { exit }
             in_checklist { print }
           ' /tmp/pr_body.txt)
-          
+
           # Check if we found a checklist section
           if [ -z "$checklist_section" ]; then
             has_errors=true
@@ -106,10 +106,10 @@ jobs:
               echo "✅ All $total_checkboxes checklist items are checked"
             fi
           fi
-          
+
           # Clean up temp file
           rm -f /tmp/pr_body.txt
-          
+
           # Report results
           if [ "$has_errors" = true ]; then
             echo ""
