@@ -31,4 +31,6 @@ sphinx-substitution-extensions==2024.2.25
 sphinxcontrib-mermaid==1.0.0
 sphinxcontrib-spelling==7.7.0
 # The fork below uses sphinx-multiversion==0.2.4
-https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.4.zip
+# sphinx-multiversion==0.2.4
+git+https://github.com/RyaliNvidia/sphinx-multiversion.git@4822cdbc6ac813e0845727c031486a8769fdf284
+# https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.4.zip
