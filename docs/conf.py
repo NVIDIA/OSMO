@@ -198,9 +198,9 @@ mermaid_version = '11.12.1'
 # -- Options for Multiversion -------------------------------------------------
 
 # Exclude all tags
-smv_tag_whitelist = r'^$'
+smv_tag_whitelist = None
 
 # Allow only the main branch and any branches that begin with 'release/' to be rendered
 smv_branch_whitelist = r'^main$|^release/.*$'
-smv_remote_whitelist = r'^main$|^release/.*$'
+smv_remote_whitelist = r'^origin$'
 smv_prefer_remote_refs = False
