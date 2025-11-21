@@ -47,6 +47,9 @@ build-multiversion:
 	export OSMO_DOMAIN=public && $(SPHINXBUILD) deployment_guide $(OUT_DIR)/deployment_guide
 	rm -rf $(OUT_DIR)/user_guide/_sources
 	rm -rf $(OUT_DIR)/deployment_guide/_sources
+	# Copy root redirect files
+	@cp _redirect/redirect_user_guide.html $(OUT_DIR)/user_guide/index.html
+	@cp _redirect/redirect_deployment_guide.html $(OUT_DIR)/deployment_guide/index.html
 
 build-user-html:
 	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
