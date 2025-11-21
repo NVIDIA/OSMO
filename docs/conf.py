@@ -116,6 +116,7 @@ if _is_subdir:
     html_favicon = '../_static/osmo_favicon.png'
     html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
     html_static_path = ['../_static']
+    templates_path = ['../_templates']
     html_css_files_extra = []
 else:
     html_favicon = '_static/osmo_favicon.png'
@@ -127,12 +128,6 @@ else:
     }
     # Add custom CSS to hide sidebar and remove vertical bar
     html_css_files_extra = ['css/root_page.css']
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['../_static']
-templates_path = ['../_templates']
 
 html_theme_options = {
     "collapse_navigation": False,
