@@ -232,4 +232,4 @@ smv_tag_whitelist = r'^$'
 # Allow only the main branch and any branches that begin with 'release/' to be rendered
 smv_branch_whitelist = r'^main$|^release/.*$'
 smv_remote_whitelist = r'^origin$'
-smv_prefer_remote_refs = True
+smv_prefer_remote_refs = False
