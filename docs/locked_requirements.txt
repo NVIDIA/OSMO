@@ -382,7 +382,9 @@ fonttools[woff]==4.56.0 \
     --hash=sha256:f59746f7953f69cc3290ce2f971ab01056e55ddd0fb8b792c31a8acd7fee2d28 \
     --hash=sha256:fa760e5fe8b50cbc2d71884a1eff2ed2b95a005f02dda2fa431560db0ddd927f \
     --hash=sha256:ffda9b8cd9cb8b301cae2602ec62375b59e2e2108a117746f12215145e3f786c
-    # via weasyprint
+    # via
+    #   fonttools
+    #   weasyprint
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
     --hash=sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3
@@ -668,6 +670,7 @@ sphinx==7.4.7 \
     #   sphinx-copybutton
     #   sphinx-design
     #   sphinx-markdown-builder
+    #   sphinx-multiversion
     #   sphinx-new-tab-link
     #   sphinx-prompt
     #   sphinx-simplepdf
@@ -686,6 +689,11 @@ sphinx-design==0.6.1 \
 sphinx-markdown-builder==0.6.8 \
     --hash=sha256:6141b566bf18dd1cd515a0a90efd91c6c4d10fc638554fab2fd19cba66543dd7 \
     --hash=sha256:f04ab42d52449363228b9104569c56b778534f9c41a168af8cfc721a1e0e3edc
+    # via
+    #   -r ./docs_requirements.txt
+    #   sphinx-multiversion
+sphinx-multiversion @ https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.5.zip \
+    --hash=sha256:2616bde204930ed6995d9acd86f35770c1d8b02b37383e0653a706b1306f2406
     # via -r ./docs_requirements.txt
 sphinx-new-tab-link==0.8.0 \
     --hash=sha256:6c757d99f559224a04142c3971c8baa6ac90aca905f15b129d57eeca0ece9582 \

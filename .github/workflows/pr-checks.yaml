@@ -125,8 +125,8 @@ jobs:
     if: |
       (github.event_name == 'workflow_dispatch') ||
       (
-        needs.check-paths.outputs.ci == 'true' && 
-        github.event_name == 'pull_request' && 
+        needs.check-paths.outputs.ci == 'true' &&
+        github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.fork == false
       )
     runs-on: self-hosted

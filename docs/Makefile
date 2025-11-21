@@ -20,7 +20,7 @@
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS  ?=
-SPHINXBUILD ?= sphinx-build
+SPHINXBUILD ?= sphinx-multiversion
 SOURCEDIR   = .
 OUT_DIR     = _build/public/out
 ERR_DIR     = _build/public/err
@@ -30,6 +30,9 @@ help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 .PHONY: help generate build generate-and-build Makefile
+
+clean:
+	rm -rf _build
 
 build:
 	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/root.log $(OUT_DIR)
@@ -41,6 +44,16 @@ build:
 	rm -rf $(OUT_DIR)/user_guide/_sources
 	rm -rf $(OUT_DIR)/deployment_guide/_sources
 
+build-multiversion:
+	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/root.log $(OUT_DIR)
+	export OSMO_DOMAIN=public && $(SPHINXBUILD) user_guide $(OUT_DIR)/user_guide
+	export OSMO_DOMAIN=public && $(SPHINXBUILD) deployment_guide $(OUT_DIR)/deployment_guide
+	rm -rf $(OUT_DIR)/_sources
+	rm -rf $(OUT_DIR)/user_guide/_sources
+	rm -rf $(OUT_DIR)/deployment_guide/_sources
+	# Copy root redirect files
+	@cp _redirect/redirect_user_guide.html $(OUT_DIR)/user_guide/index.html
+	@cp _redirect/redirect_deployment_guide.html $(OUT_DIR)/deployment_guide/index.html
 
 build-root-html:
 	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/root.log $(OUT_DIR)

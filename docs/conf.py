@@ -42,6 +42,7 @@ extensions = [
     # Standard extensions
     'sphinx_copybutton',
     'sphinx_design',
+    'sphinx_multiversion',
     'sphinx_new_tab_link',
     'sphinx_simplepdf',
     'sphinx_substitution_extensions',
@@ -115,6 +116,7 @@ if _is_subdir:
     html_favicon = '../_static/osmo_favicon.png'
     html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
     html_static_path = ['../_static']
+    templates_path = ['../_templates']
     html_css_files_extra = []
 else:
     html_favicon = '_static/osmo_favicon.png'
@@ -130,7 +132,8 @@ else:
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["navbar-logo", "versioning.html"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
@@ -144,7 +147,8 @@ html_extra_path_opts = {
 html_css_files = [
     'css/base.css',
     'css/lifecycle-timeline.css',
-    'mermaid_custom.css',
+    'css/mermaid_custom.css',
+    'css/versioning.css',
     'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
 
@@ -219,3 +223,13 @@ autodoc_typehints_format = 'short'
 # -- Options for Mermaid -------------------------------------------------
 
 mermaid_version = '11.12.1'
+
+# -- Options for Multiversion -------------------------------------------------
+
+# Exclude all tags
+smv_tag_whitelist = r'^$'
+
+# Allow only the main branch and any branches that begin with 'release/' to be rendered
+smv_branch_whitelist = r'^main$|^release/.*$'
+smv_remote_whitelist = r'^origin$'
+smv_prefer_remote_refs = False

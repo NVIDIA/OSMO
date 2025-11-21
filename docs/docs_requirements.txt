@@ -30,3 +30,5 @@ sphinx-simplepdf==1.6.0
 sphinx-substitution-extensions==2024.2.25
 sphinxcontrib-mermaid==1.0.0
 sphinxcontrib-spelling==7.7.0
+# The fork below uses sphinx-multiversion==0.2.4
+https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.5.zip

@@ -41,11 +41,11 @@ jobs:
             has_errors=true
             error_messages="${error_messages}
           ❌ ERROR: Missing or invalid Issue reference
-             
+
              The PR description must include an issue reference in the format:
              'Issue #XX' (where XX is a number) or 'Issue - None'
              (Case-insensitive: 'issue #123' or 'ISSUE #None' are also valid)
-             
+
              Example:
                Issue #123
                Issue - None
@@ -72,7 +72,7 @@ jobs:
             has_errors=true
             error_messages="${error_messages}
           ❌ ERROR: Missing Checklist section
-             
+
              The PR description must include a '## Checklist' section.
              Please see the PR template: .github/PULL_REQUEST_TEMPLATE.md
           "
@@ -80,12 +80,12 @@ jobs:
             # Count checkbox items in the checklist
             total_checkboxes=$(echo "$checklist_section" | grep -cE "^- \[[ x]\]" || true)
             unchecked_items=$(echo "$checklist_section" | grep -cE "^- \[ \]" || true)
-            
+
             if [ "$total_checkboxes" -eq 0 ]; then
               has_errors=true
               error_messages="${error_messages}
           ❌ ERROR: No checklist items found
-             
+
              The ## Checklist section exists but contains no checkbox items.
              Please see the PR template: .github/PULL_REQUEST_TEMPLATE.md
           "
@@ -93,10 +93,10 @@ jobs:
               has_errors=true
               error_messages="${error_messages}
           ❌ ERROR: Incomplete checklist
-             
+
              All checklist items must be completed before the PR can be merged.
              Found $unchecked_items unchecked item(s) out of $total_checkboxes in the ## Checklist section.
-             
+
              Please check all boxes in the checklist:
              - [x] I am familiar with the Contributing Guidelines
              - [x] New or existing tests cover these changes
