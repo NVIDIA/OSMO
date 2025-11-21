@@ -692,8 +692,8 @@ sphinx-markdown-builder==0.6.8 \
     # via
     #   -r ./docs_requirements.txt
     #   sphinx-multiversion
-sphinx-multiversion @ https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.5.zip \
-    --hash=sha256:61378dd6bd2a191b0a1357dd260c5fa4a80bcca8eefffe0d4860d00345c335a3
+sphinx-multiversion @ https://github.com/RyaliNvidia/sphinx-multiversion/archive/refs/tags/v0.2.4.zip \
+    --hash=sha256:eff399228da663b76c6b0ee55f423b7004d0fcec29bf34f8b8546cdeeb84ed7d
     # via -r ./docs_requirements.txt
 sphinx-new-tab-link==0.8.0 \
     --hash=sha256:6c757d99f559224a04142c3971c8baa6ac90aca905f15b129d57eeca0ece9582 \

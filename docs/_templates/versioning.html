@@ -18,47 +18,37 @@ SPDX-License-Identifier: Apache-2.0
 
 {% if versions %}
 <div class="version-dropdown">
-  <select id="versioning-select" aria-label="{{ _('Select documentation version') }}">
-    <option value="" disabled hidden>{{ _('Select version') }}</option>
+  <select id="version-select" class="version-select-hidden" aria-label="Select documentation version">
     {%- for item in versions %}
-    <option value="{{ item.url }}"{% if item.current or item.active %} selected{% endif %}>{{ item.name }}</option>
+    <option value="{{ vpathto(item.name) }}"{% if item.name == current_version.name %} selected{% endif %} data-version="{{ item.name }}">
+      {{ item.name }}
+    </option>
     {%- endfor %}
   </select>
 </div>
 <script>
 (function() {
-  var sel = document.getElementById('versioning-select');
-  if (!sel) return;
-  function normalize(href) {
-    try {
-      var u = new URL(href, document.baseURI).href;
-      // ensure trailing slash normalization to improve prefix matching
-      return u.replace(/\/+$/, '/') ;
-    } catch (e) {
-      return null;
-    }
-  }
-  var currentHref = normalize(window.location.href);
-  // Choose the version whose URL is the longest prefix of the current page
-  var bestIndex = -1;
-  var bestLen = -1;
-  for (var i = 0; i < sel.options.length; i++) {
-    var opt = sel.options[i];
-    if (!opt.value) continue;
-    var optHref = normalize(opt.value);
-    if (!optHref) continue;
-    if (currentHref && currentHref.indexOf(optHref) === 0 && optHref.length > bestLen) {
-      bestLen = optHref.length;
-      bestIndex = i;
-    }
-  }
-  if (bestIndex !== -1) {
-    sel.selectedIndex = bestIndex;
-  }
-  sel.addEventListener('change', function() {
-    var url = sel.value;
-    if (url) { window.location.href = url; }
-  });
+  var badge = document.getElementById('version-badge');
+  var container = document.querySelector('.version-selector-float');
+  var select = document.getElementById('version-select');
+
+  if (!badge || !container || !select) return;
+
+  // Toggle dropdown
+  badge.onclick = function(e) {
+    e.stopPropagation();
+    container.classList.toggle('open');
+  };
+
+  // Close on outside click
+  document.onclick = function(e) {
+    if (!container.contains(e.target)) container.classList.remove('open');
+  };
+
+  // Navigate on select change
+  select.onchange = function() {
+    if (this.value) window.location.href = this.value;
+  };
 })();
 </script>
 {% endif %}
