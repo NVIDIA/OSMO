@@ -135,7 +135,7 @@ OSMO is production-grade and proven at scale. Originally developed to power Phys
 Select one of the deployment options below depending on your needs and environment to get started
 
 <div align="center">
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/introduction/whats_next.html">
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/main/introduction/whats_next.html">
     <img src="./docs/deployment_options.svg" width="85%"/>
   </a>
 </div>
@@ -146,7 +146,7 @@ Select one of the deployment options below depending on your needs and environme
 
 | Resource | Description |
 |:---------|:------------|
-| 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
+| 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/deployment_guide/main/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
 | 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/deployment_guide/) | Deploy production grade on cloud providers  |
 | 📘 [**User Guide**](https://nvidia.github.io/OSMO/user_guide/) | Tutorials, workflows, and how-to guides for developers |
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
