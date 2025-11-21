@@ -18,7 +18,7 @@ name: PR Description Check
 
 on:
   pull_request:
-    types: [opened, edited]
+    types: [opened, reopened, edited]
     branches: [main]
 
 jobs:
