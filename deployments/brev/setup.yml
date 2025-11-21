@@ -1,0 +1,450 @@
+---
+- name: Setup development environment with Go, Docker, KIND, kubectl, and Helm
+  hosts: localhost
+  become: yes
+  vars:
+    go_version: "1.23.4"
+    docker_min_version: "28.3.2"
+    kind_version: "0.29.0"
+    kubectl_version: "1.32.2"
+    helm_min_version: "3.16.2"
+    
+  tasks:
+
+    # Go Installation
+    - name: Check if Go is already installed
+      command: go version
+      register: go_check
+      failed_when: false
+      changed_when: false
+
+    - name: Remove old Go installation
+      file:
+        path: /usr/local/go
+        state: absent
+      when: go_check.rc != 0 or go_version not in go_check.stdout
+
+    - name: Download Go {{ go_version }}
+      get_url:
+        url: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+        mode: '0644'
+      when: go_check.rc != 0 or go_version not in go_check.stdout
+
+    - name: Extract Go {{ go_version }}
+      unarchive:
+        src: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+        dest: /usr/local
+        remote_src: yes
+      when: go_check.rc != 0 or go_version not in go_check.stdout
+
+    - name: Clean up Go tarball
+      file:
+        path: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+        state: absent
+
+    - name: Get actual user home directory
+      shell: "getent passwd {{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }} | cut -d: -f6"
+      register: user_home
+      changed_when: false
+
+    - name: Add Go to PATH in .profile for current user
+      lineinfile:
+        path: "{{ user_home.stdout }}/.profile"
+        line: "{{ item }}"
+        create: yes
+        owner: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        mode: '0644'
+      loop:
+        - 'export PATH=$PATH:/usr/local/go/bin'
+        - 'export PATH=$PATH:$HOME/go/bin'
+
+    # Docker Installation
+    - name: Remove old Docker packages
+      apt:
+        name:
+          - docker.io
+          - docker-doc
+          - docker-compose
+          - docker-compose-v2
+          - podman-docker
+          - containerd
+          - runc
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove old Docker repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /usr/share/keyrings/docker-archive-keyring.gpg
+        - /etc/apt/keyrings/docker.asc
+      ignore_errors: yes
+
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Get Ubuntu codename
+      command: lsb_release -cs
+      register: ubuntu_codename
+      changed_when: false
+
+    - name: Get architecture
+      command: dpkg --print-architecture
+      register: system_arch
+      changed_when: false
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch={{ system_arch.stdout }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ubuntu_codename.stdout }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker Engine
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: latest
+        update_cache: yes
+
+    - name: Add user to docker group
+      user:
+        name: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        groups: docker
+        append: yes
+
+    - name: Verify user added to docker group
+      command: "groups {{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+      register: user_groups
+      changed_when: false
+
+    - name: Display docker group membership
+      debug:
+        msg: "User {{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }} groups: {{ user_groups.stdout }}"
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # NVIDIA Container Toolkit Installation (optional, for GPU support)
+    - name: Check if NVIDIA GPU is present
+      shell: lspci | grep -i nvidia || true
+      register: nvidia_gpu_check
+      changed_when: false
+
+    - name: Display NVIDIA GPU status
+      debug:
+        msg: "{{ 'NVIDIA GPU found - will install Container Toolkit' if nvidia_gpu_check.stdout != '' else 'No NVIDIA GPU detected - skipping Container Toolkit' }}"
+
+    - name: Add NVIDIA Container Toolkit GPG key
+      shell: |
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+      when: nvidia_gpu_check.stdout != ''
+
+    - name: Add NVIDIA Container Toolkit repository
+      shell: |
+        curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      args:
+        creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      when: nvidia_gpu_check.stdout != ''
+
+    - name: Update apt cache for NVIDIA Container Toolkit
+      apt:
+        update_cache: yes
+      when: nvidia_gpu_check.stdout != ''
+
+    - name: Install NVIDIA Container Toolkit
+      apt:
+        name:
+          - nvidia-container-toolkit
+          - nvidia-container-toolkit-base
+          - libnvidia-container-tools
+          - libnvidia-container1
+        state: present
+      when: nvidia_gpu_check.stdout != ''
+
+    - name: Configure NVIDIA Container Toolkit for Docker
+      command: nvidia-ctk runtime configure --runtime=docker
+      when: nvidia_gpu_check.stdout != ''
+      register: nvidia_ctk_config
+      changed_when: "'modified' in nvidia_ctk_config.stdout or 'updated' in nvidia_ctk_config.stdout"
+
+    - name: Restart Docker after NVIDIA configuration
+      systemd:
+        name: docker
+        state: restarted
+      when: nvidia_gpu_check.stdout != '' and nvidia_ctk_config.changed
+
+    - name: Display NVIDIA Container Toolkit installation result
+      debug:
+        msg: "NVIDIA Container Toolkit installed and Docker configured for GPU access"
+      when: nvidia_gpu_check.stdout != ''
+
+    # KIND Installation
+    - name: Check system architecture for KIND
+      command: uname -m
+      register: kind_arch
+      changed_when: false
+
+    - name: Set KIND architecture
+      set_fact:
+        kind_arch_suffix: "{{ 'amd64' if kind_arch.stdout == 'x86_64' else 'arm64' }}"
+
+    - name: Download KIND {{ kind_version }}
+      get_url:
+        url: "https://kind.sigs.k8s.io/dl/v{{ kind_version }}/kind-linux-{{ kind_arch_suffix }}"
+        dest: /usr/local/bin/kind
+        mode: '0755'
+
+    # kubectl Installation
+    - name: Download kubectl {{ kubectl_version }}
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /tmp/kubectl
+        mode: '0755'
+
+    - name: Download kubectl checksum
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl.sha256"
+        dest: /tmp/kubectl.sha256
+
+    - name: Verify kubectl checksum
+      shell: echo "$(cat /tmp/kubectl.sha256)  /tmp/kubectl" | sha256sum --check
+      changed_when: false
+
+    - name: Install kubectl
+      copy:
+        src: /tmp/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: yes
+
+    - name: Clean up kubectl downloads
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/kubectl
+        - /tmp/kubectl.sha256
+
+    # Helm Installation
+    - name: Download Helm install script
+      get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get_helm.sh
+        mode: '0755'
+
+    - name: Install Helm
+      command: /tmp/get_helm.sh
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Clean up Helm install script
+      file:
+        path: /tmp/get_helm.sh
+        state: absent
+
+    # Sysctl Configuration
+    - name: Set fs.inotify.max_user_watches
+      sysctl:
+        name: fs.inotify.max_user_watches
+        value: '524288'
+        state: present
+        reload: yes
+
+    - name: Set fs.inotify.max_user_instances
+      sysctl:
+        name: fs.inotify.max_user_instances
+        value: '512'
+        state: present
+        reload: yes
+
+    - name: Persist sysctl settings in /etc/sysctl.conf
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "{{ item }}"
+        create: yes
+      loop:
+        - 'fs.inotify.max_user_watches = 524288'
+        - 'fs.inotify.max_user_instances = 512'
+
+    # nvkind Installation
+    - name: Install build-essential for Go compilation
+      apt:
+        name: build-essential
+        state: present
+
+    - name: Create Go bin directory
+      file:
+        path: "{{ user_home.stdout }}/go/bin"
+        state: directory
+        owner: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        mode: '0755'
+
+    - name: Install nvkind using go install
+      shell: |
+        set -x
+        echo "Running as user: $(whoami)"
+        echo "HOME: $HOME"
+        echo "GOPATH: $GOPATH"
+        /usr/local/go/bin/go install github.com/NVIDIA/nvkind/cmd/nvkind@latest
+        echo "Go install exit code: $?"
+        ls -la {{ user_home.stdout }}/go/bin/ || echo "go/bin directory listing failed"
+        if [ -f {{ user_home.stdout }}/go/bin/nvkind ]; then
+          echo "SUCCESS: nvkind found at {{ user_home.stdout }}/go/bin/nvkind"
+          ls -la {{ user_home.stdout }}/go/bin/nvkind
+        else
+          echo "FAILED: nvkind not found after install"
+        fi
+      args:
+        executable: /bin/bash
+      environment:
+        PATH: "/usr/local/go/bin:{{ ansible_env.PATH }}"
+        GOPATH: "{{ user_home.stdout }}/go"
+        HOME: "{{ user_home.stdout }}"
+        USER: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+      become: yes
+      become_user: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+      register: nvkind_install_result
+
+    - name: Display nvkind installation output
+      debug:
+        msg: "{{ nvkind_install_result.stdout_lines }}"
+
+    - name: Fix ownership of Go directory
+      file:
+        path: "{{ user_home.stdout }}/go"
+        owner: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        group: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+        recurse: yes
+
+    # Display installed versions
+    - name: Get Go version
+      command: /usr/local/go/bin/go version
+      register: installed_go
+      changed_when: false
+
+    - name: Get Docker version
+      command: docker --version
+      register: installed_docker
+      changed_when: false
+
+    - name: Get KIND version
+      command: kind version
+      register: installed_kind
+      changed_when: false
+
+    - name: Get kubectl version
+      command: kubectl version --client --short
+      register: installed_kubectl
+      changed_when: false
+      failed_when: false
+
+    - name: Get Helm version
+      command: helm version --short
+      register: installed_helm
+      changed_when: false
+
+    - name: Check nvkind installation and display details
+      shell: |
+        if [ -f "{{ user_home.stdout }}/go/bin/nvkind" ]; then
+          echo "nvkind found at {{ user_home.stdout }}/go/bin/nvkind"
+          ls -la {{ user_home.stdout }}/go/bin/nvkind
+          {{ user_home.stdout }}/go/bin/nvkind --version || echo "nvkind version check failed"
+          exit 0
+        else
+          echo "nvkind NOT found at {{ user_home.stdout }}/go/bin/nvkind"
+          echo "Contents of {{ user_home.stdout }}/go/bin:"
+          ls -la {{ user_home.stdout }}/go/bin/ || echo "Directory does not exist"
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
+      become: yes
+      become_user: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+      register: nvkind_check_result
+      failed_when: false
+      changed_when: false
+
+    - name: Display nvkind check result
+      debug:
+        msg: "{{ nvkind_check_result.stdout_lines }}"
+
+    - name: Set nvkind installed fact
+      set_fact:
+        nvkind_installed: "{{ nvkind_check_result.rc == 0 }}"
+
+    - name: Display installed versions
+      debug:
+        msg:
+          - "==================================="
+          - "Installation complete!"
+          - "==================================="
+          - "Go:      {{ installed_go.stdout }}"
+          - "Docker:  {{ installed_docker.stdout }}"
+          - "KIND:    {{ installed_kind.stdout }}"
+          - "kubectl: {{ installed_kubectl.stdout }}"
+          - "Helm:    {{ installed_helm.stdout }}"
+          - "nvkind:  {{ 'Installed at ~/go/bin/nvkind' if nvkind_installed else 'Not found - check output above' }}"
+          - "==================================="
+          - "Sysctl settings applied:"
+          - "fs.inotify.max_user_watches = 524288"
+          - "fs.inotify.max_user_instances = 512"
+          - "==================================="
+
+    - name: Activate docker group for current session
+      shell: sg docker -c "docker ps"
+      become: no
+      become_user: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+      register: docker_group_test
+      changed_when: false
+      failed_when: false
+
+    - name: Final instructions
+      debug:
+        msg:
+          - "==================================="
+          - "Installation Complete!"
+          - "==================================="
+          - "IMPORTANT: Run these commands in your current shell:"
+          - "  source ~/.profile"
+          - "  newgrp docker"
+          - ""
+          - "Or simply open a new terminal session."
+          - ""
+          - "Verify installations:"
+          - "  nvkind --version"
+          - "  docker ps"
+          - "==================================="
+
