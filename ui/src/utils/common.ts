@@ -75,6 +75,13 @@ export const OsmoApiFetch = async (
 
   // To inspect a fetch URL, this is where you would add a console.log
   const response = await fetch(fetchUrl, fetchOptions);
+
+  if (!response.ok) {
+    console.error('OsmoApiFetch failed', fetchUrl, fetchOptions, response);
+    throw new Error(`OsmoApiFetch failed: ${response.statusText}`);
+  } else {
+    console.debug('OsmoApiFetch successful', fetchUrl, fetchOptions, response);
+  }
   return response;
 };
 

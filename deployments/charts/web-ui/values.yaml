@@ -284,13 +284,13 @@ services:
     ## Extra environment variables for the UI container
     ## Supports both value and valueFrom
     ##
-    extraEnvs:
+    extraEnvs: []
     # - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
     #   value: "false"
     # - name: NEXT_PUBLIC_USE_MOCK_DATA
     #   value: "true"
-    - name: DEBUG
-      value: "*"
+    # - name: DEBUG
+    #   value: "*"
 
 
     ## Environment variables from ConfigMaps and Secrets
