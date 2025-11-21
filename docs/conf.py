@@ -34,6 +34,7 @@ extensions = [
     # Standard extensions
     'sphinx_copybutton',
     'sphinx_design',
+    'sphinx_multiversion',
     'sphinx_new_tab_link',
     'sphinx_simplepdf',
     'sphinx_substitution_extensions',
@@ -42,7 +43,6 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
-    'sphinx_multiversion',
 
     # Custom extensions
     '_extensions.auto_include',
@@ -107,7 +107,7 @@ templates_path = ['../_templates']
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
-    "navbar_start": ["navbar-logo", "versioning.html"],
+    "navbar_start": ["navbar-logo"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
@@ -197,8 +197,9 @@ mermaid_version = '11.12.1'
 
 # -- Options for Multiversion -------------------------------------------------
 
-# Allow only tags in the format '#.#.#'
-smv_tag_whitelist = r'^\d+\.\d+\.\d+$'
+# Exclude all tags
+smv_tag_whitelist = r'^$'
+
 # Allow only the main branch and any branches that begin with 'release/' to be rendered
 smv_branch_whitelist = r'^main$|^release/.*$'
 smv_remote_whitelist = r'^main$|^release/.*$'

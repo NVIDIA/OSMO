@@ -31,6 +31,9 @@ help:
 
 .PHONY: help generate build generate-and-build Makefile
 
+clean:
+	rm -rf _build
+
 build:
 	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
 	export OSMO_DOMAIN=public && sphinx-build -b html deployment_guide -w $(ERR_DIR)/deployment_guide.log $(OUT_DIR)/deployment_guide
