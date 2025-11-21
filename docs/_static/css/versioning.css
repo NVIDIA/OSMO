@@ -28,47 +28,69 @@ SPDX-License-Identifier: Apache-2.0
   --version-item-text: #333333;
   --version-item-border: #f0f0f0;
   --version-item-hover-bg: var(--tab-hover-bg);
-  --version-item-hover-text: #1a1a1a;
+  --version-item-hover-text: var(--nv-green-hover, #689f00);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-mode="light"]) {
     --version-badge-text: #1a1a1a;
     --version-badge-hover: #b5e082;
-    --version-dropdown-bg: var(--annotation-bg);
+    --version-dropdown-bg: rgba(0, 0, 0, 1);
     --version-dropdown-border: var(--annotation-border);
     --version-dropdown-shadow: var(--annotation-shadow);
     --version-item-text: var(--annotation-text);
     --version-item-border: #404040;
     --version-item-hover-bg: var(--tab-hover-bg);
-    --version-item-hover-text: #ffffff;
+    --version-item-hover-text: var(--nv-green-hover, #689f00);
   }
 }
 
 html[data-theme="dark"] {
   --version-badge-text: #1a1a1a;
   --version-badge-hover: #b5e082;
-  --version-dropdown-bg: var(--annotation-bg);
+  --version-dropdown-bg: rgba(0, 0, 0, 1);
   --version-dropdown-border: var(--annotation-border);
   --version-dropdown-shadow: var(--annotation-shadow);
   --version-item-text: var(--annotation-text);
   --version-item-border: #404040;
   --version-item-hover-bg: var(--tab-hover-bg);
-  --version-item-hover-text: #ffffff;
+  --version-item-hover-text: var(--nv-green-hover, #689f00);
+}
+
+.version-dropdown {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  margin: 0;
+}
+
+.version-dropdown select {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--version-dropdown-border, var(--color-foreground-border, #ccc));
+  background: var(--version-dropdown-bg, var(--color-background-secondary, #fff));
+  color: var(--version-item-text, #333333);
+  font-size: 0.95rem;
+  line-height: 1.2;
+  vertical-align: middle;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.version-dropdown select:focus {
+  outline: none;
+  border-color: var(--version-badge-hover, #689f00);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--version-badge-hover, #689f00) 30%, transparent);
 }
 
 /* ==================== Component Styles ==================== */
 
 /* Container */
 .version-selector-float {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  margin: 0;
+  position: relative;
 }
 
 /* Hidden semantic select for accessibility */
@@ -82,15 +104,14 @@ html[data-theme="dark"] {
 
 /* Badge button */
 .version-badge {
-  background: var(--nv-green);
-  color: var(--version-badge-text);
-  padding: 8px 16px;
-  border: none;
-  border-radius: 20px;
+  background: var(--version-dropdown-bg);
+  color: var(--version-item-text);
+  border: 2px solid var(--version-dropdown-border, var(--color-foreground-border, #ccc));
+  padding: 6px 12px;
+  border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px var(--version-dropdown-shadow);
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
@@ -100,9 +121,8 @@ html[data-theme="dark"] {
 }
 
 .version-badge:hover {
-  background: var(--version-badge-hover);
-  box-shadow: 0 4px 12px var(--version-dropdown-shadow);
-  transform: translateY(-2px);
+  color: var(--version-item-hover-text);
+  border: 2px solid var(--version-item-hover-text, var(--color-foreground-border, #ccc));
 }
 
 .version-badge:focus {
@@ -126,6 +146,10 @@ html[data-theme="dark"] {
   overflow: hidden;
   opacity: 0;
   transition: max-height 0.3s ease, opacity 0.3s ease;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
   background: var(--version-dropdown-bg);
   border-radius: 8px;
   box-shadow: 0 4px 12px var(--version-dropdown-shadow);
@@ -160,18 +184,10 @@ html[data-theme="dark"] {
 }
 
 .version-list a:hover {
-  background: var(--version-item-hover-bg);
   color: var(--version-item-hover-text);
   padding-left: 20px;
 }
 
 .version-list a.current {
-  background: var(--nv-green);
-  color: var(--version-badge-text);
   font-weight: 600;
-}
-
-.version-list a.current:hover {
-  background: var(--version-badge-hover);
-  padding-left: 20px;
 }
