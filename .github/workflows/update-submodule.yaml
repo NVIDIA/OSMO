@@ -46,15 +46,12 @@ jobs:
             "${GITLAB_API_URL}/projects/${GITLAB_PROJECT_ID}/trigger/pipeline")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
 
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             echo "✅ Successfully triggered GitLab pipeline"
-            echo "Response: $BODY"
           else
             echo "❌ Failed to trigger GitLab pipeline"
             echo "HTTP Status: $HTTP_CODE"
-            echo "Response: $BODY"
             exit 1
           fi
 

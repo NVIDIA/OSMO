@@ -21,10 +21,28 @@ load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
+    name = "root_docs_sources",
+    srcs = glob([
+        "_static/**",
+        "_extensions/**",
+        "conf.py",
+        "index.rst",
+        "docs_options.svg",
+    ]),
+)
+
+copy_to_directory(
+    name = "root_docs_copy",
+    srcs = [":root_docs_sources"],
+    out = "root_docs",
+)
+
+filegroup(
     name = "user_guide_sources",
     srcs = glob([
         "_static/**",
         "_extensions/**",
+        "_templates/**",
         "user_guide/**",
         "conf.py",
     ]),
@@ -41,6 +59,7 @@ filegroup(
     srcs = glob([
         "_static/**",
         "_extensions/**",
+        "_templates/**",
         "deployment_guide/**",
         "conf.py",
     ]),

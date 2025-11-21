@@ -1,0 +1,58 @@
+{% if versions %}
+<div class="version-selector-float">
+  <select id="version-select" class="version-select-hidden" aria-label="Select documentation version">
+
+    {%- for item in versions %}
+    <option value="{{ vpathto(item.name) }}"{% if item.name == current_version.name %} selected{% endif %} data-version="{{ item.name }}">
+      {{ item.name }}
+    </option>
+    {%- endfor %}
+  </select>
+
+  <!-- Custom styled dropdown -->
+  <button type="button" class="version-badge" id="version-badge" aria-haspopup="listbox" aria-expanded="false">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+      <path d="M15 4.75a3.25 3.25 0 1 1 6.5 0 3.25 3.25 0 0 1-6.5 0ZM2.5 19.25a3.25 3.25 0 1 1 6.5 0 3.25 3.25 0 0 1-6.5 0Zm0-14.5a3.25 3.25 0 1 1 6.5 0 3.25 3.25 0 0 1-6.5 0ZM5.75 6.5a1.75 1.75 0 1 0-.001-3.501A1.75 1.75 0 0 0 5.75 6.5Zm0 14.5a1.75 1.75 0 1 0-.001-3.501A1.75 1.75 0 0 0 5.75 21Zm12.5-14.5a1.75 1.75 0 1 0-.001-3.501A1.75 1.75 0 0 0 18.25 6.5Z"></path>
+      <path d="M5.75 16.75A.75.75 0 0 1 5 16V8a.75.75 0 0 1 1.5 0v8a.75.75 0 0 1-.75.75Z"></path>
+      <path d="M17.5 8.75v-1H19v1a3.75 3.75 0 0 1-3.75 3.75h-7a1.75 1.75 0 0 0-1.75 1.75H5A3.25 3.25 0 0 1 8.25 11h7a2.25 2.25 0 0 0 2.25-2.25Z"></path>
+    </svg>
+    <span id="version-number">{{ current_version.name }}</span>
+  </button>
+
+  <div class="version-list" role="listbox">
+    {%- for item in versions %}
+    <a href="{{ vpathto(item.name) }}"
+       role="option"
+       {% if item.name == current_version.name %}class="current" aria-selected="true"{% else %}aria-selected="false"{% endif %}
+       data-version="{{ item.name }}">
+      {{ item.name }}
+    </a>
+    {%- endfor %}
+  </div>
+</div>
+<script>
+(function() {
+  var badge = document.getElementById('version-badge');
+  var container = document.querySelector('.version-selector-float');
+  var select = document.getElementById('version-select');
+
+  if (!badge || !container || !select) return;
+
+  // Toggle dropdown
+  badge.onclick = function(e) {
+    e.stopPropagation();
+    container.classList.toggle('open');
+  };
+
+  // Close on outside click
+  document.onclick = function(e) {
+    if (!container.contains(e.target)) container.classList.remove('open');
+  };
+
+  // Navigate on select change
+  select.onchange = function() {
+    if (this.value) window.location.href = this.value;
+  };
+})();
+</script>
+{% endif %}
