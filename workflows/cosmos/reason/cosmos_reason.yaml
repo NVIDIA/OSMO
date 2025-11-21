@@ -15,12 +15,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit cosmos_video2world.yaml
+# osmo workflow submit cosmos_reason.yaml
 
 workflow:
-  name: cosmos_video2world
+  name: cosmos-reason
   tasks:
-    - name: inference
+    - name: reason
       image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
       command: ["bash"]
       args: ["/tmp/entry.sh"]
@@ -32,25 +32,31 @@ workflow:
           contents: |
             set -euxo pipefail
 
-            git clone https://github.com/nvidia-cosmos/cosmos-predict2.git && cd cosmos-predict2
+            git clone https://github.com/nvidia-cosmos/cosmos-reason1.git && cd cosmos-reason1 && git checkout 8743e1bbed09cb5555c74091f6de8048d9551f75
 
             curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
 
             git config --global credential.helper store && huggingface-cli login \
               --token $HF_TOKEN --add-to-git-credential
 
-            ./scripts/hf_video2world.py output/hf_video2world --prompt "assets/video2world/example_prompt.txt" \
-              --image "assets/video2world/example_input.jpg" --steps 20 -v
+            # Caption the video
+            ./scripts/inference.py --prompt prompts/caption.yaml --videos assets/sample.mp4 -v
 
-            mv output/hf_video2world {{output}}/output/
+            # Ask a question about the video with reasoning
+            ./scripts/inference.py --prompt prompts/question.yaml \
+              --question 'What are the potential safety hazards?' --reasoning \
+              --videos assets/sample.mp4 -v
+
+            # Temporal caption the video and save the input frames
+            ./scripts/inference.py --prompt prompts/temporal_caption_text.yaml --videos assets/sample.mp4 \
+              --timestamp -v -o {{output}}/temporal_caption_text
 
       outputs:
         - dataset:
-            name: cosmos_video2world
-            path: output
+            name: cosmos-reason-sample
   resources:
     default:
-      cpu: 1
+      cpu: 16
       gpu: 1
       storage: 64Gi
       memory: 64Gi

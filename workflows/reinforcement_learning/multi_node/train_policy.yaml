@@ -1,0 +1,79 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# To submit:
+# osmo workflow submit train_policy.yaml
+
+workflow:
+  groups:
+  - name: training
+    tasks:
+    - name: master
+      lead: true
+      command: ["bash"]
+      args: ["/tmp/entry.sh"]
+      image: nvcr.io/nvidia/isaac-lab:2.2.0
+      environment:
+        ACCEPT_EULA: Y
+        NO_NUCLEUS: Y
+        OMNI_KIT_ALLOW_ROOT: '1'
+      files:
+      - contents: |2-
+
+          set -euxo pipefail
+
+          _isaac_sim/python.sh -m torch.distributed.run --nproc_per_node={{num_gpu}} --nnodes=2 --node_rank=0 \
+            --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 \
+            scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless \
+            --distributed
+
+          mv logs/ {{output}}/
+
+        path: /tmp/entry.sh
+      outputs:
+      - dataset:
+          name: robot-policy-dataset
+    - name: worker
+      command: ["bash"]
+      args: ["/tmp/entry.sh"]
+      image: nvcr.io/nvidia/isaac-lab:2.2.0
+      environment:
+        ACCEPT_EULA: Y
+        NO_NUCLEUS: Y
+        OMNI_KIT_ALLOW_ROOT: '1'
+      files:
+      - contents: |2-
+
+          set -euxo pipefail
+
+          _isaac_sim/python.sh -m torch.distributed.run --nproc_per_node={{num_gpu}} --nnodes=2 --node_rank=1 \
+            --rdzv_backend=c10d --rdzv_endpoint={{host:master}}:5555 \
+            --rdzv_id=123 scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 \
+            --headless --distributed
+
+          mv logs/ {{output}}/
+
+        path: /tmp/entry.sh
+  name: train-robot-multi-node
+  resources:
+    default:
+      cpu: 30
+      gpu: {{num_gpu}}
+      memory: 64Gi
+      storage: 64Gi
+
+default-values:
+  num_gpu: 2

@@ -1,0 +1,111 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# To submit:
+# osmo workflow submit cosmos_transfer.yaml
+
+workflow:
+  name: isaac-sim-cosmos-transfer
+  tasks:
+  - name: isaac-sim-sdg
+    image: nvcr.io/nvidia/isaac-sim:5.1.0
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    environment:
+      ACCEPT_EULA: Y
+      NO_NUCLEUS: Y
+    resource: sim
+    files:
+    - contents: |
+        set -e
+        /isaac-sim/python.sh /isaac-sim/standalone_examples/api/isaacsim.replicator.examples/cosmos_writer_warehouse.py --config /tmp/config.json
+        cp -r /isaac-sim/_out_cosmos_warehouse/. {{output}}
+      path: /tmp/entry.sh
+    - contents: |
+        {
+            "launch_config": {
+                "headless": true
+            }
+        }
+      path: /tmp/config.json
+    outputs:
+    - dataset:
+        name: isaac-sim-cosmos-warehouse-sample
+  - name: cosmos-transfer
+    image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    credentials:
+      huggingface_token:
+        HF_TOKEN: token
+    resource: cosmos
+    inputs:
+    - task: isaac-sim-sdg
+    - dataset:
+        name: isaac-sim-cosmos-warehouse-sample
+    files:
+      - path: /tmp/entry.sh
+        contents: |
+          set -euxo pipefail
+
+          git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git && cd cosmos-transfer2.5 && git checkout 0033b77a9e41e74f9d8d0b9cf80e0ecf94b3533b
+
+          curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
+
+          # Install all dependencies including cosmos_oss
+          uv sync --extra=cu128
+          source .venv/bin/activate
+
+          git config --global credential.helper store && huggingface-cli login \
+            --token $HF_TOKEN --add-to-git-credential
+
+          pip3 install tyro
+
+          # Run Transfer2.5 Inference
+          python3 ./examples/inference.py -i /params.json -o {{output}}/depth
+      - path: /params.json
+        contents: |
+          {
+              "name": "cosmos-transfer-sample",
+              "prompt": "High-quality warehouse simulation...",
+              "video_path": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/rgb.mp4",
+              "vis": {"control_weight": 0.25},
+              "edge": {"control_weight": 0.25},
+              "depth": {
+                  "input_control": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/depth.mp4",
+                  "control_weight": 0.25
+              },
+              "seg": {
+                  "input_control": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/segmentation.mp4",
+                  "control_weight": 0.25
+              }
+          }
+    outputs:
+      - dataset:
+          name: cosmos-transfer-sample
+  resources:
+    cosmos:
+      cpu: 16
+      gpu: 1
+      storage: 64Gi
+      memory: 64Gi
+      # Specify platform to target H100 GPU
+    sim:
+      cpu: 4
+      gpu: 1
+      memory: 32Gi
+      storage: 16Gi
+      # Specify platform to target RTX GPU

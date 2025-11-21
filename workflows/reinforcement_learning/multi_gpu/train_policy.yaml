@@ -15,37 +15,41 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit isaac_sim_sdg.yaml
+# osmo workflow submit train_policy.yaml
 
 workflow:
-  name: isaac-sim-sdg
   tasks:
-  - name: isaac-sim-sdg
-    image: nvcr.io/nvidia/isaac-sim:5.1.0
+  - name: train
     command: ["bash"]
     args: ["/tmp/entry.sh"]
+    image: nvcr.io/nvidia/isaac-lab:2.2.0
     environment:
       ACCEPT_EULA: Y
       NO_NUCLEUS: Y
+      OMNI_KIT_ALLOW_ROOT: '1'
     files:
-    - contents: |
-        set -e
-        /isaac-sim/python.sh /isaac-sim/standalone_examples/replicator/scene_based_sdg/scene_based_sdg.py --config /tmp/config.json
-        cp -r /isaac-sim/_out_scene_based_sdg/. {{output}}
+    - contents: |2-
+
+        set -euxo pipefail
+
+        _isaac_sim/python.sh -m torch.distributed.run --nnodes=1 --nproc_per_node=2 \
+          --rdzv_endpoint=localhost:5555 \
+          scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 \
+          --headless --distributed
+
+        mv logs/ {{output}}/
+
       path: /tmp/entry.sh
-    - contents: |
-        {
-            "launch_config": {
-                "headless": true
-            }
-        }
-      path: /tmp/config.json
     outputs:
     - dataset:
-        name: name: isaac-sim-sdg-sample
+        name: robot-policy-dataset
+  name: train-robot-multi-gpu
   resources:
     default:
-      cpu: 4
-      gpu: 1
-      memory: 32Gi
-      storage: 10Gi
+      cpu: 30
+      gpu: {{num_gpu}}
+      memory: 64Gi
+      storage: 64Gi
+
+default-values:
+  num_gpu: 2

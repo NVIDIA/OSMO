@@ -29,7 +29,7 @@ This directory contains brief examples of workflows that can be used in combinat
 | Workflow Name                                                          | Link                                         |
 |------------------------------------------------------------------------|----------------------------------------------|
 | Isaac Sim: Generating Synthetic Data                                   | [README](./synthetic_data_generation/isaac_sim/README.md) |
-| Isaac Lab: Training Robot Policy with Reinforcement Learning           | [README](./reinforcement_learning/README.md) |
+| Isaac Lab: Training Robot Policy with Reinforcement Learning           | [README](./reinforcement_learning/single_gpu/README.md) |
 | ROS2: Multi-Node Communication                                         | [README](./ros/comm/README.md)                            |
 | TorchRun: Training on a Single Node                                    | [README](./dnn_training/single_node/README.md) |
 | TorchRun: Training on Multiple Nodes                                   | [README](./dnn_training/torchrun_multinode/README.md) |
@@ -52,12 +52,16 @@ This directory contains brief examples of workflows that can be used in combinat
 
 | Workflow Name                                                          | Link                                         |
 |------------------------------------------------------------------------|----------------------------------------------|
+| Isaac Lab: Multi-GPU Reinforcement Learning Training                    | [README](./reinforcement_learning/multi_gpu/README.md)          |
+| Isaac Lab: Multi-Node Reinforcement Learning Training                   | [README](./reinforcement_learning/multi_node/README.md)         |
 | Isaac Groot: Interactive Notebook for Inference and Fine-tuning        | [README](./groot/groot_notebook/README.md)                    |
 | Isaac Groot: Finetuning a Model                                        | [README](./groot/groot_finetune/README.md)                       |
 | Isaac Groot: Running Groot Mimic through Imitation Learning            | [README](./groot/groot_mimic/README.md)                       |
 | ROS2: Running Simulation with Foxglove Visualization                   | [README](./ros/turtlebot/README.md)                     |
 | Gazebo: Generating Synthetic Data                                      | [README](./synthetic_data_generation/gazebo/README.md)  |
-| Cosmos: Video2World Generation                                         | [README](./cosmos/README.md) |
+| Cosmos Predict: Video2World Generation                                 | [README](./cosmos/predict/README.md) |
+| Cosmos: Transfer2.5 with Isaac Sim Integration                         | [README](./cosmos/transfer/README.md)               |
+| Cosmos: Video Reasoning and Analysis                                   | [README](./cosmos/reason/README.md)                 |
 | NIMs: Using NVIDIA NIMs in a workflow                                  | [README](./nims/README.md) |
 | TorchRun: Elastic Training on Multiple Nodes                           | [README](./dnn_training/torchrun_elastic/README.md) |
 | DeepSpeed: Training on Multiple Nodes                                  | [README](./dnn_training/deepspeed_multinode/README.md) |
