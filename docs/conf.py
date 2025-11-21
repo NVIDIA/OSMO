@@ -23,8 +23,9 @@ sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('.'))
 
 # Determine if we're building from a subdirectory or root
-_conf_dir = os.path.dirname(os.path.abspath(__file__))
-_is_subdir = os.path.basename(_conf_dir) in ['user_guide', 'deployment_guide']
+# Use current working directory since subdir conf.py files import this file
+_cwd = os.getcwd()
+_is_subdir = os.path.basename(_cwd) in ['user_guide', 'deployment_guide']
 
 # -- Project information -----------------------------------------------------
 
@@ -98,7 +99,6 @@ if not _is_subdir:
 
 suppress_warnings = [
     'toc.excluded',
-    'toc.not_readable',  # Suppress warnings about excluded toctree entries
 ]
 
 # -- Options for HTML output -------------------------------------------------
@@ -138,8 +138,6 @@ html_theme_options = {
 html_extra_path_opts = {
     'follow_symlinks': True,
 }
-
-# Note: html_static_path is set dynamically above based on build directory
 
 # These paths are either relative to html_static_path
 # or fully qualified paths (eg. https://...)

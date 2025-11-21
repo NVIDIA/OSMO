@@ -26,15 +26,3 @@ from conf import *  # isort: skip, # noqa: I001
 # -- Options for HTML output -------------------------------------------------
 
 html_title = 'OSMO Deployment Guide'
-
-# Override paths for subdirectory build
-html_favicon = '../_static/osmo_favicon.png'
-html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
-html_static_path = ['../_static']
-
-# Remove root page CSS - we want normal sidebars for deployment guide
-html_css_files = [f for f in html_css_files if 'root_page.css' not in f]
-
-# Restore default sidebars (remove the empty sidebar setting from root)
-if 'html_sidebars' in dir() and html_sidebars == {"**": []}:
-    del html_sidebars
