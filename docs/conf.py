@@ -22,6 +22,11 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('.'))
 
+# Determine if we're building from a subdirectory or root
+# Use current working directory since subdir conf.py files import this file
+_cwd = os.getcwd()
+_is_subdir = os.path.basename(_cwd) in ['user_guide', 'deployment_guide']
+
 # -- Project information -----------------------------------------------------
 
 project = 'NVIDIA OSMO'
@@ -29,6 +34,9 @@ copyright = "2025 NVIDIA CORPORATION & AFFILIATES"
 author = "NVIDIA"
 
 # -- General configuration ---------------------------------------------------
+
+# Add templates directory
+templates_path = ['_templates']
 
 extensions = [
     # Standard extensions
@@ -82,8 +90,16 @@ exclude_patterns = [
     '**/*.in.rst',  # Ignore files that are embedded in other files
 ]
 
+# When building from root, exclude everything in subdirectories
+# The index files will still be parsed for TOC but won't build full pages
+if not _is_subdir:
+    exclude_patterns.extend([
+        'user_guide/**',
+        'deployment_guide/**',
+    ])
+
 suppress_warnings = [
-    'toc.excluded'
+    'toc.excluded',
 ]
 
 # -- Options for HTML output -------------------------------------------------
@@ -93,10 +109,24 @@ suppress_warnings = [
 #
 html_theme = "nvidia_sphinx_theme"
 
-html_title = 'OSMO User Guide'
+html_title = 'OSMO Documentation'
 html_show_sourcelink = False
-html_favicon = '../_static/osmo_favicon.png'
-html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+
+if _is_subdir:
+    html_favicon = '../_static/osmo_favicon.png'
+    html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+    html_static_path = ['../_static']
+    html_css_files_extra = []
+else:
+    html_favicon = '_static/osmo_favicon.png'
+    html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+    html_static_path = ['_static']
+    # Hide sidebar completely for root page
+    html_sidebars = {
+        "**": []
+    }
+    # Add custom CSS to hide sidebar and remove vertical bar
+    html_css_files_extra = ['css/root_page.css']
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -126,6 +156,10 @@ html_css_files = [
     'css/versioning.css',
     'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
+
+# Add extra CSS files for root page
+if 'html_css_files_extra' in dir() and html_css_files_extra:
+    html_css_files.extend(html_css_files_extra)
 
 # JavaScript files to include in the HTML output
 # Files are loaded in the order they appear in this list

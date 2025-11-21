@@ -22,3 +22,7 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 from conf import *  # isort: skip, # noqa: I001
+
+# -- Options for HTML output -------------------------------------------------
+
+html_title = 'OSMO User Guide'
