@@ -19,6 +19,20 @@
 **Welcome to OSMO**
 ================================
 
+**OSMO** is an open-source workflow orchestration platform purpose-built for Physical AI and robotics development.
+
+Write your entire development pipeline for physical AI (training, simulation, hardware-in-loop testing) in declarative **YAML**. OSMO automatically coordinates tasks across heterogeneous compute, managing dependencies and resource allocation for you.
+
+.. figure:: overview.svg
+	:width: 100%
+	:align: center
+	:class: transparent-bg no-scaled-link zoomable
+
+.. admonition:: 🚀 From workstation to cloud in minutes
+  :class: info
+
+  Develop on your laptop. Deploy to EKS, AKS, GKE, on-premise, or air-gapped clusters. **Zero code changes.**
+
 `Physical AI <https://www.nvidia.com/en-us/glossary/generative-physical-ai/>`_ development uniquely requires orchestrating three types of compute:
 
 * 🧠 **Training GPUs** (GB200, H100) for deep learning and reinforcement learning
@@ -35,26 +49,7 @@
   :width: 85%
 
 
-**OSMO** solves the `Three Computer Problem <https://blogs.nvidia.com/blog/three-computers-robotics/>`_ for robotics by orchestrating your entire robotics pipeline with simple YAML workflows—no custom scripts, no infrastructure expertise required. By solving this fundamental challenge, OSMO brings us one step closer to making Physical AI a reality.
-
-
-What is OSMO
--------------
-
-**OSMO** is an open-source workflow orchestration platform purpose-built for Physical AI and robotics development.
-
-Write your entire development pipeline for physical AI (training, simulation, hardware-in-loop testing) in declarative **YAML**. OSMO automatically coordinates tasks across heterogeneous compute, managing dependencies and resource allocation for you.
-
-.. figure:: overview.svg
-	:width: 100%
-	:align: center
-	:class: transparent-bg no-scaled-link zoomable
-
-.. admonition:: 🚀 From workstation to cloud in minutes
-  :class: info
-
-  Develop on your laptop. Deploy to EKS, AKS, GKE, on-premise, or air-gapped clusters. **Zero code changes.**
-
+**OSMO** solves this `Three Computer Problem <https://blogs.nvidia.com/blog/three-computers-robotics/>`_ for robotics by orchestrating your entire robotics pipeline with simple YAML workflows—no custom scripts, no infrastructure expertise required. By solving this fundamental challenge, OSMO brings us one step closer to making Physical AI a reality.
 
 
 Why Choose OSMO
