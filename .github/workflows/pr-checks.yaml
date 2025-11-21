@@ -22,6 +22,91 @@ on:
     branches: [ main ]
 
 jobs:
+  ########################
+  # PR Description Check #
+  ########################
+  check-pr-description:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR Description
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          echo "Validating PR description..."
+          echo "----------------------------------------"
+          
+          # Initialize error tracking
+          has_errors=false
+          error_messages=""
+          
+          # Check 1: Verify Issue # is present
+          if ! echo "$PR_BODY" | grep -qE "Issue (#[0-9]+|#None|- None)"; then
+            has_errors=true
+            error_messages="${error_messages}
+          ❌ ERROR: Missing or invalid Issue reference
+             
+             The PR description must include an issue reference in the format:
+             'Issue #XX' (where XX is a number) or 'Issue - None'
+             
+             Example:
+               Issue #123
+               Issue - None
+          "
+          else
+            echo "✅ Issue reference found"
+          fi
+          
+          # Check 2: Verify all checklist items in the Checklist section are checked
+          # Extract only the Checklist section
+          checklist_section=$(echo "$PR_BODY" | awk '/## Checklist/,/^##|^$/{print}' | grep -E "^- \[" || true)
+          
+          if [ -n "$checklist_section" ]; then
+            unchecked_items=$(echo "$checklist_section" | grep -c "^- \[ \]" || true)
+            
+            if [ "$unchecked_items" -gt 0 ]; then
+              has_errors=true
+              error_messages="${error_messages}
+          ❌ ERROR: Incomplete checklist
+             
+             All checklist items must be completed before the PR can be merged.
+             Found $unchecked_items unchecked item(s) in the ## Checklist section.
+             
+             Please check all boxes in the checklist:
+             - [x] I am familiar with the Contributing Guidelines
+             - [x] New or existing tests cover these changes
+             - [x] The documentation is up to date with these changes
+          "
+            else
+              echo "✅ All checklist items are checked"
+            fi
+          else
+            has_errors=true
+            error_messages="${error_messages}
+          ❌ ERROR: Missing Checklist section
+             
+             The PR description must include a '## Checklist' section.
+             Please see the PR template: .github/PULL_REQUEST_TEMPLATE.md
+          "
+          fi
+          
+          # Report results
+          if [ "$has_errors" = true ]; then
+            echo ""
+            echo "========================================"
+            echo "PR DESCRIPTION VALIDATION FAILED"
+            echo "========================================"
+            echo "$error_messages"
+            echo ""
+            echo "Please update your PR description to meet the requirements."
+            echo "========================================"
+            exit 1
+          else
+            echo ""
+            echo "========================================"
+            echo "✅ PR description validation passed!"
+            echo "========================================"
+          fi
+
   #######################
   #    Path Filters     #
   #######################

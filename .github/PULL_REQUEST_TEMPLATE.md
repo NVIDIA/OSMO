@@ -3,7 +3,7 @@
 ## Description
 <!-- Provide a standalone description of changes in this PR. See these rules: https://chris.beams.io/posts/git-commit/ -->
 
-Issue #<issue number>
+Issue #<issue number | "None">
 
 ## Checklist
 - [ ] I am familiar with the [Contributing Guidelines](https://github.com/NVIDIA/OSMO/blob/main/CONTRIBUTING.md).
