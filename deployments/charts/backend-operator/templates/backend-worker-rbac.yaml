@@ -33,11 +33,9 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get"]
-{{- if .Values.global.schedulers.kai.enabled }}
 - apiGroups: ["scheduling.run.ai"]
   resources: ["queues"]
   verbs: ["list", "delete", "create", "update", "get"]
-{{- end }}
 ---
 # ClusterRoleBinding for Backend Worker
 kind: ClusterRoleBinding
@@ -67,21 +65,9 @@ rules:
 - apiGroups: [""]
   resources: ["pods/log"]
   verbs: ["get"]
-{{- if .Values.global.schedulers.schedulerPlugins.enabled }}
-- apiGroups: ["scheduling.sigs.k8s.io", "scheduling.x-k8s.io"]
-  resources: ["podgroups"]
-  verbs: ["list", "delete", "create"]
-{{- end }}
-{{- if .Values.global.schedulers.volcano.enabled }}
-- apiGroups: ["scheduling.volcano.sh"]
-  resources: ["podgroups"]
-  verbs: ["list", "delete", "create"]
-{{- end }}
-{{- if .Values.global.schedulers.kai.enabled }}
 - apiGroups: ["scheduling.run.ai"]
   resources: ["podgroups"]
   verbs: ["list", "delete", "create"]
-{{- end }}
 ---
 # Role Binding for Backend Worker
 kind: RoleBinding

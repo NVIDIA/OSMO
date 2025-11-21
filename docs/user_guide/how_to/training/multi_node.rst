@@ -34,7 +34,7 @@ More examples with other distributed training frameworks can be found `here <htt
 Making a TorchRun Multi-Node Training Script
 --------------------------------------------
 
-To train a model on multiple nodes in OMSO, you need to first make your training script compatible with distributed training,
+To train a model on multiple nodes in OSMO, you need to first make your training script compatible with distributed training,
 for example, using `train.py <https://github.com/NVIDIA/OSMO/tree/main/workflows/dnn_training/torchrun_multinode/train.py>`_.
 
 Training on Two Nodes

@@ -71,14 +71,6 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `global.logs.logLevel` | Log level for application | `DEBUG` |
 | `global.logs.k8sLogLevel` | Log level for Kubernetes | `WARNING` |
 
-### Scheduler Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `global.schedulers.schedulerPlugins.enabled` | Enable one of the following scheduler plugins | `true` |
-| `global.schedulers.volcano.enabled` | Enable Volcano scheduler | `true` |
-| `global.schedulers.kai.enabled` | Enable KAI scheduler | `true` |
-
 ### Global Tolerations
 
 | Parameter | Description | Default |

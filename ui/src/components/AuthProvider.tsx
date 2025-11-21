@@ -111,7 +111,7 @@ class Auth {
 
   async login() {
     try {
-      const res = await fetch("/auth/login_info");
+      const res = await fetch("/auth/login_info", { cache: "no-store" });
       const data = await res.json();
       this.authEnabled = data.auth_enabled;
     } catch (error) {
@@ -248,7 +248,7 @@ class Auth {
     this.id_token = "";
     this.refresh_token = "";
 
-    const res = await fetch(`/auth/logout`);
+    const res = await fetch(`/auth/logout`, { cache: "no-store" });
     const data = await res.json();
     this.routerPush(`${data.redirectTo}`);
   }

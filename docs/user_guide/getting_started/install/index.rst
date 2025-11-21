@@ -55,8 +55,8 @@ Login
 
 .. important::
 
-   The OSMO client can only be used to connect to already deployed OSMO web services. If you are
-   looking to run the OSMO service on your workstation, please refer to `Quick Start <https://github.com/NVIDIA/OSMO/blob/main/QUICK_START.md>`_.
+   The OSMO client can only be used to connect to already deployed OSMO web services. Please contact your administrator
+   and refer to the `Deployment Guides <https://nvidia.github.io/OSMO/deployment_guide/introduction/whats_next.html>`_ for more information.
 
 To login to the client, can use the following command:
 

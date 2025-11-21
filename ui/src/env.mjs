@@ -64,8 +64,8 @@ export const env = createEnv({
    */
   shared: {
     NODE_ENV: z.enum(["development", "test", "production"]),
-    NEXT_PUBLIC_OSMO_API_HOSTNAME: z.string().default(`staging.osmo.nvidia.com`),
-    NEXT_PUBLIC_OSMO_AUTH_HOSTNAME: z.string().default(`auth-staging.osmo.nvidia.com`),
+    NEXT_PUBLIC_OSMO_API_HOSTNAME: z.string().default(""),
+    NEXT_PUBLIC_OSMO_AUTH_HOSTNAME: z.string().default(""),
     NEXT_PUBLIC_OSMO_ENV: z.enum(["mock", "local", "local-against-production", "production"]),
     NEXT_PUBLIC_OSMO_SSL_ENABLED: z.boolean().optional().default(true),
     PORT: z.string().default("3000"),

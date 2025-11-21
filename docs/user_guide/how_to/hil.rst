@@ -79,7 +79,7 @@ This HIL workflow orchestrates **three tasks** running in parallel to create a h
 
 
 .. figure:: images/hil.svg
-   :width: 600
+   :width: 65%
    :align: center
    :class: transparent-bg no-scaled-link
 

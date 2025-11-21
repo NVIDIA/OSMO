@@ -147,7 +147,7 @@ use the ``checkpoint`` field in your task spec:
 Monitoring Training Progress
 -----------------------------
 
-**Weigths and Biases**
+**Weights and Biases**
 
 If you want to use `Weights and Biases <https://wandb.ai/>`_ to manage your training process,
 setup your API key by running the following command and replacing ``<YOUR_API_KEY>`` with your key:
@@ -177,7 +177,7 @@ Then you can include this credential in your task spec and login with it in your
 
 **TensorBoard**
 
-If you want to use TensorBoard for monitoring your training progress, you can launch the it before launching the training script
+If you want to use TensorBoard for monitoring your training progress, you can start it before launching the training script
 and stop it after the training is done.
 
 .. code-block:: yaml

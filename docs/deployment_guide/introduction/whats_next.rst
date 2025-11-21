@@ -30,56 +30,5 @@ Select one of the deployment options below depending on your needs and deploymen
 
 .. only:: html
 
-  .. grid:: 1 2 2 2
-      :gutter: 3
-
-      .. grid-item-card:: :octicon:`rocket` Minimal Deployment
-          :link: ../appendix/deploy_minimal
-          :link-type: doc
-
-          **Time**: ~30 minutes
-
-          **Best for**: Testing, evaluation, development only
-
-
-          **Key Benefits**:
-
-          ✓ Fastest setup
-
-          ✓ No authentication
-
-          ✓ Single namespace
-
-          ✓ Limited features
-
-          **Summary**:
-
-          Get a feel for the platform and explore the capabilities with this minimal deployment.
-
-      .. grid-item-card:: :octicon:`cloud` Production Deployment
-          :link: ../requirements/prereqs
-          :link-type: doc
-
-          **Time**: 2-4 hours
-
-          **Best for**: Production, Multi-user environments
-
-          **Key Benefits**:
-
-          ✓ Production-ready
-
-          ✓ SSO authentication
-
-          ✓ Multi-backend support
-
-          ✓ Interactive workflows
-
-          **Summary**:
-
-          Complete production-ready deployment with SSO authentication, data storage, monitoring, and multi-backend support.
-
-
-
-
-
-
+  .. raw:: html
+     :file: ../../deployment_options.svg

@@ -42,7 +42,7 @@ workflow:
       path: /tmp/config.json
     outputs:
     - dataset:
-        name: isaac-sim-sdg-sample
+        name: name: isaac-sim-sdg-sample
   resources:
     default:
       cpu: 4

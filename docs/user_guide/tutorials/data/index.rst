@@ -97,23 +97,9 @@ Uploading Data
 
 Upload data directly to cloud storage (S3, GCS, Azure) using URLs:
 
-.. code-block:: yaml
-
-  workflow:
-    name: upload-to-s3
-
-    tasks:
-    - name: save-to-cloud
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args:
-      - |
-        mkdir -p {{output}}/results
-        echo "Model checkpoint" > {{output}}/results/model.pth
-        echo "Upload complete"
-
-      outputs:
-      - url: s3://my-bucket/models/ # (1)
+.. literalinclude:: ../../../../workflows/tutorials/data_upload.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
 
@@ -124,23 +110,9 @@ Downloading Data
 
 Download data directly from cloud storage using URLs:
 
-.. code-block:: yaml
-
-  workflow:
-    name: download-from-s3
-
-    tasks:
-    - name: load-from-cloud
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args:
-      - |
-        echo "Loading data from S3..."
-        ls -la {{input:0}}/ # (1)
-        echo "Download complete"
-
-      inputs:
-      - url: s3://my-bucket/data/ # (2)
+.. literalinclude:: ../../../../workflows/tutorials/data_download.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
 
@@ -187,27 +159,9 @@ Uploading a Dataset
 To upload a dataset from a workflow task, write files to the ``{{output}}`` directory and
 specify a :kbd:`dataset` in the outputs:
 
-.. code-block:: yaml
-
-  workflow:
-    name: create-dataset
-
-    tasks:
-    - name: generate-data
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args:
-      - |
-        echo "Generating data..."
-        mkdir -p {{output}}/data
-        for i in {1..10}; do
-          echo "Sample data $i" > {{output}}/data/file_$i.txt
-        done
-        echo "Data generation complete"
-
-      outputs:
-      - dataset:
-          name: my_dataset # (1)
+.. literalinclude:: ../../../../workflows/tutorials/dataset_upload.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
 
@@ -229,25 +183,9 @@ Downloading a Dataset
 To download a dataset in a workflow, add it to the task's inputs. To reference the dataset, use the
 :ref:`workflow_spec_special_tokens` ``{{input:#}}`` where # is the zero-based index of the input.
 
-.. code-block:: yaml
-
-  workflow:
-    name: read-dataset
-
-    tasks:
-    - name: process-data
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args:
-      - |
-        echo "Reading dataset..."
-        ls -la {{input:0}}/my_dataset/ # (1)
-        cat {{input:0}}/my_dataset/data/file_1.txt
-        echo "Processing complete"
-
-      inputs:
-      - dataset:
-          name: my_dataset # (2)
+.. literalinclude:: ../../../../workflows/tutorials/dataset_download.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
 
@@ -259,33 +197,9 @@ Combining URLs and Datasets
 
 You can mix URLs and datasets in the same workflow:
 
-.. code-block:: yaml
-
-  workflow:
-    name: mixed-storage
-
-    tasks:
-    - name: process-multiple-sources
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args:
-      - |
-        echo "Processing data from multiple sources..."
-        cat {{input:0}}/my_dataset/data.txt
-        cat {{input:1}}/s3_data.txt
-
-        # Generate outputs
-        echo "Processed results" > {{output}}/results.txt
-
-      inputs:
-      - dataset:
-          name: my_dataset # (1)
-      - url: s3://my-bucket/raw-data/ # (2)
-
-      outputs:
-      - dataset:
-          name: processed_data # (3)
-      - url: s3://my-bucket/outputs/ # (4)
+.. literalinclude:: ../../../../workflows/tutorials/data_and_dataset_combined.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
 
@@ -299,35 +213,14 @@ Filtering Data
 
 Filter which files to download or upload using regex patterns:
 
-.. code-block:: yaml
-
-  workflow:
-    name: filtered-io
-
-    tasks:
-    - name: selective-download
-      image: ubuntu:24.04
-      command: ["bash", "-c"]
-      args: ["ls -la {{input:0}}/"]
-
-      inputs:
-      - dataset:
-          name: large_dataset
-          regex: .*\.txt$ # (1)
-
-      outputs:
-      - dataset:
-          name: output_dataset
-          regex: .*\.(json|yaml)$ # (2)
+.. literalinclude:: ../../../../workflows/tutorials/data_filter.yaml
+  :language: yaml
+  :start-after: SPDX-License-Identifier: Apache-2.0
 
 .. code-annotations::
 
   1. Only download ``.txt`` files from the input dataset.
   2. Only upload ``.json`` and ``.yaml`` files to the output dataset.
-
-
-
-
 
 Next Steps
 ==========
