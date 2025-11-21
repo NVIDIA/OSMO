@@ -19,6 +19,7 @@ name: PR Checks
 on:
   workflow_dispatch:
   pull_request:
+    on: [ open, synchronize, reopened, edited ]
     branches: [ main ]
 
 jobs:
