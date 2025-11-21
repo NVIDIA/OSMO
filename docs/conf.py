@@ -107,7 +107,7 @@ templates_path = ['../_templates']
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["navbar-logo", "versioning.html"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
@@ -198,7 +198,7 @@ mermaid_version = '11.12.1'
 # -- Options for Multiversion -------------------------------------------------
 
 # Exclude all tags
-smv_tag_whitelist = None
+smv_tag_whitelist = r'^$'
 
 # Allow only the main branch and any branches that begin with 'release/' to be rendered
 # smv_branch_whitelist = r'^main$|^release/.*$'
