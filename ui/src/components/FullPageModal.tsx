@@ -13,85 +13,54 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef } from "react";
-
 import { FocusTrap } from "focus-trap-react";
 
 import { OutlinedIcon } from "~/components/Icon";
 
-interface FullPageModalProps {
+interface FullPageModalProps extends React.HTMLAttributes<HTMLDivElement> {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   headerChildren: React.ReactNode;
-  onHeightChange?: (height: number) => void;
   size?: "none" | "sm" | "md" | "lg";
-  onEscapeDeactivate?: () => boolean;
 }
 
-const FullPageModal = ({
-  open,
-  onClose,
-  children,
-  headerChildren,
-  onHeightChange,
-  size = "lg",
-  onEscapeDeactivate,
-}: FullPageModalProps) => {
-  const modalContentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (modalContentRef.current && typeof window !== "undefined") {
-      const windowHeight = window.innerHeight;
-      if (onHeightChange) {
-        onHeightChange(windowHeight - modalContentRef.current.getBoundingClientRect().top - 26);
-      }
-    }
-  }, [modalContentRef, onHeightChange]);
-
+const FullPageModal = ({ open, onClose, children, headerChildren, size = "lg", ...props }: FullPageModalProps) => {
   return (
-    <FocusTrap
-      active={open}
-      focusTrapOptions={{
-        allowOutsideClick: true,
-        clickOutsideDeactivates: true,
-        escapeDeactivates: onEscapeDeactivate ?? true,
-        onDeactivate: () => {
-          onClose();
-        },
-      }}
-    >
-      <div className={`${open ? "fixed" : "hidden"} top-0 left-0 right-0 bottom-0 bg-black/20 z-30`}>
-        <div className="p-3 w-full h-full flex items-center justify-center">
+    <div className={`${open ? "fixed" : "hidden"} top-0 left-0 right-0 bottom-0 bg-black/10 z-30`}>
+      <FocusTrap
+        active={open}
+        focusTrapOptions={{
+          allowOutsideClick: true,
+          clickOutsideDeactivates: true,
+          escapeDeactivates: true,
+          onDeactivate: () => {
+            onClose();
+          },
+        }}
+      >
+        <div className="p-global w-full h-full flex items-center justify-center">
           <div
-            className={`relative body-component ${size === "none" ? "" : size === "sm" ? "w-1/4 h-1/2" : size === "md" ? "w-1/2 h-3/4" : "w-full h-full"}`}
+            className={`flex flex-col body-component shadow-xl shadow-black/50 ${size === "none" ? "" : size === "sm" ? "w-1/4 h-1/2" : size === "md" ? "w-1/2 h-3/4" : "w-full h-full"} max-h-screen max-w-screen`}
             aria-modal="true"
             role="dialog"
-            tabIndex={0}
-            autoFocus
+            {...props}
           >
-            <div className="flex flex-col h-full w-full">
-              <div className="popup-header body-header">
-                {headerChildren}
-                <button
-                  className="btn"
-                  onClick={onClose}
-                  aria-label="Close"
-                >
-                  <OutlinedIcon name="close" />
-                </button>
-              </div>
-              <div
-                ref={modalContentRef}
-                className="flex flex-col w-full h-full overflow-y-auto"
+            <div className="popup-header body-header">
+              {headerChildren}
+              <button
+                className="btn"
+                onClick={onClose}
+                aria-label="Close"
               >
-                {children}
-              </div>
+                <OutlinedIcon name="close" />
+              </button>
             </div>
+            <div className="flex flex-col w-full h-full overflow-auto">{children}</div>
           </div>
         </div>
-      </div>
-    </FocusTrap>
+      </FocusTrap>
+    </div>
   );
 };
 

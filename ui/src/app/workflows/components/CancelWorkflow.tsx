@@ -66,7 +66,7 @@ export const CancelWorkflow = ({
 
   return (
     <div className="w-full h-full flex flex-col justify-between">
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-global p-global">
         <p>
           Are you sure you want to cancel workflow <strong>{name}</strong>?
         </p>
@@ -79,6 +79,7 @@ export const CancelWorkflow = ({
           disabled={showSuccess || !!error}
         />
         <Switch
+          id="force-cancel"
           className="w-full whitespace-nowrap"
           size="small"
           label="Force Cancel"
@@ -88,16 +89,18 @@ export const CancelWorkflow = ({
         />
       </div>
       <div className="flex flex-col w-full h-full">
-        {showSuccess ? (
-          <InlineBanner status="success">Workflow canceled</InlineBanner>
-        ) : error ? (
-          <InlineBanner status="error">
-            <div className="flex flex-col gap-2">
+        <InlineBanner status={showSuccess ? "success" : error ? "error" : "none"}>
+          {showSuccess ? (
+            "Workflow canceled"
+          ) : error ? (
+            <div className="flex flex-col">
               <p>Error canceling workflow</p>
               <p>{error}</p>
             </div>
-          </InlineBanner>
-        ) : null}
+          ) : (
+            ""
+          )}
+        </InlineBanner>
         <div className="modal-footer">
           {!showSuccess && !error && (
             <button

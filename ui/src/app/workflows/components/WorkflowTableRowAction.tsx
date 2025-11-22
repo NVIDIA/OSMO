@@ -13,37 +13,26 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 
 import { formatForWrapping } from "~/utils/string";
 
 import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
 interface WorkflowTableRowActionProps {
+  id: string;
   name: string;
   selected: boolean;
   updateUrl: (params: ToolParamUpdaterProps) => void;
-  disableScrollIntoView?: boolean;
   extraParams?: Record<string, string>;
 }
 
-export const WorkflowTableRowAction = ({
-  name,
-  selected,
-  updateUrl,
-  disableScrollIntoView = false,
-  extraParams,
-}: WorkflowTableRowActionProps) => {
+export const WorkflowTableRowAction = ({ id, name, selected, updateUrl, extraParams }: WorkflowTableRowActionProps) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (buttonRef.current && selected && !disableScrollIntoView) {
-      buttonRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [selected, disableScrollIntoView]);
 
   return (
     <button
+      id={id}
       className={`btn ${selected ? "btn-primary" : "btn-secondary"} table-action`}
       ref={buttonRef}
       onClick={(event) => {

@@ -25,12 +25,20 @@ import { useRuntimeEnv } from "~/runtime-env";
 import { api } from "~/trpc/react";
 
 import { FilledIcon, OutlinedIcon } from "./Icon";
+import { IconButton } from "./IconButton";
 import { InlineBanner } from "./InlineBanner";
 import { SlideOut } from "./SlideOut";
 import { TextInput } from "./TextInput";
-import { TopMenu } from "./TopMenu";
 
-export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) => {
+export const NavbarProfileMenu = ({
+  onItemClick,
+  userName,
+  initials,
+}: {
+  onItemClick: () => void;
+  userName: string;
+  initials: string;
+}) => {
   const auth = useAuth();
   const runtimeEnv = useRuntimeEnv();
   const [openCLI, setOpenCLI] = useState(false);
@@ -40,45 +48,54 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
     refetchOnWindowFocus: false,
   });
   const { setSafeTimeout } = useSafeTimeout();
-
   return (
-    <>
-      <div className="flex flex-col justify-between h-full">
-        <div>
-          <TopMenu
-            className="flex-col items-start border-b border-border p-3 md:hidden"
-            onItemClick={onItemClick}
+    <div role="complementary">
+      <div className="flex lg:hidden flex-row body-header shadow-sm p-1 items-center">
+        <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>
+        <p className="p-global font-semibold whitespace-nowrap">{userName}</p>
+      </div>
+      <ul
+        className="flex flex-col list-none py-global"
+        aria-label="Profile Menu"
+      >
+        <li className="m-0 px-global list-none">
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href={runtimeEnv.DOCS_BASE_URL}
+            className="btn btn-link no-underline w-full"
+          >
+            <FilledIcon name="menu_book" />
+            Documentation
+          </a>
+        </li>
+        <li className="m-0 px-global list-none">
+          <IconButton
+            alwaysShowText
+            icon="download"
+            text="Download CLI"
+            className="btn btn-link no-underline w-full"
+            onClick={() => {
+              setOpenCLI(!openCLI);
+            }}
+            aria-expanded={openCLI}
+            aria-haspopup="true"
+            aria-controls="cli"
           />
-          <div className="p-3 border-b border-border">
-            <a
-              target="_blank"
-              rel="noopener noreferrer"
-              href={runtimeEnv.DOCS_BASE_URL}
-              className="btn btn-link no-underline w-full"
-            >
-              <FilledIcon name="menu_book" />
-              Documentation
-            </a>
-            <button
-              className="btn btn-link no-underline w-full"
-              onClick={() => {
-                setOpenCLI(!openCLI);
-              }}
-            >
-              <FilledIcon name="download" />
-              Download CLI
-            </button>
-            <Link
-              href={`/workflows/submit`}
-              className="btn btn-link no-underline w-full"
-              onClick={onItemClick}
-            >
-              <OutlinedIcon name="send" />
-              Submit Workflow
-            </Link>
-          </div>
-          {auth.claims && (
-            <div className="p-3">
+        </li>
+        <li className="m-0 px-global list-none">
+          <Link
+            href={`/workflows/submit`}
+            className="btn btn-link no-underline w-full"
+            onClick={onItemClick}
+          >
+            <OutlinedIcon name="send" />
+            Submit Workflow
+          </Link>
+        </li>
+        {auth.claims && (
+          <>
+            <li className="m-0 px-global mt-global pt-global list-none border-t border-border">
               <Link
                 href="/profile"
                 className="btn btn-link no-underline w-full"
@@ -87,6 +104,8 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
                 <OutlinedIcon name="manage_accounts" />
                 Settings
               </Link>
+            </li>
+            <li className="m-0 px-global list-none">
               <button
                 className="btn btn-link no-underline w-full"
                 onClick={(e) => {
@@ -98,20 +117,23 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
                 <OutlinedIcon name="logout" />
                 Sign Out
               </button>
-            </div>
-          )}
-        </div>
-        {version.data && <p className="body-footer p-1 text-center sticky bottom-0">{version.data}</p>}
-      </div>
+            </li>
+          </>
+        )}
+      </ul>
+      {version.data && <p className="body-footer p-1 text-center sticky bottom-0 border-none">{version.data}</p>}
       <SlideOut
         id="cli"
         open={openCLI}
         onClose={() => setOpenCLI(false)}
         className="fixed top-0 right-2 mt-32 rounded-xl w-fit max-w-[90%]"
       >
-        <div className="flex flex-col gap-3 p-3">
-          <form onSubmit={(e) => e.preventDefault()}>
-            <div className="grid grid-cols-[1fr_auto] gap-3">
+        <div className="flex flex-col gap-global p-global">
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="mt-6"
+          >
+            <div className="grid grid-cols-[1fr_auto] gap-global">
               <TextInput
                 id="cli-curl"
                 value={cliCurl}
@@ -121,7 +143,7 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
               />
               <button
                 type="button"
-                className="btn btn-secondary mt-4"
+                className="btn btn-secondary mt-5"
                 onClick={async () => {
                   if (navigator.clipboard) {
                     await navigator.clipboard.writeText(cliCurl);
@@ -135,9 +157,9 @@ export const NavbarProfileMenu = ({ onItemClick }: { onItemClick: () => void }) 
               </button>
             </div>
           </form>
-          {copied && <InlineBanner status="success">Copied</InlineBanner>}
+          <InlineBanner status={copied ? "success" : "none"}>{copied ? "Copied" : ""}</InlineBanner>
         </div>
       </SlideOut>
-    </>
+    </div>
   );
 };

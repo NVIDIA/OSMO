@@ -65,7 +65,7 @@ export const DatasetPicker = ({ bucket, name, value, onDone }: DatasetPickerProp
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-full p-3 w-full">
+      <div className="flex justify-center items-center h-full p-global w-full">
         <Spinner size="small" />
       </div>
     );
@@ -74,9 +74,9 @@ export const DatasetPicker = ({ bucket, name, value, onDone }: DatasetPickerProp
   return (
     <form
       onSubmit={handleSubmit}
-      className="p-3 w-full"
+      className="p-global w-full"
     >
-      <div className="grid grid-cols-[1fr_auto] gap-3 w-full">
+      <div className="grid grid-cols-[1fr_auto] gap-global w-full">
         <Select
           id="tag"
           aria-label="Tag"

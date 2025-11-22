@@ -37,6 +37,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
   const [deletedTags, setDeletedTags] = useState<string[]>([]);
   const [addedTags, setAddedTags] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [lastActionText, setLastActionText] = useState<string>("");
 
   useEffect(() => {
     const trimmedTag = newTag.trim();
@@ -64,13 +65,24 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
     e.preventDefault();
 
     const trimmedTag = newTag.trim();
+
+    if (!trimmedTag || error) {
+      return;
+    }
+
     addTag(trimmedTag);
     setNewTag("");
+    setLastActionText(`Added ${trimmedTag}`);
   };
 
   const handleDeleteTag = (tagToDelete: string) => {
+    if (isReservedTag(tagToDelete)) {
+      setLastActionText(`Cannot delete reserved tag: ${tagToDelete}`);
+      return;
+    }
     setDeletedTags([...deletedTags, tagToDelete]);
     setAddedTags(addedTags.filter((tag) => tag !== tagToDelete));
+    setLastActionText(`Deleted ${tagToDelete}`);
   };
 
   const handleSave = () => {
@@ -85,6 +97,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
     setDeletedTags([]);
     setAddedTags([]);
     setNewTag("");
+    setLastActionText("Tags reset");
   };
 
   const displayTags = useMemo(() => {
@@ -98,7 +111,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
 
   return (
     <div className="flex flex-col h-full justify-between">
-      <div className="flex flex-col gap-6 p-3">
+      <div className="flex flex-col gap-6 p-global">
         <div className="flex flex-col">
           <h3
             className="m-0 p-0 text-base"
@@ -114,10 +127,10 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
             {displayTags.length > 0 ? (
               displayTags.map((tag, index) => (
                 <button
+                  role="listitem"
                   className="btn btn-badge"
                   key={index}
                   onClick={() => handleDeleteTag(tag)}
-                  disabled={isReservedTag(tag)}
                 >
                   <Tag
                     color={Colors.tag}
@@ -135,7 +148,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
           </div>
         </div>
         <form onSubmit={handleAddTag}>
-          <div className="grid grid-cols-[1fr_auto] gap-3">
+          <div className="grid grid-cols-[1fr_auto] gap-global">
             <TextInput
               id="new-tag"
               value={newTag}
@@ -149,9 +162,9 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
             />
             <button
               type="submit"
-              className="btn mt-4 h-8"
+              className="btn mt-5 h-8"
               aria-label="Add Tag"
-              disabled={!newTag.trim() || !!error}
+              aria-disabled={!newTag.trim() || !!error}
             >
               <OutlinedIcon name="add" />
             </button>
@@ -172,6 +185,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
             {deletedTags.length > 0 ? (
               deletedTags.map((tag, index) => (
                 <button
+                  role="listitem"
                   className="btn btn-badge"
                   key={index}
                   onClick={() => {
@@ -194,12 +208,18 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
         </div>
       </div>
       <div className="flex flex-col">
-        {message && <InlineBanner status={isError ? "error" : "success"}>{message}</InlineBanner>}
+        <InlineBanner status={isError ? "error" : message ? "success" : "none"}>{message}</InlineBanner>
+        <p
+          aria-live="polite"
+          className="sr-only"
+        >
+          {lastActionText}
+        </p>
         <div className="modal-footer">
           <button
             onClick={handleUndo}
             className="btn btn-secondary"
-            disabled={!addedTags.length && !deletedTags.length}
+            aria-disabled={!addedTags.length && !deletedTags.length}
           >
             <OutlinedIcon name="undo" />
             Reset
@@ -207,7 +227,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ currentTags, onSave, mes
           <button
             onClick={handleSave}
             className="btn btn-primary"
-            disabled={!addedTags.length && !deletedTags.length}
+            aria-disabled={!addedTags.length && !deletedTags.length}
           >
             <OutlinedIcon name="check" />
             Save

@@ -65,9 +65,10 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
 
   return (
     <div className="flex flex-col justify-between">
-      <p className="px-3 py-6">Are you sure you want to delete this collection?</p>
-      {error && <InlineBanner status="error">{error}</InlineBanner>}
-      {showSuccess && <InlineBanner status="success">Collection deleted successfully</InlineBanner>}
+      <p className="px-global py-6">Are you sure you want to delete this collection?</p>
+      <InlineBanner status={error ? "error" : showSuccess ? "success" : "none"}>
+        {(error ?? showSuccess) ? "Collection deleted successfully" : ""}
+      </InlineBanner>
       <div className="modal-footer">
         {!showSuccess && (
           <button
@@ -80,7 +81,7 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
         <button
           className="btn btn-primary h-8"
           onClick={handleDelete}
-          disabled={loading}
+          aria-disabled={loading}
         >
           {loading ? (
             <Spinner

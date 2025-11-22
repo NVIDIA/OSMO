@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { GenericHeader } from "~/components/Header";
+import PageHeader from "~/components/PageHeader";
 import { RL_WORKFLOW_FILE } from "~/models/workflows-model";
 
 import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
@@ -21,10 +21,9 @@ import { WorkflowsSubmit } from "../../components/WorkflowsSubmit";
 export default function WorkflowsSubmitPage() {
   return (
     <>
-      <GenericHeader
-        rootSegment="workflows"
-        tailSegment={["submit", "reinforcement_learning"]}
-      />
+      <PageHeader>
+        <h2 className="grow">Reinforcement Learning</h2>
+      </PageHeader>
       <WorkflowsSubmit placeholderFile={RL_WORKFLOW_FILE} />
     </>
   );

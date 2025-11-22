@@ -115,7 +115,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
         ))}
       </Select>
       {selectedRange === customDateRange && (
-        <div className="flex flex-row gap-3 items-center w-full justify-between">
+        <div className="flex flex-row gap-global items-center w-full justify-between">
           <label className="flex flex-col gap-1">
             From
             <input

@@ -131,10 +131,10 @@ export const ResourcesFilter = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-global p-global">
         <fieldset className="flex flex-col gap-1">
           <legend>Resource Type</legend>
-          <div className="flex flex-row gap-7">
+          <div className="flex flex-row gap-radios">
             <label className="flex items-center gap-1">
               <input
                 type="radio"
@@ -192,7 +192,7 @@ export const ResourcesFilter = ({
           isSelectAllChecked={localAllNodes}
         />
       </div>
-      <div className="flex flex-row gap-3 justify-between body-footer p-3">
+      <div className="flex flex-row gap-global justify-between body-footer p-global">
         <button
           type="button"
           className="btn"

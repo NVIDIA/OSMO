@@ -25,7 +25,9 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { getTaskStatusArray } from "~/app/tasks/components/StatusFilter";
 import { commonFilterFns } from "~/components/commonFilterFns";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { TableBase } from "~/components/TableBase";
 import { TablePagination } from "~/components/TablePagination";
 import { Colors, Tag } from "~/components/Tag";
@@ -47,7 +49,7 @@ interface TasksTableProps {
   nodes: string;
   allNodes?: boolean;
   pod_ip: string;
-  allStatuses?: boolean;
+  statusFilterType?: StatusFilterType;
   statuses?: string;
   verbose?: boolean;
   visible: boolean;
@@ -60,7 +62,7 @@ export const TasksTable = ({
   name,
   nodes,
   allNodes,
-  allStatuses,
+  statusFilterType,
   statuses,
   pod_ip,
   verbose,
@@ -78,6 +80,7 @@ export const TasksTable = ({
         accessorKey: "name",
         cell: ({ row }) => (
           <TaskTableRowAction
+            id={`task-${row.original.name}-${row.original.retry_id}`}
             name={row.original.name}
             retry_id={row.original.retry_id}
             lead={row.original.lead}
@@ -217,6 +220,7 @@ export const TasksTable = ({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId: (row) => `${row.name}-${row.retry_id}`,
     enableSortingRemoval: false,
     enableMultiSort: true,
     state: { columnFilters, sorting },
@@ -232,17 +236,20 @@ export const TasksTable = ({
     setColumnFilters([
       { id: "name", value: name },
       { id: "node_name", value: allNodes ? undefined : nodes.split(",") },
-      { id: "status", value: allStatuses ? undefined : statuses?.split(",") },
+      {
+        id: "status",
+        value:
+          statusFilterType === StatusFilterType.CUSTOM ? statuses?.split(",") : getTaskStatusArray(statusFilterType),
+      },
       { id: "pod_ip", value: pod_ip },
     ]);
-  }, [name, nodes, statuses, pod_ip, allStatuses, allNodes]);
+  }, [name, nodes, statuses, pod_ip, statusFilterType, allNodes]);
 
   return (
     <TableBase
       columns={table.getAllColumns()}
       table={table}
       className="body-component"
-      paddingOffset={10}
       visible={visible}
     >
       <TablePagination

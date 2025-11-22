@@ -105,6 +105,7 @@ export const CollectionVersionsTable: React.FC<{
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => row.version,
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     onColumnFiltersChange: setColumnFilters,
@@ -123,7 +124,6 @@ export const CollectionVersionsTable: React.FC<{
     <TableBase
       columns={columns}
       table={table}
-      paddingOffset={12}
       className="body-component"
     >
       <TablePagination

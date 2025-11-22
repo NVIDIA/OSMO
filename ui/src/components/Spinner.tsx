@@ -30,11 +30,19 @@ export const Spinner = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3">
+    <div className="flex flex-col items-center justify-center gap-global">
       <div
         className={`animate-spin rounded-full ${sizeMap[size]} border-t-3 border-b-3 ${className ?? "border-brand"}`}
       ></div>
-      {description && <div className="text-sm">{description}</div>}
+      {description && (
+        <div
+          className="text-sm"
+          role="status"
+          aria-label={description ?? "Loading..."}
+        >
+          {description}
+        </div>
+      )}
     </div>
   );
 };

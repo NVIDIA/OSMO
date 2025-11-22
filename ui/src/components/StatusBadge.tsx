@@ -59,7 +59,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = "", compa
       color={bgColor}
       reverseColors={true}
       rounded={true}
-      size={TagSizes.xxs}
+      size={TagSizes.xs}
       className={`font-semibold ${className} ${compact ? "px-1! min-h-5" : ""}`}
     >
       <OutlinedIcon
