@@ -116,7 +116,7 @@
   </defs>
 
   <!-- Card 1: User Guide -->
-  <a href="user_guide/index.html" class="card-link">
+  <a href="user_guide/main/index.html" class="card-link">
     <g id="card-user-guide">
       <rect class="card-bg" x="30" y="30" width="380" height="580" rx="8"/>
 
@@ -138,7 +138,7 @@
   </a>
 
   <!-- Card 2: Deployment Guide -->
-  <a href="deployment_guide/index.html" class="card-link">
+  <a href="deployment_guide/main/index.html" class="card-link">
     <g id="card-deployment-guide">
       <rect class="card-bg" x="440" y="30" width="380" height="580" rx="8"/>
 

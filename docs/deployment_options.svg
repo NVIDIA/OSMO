@@ -116,7 +116,7 @@
   </defs>
 
   <!-- Card 1: Local Deployment -->
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html" class="card-link">
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/main/appendix/deploy_local.html" class="card-link">
     <g id="card-local">
       <rect class="card-bg" x="30" y="30" width="360" height="740" rx="8"/>
       
@@ -149,7 +149,7 @@
   </a>
 
   <!-- Card 2: Minimal Deployment -->
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_minimal.html" class="card-link">
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/main/appendix/deploy_minimal.html" class="card-link">
     <g id="card-minimal">
       <rect class="card-bg" x="420" y="30" width="360" height="740" rx="8"/>
       
@@ -182,7 +182,7 @@
   </a>
 
   <!-- Card 3: Production Deployment -->
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/requirements/prereqs.html" class="card-link">
+  <a href="https://nvidia.github.io/OSMO/deployment_guide/main/requirements/prereqs.html" class="card-link">
     <g id="card-production">
       <rect class="card-bg" x="810" y="30" width="360" height="740" rx="8"/>
       

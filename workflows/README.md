@@ -22,7 +22,7 @@ This directory contains brief examples of workflows that can be used in combinat
 
 ## Tutorials
 
-> [Collection of workflows](./tutorials/) from the [tutorial documentation](https://nvidia.github.io/OSMO/user_guide/tutorials/overview.html)
+> [Collection of workflows](./tutorials/) from the [tutorial documentation](https://nvidia.github.io/OSMO/user_guide/main/tutorials/overview.html)
 
 ## How-To Guides
 

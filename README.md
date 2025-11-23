@@ -105,7 +105,7 @@ Traditionally, orchestrating workflows across these heterogeneous systems requir
 OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
 
 <div align="center">
-  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+  <img src="./docs/user_guide/main/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
 </div>
 
 
@@ -116,13 +116,13 @@ OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-co
 
 | **What You Can Do** | **Example** |
 |---------------------|----------------------|
-| **Interactively develop** on remote GPU nodes with VSCode, SSH, or Jupyter notebooks | [Interactive Workflows](https://nvidia.github.io/OSMO/user_guide/workflows/interactive/index.html) |
-| **Generate synthetic data** at scale using Isaac Sim or custom simulation environments | [Isaac Sim SDG](https://nvidia.github.io/OSMO/user_guide/how_to/isaac_sim_sdg.html) |
-| **Train models** with diverse datasets across distributed GPU clusters | [Model Training](https://nvidia.github.io/OSMO/user_guide/how_to/training.html) |
-| **Train policies** for robots using data-parallel reinforcement learning | [Reinforcement Learning](https://nvidia.github.io/OSMO/user_guide/how_to/reinforcement_learning.html) |
-| **Validate models** in simulation with hardware-in-the-loop testing | [Hardware In The Loop](https://nvidia.github.io/OSMO/user_guide/tutorials/hardware_in_the_loop/index.html) |
-| **Transform and post-process data** for iterative improvement | [Working with Data](https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html) |
-| **Benchmark system software** on actual robot hardware (NVIDIA Jetson, custom platforms) | [Hardware Testing](https://nvidia.github.io/OSMO/user_guide/how_to/hil.html) |
+| **Interactively develop** on remote GPU nodes with VSCode, SSH, or Jupyter notebooks | [Interactive Workflows](https://nvidia.github.io/OSMO/user_guide/main/workflows/interactive/index.html) |
+| **Generate synthetic data** at scale using Isaac Sim or custom simulation environments | [Isaac Sim SDG](https://nvidia.github.io/OSMO/user_guide/main/how_to/isaac_sim_sdg.html) |
+| **Train models** with diverse datasets across distributed GPU clusters | [Model Training](https://nvidia.github.io/OSMO/user_guide/main/how_to/training.html) |
+| **Train policies** for robots using data-parallel reinforcement learning | [Reinforcement Learning](https://nvidia.github.io/OSMO/user_guide/main/how_to/reinforcement_learning.html) |
+| **Validate models** in simulation with hardware-in-the-loop testing | [Hardware In The Loop](https://nvidia.github.io/OSMO/user_guide/main/tutorials/hardware_in_the_loop/index.html) |
+| **Transform and post-process data** for iterative improvement | [Working with Data](https://nvidia.github.io/OSMO/user_guide/main/tutorials/data/index.html) |
+| **Benchmark system software** on actual robot hardware (NVIDIA Jetson, custom platforms) | [Hardware Testing](https://nvidia.github.io/OSMO/user_guide/main/how_to/hil.html) |
 
 ### Battle-Tested in Production
 
@@ -150,7 +150,7 @@ Select one of the deployment options below depending on your needs and environme
 | 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/deployment_guide/) | Deploy production grade on cloud providers  |
 | 📘 [**User Guide**](https://nvidia.github.io/OSMO/user_guide/) | Tutorials, workflows, and how-to guides for developers |
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
-| 💻 [**Getting Started**](https://nvidia.github.io/OSMO/user_guide/getting_started/install/index.html) | Install command-line interface to get started |
+| 💻 [**Getting Started**](https://nvidia.github.io/OSMO/user_guide/main/getting_started/install/index.html) | Install command-line interface to get started |
 
 ## Community & Support
 
