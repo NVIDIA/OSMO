@@ -23,7 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ### Workflow Orchestration Purpose-built for Physical AI
 
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
-<a href="https://nvidia.github.io/OSMO/user_guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
+<a href="https://nvidia.github.io/OSMO/main/user_guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
 <a href="https://kubernetes.io/"><img src="https://img.shields.io/badge/Kubernetes-Native-326ce5.svg" alt="Kubernetes"></a>
 
 <a href="#ready-to-begin">Get Started</a>
