@@ -28,4 +28,4 @@
    osmo login http://quick-start.osmo --method=dev --username=testuser
 
 4. Explore next steps:
-   https://nvidia.github.io/OSMO/user_guide/main/getting_started/next_steps.html
+   https://nvidia.github.io/OSMO/main/user_guide/getting_started/next_steps.html
