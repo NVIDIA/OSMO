@@ -34,7 +34,7 @@ Install Dependencies
 Install KAI Scheduler
 ======================
 
-OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ to run AI workflows at very large scale with `Workflow Groups <https://nvidia.github.io/OSMO/user_guide/main/tutorials/parallel_workflows/index.html#groups>`_.
+OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ to run AI workflows at very large scale with :ref:`Workflow Groups <tutorials_parallel_workflows_groups>`.
 
 For more information on the scheduler, see :ref:`scheduler`.
 

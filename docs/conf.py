@@ -67,7 +67,7 @@ spelling_exclude_patterns = [
 ]
 spelling_show_suggestions = True
 spelling_warning = True
-spelling_word_list_filename = '../spelling_wordlist.txt'
+spelling_word_list_filename = '../spelling_wordlist.txt' if _is_subdir else 'spelling_wordlist.txt'
 
 # Linkcheck ignore
 linkcheck_ignore = [
@@ -106,13 +106,8 @@ exclude_patterns = [
     '**/*.in.rst',  # Ignore files that are embedded in other files
 ]
 
-# When building from root, exclude everything in subdirectories
-# The index files will still be parsed for TOC but won't build full pages
-if not _is_subdir:
-    exclude_patterns.extend([
-        'user_guide/**',
-        'deployment_guide/**',
-    ])
+# Build everything as one unified Sphinx project
+# (previously excluded subdirectories when building from root)
 
 suppress_warnings = [
     'toc.excluded',

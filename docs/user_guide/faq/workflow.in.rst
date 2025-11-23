@@ -137,6 +137,8 @@ It is equivalent to first shell into the task and then run the command manually:
 
   $ /bin/sh -c "kill -9 $( ps aux | grep '[p]ython' | head -n1 | awk '{print $2}' )"
 
+.. _faq_workflow_resource_usage:
+
 How to determine the resource usage of a workflow?
 --------------------------------------------------
 

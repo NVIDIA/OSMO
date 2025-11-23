@@ -67,7 +67,7 @@ Integrate with your existing storage infrastructure:
 
 .. seealso::
 
-   Learn more about OSMO in the `Welcome to OSMO <https://nvidia.github.io/OSMO/user_guide/main/index.html>`_ section of the User Guide.
+   Learn more about OSMO in the :doc:`Welcome to OSMO </user_guide/index>` section of the User Guide.
 
 What You'll Deploy
 ==================
