@@ -54,6 +54,7 @@ jobs:
             docs:
               - '.github/workflows/pr-checks.yaml'
               - 'docs/**'
+              - 'workflows/**'
             ui:
               - '.github/workflows/pr-checks.yaml'
               - 'BUILD'
