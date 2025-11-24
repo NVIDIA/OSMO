@@ -27,7 +27,6 @@ filegroup(
         "_extensions/**",
         "conf.py",
         "index.rst",
-        "docs_options.svg",
     ]),
 )
 
