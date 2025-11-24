@@ -180,6 +180,8 @@ bazel_dep(name = "bazel_skylib", version = "1.7.1")
 
 bazel_dep(name = "rules_go", version = "0.54.0", repo_name = "io_bazel_rules_go")
 bazel_dep(name = "gazelle", version = "0.42.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "rules_proto", version = "7.0.2")
+bazel_dep(name = "protobuf", version = "29.3")
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(
@@ -188,6 +190,23 @@ go_sdk.from_file(
 
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//src/runtime:go.mod")
+
+# gRPC and Protobuf dependencies for router_go
+go_deps.module(
+    path = "google.golang.org/grpc",
+    sum = "h1:OgPcDAFKHnH8X3O4WcO4XUc8GRDeKsKReqbQtiCj7N8=",
+    version = "v1.67.3",
+)
+go_deps.module(
+    path = "google.golang.org/protobuf",
+    sum = "h1:82DV7MYdb8anAVi3qge1wSnMDrnKK7ebr+I0hHRN1BU=",
+    version = "v1.36.3",
+)
+go_deps.module(
+    path = "github.com/prometheus/client_golang",
+    sum = "h1:cxppBPuYhUnsO6yo/aoRol4L7q7UFfdm+bR9r+8l63Y=",
+    version = "v1.20.5",
+)
 
 # Additional dependencies for building rsync for CLI distribution
 go_deps.module(
@@ -205,6 +224,11 @@ go_deps.module(
     sum = "h1:kJNSjF/Xp7kU0iB2Z+9viTPMW4EqqsrywMXLJOOsXSE=",
     version = "v0.37.0",
 )
+go_deps.module(
+    path = "golang.org/x/sync",
+    sum = "h1:AauUjRAJ9OSnvULf/ARrrVywoJDy0YS2AwQ98I37610=",
+    version = "v0.13.0",
+)
 use_repo(
     go_deps,
     "com_github_conduitio_bwlimit",
@@ -218,6 +242,12 @@ use_repo(
     "com_github_burntsushi_toml",
     "com_github_coreos_go_systemd",
     "org_golang_x_crypto",
+    
+    # gRPC and Protobuf dependencies
+    "org_golang_google_grpc",
+    "org_golang_google_protobuf",
+    "com_github_prometheus_client_golang",
+    "org_golang_x_sync",
 )
 
 ################
