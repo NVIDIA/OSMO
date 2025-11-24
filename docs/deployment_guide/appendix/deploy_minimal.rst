@@ -610,11 +610,11 @@ With Ingress
 
 1. **Access OSMO Service API**:
 
-   Visit https://<your-domain>/api/docs in your web browser to access the OSMO API.
+   Visit ``https://<your-domain>/api/docs`` in your web browser to access the OSMO API.
 
 2. **Access OSMO UI**:
 
-   Visit https://<your-domain> in your web browser to access the OSMO UI.
+   Visit ``https://<your-domain>`` in your web browser to access the OSMO UI.
 
 .. note::
    1. Replace ``<your-domain>`` with your domain name or use the alternative approach below

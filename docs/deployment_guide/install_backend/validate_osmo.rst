@@ -51,7 +51,7 @@ Run sample workflows to validate the backend and pool configuration.
         Submit the ``Single Node GPU`` workflow to verify GPU access.
 
     .. grid-item-card:: :octicon:`workflow` Router Workflow
-        :link: https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab/README.md
+        :link: https://github.com/NVIDIA/OSMO/blob/main/workflows/integration_and_tools/jupyterlab/README.md
         :link-type: url
 
         **Validates:** Router functionality

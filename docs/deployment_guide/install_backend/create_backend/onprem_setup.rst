@@ -97,7 +97,7 @@ Kubeadm is the official tool for bootstrapping Kubernetes clusters and provides 
 1. Install containerd 1.7.27+ as the container runtime
 2. Configure control plane and worker nodes per specifications above
 3. Apply appropriate node labels (``node-type=operator``, ``node-type=compute``, ``node-type=gpu``, ``node-type=jetson``)
-4. For GPU nodes (x86_64): Install `NVIDIA drivers <https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/index.html>`__ (535.216.03+), `CUDA <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`__ (12.6+), and `NVIDIA Container Toolkit <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html>`__
+4. For GPU nodes (x86_64): Install `NVIDIA drivers <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/>`__ (535.216.03+), `CUDA <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`__ (12.6+), and `NVIDIA Container Toolkit <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html>`__
 5. For GPU nodes (Jetson): Install `JetPack 6.2+ <https://developer.nvidia.com/embedded/jetpack>`__ (includes CUDA and container runtime)
 6. Configure CNI plugin and verify CoreDNS is operational
 7. Configure firewall rules per `Kubernetes Ports and Protocols <https://kubernetes.io/docs/reference/networking/ports-and-protocols/>`__
