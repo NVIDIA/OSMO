@@ -61,6 +61,8 @@ jobs:
               - 'MODULE.bazel'
               - 'bzl/**'
               - 'ui/**'
+            md:
+              - '**/*.md'
 
   #######################
   #      CI Tests       #
@@ -267,3 +269,20 @@ jobs:
       - name: Build UI
         run: |
           bazel build //ui/...
+
+  #######################
+  #    MD Lint          #
+  #######################
+
+  md-lint:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.md == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Link Check
+        uses: tcort/github-action-markdown-link-check@v1
