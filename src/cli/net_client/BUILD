@@ -22,7 +22,7 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/src/cli/net_client",
     visibility = ["//visibility:private"],
     deps = [
-        "//proto:router_go_proto",
+        "//proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",

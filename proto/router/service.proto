@@ -16,43 +16,33 @@
 
 syntax = "proto3";
 
-package router.v1;
+package router;
 
-import "proto/router/v1/messages.proto";
+import "proto/router/messages.proto";
 
-option go_package = "go.corp.nvidia.com/osmo/proto/router/v1;routerv1";
+option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
 // RouterClientService handles connections from CLI clients
 service RouterClientService {
-  // Exec creates a bidirectional stream for terminal I/O
-  rpc Exec(stream ExecRequest) returns (stream ExecResponse);
-  
-  // PortForward creates a bidirectional stream for port forwarding
-  // Supports both TCP and UDP (specified in init message)
-  rpc PortForward(stream PortForwardRequest) returns (stream PortForwardResponse);
-  
-  // Rsync creates a bidirectional stream for file synchronization
-  rpc Rsync(stream RsyncRequest) returns (stream RsyncResponse);
+  // Tunnel creates a unified bidirectional stream for all operations
+  // Supports Exec, PortForward (TCP/UDP), and Rsync
+  // Operation type is specified in the init message
+  rpc Tunnel(stream TunnelRequest) returns (stream TunnelResponse);
 }
 
 // RouterAgentService handles connections from osmo-ctrl agents
 service RouterAgentService {
-  // RegisterExec establishes agent endpoint for exec session
-  // Agent sends registration, then receives client messages
-  rpc RegisterExec(stream ExecResponse) returns (stream ExecRequest);
-  
-  // RegisterPortForward establishes agent endpoint for port forwarding
-  rpc RegisterPortForward(stream PortForwardResponse) returns (stream PortForwardRequest);
-  
-  // RegisterRsync establishes agent endpoint for rsync
-  rpc RegisterRsync(stream RsyncResponse) returns (stream RsyncRequest);
+  // RegisterTunnel establishes agent endpoint for any operation
+  // Agent sends init, then bidirectional streaming begins
+  // Supports Exec, PortForward, and Rsync
+  rpc RegisterTunnel(stream TunnelResponse) returns (stream TunnelRequest);
 }
 
 // RouterControlService provides auxiliary operations
 service RouterControlService {
   // RefreshToken refreshes JWT authentication token
   rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
-  
+
   // GetSessionInfo retrieves information about an active session
   rpc GetSessionInfo(SessionInfoRequest) returns (SessionInfoResponse);
 }

@@ -73,9 +73,8 @@ bazel-bin/external/src/cli/net_client/osmo-net-client \
 external/
 ├── proto/
 │   └── router/
-│       └── v1/
-│           ├── messages.proto      # Message definitions
-│           └── service.proto       # Service definitions
+│       ├── messages.proto      # Message definitions
+│       └── service.proto       # Service definitions
 ├── src/
 │   ├── service/
 │   │   └── router_go/             # Go router server
@@ -115,10 +114,10 @@ buf.gen.yaml                       # Code generation config
 
 ### Components
 
-1. **Proto Definitions** (`external/proto/router/v1/`)
+1. **Proto Definitions** (`external/proto/router/`)
    - Defines message types and service interfaces
    - Language-agnostic API contract
-   - Generated to Go and Python
+   - Unified Tunnel interface for all operations
 
 2. **Router Go Server** (`external/src/service/router_go/`)
    - gRPC server implementing three services
@@ -313,13 +312,13 @@ kubectl exec -it -n osmo $(kubectl get pod -n osmo -l app=router-grpc -o jsonpat
 
 ### Adding a New Operation
 
-1. Update `proto/router/v1/messages.proto`:
+1. Update `proto/router/messages.proto`:
    ```protobuf
    message NewOpRequest { ... }
    message NewOpResponse { ... }
    ```
 
-2. Update `proto/router/v1/service.proto`:
+2. Update `proto/router/service.proto`:
    ```protobuf
    service RouterClientService {
      rpc NewOp(stream NewOpRequest) returns (stream NewOpResponse);
@@ -402,6 +401,6 @@ For issues or questions:
 
 ---
 
-**Status**: Implementation Complete - Ready for Testing  
-**Version**: 1.0.0  
+**Status**: Implementation Complete - Ready for Testing
+**Version**: 1.0.0
 **Last Updated**: 2025-11-23

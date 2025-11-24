@@ -210,7 +210,7 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
 
 	ctx := context.Background()
-	
+
 	// Agent arrives first
 	errChan := make(chan error, 1)
 	go func() {
@@ -295,8 +295,7 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
 
 	// Cancel context immediately
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	ctx := t.Context()
 
 	// Receive should return error
 	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
@@ -344,7 +343,7 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 	numSessions := 50
 	done := make(chan bool, numSessions)
 
-	for i := 0; i < numSessions; i++ {
+	for i := range numSessions {
 		go func(id int) {
 			key := "session-" + string(rune('a'+id%26)) + string(rune('0'+id/26))
 			_, _, err := store.CreateSession(key, "cookie", "workflow", OperationExec)
@@ -356,13 +355,13 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 	}
 
 	// Wait for all to complete
-	for i := 0; i < numSessions; i++ {
+	for range numSessions {
 		<-done
 	}
 
 	// Verify all sessions exist
 	count := 0
-	store.sessions.Range(func(key, value interface{}) bool {
+	store.sessions.Range(func(key, value any) bool {
 		count++
 		return true
 	})
@@ -392,8 +391,7 @@ func TestSessionStore_CleanupExpiredSessions(t *testing.T) {
 	}
 
 	// Start cleanup loop
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	go store.CleanupExpiredSessions(ctx)
 
@@ -421,8 +419,7 @@ func TestSessionStore_CleanupPreservesActiveSessions(t *testing.T) {
 	store.CreateSession("session-2", "cookie", "workflow-2", OperationExec)
 
 	// Start cleanup loop
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	go store.CleanupExpiredSessions(ctx)
 
@@ -473,7 +470,7 @@ func TestSessionStore_CleanupContextCancellation(t *testing.T) {
 	store.CreateSession("session-1", "cookie", "workflow-1", OperationExec)
 
 	// Start cleanup loop
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := t.Context()
 
 	done := make(chan bool)
 	go func() {
@@ -483,7 +480,6 @@ func TestSessionStore_CleanupContextCancellation(t *testing.T) {
 
 	// Cancel context after a short delay
 	time.Sleep(100 * time.Millisecond)
-	cancel()
 
 	// Cleanup should exit promptly
 	select {

@@ -25,7 +25,7 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/src/service/router_go/server",
     visibility = ["//src/service/router_go:__subpackages__"],
     deps = [
-        "//proto:router_go_proto",
+        "//proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
@@ -34,7 +34,7 @@ go_library(
 )
 
 go_test(
-    name = "server_test",
+    name = "session_store_test",
     srcs = ["session_store_test.go"],
     embed = [":server"],
     deps = [
@@ -44,11 +44,11 @@ go_test(
 )
 
 go_test(
-    name = "integration_test",
-    srcs = ["integration_test.go"],
+    name = "server_test",
+    srcs = ["server_test.go"],
     embed = [":server"],
     deps = [
-        "//proto:router_go_proto",
+        "//proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials/insecure",

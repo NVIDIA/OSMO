@@ -13,3 +13,23 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
+
+package(default_visibility = ["//visibility:public"])
+
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "router_proto",
+    srcs = [
+        "messages.proto",
+        "service.proto",
+    ],
+)
+
+go_proto_library(
+    name = "router_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
+    importpath = "go.corp.nvidia.com/osmo/proto/router",
+    proto = ":router_proto",
+)

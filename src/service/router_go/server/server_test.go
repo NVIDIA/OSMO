@@ -35,7 +35,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
-	pb "go.corp.nvidia.com/osmo/proto/router/v1"
+	pb "go.corp.nvidia.com/osmo/proto/router"
 )
 
 const bufSize = 1024 * 1024
@@ -51,6 +51,7 @@ func setupTestServer(t *testing.T) (*grpc.Server, *bufconn.Listener) {
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
+		CleanupInterval:    30 * time.Second,
 	}
 
 	// Use a no-op logger for tests (logs are not asserted)
@@ -85,7 +86,7 @@ func TestMinimalExecFlow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.DialContext(ctx, "bufnet",
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -93,7 +94,7 @@ func TestMinimalExecFlow(t *testing.T) {
 	}
 	defer clientConn.Close()
 
-	agentConn, err := grpc.DialContext(ctx, "bufnet",
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -113,16 +114,21 @@ func TestMinimalExecFlow(t *testing.T) {
 
 	// Client goroutine
 	go func() {
-		stream, err := clientService.Exec(ctx)
+		stream, err := clientService.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
 			return
 		}
 
 		// Send init
-		if err := stream.Send(&pb.ExecRequest{
-			Message: &pb.ExecRequest_Init{
-				Init: &pb.ExecInit{SessionKey: sessionKey, Cookie: cookie, WorkflowId: workflowID},
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
 			},
 		}); err != nil {
 			clientDone <- err
@@ -131,9 +137,9 @@ func TestMinimalExecFlow(t *testing.T) {
 		t.Log("CLIENT: Sent init")
 
 		// Send data
-		if err := stream.Send(&pb.ExecRequest{
-			Message: &pb.ExecRequest_Data{
-				Data: &pb.ExecData{Payload: []byte("hello"), Seq: 1},
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Data{
+				Data: &pb.TunnelData{Payload: []byte("hello"), Seq: 1},
 			},
 		}); err != nil {
 			clientDone <- err
@@ -152,8 +158,8 @@ func TestMinimalExecFlow(t *testing.T) {
 		}
 
 		// Send close
-		if err := stream.Send(&pb.ExecRequest{
-			Message: &pb.ExecRequest_Close{Close: &pb.ExecClose{}},
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
 		}); err != nil {
 			clientDone <- err
 			return
@@ -173,16 +179,21 @@ func TestMinimalExecFlow(t *testing.T) {
 	go func() {
 		time.Sleep(50 * time.Millisecond) // Let client connect first
 
-		stream, err := agentService.RegisterExec(ctx)
+		stream, err := agentService.RegisterTunnel(ctx)
 		if err != nil {
 			agentDone <- err
 			return
 		}
 
 		// Send init
-		if err := stream.Send(&pb.ExecResponse{
-			Message: &pb.ExecResponse_Init{
-				Init: &pb.ExecInit{SessionKey: sessionKey, Cookie: cookie, WorkflowId: workflowID},
+		if err := stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
 			},
 		}); err != nil {
 			agentDone <- err
@@ -201,9 +212,9 @@ func TestMinimalExecFlow(t *testing.T) {
 		}
 
 		// Send response
-		if err := stream.Send(&pb.ExecResponse{
-			Message: &pb.ExecResponse_Data{
-				Data: &pb.ExecData{Payload: []byte("world"), Seq: 1},
+		if err := stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Data{
+				Data: &pb.TunnelData{Payload: []byte("world"), Seq: 1},
 			},
 		}); err != nil {
 			agentDone <- err
@@ -268,7 +279,7 @@ func TestExecRoundTrip(t *testing.T) {
 	defer cancel()
 
 	// Create client and agent connections
-	clientConn, err := grpc.DialContext(ctx, "bufnet",
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -276,7 +287,7 @@ func TestExecRoundTrip(t *testing.T) {
 	}
 	defer clientConn.Close()
 
-	agentConn, err := grpc.DialContext(ctx, "bufnet",
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -301,16 +312,16 @@ func TestExecRoundTrip(t *testing.T) {
 	// Start client
 	go func() {
 		defer wg.Done()
-		clientStream, err := clientService.Exec(ctx)
+		clientStream, err := clientService.Tunnel(ctx)
 		if err != nil {
 			clientErrors <- err
 			return
 		}
 
 		// Send init
-		err = clientStream.Send(&pb.ExecRequest{
-			Message: &pb.ExecRequest_Init{
-				Init: &pb.ExecInit{
+		err = clientStream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 					SessionKey: sessionKey,
 					Cookie:     cookie,
 					WorkflowId: workflowID,
@@ -324,9 +335,9 @@ func TestExecRoundTrip(t *testing.T) {
 
 		// Send data
 		testData := []byte("echo hello world")
-		err = clientStream.Send(&pb.ExecRequest{
-			Message: &pb.ExecRequest_Data{
-				Data: &pb.ExecData{
+		err = clientStream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Data{
+				Data: &pb.TunnelData{
 					Payload: testData,
 					Seq:     1,
 				},
@@ -355,9 +366,9 @@ func TestExecRoundTrip(t *testing.T) {
 		}
 
 		// Send close message
-		err = clientStream.Send(&pb.ExecRequest{
-			Message: &pb.ExecRequest_Close{
-				Close: &pb.ExecClose{},
+		err = clientStream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{
+				Close: &pb.TunnelClose{},
 			},
 		})
 		if err != nil {
@@ -397,16 +408,16 @@ func TestExecRoundTrip(t *testing.T) {
 		// Give client time to connect first
 		time.Sleep(100 * time.Millisecond)
 
-		agentStream, err := agentService.RegisterExec(ctx)
+		agentStream, err := agentService.RegisterTunnel(ctx)
 		if err != nil {
 			agentErrors <- err
 			return
 		}
 
 		// Send init
-		err = agentStream.Send(&pb.ExecResponse{
-			Message: &pb.ExecResponse_Init{
-				Init: &pb.ExecInit{
+		err = agentStream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 					SessionKey: sessionKey,
 					Cookie:     cookie,
 					WorkflowId: workflowID,
@@ -436,9 +447,9 @@ func TestExecRoundTrip(t *testing.T) {
 		}
 
 		// Send response back
-		err = agentStream.Send(&pb.ExecResponse{
-			Message: &pb.ExecResponse_Data{
-				Data: &pb.ExecData{
+		err = agentStream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Data{
+				Data: &pb.TunnelData{
 					Payload: []byte("hello world from agent"),
 					Seq:     1,
 				},
@@ -468,9 +479,9 @@ func TestExecRoundTrip(t *testing.T) {
 
 		// Send close response
 		if req.GetClose() != nil {
-			err = agentStream.Send(&pb.ExecResponse{
-				Message: &pb.ExecResponse_Close{
-					Close: &pb.ExecClose{ExitCode: 0},
+			err = agentStream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Close{
+					Close: &pb.TunnelClose{ExitCode: 0},
 				},
 			})
 			if err != nil {
@@ -516,7 +527,7 @@ func TestRendezvousTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.DialContext(ctx, "bufnet",
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -526,15 +537,15 @@ func TestRendezvousTimeout(t *testing.T) {
 
 	clientService := pb.NewRouterClientServiceClient(clientConn)
 
-	clientStream, err := clientService.Exec(ctx)
+	clientStream, err := clientService.Tunnel(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create stream: %v", err)
 	}
 
 	// Send init
-	err = clientStream.Send(&pb.ExecRequest{
-		Message: &pb.ExecRequest_Init{
-			Init: &pb.ExecInit{
+	err = clientStream.Send(&pb.TunnelRequest{
+		Message: &pb.TunnelRequest_Init{
+			Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 				SessionKey: "timeout-session",
 				Cookie:     "timeout-cookie",
 				WorkflowId: "timeout-workflow",
@@ -562,7 +573,7 @@ func TestPortForwardRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.DialContext(ctx, "bufnet",
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -570,7 +581,7 @@ func TestPortForwardRoundTrip(t *testing.T) {
 	}
 	defer clientConn.Close()
 
-	agentConn, err := grpc.DialContext(ctx, "bufnet",
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -594,16 +605,16 @@ func TestPortForwardRoundTrip(t *testing.T) {
 	// Start client
 	go func() {
 		defer wg.Done()
-		clientStream, err := clientService.PortForward(ctx)
+		clientStream, err := clientService.Tunnel(ctx)
 		if err != nil {
 			clientErrors <- err
 			return
 		}
 
 		// Send init
-		err = clientStream.Send(&pb.PortForwardRequest{
-			Message: &pb.PortForwardRequest_Init{
-				Init: &pb.PortForwardInit{
+		err = clientStream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_PORT_FORWARD,
 					SessionKey: sessionKey,
 					Cookie:     cookie,
 					WorkflowId: workflowID,
@@ -619,9 +630,9 @@ func TestPortForwardRoundTrip(t *testing.T) {
 
 		// Send HTTP request data
 		httpRequest := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
-		err = clientStream.Send(&pb.PortForwardRequest{
-			Message: &pb.PortForwardRequest_Data{
-				Data: &pb.PortForwardData{
+		err = clientStream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Data{
+				Data: &pb.TunnelData{
 					Payload: httpRequest,
 					Seq:     1,
 				},
@@ -648,9 +659,9 @@ func TestPortForwardRoundTrip(t *testing.T) {
 		t.Logf("Client received: %s", string(data.Payload))
 
 		// Proper close: send close message and wait for agent acknowledgment
-		clientStream.Send(&pb.PortForwardRequest{
-			Message: &pb.PortForwardRequest_Close{
-				Close: &pb.PortForwardClose{Reason: "done"},
+		clientStream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{
+				Close: &pb.TunnelClose{Reason: "done"},
 			},
 		})
 
@@ -669,16 +680,16 @@ func TestPortForwardRoundTrip(t *testing.T) {
 		defer wg.Done()
 		time.Sleep(100 * time.Millisecond)
 
-		agentStream, err := agentService.RegisterPortForward(ctx)
+		agentStream, err := agentService.RegisterTunnel(ctx)
 		if err != nil {
 			agentErrors <- err
 			return
 		}
 
 		// Send init
-		err = agentStream.Send(&pb.PortForwardResponse{
-			Message: &pb.PortForwardResponse_Init{
-				Init: &pb.PortForwardInit{
+		err = agentStream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_PORT_FORWARD,
 					SessionKey: sessionKey,
 					Cookie:     cookie,
 					WorkflowId: workflowID,
@@ -709,9 +720,9 @@ func TestPortForwardRoundTrip(t *testing.T) {
 
 		// Send HTTP response
 		httpResponse := []byte("HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!")
-		err = agentStream.Send(&pb.PortForwardResponse{
-			Message: &pb.PortForwardResponse_Data{
-				Data: &pb.PortForwardData{
+		err = agentStream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Data{
+				Data: &pb.TunnelData{
 					Payload: httpResponse,
 					Seq:     1,
 				},
@@ -735,9 +746,9 @@ func TestPortForwardRoundTrip(t *testing.T) {
 
 		// If we got a close message, respond with close
 		if req.GetClose() != nil {
-			agentStream.Send(&pb.PortForwardResponse{
-				Message: &pb.PortForwardResponse_Close{
-					Close: &pb.PortForwardClose{Reason: "agent closing"},
+			agentStream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Close{
+					Close: &pb.TunnelClose{Reason: "agent closing"},
 				},
 			})
 		}
@@ -778,7 +789,7 @@ func TestConcurrentSessions(t *testing.T) {
 	var wg sync.WaitGroup
 	errors := make(chan error, numSessions*2)
 
-	for i := 0; i < numSessions; i++ {
+	for i := range numSessions {
 		wg.Add(2)
 		sessionID := i
 
@@ -786,7 +797,7 @@ func TestConcurrentSessions(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			conn, err := grpc.DialContext(ctx, "bufnet",
+			conn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -796,7 +807,7 @@ func TestConcurrentSessions(t *testing.T) {
 			defer conn.Close()
 
 			clientService := pb.NewRouterClientServiceClient(conn)
-			stream, err := clientService.Exec(ctx)
+			stream, err := clientService.Tunnel(ctx)
 			if err != nil {
 				errors <- err
 				return
@@ -808,9 +819,9 @@ func TestConcurrentSessions(t *testing.T) {
 			workflowID := fmt.Sprintf("workflow-%d", id)
 
 			// Init
-			err = stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Init{
-					Init: &pb.ExecInit{
+			err = stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Init{
+					Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 						SessionKey: sessionKey,
 						Cookie:     cookie,
 						WorkflowId: workflowID,
@@ -823,9 +834,9 @@ func TestConcurrentSessions(t *testing.T) {
 			}
 
 			// Send data
-			err = stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Data{
-					Data: &pb.ExecData{Payload: []byte("test"), Seq: 1},
+			err = stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Data{
+					Data: &pb.TunnelData{Payload: []byte("test"), Seq: 1},
 				},
 			})
 			if err != nil {
@@ -841,9 +852,9 @@ func TestConcurrentSessions(t *testing.T) {
 			}
 
 			// Proper close
-			stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Close{
-					Close: &pb.ExecClose{},
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Close{
+					Close: &pb.TunnelClose{},
 				},
 			})
 			stream.CloseSend()
@@ -854,7 +865,7 @@ func TestConcurrentSessions(t *testing.T) {
 			defer wg.Done()
 			time.Sleep(50 * time.Millisecond)
 
-			conn, err := grpc.DialContext(ctx, "bufnet",
+			conn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -864,7 +875,7 @@ func TestConcurrentSessions(t *testing.T) {
 			defer conn.Close()
 
 			agentService := pb.NewRouterAgentServiceClient(conn)
-			stream, err := agentService.RegisterExec(ctx)
+			stream, err := agentService.RegisterTunnel(ctx)
 			if err != nil {
 				errors <- err
 				return
@@ -876,9 +887,9 @@ func TestConcurrentSessions(t *testing.T) {
 			workflowID := fmt.Sprintf("workflow-%d", id)
 
 			// Init
-			err = stream.Send(&pb.ExecResponse{
-				Message: &pb.ExecResponse_Init{
-					Init: &pb.ExecInit{
+			err = stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Init{
+					Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 						SessionKey: sessionKey,
 						Cookie:     cookie,
 						WorkflowId: workflowID,
@@ -898,9 +909,9 @@ func TestConcurrentSessions(t *testing.T) {
 			}
 
 			// Send response
-			err = stream.Send(&pb.ExecResponse{
-				Message: &pb.ExecResponse_Data{
-					Data: &pb.ExecData{Payload: []byte("response"), Seq: 1},
+			err = stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Data{
+					Data: &pb.TunnelData{Payload: []byte("response"), Seq: 1},
 				},
 			})
 			if err != nil {
@@ -995,7 +1006,7 @@ func TestExecDataDriven(t *testing.T) {
 			defer cancel()
 
 			// Setup connections
-			clientConn, err := grpc.DialContext(ctx, "bufnet",
+			clientConn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -1003,7 +1014,7 @@ func TestExecDataDriven(t *testing.T) {
 			}
 			defer clientConn.Close()
 
-			agentConn, err := grpc.DialContext(ctx, "bufnet",
+			agentConn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -1023,16 +1034,16 @@ func TestExecDataDriven(t *testing.T) {
 
 			// Client goroutine
 			go func() {
-				stream, err := clientService.Exec(ctx)
+				stream, err := clientService.Tunnel(ctx)
 				if err != nil {
 					clientDone <- err
 					return
 				}
 
 				// Init
-				if err := stream.Send(&pb.ExecRequest{
-					Message: &pb.ExecRequest_Init{
-						Init: &pb.ExecInit{
+				if err := stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 							SessionKey: sessionKey,
 							Cookie:     cookie,
 							WorkflowId: workflowID,
@@ -1045,9 +1056,9 @@ func TestExecDataDriven(t *testing.T) {
 
 				// Send all messages
 				for i, msg := range tc.clientMessages {
-					if err := stream.Send(&pb.ExecRequest{
-						Message: &pb.ExecRequest_Data{
-							Data: &pb.ExecData{
+					if err := stream.Send(&pb.TunnelRequest{
+						Message: &pb.TunnelRequest_Data{
+							Data: &pb.TunnelData{
 								Payload: msg,
 								Seq:     uint64(i + 1),
 							},
@@ -1072,9 +1083,9 @@ func TestExecDataDriven(t *testing.T) {
 				}
 
 				// Close
-				if err := stream.Send(&pb.ExecRequest{
-					Message: &pb.ExecRequest_Close{
-						Close: &pb.ExecClose{},
+				if err := stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{
+						Close: &pb.TunnelClose{},
 					},
 				}); err != nil {
 					clientDone <- err
@@ -1095,16 +1106,16 @@ func TestExecDataDriven(t *testing.T) {
 			// Agent goroutine
 			go func() {
 				time.Sleep(50 * time.Millisecond)
-				stream, err := agentService.RegisterExec(ctx)
+				stream, err := agentService.RegisterTunnel(ctx)
 				if err != nil {
 					agentDone <- err
 					return
 				}
 
 				// Init
-				if err := stream.Send(&pb.ExecResponse{
-					Message: &pb.ExecResponse_Init{
-						Init: &pb.ExecInit{
+				if err := stream.Send(&pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 							SessionKey: sessionKey,
 							Cookie:     cookie,
 							WorkflowId: workflowID,
@@ -1128,9 +1139,9 @@ func TestExecDataDriven(t *testing.T) {
 					}
 
 					// Send response
-					if err := stream.Send(&pb.ExecResponse{
-						Message: &pb.ExecResponse_Data{
-							Data: &pb.ExecData{
+					if err := stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Data{
+							Data: &pb.TunnelData{
 								Payload: response,
 								Seq:     uint64(i + 1),
 							},
@@ -1153,9 +1164,9 @@ func TestExecDataDriven(t *testing.T) {
 				}
 
 				if req.GetClose() != nil {
-					stream.Send(&pb.ExecResponse{
-						Message: &pb.ExecResponse_Close{
-							Close: &pb.ExecClose{ExitCode: 0},
+					stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Close{
+							Close: &pb.TunnelClose{ExitCode: 0},
 						},
 					})
 				}
@@ -1200,21 +1211,21 @@ func TestErrorScenarios(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer cancel()
 
-				conn, _ := grpc.DialContext(ctx, "bufnet",
+				conn, _ := grpc.NewClient("passthrough:///bufnet",
 					grpc.WithContextDialer(bufDialer(lis)),
 					grpc.WithTransportCredentials(insecure.NewCredentials()))
 				defer conn.Close()
 
 				client := pb.NewRouterClientServiceClient(conn)
-				stream, err := client.Exec(ctx)
+				stream, err := client.Tunnel(ctx)
 				if err != nil {
 					return err
 				}
 
 				// Send data without init
-				err = stream.Send(&pb.ExecRequest{
-					Message: &pb.ExecRequest_Data{
-						Data: &pb.ExecData{Payload: []byte("test")},
+				err = stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Data{
+						Data: &pb.TunnelData{Payload: []byte("test")},
 					},
 				})
 				if err != nil {
@@ -1232,7 +1243,7 @@ func TestErrorScenarios(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer cancel()
 
-				conn, _ := grpc.DialContext(ctx, "bufnet",
+				conn, _ := grpc.NewClient("passthrough:///bufnet",
 					grpc.WithContextDialer(bufDialer(lis)),
 					grpc.WithTransportCredentials(insecure.NewCredentials()))
 				defer conn.Close()
@@ -1240,13 +1251,13 @@ func TestErrorScenarios(t *testing.T) {
 				client := pb.NewRouterClientServiceClient(conn)
 
 				// First stream
-				stream1, err := client.Exec(ctx)
+				stream1, err := client.Tunnel(ctx)
 				if err != nil {
 					return err
 				}
-				stream1.Send(&pb.ExecRequest{
-					Message: &pb.ExecRequest_Init{
-						Init: &pb.ExecInit{
+				stream1.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 							SessionKey: "duplicate-key",
 							Cookie:     "cookie1",
 							WorkflowId: "workflow1",
@@ -1255,13 +1266,13 @@ func TestErrorScenarios(t *testing.T) {
 				})
 
 				// Second stream with same key
-				stream2, err := client.Exec(ctx)
+				stream2, err := client.Tunnel(ctx)
 				if err != nil {
 					return err
 				}
-				err = stream2.Send(&pb.ExecRequest{
-					Message: &pb.ExecRequest_Init{
-						Init: &pb.ExecInit{
+				err = stream2.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 							SessionKey: "duplicate-key",
 							Cookie:     "cookie2",
 							WorkflowId: "workflow2",
@@ -1319,12 +1330,12 @@ func TestSessionIsolation(t *testing.T) {
 	numSessions := 5
 	done := make(chan error, numSessions*2)
 
-	for i := 0; i < numSessions; i++ {
+	for i := range numSessions {
 		sessionID := i
 
 		// Client
 		go func(id int) {
-			conn, err := grpc.DialContext(ctx, "bufnet",
+			conn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -1334,16 +1345,16 @@ func TestSessionIsolation(t *testing.T) {
 			defer conn.Close()
 
 			client := pb.NewRouterClientServiceClient(conn)
-			stream, err := client.Exec(ctx)
+			stream, err := client.Tunnel(ctx)
 			if err != nil {
 				done <- err
 				return
 			}
 
 			// Init
-			stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Init{
-					Init: &pb.ExecInit{
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Init{
+					Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 						SessionKey: fmt.Sprintf("isolated-session-%d", id),
 						Cookie:     fmt.Sprintf("cookie-%d", id),
 						WorkflowId: fmt.Sprintf("workflow-%d", id),
@@ -1353,9 +1364,9 @@ func TestSessionIsolation(t *testing.T) {
 
 			// Send unique message
 			uniqueMsg := fmt.Sprintf("message-from-client-%d", id)
-			stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Data{
-					Data: &pb.ExecData{Payload: []byte(uniqueMsg)},
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Data{
+					Data: &pb.TunnelData{Payload: []byte(uniqueMsg)},
 				},
 			})
 
@@ -1372,7 +1383,7 @@ func TestSessionIsolation(t *testing.T) {
 				return
 			}
 
-			stream.Send(&pb.ExecRequest{Message: &pb.ExecRequest_Close{Close: &pb.ExecClose{}}})
+			stream.Send(&pb.TunnelRequest{Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}}})
 			stream.CloseSend()
 			for {
 				_, err := stream.Recv()
@@ -1386,7 +1397,7 @@ func TestSessionIsolation(t *testing.T) {
 		// Agent
 		go func(id int) {
 			time.Sleep(50 * time.Millisecond)
-			conn, err := grpc.DialContext(ctx, "bufnet",
+			conn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -1396,16 +1407,16 @@ func TestSessionIsolation(t *testing.T) {
 			defer conn.Close()
 
 			agent := pb.NewRouterAgentServiceClient(conn)
-			stream, err := agent.RegisterExec(ctx)
+			stream, err := agent.RegisterTunnel(ctx)
 			if err != nil {
 				done <- err
 				return
 			}
 
 			// Init
-			stream.Send(&pb.ExecResponse{
-				Message: &pb.ExecResponse_Init{
-					Init: &pb.ExecInit{
+			stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Init{
+					Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 						SessionKey: fmt.Sprintf("isolated-session-%d", id),
 						Cookie:     fmt.Sprintf("cookie-%d", id),
 						WorkflowId: fmt.Sprintf("workflow-%d", id),
@@ -1428,9 +1439,9 @@ func TestSessionIsolation(t *testing.T) {
 
 			// Send unique response
 			uniqueResp := fmt.Sprintf("response-to-client-%d", id)
-			stream.Send(&pb.ExecResponse{
-				Message: &pb.ExecResponse_Data{
-					Data: &pb.ExecData{Payload: []byte(uniqueResp)},
+			stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Data{
+					Data: &pb.TunnelData{Payload: []byte(uniqueResp)},
 				},
 			})
 
@@ -1459,7 +1470,7 @@ func TestRsyncRoundTrip(t *testing.T) {
 	defer cancel()
 
 	// Setup connections
-	clientConn, err := grpc.DialContext(ctx, "bufnet",
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -1467,7 +1478,7 @@ func TestRsyncRoundTrip(t *testing.T) {
 	}
 	defer clientConn.Close()
 
-	agentConn, err := grpc.DialContext(ctx, "bufnet",
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -1492,16 +1503,16 @@ func TestRsyncRoundTrip(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		stream, err := clientService.Rsync(ctx)
+		stream, err := clientService.Tunnel(ctx)
 		if err != nil {
 			clientErrors <- err
 			return
 		}
 
 		// Send init
-		err = stream.Send(&pb.RsyncRequest{
-			Message: &pb.RsyncRequest_Init{
-				Init: &pb.RsyncInit{
+		err = stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_RSYNC,
 					SessionKey: sessionKey,
 					Cookie:     cookie,
 					WorkflowId: workflowID,
@@ -1516,9 +1527,9 @@ func TestRsyncRoundTrip(t *testing.T) {
 
 		// Send rsync data (simulating file transfer)
 		testData := []byte("rsync-file-content-chunk-1")
-		err = stream.Send(&pb.RsyncRequest{
-			Message: &pb.RsyncRequest_Data{
-				Data: &pb.RsyncData{
+		err = stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Data{
+				Data: &pb.TunnelData{
 					Payload: testData,
 				},
 			},
@@ -1540,9 +1551,9 @@ func TestRsyncRoundTrip(t *testing.T) {
 		}
 
 		// Send close
-		err = stream.Send(&pb.RsyncRequest{
-			Message: &pb.RsyncRequest_Close{
-				Close: &pb.RsyncClose{
+		err = stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{
+				Close: &pb.TunnelClose{
 					Success: true,
 				},
 			},
@@ -1582,16 +1593,16 @@ func TestRsyncRoundTrip(t *testing.T) {
 		defer wg.Done()
 		time.Sleep(50 * time.Millisecond)
 
-		stream, err := agentService.RegisterRsync(ctx)
+		stream, err := agentService.RegisterTunnel(ctx)
 		if err != nil {
 			agentErrors <- err
 			return
 		}
 
 		// Send init
-		err = stream.Send(&pb.RsyncResponse{
-			Message: &pb.RsyncResponse_Init{
-				Init: &pb.RsyncInit{
+		err = stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_RSYNC,
 					SessionKey: sessionKey,
 					Cookie:     cookie,
 					WorkflowId: workflowID,
@@ -1620,9 +1631,9 @@ func TestRsyncRoundTrip(t *testing.T) {
 		}
 
 		// Send acknowledgment
-		err = stream.Send(&pb.RsyncResponse{
-			Message: &pb.RsyncResponse_Data{
-				Data: &pb.RsyncData{
+		err = stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Data{
+				Data: &pb.TunnelData{
 					Payload: []byte("ack"),
 				},
 			},
@@ -1649,9 +1660,9 @@ func TestRsyncRoundTrip(t *testing.T) {
 
 		if req.GetClose() != nil {
 			t.Log("Agent received close message")
-			stream.Send(&pb.RsyncResponse{
-				Message: &pb.RsyncResponse_Close{
-					Close: &pb.RsyncClose{Success: true},
+			stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Close{
+					Close: &pb.TunnelClose{Success: true},
 				},
 			})
 		}
@@ -1689,7 +1700,7 @@ func TestRefreshToken(t *testing.T) {
 	defer cancel()
 
 	// Setup connection
-	conn, err := grpc.DialContext(ctx, "bufnet",
+	conn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -1799,7 +1810,7 @@ func TestRsyncDataDriven(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			clientConn, err := grpc.DialContext(ctx, "bufnet",
+			clientConn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -1807,7 +1818,7 @@ func TestRsyncDataDriven(t *testing.T) {
 			}
 			defer clientConn.Close()
 
-			agentConn, err := grpc.DialContext(ctx, "bufnet",
+			agentConn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -1824,16 +1835,16 @@ func TestRsyncDataDriven(t *testing.T) {
 
 			// Client goroutine
 			go func() {
-				stream, err := clientService.Rsync(ctx)
+				stream, err := clientService.Tunnel(ctx)
 				if err != nil {
 					clientDone <- err
 					return
 				}
 
 				// Init
-				stream.Send(&pb.RsyncRequest{
-					Message: &pb.RsyncRequest_Init{
-						Init: &pb.RsyncInit{
+				stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_RSYNC,
 							SessionKey: sessionKey,
 							Cookie:     "cookie",
 							WorkflowId: "workflow",
@@ -1848,9 +1859,9 @@ func TestRsyncDataDriven(t *testing.T) {
 					for j := range data {
 						data[j] = byte(i % 256)
 					}
-					stream.Send(&pb.RsyncRequest{
-						Message: &pb.RsyncRequest_Data{
-							Data: &pb.RsyncData{Payload: data},
+					stream.Send(&pb.TunnelRequest{
+						Message: &pb.TunnelRequest_Data{
+							Data: &pb.TunnelData{Payload: data},
 						},
 					})
 				}
@@ -1865,9 +1876,9 @@ func TestRsyncDataDriven(t *testing.T) {
 				}
 
 				// Close
-				stream.Send(&pb.RsyncRequest{
-					Message: &pb.RsyncRequest_Close{
-						Close: &pb.RsyncClose{Success: true},
+				stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{
+						Close: &pb.TunnelClose{Success: true},
 					},
 				})
 				stream.CloseSend()
@@ -1885,16 +1896,16 @@ func TestRsyncDataDriven(t *testing.T) {
 			// Agent goroutine
 			go func() {
 				time.Sleep(50 * time.Millisecond)
-				stream, err := agentService.RegisterRsync(ctx)
+				stream, err := agentService.RegisterTunnel(ctx)
 				if err != nil {
 					agentDone <- err
 					return
 				}
 
 				// Init
-				stream.Send(&pb.RsyncResponse{
-					Message: &pb.RsyncResponse_Init{
-						Init: &pb.RsyncInit{
+				stream.Send(&pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_RSYNC,
 							SessionKey: sessionKey,
 							Cookie:     "cookie",
 							WorkflowId: "workflow",
@@ -1916,9 +1927,9 @@ func TestRsyncDataDriven(t *testing.T) {
 					}
 
 					// Send ack
-					stream.Send(&pb.RsyncResponse{
-						Message: &pb.RsyncResponse_Data{
-							Data: &pb.RsyncData{Payload: []byte("ack")},
+					stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Data{
+							Data: &pb.TunnelData{Payload: []byte("ack")},
 						},
 					})
 				}
@@ -1935,9 +1946,9 @@ func TestRsyncDataDriven(t *testing.T) {
 				}
 
 				if req.GetClose() != nil {
-					stream.Send(&pb.RsyncResponse{
-						Message: &pb.RsyncResponse_Close{
-							Close: &pb.RsyncClose{Success: true},
+					stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Close{
+							Close: &pb.TunnelClose{Success: true},
 						},
 					})
 				}
@@ -1968,7 +1979,7 @@ func TestGetSessionInfo(t *testing.T) {
 	defer cancel()
 
 	// Setup connections
-	clientConn, err := grpc.DialContext(ctx, "bufnet",
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -1976,7 +1987,7 @@ func TestGetSessionInfo(t *testing.T) {
 	}
 	defer clientConn.Close()
 
-	agentConn, err := grpc.DialContext(ctx, "bufnet",
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(bufDialer(lis)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -2014,15 +2025,15 @@ func TestGetSessionInfo(t *testing.T) {
 		// Create a session by starting client and agent
 		go func() {
 			defer wg.Done()
-			stream, err := clientService.Exec(ctx)
+			stream, err := clientService.Tunnel(ctx)
 			if err != nil {
 				t.Errorf("Client stream error: %v", err)
 				return
 			}
 
-			stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Init{
-					Init: &pb.ExecInit{
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Init{
+					Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 						SessionKey: sessionKey,
 						Cookie:     "test-cookie",
 						WorkflowId: workflowID,
@@ -2033,9 +2044,9 @@ func TestGetSessionInfo(t *testing.T) {
 			// Keep session alive briefly
 			time.Sleep(500 * time.Millisecond)
 
-			stream.Send(&pb.ExecRequest{
-				Message: &pb.ExecRequest_Close{
-					Close: &pb.ExecClose{},
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Close{
+					Close: &pb.TunnelClose{},
 				},
 			})
 			stream.CloseSend()
@@ -2053,15 +2064,15 @@ func TestGetSessionInfo(t *testing.T) {
 			defer wg.Done()
 			time.Sleep(100 * time.Millisecond)
 
-			stream, err := agentService.RegisterExec(ctx)
+			stream, err := agentService.RegisterTunnel(ctx)
 			if err != nil {
 				t.Errorf("Agent stream error: %v", err)
 				return
 			}
 
-			stream.Send(&pb.ExecResponse{
-				Message: &pb.ExecResponse_Init{
-					Init: &pb.ExecInit{
+			stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Init{
+					Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_EXEC,
 						SessionKey: sessionKey,
 						Cookie:     "test-cookie",
 						WorkflowId: workflowID,
@@ -2184,7 +2195,7 @@ func TestPortForwardDataDriven(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			clientConn, err := grpc.DialContext(ctx, "bufnet",
+			clientConn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -2192,7 +2203,7 @@ func TestPortForwardDataDriven(t *testing.T) {
 			}
 			defer clientConn.Close()
 
-			agentConn, err := grpc.DialContext(ctx, "bufnet",
+			agentConn, err := grpc.NewClient("passthrough:///bufnet",
 				grpc.WithContextDialer(bufDialer(lis)),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -2209,16 +2220,16 @@ func TestPortForwardDataDriven(t *testing.T) {
 
 			// Client goroutine
 			go func() {
-				stream, err := clientService.PortForward(ctx)
+				stream, err := clientService.Tunnel(ctx)
 				if err != nil {
 					clientDone <- err
 					return
 				}
 
 				// Send init
-				stream.Send(&pb.PortForwardRequest{
-					Message: &pb.PortForwardRequest_Init{
-						Init: &pb.PortForwardInit{
+				stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_PORT_FORWARD,
 							SessionKey: sessionKey,
 							Cookie:     "cookie",
 							WorkflowId: "workflow",
@@ -2230,9 +2241,9 @@ func TestPortForwardDataDriven(t *testing.T) {
 
 				// Send data to agent
 				for _, data := range tc.clientToAgent {
-					stream.Send(&pb.PortForwardRequest{
-						Message: &pb.PortForwardRequest_Data{
-							Data: &pb.PortForwardData{Payload: data},
+					stream.Send(&pb.TunnelRequest{
+						Message: &pb.TunnelRequest_Data{
+							Data: &pb.TunnelData{Payload: data},
 						},
 					})
 				}
@@ -2251,9 +2262,9 @@ func TestPortForwardDataDriven(t *testing.T) {
 				}
 
 				// Close
-				stream.Send(&pb.PortForwardRequest{
-					Message: &pb.PortForwardRequest_Close{
-						Close: &pb.PortForwardClose{},
+				stream.Send(&pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{
+						Close: &pb.TunnelClose{},
 					},
 				})
 				stream.CloseSend()
@@ -2272,16 +2283,16 @@ func TestPortForwardDataDriven(t *testing.T) {
 			go func() {
 				time.Sleep(50 * time.Millisecond)
 
-				stream, err := agentService.RegisterPortForward(ctx)
+				stream, err := agentService.RegisterTunnel(ctx)
 				if err != nil {
 					agentDone <- err
 					return
 				}
 
 				// Send init
-				stream.Send(&pb.PortForwardResponse{
-					Message: &pb.PortForwardResponse_Init{
-						Init: &pb.PortForwardInit{
+				stream.Send(&pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Init{
+						Init: &pb.TunnelInit{Operation: pb.OperationType_OPERATION_PORT_FORWARD,
 							SessionKey: sessionKey,
 							Cookie:     "cookie",
 							WorkflowId: "workflow",
@@ -2302,9 +2313,9 @@ func TestPortForwardDataDriven(t *testing.T) {
 
 				// Send responses back
 				for _, data := range tc.agentToClient {
-					stream.Send(&pb.PortForwardResponse{
-						Message: &pb.PortForwardResponse_Data{
-							Data: &pb.PortForwardData{Payload: data},
+					stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Data{
+							Data: &pb.TunnelData{Payload: data},
 						},
 					})
 				}
@@ -2321,9 +2332,9 @@ func TestPortForwardDataDriven(t *testing.T) {
 				}
 
 				if req.GetClose() != nil {
-					stream.Send(&pb.PortForwardResponse{
-						Message: &pb.PortForwardResponse_Close{
-							Close: &pb.PortForwardClose{},
+					stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Close{
+							Close: &pb.TunnelClose{},
 						},
 					})
 				}
