@@ -33,7 +33,7 @@ Select one of the guides below to get started with OSMO.
 
       .. grid-item-card:: :octicon:`book` User Guide
           :class-card: tool-card
-          :link: user_guide/main/index.html
+          :link: user_guide/index.html
 
           Learn how to use OSMO, write workflows, and build Physical AI applications.
 
@@ -49,7 +49,7 @@ Select one of the guides below to get started with OSMO.
 
       .. grid-item-card:: :octicon:`rocket` Deployment Guide
           :class-card: tool-card
-          :link: deployment_guide/main/index.html
+          :link: deployment_guide/index.html
 
           Deploy OSMO infrastructure and configure your compute backends.
 
