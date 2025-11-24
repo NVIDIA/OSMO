@@ -28,5 +28,39 @@ Select one of the guides below to get started with OSMO.
 
 .. only:: html
 
-  .. raw:: html
-     :file: docs_options.svg
+  .. grid:: 1 2 2 2
+      :gutter: 3
+
+      .. grid-item-card:: :octicon:`book` User Guide
+          :class-card: tool-card
+          :link: user_guide/index.html
+
+          Learn how to use OSMO, write workflows, and build Physical AI applications.
+
+          **Topics covered:**
+
+          • Getting started with OSMO
+
+          • Writing workflow specifications
+
+          • Working with data and datasets
+
+          • Interactive development
+
+      .. grid-item-card:: :octicon:`rocket` Deployment Guide
+          :class-card: tool-card
+          :link: deployment_guide/index.html
+
+          Deploy OSMO infrastructure and configure your compute backends.
+
+          **Topics covered:**
+
+          • Infrastructure requirements
+
+          • Deploying the OSMO service
+
+          • Configuring storage backends
+
+          • Bring Your Own Compute
+
+          • Advanced configuration
