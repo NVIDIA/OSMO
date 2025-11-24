@@ -21,7 +21,7 @@
 Dataset Buckets
 ===============
 
-Register external cloud storage buckets (S3, GCS, Azure) with OSMO to organize `datasets <https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html#datasets>`_ across multiple storage locations (This configuration is optional)
+Register external cloud storage buckets (S3, GCS, Azure) with OSMO to organize `datasets <https://nvidia.github.io/OSMO/user_guide/main/tutorials/data/index.html#datasets>`_ across multiple storage locations (This configuration is optional)
 
 
 Why Use Dataset Buckets?
@@ -310,4 +310,4 @@ Troubleshooting
 
 .. seealso::
 
-  - Learn more about datasets in OSMO at `Datasets <https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html#datasets>`_
+  - Learn more about datasets in OSMO at `Datasets <https://nvidia.github.io/OSMO/user_guide/main/tutorials/data/index.html#datasets>`_

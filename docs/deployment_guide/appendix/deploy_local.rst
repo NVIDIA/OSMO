@@ -340,7 +340,7 @@ Next Steps
 
 Now that you have OSMO running locally, explore the platform:
 
-1. **Run Your First Workflow**: Visit the `User Guide <https://nvidia.github.io/OSMO/user_guide/getting_started/next_steps.html>`_ for tutorials on submitting workflows, interactive development, distributed training, and more.
+1. **Run Your First Workflow**: Visit the `User Guide <https://nvidia.github.io/OSMO/user_guide/main/getting_started/next_steps.html>`_ for tutorials on submitting workflows, interactive development, distributed training, and more.
 
 2. **Explore the Web UI**: Visit ``http://quick-start.osmo`` to access the OSMO dashboard.
 
