@@ -22,7 +22,7 @@ This example demonstrates how to use NVIDIA Inference Microservices (NIMs) in yo
 
 ## Prerequisites
 
-You'll need an NGC API key to authenticate with NIM services. If you don't have one, create it on the [NGC website](https://org.ngc.nvidia.com/setup/personal-keys).
+You'll need an NGC API key to authenticate with NIM services. If you don't have one, create it on the [NGC website](https://org.ngc.nvidia.com/setup/api-keys).
 
 Store your API key as a secret credential in OSMO:
 

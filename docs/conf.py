@@ -69,6 +69,12 @@ spelling_show_suggestions = True
 spelling_warning = True
 spelling_word_list_filename = '../spelling_wordlist.txt'
 
+# Linkcheck ignore
+linkcheck_ignore = [
+    'https://github.com/settings/tokens/new',
+    'https://osmo-example-url.com*',
+]
+
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
 copybutton_prompt_is_regexp = True

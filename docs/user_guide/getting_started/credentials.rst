@@ -51,11 +51,11 @@ Registry
             :color: primary
             :icon: question
 
-            `NVIDIA GPU Cloud <http://ngc.nvidia.com>`__ (NGC) is an online catalog of GPU accelerated
+            `NVIDIA GPU Cloud <https://catalog.ngc.nvidia.com>`__ (NGC) is an online catalog of GPU accelerated
             cloud applications (docker containers, helm charts, and models). It also provides **private
             registries** for teams to upload their own docker containers.
 
-            Please refer to `<https://org.ngc.nvidia.com/setup/personal-keys>`__ to generate a personal
+            Please refer to `<https://org.ngc.nvidia.com/setup/api-keys>`__ to generate a personal
             API Key. Ensure that while creating the key, in ``Services Included*`` drop down,
             select ``Private Registry``.
 
@@ -96,7 +96,7 @@ Registry
 
     .. tab-item:: Github
 
-        Authenticated access to `Github Container Registry <https://ghcr.io/>`__ is supported.
+        Authenticated access to `Github Container Registry <https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry>`__ is supported.
 
         .. seealso::
 
