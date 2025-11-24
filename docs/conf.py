@@ -22,11 +22,6 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('.'))
 
-# Determine if we're building from a subdirectory or root
-# Use current working directory since subdir conf.py files import this file
-_cwd = os.getcwd()
-_is_subdir = os.path.basename(_cwd) in ['user_guide', 'deployment_guide']
-
 # -- Project information -----------------------------------------------------
 
 project = 'NVIDIA OSMO'
@@ -67,7 +62,7 @@ spelling_exclude_patterns = [
 ]
 spelling_show_suggestions = True
 spelling_warning = True
-spelling_word_list_filename = '../spelling_wordlist.txt' if _is_subdir else 'spelling_wordlist.txt'
+spelling_word_list_filename = 'spelling_wordlist.txt'
 
 # Linkcheck ignore
 linkcheck_ignore = [
@@ -106,9 +101,6 @@ exclude_patterns = [
     '**/*.in.rst',  # Ignore files that are embedded in other files
 ]
 
-# Build everything as one unified Sphinx project
-# (previously excluded subdirectories when building from root)
-
 suppress_warnings = [
     'toc.excluded',
 ]
@@ -128,13 +120,15 @@ html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
 html_static_path = ['_static']
 templates_path = ['_templates']
 # Hide sidebar completely for root page
+# For each guide section, show only local navigation
 html_sidebars = {
-    "index": [],
+    "index": [],  # No sidebar on landing page
+    "deployment_guide/**": ["sidebar-nav-bs"],  # Only show deployment guide nav
+    "user_guide/**": ["sidebar-nav-bs"],  # Only show user guide nav
 }
 # Add custom CSS to hide sidebar and remove vertical bar
 # html_css_files_extra = ['css/root_page.css']
 html_css_files_extra = []
-
 
 html_theme_options = {
     "collapse_navigation": False,
