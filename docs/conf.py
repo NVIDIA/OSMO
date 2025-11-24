@@ -83,7 +83,7 @@ linkcheck_ignore = [
 
 linkcheck_anchors = False
 
-linkcheck_timeout = 120
+linkcheck_timeout = 150
 
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "

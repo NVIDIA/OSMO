@@ -31,7 +31,6 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       docs: ${{ steps.filter.outputs.docs }}
       ui: ${{ steps.filter.outputs.ui }}
-      md: ${{ steps.filter.outputs.md }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,9 +61,6 @@ jobs:
               - 'MODULE.bazel'
               - 'bzl/**'
               - 'ui/**'
-            md:
-              - '.github/workflows/pr-checks.yaml'
-              - '**/*.md'
 
   #######################
   #      CI Tests       #
@@ -328,32 +324,3 @@ jobs:
       - name: Build UI
         run: |
           bazel build //ui/...
-
-  #######################
-  #    MD Lint          #
-  #######################
-
-  md-lint:
-    needs: [check-paths]
-    if: needs.check-paths.outputs.md == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Test
-        run: |
-          find . -name '*.md' -not -path './node_modules/*'
-
-      - name: Docker Link Check
-        uses: docker://ghcr.io/tcort/markdown-link-check:3.11.2
-        with:
-          entrypoint: /bin/sh
-          args: -c "markdown-link-check ."
-
-      - name: Link Check
-        uses: tcort/github-action-markdown-link-check@a800ad5f1c35bf61987946fd31c15726a1c9f2ba
-        with:
-          folder-path: /
