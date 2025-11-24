@@ -347,6 +347,12 @@ jobs:
         run: |
           find . -name '*.md' -not -path './node_modules/*'
 
+      - name: Docker Link Check
+        uses: ghcr.io/tcort/markdown-link-check:3.11.2
+        with:
+          entrypoint: /bin/sh
+          args: -c "markdown-link-check ."
+
       - name: Link Check
         uses: tcort/github-action-markdown-link-check@a800ad5f1c35bf61987946fd31c15726a1c9f2ba
         with:
