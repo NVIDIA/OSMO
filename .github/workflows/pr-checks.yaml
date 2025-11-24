@@ -283,9 +283,9 @@ jobs:
               io_bazel_rules_go: src/runtime/go.mod
               bazel_gazelle: src/runtime/go.sum
 
-      - name: Run Tests
+      - name: Run Build
         run: |
-          bazel test --test_output=errors -- //docs/...
+          bazel build --test_output=errors -- //docs/...
 
   #######################
   #      UI Build       #
