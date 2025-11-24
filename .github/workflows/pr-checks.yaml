@@ -234,8 +234,7 @@ jobs:
         uses: rossjrw/pr-preview-action@v1
         with:
           source-dir: ./docs/public/
-          with:
-            preview-branch: gh-pages/documentation
+          preview-branch: gh-pages/documentation
 
   #######################
   #      CI Docs        #
