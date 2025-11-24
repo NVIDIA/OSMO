@@ -79,6 +79,8 @@ linkcheck_ignore = [
     'https://github.com/settings/tokens/new',
     'https://console.volcengine.com*',
     'https://us-east-1.console.aws.amazon.com*'
+    # Getting read timeout in CI even though the link is valid
+    'https://helm.sh/docs/intro/install',
 ]
 
 linkcheck_anchors = False
