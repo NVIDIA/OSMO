@@ -152,8 +152,6 @@ Select one of the deployment options below depending on your needs and environme
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
 | 💻 [**Getting Started**](https://nvidia.github.io/OSMO/user_guide/main/getting_started/install/index.html) | Install command-line interface to get started |
 
-[**Bad Link**](https://nvidia.github.io/OSMO/user_guide/ddd/getting_started/install/index.html)
-
 ## Community & Support
 
 **Join the community.** We welcome contributions, feedback, and collaboration from AI teams worldwide.
