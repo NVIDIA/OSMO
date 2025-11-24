@@ -73,6 +73,7 @@ spelling_word_list_filename = '../spelling_wordlist.txt'
 linkcheck_ignore = [
     'https://github.com/settings/tokens/new',
     'https://osmo-example-url.com*',
+    'https://github.com/NVIDIA/Isaac-GR00T?tab=readme-ov-file#prerequisites',
 ]
 
 # Copybutton
