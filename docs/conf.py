@@ -123,22 +123,18 @@ html_theme = "nvidia_sphinx_theme"
 html_title = 'OSMO Documentation'
 html_show_sourcelink = False
 
-if _is_subdir:
-    html_favicon = '../_static/osmo_favicon.png'
-    html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
-    html_static_path = ['../_static']
-    templates_path = ['../_templates']
-    html_css_files_extra = []
-else:
-    html_favicon = '_static/osmo_favicon.png'
-    html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
-    html_static_path = ['_static']
-    # Hide sidebar completely for root page
-    html_sidebars = {
-        "**": []
-    }
-    # Add custom CSS to hide sidebar and remove vertical bar
-    html_css_files_extra = ['css/root_page.css']
+html_favicon = '_static/osmo_favicon.png'
+html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+html_static_path = ['_static']
+templates_path = ['_templates']
+# Hide sidebar completely for root page
+html_sidebars = {
+    "index": [],
+}
+# Add custom CSS to hide sidebar and remove vertical bar
+# html_css_files_extra = ['css/root_page.css']
+html_css_files_extra = []
+
 
 html_theme_options = {
     "collapse_navigation": False,
