@@ -105,7 +105,7 @@ Traditionally, orchestrating workflows across these heterogeneous systems requir
 OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
 
 <div align="center">
-  <img src="./docs/user_guide/main/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
 </div>
 
 
