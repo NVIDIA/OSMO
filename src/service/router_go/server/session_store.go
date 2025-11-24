@@ -122,7 +122,6 @@ type SessionStoreConfig struct {
 	FlowControlBuffer  int
 	FlowControlTimeout time.Duration
 	CleanupInterval    time.Duration // How often to check for expired sessions (default: 30s)
-	StreamBufferSize   int           // Buffer size for stream message smoothing (default: 4)
 }
 
 // SessionStoreOption is a functional option for configuring SessionStore
@@ -172,13 +171,6 @@ func WithCleanupInterval(interval time.Duration) SessionStoreOption {
 	}
 }
 
-// WithStreamBufferSize sets the buffer size for stream message smoothing
-func WithStreamBufferSize(size int) SessionStoreOption {
-	return func(s *SessionStore) {
-		s.config.StreamBufferSize = size
-	}
-}
-
 // NewSessionStore creates a new session store
 func NewSessionStore(config SessionStoreConfig, logger *slog.Logger) *SessionStore {
 	if logger == nil {
@@ -201,7 +193,6 @@ func NewSessionStoreWithOptions(opts ...SessionStoreOption) *SessionStore {
 			FlowControlBuffer:  100,
 			FlowControlTimeout: 30 * time.Second,
 			CleanupInterval:    30 * time.Second,
-			StreamBufferSize:   4, // Small buffer to smooth traffic spikes
 		},
 		logger: slog.Default(),
 	}
