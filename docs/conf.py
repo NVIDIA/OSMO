@@ -71,10 +71,17 @@ spelling_word_list_filename = '../spelling_wordlist.txt'
 
 # Linkcheck ignore
 linkcheck_ignore = [
-    'https://github.com/settings/tokens/new',
     'https://osmo-example-url.com*',
-    'https://github.com/NVIDIA/Isaac-GR00T*',
+    'http://osmo.example.com*',
+    'https://osmo.example.com*',
+    'http://localhost:*',
+    # Requires authentication so we can't check it
+    'https://github.com/settings/tokens/new',
+    'https://console.volcengine.com*',
+    'https://us-east-1.console.aws.amazon.com*'
 ]
+
+linkcheck_anchors = False
 
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "

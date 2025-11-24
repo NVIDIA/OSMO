@@ -99,8 +99,8 @@ Requirements
         - `Azure Certificates <https://learn.microsoft.com/en-us/azure/app-service/configure-ssl-certificate>`_
         - `Application Gateway SSL <https://learn.microsoft.com/en-us/azure/application-gateway/ssl-overview>`_
       * - **GCP**
-        - `Cloud DNS <https://cloud.google.com/dns/docs/overview>`_
-        - `Certificate Manager <https://cloud.google.com/certificate-manager/docs/overview>`_
+        - `Cloud DNS <https://docs.cloud.google.com/dns/docs/overview>`_
+        - `Certificate Manager <https://docs.cloud.google.com/certificate-manager/docs/overview>`_
         - `Load Balancer SSL <https://cloud.google.com/load-balancing/docs/ssl-certificates>`_
 
 

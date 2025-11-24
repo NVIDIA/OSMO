@@ -50,7 +50,7 @@ Download the following dashboard JSON files:
 Import to Grafana
 -------------------
 
-Import the dashboards using `Grafana's Import Dashboard <https://grafana.com/docs/grafana/latest/dashboards/export-import/#import-a-dashboard>`__ documentation.
+Import the dashboards using `Grafana's Import Dashboard <https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/import-dashboards/>`__ documentation.
 
 Configure Alerts
 -----------------
@@ -61,7 +61,7 @@ Set up alerts using Grafana's `alert configuration <https://grafana.com/docs/gra
 Install Storage Metrics
 ====================================
 
-To enable usage metrics for ephemeral storage in Grafana, install the `k8s-ephemeral-storage-metrics <https://github.com/jmcgrath207/k8s-ephemeral-storage-metrics#installation>`__ plugin in your compute cluster.
+To enable usage metrics for ephemeral storage in Grafana, install the `k8s-ephemeral-storage-metrics <https://github.com/jmcgrath207/k8s-ephemeral-storage-metrics>`__ plugin in your compute cluster.
 
 Update Backend Configs
 =============================
