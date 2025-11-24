@@ -105,9 +105,9 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 		return err
 	}
 
-	if existed {
-		return status.Error(codes.AlreadyExists, "session already exists")
-	}
+	// Note: existed can be true if agent connected first - this is OK
+	// The rendezvous mechanism ensures proper coordination
+	_ = existed
 
 	defer rs.store.DeleteSession(init.SessionKey)
 
@@ -130,8 +130,9 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 	clientToAgentBuf := make(chan []byte, rs.streamBufSize)
 	agentToClientBuf := make(chan []byte, rs.streamBufSize)
 
-	var g errgroup.Group
-	gctx := ctx
+	// Use errgroup.WithContext to get cancellable context that stops all goroutines
+	// when any one completes or errors
+	g, gctx := errgroup.WithContext(ctx)
 
 	// Client -> Buffer (receive from stream and buffer messages)
 	g.Go(func() error {
@@ -168,6 +169,10 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 					// In production, encode and forward resize to agent
 				}
 			} else if req.GetClose() != nil {
+				// Client sent explicit close - return to close buffer and signal downstream
+				rs.logger.DebugContext(gctx, "client sent close message",
+					slog.String("session_key", init.SessionKey),
+				)
 				return nil
 			}
 		}
@@ -190,6 +195,8 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 				}
 			case <-gctx.Done():
 				return gctx.Err()
+			case <-stream.Context().Done():
+				return stream.Context().Err()
 			}
 		}
 	})
@@ -209,6 +216,8 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 			case agentToClientBuf <- data:
 			case <-gctx.Done():
 				return gctx.Err()
+			case <-stream.Context().Done():
+				return stream.Context().Err()
 			}
 		}
 	})
@@ -238,6 +247,8 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 				}
 			case <-gctx.Done():
 				return gctx.Err()
+			case <-stream.Context().Done():
+				return stream.Context().Err()
 			}
 		}
 	})
@@ -316,8 +327,9 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 	agentToClientBuf := make(chan []byte, rs.streamBufSize)
 	clientToAgentBuf := make(chan []byte, rs.streamBufSize)
 
-	var g errgroup.Group
-	gctx := ctx
+	// Use errgroup.WithContext to get cancellable context that stops all goroutines
+	// when any one completes or errors
+	g, gctx := errgroup.WithContext(ctx)
 
 	// Agent -> Buffer (receive from agent stream and buffer messages)
 	g.Go(func() error {
@@ -344,6 +356,10 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 					return gctx.Err()
 				}
 			} else if resp.GetClose() != nil {
+				// Agent sent explicit close - return to close buffer and signal downstream
+				rs.logger.DebugContext(gctx, "agent sent close message",
+					slog.String("session_key", init.SessionKey),
+				)
 				return nil
 			}
 		}
@@ -366,6 +382,8 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 				}
 			case <-gctx.Done():
 				return gctx.Err()
+			case <-stream.Context().Done():
+				return stream.Context().Err()
 			}
 		}
 	})
@@ -385,6 +403,8 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 			case clientToAgentBuf <- data:
 			case <-gctx.Done():
 				return gctx.Err()
+			case <-stream.Context().Done():
+				return stream.Context().Err()
 			}
 		}
 	})
@@ -401,7 +421,13 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 							Close: &pb.TunnelClose{},
 						},
 					}
-					stream.Send(closeMsg)
+					if err := stream.Send(closeMsg); err != nil {
+						// Log error but don't fail - connection might already be closing
+						rs.logger.WarnContext(gctx, "failed to send close message to agent",
+							slog.String("session_key", init.SessionKey),
+							slog.String("error", err.Error()),
+						)
+					}
 					return nil
 				}
 				req := &pb.TunnelRequest{
@@ -421,6 +447,8 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 				}
 			case <-gctx.Done():
 				return gctx.Err()
+			case <-stream.Context().Done():
+				return stream.Context().Err()
 			}
 		}
 	})

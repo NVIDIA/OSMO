@@ -49,6 +49,18 @@ type Session struct {
 	// Use atomic operations to access this field
 	lastActivityNanos atomic.Int64
 
+	// deleted tracks if this session has been deleted (1 = deleted, 0 = active)
+	// Use atomic operations to access this field
+	deleted atomic.Int32
+
+	// clientConnected tracks if a client has connected (1 = connected, 0 = not connected)
+	// Use atomic operations to access this field
+	clientConnected atomic.Int32
+
+	// agentConnected tracks if an agent has connected (1 = connected, 0 = not connected)
+	// Use atomic operations to access this field
+	agentConnected atomic.Int32
+
 	// Channels for bidirectional communication
 	ClientToAgent chan []byte
 	AgentToClient chan []byte
@@ -244,9 +256,19 @@ func (s *SessionStore) GetSession(sessionKey string) (session *Session, err erro
 }
 
 // DeleteSession removes a session and safely closes its channels
+// Uses atomic flag to ensure single deletion even if called concurrently
 func (s *SessionStore) DeleteSession(sessionKey string) {
-	if val, ok := s.sessions.LoadAndDelete(sessionKey); ok {
+	if val, ok := s.sessions.Load(sessionKey); ok {
 		session := val.(*Session)
+
+		// Atomically check and set deleted flag (compare-and-swap)
+		if !session.deleted.CompareAndSwap(0, 1) {
+			// Already deleted by another goroutine
+			return
+		}
+
+		// Now remove from map
+		s.sessions.Delete(sessionKey)
 
 		// Use sync.Once to safely close channels (idempotent)
 		session.CloseDone()
@@ -320,7 +342,19 @@ func (s *SessionStore) CleanupExpiredSessions(ctx context.Context) {
 
 // WaitForRendezvous waits for both client and agent to connect.
 // Returns an error if the rendezvous times out or the session is closed.
+// Ensures only one client and one agent can connect to a session.
 func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, isClient bool) (err error) {
+	// Check if this party type has already connected
+	if isClient {
+		if !session.clientConnected.CompareAndSwap(0, 1) {
+			return status.Error(codes.AlreadyExists, "client already connected to this session")
+		}
+	} else {
+		if !session.agentConnected.CompareAndSwap(0, 1) {
+			return status.Error(codes.AlreadyExists, "agent already connected to this session")
+		}
+	}
+
 	// Signal that this party is ready (idempotent with sync.Once)
 	if isClient {
 		session.CloseClientReady()

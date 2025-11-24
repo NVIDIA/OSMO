@@ -1287,10 +1287,11 @@ func TestErrorScenarios(t *testing.T) {
 				return err
 			},
 			// Note: This is non-deterministic due to timing races
-			// - AlreadyExists: Second client tries immediately and hits the existing session
+			// - AlreadyExists: Second client hits atomic check in WaitForRendezvous
 			// - DeadlineExceeded: Second client waits for rendezvous but first never completes
-			// Both are correct behaviors indicating the duplicate key problem
-			expectedError: []codes.Code{codes.AlreadyExists, codes.DeadlineExceeded},
+			// - Aborted: First client finishes and deletes session while second is waiting
+			// All are correct behaviors indicating the duplicate key problem
+			expectedError: []codes.Code{codes.AlreadyExists, codes.DeadlineExceeded, codes.Aborted},
 		},
 	}
 
@@ -2354,4 +2355,545 @@ func TestPortForwardDataDriven(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDeadlockOnSimultaneousDisconnect tests that both client and agent can disconnect
+// simultaneously without causing a deadlock in the goroutine coordination.
+func TestDeadlockOnSimultaneousDisconnect(t *testing.T) {
+	server, lis := setupTestServer(t)
+	defer server.Stop()
+
+	// Very short timeout - if there's a deadlock, this will fail quickly
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer clientConn.Close()
+
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer agentConn.Close()
+
+	clientService := pb.NewRouterClientServiceClient(clientConn)
+	agentService := pb.NewRouterAgentServiceClient(agentConn)
+
+	sessionKey := "deadlock-test"
+	cookie := "test-cookie"
+	workflowID := "test-workflow"
+
+	clientDone := make(chan error, 1)
+	agentDone := make(chan error, 1)
+
+	// Client goroutine
+	go func() {
+		stream, err := clientService.Tunnel(ctx)
+		if err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Send init
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
+			},
+		}); err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Send some data
+		for i := range 5 {
+			if err := stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Data{
+					Data: &pb.TunnelData{Payload: []byte(fmt.Sprintf("msg-%d", i))},
+				},
+			}); err != nil {
+				clientDone <- err
+				return
+			}
+		}
+
+		// Close immediately without waiting for responses
+		stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
+		})
+		stream.CloseSend()
+		clientDone <- nil
+	}()
+
+	// Agent goroutine
+	go func() {
+		time.Sleep(50 * time.Millisecond) // Let client connect first
+
+		stream, err := agentService.RegisterTunnel(ctx)
+		if err != nil {
+			agentDone <- err
+			return
+		}
+
+		// Send init
+		if err := stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
+			},
+		}); err != nil {
+			agentDone <- err
+			return
+		}
+
+		// Receive a couple messages then close immediately
+		for range 2 {
+			_, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				// Expected - connection might close
+				break
+			}
+		}
+
+		// Close immediately
+		stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Close{Close: &pb.TunnelClose{}},
+		})
+		stream.CloseSend()
+		agentDone <- nil
+	}()
+
+	// Wait for both to complete - should not deadlock
+	select {
+	case err := <-clientDone:
+		if err != nil {
+			t.Logf("Client error (may be expected): %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Client deadlocked - did not complete within timeout")
+	}
+
+	select {
+	case err := <-agentDone:
+		if err != nil {
+			t.Logf("Agent error (may be expected): %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Agent deadlocked - did not complete within timeout")
+	}
+
+	t.Log("SUCCESS: No deadlock on simultaneous disconnect")
+}
+
+// TestCloseMessageNotPropagated tests that when a client sends a Close message,
+// it should be forwarded to the agent (not just closing the channel).
+func TestCloseMessageNotPropagated(t *testing.T) {
+	server, lis := setupTestServer(t)
+	defer server.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer clientConn.Close()
+
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer agentConn.Close()
+
+	clientService := pb.NewRouterClientServiceClient(clientConn)
+	agentService := pb.NewRouterAgentServiceClient(agentConn)
+
+	sessionKey := "close-propagation-test"
+	cookie := "test-cookie"
+	workflowID := "test-workflow"
+
+	clientDone := make(chan error, 1)
+	agentDone := make(chan error, 1)
+	agentReceivedClose := make(chan bool, 1)
+
+	// Client goroutine
+	go func() {
+		stream, err := clientService.Tunnel(ctx)
+		if err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Send init
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
+			},
+		}); err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Send one data message
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Data{
+				Data: &pb.TunnelData{Payload: []byte("hello")},
+			},
+		}); err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Send close message - this should be forwarded to agent
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
+		}); err != nil {
+			clientDone <- err
+			return
+		}
+
+		stream.CloseSend()
+		clientDone <- nil
+	}()
+
+	// Agent goroutine
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+
+		stream, err := agentService.RegisterTunnel(ctx)
+		if err != nil {
+			agentDone <- err
+			return
+		}
+
+		// Send init
+		if err := stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
+			},
+		}); err != nil {
+			agentDone <- err
+			return
+		}
+
+		// Receive data
+		req, err := stream.Recv()
+		if err != nil {
+			agentDone <- fmt.Errorf("recv data error: %w", err)
+			return
+		}
+		if req.GetData() == nil {
+			agentDone <- fmt.Errorf("expected data message, got: %v", req)
+			return
+		}
+
+		// Now wait for close message - THIS IS THE KEY TEST
+		// The server should forward the Close message, not just close the channel
+		req, err = stream.Recv()
+		if err == io.EOF {
+			// This indicates the channel was closed without sending Close message (BUG)
+			agentReceivedClose <- false
+			agentDone <- nil
+			return
+		}
+		if err != nil {
+			agentDone <- fmt.Errorf("recv close error: %w", err)
+			return
+		}
+
+		if req.GetClose() != nil {
+			// SUCCESS - received explicit Close message
+			agentReceivedClose <- true
+			agentDone <- nil
+			return
+		}
+
+		agentDone <- fmt.Errorf("expected Close message, got: %v", req)
+	}()
+
+	// Wait for both
+	clientErr := <-clientDone
+	if clientErr != nil {
+		t.Fatalf("Client error: %v", clientErr)
+	}
+
+	agentErr := <-agentDone
+	if agentErr != nil {
+		t.Fatalf("Agent error: %v", agentErr)
+	}
+
+	// Check if agent received explicit Close message
+	select {
+	case received := <-agentReceivedClose:
+		if !received {
+			t.Fatal("BUG: Agent received EOF instead of explicit Close message")
+		}
+		t.Log("SUCCESS: Agent received explicit Close message")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Agent did not receive Close message or EOF")
+	}
+}
+
+// TestBufferChannelDeadlock tests that when buffer channels fill up and one side
+// closes, the system doesn't deadlock due to goroutines blocked on full channels.
+func TestBufferChannelDeadlock(t *testing.T) {
+	server, lis := setupTestServer(t)
+	defer server.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer clientConn.Close()
+
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer agentConn.Close()
+
+	clientService := pb.NewRouterClientServiceClient(clientConn)
+	agentService := pb.NewRouterAgentServiceClient(agentConn)
+
+	sessionKey := "buffer-deadlock-test"
+	cookie := "test-cookie"
+	workflowID := "test-workflow"
+
+	clientDone := make(chan error, 1)
+	agentDone := make(chan error, 1)
+
+	// Client goroutine - send lots of data then close
+	go func() {
+		stream, err := clientService.Tunnel(ctx)
+		if err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Send init
+		if err := stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
+			},
+		}); err != nil {
+			clientDone <- err
+			return
+		}
+
+		// Flood with messages to fill buffers
+		for i := range 100 {
+			if err := stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Data{
+					Data: &pb.TunnelData{Payload: []byte(fmt.Sprintf("data-%d", i))},
+				},
+			}); err != nil {
+				// Expected to fail if buffers full
+				break
+			}
+		}
+
+		// Close immediately
+		stream.Send(&pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
+		})
+		stream.CloseSend()
+		clientDone <- nil
+	}()
+
+	// Agent goroutine - connect but DON'T consume messages
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+
+		stream, err := agentService.RegisterTunnel(ctx)
+		if err != nil {
+			agentDone <- err
+			return
+		}
+
+		// Send init
+		if err := stream.Send(&pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Init{
+				Init: &pb.TunnelInit{
+					SessionKey: sessionKey,
+					Cookie:     cookie,
+					WorkflowId: workflowID,
+					Operation:  pb.OperationType_OPERATION_EXEC,
+				},
+			},
+		}); err != nil {
+			agentDone <- err
+			return
+		}
+
+		// Deliberately DON'T read messages - let buffers fill
+		// Just wait a bit then close
+		time.Sleep(500 * time.Millisecond)
+
+		stream.CloseSend()
+		agentDone <- nil
+	}()
+
+	// Both should complete without deadlock
+	select {
+	case err := <-clientDone:
+		if err != nil {
+			t.Logf("Client error (may be expected): %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Client deadlocked with full buffers")
+	}
+
+	select {
+	case err := <-agentDone:
+		if err != nil {
+			t.Logf("Agent error (may be expected): %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Agent deadlocked with full buffers")
+	}
+
+	t.Log("SUCCESS: No deadlock with full buffers")
+}
+
+// TestDoubleSessionDeletion tests that when both client and agent disconnect
+// simultaneously, the double deletion doesn't cause a panic.
+func TestDoubleSessionDeletion(t *testing.T) {
+	server, lis := setupTestServer(t)
+	defer server.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	clientConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer clientConn.Close()
+
+	agentConn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(bufDialer(lis)),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer agentConn.Close()
+
+	clientService := pb.NewRouterClientServiceClient(clientConn)
+	agentService := pb.NewRouterAgentServiceClient(agentConn)
+
+	// Run multiple iterations to increase chance of race
+	for iteration := range 10 {
+		sessionKey := fmt.Sprintf("double-delete-test-%d", iteration)
+		cookie := "test-cookie"
+		workflowID := "test-workflow"
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// Client goroutine
+		go func() {
+			defer wg.Done()
+			stream, err := clientService.Tunnel(ctx)
+			if err != nil {
+				return
+			}
+
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Init{
+					Init: &pb.TunnelInit{
+						SessionKey: sessionKey,
+						Cookie:     cookie,
+						WorkflowId: workflowID,
+						Operation:  pb.OperationType_OPERATION_EXEC,
+					},
+				},
+			})
+
+			// Send data then close immediately
+			stream.Send(&pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Data{
+					Data: &pb.TunnelData{Payload: []byte("data")},
+				},
+			})
+			stream.CloseSend()
+		}()
+
+		// Agent goroutine - close immediately after init
+		go func() {
+			defer wg.Done()
+			time.Sleep(20 * time.Millisecond)
+
+			stream, err := agentService.RegisterTunnel(ctx)
+			if err != nil {
+				return
+			}
+
+			stream.Send(&pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Init{
+					Init: &pb.TunnelInit{
+						SessionKey: sessionKey,
+						Cookie:     cookie,
+						WorkflowId: workflowID,
+						Operation:  pb.OperationType_OPERATION_EXEC,
+					},
+				},
+			})
+
+			// Close immediately
+			stream.CloseSend()
+		}()
+
+		wg.Wait()
+		// Small delay to allow server cleanup
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Log("SUCCESS: No panic from double deletion")
 }
