@@ -295,7 +295,8 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
 
 	// Cancel context immediately
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
 	// Receive should return error
 	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
@@ -470,7 +471,7 @@ func TestSessionStore_CleanupContextCancellation(t *testing.T) {
 	store.CreateSession("session-1", "cookie", "workflow-1", OperationExec)
 
 	// Start cleanup loop
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan bool)
 	go func() {
@@ -480,6 +481,7 @@ func TestSessionStore_CleanupContextCancellation(t *testing.T) {
 
 	// Cancel context after a short delay
 	time.Sleep(100 * time.Millisecond)
+	cancel()
 
 	// Cleanup should exit promptly
 	select {

@@ -35,8 +35,9 @@ import (
 
 // RouterServer implements the router gRPC services
 type RouterServer struct {
-	store  *SessionStore
-	logger *slog.Logger
+	store         *SessionStore
+	logger        *slog.Logger
+	streamBufSize int // Buffer size for stream message smoothing
 	pb.UnimplementedRouterClientServiceServer
 	pb.UnimplementedRouterAgentServiceServer
 	pb.UnimplementedRouterControlServiceServer
@@ -47,9 +48,14 @@ func NewRouterServer(store *SessionStore, logger *slog.Logger) *RouterServer {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	streamBufSize := store.config.StreamBufferSize
+	if streamBufSize <= 0 {
+		streamBufSize = 4 // Default if not configured
+	}
 	return &RouterServer{
-		store:  store,
-		logger: logger,
+		store:         store,
+		logger:        logger,
+		streamBufSize: streamBufSize,
 	}
 }
 
@@ -120,13 +126,16 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 		slog.String("operation", operationType),
 	)
 
-	// Start bidirectional streaming
+	// Start bidirectional streaming with buffered channels for traffic smoothing
+	clientToAgentBuf := make(chan []byte, rs.streamBufSize)
+	agentToClientBuf := make(chan []byte, rs.streamBufSize)
+
 	var g errgroup.Group
 	gctx := ctx
 
-	// Client -> Agent (receiving from client, sending to agent via channel)
+	// Client -> Buffer (receive from stream and buffer messages)
 	g.Go(func() error {
-		defer close(session.ClientToAgent)
+		defer close(clientToAgentBuf)
 		for {
 			req, err := stream.Recv()
 			if err == io.EOF {
@@ -143,11 +152,10 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 
 			// Handle different message types
 			if data := req.GetData(); data != nil {
-				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, data.Payload, init.SessionKey); err != nil {
-					if gctx.Err() != nil {
-						return nil
-					}
-					return err
+				select {
+				case clientToAgentBuf <- data.Payload:
+				case <-gctx.Done():
+					return gctx.Err()
 				}
 			} else if metadata := req.GetMetadata(); metadata != nil {
 				// Handle metadata (e.g., resize for exec)
@@ -165,8 +173,30 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 		}
 	})
 
-	// Agent -> Client (receiving from channel, sending to client)
+	// Buffer -> Agent (send buffered messages to agent with flow control)
 	g.Go(func() error {
+		defer close(session.ClientToAgent)
+		for {
+			select {
+			case data, ok := <-clientToAgentBuf:
+				if !ok {
+					return nil
+				}
+				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, data, init.SessionKey); err != nil {
+					if gctx.Err() != nil {
+						return nil
+					}
+					return err
+				}
+			case <-gctx.Done():
+				return gctx.Err()
+			}
+		}
+	})
+
+	// Agent -> Buffer (receive from agent channel and buffer)
+	g.Go(func() error {
+		defer close(agentToClientBuf)
 		for {
 			data, err := rs.store.ReceiveWithContext(gctx, session.AgentToClient, init.SessionKey)
 			if err != nil {
@@ -175,22 +205,39 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 				}
 				return err
 			}
-
-			resp := &pb.TunnelResponse{
-				Message: &pb.TunnelResponse_Data{
-					Data: &pb.TunnelData{
-						Payload: data,
-					},
-				},
+			select {
+			case agentToClientBuf <- data:
+			case <-gctx.Done():
+				return gctx.Err()
 			}
+		}
+	})
 
-			if err := stream.Send(resp); err != nil {
-				rs.logger.ErrorContext(gctx, "client tunnel send error",
-					slog.String("session_key", init.SessionKey),
-					slog.String("operation", operationType),
-					slog.String("error", err.Error()),
-				)
-				return err
+	// Buffer -> Client (send buffered messages to client stream)
+	g.Go(func() error {
+		for {
+			select {
+			case data, ok := <-agentToClientBuf:
+				if !ok {
+					return nil
+				}
+				resp := &pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Data{
+						Data: &pb.TunnelData{
+							Payload: data,
+						},
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					rs.logger.ErrorContext(gctx, "client tunnel send error",
+						slog.String("session_key", init.SessionKey),
+						slog.String("operation", operationType),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+			case <-gctx.Done():
+				return gctx.Err()
 			}
 		}
 	})
@@ -265,13 +312,16 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 		slog.String("operation", operationType),
 	)
 
-	// Start bidirectional streaming
+	// Start bidirectional streaming with buffered channels for traffic smoothing
+	agentToClientBuf := make(chan []byte, rs.streamBufSize)
+	clientToAgentBuf := make(chan []byte, rs.streamBufSize)
+
 	var g errgroup.Group
 	gctx := ctx
 
-	// Agent -> Client (receiving from agent, sending to client via channel)
+	// Agent -> Buffer (receive from agent stream and buffer messages)
 	g.Go(func() error {
-		defer close(session.AgentToClient)
+		defer close(agentToClientBuf)
 		for {
 			resp, err := stream.Recv()
 			if err == io.EOF {
@@ -288,11 +338,10 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 
 			// Handle different message types
 			if data := resp.GetData(); data != nil {
-				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, data.Payload, init.SessionKey); err != nil {
-					if gctx.Err() != nil {
-						return nil
-					}
-					return err
+				select {
+				case agentToClientBuf <- data.Payload:
+				case <-gctx.Done():
+					return gctx.Err()
 				}
 			} else if resp.GetClose() != nil {
 				return nil
@@ -300,13 +349,53 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 		}
 	})
 
-	// Client -> Agent (receiving from channel, sending to agent)
+	// Buffer -> Client (send buffered messages to client channel with flow control)
 	g.Go(func() error {
+		defer close(session.AgentToClient)
+		for {
+			select {
+			case data, ok := <-agentToClientBuf:
+				if !ok {
+					return nil
+				}
+				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, data, init.SessionKey); err != nil {
+					if gctx.Err() != nil {
+						return nil
+					}
+					return err
+				}
+			case <-gctx.Done():
+				return gctx.Err()
+			}
+		}
+	})
+
+	// Client -> Buffer (receive from client channel and buffer)
+	g.Go(func() error {
+		defer close(clientToAgentBuf)
 		for {
 			data, err := rs.store.ReceiveWithContext(gctx, session.ClientToAgent, init.SessionKey)
 			if err != nil {
-				// Send close message to agent when channel is closed
-				if status.Code(err) == codes.Unavailable {
+				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
+					return nil
+				}
+				return err
+			}
+			select {
+			case clientToAgentBuf <- data:
+			case <-gctx.Done():
+				return gctx.Err()
+			}
+		}
+	})
+
+	// Buffer -> Agent (send buffered messages to agent stream)
+	g.Go(func() error {
+		for {
+			select {
+			case data, ok := <-clientToAgentBuf:
+				if !ok {
+					// Send close message to agent when channel is closed
 					closeMsg := &pb.TunnelRequest{
 						Message: &pb.TunnelRequest_Close{
 							Close: &pb.TunnelClose{},
@@ -315,27 +404,23 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 					stream.Send(closeMsg)
 					return nil
 				}
-				if gctx.Err() != nil {
-					return nil
-				}
-				return err
-			}
-
-			req := &pb.TunnelRequest{
-				Message: &pb.TunnelRequest_Data{
-					Data: &pb.TunnelData{
-						Payload: data,
+				req := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Data{
+						Data: &pb.TunnelData{
+							Payload: data,
+						},
 					},
-				},
-			}
-
-			if err := stream.Send(req); err != nil {
-				rs.logger.ErrorContext(gctx, "agent tunnel send error",
-					slog.String("session_key", init.SessionKey),
-					slog.String("operation", operationType),
-					slog.String("error", err.Error()),
-				)
-				return err
+				}
+				if err := stream.Send(req); err != nil {
+					rs.logger.ErrorContext(gctx, "agent tunnel send error",
+						slog.String("session_key", init.SessionKey),
+						slog.String("operation", operationType),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+			case <-gctx.Done():
+				return gctx.Err()
 			}
 		}
 	})

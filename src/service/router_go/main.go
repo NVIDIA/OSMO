@@ -46,6 +46,7 @@ var (
 	rendezvousTimeout  = flag.Duration("rendezvous-timeout", 60*time.Second, "Rendezvous wait timeout")
 	flowControlBuffer  = flag.Int("flow-control-buffer", 16, "Flow control buffer size")
 	flowControlTimeout = flag.Duration("flow-control-timeout", 30*time.Second, "Flow control write timeout")
+	streamBufferSize   = flag.Int("stream-buffer-size", 4, "Stream message buffer size for traffic smoothing")
 	shutdownTimeout    = flag.Duration("shutdown-timeout", 60*time.Second, "Graceful shutdown timeout")
 )
 
@@ -64,6 +65,7 @@ func main() {
 		RendezvousTimeout:  *rendezvousTimeout,
 		FlowControlBuffer:  *flowControlBuffer,
 		FlowControlTimeout: *flowControlTimeout,
+		StreamBufferSize:   *streamBufferSize,
 	}, logger)
 
 	// Start session cleanup goroutine
@@ -108,6 +110,7 @@ func main() {
 	log.Printf("  Rendezvous Timeout: %v", *rendezvousTimeout)
 	log.Printf("  Flow Control Buffer: %d", *flowControlBuffer)
 	log.Printf("  Flow Control Timeout: %v", *flowControlTimeout)
+	log.Printf("  Stream Buffer Size: %d", *streamBufferSize)
 
 	// Start gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
