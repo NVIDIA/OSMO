@@ -302,31 +302,30 @@ func (s *SessionStore) CleanupExpiredSessions(ctx context.Context) {
 			return
 		case <-ticker.C:
 			now := time.Now()
-			toDelete := []string{}
 
+			// Delete expired sessions inline during iteration
+			// sync.Map.Range allows safe deletion during iteration
 			s.sessions.Range(func(key, value interface{}) bool {
+				// Check if context was canceled
+				select {
+				case <-ctx.Done():
+					return false // Stop iteration
+				default:
+				}
+
 				session := value.(*Session)
 				lastActivity := session.LastActivity()
 				expired := now.Sub(lastActivity) > s.config.TTL
 
 				if expired {
-					toDelete = append(toDelete, key.(string))
+					sessionKey := key.(string)
+					s.logger.Info("cleaning up expired session",
+						slog.String("session_key", sessionKey),
+					)
+					s.DeleteSession(sessionKey)
 				}
-				return true
+				return true // Continue iteration
 			})
-
-			for _, key := range toDelete {
-				// Check if context was canceled before each deletion
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				s.logger.Info("cleaning up expired session",
-					slog.String("session_key", key),
-				)
-				s.DeleteSession(key)
-			}
 		}
 	}
 }
