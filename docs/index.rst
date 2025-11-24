@@ -26,6 +26,8 @@ Ready to Begin?
 
 Select one of the guides below to get started with OSMO.
 
+New page info
+
 .. only:: html
 
   .. grid:: 1 2 2 2

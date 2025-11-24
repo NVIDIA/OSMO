@@ -230,6 +230,15 @@ jobs:
             docs/spelling_error_logs/
           retention-days: 3
 
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./docs/public/
+        id: preview-step
+
+      - if: steps.preview-step.outputs.deployment-action == "deploy"
+        run: echo "Preview visible at ${{ steps.preview-step.outputs.preview-url }}"
+
   #######################
   #      CI Docs        #
   #######################
