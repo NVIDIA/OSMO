@@ -286,5 +286,9 @@ jobs:
         with:
           lfs: true
 
+      - name: Test
+        run: |
+          find . -name '*.md' -not -path './**/_build/*'
+
       - name: Link Check
         uses: tcort/github-action-markdown-link-check@a800ad5f1c35bf61987946fd31c15726a1c9f2ba
