@@ -62,6 +62,7 @@ jobs:
               - 'bzl/**'
               - 'ui/**'
             md:
+              - '.github/workflows/pr-checks.yaml'
               - '**/*.md'
 
   #######################
