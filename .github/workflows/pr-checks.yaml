@@ -231,6 +231,63 @@ jobs:
           retention-days: 3
 
   #######################
+  #      CI Docs        #
+  #######################
+  ci-docs:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          echo "Freeing disk space..."
+          echo "Removing .NET..."
+          sudo rm -rf /usr/share/dotnet || true
+          echo "Removing Android..."
+          sudo rm -rf /usr/local/lib/android || true
+          echo "Removing GHC..."
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          echo "Removing CodeQL..."
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          echo "Pruning Docker images..."
+          sudo docker image prune --all --force || true
+
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+          external-cache: |
+            manifest:
+              # Python dependencies
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+
+              # Go dependencies
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
+
+      - name: Run Build
+        run: |
+          bazel build --test_output=errors -- //docs/...
+
+  #######################
   #      UI Build       #
   #######################
   ui-build:
