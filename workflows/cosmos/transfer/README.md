@@ -101,5 +101,4 @@ For more details about the components used in this workflow:
 
 - [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac-sim)
 - [Cosmos Transfer2.5 GitHub](https://github.com/nvidia-cosmos/cosmos-transfer2.5)
-- [Cosmos Cookbook - Transfer Sim2Real](https://docs.nvidia.com/cosmos/latest/cookbook/transfer2.5/sim2real.html)
 - [NVIDIA Cosmos Platform](https://research.nvidia.com/labs/dir/cosmos-transfer2.5)
