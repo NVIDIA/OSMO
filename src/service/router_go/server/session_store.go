@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -47,23 +48,37 @@ type SessionMessage struct {
 
 // SessionPipe provides a single-writer/single-reader buffered link.
 type SessionPipe struct {
-	ch   chan *SessionMessage
-	once sync.Once
+	ch          chan *SessionMessage
+	once        sync.Once
+	sendTimeout time.Duration
 }
 
-func newSessionPipe() *SessionPipe {
-	return &SessionPipe{ch: make(chan *SessionMessage)}
+func newSessionPipe(timeout time.Duration) *SessionPipe {
+	return &SessionPipe{
+		ch:          make(chan *SessionMessage),
+		sendTimeout: timeout,
+	}
 }
 
 var errPipeClosed = status.Error(codes.Unavailable, "channel closed")
 
 // Send pushes a message respecting the provided context.
 func (p *SessionPipe) Send(ctx context.Context, msg *SessionMessage) error {
+	derivedCtx := ctx
+	cancel := func() {}
+	if p.sendTimeout > 0 {
+		derivedCtx, cancel = context.WithTimeout(ctx, p.sendTimeout)
+	}
+	defer cancel()
+
 	select {
 	case p.ch <- msg:
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-derivedCtx.Done():
+		if errors.Is(derivedCtx.Err(), context.DeadlineExceeded) {
+			return status.Error(codes.DeadlineExceeded, "stream send timeout")
+		}
+		return derivedCtx.Err()
 	}
 }
 
@@ -163,25 +178,7 @@ type SessionStore struct {
 // SessionStoreConfig holds configuration for the session store
 type SessionStoreConfig struct {
 	RendezvousTimeout time.Duration
-}
-
-// SessionStoreOption is a functional option for configuring SessionStore
-type SessionStoreOption func(*SessionStore)
-
-// WithLogger sets a custom logger for the session store
-func WithLogger(logger *slog.Logger) SessionStoreOption {
-	return func(s *SessionStore) {
-		if logger != nil {
-			s.logger = logger
-		}
-	}
-}
-
-// WithRendezvousTimeout sets the timeout for client-agent rendezvous
-func WithRendezvousTimeout(timeout time.Duration) SessionStoreOption {
-	return func(s *SessionStore) {
-		s.config.RendezvousTimeout = timeout
-	}
+	StreamSendTimeout time.Duration
 }
 
 // NewSessionStore creates a new session store
@@ -193,25 +190,6 @@ func NewSessionStore(config SessionStoreConfig, logger *slog.Logger) *SessionSto
 		config: config,
 		logger: logger,
 	}
-}
-
-// NewSessionStoreWithOptions creates a new session store using functional options.
-// This is the preferred idiomatic way to create a SessionStore with sensible defaults.
-func NewSessionStoreWithOptions(opts ...SessionStoreOption) *SessionStore {
-	// Set sensible defaults
-	store := &SessionStore{
-		config: SessionStoreConfig{
-			RendezvousTimeout: 30 * time.Second,
-		},
-		logger: slog.Default(),
-	}
-
-	// Apply options
-	for _, opt := range opts {
-		opt(store)
-	}
-
-	return store
 }
 
 // CreateSession creates a new session or returns an existing one.
@@ -232,8 +210,8 @@ func (s *SessionStore) CreateSession(
 		WorkflowID:    workflowID,
 		OperationType: operationType,
 		CreatedAt:     now,
-		ClientToAgent: newSessionPipe(),
-		AgentToClient: newSessionPipe(),
+		ClientToAgent: newSessionPipe(s.config.StreamSendTimeout),
+		AgentToClient: newSessionPipe(s.config.StreamSendTimeout),
 		ClientReady:   make(chan struct{}),
 		AgentReady:    make(chan struct{}),
 		Done:          make(chan struct{}),
@@ -276,16 +254,6 @@ func (s *SessionStore) DeleteSession(sessionKey string) {
 		// writer goroutines (via defer close in Tunnel/RegisterTunnel handlers).
 		// We don't close them here to avoid double-close panics.
 	}
-}
-
-// ActiveCount returns the number of active sessions
-func (s *SessionStore) ActiveCount() int {
-	count := 0
-	s.sessions.Range(func(_, _ interface{}) bool {
-		count++
-		return true
-	})
-	return count
 }
 
 // WaitForRendezvous waits for both client and agent to connect.

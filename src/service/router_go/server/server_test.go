@@ -38,22 +38,45 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
 
-const bufSize = 1024 * 1024
+const (
+	defaultBufSize           = 1024 * 1024
+	defaultStreamSendTimeout = 30 * time.Second
+)
+
+type testServerConfig struct {
+	storeConfig SessionStoreConfig
+	bufSize     int
+}
+
+type testServerOption func(*testServerConfig)
+
+func withBufSizeOption(size int) testServerOption {
+	return func(cfg *testServerConfig) {
+		cfg.bufSize = size
+	}
+}
 
 // setupTestServer creates a test gRPC server with the router services registered.
 // Returns only what's needed for black-box testing: the server (for lifecycle) and listener (for dialing).
-func setupTestServer(t *testing.T) (*grpc.Server, *bufconn.Listener) {
-	lis := bufconn.Listen(bufSize)
-	server := grpc.NewServer()
-
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
+func setupTestServer(t *testing.T, opts ...testServerOption) (*grpc.Server, *bufconn.Listener) {
+	cfg := testServerConfig{
+		storeConfig: SessionStoreConfig{
+			RendezvousTimeout: 60 * time.Second,
+			StreamSendTimeout: defaultStreamSendTimeout,
+		},
+		bufSize: defaultBufSize,
 	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	lis := bufconn.Listen(cfg.bufSize)
+	server := grpc.NewServer()
 
 	// Use a no-op logger for tests (logs are not asserted)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	store := NewSessionStore(config, logger)
+	store := NewSessionStore(cfg.storeConfig, logger)
 	rs := NewRouterServer(store, logger)
 	RegisterRouterServices(server, rs)
 
@@ -78,9 +101,9 @@ type routerTestEnv struct {
 	lis    *bufconn.Listener
 }
 
-func newRouterTestEnv(t *testing.T) *routerTestEnv {
+func newRouterTestEnv(t *testing.T, opts ...testServerOption) *routerTestEnv {
 	t.Helper()
-	server, lis := setupTestServer(t)
+	server, lis := setupTestServer(t, opts...)
 	env := &routerTestEnv{server: server, lis: lis}
 	t.Cleanup(server.Stop)
 	return env

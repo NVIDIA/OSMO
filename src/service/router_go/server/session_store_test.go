@@ -39,6 +39,7 @@ func setupTestSessionStore(t *testing.T, timeout time.Duration) *SessionStore {
 	}
 	return NewSessionStore(SessionStoreConfig{
 		RendezvousTimeout: timeout,
+		StreamSendTimeout: time.Second,
 	}, nil)
 }
 
@@ -124,27 +125,6 @@ func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
 
 	requireCode(t, <-client, codes.OK)
 	requireCode(t, <-agent, codes.OK)
-}
-
-func TestSessionStore_ActiveCount(t *testing.T) {
-	store := setupTestSessionStore(t, 0)
-
-	if count := store.ActiveCount(); count != 0 {
-		t.Errorf("Expected 0 active sessions, got %d", count)
-	}
-
-	createSession(t, store, "key1")
-	createSession(t, store, "key2")
-
-	if count := store.ActiveCount(); count != 2 {
-		t.Errorf("Expected 2 active sessions, got %d", count)
-	}
-
-	store.DeleteSession("key1")
-
-	if count := store.ActiveCount(); count != 1 {
-		t.Errorf("Expected 1 active session after delete, got %d", count)
-	}
 }
 
 // Additional comprehensive tests

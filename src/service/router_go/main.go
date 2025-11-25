@@ -19,15 +19,12 @@ SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
 	"log/slog"
 	"net"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -37,17 +34,29 @@ import (
 	"go.corp.nvidia.com/osmo/src/service/router_go/server"
 )
 
+const (
+	defaultRendezvousTimeout = 60 * time.Second
+	defaultStreamSendTimeout = 30 * time.Second
+)
+
 var (
 	port              = flag.Int("port", 50051, "gRPC server port")
 	tlsCert           = flag.String("tls-cert", "/etc/router/tls/tls.crt", "TLS certificate file")
 	tlsKey            = flag.String("tls-key", "/etc/router/tls/tls.key", "TLS key file")
 	tlsEnabled        = flag.Bool("tls-enabled", true, "Enable TLS")
-	rendezvousTimeout = flag.Duration("rendezvous-timeout", 60*time.Second, "Rendezvous wait timeout")
-	shutdownTimeout   = flag.Duration("shutdown-timeout", 60*time.Second, "Graceful shutdown timeout")
+	rendezvousTimeout = flag.Duration("rendezvous-timeout", defaultRendezvousTimeout, "Rendezvous wait timeout")
+	streamSendTimeout = flag.Duration("stream-send-timeout", defaultStreamSendTimeout, "Maximum time to block when forwarding data to the peer")
 )
 
 func main() {
 	flag.Parse()
+
+	if *rendezvousTimeout <= 0 {
+		log.Fatalf("rendezvous-timeout must be > 0 (got %v)", *rendezvousTimeout)
+	}
+	if *streamSendTimeout <= 0 {
+		log.Fatalf("stream-send-timeout must be > 0 (got %v)", *streamSendTimeout)
+	}
 
 	// Setup structured logging
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -58,6 +67,7 @@ func main() {
 	// Create session store
 	store := server.NewSessionStore(server.SessionStoreConfig{
 		RendezvousTimeout: *rendezvousTimeout,
+		StreamSendTimeout: *streamSendTimeout,
 	}, logger)
 
 	// Session cleanup is handled by:
@@ -101,6 +111,7 @@ func main() {
 	log.Printf("  Port: %d", *port)
 	log.Printf("  TLS: %v", *tlsEnabled)
 	log.Printf("  Rendezvous Timeout: %v", *rendezvousTimeout)
+	log.Printf("  Stream Send Timeout: %v", *streamSendTimeout)
 	log.Printf("  gRPC Keepalive: 60s ping, 20s timeout")
 	log.Printf("  Session Cleanup: defer + keepalive (no TTL, sessions can run forever)")
 
@@ -109,41 +120,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
-
-	// Handle graceful shutdown
-	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-		<-sigChan
-
-		log.Println("Received shutdown signal, starting graceful shutdown...")
-
-		// Stop accepting new connections
-		grpcServer.GracefulStop()
-
-		// Wait for sessions to drain with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), *shutdownTimeout)
-		defer cancel()
-
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				log.Println("Shutdown timeout reached, forcing close")
-				grpcServer.Stop()
-				return
-			case <-ticker.C:
-				active := store.ActiveCount()
-				if active == 0 {
-					log.Println("All sessions drained, exiting gracefully")
-					return
-				}
-				log.Printf("Waiting for %d active sessions to drain...", active)
-			}
-		}
-	}()
 
 	log.Printf("Router gRPC server listening on port %d", *port)
 	if err := grpcServer.Serve(lis); err != nil {
