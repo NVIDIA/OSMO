@@ -20,14 +20,15 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
@@ -63,7 +64,6 @@ func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
 func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error {
 	ctx := stream.Context()
 
-	// Receive init message
 	req, err := stream.Recv()
 	if err != nil {
 		return status.Error(codes.InvalidArgument, "failed to receive init message")
@@ -74,22 +74,12 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 		return status.Error(codes.InvalidArgument, "first message must be init")
 	}
 
-	// Determine operation type and session key
-	operationType := operationTypeToString(init.Operation)
-	// For PORT_FORWARD, refine based on protocol
-	if init.Operation == pb.OperationType_OPERATION_PORT_FORWARD {
-		if init.Protocol == pb.Protocol_PROTOCOL_UDP {
-			operationType = "portforward_udp"
-		} else {
-			operationType = "portforward_tcp"
-		}
-	}
+	operationType := deriveOperationLabel(init.Operation, init.Protocol)
+	logger := rs.sessionLogger(init.SessionKey, operationType)
 
-	rs.logger.InfoContext(ctx, "client tunnel started",
-		slog.String("session_key", init.SessionKey),
+	logger.InfoContext(ctx, "client tunnel started",
 		slog.String("workflow_id", init.WorkflowId),
 		slog.String("cookie", init.Cookie),
-		slog.String("operation", operationType),
 	)
 
 	// Create or get session
@@ -106,142 +96,82 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 
 	// Wait for agent to connect
 	if err := rs.store.WaitForRendezvous(ctx, session, true); err != nil {
-		rs.logger.ErrorContext(ctx, "client tunnel rendezvous failed",
-			slog.String("session_key", init.SessionKey),
-			slog.String("operation", operationType),
+		logger.ErrorContext(ctx, "client tunnel rendezvous failed",
 			slog.String("error", err.Error()),
 		)
 		return err
 	}
 
-	rs.logger.InfoContext(ctx, "client tunnel rendezvous successful",
-		slog.String("session_key", init.SessionKey),
-		slog.String("operation", operationType),
-	)
+	logger.InfoContext(ctx, "client tunnel rendezvous successful")
 
 	// Start bidirectional streaming (direct to session channels)
 	// Use errgroup.WithContext to get cancellable context that stops all goroutines
 	// when any one completes or errors
 	g, gctx := errgroup.WithContext(ctx)
 
-	// Client -> Agent (receive from client stream, send to agent via session channel)
-	g.Go(func() error {
-		defer close(session.ClientToAgent)
-		for {
-			req, err := stream.Recv()
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				rs.logger.ErrorContext(gctx, "client tunnel recv error",
-					slog.String("session_key", init.SessionKey),
-					slog.String("operation", operationType),
-					slog.String("error", err.Error()),
-				)
-				return err
-			}
+	flowTimeout := rs.store.config.FlowControlTimeout
 
-			// Handle different message types
-			if data := req.GetData(); data != nil {
-				// Send data to session channel with flow control
-				msg := &SessionMessage{Data: data.Payload}
-				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg); err != nil {
-					if gctx.Err() != nil {
-						return nil
-					}
-					return err
-				}
-			} else if closeInfo := req.GetClose(); closeInfo != nil {
-				// Client sent explicit close - forward to agent
-				rs.logger.DebugContext(gctx, "client sent close message",
-					slog.String("session_key", init.SessionKey),
-				)
-				// Serialize close info to forward to agent
-				closeBytes, err := proto.Marshal(closeInfo)
+	g.Go(func() error {
+		defer session.ClientToAgent.CloseWriter()
+
+		return pumpStreamToPipe(streamPumpConfig{
+			ctx:       gctx,
+			pipe:      session.ClientToAgent,
+			timeout:   flowTimeout,
+			logger:    logger,
+			direction: "client->agent",
+			recv: func() ([]byte, *pb.TunnelClose, error) {
+				req, err := stream.Recv()
 				if err != nil {
-					rs.logger.ErrorContext(gctx, "failed to marshal close info",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					return err
+					return nil, nil, err
 				}
-				msg := &SessionMessage{CloseInfo: closeBytes}
-				// Send close message through channel (non-blocking, best effort)
-				select {
-				case session.ClientToAgent <- msg:
-				case <-gctx.Done():
+				switch msg := req.Message.(type) {
+				case *pb.TunnelRequest_Data:
+					if msg.Data == nil || msg.Data.Payload == nil {
+						return []byte{}, nil, nil
+					}
+					return msg.Data.Payload, nil, nil
+				case *pb.TunnelRequest_Close:
+					logger.DebugContext(gctx, "client sent close message")
+					return nil, msg.Close, nil
 				default:
-					// Channel full or closed, continue anyway
+					return nil, nil, nil
 				}
-				return nil
-			}
-		}
+			},
+		})
 	})
 
-	// Agent -> Client (receive from session channel, send to client stream)
 	g.Go(func() error {
-		for {
-			msg, err := rs.store.ReceiveWithContext(gctx, session.AgentToClient)
-			if err != nil {
-				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
-					return nil
-				}
-				return err
-			}
-
-			// Handle different message types
-			if msg.CloseInfo != nil {
-				// Close signal - send close message to client and exit
-				var closeInfo pb.TunnelClose
-				if err := proto.Unmarshal(msg.CloseInfo, &closeInfo); err != nil {
-					rs.logger.ErrorContext(gctx, "failed to unmarshal close info",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					// Send empty close on error
-					stream.Send(&pb.TunnelResponse{
-						Message: &pb.TunnelResponse_Close{Close: &pb.TunnelClose{}},
-					})
-					return nil
-				}
+		return drainPipeToStream(pipeDrainConfig{
+			ctx:       gctx,
+			pipe:      session.AgentToClient,
+			logger:    logger,
+			direction: "agent->client",
+			sendData: func(payload []byte) error {
 				resp := &pb.TunnelResponse{
-					Message: &pb.TunnelResponse_Close{
-						Close: &closeInfo,
+					Message: &pb.TunnelResponse_Data{
+						Data: &pb.TunnelData{Payload: payload},
 					},
 				}
+				return stream.Send(resp)
+			},
+			sendClose: func(closeInfo *pb.TunnelClose) error {
+				resp := &pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Close{Close: closeInfo},
+				}
 				if err := stream.Send(resp); err != nil {
-					rs.logger.WarnContext(gctx, "failed to send final close to client",
-						slog.String("session_key", init.SessionKey),
+					logger.WarnContext(gctx, "failed to send final close to client",
 						slog.String("error", err.Error()),
 					)
 				}
 				return nil
-			} else {
-				// Forward data to client (including empty messages)
-				resp := &pb.TunnelResponse{
-					Message: &pb.TunnelResponse_Data{
-						Data: &pb.TunnelData{
-							Payload: msg.Data,
-						},
-					},
-				}
-				if err := stream.Send(resp); err != nil {
-					rs.logger.ErrorContext(gctx, "client tunnel send error",
-						slog.String("session_key", init.SessionKey),
-						slog.String("operation", operationType),
-						slog.String("error", err.Error()),
-					)
-					return err
-				}
-			}
-		}
+			},
+		})
 	})
 
 	// Wait for both goroutines to complete
 	if err := g.Wait(); err != nil && err != io.EOF {
-		rs.logger.ErrorContext(ctx, "client tunnel stream error",
-			slog.String("session_key", init.SessionKey),
-			slog.String("operation", operationType),
+		logger.ErrorContext(ctx, "client tunnel stream error",
 			slog.String("error", err.Error()),
 			slog.String("code", codeToString(status.Code(err))),
 		)
@@ -266,20 +196,11 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 		return status.Error(codes.InvalidArgument, "first message from agent must be init")
 	}
 
-	operationType := operationTypeToString(init.Operation)
-	// For PORT_FORWARD, refine based on protocol
-	if init.Operation == pb.OperationType_OPERATION_PORT_FORWARD {
-		if init.Protocol == pb.Protocol_PROTOCOL_UDP {
-			operationType = "portforward_udp"
-		} else {
-			operationType = "portforward_tcp"
-		}
-	}
+	operationType := deriveOperationLabel(init.Operation, init.Protocol)
+	logger := rs.sessionLogger(init.SessionKey, operationType)
 
-	rs.logger.InfoContext(ctx, "agent tunnel registration started",
-		slog.String("session_key", init.SessionKey),
+	logger.InfoContext(ctx, "agent tunnel registration started",
 		slog.String("workflow_id", init.WorkflowId),
-		slog.String("operation", operationType),
 	)
 
 	// Create or get session
@@ -294,155 +215,93 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 
 	// Wait for client to connect
 	if err := rs.store.WaitForRendezvous(ctx, session, false); err != nil {
-		rs.logger.ErrorContext(ctx, "agent tunnel rendezvous failed",
-			slog.String("session_key", init.SessionKey),
-			slog.String("operation", operationType),
+		logger.ErrorContext(ctx, "agent tunnel rendezvous failed",
 			slog.String("error", err.Error()),
 		)
 		return err
 	}
 
-	rs.logger.InfoContext(ctx, "agent tunnel rendezvous successful",
-		slog.String("session_key", init.SessionKey),
-		slog.String("operation", operationType),
-	)
+	logger.InfoContext(ctx, "agent tunnel rendezvous successful")
+
+	flowTimeout := rs.store.config.FlowControlTimeout
 
 	// Start bidirectional streaming (direct to session channels)
 	// Use errgroup.WithContext to get cancellable context that stops all goroutines
 	// when any one completes or errors
 	g, gctx := errgroup.WithContext(ctx)
 
-	// Agent -> Client (receive from agent stream, send to client via session channel)
 	g.Go(func() error {
-		defer close(session.AgentToClient)
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				rs.logger.ErrorContext(gctx, "agent tunnel recv error",
-					slog.String("session_key", init.SessionKey),
-					slog.String("operation", operationType),
-					slog.String("error", err.Error()),
-				)
-				return err
-			}
+		defer session.AgentToClient.CloseWriter()
 
-			// Handle different message types
-			if data := resp.GetData(); data != nil {
-				// Send data to session channel with flow control
-				msg := &SessionMessage{Data: data.Payload}
-				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg); err != nil {
-					if gctx.Err() != nil {
-						return nil
-					}
-					return err
-				}
-			} else if closeInfo := resp.GetClose(); closeInfo != nil {
-				// Agent sent explicit close - forward to client
-				rs.logger.DebugContext(gctx, "agent sent close message",
-					slog.String("session_key", init.SessionKey),
-				)
-				// Serialize close info to forward to client
-				closeBytes, err := proto.Marshal(closeInfo)
+		return pumpStreamToPipe(streamPumpConfig{
+			ctx:       gctx,
+			pipe:      session.AgentToClient,
+			timeout:   flowTimeout,
+			logger:    logger,
+			direction: "agent->client",
+			recv: func() ([]byte, *pb.TunnelClose, error) {
+				resp, err := stream.Recv()
 				if err != nil {
-					rs.logger.ErrorContext(gctx, "failed to marshal close info from agent",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					return err
+					return nil, nil, err
 				}
-				msg := &SessionMessage{CloseInfo: closeBytes}
-				// Send close message through channel (non-blocking, best effort)
-				select {
-				case session.AgentToClient <- msg:
-				case <-gctx.Done():
+				switch msg := resp.Message.(type) {
+				case *pb.TunnelResponse_Data:
+					if msg.Data == nil || msg.Data.Payload == nil {
+						return []byte{}, nil, nil
+					}
+					return msg.Data.Payload, nil, nil
+				case *pb.TunnelResponse_Close:
+					logger.DebugContext(gctx, "agent sent close message")
+					return nil, msg.Close, nil
 				default:
-					// Channel full or closed, continue anyway
+					return nil, nil, nil
 				}
-				return nil
-			}
-		}
+			},
+		})
 	})
 
-	// Client -> Agent (receive from session channel, send to agent stream)
 	g.Go(func() error {
-		for {
-			msg, err := rs.store.ReceiveWithContext(gctx, session.ClientToAgent)
-			if err != nil {
-				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
-					// Send close message to agent when channel is closed
-					closeMsg := &pb.TunnelRequest{
-						Message: &pb.TunnelRequest_Close{
-							Close: &pb.TunnelClose{},
-						},
-					}
-					if err := stream.Send(closeMsg); err != nil {
-						// Log error but don't fail - connection might already be closing
-						rs.logger.WarnContext(gctx, "failed to send close message to agent",
-							slog.String("session_key", init.SessionKey),
-							slog.String("error", err.Error()),
-						)
-					}
-					return nil
-				}
-				return err
-			}
-
-			// Handle different message types
-			if msg.CloseInfo != nil {
-				// Close signal - send close message to agent and exit
-				var closeInfo pb.TunnelClose
-				if err := proto.Unmarshal(msg.CloseInfo, &closeInfo); err != nil {
-					rs.logger.ErrorContext(gctx, "failed to unmarshal close info for agent",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					// Send empty close on error
-					stream.Send(&pb.TunnelRequest{
-						Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
-					})
-					return nil
-				}
+		return drainPipeToStream(pipeDrainConfig{
+			ctx:       gctx,
+			pipe:      session.ClientToAgent,
+			logger:    logger,
+			direction: "client->agent",
+			sendData: func(payload []byte) error {
 				req := &pb.TunnelRequest{
-					Message: &pb.TunnelRequest_Close{
-						Close: &closeInfo,
+					Message: &pb.TunnelRequest_Data{
+						Data: &pb.TunnelData{Payload: payload},
 					},
 				}
+				return stream.Send(req)
+			},
+			sendClose: func(closeInfo *pb.TunnelClose) error {
+				req := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{Close: closeInfo},
+				}
 				if err := stream.Send(req); err != nil {
-					rs.logger.WarnContext(gctx, "failed to send final close to agent",
-						slog.String("session_key", init.SessionKey),
+					logger.WarnContext(gctx, "failed to send final close to agent",
 						slog.String("error", err.Error()),
 					)
 				}
 				return nil
-			} else {
-				// Forward data to agent (including empty messages)
-				req := &pb.TunnelRequest{
-					Message: &pb.TunnelRequest_Data{
-						Data: &pb.TunnelData{
-							Payload: msg.Data,
-						},
-					},
+			},
+			onPipeClosed: func() error {
+				closeMsg := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
 				}
-				if err := stream.Send(req); err != nil {
-					rs.logger.ErrorContext(gctx, "agent tunnel send error",
-						slog.String("session_key", init.SessionKey),
-						slog.String("operation", operationType),
+				if err := stream.Send(closeMsg); err != nil {
+					logger.WarnContext(gctx, "failed to send close message to agent",
 						slog.String("error", err.Error()),
 					)
-					return err
 				}
-			}
-		}
+				return nil
+			},
+		})
 	})
 
 	// Wait for both goroutines to complete
 	if err := g.Wait(); err != nil && err != io.EOF {
-		rs.logger.ErrorContext(ctx, "agent tunnel stream error",
-			slog.String("session_key", init.SessionKey),
-			slog.String("operation", operationType),
+		logger.ErrorContext(ctx, "agent tunnel stream error",
 			slog.String("error", err.Error()),
 			slog.String("code", codeToString(status.Code(err))),
 		)
@@ -453,6 +312,120 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 }
 
 // Helper functions
+
+func (rs *RouterServer) sessionLogger(sessionKey, operation string) *slog.Logger {
+	return rs.logger.With(
+		slog.String("session_key", sessionKey),
+		slog.String("operation", operation),
+	)
+}
+
+func deriveOperationLabel(op pb.OperationType, protocol pb.Protocol) string {
+	if op != pb.OperationType_OPERATION_PORT_FORWARD {
+		return operationTypeToString(op)
+	}
+	if protocol == pb.Protocol_PROTOCOL_UDP {
+		return "portforward_udp"
+	}
+	return "portforward_tcp"
+}
+
+type streamPumpConfig struct {
+	ctx       context.Context
+	recv      func() ([]byte, *pb.TunnelClose, error)
+	pipe      *SessionPipe
+	timeout   time.Duration
+	logger    *slog.Logger
+	direction string
+}
+
+func pumpStreamToPipe(cfg streamPumpConfig) error {
+	for {
+		payload, closeInfo, err := cfg.recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			cfg.logger.ErrorContext(cfg.ctx, "stream receive error",
+				slog.String("direction", cfg.direction),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+
+		if closeInfo != nil {
+			if !cfg.pipe.TrySend(&SessionMessage{Close: closeInfo}) {
+				cfg.logger.DebugContext(cfg.ctx, "dropping close message; pipe full",
+					slog.String("direction", cfg.direction),
+				)
+			}
+			return nil
+		}
+
+		if payload == nil {
+			continue
+		}
+
+		if err := cfg.pipe.Send(cfg.ctx, cfg.timeout, &SessionMessage{Data: payload}); err != nil {
+			if isContextErr(err) {
+				return nil
+			}
+			cfg.logger.ErrorContext(cfg.ctx, "pipe send error",
+				slog.String("direction", cfg.direction),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+	}
+}
+
+type pipeDrainConfig struct {
+	ctx          context.Context
+	pipe         *SessionPipe
+	sendData     func([]byte) error
+	sendClose    func(*pb.TunnelClose) error
+	onPipeClosed func() error
+	logger       *slog.Logger
+	direction    string
+}
+
+func drainPipeToStream(cfg pipeDrainConfig) error {
+	for {
+		msg, err := cfg.pipe.Receive(cfg.ctx)
+		if err != nil {
+			if isContextErr(err) {
+				return nil
+			}
+			if errors.Is(err, errPipeClosed) {
+				if cfg.onPipeClosed != nil {
+					return cfg.onPipeClosed()
+				}
+				return nil
+			}
+			cfg.logger.ErrorContext(cfg.ctx, "pipe receive error",
+				slog.String("direction", cfg.direction),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+
+		if msg.Close != nil {
+			return cfg.sendClose(msg.Close)
+		}
+
+		if err := cfg.sendData(msg.Data); err != nil {
+			cfg.logger.ErrorContext(cfg.ctx, "stream send error",
+				slog.String("direction", cfg.direction),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+	}
+}
+
+func isContextErr(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
 
 func codeToString(code codes.Code) string {
 	return code.String()

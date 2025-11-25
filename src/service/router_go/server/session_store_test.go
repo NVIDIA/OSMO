@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -125,23 +126,21 @@ func TestSessionStore_FlowControl(t *testing.T) {
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
 	ctx := context.Background()
 
-	// Fill the buffer
 	for i := 0; i < 2; i++ {
 		msg := &SessionMessage{Data: []byte("data")}
-		if err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg); err != nil {
+		if err := session.ClientToAgent.Send(ctx, store.config.FlowControlTimeout, msg); err != nil {
 			t.Errorf("Send %d failed: %v", i, err)
 		}
 	}
 
-	// Next send should timeout (buffer is full and no consumer)
 	msg := &SessionMessage{Data: []byte("data")}
-	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg)
+	err := session.ClientToAgent.Send(ctx, store.config.FlowControlTimeout, msg)
 	if err == nil {
 		t.Error("Expected flow control timeout")
 	}
 
-	if status.Code(err) != codes.ResourceExhausted {
-		t.Errorf("Expected ResourceExhausted, got %v", status.Code(err))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Expected context deadline exceeded, got %v", err)
 	}
 }
 
@@ -241,12 +240,11 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 	// Send data
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		session.ClientToAgent <- &SessionMessage{Data: []byte("test data")}
+		_ = session.ClientToAgent.Send(context.Background(), store.config.FlowControlTimeout, &SessionMessage{Data: []byte("test data")})
 	}()
 
-	// Receive data
 	ctx := context.Background()
-	msg, err := store.ReceiveWithContext(ctx, session.ClientToAgent)
+	msg, err := session.ClientToAgent.Receive(ctx)
 	if err != nil {
 		t.Fatalf("Receive failed: %v", err)
 	}
@@ -265,14 +263,12 @@ func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
 
-	// Close channel
-	close(session.ClientToAgent)
+	session.ClientToAgent.CloseWriter()
 
-	// Receive should return error
 	ctx := context.Background()
-	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent)
-	if err == nil {
-		t.Error("Expected error for closed channel, got nil")
+	_, err := session.ClientToAgent.Receive(ctx)
+	if !errors.Is(err, errPipeClosed) {
+		t.Errorf("Expected errPipeClosed, got %v", err)
 	}
 }
 
@@ -290,10 +286,9 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	// Receive should return error
-	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent)
-	if err == nil {
-		t.Error("Expected error for canceled context, got nil")
+	_, err := session.ClientToAgent.Receive(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected canceled error, got %v", err)
 	}
 }
 
@@ -307,16 +302,17 @@ func TestSessionStore_SendReceiveWithFlowControl(t *testing.T) {
 
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
 
-	// Test send with flow control
 	ctx := context.Background()
 	msg := &SessionMessage{Data: []byte("test-data")}
-	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg)
+	err := session.ClientToAgent.Send(ctx, store.config.FlowControlTimeout, msg)
 	if err != nil {
-		t.Errorf("SendWithFlowControl failed: %v", err)
+		t.Errorf("Send failed: %v", err)
 	}
 
-	// Drain the channel
-	receivedMsg := <-session.ClientToAgent
+	receivedMsg, err := session.ClientToAgent.Receive(ctx)
+	if err != nil {
+		t.Fatalf("Receive failed: %v", err)
+	}
 	if string(receivedMsg.Data) != "test-data" {
 		t.Errorf("Expected 'test-data', got '%s'", string(receivedMsg.Data))
 	}

@@ -28,6 +28,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	pb "go.corp.nvidia.com/osmo/proto/router"
 )
 
 // Operation type constants for session management
@@ -37,11 +39,65 @@ const (
 	OperationRsync       = "rsync"
 )
 
-// SessionMessage wraps messages that flow through session channels
-// This allows forwarding data, metadata, and close information
+// SessionMessage is the unit of data exchanged between client and agent.
 type SessionMessage struct {
-	Data      []byte // Payload data
-	CloseInfo []byte // Serialized close information (TunnelClose proto), nil if not a close message
+	Data  []byte
+	Close *pb.TunnelClose
+}
+
+// SessionPipe provides a single-writer/single-reader buffered link.
+type SessionPipe struct {
+	ch   chan *SessionMessage
+	once sync.Once
+}
+
+func newSessionPipe(buffer int) *SessionPipe {
+	return &SessionPipe{ch: make(chan *SessionMessage, buffer)}
+}
+
+var errPipeClosed = status.Error(codes.Unavailable, "channel closed")
+
+// Send pushes a message respecting the provided context/timeout.
+func (p *SessionPipe) Send(ctx context.Context, timeout time.Duration, msg *SessionMessage) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	select {
+	case p.ch <- msg:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// TrySend attempts a best-effort write without blocking.
+func (p *SessionPipe) TrySend(msg *SessionMessage) bool {
+	select {
+	case p.ch <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
+// Receive blocks until a message is available or the context ends.
+func (p *SessionPipe) Receive(ctx context.Context) (*SessionMessage, error) {
+	select {
+	case msg, ok := <-p.ch:
+		if !ok {
+			return nil, errPipeClosed
+		}
+		return msg, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// CloseWriter closes the pipe (idempotent) and should be called by the writer.
+func (p *SessionPipe) CloseWriter() {
+	p.once.Do(func() {
+		close(p.ch)
+	})
 }
 
 // Session represents an active router session
@@ -64,9 +120,9 @@ type Session struct {
 	// Use atomic operations to access this field
 	agentConnected atomic.Int32
 
-	// Channels for bidirectional communication
-	ClientToAgent chan *SessionMessage
-	AgentToClient chan *SessionMessage
+	// Pipes for bidirectional communication
+	ClientToAgent *SessionPipe
+	AgentToClient *SessionPipe
 
 	// Synchronization
 	ClientReady chan struct{}
@@ -197,8 +253,8 @@ func (s *SessionStore) CreateSession(
 		WorkflowID:    workflowID,
 		OperationType: operationType,
 		CreatedAt:     now,
-		ClientToAgent: make(chan *SessionMessage, s.config.FlowControlBuffer),
-		AgentToClient: make(chan *SessionMessage, s.config.FlowControlBuffer),
+		ClientToAgent: newSessionPipe(s.config.FlowControlBuffer),
+		AgentToClient: newSessionPipe(s.config.FlowControlBuffer),
 		ClientReady:   make(chan struct{}),
 		AgentReady:    make(chan struct{}),
 		Done:          make(chan struct{}),
@@ -317,33 +373,6 @@ func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, 
 		case <-session.Done:
 			return status.Error(codes.Aborted, "session closed")
 		}
-	}
-}
-
-// SendWithFlowControl sends a message with flow control and timeout to prevent unbounded buffering.
-// Returns an error if the send times out or the context is canceled.
-func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan *SessionMessage, msg *SessionMessage) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, s.config.FlowControlTimeout)
-	defer cancel()
-
-	select {
-	case ch <- msg:
-		return nil
-	case <-ctx.Done():
-		return status.Error(codes.ResourceExhausted, "flow control timeout: consumer too slow")
-	}
-}
-
-// ReceiveWithContext receives a message with context cancellation support
-func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan *SessionMessage) (msg *SessionMessage, err error) {
-	select {
-	case msg, ok := <-ch:
-		if !ok {
-			return nil, status.Error(codes.Unavailable, "channel closed")
-		}
-		return msg, nil
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "operation canceled")
 	}
 }
 
