@@ -47,8 +47,8 @@ appropriate installer package for your operating system and CPU architecture.
 
 .. raw:: html
 
-   <img src="../../_images/github_assets_dark.png" alt="GitHub assets" class="theme-image-light" style="margin-bottom: 1em;">
-   <img src="../../_images/github_assets_light.png" alt="GitHub assets" class="theme-image-dark" style="margin-bottom: 1em;">
+   <img src="../../../_images/github_assets_dark.png" alt="GitHub assets" class="theme-image-light" style="margin-bottom: 1em;">
+   <img src="../../../_images/github_assets_light.png" alt="GitHub assets" class="theme-image-dark" style="margin-bottom: 1em;">
 
 Login
 -----
