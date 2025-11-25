@@ -21,6 +21,8 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,15 +30,59 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestSessionStore_CreateSession(t *testing.T) {
-	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
+const defaultTestTimeout = 60 * time.Second
+
+func newTestStore(t *testing.T, timeout time.Duration) *SessionStore {
+	t.Helper()
+	if timeout == 0 {
+		timeout = defaultTestTimeout
+	}
+	return NewSessionStore(SessionStoreConfig{
+		RendezvousTimeout: timeout,
 	}, nil)
+}
+
+func mustCreateSession(t *testing.T, store *SessionStore, key string) *Session {
+	t.Helper()
+	session, _, err := store.CreateSession(key, "cookie-"+key, key+"-workflow", OperationExec)
+	if err != nil {
+		t.Fatalf("CreateSession(%s) failed: %v", key, err)
+	}
+	return session
+}
+
+func waitAsync(t *testing.T, store *SessionStore, session *Session, isClient bool, ctx context.Context) <-chan error {
+	t.Helper()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- store.WaitForRendezvous(ctx, session, isClient)
+	}()
+	return errCh
+}
+
+func requireCode(t *testing.T, err error, code codes.Code) {
+	t.Helper()
+	if code == codes.OK {
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		return
+	}
+
+	if status.Code(err) != code {
+		t.Fatalf("expected code %v, got %v (err: %v)", code, status.Code(err), err)
+	}
+}
+
+func TestSessionStore_CreateSession(t *testing.T) {
+	store := newTestStore(t, defaultTestTimeout)
 
 	session, existed, err := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
-	if err != nil {
-		t.Fatalf("CreateSession failed: %v", err)
-	}
+	requireCode(t, err, codes.OK)
 
 	if existed {
 		t.Error("Session should not exist on first creation")
@@ -48,9 +94,7 @@ func TestSessionStore_CreateSession(t *testing.T) {
 
 	// Try creating again - should get same session
 	session2, existed2, err := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
-	if err != nil {
-		t.Fatalf("Second CreateSession failed: %v", err)
-	}
+	requireCode(t, err, codes.OK)
 
 	if !existed2 {
 		t.Error("Session should exist on second creation")
@@ -62,65 +106,35 @@ func TestSessionStore_CreateSession(t *testing.T) {
 }
 
 func TestSessionStore_RendezvousTimeout(t *testing.T) {
-	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout: 100 * time.Millisecond,
-	}, nil)
-
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
+	store := newTestStore(t, 100*time.Millisecond)
+	session := mustCreateSession(t, store, "timeout")
 
 	ctx := context.Background()
 	err := store.WaitForRendezvous(ctx, session, true)
-
-	if err == nil {
-		t.Error("Expected timeout error")
-	}
-
-	if status.Code(err) != codes.DeadlineExceeded {
-		t.Errorf("Expected DeadlineExceeded, got %v", status.Code(err))
-	}
+	requireCode(t, err, codes.DeadlineExceeded)
 }
 
 func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
-	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout: 5 * time.Second,
-	}, nil)
+	store := newTestStore(t, 5*time.Second)
+	session := mustCreateSession(t, store, "success")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
+	client := waitAsync(t, store, session, true, nil)
+	time.Sleep(50 * time.Millisecond)
+	agent := waitAsync(t, store, session, false, nil)
 
-	errChan := make(chan error, 2)
-
-	// Client waits
-	go func() {
-		ctx := context.Background()
-		errChan <- store.WaitForRendezvous(ctx, session, true)
-	}()
-
-	// Agent connects shortly after
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		ctx := context.Background()
-		errChan <- store.WaitForRendezvous(ctx, session, false)
-	}()
-
-	// Both should succeed
-	for i := 0; i < 2; i++ {
-		if err := <-errChan; err != nil {
-			t.Errorf("Rendezvous failed: %v", err)
-		}
-	}
+	requireCode(t, <-client, codes.OK)
+	requireCode(t, <-agent, codes.OK)
 }
 
 func TestSessionStore_ActiveCount(t *testing.T) {
-	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}, nil)
+	store := newTestStore(t, 0)
 
 	if count := store.ActiveCount(); count != 0 {
 		t.Errorf("Expected 0 active sessions, got %d", count)
 	}
 
-	store.CreateSession("key1", "cookie", "wf1", OperationExec)
-	store.CreateSession("key2", "cookie", "wf2", OperationExec)
+	mustCreateSession(t, store, "key1")
+	mustCreateSession(t, store, "key2")
 
 	if count := store.ActiveCount(); count != 2 {
 		t.Errorf("Expected 2 active sessions, got %d", count)
@@ -136,107 +150,59 @@ func TestSessionStore_ActiveCount(t *testing.T) {
 // Additional comprehensive tests
 
 func TestSessionStore_DeleteNonExistent(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
 
-	// Create and delete
-	store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
+	store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
 	store.DeleteSession("test-key")
 
-	// Should not exist
 	_, err := store.GetSession("test-key")
-	if err == nil {
-		t.Error("Expected error for deleted session, got nil")
-	}
-	if status.Code(err) != codes.NotFound {
-		t.Errorf("Expected NotFound error, got %v", status.Code(err))
-	}
+	requireCode(t, err, codes.NotFound)
 }
 
 func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 2 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 2*time.Second)
+	session := mustCreateSession(t, store, "agent-first")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
+	agent := waitAsync(t, store, session, false, nil)
+	time.Sleep(50 * time.Millisecond)
+	client := waitAsync(t, store, session, true, nil)
 
-	ctx := context.Background()
-
-	// Agent arrives first
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- store.WaitForRendezvous(ctx, session, false)
-	}()
-
-	// Give agent time to start waiting
-	time.Sleep(100 * time.Millisecond)
-
-	// Client arrives second
-	err := store.WaitForRendezvous(ctx, session, true)
-	if err != nil {
-		t.Errorf("Client rendezvous failed: %v", err)
-	}
-
-	// Check agent succeeded
-	agentErr := <-errChan
-	if agentErr != nil {
-		t.Errorf("Agent rendezvous failed: %v", agentErr)
-	}
+	requireCode(t, <-agent, codes.OK)
+	requireCode(t, <-client, codes.OK)
 }
 
 func TestSessionStore_ReceiveWithContext(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
+	session := mustCreateSession(t, store, "receive-data")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
-
-	// Send data
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		_ = session.ClientToAgent.Send(context.Background(), &SessionMessage{Data: []byte("test data")})
 	}()
 
-	ctx := context.Background()
-	msg, err := session.ClientToAgent.Receive(ctx)
-	if err != nil {
-		t.Fatalf("Receive failed: %v", err)
-	}
+	msg, err := session.ClientToAgent.Receive(context.Background())
+	requireCode(t, err, codes.OK)
 	if string(msg.Data) != "test data" {
 		t.Errorf("Expected 'test data', got '%s'", string(msg.Data))
 	}
 }
 
 func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
-
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
+	store := newTestStore(t, 0)
+	session := mustCreateSession(t, store, "closed-channel")
 
 	session.ClientToAgent.CloseWriter()
 
-	ctx := context.Background()
-	_, err := session.ClientToAgent.Receive(ctx)
+	_, err := session.ClientToAgent.Receive(context.Background())
 	if !errors.Is(err, errPipeClosed) {
 		t.Errorf("Expected errPipeClosed, got %v", err)
 	}
 }
 
 func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
+	session := mustCreateSession(t, store, "cancel-context")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
-
-	// Cancel context immediately
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -247,32 +213,24 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 }
 
 func TestSessionStore_ConcurrentOperations(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
 
-	// Create multiple sessions concurrently
 	numSessions := 50
-	done := make(chan bool, numSessions)
+	var wg sync.WaitGroup
 
-	for i := range numSessions {
+	for i := 0; i < numSessions; i++ {
+		wg.Add(1)
 		go func(id int) {
-			key := "session-" + string(rune('a'+id%26)) + string(rune('0'+id/26))
-			_, _, err := store.CreateSession(key, "cookie", "workflow", OperationExec)
-			if err != nil {
+			defer wg.Done()
+			key := fmt.Sprintf("session-%02d", id)
+			if _, _, err := store.CreateSession(key, "cookie", "workflow", OperationExec); err != nil {
 				t.Errorf("Failed to create session %d: %v", id, err)
 			}
-			done <- true
 		}(i)
 	}
 
-	// Wait for all to complete
-	for range numSessions {
-		<-done
-	}
+	wg.Wait()
 
-	// Verify all sessions exist
 	count := 0
 	store.sessions.Range(func(key, value any) bool {
 		count++
@@ -287,77 +245,45 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 // TestSessionStore_RendezvousContextCancellation tests CASE 4: Client crashes during rendezvous wait
 // This simulates a client that connects, starts waiting for agent, then context is cancelled (connection dies)
 func TestSessionStore_RendezvousContextCancellation(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
+	session := mustCreateSession(t, store, "cancelled-client")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
-
-	// Create a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Start waiting for rendezvous
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- store.WaitForRendezvous(ctx, session, true)
-	}()
-
-	// Cancel context after short delay (simulates connection drop)
+	client := waitAsync(t, store, session, true, ctx)
 	time.Sleep(100 * time.Millisecond)
 	cancel()
 
-	// Should return context cancelled error
-	err := <-errChan
-	if err == nil {
-		t.Error("Expected error when context cancelled")
-	}
+	requireCode(t, <-client, codes.Canceled)
 
-	if status.Code(err) != codes.Canceled {
-		t.Errorf("Expected Canceled error, got %v (error: %v)", status.Code(err), err)
-	}
+	store.DeleteSession(session.Key)
 
-	// In real code, defer DeleteSession() would execute here
-	store.DeleteSession("test-key")
-
-	// Verify session is gone
-	_, err = store.GetSession("test-key")
-	if status.Code(err) != codes.NotFound {
-		t.Errorf("Expected session to be deleted, got %v", err)
-	}
+	_, err := store.GetSession(session.Key)
+	requireCode(t, err, codes.NotFound)
 }
 
 // TestSessionStore_DoubleDeleteRace tests CASE 8: Both client and agent try to delete simultaneously
 // This verifies the atomic deletion flag prevents race conditions
 func TestSessionStore_DoubleDeleteRace(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
 
-	// Run many iterations to increase chance of race
 	for iteration := range 100 {
-		sessionKey := "race-test-" + string(rune('a'+iteration%26)) + string(rune('0'+iteration/26))
+		sessionKey := fmt.Sprintf("race-test-%02d", iteration)
 		store.CreateSession(sessionKey, "cookie", "workflow", OperationExec)
 
-		// Simulate both client and agent trying to delete simultaneously
-		done := make(chan bool, 2)
+		var wg sync.WaitGroup
+		wg.Add(2)
 		go func() {
+			defer wg.Done()
 			store.DeleteSession(sessionKey)
-			done <- true
 		}()
 		go func() {
+			defer wg.Done()
 			store.DeleteSession(sessionKey)
-			done <- true
 		}()
+		wg.Wait()
 
-		// Wait for both to complete
-		<-done
-		<-done
-
-		// Verify session is gone (and no panic occurred)
-		_, err := store.GetSession(sessionKey)
-		if err == nil {
+		if _, err := store.GetSession(sessionKey); err == nil {
 			t.Errorf("Session %s should be deleted", sessionKey)
 		}
 	}
@@ -366,91 +292,50 @@ func TestSessionStore_DoubleDeleteRace(t *testing.T) {
 // TestSessionStore_SessionDoneChannelClose tests that Done channel closes properly on deletion
 // This is important for cleanup signaling
 func TestSessionStore_SessionDoneChannelClose(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 60 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, 0)
+	session := mustCreateSession(t, store, "done-close")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
-
-	// Verify Done channel is open
 	select {
 	case <-session.Done:
 		t.Error("Done channel should not be closed yet")
 	default:
-		// Good - channel is open
 	}
 
-	// Delete session
-	store.DeleteSession("test-key")
+	store.DeleteSession(session.Key)
 
-	// Verify Done channel is closed
 	select {
 	case <-session.Done:
-		// Good - channel is closed
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(500 * time.Millisecond):
 		t.Error("Done channel should be closed after deletion")
 	}
 
 	// Multiple deletes should be safe (idempotent)
-	store.DeleteSession("test-key")
-	store.DeleteSession("test-key")
+	store.DeleteSession(session.Key)
+	store.DeleteSession(session.Key)
 }
 
 // TestSessionStore_DuplicateClientConnection tests that only one client can connect
 // This prevents multiple clients from connecting to the same session
 func TestSessionStore_DuplicateClientConnection(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 1 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, time.Second)
+	session := mustCreateSession(t, store, "dup-client")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
-
-	ctx := context.Background()
-
-	// First client connects
-	err1 := store.WaitForRendezvous(ctx, session, true)
-	if err1 != nil && status.Code(err1) != codes.DeadlineExceeded {
-		// It's ok if it times out waiting for agent
-		t.Logf("First client got: %v", err1)
+	if err := store.WaitForRendezvous(context.Background(), session, true); err != nil && status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("unexpected first client error: %v", err)
 	}
 
-	// Second client tries to connect - should fail with AlreadyExists
-	err2 := store.WaitForRendezvous(ctx, session, true)
-	if err2 == nil {
-		t.Error("Expected error for duplicate client connection")
-	}
-	if status.Code(err2) != codes.AlreadyExists {
-		t.Errorf("Expected AlreadyExists for duplicate client, got %v", status.Code(err2))
-	}
+	requireCode(t, store.WaitForRendezvous(context.Background(), session, true), codes.AlreadyExists)
 }
 
 // TestSessionStore_DuplicateAgentConnection tests that only one agent can connect
 // This prevents multiple agents from connecting to the same session
 func TestSessionStore_DuplicateAgentConnection(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout: 1 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
+	store := newTestStore(t, time.Second)
+	session := mustCreateSession(t, store, "dup-agent")
 
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
-
-	ctx := context.Background()
-
-	// First agent connects
-	err1 := store.WaitForRendezvous(ctx, session, false)
-	if err1 != nil && status.Code(err1) != codes.DeadlineExceeded {
-		// It's ok if it times out waiting for client
-		t.Logf("First agent got: %v", err1)
+	if err := store.WaitForRendezvous(context.Background(), session, false); err != nil && status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("unexpected first agent error: %v", err)
 	}
 
-	// Second agent tries to connect - should fail with AlreadyExists
-	err2 := store.WaitForRendezvous(ctx, session, false)
-	if err2 == nil {
-		t.Error("Expected error for duplicate agent connection")
-	}
-	if status.Code(err2) != codes.AlreadyExists {
-		t.Errorf("Expected AlreadyExists for duplicate agent, got %v", status.Code(err2))
-	}
+	requireCode(t, store.WaitForRendezvous(context.Background(), session, false), codes.AlreadyExists)
 }
