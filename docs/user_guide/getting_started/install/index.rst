@@ -56,7 +56,7 @@ Login
 .. important::
 
    The OSMO client can only be used to connect to already deployed OSMO web services. Please contact your administrator
-   and refer to the :doc:`Deployment Guides </deployment_guide/introduction/whats_next>` for more information.
+   and refer to the :ref:`Deployment Guides <whats_next>` for more information.
 
 To login to the client, can use the following command:
 

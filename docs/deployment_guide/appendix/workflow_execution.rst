@@ -232,7 +232,7 @@ Learn More
 
 .. seealso::
 
-   - :doc:`Workflow Overview </user_guide/workflows/index>` - User guide for writing workflows
-   - :doc:`Workflow Lifecycle </user_guide/workflows/lifecycle/index>` - Understanding workflow states
+   - :ref:`Workflow Overview <workflow_overview>` - User guide for writing workflows
+   - :ref:`Workflow Lifecycle <workflow_lifecycle>` - Understanding workflow states
    - :ref:`architecture` - Overall OSMO system architecture
 

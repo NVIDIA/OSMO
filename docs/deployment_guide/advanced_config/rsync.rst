@@ -255,4 +255,4 @@ Troubleshooting
 
 .. seealso::
 
-  - Learn more about Rsync in OSMO at :doc:`Interactive Workflows </user_guide/workflows/interactive/rsync>`
+  - Learn more about Rsync in OSMO at :ref:`Interactive Workflows <workflow_interactive_rsync>`
