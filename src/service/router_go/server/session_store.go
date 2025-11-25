@@ -235,11 +235,12 @@ func (s *SessionStore) DeleteSession(sessionKey string) {
 		// Now remove from map
 		s.sessions.Delete(sessionKey)
 
-		// Use sync.Once to safely close channels (idempotent)
+		// Close Done channel to signal session deletion (idempotent via sync.Once)
 		session.CloseDone()
 
-		// Don't close the data channels as they might still have consumers
-		// They will be garbage collected when no longer referenced
+		// Note: Data channels (ClientToAgent, AgentToClient) are closed by their respective
+		// writer goroutines (via defer close in Tunnel/RegisterTunnel handlers).
+		// We don't close them here to avoid double-close panics.
 	}
 }
 
