@@ -16,11 +16,10 @@
 
 # -- Path setup --------------------------------------------------------------
 
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('.'))
+sys.path.append(str(Path(".").resolve()))
 
 # -- Project information -----------------------------------------------------
 
@@ -54,6 +53,9 @@ extensions = [
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
+    
+    # Theme extension
+    '_extensions.nvidia_theme_override',
 ]
 
 # Spelling
@@ -119,13 +121,11 @@ html_favicon = '_static/osmo_favicon.png'
 html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
 html_static_path = ['_static']
 templates_path = ['_templates']
-# Hide sidebar completely for root page
-# For each guide section, show only local navigation
+
 html_sidebars = {
-    "index": [],  # No sidebar on landing page
-    "deployment_guide/**": ["sidebar-nav-bs"],  # Only show deployment guide nav
-    "user_guide/**": ["sidebar-nav-bs"],  # Only show user guide nav
+    "index": [],
 }
+
 # Add custom CSS to hide sidebar and remove vertical bar
 # html_css_files_extra = ['css/root_page.css']
 html_css_files_extra = []

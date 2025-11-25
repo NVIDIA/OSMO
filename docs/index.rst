@@ -64,3 +64,9 @@ Select one of the guides below to get started with OSMO.
           • Bring Your Own Compute
 
           • Advanced configuration
+
+.. toctree::
+   :hidden:
+
+   deployment_guide/index
+   user_guide/index
