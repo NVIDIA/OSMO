@@ -127,13 +127,15 @@ func TestSessionStore_FlowControl(t *testing.T) {
 
 	// Fill the buffer
 	for i := 0; i < 2; i++ {
-		if err := store.SendWithFlowControl(ctx, session.ClientToAgent, []byte("data"), "test-key"); err != nil {
+		msg := &SessionMessage{Data: []byte("data")}
+		if err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg, "test-key"); err != nil {
 			t.Errorf("Send %d failed: %v", i, err)
 		}
 	}
 
 	// Next send should timeout (buffer is full and no consumer)
-	err := store.SendWithFlowControl(ctx, session.ClientToAgent, []byte("data"), "test-key")
+	msg := &SessionMessage{Data: []byte("data")}
+	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg, "test-key")
 	if err == nil {
 		t.Error("Expected flow control timeout")
 	}
@@ -239,17 +241,17 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 	// Send data
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		session.ClientToAgent <- []byte("test data")
+		session.ClientToAgent <- &SessionMessage{Data: []byte("test data")}
 	}()
 
 	// Receive data
 	ctx := context.Background()
-	data, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
+	msg, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
 	if err != nil {
 		t.Fatalf("Receive failed: %v", err)
 	}
-	if string(data) != "test data" {
-		t.Errorf("Expected 'test data', got '%s'", string(data))
+	if string(msg.Data) != "test data" {
+		t.Errorf("Expected 'test data', got '%s'", string(msg.Data))
 	}
 }
 
@@ -307,15 +309,16 @@ func TestSessionStore_SendReceiveWithFlowControl(t *testing.T) {
 
 	// Test send with flow control
 	ctx := context.Background()
-	err := store.SendWithFlowControl(ctx, session.ClientToAgent, []byte("test-data"), "test-key")
+	msg := &SessionMessage{Data: []byte("test-data")}
+	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg, "test-key")
 	if err != nil {
 		t.Errorf("SendWithFlowControl failed: %v", err)
 	}
 
 	// Drain the channel
-	data := <-session.ClientToAgent
-	if string(data) != "test-data" {
-		t.Errorf("Expected 'test-data', got '%s'", string(data))
+	receivedMsg := <-session.ClientToAgent
+	if string(receivedMsg.Data) != "test-data" {
+		t.Errorf("Expected 'test-data', got '%s'", string(receivedMsg.Data))
 	}
 }
 

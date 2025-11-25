@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
@@ -144,28 +145,61 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 
 			// Handle different message types
 			if data := req.GetData(); data != nil {
-				// Send directly to session channel with flow control
-				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, data.Payload, init.SessionKey); err != nil {
+				// Send data to session channel with flow control
+				msg := &SessionMessage{Data: data.Payload}
+				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg, init.SessionKey); err != nil {
 					if gctx.Err() != nil {
 						return nil
 					}
 					return err
 				}
 			} else if metadata := req.GetMetadata(); metadata != nil {
-				// Handle metadata (e.g., resize for exec)
+				// Forward metadata to agent
 				if resize := metadata.GetResize(); resize != nil {
 					rs.logger.DebugContext(gctx, "client tunnel terminal resize",
 						slog.String("session_key", init.SessionKey),
 						slog.Int("rows", int(resize.Rows)),
 						slog.Int("cols", int(resize.Cols)),
 					)
-					// In production, encode and forward resize to agent
 				}
-			} else if req.GetClose() != nil {
-				// Client sent explicit close - return to signal downstream
+				// Serialize and forward metadata
+				metadataBytes, err := proto.Marshal(metadata)
+				if err != nil {
+					rs.logger.ErrorContext(gctx, "failed to marshal metadata",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+				msg := &SessionMessage{Metadata: metadataBytes}
+				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg, init.SessionKey); err != nil {
+					if gctx.Err() != nil {
+						return nil
+					}
+					return err
+				}
+			} else if closeInfo := req.GetClose(); closeInfo != nil {
+				// Client sent explicit close - forward to agent
 				rs.logger.DebugContext(gctx, "client sent close message",
 					slog.String("session_key", init.SessionKey),
 				)
+				// Serialize close info to forward to agent
+				closeBytes, err := proto.Marshal(closeInfo)
+				if err != nil {
+					rs.logger.ErrorContext(gctx, "failed to marshal close info",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+				msg := &SessionMessage{CloseInfo: closeBytes}
+				// Send close message through channel (non-blocking, best effort)
+				select {
+				case session.ClientToAgent <- msg:
+				case <-gctx.Done():
+				default:
+					// Channel full or closed, continue anyway
+				}
 				return nil
 			}
 		}
@@ -174,7 +208,7 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 	// Agent -> Client (receive from session channel, send to client stream)
 	g.Go(func() error {
 		for {
-			data, err := rs.store.ReceiveWithContext(gctx, session.AgentToClient, init.SessionKey)
+			msg, err := rs.store.ReceiveWithContext(gctx, session.AgentToClient, init.SessionKey)
 			if err != nil {
 				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
 					return nil
@@ -182,20 +216,67 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 				return err
 			}
 
-			resp := &pb.TunnelResponse{
-				Message: &pb.TunnelResponse_Data{
-					Data: &pb.TunnelData{
-						Payload: data,
+			// Handle different message types
+			if msg.CloseInfo != nil {
+				// Close signal - send close message to client and exit
+				var closeInfo pb.TunnelClose
+				if err := proto.Unmarshal(msg.CloseInfo, &closeInfo); err != nil {
+					rs.logger.ErrorContext(gctx, "failed to unmarshal close info",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					// Send empty close on error
+					stream.Send(&pb.TunnelResponse{
+						Message: &pb.TunnelResponse_Close{Close: &pb.TunnelClose{}},
+					})
+					return nil
+				}
+				resp := &pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Close{
+						Close: &closeInfo,
 					},
-				},
-			}
-			if err := stream.Send(resp); err != nil {
-				rs.logger.ErrorContext(gctx, "client tunnel send error",
-					slog.String("session_key", init.SessionKey),
-					slog.String("operation", operationType),
-					slog.String("error", err.Error()),
-				)
-				return err
+				}
+				stream.Send(resp)
+				return nil
+			} else if msg.Metadata != nil {
+				// Forward metadata to client
+				var metadata pb.TunnelMetadata
+				if err := proto.Unmarshal(msg.Metadata, &metadata); err != nil {
+					rs.logger.ErrorContext(gctx, "failed to unmarshal metadata",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					continue // Skip invalid metadata
+				}
+				resp := &pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Metadata{
+						Metadata: &metadata,
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					rs.logger.ErrorContext(gctx, "client tunnel metadata send error",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+			} else {
+				// Forward data to client (including empty messages)
+				resp := &pb.TunnelResponse{
+					Message: &pb.TunnelResponse_Data{
+						Data: &pb.TunnelData{
+							Payload: msg.Data,
+						},
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					rs.logger.ErrorContext(gctx, "client tunnel send error",
+						slog.String("session_key", init.SessionKey),
+						slog.String("operation", operationType),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
 			}
 		}
 	})
@@ -294,18 +375,53 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 
 			// Handle different message types
 			if data := resp.GetData(); data != nil {
-				// Send directly to session channel with flow control
-				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, data.Payload, init.SessionKey); err != nil {
+				// Send data to session channel with flow control
+				msg := &SessionMessage{Data: data.Payload}
+				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg, init.SessionKey); err != nil {
 					if gctx.Err() != nil {
 						return nil
 					}
 					return err
 				}
-			} else if resp.GetClose() != nil {
-				// Agent sent explicit close - return to signal downstream
+			} else if metadata := resp.GetMetadata(); metadata != nil {
+				// Forward metadata from agent to client
+				metadataBytes, err := proto.Marshal(metadata)
+				if err != nil {
+					rs.logger.ErrorContext(gctx, "failed to marshal agent metadata",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+				msg := &SessionMessage{Metadata: metadataBytes}
+				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg, init.SessionKey); err != nil {
+					if gctx.Err() != nil {
+						return nil
+					}
+					return err
+				}
+			} else if closeInfo := resp.GetClose(); closeInfo != nil {
+				// Agent sent explicit close - forward to client
 				rs.logger.DebugContext(gctx, "agent sent close message",
 					slog.String("session_key", init.SessionKey),
 				)
+				// Serialize close info to forward to client
+				closeBytes, err := proto.Marshal(closeInfo)
+				if err != nil {
+					rs.logger.ErrorContext(gctx, "failed to marshal close info from agent",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+				msg := &SessionMessage{CloseInfo: closeBytes}
+				// Send close message through channel (non-blocking, best effort)
+				select {
+				case session.AgentToClient <- msg:
+				case <-gctx.Done():
+				default:
+					// Channel full or closed, continue anyway
+				}
 				return nil
 			}
 		}
@@ -314,7 +430,7 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 	// Client -> Agent (receive from session channel, send to agent stream)
 	g.Go(func() error {
 		for {
-			data, err := rs.store.ReceiveWithContext(gctx, session.ClientToAgent, init.SessionKey)
+			msg, err := rs.store.ReceiveWithContext(gctx, session.ClientToAgent, init.SessionKey)
 			if err != nil {
 				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
 					// Send close message to agent when channel is closed
@@ -335,20 +451,67 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 				return err
 			}
 
-			req := &pb.TunnelRequest{
-				Message: &pb.TunnelRequest_Data{
-					Data: &pb.TunnelData{
-						Payload: data,
+			// Handle different message types
+			if msg.CloseInfo != nil {
+				// Close signal - send close message to agent and exit
+				var closeInfo pb.TunnelClose
+				if err := proto.Unmarshal(msg.CloseInfo, &closeInfo); err != nil {
+					rs.logger.ErrorContext(gctx, "failed to unmarshal close info for agent",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					// Send empty close on error
+					stream.Send(&pb.TunnelRequest{
+						Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
+					})
+					return nil
+				}
+				req := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{
+						Close: &closeInfo,
 					},
-				},
-			}
-			if err := stream.Send(req); err != nil {
-				rs.logger.ErrorContext(gctx, "agent tunnel send error",
-					slog.String("session_key", init.SessionKey),
-					slog.String("operation", operationType),
-					slog.String("error", err.Error()),
-				)
-				return err
+				}
+				stream.Send(req)
+				return nil
+			} else if msg.Metadata != nil {
+				// Forward metadata to agent
+				var metadata pb.TunnelMetadata
+				if err := proto.Unmarshal(msg.Metadata, &metadata); err != nil {
+					rs.logger.ErrorContext(gctx, "failed to unmarshal metadata for agent",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					continue // Skip invalid metadata
+				}
+				req := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Metadata{
+						Metadata: &metadata,
+					},
+				}
+				if err := stream.Send(req); err != nil {
+					rs.logger.ErrorContext(gctx, "agent tunnel metadata send error",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
+			} else {
+				// Forward data to agent (including empty messages)
+				req := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Data{
+						Data: &pb.TunnelData{
+							Payload: msg.Data,
+						},
+					},
+				}
+				if err := stream.Send(req); err != nil {
+					rs.logger.ErrorContext(gctx, "agent tunnel send error",
+						slog.String("session_key", init.SessionKey),
+						slog.String("operation", operationType),
+						slog.String("error", err.Error()),
+					)
+					return err
+				}
 			}
 		}
 	})
@@ -436,6 +599,3 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 		OperationType: stringToOperationType(session.OperationType),
 	}, nil
 }
-
-// timeNow is an alias for time.Now for testing purposes
-var timeNow = time.Now

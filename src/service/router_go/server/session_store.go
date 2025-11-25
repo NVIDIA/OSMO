@@ -37,6 +37,14 @@ const (
 	OperationRsync       = "rsync"
 )
 
+// SessionMessage wraps messages that flow through session channels
+// This allows forwarding data, metadata, and close information
+type SessionMessage struct {
+	Data      []byte // Payload data
+	Metadata  []byte // Serialized metadata (TunnelMetadata proto)
+	CloseInfo []byte // Serialized close information (TunnelClose proto), nil if not a close message
+}
+
 // Session represents an active router session
 type Session struct {
 	Key           string // Unique session identifier
@@ -58,8 +66,8 @@ type Session struct {
 	agentConnected atomic.Int32
 
 	// Channels for bidirectional communication
-	ClientToAgent chan []byte
-	AgentToClient chan []byte
+	ClientToAgent chan *SessionMessage
+	AgentToClient chan *SessionMessage
 
 	// Synchronization
 	ClientReady chan struct{}
@@ -190,8 +198,8 @@ func (s *SessionStore) CreateSession(
 		WorkflowID:    workflowID,
 		OperationType: operationType,
 		CreatedAt:     now,
-		ClientToAgent: make(chan []byte, s.config.FlowControlBuffer),
-		AgentToClient: make(chan []byte, s.config.FlowControlBuffer),
+		ClientToAgent: make(chan *SessionMessage, s.config.FlowControlBuffer),
+		AgentToClient: make(chan *SessionMessage, s.config.FlowControlBuffer),
 		ClientReady:   make(chan struct{}),
 		AgentReady:    make(chan struct{}),
 		Done:          make(chan struct{}),
@@ -312,28 +320,28 @@ func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, 
 	}
 }
 
-// SendWithFlowControl sends data with flow control and timeout to prevent unbounded buffering.
+// SendWithFlowControl sends a message with flow control and timeout to prevent unbounded buffering.
 // Returns an error if the send times out or the context is canceled.
-func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan []byte, data []byte, sessionKey string) (err error) {
+func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan *SessionMessage, msg *SessionMessage, sessionKey string) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, s.config.FlowControlTimeout)
 	defer cancel()
 
 	select {
-	case ch <- data:
+	case ch <- msg:
 		return nil
 	case <-ctx.Done():
 		return status.Error(codes.ResourceExhausted, "flow control timeout: consumer too slow")
 	}
 }
 
-// ReceiveWithContext receives data with context cancellation support
-func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan []byte, sessionKey string) (data []byte, err error) {
+// ReceiveWithContext receives a message with context cancellation support
+func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan *SessionMessage, sessionKey string) (msg *SessionMessage, err error) {
 	select {
-	case data, ok := <-ch:
+	case msg, ok := <-ch:
 		if !ok {
 			return nil, status.Error(codes.Unavailable, "channel closed")
 		}
-		return data, nil
+		return msg, nil
 	case <-ctx.Done():
 		return nil, status.Error(codes.Canceled, "operation canceled")
 	}
