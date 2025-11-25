@@ -100,16 +100,6 @@ message TunnelError {
 }
 
 // Control service messages
-message RefreshTokenRequest {
-  string current_token = 1;
-  string workflow_id = 2;
-}
-
-message RefreshTokenResponse {
-  string new_token = 1;
-  int64 expires_at = 2;      // Unix timestamp
-}
-
 message SessionInfoRequest {
   string session_key = 1;
 }

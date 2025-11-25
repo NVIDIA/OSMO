@@ -40,9 +40,6 @@ service RouterAgentService {
 
 // RouterControlService provides auxiliary operations
 service RouterControlService {
-  // RefreshToken refreshes JWT authentication token
-  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
-
   // GetSessionInfo retrieves information about an active session
   rpc GetSessionInfo(SessionInfoRequest) returns (SessionInfoResponse);
 }

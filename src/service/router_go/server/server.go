@@ -20,10 +20,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
-	"time"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -570,28 +568,6 @@ func operationTypeToString(op pb.OperationType) string {
 	default:
 		return "unknown"
 	}
-}
-
-// RefreshToken refreshes an authentication token.
-// For MVP, implements a simple token refresh placeholder.
-func (rs *RouterServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (resp *pb.RefreshTokenResponse, err error) {
-	// Validate input
-	if req.CurrentToken == "" {
-		return nil, status.Error(codes.InvalidArgument, "current_token is required")
-	}
-
-	rs.logger.InfoContext(ctx, "refresh token requested",
-		slog.String("workflow_id", req.WorkflowId),
-		slog.String("token_prefix", req.CurrentToken[:min(len(req.CurrentToken), 10)]),
-	)
-
-	// Mock: return a refreshed token with new expiry (1 hour from now)
-	newExpiry := time.Now().Add(1 * time.Hour).Unix()
-
-	return &pb.RefreshTokenResponse{
-		NewToken:  req.CurrentToken + "_refreshed_" + fmt.Sprintf("%d", time.Now().Unix()),
-		ExpiresAt: newExpiry,
-	}, nil
 }
 
 // GetSessionInfo retrieves information about an active session.

@@ -29,10 +29,17 @@ go_library(
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto:go_default_library",
         "@org_golang_x_sync//errgroup",
     ],
 )
 
+
+# To run the tests with race detection:
+#
+# bazel test \
+#   --@io_bazel_rules_go//go/config:race \
+#  //src/service/router_go/server:session_store_test
 go_test(
     name = "session_store_test",
     srcs = ["session_store_test.go"],
@@ -43,6 +50,11 @@ go_test(
     ],
 )
 
+# To run the tests with race detection:
+#
+# bazel test \
+#   --@io_bazel_rules_go//go/config:race \
+#  //src/service/router_go/server:server_test
 go_test(
     name = "server_test",
     srcs = ["server_test.go"],
