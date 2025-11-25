@@ -322,7 +322,7 @@ func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, 
 
 // SendWithFlowControl sends a message with flow control and timeout to prevent unbounded buffering.
 // Returns an error if the send times out or the context is canceled.
-func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan *SessionMessage, msg *SessionMessage, sessionKey string) (err error) {
+func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan *SessionMessage, msg *SessionMessage) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, s.config.FlowControlTimeout)
 	defer cancel()
 
@@ -335,7 +335,7 @@ func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan *Session
 }
 
 // ReceiveWithContext receives a message with context cancellation support
-func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan *SessionMessage, sessionKey string) (msg *SessionMessage, err error) {
+func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan *SessionMessage) (msg *SessionMessage, err error) {
 	select {
 	case msg, ok := <-ch:
 		if !ok {

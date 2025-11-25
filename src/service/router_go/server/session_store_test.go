@@ -128,14 +128,14 @@ func TestSessionStore_FlowControl(t *testing.T) {
 	// Fill the buffer
 	for i := 0; i < 2; i++ {
 		msg := &SessionMessage{Data: []byte("data")}
-		if err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg, "test-key"); err != nil {
+		if err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg); err != nil {
 			t.Errorf("Send %d failed: %v", i, err)
 		}
 	}
 
 	// Next send should timeout (buffer is full and no consumer)
 	msg := &SessionMessage{Data: []byte("data")}
-	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg, "test-key")
+	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg)
 	if err == nil {
 		t.Error("Expected flow control timeout")
 	}
@@ -246,7 +246,7 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 
 	// Receive data
 	ctx := context.Background()
-	msg, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
+	msg, err := store.ReceiveWithContext(ctx, session.ClientToAgent)
 	if err != nil {
 		t.Fatalf("Receive failed: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 
 	// Receive should return error
 	ctx := context.Background()
-	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
+	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent)
 	if err == nil {
 		t.Error("Expected error for closed channel, got nil")
 	}
@@ -291,7 +291,7 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	cancel()
 
 	// Receive should return error
-	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent, "test-key")
+	_, err := store.ReceiveWithContext(ctx, session.ClientToAgent)
 	if err == nil {
 		t.Error("Expected error for canceled context, got nil")
 	}
@@ -310,7 +310,7 @@ func TestSessionStore_SendReceiveWithFlowControl(t *testing.T) {
 	// Test send with flow control
 	ctx := context.Background()
 	msg := &SessionMessage{Data: []byte("test-data")}
-	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg, "test-key")
+	err := store.SendWithFlowControl(ctx, session.ClientToAgent, msg)
 	if err != nil {
 		t.Errorf("SendWithFlowControl failed: %v", err)
 	}

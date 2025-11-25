@@ -147,7 +147,7 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 			if data := req.GetData(); data != nil {
 				// Send data to session channel with flow control
 				msg := &SessionMessage{Data: data.Payload}
-				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg, init.SessionKey); err != nil {
+				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg); err != nil {
 					if gctx.Err() != nil {
 						return nil
 					}
@@ -172,7 +172,7 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 					return err
 				}
 				msg := &SessionMessage{Metadata: metadataBytes}
-				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg, init.SessionKey); err != nil {
+				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg); err != nil {
 					if gctx.Err() != nil {
 						return nil
 					}
@@ -208,7 +208,7 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 	// Agent -> Client (receive from session channel, send to client stream)
 	g.Go(func() error {
 		for {
-			msg, err := rs.store.ReceiveWithContext(gctx, session.AgentToClient, init.SessionKey)
+			msg, err := rs.store.ReceiveWithContext(gctx, session.AgentToClient)
 			if err != nil {
 				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
 					return nil
@@ -236,7 +236,12 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 						Close: &closeInfo,
 					},
 				}
-				stream.Send(resp)
+				if err := stream.Send(resp); err != nil {
+					rs.logger.WarnContext(gctx, "failed to send final close to client",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+				}
 				return nil
 			} else if msg.Metadata != nil {
 				// Forward metadata to client
@@ -377,7 +382,7 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 			if data := resp.GetData(); data != nil {
 				// Send data to session channel with flow control
 				msg := &SessionMessage{Data: data.Payload}
-				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg, init.SessionKey); err != nil {
+				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg); err != nil {
 					if gctx.Err() != nil {
 						return nil
 					}
@@ -394,7 +399,7 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 					return err
 				}
 				msg := &SessionMessage{Metadata: metadataBytes}
-				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg, init.SessionKey); err != nil {
+				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg); err != nil {
 					if gctx.Err() != nil {
 						return nil
 					}
@@ -430,7 +435,7 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 	// Client -> Agent (receive from session channel, send to agent stream)
 	g.Go(func() error {
 		for {
-			msg, err := rs.store.ReceiveWithContext(gctx, session.ClientToAgent, init.SessionKey)
+			msg, err := rs.store.ReceiveWithContext(gctx, session.ClientToAgent)
 			if err != nil {
 				if status.Code(err) == codes.Unavailable || gctx.Err() != nil {
 					// Send close message to agent when channel is closed
@@ -471,7 +476,12 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 						Close: &closeInfo,
 					},
 				}
-				stream.Send(req)
+				if err := stream.Send(req); err != nil {
+					rs.logger.WarnContext(gctx, "failed to send final close to agent",
+						slog.String("session_key", init.SessionKey),
+						slog.String("error", err.Error()),
+					)
+				}
 				return nil
 			} else if msg.Metadata != nil {
 				// Forward metadata to agent
