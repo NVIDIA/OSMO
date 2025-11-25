@@ -51,17 +51,14 @@ type SessionPipe struct {
 	once sync.Once
 }
 
-func newSessionPipe(buffer int) *SessionPipe {
-	return &SessionPipe{ch: make(chan *SessionMessage, buffer)}
+func newSessionPipe() *SessionPipe {
+	return &SessionPipe{ch: make(chan *SessionMessage)}
 }
 
 var errPipeClosed = status.Error(codes.Unavailable, "channel closed")
 
-// Send pushes a message respecting the provided context/timeout.
-func (p *SessionPipe) Send(ctx context.Context, timeout time.Duration, msg *SessionMessage) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
+// Send pushes a message respecting the provided context.
+func (p *SessionPipe) Send(ctx context.Context, msg *SessionMessage) error {
 	select {
 	case p.ch <- msg:
 		return nil
@@ -165,9 +162,7 @@ type SessionStore struct {
 
 // SessionStoreConfig holds configuration for the session store
 type SessionStoreConfig struct {
-	RendezvousTimeout  time.Duration
-	FlowControlBuffer  int
-	FlowControlTimeout time.Duration
+	RendezvousTimeout time.Duration
 }
 
 // SessionStoreOption is a functional option for configuring SessionStore
@@ -189,20 +184,6 @@ func WithRendezvousTimeout(timeout time.Duration) SessionStoreOption {
 	}
 }
 
-// WithFlowControlBuffer sets the buffer size for flow control channels
-func WithFlowControlBuffer(size int) SessionStoreOption {
-	return func(s *SessionStore) {
-		s.config.FlowControlBuffer = size
-	}
-}
-
-// WithFlowControlTimeout sets the timeout for flow control operations
-func WithFlowControlTimeout(timeout time.Duration) SessionStoreOption {
-	return func(s *SessionStore) {
-		s.config.FlowControlTimeout = timeout
-	}
-}
-
 // NewSessionStore creates a new session store
 func NewSessionStore(config SessionStoreConfig, logger *slog.Logger) *SessionStore {
 	if logger == nil {
@@ -220,9 +201,7 @@ func NewSessionStoreWithOptions(opts ...SessionStoreOption) *SessionStore {
 	// Set sensible defaults
 	store := &SessionStore{
 		config: SessionStoreConfig{
-			RendezvousTimeout:  30 * time.Second,
-			FlowControlBuffer:  100,
-			FlowControlTimeout: 30 * time.Second,
+			RendezvousTimeout: 30 * time.Second,
 		},
 		logger: slog.Default(),
 	}
@@ -253,8 +232,8 @@ func (s *SessionStore) CreateSession(
 		WorkflowID:    workflowID,
 		OperationType: operationType,
 		CreatedAt:     now,
-		ClientToAgent: newSessionPipe(s.config.FlowControlBuffer),
-		AgentToClient: newSessionPipe(s.config.FlowControlBuffer),
+		ClientToAgent: newSessionPipe(),
+		AgentToClient: newSessionPipe(),
 		ClientReady:   make(chan struct{}),
 		AgentReady:    make(chan struct{}),
 		Done:          make(chan struct{}),

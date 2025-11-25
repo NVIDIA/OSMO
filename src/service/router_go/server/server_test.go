@@ -47,9 +47,7 @@ func setupTestServer(t *testing.T) (*grpc.Server, *bufconn.Listener) {
 	server := grpc.NewServer()
 
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 
 	// Use a no-op logger for tests (logs are not asserted)

@@ -38,14 +38,12 @@ import (
 )
 
 var (
-	port               = flag.Int("port", 50051, "gRPC server port")
-	tlsCert            = flag.String("tls-cert", "/etc/router/tls/tls.crt", "TLS certificate file")
-	tlsKey             = flag.String("tls-key", "/etc/router/tls/tls.key", "TLS key file")
-	tlsEnabled         = flag.Bool("tls-enabled", true, "Enable TLS")
-	rendezvousTimeout  = flag.Duration("rendezvous-timeout", 60*time.Second, "Rendezvous wait timeout")
-	flowControlBuffer  = flag.Int("flow-control-buffer", 16, "Flow control buffer size")
-	flowControlTimeout = flag.Duration("flow-control-timeout", 30*time.Second, "Flow control write timeout")
-	shutdownTimeout    = flag.Duration("shutdown-timeout", 60*time.Second, "Graceful shutdown timeout")
+	port              = flag.Int("port", 50051, "gRPC server port")
+	tlsCert           = flag.String("tls-cert", "/etc/router/tls/tls.crt", "TLS certificate file")
+	tlsKey            = flag.String("tls-key", "/etc/router/tls/tls.key", "TLS key file")
+	tlsEnabled        = flag.Bool("tls-enabled", true, "Enable TLS")
+	rendezvousTimeout = flag.Duration("rendezvous-timeout", 60*time.Second, "Rendezvous wait timeout")
+	shutdownTimeout   = flag.Duration("shutdown-timeout", 60*time.Second, "Graceful shutdown timeout")
 )
 
 func main() {
@@ -59,9 +57,7 @@ func main() {
 
 	// Create session store
 	store := server.NewSessionStore(server.SessionStoreConfig{
-		RendezvousTimeout:  *rendezvousTimeout,
-		FlowControlBuffer:  *flowControlBuffer,
-		FlowControlTimeout: *flowControlTimeout,
+		RendezvousTimeout: *rendezvousTimeout,
 	}, logger)
 
 	// Session cleanup is handled by:
@@ -105,8 +101,6 @@ func main() {
 	log.Printf("  Port: %d", *port)
 	log.Printf("  TLS: %v", *tlsEnabled)
 	log.Printf("  Rendezvous Timeout: %v", *rendezvousTimeout)
-	log.Printf("  Flow Control Buffer: %d", *flowControlBuffer)
-	log.Printf("  Flow Control Timeout: %v", *flowControlTimeout)
 	log.Printf("  gRPC Keepalive: 60s ping, 20s timeout")
 	log.Printf("  Session Cleanup: defer + keepalive (no TTL, sessions can run forever)")
 

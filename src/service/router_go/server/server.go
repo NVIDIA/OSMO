@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"time"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -109,11 +108,9 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 	// when any one completes or errors
 	g, gctx := errgroup.WithContext(ctx)
 
-	flowTimeout := rs.store.config.FlowControlTimeout
-
 	g.Go(func() error {
 		defer session.ClientToAgent.CloseWriter()
-		return forwardClientStream(gctx, stream, session.ClientToAgent, flowTimeout, logger)
+		return forwardClientStream(gctx, stream, session.ClientToAgent, logger)
 	})
 
 	g.Go(func() error {
@@ -174,8 +171,6 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 
 	logger.InfoContext(ctx, "agent tunnel rendezvous successful")
 
-	flowTimeout := rs.store.config.FlowControlTimeout
-
 	// Start bidirectional streaming (direct to session channels)
 	// Use errgroup.WithContext to get cancellable context that stops all goroutines
 	// when any one completes or errors
@@ -183,7 +178,7 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 
 	g.Go(func() error {
 		defer session.AgentToClient.CloseWriter()
-		return forwardAgentStream(gctx, stream, session.AgentToClient, flowTimeout, logger)
+		return forwardAgentStream(gctx, stream, session.AgentToClient, logger)
 	})
 
 	g.Go(func() error {
@@ -221,7 +216,16 @@ func deriveOperationLabel(op pb.OperationType, protocol pb.Protocol) string {
 	return "portforward_tcp"
 }
 
-func forwardClientStream(ctx context.Context, stream pb.RouterClientService_TunnelServer, pipe *SessionPipe, timeout time.Duration, logger *slog.Logger) error {
+var emptyPayload = make([]byte, 0)
+
+func payloadOrEmpty(data *pb.TunnelData) []byte {
+	if data == nil || data.Payload == nil {
+		return emptyPayload
+	}
+	return data.Payload
+}
+
+func forwardClientStream(ctx context.Context, stream pb.RouterClientService_TunnelServer, pipe *SessionPipe, logger *slog.Logger) error {
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -236,11 +240,8 @@ func forwardClientStream(ctx context.Context, stream pb.RouterClientService_Tunn
 
 		switch msg := req.Message.(type) {
 		case *pb.TunnelRequest_Data:
-			payload := msg.Data.GetPayload()
-			if payload == nil {
-				payload = []byte{}
-			}
-			if err := pipe.Send(ctx, timeout, &SessionMessage{Data: payload}); err != nil {
+			payload := payloadOrEmpty(msg.Data)
+			if err := pipe.Send(ctx, &SessionMessage{Data: payload}); err != nil {
 				if isContextErr(err) {
 					return nil
 				}
@@ -261,7 +262,7 @@ func forwardClientStream(ctx context.Context, stream pb.RouterClientService_Tunn
 	}
 }
 
-func forwardAgentStream(ctx context.Context, stream pb.RouterAgentService_RegisterTunnelServer, pipe *SessionPipe, timeout time.Duration, logger *slog.Logger) error {
+func forwardAgentStream(ctx context.Context, stream pb.RouterAgentService_RegisterTunnelServer, pipe *SessionPipe, logger *slog.Logger) error {
 	for {
 		resp, err := stream.Recv()
 		if err == io.EOF {
@@ -276,11 +277,8 @@ func forwardAgentStream(ctx context.Context, stream pb.RouterAgentService_Regist
 
 		switch msg := resp.Message.(type) {
 		case *pb.TunnelResponse_Data:
-			payload := msg.Data.GetPayload()
-			if payload == nil {
-				payload = []byte{}
-			}
-			if err := pipe.Send(ctx, timeout, &SessionMessage{Data: payload}); err != nil {
+			payload := payloadOrEmpty(msg.Data)
+			if err := pipe.Send(ctx, &SessionMessage{Data: payload}); err != nil {
 				if isContextErr(err) {
 					return nil
 				}

@@ -30,9 +30,7 @@ import (
 
 func TestSessionStore_CreateSession(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}, nil)
 
 	session, existed, err := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
@@ -65,9 +63,7 @@ func TestSessionStore_CreateSession(t *testing.T) {
 
 func TestSessionStore_RendezvousTimeout(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout:  100 * time.Millisecond,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 100 * time.Millisecond,
 	}, nil)
 
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
@@ -86,9 +82,7 @@ func TestSessionStore_RendezvousTimeout(t *testing.T) {
 
 func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout:  5 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 5 * time.Second,
 	}, nil)
 
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
@@ -116,39 +110,9 @@ func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
 	}
 }
 
-func TestSessionStore_FlowControl(t *testing.T) {
-	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  2, // Small buffer for testing
-		FlowControlTimeout: 100 * time.Millisecond,
-	}, nil)
-
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
-	ctx := context.Background()
-
-	for i := 0; i < 2; i++ {
-		msg := &SessionMessage{Data: []byte("data")}
-		if err := session.ClientToAgent.Send(ctx, store.config.FlowControlTimeout, msg); err != nil {
-			t.Errorf("Send %d failed: %v", i, err)
-		}
-	}
-
-	msg := &SessionMessage{Data: []byte("data")}
-	err := session.ClientToAgent.Send(ctx, store.config.FlowControlTimeout, msg)
-	if err == nil {
-		t.Error("Expected flow control timeout")
-	}
-
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("Expected context deadline exceeded, got %v", err)
-	}
-}
-
 func TestSessionStore_ActiveCount(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}, nil)
 
 	if count := store.ActiveCount(); count != 0 {
@@ -173,9 +137,7 @@ func TestSessionStore_ActiveCount(t *testing.T) {
 
 func TestSessionStore_DeleteNonExistent(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -195,9 +157,7 @@ func TestSessionStore_DeleteNonExistent(t *testing.T) {
 
 func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  2 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 2 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -229,9 +189,7 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 
 func TestSessionStore_ReceiveWithContext(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -240,7 +198,7 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 	// Send data
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		_ = session.ClientToAgent.Send(context.Background(), store.config.FlowControlTimeout, &SessionMessage{Data: []byte("test data")})
+		_ = session.ClientToAgent.Send(context.Background(), &SessionMessage{Data: []byte("test data")})
 	}()
 
 	ctx := context.Background()
@@ -255,9 +213,7 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 
 func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -274,9 +230,7 @@ func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 
 func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -292,37 +246,9 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	}
 }
 
-func TestSessionStore_SendReceiveWithFlowControl(t *testing.T) {
-	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
-	}
-	store := NewSessionStore(config, nil)
-
-	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
-
-	ctx := context.Background()
-	msg := &SessionMessage{Data: []byte("test-data")}
-	err := session.ClientToAgent.Send(ctx, store.config.FlowControlTimeout, msg)
-	if err != nil {
-		t.Errorf("Send failed: %v", err)
-	}
-
-	receivedMsg, err := session.ClientToAgent.Receive(ctx)
-	if err != nil {
-		t.Fatalf("Receive failed: %v", err)
-	}
-	if string(receivedMsg.Data) != "test-data" {
-		t.Errorf("Expected 'test-data', got '%s'", string(receivedMsg.Data))
-	}
-}
-
 func TestSessionStore_ConcurrentOperations(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -362,9 +288,7 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 // This simulates a client that connects, starts waiting for agent, then context is cancelled (connection dies)
 func TestSessionStore_RendezvousContextCancellation(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -407,9 +331,7 @@ func TestSessionStore_RendezvousContextCancellation(t *testing.T) {
 // This verifies the atomic deletion flag prevents race conditions
 func TestSessionStore_DoubleDeleteRace(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -445,9 +367,7 @@ func TestSessionStore_DoubleDeleteRace(t *testing.T) {
 // This is important for cleanup signaling
 func TestSessionStore_SessionDoneChannelClose(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 60 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -481,9 +401,7 @@ func TestSessionStore_SessionDoneChannelClose(t *testing.T) {
 // This prevents multiple clients from connecting to the same session
 func TestSessionStore_DuplicateClientConnection(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  1 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 1 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
@@ -512,9 +430,7 @@ func TestSessionStore_DuplicateClientConnection(t *testing.T) {
 // This prevents multiple agents from connecting to the same session
 func TestSessionStore_DuplicateAgentConnection(t *testing.T) {
 	config := SessionStoreConfig{
-		RendezvousTimeout:  1 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
+		RendezvousTimeout: 1 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
