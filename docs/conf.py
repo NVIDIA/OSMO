@@ -126,10 +126,6 @@ html_sidebars = {
     "index": [],
 }
 
-# Add custom CSS to hide sidebar and remove vertical bar
-# html_css_files_extra = ['css/root_page.css']
-html_css_files_extra = []
-
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
@@ -152,10 +148,6 @@ html_css_files = [
     'css/versioning.css',
     'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
-
-# Add extra CSS files for root page
-if 'html_css_files_extra' in dir() and html_css_files_extra:
-    html_css_files.extend(html_css_files_extra)
 
 # JavaScript files to include in the HTML output
 # Files are loaded in the order they appear in this list

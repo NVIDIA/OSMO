@@ -15,6 +15,10 @@
 
   SPDX-License-Identifier: Apache-2.0
 
+.. raw:: html
+
+   <link rel="stylesheet" href="_static/css/root_page.css">
+
 ===================
 OSMO Documentation
 ===================
