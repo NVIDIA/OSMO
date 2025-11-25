@@ -41,7 +41,6 @@ const (
 // This allows forwarding data, metadata, and close information
 type SessionMessage struct {
 	Data      []byte // Payload data
-	Metadata  []byte // Serialized metadata (TunnelMetadata proto)
 	CloseInfo []byte // Serialized close information (TunnelClose proto), nil if not a close message
 }
 

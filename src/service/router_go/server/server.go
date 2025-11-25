@@ -151,31 +151,6 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 					}
 					return err
 				}
-			} else if metadata := req.GetMetadata(); metadata != nil {
-				// Forward metadata to agent
-				if resize := metadata.GetResize(); resize != nil {
-					rs.logger.DebugContext(gctx, "client tunnel terminal resize",
-						slog.String("session_key", init.SessionKey),
-						slog.Int("rows", int(resize.Rows)),
-						slog.Int("cols", int(resize.Cols)),
-					)
-				}
-				// Serialize and forward metadata
-				metadataBytes, err := proto.Marshal(metadata)
-				if err != nil {
-					rs.logger.ErrorContext(gctx, "failed to marshal metadata",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					return err
-				}
-				msg := &SessionMessage{Metadata: metadataBytes}
-				if err := rs.store.SendWithFlowControl(gctx, session.ClientToAgent, msg); err != nil {
-					if gctx.Err() != nil {
-						return nil
-					}
-					return err
-				}
 			} else if closeInfo := req.GetClose(); closeInfo != nil {
 				// Client sent explicit close - forward to agent
 				rs.logger.DebugContext(gctx, "client sent close message",
@@ -241,28 +216,6 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 					)
 				}
 				return nil
-			} else if msg.Metadata != nil {
-				// Forward metadata to client
-				var metadata pb.TunnelMetadata
-				if err := proto.Unmarshal(msg.Metadata, &metadata); err != nil {
-					rs.logger.ErrorContext(gctx, "failed to unmarshal metadata",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					continue // Skip invalid metadata
-				}
-				resp := &pb.TunnelResponse{
-					Message: &pb.TunnelResponse_Metadata{
-						Metadata: &metadata,
-					},
-				}
-				if err := stream.Send(resp); err != nil {
-					rs.logger.ErrorContext(gctx, "client tunnel metadata send error",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					return err
-				}
 			} else {
 				// Forward data to client (including empty messages)
 				resp := &pb.TunnelResponse{
@@ -386,23 +339,6 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 					}
 					return err
 				}
-			} else if metadata := resp.GetMetadata(); metadata != nil {
-				// Forward metadata from agent to client
-				metadataBytes, err := proto.Marshal(metadata)
-				if err != nil {
-					rs.logger.ErrorContext(gctx, "failed to marshal agent metadata",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					return err
-				}
-				msg := &SessionMessage{Metadata: metadataBytes}
-				if err := rs.store.SendWithFlowControl(gctx, session.AgentToClient, msg); err != nil {
-					if gctx.Err() != nil {
-						return nil
-					}
-					return err
-				}
 			} else if closeInfo := resp.GetClose(); closeInfo != nil {
 				// Agent sent explicit close - forward to client
 				rs.logger.DebugContext(gctx, "agent sent close message",
@@ -481,28 +417,6 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 					)
 				}
 				return nil
-			} else if msg.Metadata != nil {
-				// Forward metadata to agent
-				var metadata pb.TunnelMetadata
-				if err := proto.Unmarshal(msg.Metadata, &metadata); err != nil {
-					rs.logger.ErrorContext(gctx, "failed to unmarshal metadata for agent",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					continue // Skip invalid metadata
-				}
-				req := &pb.TunnelRequest{
-					Message: &pb.TunnelRequest_Metadata{
-						Metadata: &metadata,
-					},
-				}
-				if err := stream.Send(req); err != nil {
-					rs.logger.ErrorContext(gctx, "agent tunnel metadata send error",
-						slog.String("session_key", init.SessionKey),
-						slog.String("error", err.Error()),
-					)
-					return err
-				}
 			} else {
 				// Forward data to agent (including empty messages)
 				req := &pb.TunnelRequest{
