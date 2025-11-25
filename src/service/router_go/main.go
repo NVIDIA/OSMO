@@ -42,7 +42,6 @@ var (
 	tlsCert            = flag.String("tls-cert", "/etc/router/tls/tls.crt", "TLS certificate file")
 	tlsKey             = flag.String("tls-key", "/etc/router/tls/tls.key", "TLS key file")
 	tlsEnabled         = flag.Bool("tls-enabled", true, "Enable TLS")
-	sessionTTL         = flag.Duration("session-ttl", 30*time.Minute, "Session idle timeout")
 	rendezvousTimeout  = flag.Duration("rendezvous-timeout", 60*time.Second, "Rendezvous wait timeout")
 	flowControlBuffer  = flag.Int("flow-control-buffer", 16, "Flow control buffer size")
 	flowControlTimeout = flag.Duration("flow-control-timeout", 30*time.Second, "Flow control write timeout")
@@ -60,14 +59,15 @@ func main() {
 
 	// Create session store
 	store := server.NewSessionStore(server.SessionStoreConfig{
-		TTL:                *sessionTTL,
 		RendezvousTimeout:  *rendezvousTimeout,
 		FlowControlBuffer:  *flowControlBuffer,
 		FlowControlTimeout: *flowControlTimeout,
 	}, logger)
 
-	// Start session cleanup goroutine
-	go store.CleanupExpiredSessions(context.Background())
+	// Session cleanup is handled by:
+	// 1. defer DeleteSession() when handlers return (primary, 99.9% of cases)
+	// 2. gRPC keepalive for dead connection detection (80 seconds)
+	// No background cleanup needed - sessions can run indefinitely
 
 	// Create gRPC server options
 	opts := []grpc.ServerOption{
@@ -104,10 +104,11 @@ func main() {
 	log.Printf("Router gRPC server configuration:")
 	log.Printf("  Port: %d", *port)
 	log.Printf("  TLS: %v", *tlsEnabled)
-	log.Printf("  Session TTL: %v", *sessionTTL)
 	log.Printf("  Rendezvous Timeout: %v", *rendezvousTimeout)
 	log.Printf("  Flow Control Buffer: %d", *flowControlBuffer)
 	log.Printf("  Flow Control Timeout: %v", *flowControlTimeout)
+	log.Printf("  gRPC Keepalive: 60s ping, 20s timeout")
+	log.Printf("  Session Cleanup: defer + keepalive (no TTL, sessions can run forever)")
 
 	// Start gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))

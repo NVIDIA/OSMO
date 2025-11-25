@@ -47,11 +47,9 @@ func setupTestServer(t *testing.T) (*grpc.Server, *bufconn.Listener) {
 	server := grpc.NewServer()
 
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
-		CleanupInterval:    30 * time.Second,
 	}
 
 	// Use a no-op logger for tests (logs are not asserted)
@@ -2108,12 +2106,8 @@ func TestGetSessionInfo(t *testing.T) {
 				t.Error("Expected positive created_at timestamp")
 			}
 
-			if resp.LastActivity <= 0 {
-				t.Error("Expected positive last_activity timestamp")
-			}
-
-			t.Logf("Session info: active=%v, workflow=%s, created_at=%d, last_activity=%d, type=%v",
-				resp.Active, resp.WorkflowId, resp.CreatedAt, resp.LastActivity, resp.OperationType)
+			t.Logf("Session info: active=%v, workflow=%s, created_at=%d, type=%v",
+				resp.Active, resp.WorkflowId, resp.CreatedAt, resp.OperationType)
 
 			// Wait for client to close
 			for {

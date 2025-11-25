@@ -118,6 +118,5 @@ message SessionInfoResponse {
   bool active = 1;
   string workflow_id = 2;
   int64 created_at = 3;
-  int64 last_activity = 4;
-  OperationType operation_type = 5;
+  OperationType operation_type = 4;
 }

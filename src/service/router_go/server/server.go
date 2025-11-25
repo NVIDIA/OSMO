@@ -433,7 +433,6 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 		Active:        true,
 		WorkflowId:    session.WorkflowID,
 		CreatedAt:     session.CreatedAt.Unix(),
-		LastActivity:  session.LastActivity().Unix(),
 		OperationType: stringToOperationType(session.OperationType),
 	}, nil
 }

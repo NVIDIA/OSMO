@@ -45,10 +45,6 @@ type Session struct {
 	OperationType string // Operation type: exec, portforward, rsync
 	CreatedAt     time.Time
 
-	// lastActivityNanos stores the last activity timestamp as Unix nanoseconds
-	// Use atomic operations to access this field
-	lastActivityNanos atomic.Int64
-
 	// deleted tracks if this session has been deleted (1 = deleted, 0 = active)
 	// Use atomic operations to access this field
 	deleted atomic.Int32
@@ -74,17 +70,6 @@ type Session struct {
 	closeClientReady sync.Once
 	closeAgentReady  sync.Once
 	closeDone        sync.Once
-}
-
-// LastActivity returns the last activity time for this session (thread-safe)
-func (s *Session) LastActivity() time.Time {
-	nanos := s.lastActivityNanos.Load()
-	return time.Unix(0, nanos)
-}
-
-// UpdateLastActivity updates the last activity timestamp (thread-safe)
-func (s *Session) UpdateLastActivity(t time.Time) {
-	s.lastActivityNanos.Store(t.UnixNano())
 }
 
 // CloseClientReady safely closes the ClientReady channel (idempotent)
@@ -117,11 +102,9 @@ type SessionStore struct {
 
 // SessionStoreConfig holds configuration for the session store
 type SessionStoreConfig struct {
-	TTL                time.Duration
 	RendezvousTimeout  time.Duration
 	FlowControlBuffer  int
 	FlowControlTimeout time.Duration
-	CleanupInterval    time.Duration // How often to check for expired sessions (default: 30s)
 }
 
 // SessionStoreOption is a functional option for configuring SessionStore
@@ -133,13 +116,6 @@ func WithLogger(logger *slog.Logger) SessionStoreOption {
 		if logger != nil {
 			s.logger = logger
 		}
-	}
-}
-
-// WithTTL sets the session time-to-live duration
-func WithTTL(ttl time.Duration) SessionStoreOption {
-	return func(s *SessionStore) {
-		s.config.TTL = ttl
 	}
 }
 
@@ -164,13 +140,6 @@ func WithFlowControlTimeout(timeout time.Duration) SessionStoreOption {
 	}
 }
 
-// WithCleanupInterval sets how often expired sessions are cleaned up
-func WithCleanupInterval(interval time.Duration) SessionStoreOption {
-	return func(s *SessionStore) {
-		s.config.CleanupInterval = interval
-	}
-}
-
 // NewSessionStore creates a new session store
 func NewSessionStore(config SessionStoreConfig, logger *slog.Logger) *SessionStore {
 	if logger == nil {
@@ -188,11 +157,9 @@ func NewSessionStoreWithOptions(opts ...SessionStoreOption) *SessionStore {
 	// Set sensible defaults
 	store := &SessionStore{
 		config: SessionStoreConfig{
-			TTL:                5 * time.Minute,
 			RendezvousTimeout:  30 * time.Second,
 			FlowControlBuffer:  100,
 			FlowControlTimeout: 30 * time.Second,
-			CleanupInterval:    30 * time.Second,
 		},
 		logger: slog.Default(),
 	}
@@ -229,7 +196,6 @@ func (s *SessionStore) CreateSession(
 		AgentReady:    make(chan struct{}),
 		Done:          make(chan struct{}),
 	}
-	newSession.UpdateLastActivity(now)
 
 	actual, loaded := s.sessions.LoadOrStore(sessionKey, newSession)
 
@@ -269,14 +235,6 @@ func (s *SessionStore) DeleteSession(sessionKey string) {
 	}
 }
 
-// UpdateActivity updates the last activity timestamp for a session (thread-safe)
-func (s *SessionStore) UpdateActivity(sessionKey string) {
-	if val, ok := s.sessions.Load(sessionKey); ok {
-		session := val.(*Session)
-		session.UpdateLastActivity(time.Now())
-	}
-}
-
 // ActiveCount returns the number of active sessions
 func (s *SessionStore) ActiveCount() int {
 	count := 0
@@ -285,49 +243,6 @@ func (s *SessionStore) ActiveCount() int {
 		return true
 	})
 	return count
-}
-
-// CleanupExpiredSessions periodically removes expired sessions
-func (s *SessionStore) CleanupExpiredSessions(ctx context.Context) {
-	interval := s.config.CleanupInterval
-	if interval == 0 {
-		interval = 30 * time.Second // Default to 30s if not configured
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			now := time.Now()
-
-			// Delete expired sessions inline during iteration
-			// sync.Map.Range allows safe deletion during iteration
-			s.sessions.Range(func(key, value interface{}) bool {
-				// Check if context was canceled
-				select {
-				case <-ctx.Done():
-					return false // Stop iteration
-				default:
-				}
-
-				session := value.(*Session)
-				lastActivity := session.LastActivity()
-				expired := now.Sub(lastActivity) > s.config.TTL
-
-				if expired {
-					sessionKey := key.(string)
-					s.logger.Info("cleaning up expired session",
-						slog.String("session_key", sessionKey),
-					)
-					s.DeleteSession(sessionKey)
-				}
-				return true // Continue iteration
-			})
-		}
-	}
 }
 
 // WaitForRendezvous waits for both client and agent to connect.
@@ -353,19 +268,23 @@ func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, 
 	}
 
 	// Wait for the other party with timeout
-	ctx, cancel := context.WithTimeout(ctx, s.config.RendezvousTimeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, s.config.RendezvousTimeout)
 	defer cancel()
 
 	if isClient {
 		select {
 		case <-session.AgentReady:
 			return nil
-		case <-ctx.Done():
-			// Final non-blocking check before returning timeout error
+		case <-timeoutCtx.Done():
+			// Final non-blocking check before returning error
 			select {
 			case <-session.AgentReady:
 				return nil // Agent arrived just in time
 			default:
+				// Check if parent context was cancelled or if timeout occurred
+				if ctx.Err() != nil {
+					return status.Error(codes.Canceled, "context cancelled")
+				}
 				return status.Error(codes.DeadlineExceeded, "rendezvous timeout: agent did not connect")
 			}
 		case <-session.Done:
@@ -375,12 +294,16 @@ func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, 
 		select {
 		case <-session.ClientReady:
 			return nil
-		case <-ctx.Done():
-			// Final non-blocking check before returning timeout error
+		case <-timeoutCtx.Done():
+			// Final non-blocking check before returning error
 			select {
 			case <-session.ClientReady:
 				return nil // Client arrived just in time
 			default:
+				// Check if parent context was cancelled or if timeout occurred
+				if ctx.Err() != nil {
+					return status.Error(codes.Canceled, "context cancelled")
+				}
 				return status.Error(codes.DeadlineExceeded, "rendezvous timeout: client did not connect")
 			}
 		case <-session.Done:
@@ -392,8 +315,6 @@ func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, 
 // SendWithFlowControl sends data with flow control and timeout to prevent unbounded buffering.
 // Returns an error if the send times out or the context is canceled.
 func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan []byte, data []byte, sessionKey string) (err error) {
-	s.UpdateActivity(sessionKey)
-
 	ctx, cancel := context.WithTimeout(ctx, s.config.FlowControlTimeout)
 	defer cancel()
 
@@ -407,8 +328,6 @@ func (s *SessionStore) SendWithFlowControl(ctx context.Context, ch chan []byte, 
 
 // ReceiveWithContext receives data with context cancellation support
 func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan []byte, sessionKey string) (data []byte, err error) {
-	s.UpdateActivity(sessionKey)
-
 	select {
 	case data, ok := <-ch:
 		if !ok {
@@ -422,13 +341,11 @@ func (s *SessionStore) ReceiveWithContext(ctx context.Context, ch chan []byte, s
 
 // FormatSessionStats returns formatted statistics for a session (thread-safe)
 func (session *Session) FormatSessionStats() string {
-	lastActivity := session.LastActivity()
 	return fmt.Sprintf(
-		"Session{key=%s, workflow=%s, op=%s, age=%v, idle=%v}",
+		"Session{key=%s, workflow=%s, op=%s, age=%v}",
 		session.Key,
 		session.WorkflowID,
 		session.OperationType,
 		time.Since(session.CreatedAt),
-		time.Since(lastActivity),
 	)
 }

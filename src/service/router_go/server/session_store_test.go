@@ -29,7 +29,6 @@ import (
 
 func TestSessionStore_CreateSession(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		TTL:                30 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -65,7 +64,6 @@ func TestSessionStore_CreateSession(t *testing.T) {
 
 func TestSessionStore_RendezvousTimeout(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		TTL:                30 * time.Minute,
 		RendezvousTimeout:  100 * time.Millisecond,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -87,7 +85,6 @@ func TestSessionStore_RendezvousTimeout(t *testing.T) {
 
 func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		TTL:                30 * time.Minute,
 		RendezvousTimeout:  5 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -120,7 +117,6 @@ func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
 
 func TestSessionStore_FlowControl(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		TTL:                30 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  2, // Small buffer for testing
 		FlowControlTimeout: 100 * time.Millisecond,
@@ -149,7 +145,6 @@ func TestSessionStore_FlowControl(t *testing.T) {
 
 func TestSessionStore_ActiveCount(t *testing.T) {
 	store := NewSessionStore(SessionStoreConfig{
-		TTL:                30 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -177,7 +172,6 @@ func TestSessionStore_ActiveCount(t *testing.T) {
 
 func TestSessionStore_DeleteNonExistent(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -200,7 +194,6 @@ func TestSessionStore_DeleteNonExistent(t *testing.T) {
 
 func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  2 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -235,7 +228,6 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 
 func TestSessionStore_ReceiveWithContext(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -263,7 +255,6 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 
 func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -285,7 +276,6 @@ func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 
 func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -305,9 +295,8 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 	}
 }
 
-func TestSessionStore_LastActivityUpdate(t *testing.T) {
+func TestSessionStore_SendReceiveWithFlowControl(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -316,24 +305,22 @@ func TestSessionStore_LastActivityUpdate(t *testing.T) {
 
 	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", "exec")
 
-	initialActivity := session.LastActivity()
-	time.Sleep(100 * time.Millisecond)
-
-	// Send should update last activity
+	// Test send with flow control
 	ctx := context.Background()
-	store.SendWithFlowControl(ctx, session.ClientToAgent, []byte("data"), "test-key")
+	err := store.SendWithFlowControl(ctx, session.ClientToAgent, []byte("test-data"), "test-key")
+	if err != nil {
+		t.Errorf("SendWithFlowControl failed: %v", err)
+	}
 
 	// Drain the channel
-	<-session.ClientToAgent
-
-	if !session.LastActivity().After(initialActivity) {
-		t.Error("LastActivity was not updated after send")
+	data := <-session.ClientToAgent
+	if string(data) != "test-data" {
+		t.Errorf("Expected 'test-data', got '%s'", string(data))
 	}
 }
 
 func TestSessionStore_ConcurrentOperations(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                5 * time.Minute,
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
@@ -372,127 +359,183 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 	}
 }
 
-func TestSessionStore_CleanupExpiredSessions(t *testing.T) {
+// TestSessionStore_RendezvousContextCancellation tests CASE 4: Client crashes during rendezvous wait
+// This simulates a client that connects, starts waiting for agent, then context is cancelled (connection dies)
+func TestSessionStore_RendezvousContextCancellation(t *testing.T) {
 	config := SessionStoreConfig{
-		TTL:                500 * time.Millisecond, // Short TTL for testing
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
-		CleanupInterval:    200 * time.Millisecond, // Fast cleanup for testing
-	}
-	store := NewSessionStore(config, nil)
-
-	// Create some sessions
-	store.CreateSession("session-1", "cookie", "workflow-1", OperationExec)
-	store.CreateSession("session-2", "cookie", "workflow-2", OperationExec)
-	store.CreateSession("session-3", "cookie", "workflow-3", OperationExec)
-
-	if count := store.ActiveCount(); count != 3 {
-		t.Fatalf("Expected 3 sessions, got %d", count)
-	}
-
-	// Start cleanup loop
-	ctx := t.Context()
-
-	go store.CleanupExpiredSessions(ctx)
-
-	// Wait for sessions to expire (TTL 500ms) + cleanup interval (200ms) + buffer
-	time.Sleep(900 * time.Millisecond)
-
-	// All sessions should be cleaned up
-	if count := store.ActiveCount(); count != 0 {
-		t.Errorf("Expected 0 sessions after cleanup, got %d", count)
-	}
-}
-
-func TestSessionStore_CleanupPreservesActiveSessions(t *testing.T) {
-	config := SessionStoreConfig{
-		TTL:                600 * time.Millisecond,
-		RendezvousTimeout:  60 * time.Second,
-		FlowControlBuffer:  16,
-		FlowControlTimeout: 30 * time.Second,
-		CleanupInterval:    200 * time.Millisecond, // Fast cleanup for testing
-	}
-	store := NewSessionStore(config, nil)
-
-	// Create sessions
-	store.CreateSession("session-1", "cookie", "workflow-1", OperationExec)
-	store.CreateSession("session-2", "cookie", "workflow-2", OperationExec)
-
-	// Start cleanup loop
-	ctx := t.Context()
-
-	go store.CleanupExpiredSessions(ctx)
-
-	// Keep updating activity for session-1
-	stopKeepAlive := make(chan bool)
-	go func() {
-		ticker := time.NewTicker(200 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-stopKeepAlive:
-				return
-			case <-ticker.C:
-				store.UpdateActivity("session-1")
-			}
-		}
-	}()
-
-	// Wait longer than TTL for session-2 to expire, but session-1 stays active
-	time.Sleep(1 * time.Second)
-	close(stopKeepAlive)
-
-	// session-1 should still exist (active), session-2 should be gone (expired)
-	_, err1 := store.GetSession("session-1")
-	_, err2 := store.GetSession("session-2")
-
-	if err1 != nil {
-		t.Error("session-1 should still exist (was kept active)")
-	}
-
-	if err2 == nil {
-		t.Error("session-2 should be cleaned up (expired)")
-	} else if status.Code(err2) != codes.NotFound {
-		t.Errorf("Expected NotFound for session-2, got %v", status.Code(err2))
-	}
-}
-
-func TestSessionStore_CleanupContextCancellation(t *testing.T) {
-	config := SessionStoreConfig{
-		TTL:                1 * time.Hour, // Long TTL so cleanup doesn't naturally occur
 		RendezvousTimeout:  60 * time.Second,
 		FlowControlBuffer:  16,
 		FlowControlTimeout: 30 * time.Second,
 	}
 	store := NewSessionStore(config, nil)
 
-	// Create a session
-	store.CreateSession("session-1", "cookie", "workflow-1", OperationExec)
+	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
 
-	// Start cleanup loop
+	// Create a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())
 
-	done := make(chan bool)
+	// Start waiting for rendezvous
+	errChan := make(chan error, 1)
 	go func() {
-		store.CleanupExpiredSessions(ctx)
-		done <- true
+		errChan <- store.WaitForRendezvous(ctx, session, true)
 	}()
 
-	// Cancel context after a short delay
+	// Cancel context after short delay (simulates connection drop)
 	time.Sleep(100 * time.Millisecond)
 	cancel()
 
-	// Cleanup should exit promptly
-	select {
-	case <-done:
-		// Success - cleanup loop exited
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("Cleanup loop did not exit after context cancellation")
+	// Should return context cancelled error
+	err := <-errChan
+	if err == nil {
+		t.Error("Expected error when context cancelled")
 	}
 
-	// Session should still exist (wasn't expired)
-	if count := store.ActiveCount(); count != 1 {
-		t.Errorf("Expected 1 session after cleanup cancellation, got %d", count)
+	if status.Code(err) != codes.Canceled {
+		t.Errorf("Expected Canceled error, got %v (error: %v)", status.Code(err), err)
+	}
+
+	// In real code, defer DeleteSession() would execute here
+	store.DeleteSession("test-key")
+
+	// Verify session is gone
+	_, err = store.GetSession("test-key")
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("Expected session to be deleted, got %v", err)
+	}
+}
+
+// TestSessionStore_DoubleDeleteRace tests CASE 8: Both client and agent try to delete simultaneously
+// This verifies the atomic deletion flag prevents race conditions
+func TestSessionStore_DoubleDeleteRace(t *testing.T) {
+	config := SessionStoreConfig{
+		RendezvousTimeout:  60 * time.Second,
+		FlowControlBuffer:  16,
+		FlowControlTimeout: 30 * time.Second,
+	}
+	store := NewSessionStore(config, nil)
+
+	// Run many iterations to increase chance of race
+	for iteration := range 100 {
+		sessionKey := "race-test-" + string(rune('a'+iteration%26)) + string(rune('0'+iteration/26))
+		store.CreateSession(sessionKey, "cookie", "workflow", OperationExec)
+
+		// Simulate both client and agent trying to delete simultaneously
+		done := make(chan bool, 2)
+		go func() {
+			store.DeleteSession(sessionKey)
+			done <- true
+		}()
+		go func() {
+			store.DeleteSession(sessionKey)
+			done <- true
+		}()
+
+		// Wait for both to complete
+		<-done
+		<-done
+
+		// Verify session is gone (and no panic occurred)
+		_, err := store.GetSession(sessionKey)
+		if err == nil {
+			t.Errorf("Session %s should be deleted", sessionKey)
+		}
+	}
+}
+
+// TestSessionStore_SessionDoneChannelClose tests that Done channel closes properly on deletion
+// This is important for cleanup signaling
+func TestSessionStore_SessionDoneChannelClose(t *testing.T) {
+	config := SessionStoreConfig{
+		RendezvousTimeout:  60 * time.Second,
+		FlowControlBuffer:  16,
+		FlowControlTimeout: 30 * time.Second,
+	}
+	store := NewSessionStore(config, nil)
+
+	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
+
+	// Verify Done channel is open
+	select {
+	case <-session.Done:
+		t.Error("Done channel should not be closed yet")
+	default:
+		// Good - channel is open
+	}
+
+	// Delete session
+	store.DeleteSession("test-key")
+
+	// Verify Done channel is closed
+	select {
+	case <-session.Done:
+		// Good - channel is closed
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Done channel should be closed after deletion")
+	}
+
+	// Multiple deletes should be safe (idempotent)
+	store.DeleteSession("test-key")
+	store.DeleteSession("test-key")
+}
+
+// TestSessionStore_DuplicateClientConnection tests that only one client can connect
+// This prevents multiple clients from connecting to the same session
+func TestSessionStore_DuplicateClientConnection(t *testing.T) {
+	config := SessionStoreConfig{
+		RendezvousTimeout:  1 * time.Second,
+		FlowControlBuffer:  16,
+		FlowControlTimeout: 30 * time.Second,
+	}
+	store := NewSessionStore(config, nil)
+
+	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
+
+	ctx := context.Background()
+
+	// First client connects
+	err1 := store.WaitForRendezvous(ctx, session, true)
+	if err1 != nil && status.Code(err1) != codes.DeadlineExceeded {
+		// It's ok if it times out waiting for agent
+		t.Logf("First client got: %v", err1)
+	}
+
+	// Second client tries to connect - should fail with AlreadyExists
+	err2 := store.WaitForRendezvous(ctx, session, true)
+	if err2 == nil {
+		t.Error("Expected error for duplicate client connection")
+	}
+	if status.Code(err2) != codes.AlreadyExists {
+		t.Errorf("Expected AlreadyExists for duplicate client, got %v", status.Code(err2))
+	}
+}
+
+// TestSessionStore_DuplicateAgentConnection tests that only one agent can connect
+// This prevents multiple agents from connecting to the same session
+func TestSessionStore_DuplicateAgentConnection(t *testing.T) {
+	config := SessionStoreConfig{
+		RendezvousTimeout:  1 * time.Second,
+		FlowControlBuffer:  16,
+		FlowControlTimeout: 30 * time.Second,
+	}
+	store := NewSessionStore(config, nil)
+
+	session, _, _ := store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
+
+	ctx := context.Background()
+
+	// First agent connects
+	err1 := store.WaitForRendezvous(ctx, session, false)
+	if err1 != nil && status.Code(err1) != codes.DeadlineExceeded {
+		// It's ok if it times out waiting for client
+		t.Logf("First agent got: %v", err1)
+	}
+
+	// Second agent tries to connect - should fail with AlreadyExists
+	err2 := store.WaitForRendezvous(ctx, session, false)
+	if err2 == nil {
+		t.Error("Expected error for duplicate agent connection")
+	}
+	if status.Code(err2) != codes.AlreadyExists {
+		t.Errorf("Expected AlreadyExists for duplicate agent, got %v", status.Code(err2))
 	}
 }
