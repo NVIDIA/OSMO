@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -81,8 +82,8 @@ func setupTestServer(t *testing.T, opts ...testServerOption) (*grpc.Server, *buf
 	RegisterRouterServices(server, rs)
 
 	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Logf("Server exited with error: %v", err)
+		if err := server.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			logger.Warn("test server exited", slog.String("error", err.Error()))
 		}
 	}()
 
@@ -162,26 +163,21 @@ func newSessionIDs(label string) sessionIDs {
 	}
 }
 
-func sendClientInit(t *testing.T, stream pb.RouterClientService_TunnelClient, init *pb.TunnelInit) {
-	t.Helper()
-	if err := stream.Send(&pb.TunnelRequest{
+func sendClientInit(stream pb.RouterClientService_TunnelClient, init *pb.TunnelInit) error {
+	return stream.Send(&pb.TunnelRequest{
 		Message: &pb.TunnelRequest_Init{Init: init},
-	}); err != nil {
-		t.Fatalf("failed to send client init: %v", err)
-	}
+	})
 }
 
-func sendAgentInit(t *testing.T, stream pb.RouterAgentService_RegisterTunnelClient, init *pb.TunnelInit) {
-	t.Helper()
-	if err := stream.Send(&pb.TunnelResponse{
+func sendAgentInit(stream pb.RouterAgentService_RegisterTunnelClient, init *pb.TunnelInit) error {
+	return stream.Send(&pb.TunnelResponse{
 		Message: &pb.TunnelResponse_Init{Init: init},
-	}); err != nil {
-		t.Fatalf("failed to send agent init: %v", err)
-	}
+	})
 }
 
 // TestMinimalExecFlow is a focused test with strict 2s timeout to quickly reproduce the close message issue
 func TestMinimalExecFlow(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	// Strict 2 second timeout - fail fast!
@@ -206,13 +202,15 @@ func TestMinimalExecFlow(t *testing.T) {
 			return
 		}
 
-		sendClientInit(t, stream, &pb.TunnelInit{
+		if err := sendClientInit(stream, &pb.TunnelInit{
 			SessionKey: sessionKey,
 			Cookie:     cookie,
 			WorkflowId: workflowID,
 			Operation:  pb.OperationType_OPERATION_EXEC,
-		})
-		t.Log("CLIENT: Sent init")
+		}); err != nil {
+			clientDone <- err
+			return
+		}
 
 		// Send data
 		if err := stream.Send(&pb.TunnelRequest{
@@ -223,7 +221,6 @@ func TestMinimalExecFlow(t *testing.T) {
 			clientDone <- err
 			return
 		}
-		t.Log("CLIENT: Sent data")
 
 		// Receive response
 		resp, err := stream.Recv()
@@ -231,8 +228,9 @@ func TestMinimalExecFlow(t *testing.T) {
 			clientDone <- err
 			return
 		}
-		if data := resp.GetData(); data != nil {
-			t.Logf("CLIENT: Received: %s", string(data.Payload))
+		if resp.GetData() == nil {
+			clientDone <- fmt.Errorf("expected response data from agent")
+			return
 		}
 
 		// Send close
@@ -242,14 +240,12 @@ func TestMinimalExecFlow(t *testing.T) {
 			clientDone <- err
 			return
 		}
-		t.Log("CLIENT: Sent close")
 
 		// Close send
 		if err := stream.CloseSend(); err != nil {
 			clientDone <- err
 			return
 		}
-		t.Log("CLIENT: Done")
 		clientDone <- nil
 	}()
 
@@ -263,13 +259,15 @@ func TestMinimalExecFlow(t *testing.T) {
 			return
 		}
 
-		sendAgentInit(t, stream, &pb.TunnelInit{
+		if err := sendAgentInit(stream, &pb.TunnelInit{
 			SessionKey: sessionKey,
 			Cookie:     cookie,
 			WorkflowId: workflowID,
 			Operation:  pb.OperationType_OPERATION_EXEC,
-		})
-		t.Log("AGENT: Sent init")
+		}); err != nil {
+			agentDone <- err
+			return
+		}
 
 		// Receive data
 		req, err := stream.Recv()
@@ -277,10 +275,10 @@ func TestMinimalExecFlow(t *testing.T) {
 			agentDone <- err
 			return
 		}
-		if data := req.GetData(); data != nil {
-			t.Logf("AGENT: Received: %s", string(data.Payload))
+		if req.GetData() == nil {
+			agentDone <- fmt.Errorf("expected data from client")
+			return
 		}
-
 		// Send response
 		if err := stream.Send(&pb.TunnelResponse{
 			Message: &pb.TunnelResponse_Data{
@@ -290,29 +288,19 @@ func TestMinimalExecFlow(t *testing.T) {
 			agentDone <- err
 			return
 		}
-		t.Log("AGENT: Sent response")
 
 		// THIS IS THE KEY TEST - wait for close from client
-		// The server should forward the close message from client to agent
-		t.Log("AGENT: Waiting for close message (THIS SHOULD NOT TIMEOUT)...")
 		req, err = stream.Recv()
 		if err == io.EOF {
-			t.Log("AGENT: Got EOF")
 			agentDone <- nil
 			return
 		}
 		if err != nil {
-			t.Logf("AGENT: Recv error: %v", err)
 			agentDone <- err
 			return
 		}
 
-		if req.GetClose() != nil {
-			t.Log("AGENT: Got close message - SUCCESS!")
-		}
-
 		stream.CloseSend()
-		t.Log("AGENT: Done")
 		agentDone <- nil
 	}()
 
@@ -322,7 +310,6 @@ func TestMinimalExecFlow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Client error: %v", err)
 		}
-		t.Log("TEST: Client completed")
 	case <-ctx.Done():
 		t.Fatal("TEST: Client timed out!")
 	}
@@ -332,16 +319,14 @@ func TestMinimalExecFlow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Agent error: %v", err)
 		}
-		t.Log("TEST: Agent completed")
 	case <-ctx.Done():
 		t.Fatal("TEST: Agent timed out - BUG: Close message not forwarded to agent!")
 	}
-
-	t.Log("TEST: SUCCESS - Both client and agent completed within 2 seconds")
 }
 
 // TestExecRoundTrip tests basic exec data flow: client -> router -> agent -> router -> client
 func TestExecRoundTrip(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 10*time.Second)
@@ -414,7 +399,8 @@ func TestExecRoundTrip(t *testing.T) {
 		}
 
 		if string(data.Payload) != "hello world from agent" {
-			t.Errorf("Expected 'hello world from agent', got '%s'", string(data.Payload))
+			clientErrors <- fmt.Errorf("expected 'hello world from agent', got '%s'", string(data.Payload))
+			return
 		}
 
 		// Send close message
@@ -495,7 +481,8 @@ func TestExecRoundTrip(t *testing.T) {
 		}
 
 		if string(data.Payload) != "echo hello world" {
-			t.Errorf("Agent expected 'echo hello world', got '%s'", string(data.Payload))
+			agentErrors <- fmt.Errorf("expected 'echo hello world', got '%s'", string(data.Payload))
+			return
 		}
 
 		// Send response back
@@ -573,6 +560,7 @@ func TestExecRoundTrip(t *testing.T) {
 
 // TestRendezvousTimeout tests that rendezvous times out if one party never connects
 func TestRendezvousTimeout(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 5*time.Second)
@@ -604,12 +592,11 @@ func TestRendezvousTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected timeout error, got nil")
 	}
-
-	t.Logf("Got expected error: %v", err)
 }
 
 // TestPortForwardRoundTrip tests port-forward TCP data flow
 func TestPortForwardRoundTrip(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 10*time.Second)
@@ -683,8 +670,6 @@ func TestPortForwardRoundTrip(t *testing.T) {
 			return
 		}
 
-		t.Logf("Client received: %s", string(data.Payload))
-
 		// Proper close: send close message and wait for agent acknowledgment
 		clientStream.Send(&pb.TunnelRequest{
 			Message: &pb.TunnelRequest_Close{
@@ -694,8 +679,9 @@ func TestPortForwardRoundTrip(t *testing.T) {
 
 		// Wait for agent close or EOF
 		_, err = clientStream.Recv()
-		if err != io.EOF && err != nil {
-			t.Logf("Client final recv: %v", err)
+		if err != nil && err != io.EOF && !strings.Contains(err.Error(), "context canceled") {
+			clientErrors <- err
+			return
 		}
 
 		clientStream.CloseSend()
@@ -742,8 +728,6 @@ func TestPortForwardRoundTrip(t *testing.T) {
 			agentErrors <- io.ErrUnexpectedEOF
 			return
 		}
-
-		t.Logf("Agent received: %s", string(data.Payload))
 
 		// Send HTTP response
 		httpResponse := []byte("HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!")
@@ -806,6 +790,7 @@ func TestPortForwardRoundTrip(t *testing.T) {
 
 // TestConcurrentSessions tests multiple concurrent exec sessions
 func TestConcurrentSessions(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 30*time.Second)
@@ -960,6 +945,7 @@ func TestConcurrentSessions(t *testing.T) {
 
 // TestExecDataDriven tests various exec scenarios with different message patterns
 func TestExecDataDriven(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name           string
 		clientMessages [][]byte
@@ -1020,7 +1006,9 @@ func TestExecDataDriven(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			env := newRouterTestEnv(t)
 
 			ctx, cancel := newTestContext(t, 30*time.Second)
@@ -1204,6 +1192,7 @@ func TestExecDataDriven(t *testing.T) {
 
 // TestErrorScenarios tests various error conditions
 func TestErrorScenarios(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		setupFunc     func(*testing.T, *routerTestEnv) error
@@ -1296,7 +1285,9 @@ func TestErrorScenarios(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			env := newRouterTestEnv(t)
 
 			err := tc.setupFunc(t, env)
@@ -1321,6 +1312,7 @@ func TestErrorScenarios(t *testing.T) {
 
 // TestSessionIsolation tests that sessions don't interfere with each other
 func TestSessionIsolation(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 10*time.Second)
@@ -1458,6 +1450,7 @@ func TestSessionIsolation(t *testing.T) {
 
 // TestRsyncRoundTrip tests rsync operation data flow
 func TestRsyncRoundTrip(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 10*time.Second)
@@ -1523,9 +1516,9 @@ func TestRsyncRoundTrip(t *testing.T) {
 			clientErrors <- err
 			return
 		}
-
-		if data := resp.GetData(); data != nil {
-			t.Logf("Client received rsync ack: %d bytes", len(data.Payload))
+		if resp.GetData() == nil {
+			clientErrors <- fmt.Errorf("expected rsync acknowledgment data")
+			return
 		}
 
 		// Send close
@@ -1601,7 +1594,6 @@ func TestRsyncRoundTrip(t *testing.T) {
 		}
 
 		if data := req.GetData(); data != nil {
-			t.Logf("Agent received rsync data: %d bytes", len(data.Payload))
 			if string(data.Payload) != "rsync-file-content-chunk-1" {
 				agentErrors <- fmt.Errorf("expected 'rsync-file-content-chunk-1', got '%s'", string(data.Payload))
 				return
@@ -1637,7 +1629,6 @@ func TestRsyncRoundTrip(t *testing.T) {
 		}
 
 		if req.GetClose() != nil {
-			t.Log("Agent received close message")
 			stream.Send(&pb.TunnelResponse{
 				Message: &pb.TunnelResponse_Close{
 					Close: &pb.TunnelClose{Success: true},
@@ -1671,6 +1662,7 @@ func TestRsyncRoundTrip(t *testing.T) {
 
 // TestRsyncDataDriven tests various rsync scenarios
 func TestRsyncDataDriven(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		direction string
@@ -1704,7 +1696,9 @@ func TestRsyncDataDriven(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			env := newRouterTestEnv(t)
 
 			ctx, cancel := newTestContext(t, 30*time.Second)
@@ -1856,6 +1850,7 @@ func TestRsyncDataDriven(t *testing.T) {
 
 // TestGetSessionInfo tests the GetSessionInfo RPC
 func TestGetSessionInfo(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 10*time.Second)
@@ -1973,9 +1968,6 @@ func TestGetSessionInfo(t *testing.T) {
 				t.Error("Expected positive created_at timestamp")
 			}
 
-			t.Logf("Session info: active=%v, workflow=%s, created_at=%d, type=%v",
-				resp.Active, resp.WorkflowId, resp.CreatedAt, resp.OperationType)
-
 			// Wait for client to close
 			for {
 				_, err := stream.Recv()
@@ -1992,6 +1984,7 @@ func TestGetSessionInfo(t *testing.T) {
 
 // TestPortForwardDataDriven tests various port forward scenarios
 func TestPortForwardDataDriven(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		clientToAgent [][]byte // Data client sends
@@ -2204,6 +2197,7 @@ func TestPortForwardDataDriven(t *testing.T) {
 // TestDeadlockOnSimultaneousDisconnect tests that both client and agent can disconnect
 // simultaneously without causing a deadlock in the goroutine coordination.
 func TestDeadlockOnSimultaneousDisconnect(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	// Very short timeout - if there's a deadlock, this will fail quickly
@@ -2310,29 +2304,22 @@ func TestDeadlockOnSimultaneousDisconnect(t *testing.T) {
 
 	// Wait for both to complete - should not deadlock
 	select {
-	case err := <-clientDone:
-		if err != nil {
-			t.Logf("Client error (may be expected): %v", err)
-		}
+	case <-clientDone:
 	case <-ctx.Done():
 		t.Fatal("Client deadlocked - did not complete within timeout")
 	}
 
 	select {
-	case err := <-agentDone:
-		if err != nil {
-			t.Logf("Agent error (may be expected): %v", err)
-		}
+	case <-agentDone:
 	case <-ctx.Done():
 		t.Fatal("Agent deadlocked - did not complete within timeout")
 	}
-
-	t.Log("SUCCESS: No deadlock on simultaneous disconnect")
 }
 
 // TestCloseMessageNotPropagated tests that when a client sends a Close message,
 // it should be forwarded to the agent (not just closing the channel).
 func TestCloseMessageNotPropagated(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 3*time.Second)
@@ -2471,7 +2458,6 @@ func TestCloseMessageNotPropagated(t *testing.T) {
 		if !received {
 			t.Fatal("BUG: Agent received EOF instead of explicit Close message")
 		}
-		t.Log("SUCCESS: Agent received explicit Close message")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Agent did not receive Close message or EOF")
 	}
@@ -2480,6 +2466,7 @@ func TestCloseMessageNotPropagated(t *testing.T) {
 // TestBufferChannelDeadlock tests that when buffer channels fill up and one side
 // closes, the system doesn't deadlock due to goroutines blocked on full channels.
 func TestBufferChannelDeadlock(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 5*time.Second)
@@ -2573,29 +2560,22 @@ func TestBufferChannelDeadlock(t *testing.T) {
 
 	// Both should complete without deadlock
 	select {
-	case err := <-clientDone:
-		if err != nil {
-			t.Logf("Client error (may be expected): %v", err)
-		}
+	case <-clientDone:
 	case <-ctx.Done():
 		t.Fatal("Client deadlocked with full buffers")
 	}
 
 	select {
-	case err := <-agentDone:
-		if err != nil {
-			t.Logf("Agent error (may be expected): %v", err)
-		}
+	case <-agentDone:
 	case <-ctx.Done():
 		t.Fatal("Agent deadlocked with full buffers")
 	}
-
-	t.Log("SUCCESS: No deadlock with full buffers")
 }
 
 // TestDoubleSessionDeletion tests that when both client and agent disconnect
 // simultaneously, the double deletion doesn't cause a panic.
 func TestDoubleSessionDeletion(t *testing.T) {
+	t.Parallel()
 	env := newRouterTestEnv(t)
 
 	ctx, cancel := newTestContext(t, 3*time.Second)
@@ -2671,5 +2651,4 @@ func TestDoubleSessionDeletion(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	t.Log("SUCCESS: No panic from double deletion")
 }

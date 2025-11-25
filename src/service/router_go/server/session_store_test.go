@@ -80,6 +80,7 @@ func requireCode(t *testing.T, err error, code codes.Code) {
 }
 
 func TestSessionStore_CreateSession(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, defaultTestTimeout)
 
 	session, existed, err := store.CreateSession("test-key", "test-cookie", "workflow-123", OperationExec)
@@ -107,6 +108,7 @@ func TestSessionStore_CreateSession(t *testing.T) {
 }
 
 func TestSessionStore_RendezvousTimeout(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 100*time.Millisecond)
 	session := createSession(t, store, "timeout")
 
@@ -116,6 +118,7 @@ func TestSessionStore_RendezvousTimeout(t *testing.T) {
 }
 
 func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 5*time.Second)
 	session := createSession(t, store, "success")
 
@@ -130,6 +133,7 @@ func TestSessionStore_SuccessfulRendezvous(t *testing.T) {
 // Additional comprehensive tests
 
 func TestSessionStore_DeleteNonExistent(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 
 	store.CreateSession("test-key", "test-cookie", "test-workflow", OperationExec)
@@ -140,6 +144,7 @@ func TestSessionStore_DeleteNonExistent(t *testing.T) {
 }
 
 func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 2*time.Second)
 	session := createSession(t, store, "agent-first")
 
@@ -152,6 +157,7 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 }
 
 func TestSessionStore_ReceiveWithContext(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 	session := createSession(t, store, "receive-data")
 
@@ -168,6 +174,7 @@ func TestSessionStore_ReceiveWithContext(t *testing.T) {
 }
 
 func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 	session := createSession(t, store, "closed-channel")
 
@@ -180,6 +187,7 @@ func TestSessionStore_ReceiveWithClosedChannel(t *testing.T) {
 }
 
 func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 	session := createSession(t, store, "cancel-context")
 
@@ -193,10 +201,12 @@ func TestSessionStore_ReceiveWithCanceledContext(t *testing.T) {
 }
 
 func TestSessionStore_ConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 
 	numSessions := 50
 	var wg sync.WaitGroup
+	errCh := make(chan error, numSessions)
 
 	for i := 0; i < numSessions; i++ {
 		wg.Add(1)
@@ -204,12 +214,20 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 			defer wg.Done()
 			key := fmt.Sprintf("session-%02d", id)
 			if _, _, err := store.CreateSession(key, "cookie", "workflow", OperationExec); err != nil {
-				t.Errorf("Failed to create session %d: %v", id, err)
+				errCh <- fmt.Errorf("failed to create session %d: %v", id, err)
+				return
 			}
 		}(i)
 	}
 
 	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("Concurrent operation error: %v", err)
+		}
+	}
 
 	count := 0
 	store.sessions.Range(func(key, value any) bool {
@@ -225,6 +243,7 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 // TestSessionStore_RendezvousContextCancellation tests CASE 4: Client crashes during rendezvous wait
 // This simulates a client that connects, starts waiting for agent, then context is cancelled (connection dies)
 func TestSessionStore_RendezvousContextCancellation(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 	session := createSession(t, store, "cancelled-client")
 
@@ -245,6 +264,7 @@ func TestSessionStore_RendezvousContextCancellation(t *testing.T) {
 // TestSessionStore_DoubleDeleteRace tests CASE 8: Both client and agent try to delete simultaneously
 // This verifies the atomic deletion flag prevents race conditions
 func TestSessionStore_DoubleDeleteRace(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 
 	for iteration := range 100 {
@@ -272,6 +292,7 @@ func TestSessionStore_DoubleDeleteRace(t *testing.T) {
 // TestSessionStore_SessionDoneChannelClose tests that Done channel closes properly on deletion
 // This is important for cleanup signaling
 func TestSessionStore_SessionDoneChannelClose(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, 0)
 	session := createSession(t, store, "done-close")
 
@@ -297,6 +318,7 @@ func TestSessionStore_SessionDoneChannelClose(t *testing.T) {
 // TestSessionStore_DuplicateClientConnection tests that only one client can connect
 // This prevents multiple clients from connecting to the same session
 func TestSessionStore_DuplicateClientConnection(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, time.Second)
 	session := createSession(t, store, "dup-client")
 
@@ -310,6 +332,7 @@ func TestSessionStore_DuplicateClientConnection(t *testing.T) {
 // TestSessionStore_DuplicateAgentConnection tests that only one agent can connect
 // This prevents multiple agents from connecting to the same session
 func TestSessionStore_DuplicateAgentConnection(t *testing.T) {
+	t.Parallel()
 	store := setupTestSessionStore(t, time.Second)
 	session := createSession(t, store, "dup-agent")
 
