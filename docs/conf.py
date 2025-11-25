@@ -19,7 +19,9 @@
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(".").resolve()))
+# Add the directory containing conf.py to the path so custom extensions can be found
+# This is important for sphinx-multiversion which runs from temporary directories
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 # -- Project information -----------------------------------------------------
 
@@ -226,3 +228,6 @@ smv_tag_whitelist = r'^$'
 smv_branch_whitelist = r'^main$|^release/.*$'
 smv_remote_whitelist = r'^origin$'
 smv_prefer_remote_refs = False
+
+# Latest version
+smv_latest_version = 'main'
