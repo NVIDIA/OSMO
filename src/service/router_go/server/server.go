@@ -113,60 +113,11 @@ func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error
 
 	g.Go(func() error {
 		defer session.ClientToAgent.CloseWriter()
-
-		return pumpStreamToPipe(streamPumpConfig{
-			ctx:       gctx,
-			pipe:      session.ClientToAgent,
-			timeout:   flowTimeout,
-			logger:    logger,
-			direction: "client->agent",
-			recv: func() ([]byte, *pb.TunnelClose, error) {
-				req, err := stream.Recv()
-				if err != nil {
-					return nil, nil, err
-				}
-				switch msg := req.Message.(type) {
-				case *pb.TunnelRequest_Data:
-					if msg.Data == nil || msg.Data.Payload == nil {
-						return []byte{}, nil, nil
-					}
-					return msg.Data.Payload, nil, nil
-				case *pb.TunnelRequest_Close:
-					logger.DebugContext(gctx, "client sent close message")
-					return nil, msg.Close, nil
-				default:
-					return nil, nil, nil
-				}
-			},
-		})
+		return forwardClientStream(gctx, stream, session.ClientToAgent, flowTimeout, logger)
 	})
 
 	g.Go(func() error {
-		return drainPipeToStream(pipeDrainConfig{
-			ctx:       gctx,
-			pipe:      session.AgentToClient,
-			logger:    logger,
-			direction: "agent->client",
-			sendData: func(payload []byte) error {
-				resp := &pb.TunnelResponse{
-					Message: &pb.TunnelResponse_Data{
-						Data: &pb.TunnelData{Payload: payload},
-					},
-				}
-				return stream.Send(resp)
-			},
-			sendClose: func(closeInfo *pb.TunnelClose) error {
-				resp := &pb.TunnelResponse{
-					Message: &pb.TunnelResponse_Close{Close: closeInfo},
-				}
-				if err := stream.Send(resp); err != nil {
-					logger.WarnContext(gctx, "failed to send final close to client",
-						slog.String("error", err.Error()),
-					)
-				}
-				return nil
-			},
-		})
+		return forwardPipeToClient(gctx, session.AgentToClient, stream, logger)
 	})
 
 	// Wait for both goroutines to complete
@@ -232,71 +183,11 @@ func (rs *RouterServer) RegisterTunnel(stream pb.RouterAgentService_RegisterTunn
 
 	g.Go(func() error {
 		defer session.AgentToClient.CloseWriter()
-
-		return pumpStreamToPipe(streamPumpConfig{
-			ctx:       gctx,
-			pipe:      session.AgentToClient,
-			timeout:   flowTimeout,
-			logger:    logger,
-			direction: "agent->client",
-			recv: func() ([]byte, *pb.TunnelClose, error) {
-				resp, err := stream.Recv()
-				if err != nil {
-					return nil, nil, err
-				}
-				switch msg := resp.Message.(type) {
-				case *pb.TunnelResponse_Data:
-					if msg.Data == nil || msg.Data.Payload == nil {
-						return []byte{}, nil, nil
-					}
-					return msg.Data.Payload, nil, nil
-				case *pb.TunnelResponse_Close:
-					logger.DebugContext(gctx, "agent sent close message")
-					return nil, msg.Close, nil
-				default:
-					return nil, nil, nil
-				}
-			},
-		})
+		return forwardAgentStream(gctx, stream, session.AgentToClient, flowTimeout, logger)
 	})
 
 	g.Go(func() error {
-		return drainPipeToStream(pipeDrainConfig{
-			ctx:       gctx,
-			pipe:      session.ClientToAgent,
-			logger:    logger,
-			direction: "client->agent",
-			sendData: func(payload []byte) error {
-				req := &pb.TunnelRequest{
-					Message: &pb.TunnelRequest_Data{
-						Data: &pb.TunnelData{Payload: payload},
-					},
-				}
-				return stream.Send(req)
-			},
-			sendClose: func(closeInfo *pb.TunnelClose) error {
-				req := &pb.TunnelRequest{
-					Message: &pb.TunnelRequest_Close{Close: closeInfo},
-				}
-				if err := stream.Send(req); err != nil {
-					logger.WarnContext(gctx, "failed to send final close to agent",
-						slog.String("error", err.Error()),
-					)
-				}
-				return nil
-			},
-			onPipeClosed: func() error {
-				closeMsg := &pb.TunnelRequest{
-					Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
-				}
-				if err := stream.Send(closeMsg); err != nil {
-					logger.WarnContext(gctx, "failed to send close message to agent",
-						slog.String("error", err.Error()),
-					)
-				}
-				return nil
-			},
-		})
+		return forwardPipeToAgent(gctx, session.ClientToAgent, stream, logger)
 	})
 
 	// Wait for both goroutines to complete
@@ -330,48 +221,118 @@ func deriveOperationLabel(op pb.OperationType, protocol pb.Protocol) string {
 	return "portforward_tcp"
 }
 
-type streamPumpConfig struct {
-	ctx       context.Context
-	recv      func() ([]byte, *pb.TunnelClose, error)
-	pipe      *SessionPipe
-	timeout   time.Duration
-	logger    *slog.Logger
-	direction string
-}
-
-func pumpStreamToPipe(cfg streamPumpConfig) error {
+func forwardClientStream(ctx context.Context, stream pb.RouterClientService_TunnelServer, pipe *SessionPipe, timeout time.Duration, logger *slog.Logger) error {
 	for {
-		payload, closeInfo, err := cfg.recv()
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			cfg.logger.ErrorContext(cfg.ctx, "stream receive error",
-				slog.String("direction", cfg.direction),
+			logger.ErrorContext(ctx, "client stream receive error",
 				slog.String("error", err.Error()),
 			)
 			return err
 		}
 
-		if closeInfo != nil {
-			if !cfg.pipe.TrySend(&SessionMessage{Close: closeInfo}) {
-				cfg.logger.DebugContext(cfg.ctx, "dropping close message; pipe full",
-					slog.String("direction", cfg.direction),
+		switch msg := req.Message.(type) {
+		case *pb.TunnelRequest_Data:
+			payload := msg.Data.GetPayload()
+			if payload == nil {
+				payload = []byte{}
+			}
+			if err := pipe.Send(ctx, timeout, &SessionMessage{Data: payload}); err != nil {
+				if isContextErr(err) {
+					return nil
+				}
+				logger.ErrorContext(ctx, "pipe send error",
+					slog.String("error", err.Error()),
+				)
+				return err
+			}
+		case *pb.TunnelRequest_Close:
+			logger.DebugContext(ctx, "client sent close message")
+			if !pipe.TrySend(&SessionMessage{Close: msg.Close}) {
+				logger.DebugContext(ctx, "dropping close message; pipe full")
+			}
+			return nil
+		default:
+			continue
+		}
+	}
+}
+
+func forwardAgentStream(ctx context.Context, stream pb.RouterAgentService_RegisterTunnelServer, pipe *SessionPipe, timeout time.Duration, logger *slog.Logger) error {
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "agent stream receive error",
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+
+		switch msg := resp.Message.(type) {
+		case *pb.TunnelResponse_Data:
+			payload := msg.Data.GetPayload()
+			if payload == nil {
+				payload = []byte{}
+			}
+			if err := pipe.Send(ctx, timeout, &SessionMessage{Data: payload}); err != nil {
+				if isContextErr(err) {
+					return nil
+				}
+				logger.ErrorContext(ctx, "pipe send error",
+					slog.String("error", err.Error()),
+				)
+				return err
+			}
+		case *pb.TunnelResponse_Close:
+			logger.DebugContext(ctx, "agent sent close message")
+			if !pipe.TrySend(&SessionMessage{Close: msg.Close}) {
+				logger.DebugContext(ctx, "dropping close message; pipe full")
+			}
+			return nil
+		default:
+			continue
+		}
+	}
+}
+
+func forwardPipeToClient(ctx context.Context, pipe *SessionPipe, stream pb.RouterClientService_TunnelServer, logger *slog.Logger) error {
+	for {
+		msg, err := pipe.Receive(ctx)
+		if err != nil {
+			if isContextErr(err) || errors.Is(err, errPipeClosed) {
+				return nil
+			}
+			logger.ErrorContext(ctx, "pipe receive error",
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+
+		if msg.Close != nil {
+			resp := &pb.TunnelResponse{
+				Message: &pb.TunnelResponse_Close{Close: msg.Close},
+			}
+			if err := stream.Send(resp); err != nil {
+				logger.WarnContext(ctx, "failed to send final close to client",
+					slog.String("error", err.Error()),
 				)
 			}
 			return nil
 		}
 
-		if payload == nil {
-			continue
+		resp := &pb.TunnelResponse{
+			Message: &pb.TunnelResponse_Data{
+				Data: &pb.TunnelData{Payload: msg.Data},
+			},
 		}
-
-		if err := cfg.pipe.Send(cfg.ctx, cfg.timeout, &SessionMessage{Data: payload}); err != nil {
-			if isContextErr(err) {
-				return nil
-			}
-			cfg.logger.ErrorContext(cfg.ctx, "pipe send error",
-				slog.String("direction", cfg.direction),
+		if err := stream.Send(resp); err != nil {
+			logger.ErrorContext(ctx, "client tunnel send error",
 				slog.String("error", err.Error()),
 			)
 			return err
@@ -379,43 +340,49 @@ func pumpStreamToPipe(cfg streamPumpConfig) error {
 	}
 }
 
-type pipeDrainConfig struct {
-	ctx          context.Context
-	pipe         *SessionPipe
-	sendData     func([]byte) error
-	sendClose    func(*pb.TunnelClose) error
-	onPipeClosed func() error
-	logger       *slog.Logger
-	direction    string
-}
-
-func drainPipeToStream(cfg pipeDrainConfig) error {
+func forwardPipeToAgent(ctx context.Context, pipe *SessionPipe, stream pb.RouterAgentService_RegisterTunnelServer, logger *slog.Logger) error {
 	for {
-		msg, err := cfg.pipe.Receive(cfg.ctx)
+		msg, err := pipe.Receive(ctx)
 		if err != nil {
-			if isContextErr(err) {
-				return nil
-			}
 			if errors.Is(err, errPipeClosed) {
-				if cfg.onPipeClosed != nil {
-					return cfg.onPipeClosed()
+				closeMsg := &pb.TunnelRequest{
+					Message: &pb.TunnelRequest_Close{Close: &pb.TunnelClose{}},
+				}
+				if err := stream.Send(closeMsg); err != nil {
+					logger.WarnContext(ctx, "failed to send close message to agent",
+						slog.String("error", err.Error()),
+					)
 				}
 				return nil
 			}
-			cfg.logger.ErrorContext(cfg.ctx, "pipe receive error",
-				slog.String("direction", cfg.direction),
+			if isContextErr(err) {
+				return nil
+			}
+			logger.ErrorContext(ctx, "pipe receive error",
 				slog.String("error", err.Error()),
 			)
 			return err
 		}
 
 		if msg.Close != nil {
-			return cfg.sendClose(msg.Close)
+			req := &pb.TunnelRequest{
+				Message: &pb.TunnelRequest_Close{Close: msg.Close},
+			}
+			if err := stream.Send(req); err != nil {
+				logger.WarnContext(ctx, "failed to send final close to agent",
+					slog.String("error", err.Error()),
+				)
+			}
+			return nil
 		}
 
-		if err := cfg.sendData(msg.Data); err != nil {
-			cfg.logger.ErrorContext(cfg.ctx, "stream send error",
-				slog.String("direction", cfg.direction),
+		req := &pb.TunnelRequest{
+			Message: &pb.TunnelRequest_Data{
+				Data: &pb.TunnelData{Payload: msg.Data},
+			},
+		}
+		if err := stream.Send(req); err != nil {
+			logger.ErrorContext(ctx, "agent tunnel send error",
 				slog.String("error", err.Error()),
 			)
 			return err
