@@ -53,8 +53,6 @@ spelling:
 
 linkcheck:
 	export OSMO_DOMAIN=public && sphinx-build -b linkcheck -w $(ERR_DIR)/root.log . $(OUT_DIR)
-	export OSMO_DOMAIN=public && sphinx-build -b linkcheck -w $(ERR_DIR)/user_guide.log user_guide $(OUT_DIR)/user_guide
-	export OSMO_DOMAIN=public && sphinx-build -b linkcheck -w $(ERR_DIR)/deployment_guide.log deployment_guide $(OUT_DIR)/deployment_guide
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
