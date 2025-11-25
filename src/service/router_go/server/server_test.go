@@ -73,33 +73,100 @@ func bufDialer(lis *bufconn.Listener) func(context.Context, string) (net.Conn, e
 	}
 }
 
+type routerTestEnv struct {
+	server *grpc.Server
+	lis    *bufconn.Listener
+}
+
+func newRouterTestEnv(t *testing.T) *routerTestEnv {
+	t.Helper()
+	server, lis := setupTestServer(t)
+	env := &routerTestEnv{server: server, lis: lis}
+	t.Cleanup(server.Stop)
+	return env
+}
+
+func (env *routerTestEnv) Dialer() func(context.Context, string) (net.Conn, error) {
+	return bufDialer(env.lis)
+}
+
+func (env *routerTestEnv) dialConn() (*grpc.ClientConn, error) {
+	return grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(env.Dialer()),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+}
+
+func (env *routerTestEnv) connect(t *testing.T) *grpc.ClientConn {
+	t.Helper()
+	conn, err := env.dialConn()
+	if err != nil {
+		t.Fatalf("failed to dial bufconn: %v", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return conn
+}
+
+func (env *routerTestEnv) ClientService(t *testing.T) pb.RouterClientServiceClient {
+	return pb.NewRouterClientServiceClient(env.connect(t))
+}
+
+func (env *routerTestEnv) AgentService(t *testing.T) pb.RouterAgentServiceClient {
+	return pb.NewRouterAgentServiceClient(env.connect(t))
+}
+
+func (env *routerTestEnv) ControlService(t *testing.T) pb.RouterControlServiceClient {
+	return pb.NewRouterControlServiceClient(env.connect(t))
+}
+
+func newTestContext(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	t.Cleanup(cancel)
+	return ctx, cancel
+}
+
+type sessionIDs struct {
+	key      string
+	cookie   string
+	workflow string
+}
+
+func newSessionIDs(label string) sessionIDs {
+	return sessionIDs{
+		key:      fmt.Sprintf("%s-session", label),
+		cookie:   fmt.Sprintf("%s-cookie", label),
+		workflow: fmt.Sprintf("%s-workflow", label),
+	}
+}
+
+func sendClientInit(t *testing.T, stream pb.RouterClientService_TunnelClient, init *pb.TunnelInit) {
+	t.Helper()
+	if err := stream.Send(&pb.TunnelRequest{
+		Message: &pb.TunnelRequest_Init{Init: init},
+	}); err != nil {
+		t.Fatalf("failed to send client init: %v", err)
+	}
+}
+
+func sendAgentInit(t *testing.T, stream pb.RouterAgentService_RegisterTunnelClient, init *pb.TunnelInit) {
+	t.Helper()
+	if err := stream.Send(&pb.TunnelResponse{
+		Message: &pb.TunnelResponse_Init{Init: init},
+	}); err != nil {
+		t.Fatalf("failed to send agent init: %v", err)
+	}
+}
+
 // TestMinimalExecFlow is a focused test with strict 2s timeout to quickly reproduce the close message issue
 func TestMinimalExecFlow(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
 	// Strict 2 second timeout - fail fast!
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := newTestContext(t, 2*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
 	sessionKey := "minimal-test"
 	cookie := "test-cookie"
@@ -116,20 +183,12 @@ func TestMinimalExecFlow(t *testing.T) {
 			return
 		}
 
-		// Send init
-		if err := stream.Send(&pb.TunnelRequest{
-			Message: &pb.TunnelRequest_Init{
-				Init: &pb.TunnelInit{
-					SessionKey: sessionKey,
-					Cookie:     cookie,
-					WorkflowId: workflowID,
-					Operation:  pb.OperationType_OPERATION_EXEC,
-				},
-			},
-		}); err != nil {
-			clientDone <- err
-			return
-		}
+		sendClientInit(t, stream, &pb.TunnelInit{
+			SessionKey: sessionKey,
+			Cookie:     cookie,
+			WorkflowId: workflowID,
+			Operation:  pb.OperationType_OPERATION_EXEC,
+		})
 		t.Log("CLIENT: Sent init")
 
 		// Send data
@@ -181,20 +240,12 @@ func TestMinimalExecFlow(t *testing.T) {
 			return
 		}
 
-		// Send init
-		if err := stream.Send(&pb.TunnelResponse{
-			Message: &pb.TunnelResponse_Init{
-				Init: &pb.TunnelInit{
-					SessionKey: sessionKey,
-					Cookie:     cookie,
-					WorkflowId: workflowID,
-					Operation:  pb.OperationType_OPERATION_EXEC,
-				},
-			},
-		}); err != nil {
-			agentDone <- err
-			return
-		}
+		sendAgentInit(t, stream, &pb.TunnelInit{
+			SessionKey: sessionKey,
+			Cookie:     cookie,
+			WorkflowId: workflowID,
+			Operation:  pb.OperationType_OPERATION_EXEC,
+		})
 		t.Log("AGENT: Sent init")
 
 		// Receive data
@@ -268,36 +319,18 @@ func TestMinimalExecFlow(t *testing.T) {
 
 // TestExecRoundTrip tests basic exec data flow: client -> router -> agent -> router -> client
 func TestExecRoundTrip(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := newTestContext(t, 10*time.Second)
 	defer cancel()
 
-	// Create client and agent connections
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial agent: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
-
-	// Create session
-	sessionKey := "test-session-exec-1"
-	cookie := "test-cookie-1"
-	workflowID := "test-workflow-1"
+	ids := newSessionIDs("exec-roundtrip")
+	sessionKey := ids.key
+	cookie := ids.cookie
+	workflowID := ids.workflow
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -517,21 +550,12 @@ func TestExecRoundTrip(t *testing.T) {
 
 // TestRendezvousTimeout tests that rendezvous times out if one party never connects
 func TestRendezvousTimeout(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := newTestContext(t, 5*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
+	clientService := env.ClientService(t)
 
 	clientStream, err := clientService.Tunnel(ctx)
 	if err != nil {
@@ -563,34 +587,18 @@ func TestRendezvousTimeout(t *testing.T) {
 
 // TestPortForwardRoundTrip tests port-forward TCP data flow
 func TestPortForwardRoundTrip(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := newTestContext(t, 10*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial agent: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
-
-	sessionKey := "test-session-pf-1"
-	cookie := "test-cookie-pf-1"
-	workflowID := "test-workflow-pf-1"
+	pfIDs := newSessionIDs("portforward-roundtrip")
+	sessionKey := pfIDs.key
+	cookie := pfIDs.cookie
+	workflowID := pfIDs.workflow
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -775,10 +783,9 @@ func TestPortForwardRoundTrip(t *testing.T) {
 
 // TestConcurrentSessions tests multiple concurrent exec sessions
 func TestConcurrentSessions(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := newTestContext(t, 30*time.Second)
 	defer cancel()
 
 	numSessions := 10
@@ -793,9 +800,7 @@ func TestConcurrentSessions(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			conn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := env.dialConn()
 			if err != nil {
 				errors <- err
 				return
@@ -861,9 +866,7 @@ func TestConcurrentSessions(t *testing.T) {
 			defer wg.Done()
 			time.Sleep(50 * time.Millisecond)
 
-			conn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := env.dialConn()
 			if err != nil {
 				errors <- err
 				return
@@ -995,31 +998,13 @@ func TestExecDataDriven(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server, lis := setupTestServer(t)
-			defer server.Stop()
+			env := newRouterTestEnv(t)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := newTestContext(t, 30*time.Second)
 			defer cancel()
 
-			// Setup connections
-			clientConn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				t.Fatalf("Failed to dial: %v", err)
-			}
-			defer clientConn.Close()
-
-			agentConn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				t.Fatalf("Failed to dial agent: %v", err)
-			}
-			defer agentConn.Close()
-
-			clientService := pb.NewRouterClientServiceClient(clientConn)
-			agentService := pb.NewRouterAgentServiceClient(agentConn)
+			clientService := env.ClientService(t)
+			agentService := env.AgentService(t)
 
 			sessionKey := fmt.Sprintf("test-session-%s", tc.name)
 			cookie := fmt.Sprintf("cookie-%s", tc.name)
@@ -1198,18 +1183,16 @@ func TestExecDataDriven(t *testing.T) {
 func TestErrorScenarios(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setupFunc     func(*testing.T, *grpc.Server, *bufconn.Listener) error
+		setupFunc     func(*testing.T, *routerTestEnv) error
 		expectedError []codes.Code // Can match any of these codes
 	}{
 		{
 			name: "client connects without init",
-			setupFunc: func(t *testing.T, server *grpc.Server, lis *bufconn.Listener) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			setupFunc: func(t *testing.T, env *routerTestEnv) error {
+				ctx, cancel := newTestContext(t, 2*time.Second)
 				defer cancel()
 
-				conn, _ := grpc.NewClient("passthrough:///bufnet",
-					grpc.WithContextDialer(bufDialer(lis)),
-					grpc.WithTransportCredentials(insecure.NewCredentials()))
+				conn, _ := env.dialConn()
 				defer conn.Close()
 
 				client := pb.NewRouterClientServiceClient(conn)
@@ -1235,13 +1218,11 @@ func TestErrorScenarios(t *testing.T) {
 		},
 		{
 			name: "duplicate session key",
-			setupFunc: func(t *testing.T, server *grpc.Server, lis *bufconn.Listener) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			setupFunc: func(t *testing.T, env *routerTestEnv) error {
+				ctx, cancel := newTestContext(t, 2*time.Second)
 				defer cancel()
 
-				conn, _ := grpc.NewClient("passthrough:///bufnet",
-					grpc.WithContextDialer(bufDialer(lis)),
-					grpc.WithTransportCredentials(insecure.NewCredentials()))
+				conn, _ := env.dialConn()
 				defer conn.Close()
 
 				client := pb.NewRouterClientServiceClient(conn)
@@ -1293,10 +1274,9 @@ func TestErrorScenarios(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server, lis := setupTestServer(t)
-			defer server.Stop()
+			env := newRouterTestEnv(t)
 
-			err := tc.setupFunc(t, server, lis)
+			err := tc.setupFunc(t, env)
 			if err == nil {
 				t.Fatal("Expected error but got nil")
 			}
@@ -1318,10 +1298,9 @@ func TestErrorScenarios(t *testing.T) {
 
 // TestSessionIsolation tests that sessions don't interfere with each other
 func TestSessionIsolation(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := newTestContext(t, 10*time.Second)
 	defer cancel()
 
 	numSessions := 5
@@ -1332,9 +1311,7 @@ func TestSessionIsolation(t *testing.T) {
 
 		// Client
 		go func(id int) {
-			conn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := env.dialConn()
 			if err != nil {
 				done <- err
 				return
@@ -1394,9 +1371,7 @@ func TestSessionIsolation(t *testing.T) {
 		// Agent
 		go func(id int) {
 			time.Sleep(50 * time.Millisecond)
-			conn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := env.dialConn()
 			if err != nil {
 				done <- err
 				return
@@ -1460,35 +1435,18 @@ func TestSessionIsolation(t *testing.T) {
 
 // TestRsyncRoundTrip tests rsync operation data flow
 func TestRsyncRoundTrip(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := newTestContext(t, 10*time.Second)
 	defer cancel()
 
-	// Setup connections
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
-
-	sessionKey := "test-rsync-session"
-	cookie := "rsync-cookie"
-	workflowID := "rsync-workflow"
+	rsyncIDs := newSessionIDs("rsync-roundtrip")
+	sessionKey := rsyncIDs.key
+	cookie := rsyncIDs.cookie
+	workflowID := rsyncIDs.workflow
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -1724,30 +1682,13 @@ func TestRsyncDataDriven(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server, lis := setupTestServer(t)
-			defer server.Stop()
+			env := newRouterTestEnv(t)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := newTestContext(t, 30*time.Second)
 			defer cancel()
 
-			clientConn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				t.Fatalf("Failed to dial: %v", err)
-			}
-			defer clientConn.Close()
-
-			agentConn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				t.Fatalf("Failed to dial: %v", err)
-			}
-			defer agentConn.Close()
-
-			clientService := pb.NewRouterClientServiceClient(clientConn)
-			agentService := pb.NewRouterAgentServiceClient(agentConn)
+			clientService := env.ClientService(t)
+			agentService := env.AgentService(t)
 
 			sessionKey := fmt.Sprintf("rsync-%s", tc.name)
 			clientDone := make(chan error, 1)
@@ -1892,32 +1833,14 @@ func TestRsyncDataDriven(t *testing.T) {
 
 // TestGetSessionInfo tests the GetSessionInfo RPC
 func TestGetSessionInfo(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := newTestContext(t, 10*time.Second)
 	defer cancel()
 
-	// Setup connections
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
-	controlService := pb.NewRouterControlServiceClient(clientConn)
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
+	controlService := env.ControlService(t)
 
 	// Test 1: Non-existent session
 	t.Run("non-existent session", func(t *testing.T) {
@@ -2105,30 +2028,13 @@ func TestPortForwardDataDriven(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server, lis := setupTestServer(t)
-			defer server.Stop()
+			env := newRouterTestEnv(t)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := newTestContext(t, 30*time.Second)
 			defer cancel()
 
-			clientConn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				t.Fatalf("Failed to dial: %v", err)
-			}
-			defer clientConn.Close()
-
-			agentConn, err := grpc.NewClient("passthrough:///bufnet",
-				grpc.WithContextDialer(bufDialer(lis)),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				t.Fatalf("Failed to dial: %v", err)
-			}
-			defer agentConn.Close()
-
-			clientService := pb.NewRouterClientServiceClient(clientConn)
-			agentService := pb.NewRouterAgentServiceClient(agentConn)
+			clientService := env.ClientService(t)
+			agentService := env.AgentService(t)
 
 			sessionKey := fmt.Sprintf("pf-%s", tc.name)
 			clientDone := make(chan error, 1)
@@ -2275,31 +2181,14 @@ func TestPortForwardDataDriven(t *testing.T) {
 // TestDeadlockOnSimultaneousDisconnect tests that both client and agent can disconnect
 // simultaneously without causing a deadlock in the goroutine coordination.
 func TestDeadlockOnSimultaneousDisconnect(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
 	// Very short timeout - if there's a deadlock, this will fail quickly
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := newTestContext(t, 3*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
 	sessionKey := "deadlock-test"
 	cookie := "test-cookie"
@@ -2421,30 +2310,13 @@ func TestDeadlockOnSimultaneousDisconnect(t *testing.T) {
 // TestCloseMessageNotPropagated tests that when a client sends a Close message,
 // it should be forwarded to the agent (not just closing the channel).
 func TestCloseMessageNotPropagated(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := newTestContext(t, 3*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
 	sessionKey := "close-propagation-test"
 	cookie := "test-cookie"
@@ -2585,30 +2457,13 @@ func TestCloseMessageNotPropagated(t *testing.T) {
 // TestBufferChannelDeadlock tests that when buffer channels fill up and one side
 // closes, the system doesn't deadlock due to goroutines blocked on full channels.
 func TestBufferChannelDeadlock(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := newTestContext(t, 5*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
 	sessionKey := "buffer-deadlock-test"
 	cookie := "test-cookie"
@@ -2718,30 +2573,13 @@ func TestBufferChannelDeadlock(t *testing.T) {
 // TestDoubleSessionDeletion tests that when both client and agent disconnect
 // simultaneously, the double deletion doesn't cause a panic.
 func TestDoubleSessionDeletion(t *testing.T) {
-	server, lis := setupTestServer(t)
-	defer server.Stop()
+	env := newRouterTestEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := newTestContext(t, 3*time.Second)
 	defer cancel()
 
-	clientConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer clientConn.Close()
-
-	agentConn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to dial: %v", err)
-	}
-	defer agentConn.Close()
-
-	clientService := pb.NewRouterClientServiceClient(clientConn)
-	agentService := pb.NewRouterAgentServiceClient(agentConn)
+	clientService := env.ClientService(t)
+	agentService := env.AgentService(t)
 
 	// Run multiple iterations to increase chance of race
 	for iteration := range 10 {
