@@ -198,7 +198,7 @@ jobs:
 
       - name: Build Sphinx documentation
         run: |
-          make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
+          make -C docs build-html ERR_DIR=build_error_logs OUT_DIR=public
           make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
           make -C docs linkcheck ERR_DIR=linkcheck_error_logs OUT_DIR=public
 
