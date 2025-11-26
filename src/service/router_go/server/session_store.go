@@ -20,8 +20,6 @@ package server
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -33,57 +31,64 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
 
-// Operation type constants for session management
+// Operation type constants for logging and metrics.
 const (
 	OperationExec        = "exec"
 	OperationPortForward = "portforward"
 	OperationRsync       = "rsync"
+	OperationWebSocket   = "websocket"
+	OperationUnknown     = "unknown"
 )
 
-// SessionMessage is the unit of data exchanged between client and agent.
-type SessionMessage struct {
-	Data  []byte
-	Close *pb.TunnelClose
-}
+var errPipeClosed = status.Error(codes.Unavailable, "pipe closed")
 
-// SessionPipe provides a single-writer/single-reader buffered link.
-type SessionPipe struct {
-	ch          chan *SessionMessage
+// Pipe is a zero-copy channel-based unidirectional pipe.
+// Unbuffered for zero-copy - messages pass directly from sender to receiver.
+type Pipe struct {
+	ch          chan *pb.TunnelMessage
+	closed      atomic.Bool
 	once        sync.Once
 	sendTimeout time.Duration
 }
 
-func newSessionPipe(timeout time.Duration) *SessionPipe {
-	return &SessionPipe{
-		ch:          make(chan *SessionMessage),
-		sendTimeout: timeout,
+func newPipe(sendTimeout time.Duration) *Pipe {
+	// Unbuffered channel for true zero-copy semantics
+	return &Pipe{
+		ch:          make(chan *pb.TunnelMessage),
+		sendTimeout: sendTimeout,
 	}
 }
 
-var errPipeClosed = status.Error(codes.Unavailable, "channel closed")
-
-// Send pushes a message respecting the provided context.
-func (p *SessionPipe) Send(ctx context.Context, msg *SessionMessage) error {
-	derivedCtx := ctx
-	cancel := func() {}
-	if p.sendTimeout > 0 {
-		derivedCtx, cancel = context.WithTimeout(ctx, p.sendTimeout)
+// Send sends a message through the pipe with timeout (zero-copy).
+func (p *Pipe) Send(ctx context.Context, msg *pb.TunnelMessage) error {
+	if p.closed.Load() {
+		return errPipeClosed
 	}
-	defer cancel()
+
+	// Apply send timeout if configured
+	sendCtx := ctx
+	var cancel context.CancelFunc
+	if p.sendTimeout > 0 {
+		sendCtx, cancel = context.WithTimeout(ctx, p.sendTimeout)
+		defer cancel()
+	}
 
 	select {
 	case p.ch <- msg:
 		return nil
-	case <-derivedCtx.Done():
-		if errors.Is(derivedCtx.Err(), context.DeadlineExceeded) {
-			return status.Error(codes.DeadlineExceeded, "stream send timeout")
+	case <-sendCtx.Done():
+		if p.sendTimeout > 0 && sendCtx.Err() == context.DeadlineExceeded {
+			return status.Error(codes.DeadlineExceeded, "pipe send timeout")
 		}
-		return derivedCtx.Err()
+		return sendCtx.Err()
 	}
 }
 
-// TrySend attempts a best-effort write without blocking.
-func (p *SessionPipe) TrySend(msg *SessionMessage) bool {
+// TrySend attempts a non-blocking send. Returns false if no receiver ready or closed.
+func (p *Pipe) TrySend(msg *pb.TunnelMessage) bool {
+	if p.closed.Load() {
+		return false
+	}
 	select {
 	case p.ch <- msg:
 		return true
@@ -92,8 +97,8 @@ func (p *SessionPipe) TrySend(msg *SessionMessage) bool {
 	}
 }
 
-// Receive blocks until a message is available or the context ends.
-func (p *SessionPipe) Receive(ctx context.Context) (*SessionMessage, error) {
+// Receive receives a message from the pipe (zero-copy).
+func (p *Pipe) Receive(ctx context.Context) (*pb.TunnelMessage, error) {
 	select {
 	case msg, ok := <-p.ch:
 		if !ok {
@@ -105,83 +110,120 @@ func (p *SessionPipe) Receive(ctx context.Context) (*SessionMessage, error) {
 	}
 }
 
-// CloseWriter closes the pipe (idempotent) and should be called by the writer.
-func (p *SessionPipe) CloseWriter() {
+// Close closes the pipe (idempotent).
+func (p *Pipe) Close() {
 	p.once.Do(func() {
+		p.closed.Store(true)
 		close(p.ch)
 	})
 }
 
-// Session represents an active router session
+// Session represents an active tunnel session between a client and agent.
 type Session struct {
-	Key           string // Unique session identifier
-	Cookie        string // Sticky load balancer cookie
-	WorkflowID    string // Workflow identifier
-	OperationType string // Operation type: exec, portforward, rsync
+	Key           string
+	Cookie        string
+	WorkflowID    string
+	OperationType string
 	CreatedAt     time.Time
 
-	// deleted tracks if this session has been deleted (1 = deleted, 0 = active)
-	// Use atomic operations to access this field
-	deleted atomic.Int32
+	// Bidirectional pipes
+	ClientToAgent *Pipe
+	AgentToClient *Pipe
 
-	// clientConnected tracks if a client has connected (1 = connected, 0 = not connected)
-	// Use atomic operations to access this field
-	clientConnected atomic.Int32
+	// Rendezvous signaling (closed when party arrives)
+	clientReady chan struct{}
+	agentReady  chan struct{}
 
-	// agentConnected tracks if an agent has connected (1 = connected, 0 = not connected)
-	// Use atomic operations to access this field
-	agentConnected atomic.Int32
+	// Lifecycle management
+	done    chan struct{}
+	deleted atomic.Bool
 
-	// Pipes for bidirectional communication
-	ClientToAgent *SessionPipe
-	AgentToClient *SessionPipe
-
-	// Synchronization
-	ClientReady chan struct{}
-	AgentReady  chan struct{}
-	Done        chan struct{}
-
-	// Safe channel closing with sync.Once
+	// Ensure channels close exactly once
 	closeClientReady sync.Once
 	closeAgentReady  sync.Once
 	closeDone        sync.Once
+
+	// Prevent duplicate connections
+	clientConnected atomic.Bool
+	agentConnected  atomic.Bool
 }
 
-// CloseClientReady safely closes the ClientReady channel (idempotent)
-func (s *Session) CloseClientReady() {
-	s.closeClientReady.Do(func() {
-		close(s.ClientReady)
-	})
+// signalClientReady marks client as ready (idempotent).
+func (s *Session) signalClientReady() {
+	s.closeClientReady.Do(func() { close(s.clientReady) })
 }
 
-// CloseAgentReady safely closes the AgentReady channel (idempotent)
-func (s *Session) CloseAgentReady() {
-	s.closeAgentReady.Do(func() {
-		close(s.AgentReady)
-	})
+// signalAgentReady marks agent as ready (idempotent).
+func (s *Session) signalAgentReady() {
+	s.closeAgentReady.Do(func() { close(s.agentReady) })
 }
 
-// CloseDone safely closes the Done channel (idempotent)
-func (s *Session) CloseDone() {
-	s.closeDone.Do(func() {
-		close(s.Done)
-	})
+// signalDone closes the done channel (idempotent).
+func (s *Session) signalDone() {
+	s.closeDone.Do(func() { close(s.done) })
 }
 
-// SessionStore manages active sessions with thread-safe operations
+// Done returns a channel that's closed when the session is terminated.
+func (s *Session) Done() <-chan struct{} {
+	return s.done
+}
+
+// WaitForAgent signals client is ready and waits for agent to connect.
+func (s *Session) WaitForAgent(ctx context.Context, timeout time.Duration) error {
+	if !s.clientConnected.CompareAndSwap(false, true) {
+		return status.Error(codes.AlreadyExists, "client already connected")
+	}
+	s.signalClientReady()
+	return s.waitForParty(ctx, timeout, s.agentReady, "agent")
+}
+
+// WaitForClient signals agent is ready and waits for client to connect.
+func (s *Session) WaitForClient(ctx context.Context, timeout time.Duration) error {
+	if !s.agentConnected.CompareAndSwap(false, true) {
+		return status.Error(codes.AlreadyExists, "agent already connected")
+	}
+	s.signalAgentReady()
+	return s.waitForParty(ctx, timeout, s.clientReady, "client")
+}
+
+// waitForParty waits for the specified party to signal ready.
+func (s *Session) waitForParty(ctx context.Context, timeout time.Duration, ready <-chan struct{}, party string) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	select {
+	case <-ready:
+		return nil
+	case <-s.done:
+		return status.Error(codes.Aborted, "session closed")
+	case <-timeoutCtx.Done():
+		// Check once more in case they arrived just in time
+		select {
+		case <-ready:
+			return nil
+		default:
+		}
+		if ctx.Err() != nil {
+			return status.Error(codes.Canceled, "context cancelled")
+		}
+		return status.Errorf(codes.DeadlineExceeded, "rendezvous timeout: %s did not connect", party)
+	}
+}
+
+// SessionStoreConfig holds configuration for session management.
+type SessionStoreConfig struct {
+	RendezvousTimeout time.Duration
+	StreamSendTimeout time.Duration
+}
+
+// SessionStore manages active sessions with thread-safe operations.
 type SessionStore struct {
 	sessions sync.Map // map[string]*Session
 	config   SessionStoreConfig
 	logger   *slog.Logger
 }
 
-// SessionStoreConfig holds configuration for the session store
-type SessionStoreConfig struct {
-	RendezvousTimeout time.Duration
-	StreamSendTimeout time.Duration
-}
-
-// NewSessionStore creates a new session store
+// NewSessionStore creates a new session store.
 func NewSessionStore(config SessionStoreConfig, logger *slog.Logger) *SessionStore {
 	if logger == nil {
 		logger = slog.Default()
@@ -192,144 +234,55 @@ func NewSessionStore(config SessionStoreConfig, logger *slog.Logger) *SessionSto
 	}
 }
 
-// CreateSession creates a new session or returns an existing one.
-// sessionKey uniquely identifies the session across client and agent.
-// cookie is used for sticky load balancer routing.
-// workflowID identifies the workflow this session belongs to.
-// operationType indicates the type of operation (exec, portforward, rsync).
-func (s *SessionStore) CreateSession(
-	sessionKey string,
-	cookie string,
-	workflowID string,
-	operationType string,
-) (session *Session, existed bool, err error) {
-	now := time.Now()
-	newSession := &Session{
-		Key:           sessionKey,
-		Cookie:        cookie,
-		WorkflowID:    workflowID,
-		OperationType: operationType,
-		CreatedAt:     now,
-		ClientToAgent: newSessionPipe(s.config.StreamSendTimeout),
-		AgentToClient: newSessionPipe(s.config.StreamSendTimeout),
-		ClientReady:   make(chan struct{}),
-		AgentReady:    make(chan struct{}),
-		Done:          make(chan struct{}),
-	}
-
-	actual, loaded := s.sessions.LoadOrStore(sessionKey, newSession)
-
-	session = actual.(*Session)
-	return session, loaded, nil
+// RendezvousTimeout returns the configured rendezvous timeout.
+func (s *SessionStore) RendezvousTimeout() time.Duration {
+	return s.config.RendezvousTimeout
 }
 
-// GetSession retrieves a session by its unique key
-func (s *SessionStore) GetSession(sessionKey string) (session *Session, err error) {
-	val, ok := s.sessions.Load(sessionKey)
+// GetOrCreateSession returns existing session or creates new one.
+// Returns (session, existed, error).
+func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string) (*Session, bool, error) {
+	newSession := &Session{
+		Key:           key,
+		Cookie:        cookie,
+		WorkflowID:    workflowID,
+		OperationType: opType,
+		CreatedAt:     time.Now(),
+		ClientToAgent: newPipe(s.config.StreamSendTimeout),
+		AgentToClient: newPipe(s.config.StreamSendTimeout),
+		clientReady:   make(chan struct{}),
+		agentReady:    make(chan struct{}),
+		done:          make(chan struct{}),
+	}
+
+	actual, loaded := s.sessions.LoadOrStore(key, newSession)
+	return actual.(*Session), loaded, nil
+}
+
+// GetSession retrieves a session by key.
+func (s *SessionStore) GetSession(key string) (*Session, error) {
+	val, ok := s.sessions.Load(key)
 	if !ok {
 		return nil, status.Error(codes.NotFound, "session not found")
 	}
 	return val.(*Session), nil
 }
 
-// DeleteSession removes a session and safely closes its channels
-// Uses atomic flag to ensure single deletion even if called concurrently
-func (s *SessionStore) DeleteSession(sessionKey string) {
-	if val, ok := s.sessions.Load(sessionKey); ok {
-		session := val.(*Session)
-
-		// Atomically check and set deleted flag (compare-and-swap)
-		if !session.deleted.CompareAndSwap(0, 1) {
-			// Already deleted by another goroutine
-			return
-		}
-
-		// Now remove from map
-		s.sessions.Delete(sessionKey)
-
-		// Close Done channel to signal session deletion (idempotent via sync.Once)
-		session.CloseDone()
-
-		// Note: Data channels (ClientToAgent, AgentToClient) are closed by their respective
-		// writer goroutines (via defer close in Tunnel/RegisterTunnel handlers).
-		// We don't close them here to avoid double-close panics.
-	}
-}
-
-// WaitForRendezvous waits for both client and agent to connect.
-// Returns an error if the rendezvous times out or the session is closed.
-// Ensures only one client and one agent can connect to a session.
-func (s *SessionStore) WaitForRendezvous(ctx context.Context, session *Session, isClient bool) (err error) {
-	// Check if this party type has already connected
-	if isClient {
-		if !session.clientConnected.CompareAndSwap(0, 1) {
-			return status.Error(codes.AlreadyExists, "client already connected to this session")
-		}
-	} else {
-		if !session.agentConnected.CompareAndSwap(0, 1) {
-			return status.Error(codes.AlreadyExists, "agent already connected to this session")
-		}
+// DeleteSession removes a session and signals termination.
+// Safe to call multiple times (idempotent).
+func (s *SessionStore) DeleteSession(key string) {
+	val, ok := s.sessions.Load(key)
+	if !ok {
+		return
 	}
 
-	// Signal that this party is ready (idempotent with sync.Once)
-	if isClient {
-		session.CloseClientReady()
-	} else {
-		session.CloseAgentReady()
+	session := val.(*Session)
+
+	// Atomic check-and-set prevents duplicate cleanup
+	if !session.deleted.CompareAndSwap(false, true) {
+		return
 	}
 
-	// Wait for the other party with timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, s.config.RendezvousTimeout)
-	defer cancel()
-
-	if isClient {
-		select {
-		case <-session.AgentReady:
-			return nil
-		case <-timeoutCtx.Done():
-			// Final non-blocking check before returning error
-			select {
-			case <-session.AgentReady:
-				return nil // Agent arrived just in time
-			default:
-				// Check if parent context was cancelled or if timeout occurred
-				if ctx.Err() != nil {
-					return status.Error(codes.Canceled, "context cancelled")
-				}
-				return status.Error(codes.DeadlineExceeded, "rendezvous timeout: agent did not connect")
-			}
-		case <-session.Done:
-			return status.Error(codes.Aborted, "session closed")
-		}
-	} else {
-		select {
-		case <-session.ClientReady:
-			return nil
-		case <-timeoutCtx.Done():
-			// Final non-blocking check before returning error
-			select {
-			case <-session.ClientReady:
-				return nil // Client arrived just in time
-			default:
-				// Check if parent context was cancelled or if timeout occurred
-				if ctx.Err() != nil {
-					return status.Error(codes.Canceled, "context cancelled")
-				}
-				return status.Error(codes.DeadlineExceeded, "rendezvous timeout: client did not connect")
-			}
-		case <-session.Done:
-			return status.Error(codes.Aborted, "session closed")
-		}
-	}
-}
-
-// FormatSessionStats returns formatted statistics for a session (thread-safe)
-func (session *Session) FormatSessionStats() string {
-	return fmt.Sprintf(
-		"Session{key=%s, workflow=%s, op=%s, age=%v}",
-		session.Key,
-		session.WorkflowID,
-		session.OperationType,
-		time.Since(session.CreatedAt),
-	)
+	s.sessions.Delete(key)
+	session.signalDone()
 }
