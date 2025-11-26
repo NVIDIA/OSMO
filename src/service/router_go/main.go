@@ -28,6 +28,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 
 	"go.corp.nvidia.com/osmo/src/service/router_go/server"
@@ -111,6 +113,11 @@ func main() {
 
 	// Create gRPC server
 	grpcServer := grpc.NewServer(opts...)
+
+	// Register health service for Kubernetes probes
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// Register router services
 	routerServer := server.NewRouterServer(store, logger)

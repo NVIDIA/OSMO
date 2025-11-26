@@ -27,6 +27,8 @@ go_library(
         "//src/service/router_go/server",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//health",
+        "@org_golang_google_grpc//health/grpc_health_v1",
         "@org_golang_google_grpc//keepalive",
     ],
 )
