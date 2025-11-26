@@ -72,5 +72,5 @@ Select one of the guides below to get started with OSMO.
 .. toctree::
    :hidden:
 
-   deployment_guide/index
    user_guide/index
+   deployment_guide/index
