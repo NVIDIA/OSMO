@@ -21,7 +21,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"time"
@@ -33,6 +32,13 @@ import (
 
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
+
+func init() {
+	// Register our zero-copy codec at startup.
+	// This replaces the default protobuf codec with one that preserves
+	// raw bytes for RawMessage types, enabling zero-copy forwarding.
+	RegisterRawCodec()
+}
 
 // RouterServer implements all router gRPC services.
 type RouterServer struct {
@@ -72,6 +78,14 @@ type tunnelConfig struct {
 	inPipe     func(s *Session) *Pipe // other party → this party
 }
 
+// grpcStream is the interface for gRPC bidirectional streams.
+// Both client and agent streams implement this.
+type grpcStream interface {
+	Context() context.Context
+	SendMsg(m interface{}) error
+	RecvMsg(m interface{}) error
+}
+
 var (
 	clientConfig = tunnelConfig{
 		role:       "client",
@@ -88,37 +102,34 @@ var (
 )
 
 // tunnelClientToAgent handles client tunnel connections.
-func (rs *RouterServer) tunnelClientToAgent(
-	ctx context.Context,
-	recv func() (*pb.TunnelMessage, error),
-	send func(*pb.TunnelMessage) error,
-) error {
-	return rs.tunnelHandler(ctx, recv, send, &clientConfig)
+func (rs *RouterServer) tunnelClientToAgent(stream grpcStream) error {
+	return rs.tunnelHandler(stream, &clientConfig)
 }
 
 // tunnelAgentToClient handles agent tunnel connections.
-func (rs *RouterServer) tunnelAgentToClient(
-	ctx context.Context,
-	recv func() (*pb.TunnelMessage, error),
-	send func(*pb.TunnelMessage) error,
-) error {
-	return rs.tunnelHandler(ctx, recv, send, &agentConfig)
+func (rs *RouterServer) tunnelAgentToClient(stream grpcStream) error {
+	return rs.tunnelHandler(stream, &agentConfig)
 }
 
 // tunnelHandler is the common implementation for tunnel handling.
-func (rs *RouterServer) tunnelHandler(
-	ctx context.Context,
-	recv func() (*pb.TunnelMessage, error),
-	send func(*pb.TunnelMessage) error,
-	cfg *tunnelConfig,
-) error {
-	// Receive init message
-	msg, err := recv()
-	if err != nil {
+//
+// ZERO-COPY DESIGN:
+// 1. Receive raw bytes from gRPC (using our custom codec)
+// 2. For data messages (ONLY): forward raw bytes through pipe WITHOUT parsing
+// 3. Send raw bytes to gRPC (using our custom codec)
+//
+// The payload bytes in data messages are NEVER copied or parsed.
+func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) error {
+	ctx := stream.Context()
+
+	// Receive init message using zero-copy codec
+	var initMsg RawMessage
+	if err := stream.RecvMsg(&initMsg); err != nil {
 		return status.Error(codes.InvalidArgument, "failed to receive init message")
 	}
 
-	init := msg.GetInit()
+	// Parse init message
+	init := initMsg.GetInit()
 	if init == nil {
 		return status.Error(codes.InvalidArgument, "first message must be init")
 	}
@@ -165,19 +176,15 @@ func (rs *RouterServer) tunnelHandler(
 	// Bidirectional streaming with shared context for coordinated cancellation
 	g, gctx := errgroup.WithContext(ctx)
 
-	// Stream → Pipe (this party's data out)
+	// Stream → Pipe (receive from gRPC, send to pipe)
 	g.Go(func() error {
 		defer outPipe.Close()
-		return rs.forward(gctx, recv, func(msg *pb.TunnelMessage) error {
-			return outPipe.Send(gctx, msg)
-		}, logger)
+		return rs.forwardStreamToPipe(gctx, stream, outPipe, session.Done(), logger)
 	})
 
-	// Pipe → Stream (other party's data in)
+	// Pipe → Stream (receive from pipe, send to gRPC)
 	g.Go(func() error {
-		return rs.forward(gctx, func() (*pb.TunnelMessage, error) {
-			return inPipe.Receive(gctx)
-		}, send, logger)
+		return rs.forwardPipeToStream(gctx, inPipe, stream, session.Done(), logger)
 	})
 
 	if err := g.Wait(); err != nil && !isExpectedClose(err) {
@@ -191,7 +198,7 @@ func (rs *RouterServer) tunnelHandler(
 
 // Tunnel handles client connections (implements RouterClientService).
 func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error {
-	return rs.tunnelClientToAgent(stream.Context(), stream.Recv, stream.Send)
+	return rs.tunnelClientToAgent(stream)
 }
 
 // RouterAgentServer wraps RouterServer to implement RouterAgentService.Tunnel.
@@ -203,7 +210,7 @@ type RouterAgentServer struct {
 
 // Tunnel handles agent connections (implements RouterAgentService).
 func (ras *RouterAgentServer) Tunnel(stream pb.RouterAgentService_TunnelServer) error {
-	return ras.tunnelAgentToClient(stream.Context(), stream.Recv, stream.Send)
+	return ras.tunnelAgentToClient(stream)
 }
 
 // Register registers all router services with the gRPC server.
@@ -216,16 +223,19 @@ func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
 
 // recvResult holds the result of an async receive operation.
 type recvResult struct {
-	msg *pb.TunnelMessage
+	msg *RawMessage
 	err error
 }
 
-// forward transfers messages from source to destination (zero-copy).
-// Uses a goroutine for recv to enable context cancellation.
-func (rs *RouterServer) forward(
+// forwardStreamToPipe receives messages from gRPC and sends to pipe.
+//
+// The sessionDone channel is used to detect when the session is terminated
+// externally (e.g., via TerminateSession API).
+func (rs *RouterServer) forwardStreamToPipe(
 	ctx context.Context,
-	recv func() (*pb.TunnelMessage, error),
-	send func(*pb.TunnelMessage) error,
+	stream grpcStream,
+	pipe *Pipe,
+	sessionDone <-chan struct{},
 	logger *slog.Logger,
 ) error {
 	// Channel for async receive results
@@ -234,13 +244,16 @@ func (rs *RouterServer) forward(
 	// Start receive goroutine
 	go func() {
 		for {
-			msg, err := recv()
+			var msg RawMessage
+			err := stream.RecvMsg(&msg)
 			select {
-			case recvCh <- recvResult{msg, err}:
+			case recvCh <- recvResult{&msg, err}:
 				if err != nil {
 					return // Stop on error
 				}
 			case <-ctx.Done():
+				return
+			case <-sessionDone:
 				return
 			}
 		}
@@ -250,6 +263,10 @@ func (rs *RouterServer) forward(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+
+		case <-sessionDone:
+			// Session was terminated externally
+			return nil
 
 		case result := <-recvCh:
 			if result.err == io.EOF {
@@ -262,25 +279,70 @@ func (rs *RouterServer) forward(
 				return result.err
 			}
 
-			// Handle message types
+			// Check message type using quick byte inspection (no full parse)
 			switch {
-			case result.msg.GetData() != nil:
-				if err := send(result.msg); err != nil {
+			case result.msg.IsData():
+				// ZERO-COPY: Forward raw bytes through pipe
+				if err := pipe.Send(ctx, result.msg); err != nil {
 					return err
 				}
 
-			case result.msg.GetClose() != nil:
-				// Forward close message then exit - log but don't fail on error
-				if err := send(result.msg); err != nil && !isExpectedClose(err) {
+			case result.msg.IsClose():
+				// Forward close message then exit
+				if err := pipe.Send(ctx, result.msg); err != nil && !isExpectedClose(err) {
 					logger.DebugContext(ctx, "failed to forward close message", slog.String("error", err.Error()))
 				}
 				return nil
 
+			case result.msg.IsInit():
+				// Skip init messages after the first one
+				logger.DebugContext(ctx, "skipping extra init message")
+				continue
+
 			default:
-				// Skip init or unknown message types
-				logger.DebugContext(ctx, "skipping message", slog.String("type", fmt.Sprintf("%T", result.msg)))
+				// Unknown message type - skip
+				logger.DebugContext(ctx, "skipping unknown message")
 				continue
 			}
+		}
+	}
+}
+
+// forwardPipeToStream receives messages from pipe and sends to gRPC.
+//
+// The sessionDone channel is used to detect when the session is terminated
+// externally (e.g., via TerminateSession API).
+func (rs *RouterServer) forwardPipeToStream(
+	ctx context.Context,
+	pipe *Pipe,
+	stream grpcStream,
+	sessionDone <-chan struct{},
+	logger *slog.Logger,
+) error {
+	for {
+		// Check if session was terminated
+		select {
+		case <-sessionDone:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// Continue to receive
+		}
+
+		msg, err := pipe.Receive(ctx)
+		if err != nil {
+			if isExpectedClose(err) {
+				return nil
+			}
+			return err
+		}
+
+		if err := stream.SendMsg(msg); err != nil {
+			if !isExpectedClose(err) {
+				logger.DebugContext(ctx, "send error", slog.String("error", err.Error()))
+			}
+			return err
 		}
 	}
 }

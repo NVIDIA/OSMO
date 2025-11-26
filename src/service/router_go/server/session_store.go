@@ -27,8 +27,6 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	pb "go.corp.nvidia.com/osmo/proto/router"
 )
 
 // Operation type constants for logging and metrics.
@@ -43,9 +41,16 @@ const (
 var errPipeClosed = status.Error(codes.Unavailable, "pipe closed")
 
 // Pipe is a zero-copy channel-based unidirectional pipe.
-// Unbuffered for zero-copy - messages pass directly from sender to receiver.
+//
+// ZERO-COPY DESIGN:
+// The pipe carries *RawMessage which holds the raw protobuf bytes.
+// When forwarding data messages, we never parse the payload - we just
+// pass the raw bytes through. This avoids copying large payloads.
+//
+// The channel is unbuffered so messages pass directly from sender to
+// receiver without any intermediate buffering.
 type Pipe struct {
-	ch          chan *pb.TunnelMessage
+	ch          chan *RawMessage
 	done        chan struct{} // closed when pipe is closed, for select
 	closed      atomic.Bool
 	once        sync.Once
@@ -53,17 +58,22 @@ type Pipe struct {
 }
 
 func newPipe(sendTimeout time.Duration) *Pipe {
-	// Unbuffered channel for true zero-copy semantics
+	// Unbuffered channel - messages go directly from sender to receiver
 	return &Pipe{
-		ch:          make(chan *pb.TunnelMessage),
+		ch:          make(chan *RawMessage),
 		done:        make(chan struct{}),
 		sendTimeout: sendTimeout,
 	}
 }
 
-// Send sends a message through the pipe with timeout (zero-copy).
+// Send sends a message through the pipe with timeout.
+//
+// ZERO-COPY: The RawMessage contains raw bytes that are passed through
+// without parsing or copying. For data messages, the payload is never
+// touched - it goes directly from network input to network output.
+//
 // Safe to call concurrently with Close - will not panic.
-func (p *Pipe) Send(ctx context.Context, msg *pb.TunnelMessage) error {
+func (p *Pipe) Send(ctx context.Context, msg *RawMessage) error {
 	// Apply send timeout if configured
 	sendCtx := ctx
 	var cancel context.CancelFunc
@@ -87,8 +97,12 @@ func (p *Pipe) Send(ctx context.Context, msg *pb.TunnelMessage) error {
 	}
 }
 
-// Receive receives a message from the pipe (zero-copy).
-func (p *Pipe) Receive(ctx context.Context) (*pb.TunnelMessage, error) {
+// Receive receives a message from the pipe.
+//
+// ZERO-COPY: Returns the RawMessage with its raw bytes intact.
+// For data messages, call msg.Raw to get the bytes to forward
+// without ever parsing the payload.
+func (p *Pipe) Receive(ctx context.Context) (*RawMessage, error) {
 	select {
 	case msg := <-p.ch:
 		return msg, nil

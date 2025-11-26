@@ -28,6 +28,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
@@ -406,13 +407,16 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 	}
 }
 
-// Helper to create a TunnelMessage with data payload
-func tunnelDataMsg(data []byte) *pb.TunnelMessage {
-	return &pb.TunnelMessage{
+// Helper to create a RawMessage with data payload.
+// This marshals the protobuf to bytes, simulating what gRPC does.
+func tunnelDataMsg(data []byte) *RawMessage {
+	msg := &pb.TunnelMessage{
 		Message: &pb.TunnelMessage_Data{
 			Data: &pb.TunnelData{Payload: data},
 		},
 	}
+	raw, _ := proto.Marshal(msg)
+	return &RawMessage{Raw: raw}
 }
 
 func TestPipe_SendReceive(t *testing.T) {
@@ -428,8 +432,13 @@ func TestPipe_SendReceive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("receive error: %v", err)
 	}
-	if string(msg.GetData().Payload) != "hello" {
-		t.Errorf("expected 'hello', got '%s'", string(msg.GetData().Payload))
+	// Parse the raw message to verify contents
+	data := msg.GetData()
+	if data == nil {
+		t.Fatal("expected data message")
+	}
+	if string(data.Payload) != "hello" {
+		t.Errorf("expected 'hello', got '%s'", string(data.Payload))
 	}
 }
 

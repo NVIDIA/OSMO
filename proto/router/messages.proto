@@ -25,6 +25,8 @@ option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 // This provides a single interface for all messages between a client and an agent in
 // either direction.
 //
+// IMPORTANT: This is tightly coupled with the wire.go file in the router_go package.
+// Any changes to this message must be reflected in the wire.go file and vice versa.
 message TunnelMessage {
 
   // The message body

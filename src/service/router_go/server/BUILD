@@ -21,6 +21,7 @@ go_library(
     srcs = [
         "server.go",
         "session_store.go",
+        "wire.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/src/service/router_go/server",
     visibility = ["//src/service/router_go:__subpackages__"],
@@ -28,6 +29,7 @@ go_library(
         "//proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//encoding",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//proto:go_default_library",
         "@org_golang_x_sync//errgroup",
@@ -45,8 +47,10 @@ go_test(
     srcs = ["session_store_test.go"],
     embed = [":server"],
     deps = [
+        "//proto/router:router_go_proto",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto:go_default_library",
     ],
 )
 
