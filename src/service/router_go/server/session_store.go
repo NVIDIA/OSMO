@@ -118,6 +118,16 @@ func (p *Pipe) Close() {
 	})
 }
 
+// Sender returns a send function bound to the given context.
+func (p *Pipe) Sender(ctx context.Context) func(*pb.TunnelMessage) error {
+	return func(msg *pb.TunnelMessage) error { return p.Send(ctx, msg) }
+}
+
+// Receiver returns a receive function bound to the given context.
+func (p *Pipe) Receiver(ctx context.Context) func() (*pb.TunnelMessage, error) {
+	return func() (*pb.TunnelMessage, error) { return p.Receive(ctx) }
+}
+
 // Session represents an active tunnel session between a client and agent.
 type Session struct {
 	Key           string
@@ -127,8 +137,8 @@ type Session struct {
 	CreatedAt     time.Time
 
 	// Bidirectional pipes
-	ClientToAgent *Pipe
-	AgentToClient *Pipe
+	clientToAgent *Pipe
+	agentToClient *Pipe
 
 	// Rendezvous signaling (closed when party arrives)
 	clientReady chan struct{}
@@ -147,6 +157,12 @@ type Session struct {
 	clientConnected atomic.Bool
 	agentConnected  atomic.Bool
 }
+
+// ClientToAgent returns the pipe for client → agent data flow.
+func (s *Session) ClientToAgent() *Pipe { return s.clientToAgent }
+
+// AgentToClient returns the pipe for agent → client data flow.
+func (s *Session) AgentToClient() *Pipe { return s.agentToClient }
 
 // signalClientReady marks client as ready (idempotent).
 func (s *Session) signalClientReady() {
@@ -248,8 +264,8 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 		WorkflowID:    workflowID,
 		OperationType: opType,
 		CreatedAt:     time.Now(),
-		ClientToAgent: newPipe(s.config.StreamSendTimeout),
-		AgentToClient: newPipe(s.config.StreamSendTimeout),
+		clientToAgent: newPipe(s.config.StreamSendTimeout),
+		agentToClient: newPipe(s.config.StreamSendTimeout),
 		clientReady:   make(chan struct{}),
 		agentReady:    make(chan struct{}),
 		done:          make(chan struct{}),
