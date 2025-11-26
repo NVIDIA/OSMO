@@ -47,6 +47,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
+    'sphinx_reredirects',
 
     # Custom extensions
     '_extensions.auto_include',
@@ -59,6 +60,13 @@ extensions = [
     # Theme extension
     '_extensions.nvidia_theme_override',
 ]
+
+# Redirects
+redirects = {
+    # Note: We still need the root index.rst to be present to be the
+    # root document and root toctree.
+    'index': 'user_guide/index.html',
+}
 
 # Spelling
 spelling_exclude_patterns = [
