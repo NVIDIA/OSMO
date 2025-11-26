@@ -56,7 +56,7 @@ Prerequisites
 
 Install the following tools on your workstation:
 
-* `Docker <https://docs.docker.com/get-docker/>`_ - Container runtime (>=28.3.2)
+* `Docker <https://docs.docker.com/get-started/get-docker/>`_ - Container runtime (>=28.3.2)
 * `KIND <https://kind.sigs.k8s.io/docs/user/quick-start/#installation>`_ - Kubernetes in Docker (>=0.29.0)
 * `kubectl <https://kubernetes.io/docs/tasks/tools/>`_ - Kubernetes command-line tool (>=1.32.2)
 * `helm <https://helm.sh/docs/intro/install/>`_ - Helm package manager (>=3.16.2)
@@ -340,7 +340,7 @@ Next Steps
 
 Now that you have OSMO running locally, explore the platform:
 
-1. **Run Your First Workflow**: Visit the `User Guide <https://nvidia.github.io/OSMO/user_guide/getting_started/next_steps.html>`_ for tutorials on submitting workflows, interactive development, distributed training, and more.
+1. **Run Your First Workflow**: Visit the `User Guide <https://nvidia.github.io/OSMO/user_guide/main/getting_started/next_steps.html>`_ for tutorials on submitting workflows, interactive development, distributed training, and more.
 
 2. **Explore the Web UI**: Visit ``http://quick-start.osmo`` to access the OSMO dashboard.
 

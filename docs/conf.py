@@ -69,6 +69,22 @@ spelling_show_suggestions = True
 spelling_warning = True
 spelling_word_list_filename = '../spelling_wordlist.txt'
 
+# Linkcheck ignore
+linkcheck_ignore = [
+    'https://osmo-example-url.com*',
+    'http://osmo.example.com*',
+    'https://osmo.example.com*',
+    'http://localhost:*',
+    # Requires authentication so we can't check it
+    'https://github.com/settings/tokens/new',
+    'https://console.volcengine.com*',
+    'https://us-east-1.console.aws.amazon.com*'
+]
+
+linkcheck_anchors = False
+
+linkcheck_timeout = 150
+
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
 copybutton_prompt_is_regexp = True

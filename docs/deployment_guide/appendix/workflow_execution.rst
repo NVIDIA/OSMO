@@ -232,7 +232,7 @@ Learn More
 
 .. seealso::
 
-   - `Workflow Overview <https://nvidia.github.io/OSMO/user_guide/workflows/index.html>`__ - User guide for writing workflows
-   - `Workflow Lifecycle <https://nvidia.github.io/OSMO/user_guide/workflows/lifecycle/index.html>`__ - Understanding workflow states
+   - `Workflow Overview <https://nvidia.github.io/OSMO/user_guide/main/workflows/index.html>`__ - User guide for writing workflows
+   - `Workflow Lifecycle <https://nvidia.github.io/OSMO/user_guide/main/workflows/lifecycle/index.html>`__ - Understanding workflow states
    - :ref:`architecture` - Overall OSMO system architecture
 
