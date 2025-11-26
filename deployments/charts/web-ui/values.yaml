@@ -115,7 +115,7 @@ services:
 
     ## Documentation base URL
     ##
-    docsBaseUrl: "https://nvidia.github.io/OSMO/user_guide/"
+    docsBaseUrl: "https://nvidia.github.io/OSMO/main/user_guide/"
 
     ## CLI Installation Script URL
     ##

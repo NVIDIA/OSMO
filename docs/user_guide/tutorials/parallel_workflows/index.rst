@@ -79,6 +79,8 @@ Independent tasks run in parallel asynchronously when they:
 All three tasks start simultaneously (resource availability permitting). They cannot
 communicate with each other over the network.
 
+.. _tutorials_parallel_workflows_groups:
+
 **Groups**
 ==========
 

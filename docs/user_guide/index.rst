@@ -15,6 +15,8 @@
 
   SPDX-License-Identifier: Apache-2.0
 
+.. _user_guide_welcome:
+
 ================================
 **Welcome to OSMO**
 ================================

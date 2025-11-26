@@ -47,8 +47,8 @@ appropriate installer package for your operating system and CPU architecture.
 
 .. raw:: html
 
-   <img src="../../_images/github_assets_dark.png" alt="GitHub assets" class="theme-image-light" style="margin-bottom: 1em;">
-   <img src="../../_images/github_assets_light.png" alt="GitHub assets" class="theme-image-dark" style="margin-bottom: 1em;">
+   <img src="../../../_images/github_assets_dark.png" alt="GitHub assets" class="theme-image-light" style="margin-bottom: 1em;">
+   <img src="../../../_images/github_assets_light.png" alt="GitHub assets" class="theme-image-dark" style="margin-bottom: 1em;">
 
 Login
 -----
@@ -56,7 +56,7 @@ Login
 .. important::
 
    The OSMO client can only be used to connect to already deployed OSMO web services. Please contact your administrator
-   and refer to the `Deployment Guides <https://nvidia.github.io/OSMO/deployment_guide/main/introduction/whats_next.html>`_ for more information.
+   and refer to the :ref:`Deployment Guides <whats_next>` for more information.
 
 To login to the client, can use the following command:
 
