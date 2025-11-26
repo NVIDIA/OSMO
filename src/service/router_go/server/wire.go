@@ -172,11 +172,14 @@ func (c rawCodec) Name() string {
 
 // Marshal serializes a message to bytes.
 //
-// If the message is a *RawMessage, we return its raw bytes directly (zero copy).
-// Otherwise, we fall back to standard protobuf marshaling.
+// If the message is a RawMessage (by value or pointer), we return its raw bytes
+// directly (zero copy). Otherwise, we fall back to standard protobuf marshaling.
 func (c rawCodec) Marshal(v interface{}) ([]byte, error) {
-	// Zero-copy path: if it's a RawMessage, return the raw bytes directly
-	if raw, ok := v.(*RawMessage); ok {
+	// Zero-copy path: handle both RawMessage and *RawMessage
+	switch raw := v.(type) {
+	case RawMessage:
+		return raw.Raw, nil
+	case *RawMessage:
 		return raw.Raw, nil
 	}
 

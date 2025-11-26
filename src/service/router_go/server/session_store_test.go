@@ -409,14 +409,14 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 
 // Helper to create a RawMessage with data payload.
 // This marshals the protobuf to bytes, simulating what gRPC does.
-func tunnelDataMsg(data []byte) *RawMessage {
+func tunnelDataMsg(data []byte) RawMessage {
 	msg := &pb.TunnelMessage{
 		Message: &pb.TunnelMessage_Data{
 			Data: &pb.TunnelData{Payload: data},
 		},
 	}
 	raw, _ := proto.Marshal(msg)
-	return &RawMessage{Raw: raw}
+	return RawMessage{Raw: raw}
 }
 
 func TestPipe_SendReceive(t *testing.T) {

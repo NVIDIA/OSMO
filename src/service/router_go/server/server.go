@@ -223,7 +223,7 @@ func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
 
 // recvResult holds the result of an async receive operation.
 type recvResult struct {
-	msg *RawMessage
+	msg RawMessage
 	err error
 }
 
@@ -247,7 +247,7 @@ func (rs *RouterServer) forwardStreamToPipe(
 			var msg RawMessage
 			err := stream.RecvMsg(&msg)
 			select {
-			case recvCh <- recvResult{&msg, err}:
+			case recvCh <- recvResult{msg, err}:
 				if err != nil {
 					return // Stop on error
 				}
