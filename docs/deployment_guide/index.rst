@@ -15,6 +15,8 @@
 
   SPDX-License-Identifier: Apache-2.0
 
+.. _deployment_guide_welcome:
+
 ===============================
 **Welcome to OSMO Deployment**
 ===============================
@@ -67,7 +69,7 @@ Integrate with your existing storage infrastructure:
 
 .. seealso::
 
-   Learn more about OSMO in the `What is OSMO? <https://nvidia.github.io/OSMO/user_guide/index.html#what-is-osmo>`_ section of the User Guide.
+   Learn more about OSMO in the :ref:`Welcome to OSMO <user_guide_welcome>` section of the User Guide.
 
 What You'll Deploy
 ==================

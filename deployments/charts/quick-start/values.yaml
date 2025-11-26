@@ -743,6 +743,9 @@ backend-operator:
         - sh
         - -c
         - |
+          # Mostly used to fail fast if there is a transient issue with apk add.
+          # For simplicity let K8s restart and retry the container.
+          set -e
           apk add --no-cache curl jq
           echo "Waiting for backend-operator-token to be created..."
           until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
@@ -791,6 +794,9 @@ backend-operator:
         - sh
         - -c
         - |
+          # Mostly used to fail fast if there is a transient issue with apk add.
+          # For simplicity let K8s restart and retry the container.
+          set -e
           apk add --no-cache curl jq
           echo "Waiting for backend-operator-token to be created..."
           until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do

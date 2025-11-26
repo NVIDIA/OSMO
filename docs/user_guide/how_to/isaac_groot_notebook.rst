@@ -72,7 +72,7 @@ Then, you can access the JupyterLab interface by running the following command:
 
   $ osmo workflow port-forward <workflow ID> tutorial --port 6060
 
-Navigate to http://localhost:6060 in your browser.
+Navigate to `http://localhost:6060` in your browser.
 On the left hand side, you can see the list of all the tutorial notebooks.
 
 .. image:: images/groot_jupyter.png

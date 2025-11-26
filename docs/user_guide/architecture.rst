@@ -354,4 +354,4 @@ deployments while maintaining a consistent interface and workflow experience.
 
 .. seealso::
 
-  For detailed deployment procedures, refer to the `Deployment Guide <https://nvidia.github.io/OSMO/deployment_guide/>`_.
+  For detailed deployment procedures, refer to the :ref:`Deployment Guide <deployment_guide_welcome>`.

@@ -26,7 +26,7 @@ Templates and Special Tokens
 Templates
 =========
 
-Workflows use `Jinja <https://jinja.palletsprojects.com/en/3.1.x/>`_ to define variables inside a
+Workflows use `Jinja <https://jinja.palletsprojects.com/en/stable/>`_ to define variables inside a
 workflow that can have default values or be overridden on the command line before workflow
 submission.
 

@@ -20,53 +20,26 @@ load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 
 package(default_visibility = ["//visibility:public"])
 
+# Build all documentation as a unified Sphinx project
 filegroup(
-    name = "root_docs_sources",
-    srcs = glob([
-        "_static/**",
-        "_extensions/**",
-        "conf.py",
-        "index.rst",
-        "docs_options.svg",
-    ]),
-)
-
-copy_to_directory(
-    name = "root_docs_copy",
-    srcs = [":root_docs_sources"],
-    out = "root_docs",
-)
-
-filegroup(
-    name = "user_guide_sources",
+    name = "all_docs_sources",
     srcs = glob([
         "_static/**",
         "_extensions/**",
         "_templates/**",
+        "_redirect/**",
         "user_guide/**",
-        "conf.py",
-    ]),
-)
-
-copy_to_directory(
-    name = "user_guide_copy",
-    srcs = [":user_guide_sources"],
-    out = "user_guide",
-)
-
-filegroup(
-    name = "deployment_guide_sources",
-    srcs = glob([
-        "_static/**",
-        "_extensions/**",
-        "_templates/**",
         "deployment_guide/**",
-        "conf.py",
+        "*.py",
+        "*.rst",
+        "*.svg",
+        "*.png",
+        "*.txt",
     ]),
 )
 
 copy_to_directory(
-    name = "deployment_guide_copy",
-    srcs = [":deployment_guide_sources"],
-    out = "deployment_guide",
+    name = "docs_copy",
+    srcs = [":all_docs_sources"],
+    out = "docs",
 )

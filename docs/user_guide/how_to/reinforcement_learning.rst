@@ -117,7 +117,7 @@ and kill it after the training is done.
 
     If you launch TensorBoard in the same task as the training script, you need to stop it at the end so that the workflow can finish.
 
-The complete workflow spec file is available as `train_policy.yaml <https://github.com/NVIDIA/OSMO/tree/main/workflows/reinforcement_learning/train_policy.yaml>`_.
+The complete workflow spec file is available as `train_policy.yaml <https://github.com/NVIDIA/OSMO/blob/main/workflows/reinforcement_learning/single_gpu/train_policy.yaml>`_.
 
 Running the Workflow
 ~~~~~~~~~~~~~~~~~~~~
