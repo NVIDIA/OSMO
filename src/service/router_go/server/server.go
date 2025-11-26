@@ -82,8 +82,8 @@ type tunnelConfig struct {
 // Both client and agent streams implement this.
 type grpcStream interface {
 	Context() context.Context
-	SendMsg(m interface{}) error
-	RecvMsg(m interface{}) error
+	SendMsg(m any) error
+	RecvMsg(m any) error
 }
 
 var (

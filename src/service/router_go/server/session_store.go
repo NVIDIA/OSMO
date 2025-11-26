@@ -288,6 +288,9 @@ func (s *Session) waitForParty(ctx context.Context, timeout time.Duration, ready
 type SessionStoreConfig struct {
 	RendezvousTimeout time.Duration
 	StreamSendTimeout time.Duration
+	MaxSessionKeyLen  int
+	MaxCookieLen      int
+	MaxWorkflowIDLen  int
 }
 
 // SessionStore manages active sessions with thread-safe operations.
@@ -313,13 +316,6 @@ func (s *SessionStore) RendezvousTimeout() time.Duration {
 	return s.config.RendezvousTimeout
 }
 
-// Validation constants
-const (
-	maxSessionKeyLen = 256
-	maxCookieLen     = 1024
-	maxWorkflowIDLen = 256
-)
-
 // GetOrCreateSession returns existing session or creates new one.
 // If session exists, validates that cookie matches.
 // Caller should call ReleaseSession when done to trigger cleanup.
@@ -329,14 +325,14 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 	if key == "" {
 		return nil, false, status.Error(codes.InvalidArgument, "session key is required")
 	}
-	if len(key) > maxSessionKeyLen {
-		return nil, false, status.Errorf(codes.InvalidArgument, "session key exceeds max length of %d", maxSessionKeyLen)
+	if len(key) > s.config.MaxSessionKeyLen {
+		return nil, false, status.Errorf(codes.InvalidArgument, "session key exceeds max length of %d", s.config.MaxSessionKeyLen)
 	}
-	if len(cookie) > maxCookieLen {
-		return nil, false, status.Errorf(codes.InvalidArgument, "cookie exceeds max length of %d", maxCookieLen)
+	if len(cookie) > s.config.MaxCookieLen {
+		return nil, false, status.Errorf(codes.InvalidArgument, "cookie exceeds max length of %d", s.config.MaxCookieLen)
 	}
-	if len(workflowID) > maxWorkflowIDLen {
-		return nil, false, status.Errorf(codes.InvalidArgument, "workflow ID exceeds max length of %d", maxWorkflowIDLen)
+	if len(workflowID) > s.config.MaxWorkflowIDLen {
+		return nil, false, status.Errorf(codes.InvalidArgument, "workflow ID exceeds max length of %d", s.config.MaxWorkflowIDLen)
 	}
 
 	newSession := &Session{

@@ -40,6 +40,9 @@ const (
 	defaultStreamSendTimeout   = 30 * time.Second
 	defaultMaxConcurrentStream = 1000
 	defaultMaxMessageSize      = 4 * 1024 * 1024 // 4MB
+	defaultMaxSessionKeyLen    = 256
+	defaultMaxCookieLen        = 1024
+	defaultMaxWorkflowIDLen    = 256
 )
 
 var (
@@ -49,8 +52,11 @@ var (
 	tlsEnabled           = flag.Bool("tls-enabled", true, "Enable TLS")
 	rendezvousTimeout    = flag.Duration("rendezvous-timeout", defaultRendezvousTimeout, "Rendezvous wait timeout")
 	streamSendTimeout    = flag.Duration("stream-send-timeout", defaultStreamSendTimeout, "Maximum time to block when forwarding data to the peer")
-	maxConcurrentStreams = flag.Uint("max-concurrent-streams", defaultMaxConcurrentStream, "Maximum concurrent gRPC streams per connection")
+	maxConcurrentStreams = flag.Int("max-concurrent-streams", defaultMaxConcurrentStream, "Maximum concurrent gRPC streams per connection")
 	maxMessageSize       = flag.Int("max-message-size", defaultMaxMessageSize, "Maximum message size in bytes (default 4MB)")
+	maxSessionKeyLen     = flag.Int("max-session-key-len", defaultMaxSessionKeyLen, "Maximum session key length")
+	maxCookieLen         = flag.Int("max-cookie-len", defaultMaxCookieLen, "Maximum cookie length")
+	maxWorkflowIDLen     = flag.Int("max-workflow-id-len", defaultMaxWorkflowIDLen, "Maximum workflow ID length")
 )
 
 func main() {
@@ -71,11 +77,26 @@ func main() {
 		logger.Error("invalid flag", slog.String("flag", "stream-send-timeout"), slog.Duration("value", *streamSendTimeout))
 		os.Exit(1)
 	}
+	if *maxSessionKeyLen <= 0 {
+		logger.Error("invalid flag", slog.String("flag", "max-session-key-len"), slog.Int("value", *maxSessionKeyLen))
+		os.Exit(1)
+	}
+	if *maxCookieLen <= 0 {
+		logger.Error("invalid flag", slog.String("flag", "max-cookie-len"), slog.Int("value", *maxCookieLen))
+		os.Exit(1)
+	}
+	if *maxWorkflowIDLen <= 0 {
+		logger.Error("invalid flag", slog.String("flag", "max-workflow-id-len"), slog.Int("value", *maxWorkflowIDLen))
+		os.Exit(1)
+	}
 
 	// Create session store
 	store := server.NewSessionStore(server.SessionStoreConfig{
 		RendezvousTimeout: *rendezvousTimeout,
 		StreamSendTimeout: *streamSendTimeout,
+		MaxSessionKeyLen:  *maxSessionKeyLen,
+		MaxCookieLen:      *maxCookieLen,
+		MaxWorkflowIDLen:  *maxWorkflowIDLen,
 	}, logger)
 
 	// Session cleanup is handled by:
