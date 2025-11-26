@@ -139,9 +139,9 @@ html_sidebars = {
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
-    "navbar_start": ["navbar-logo", "versioning.html"],
+    "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["versioning.html","theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
