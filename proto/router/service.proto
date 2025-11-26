@@ -30,12 +30,14 @@ service RouterClientService {
   rpc Tunnel(stream TunnelRequest) returns (stream TunnelResponse);
 }
 
-// RouterAgentService handles connections from osmo-ctrl agents
+// RouterAgentService handles connections from osmo-ctrl agents. Agents send
+// TunnelResponse frames (mirroring what CLI clients receive) and the router
+// streams TunnelRequest frames back so both legs share the same schemas without
+// conversion.
 service RouterAgentService {
-  // RegisterTunnel establishes agent endpoint for any operation
-  // Agent sends init, then bidirectional streaming begins
-  // Supports Exec, PortForward, and Rsync
-  rpc RegisterTunnel(stream TunnelResponse) returns (stream TunnelRequest);
+  // Tunnel establishes the agent endpoint for any operation. Agent sends init,
+  // then bidirectional streaming begins. Supports Exec, PortForward, and Rsync.
+  rpc Tunnel(stream TunnelResponse) returns (stream TunnelRequest);
 }
 
 // RouterControlService provides auxiliary operations

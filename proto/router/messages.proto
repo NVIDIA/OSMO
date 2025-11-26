@@ -20,93 +20,106 @@ package router;
 
 option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
-// Common message types for router operations
+// Unified Tunnel messages
+//
+// This provides a single interface for all messages between a client and an agent in
+// either direction.
+//
+message TunnelMessage {
 
-// Protocol types for port forwarding
-enum Protocol {
-  PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_TCP = 1;
-  PROTOCOL_UDP = 2;
-}
-
-// Operation types for tunnel operations
-enum OperationType {
-  OPERATION_UNSPECIFIED = 0;
-  OPERATION_EXEC = 1;
-  OPERATION_PORT_FORWARD = 2;
-  OPERATION_RSYNC = 3;
-}
-
-// Unified Tunnel operation messages
-// This provides a single interface for all operation types (Exec, PortForward, Rsync)
-message TunnelRequest {
+  // The message body
   oneof message {
+
+    // The initial message to initiate a session.
     TunnelInit init = 1;
+
+    // The data message contains the payload being tunneled.
     TunnelData data = 2;
-    TunnelMetadata metadata = 3;
-    TunnelClose close = 4;
+
+    // The message that contains details about the close of the tunnel session.
+    TunnelClose close = 3;
   }
 }
 
+// TunnelInit is the initial message sent by a client or agent to initiate a session.
 message TunnelInit {
   string session_key = 1;
   string cookie = 2;
   string workflow_id = 3;
-  OperationType operation = 4;  // EXEC, PORT_FORWARD, or RSYNC
 
-  // Operation-specific fields (only populate relevant ones)
-  Protocol protocol = 5;        // For PORT_FORWARD: TCP or UDP
-  int32 remote_port = 6;        // For PORT_FORWARD: port on remote task
-  string direction = 7;         // For RSYNC: "upload" or "download"
+  // The operation to perform.
+  oneof operation {
+    ExecOperation exec = 4;
+    PortForwardOperation port_forward = 5;
+    WebSocketOperation web_socket = 6;
+    RsyncOperation rsync = 7;
+  }
 }
 
+// ExecOperation is the operation to execute a command on a remote machine.
+message ExecOperation {
+  // The command to execute on the remote machine.
+  string command = 1;
+}
+
+// PortForwardOperation is the operation to forward a port from a remote task to a client.
+message PortForwardOperation {
+
+  // Possible protocols for port forwarding.
+  enum Protocol {
+    UNSPECIFIED = 0;
+    TCP = 1;
+    UDP = 2;
+  }
+
+  // The protocol to use for the port forward.
+  Protocol protocol = 1;
+
+  // The port on the remote task to forward FROM.
+  string port = 2;
+}
+
+// WebSocketOperation is the operation to proxy a WebSocket connection
+// from a remote task to a client.
+message WebSocketOperation {}
+
+// RsyncOperation is the operation to proxy rsync operations between a
+// remote task and a client.
+message RsyncOperation {}
+
+// TunnelData is the message that contains the payload being tunneled.
 message TunnelData {
+  // The payload being tunneled.
   bytes payload = 1;
-  uint64 seq = 2;
 }
 
-message TunnelMetadata {
-  oneof metadata {
-    ExecResize resize = 1;      // For EXEC: terminal resize
-    // Future: other operation-specific metadata can be added here
-  }
-}
-
-message ExecResize {
-  uint32 rows = 1;           // Terminal rows
-  uint32 cols = 2;           // Terminal columns
-}
-
+// TunnelClose is the message that contains the details about the close of the tunnel session.
 message TunnelClose {
-  int32 exit_code = 1;          // Optional: For EXEC
-  bool success = 2;             // Optional: For RSYNC
-  string error_message = 3;     // Optional: For RSYNC
-  string reason = 4;            // Optional: For PORT_FORWARD
-}
+  // The exit code of the operation.
+  int32 exit_code = 1;
 
-message TunnelResponse {
-  oneof message {
-    TunnelInit init = 1;
-    TunnelData data = 2;
-    TunnelError error = 3;
-    TunnelMetadata metadata = 4;
-    TunnelClose close = 5;
-  }
-}
-
-message TunnelError {
-  string message = 1;
-  string code = 2;              // gRPC status code string
+  // The reason for the close of the tunnel session.
+  string message = 2;
 }
 
 // Control service messages
+
+// SessionInfoRequest is the request to the control service to get information about a session.
 message SessionInfoRequest {
   string session_key = 1;
 }
 
+// SessionInfoResponse is the response to the SessionInfoRequest.
 message SessionInfoResponse {
+  // Whether the session is active.
   bool active = 1;
+
+  // The workflow ID of the session.
   string workflow_id = 2;
+
+  // The creation timestamp of the session.
   int64 created_at = 3;
-  OperationType operation_type = 4;
+
+  // The operation type of the session.
+  string operation_type = 4;
 }
