@@ -76,7 +76,7 @@ message PortForwardOperation {
   Protocol protocol = 1;
 
   // The port on the remote task to forward FROM.
-  string port = 2;
+  int32 port = 2;
 }
 
 // WebSocketOperation is the operation to proxy a WebSocket connection

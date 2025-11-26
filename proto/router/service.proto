@@ -24,20 +24,18 @@ option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
 // RouterClientService handles connections from CLI clients
 service RouterClientService {
-  // Tunnel creates a unified bidirectional stream for all operations
-  // Supports Exec, PortForward (TCP/UDP), and Rsync
-  // Operation type is specified in the init message
-  rpc Tunnel(stream TunnelRequest) returns (stream TunnelResponse);
+  // Tunnel establishes the client endpoint for any operation. Client sends init,
+  // then bidirectional streaming begins.
+  rpc Tunnel(stream TunnelMessage) returns (stream TunnelMessage);
 }
 
 // RouterAgentService handles connections from osmo-ctrl agents. Agents send
-// TunnelResponse frames (mirroring what CLI clients receive) and the router
-// streams TunnelRequest frames back so both legs share the same schemas without
-// conversion.
+// TunnelMessage frames and the router streams TunnelMessage frames back so both
+// legs share the same schemas without conversion.
 service RouterAgentService {
   // Tunnel establishes the agent endpoint for any operation. Agent sends init,
-  // then bidirectional streaming begins. Supports Exec, PortForward, and Rsync.
-  rpc Tunnel(stream TunnelResponse) returns (stream TunnelRequest);
+  // then bidirectional streaming begins.
+  rpc Tunnel(stream TunnelMessage) returns (stream TunnelMessage);
 }
 
 // RouterControlService provides auxiliary operations
