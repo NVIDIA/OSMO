@@ -42,4 +42,7 @@ service RouterAgentService {
 service RouterControlService {
   // GetSessionInfo retrieves information about an active session
   rpc GetSessionInfo(SessionInfoRequest) returns (SessionInfoResponse);
+
+  // TerminateSession forcibly terminates an active session
+  rpc TerminateSession(TerminateSessionRequest) returns (TerminateSessionResponse);
 }

@@ -685,6 +685,132 @@ func TestGetSessionInfo(t *testing.T) {
 	}
 }
 
+func TestTerminateSession(t *testing.T) {
+	t.Parallel()
+	env := setupTestEnv(t, 0)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	control := env.controlService(t)
+
+	// Test terminating non-existent session
+	resp, err := control.TerminateSession(ctx, &pb.TerminateSessionRequest{SessionKey: "nonexistent"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Terminated {
+		t.Error("expected Terminated=false for non-existent session")
+	}
+
+	// Test validation - empty session key
+	_, err = control.TerminateSession(ctx, &pb.TerminateSessionRequest{SessionKey: ""})
+	if err == nil {
+		t.Fatal("expected error for empty session key")
+	}
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", status.Code(err))
+	}
+
+	// Create an active session and terminate it
+	sessionKey := "terminate-test-session"
+	clientDone := make(chan error, 1)
+	agentDone := make(chan error, 1)
+	clientConnected := make(chan struct{})
+	agentConnected := make(chan struct{})
+
+	// Client
+	go func() {
+		client := env.clientService(t)
+		stream, err := client.Tunnel(ctx)
+		if err != nil {
+			clientDone <- err
+			return
+		}
+
+		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+			clientDone <- err
+			return
+		}
+		close(clientConnected)
+
+		// Wait for data or error (termination should cause error)
+		_, err = stream.Recv()
+		clientDone <- err // Either nil, EOF, or cancellation error
+	}()
+
+	// Agent
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		agent := env.agentService(t)
+		stream, err := agent.Tunnel(ctx)
+		if err != nil {
+			agentDone <- err
+			return
+		}
+
+		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+			agentDone <- err
+			return
+		}
+		close(agentConnected)
+
+		// Wait for data or error (termination should cause error)
+		_, err = stream.Recv()
+		agentDone <- err // Either nil, EOF, or cancellation error
+	}()
+
+	// Wait for both to connect
+	<-clientConnected
+	<-agentConnected
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify session exists before termination
+	infoResp, err := control.GetSessionInfo(ctx, &pb.SessionInfoRequest{SessionKey: sessionKey})
+	if err != nil {
+		t.Fatalf("GetSessionInfo failed: %v", err)
+	}
+	if !infoResp.Active {
+		t.Error("expected session to be active before termination")
+	}
+
+	// Terminate the session
+	resp, err = control.TerminateSession(ctx, &pb.TerminateSessionRequest{
+		SessionKey: sessionKey,
+		Reason:     "test termination",
+	})
+	if err != nil {
+		t.Fatalf("TerminateSession failed: %v", err)
+	}
+	if !resp.Terminated {
+		t.Error("expected Terminated=true")
+	}
+
+	// Verify session no longer exists
+	_, err = control.GetSessionInfo(ctx, &pb.SessionInfoRequest{SessionKey: sessionKey})
+	if err == nil {
+		t.Error("expected error for terminated session")
+	}
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound, got %v", status.Code(err))
+	}
+
+	// Both client and agent should receive errors
+	select {
+	case <-clientDone:
+		// Client received error or EOF - expected
+	case <-time.After(2 * time.Second):
+		t.Error("client did not receive termination signal")
+	}
+
+	select {
+	case <-agentDone:
+		// Agent received error or EOF - expected
+	case <-time.After(2 * time.Second):
+		t.Error("agent did not receive termination signal")
+	}
+}
+
 func TestLargeDataTransfer(t *testing.T) {
 	t.Parallel()
 	env := setupTestEnv(t, 0)

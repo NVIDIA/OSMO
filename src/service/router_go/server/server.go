@@ -214,47 +214,73 @@ func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
 	pb.RegisterRouterControlServiceServer(s, rs)
 }
 
+// recvResult holds the result of an async receive operation.
+type recvResult struct {
+	msg *pb.TunnelMessage
+	err error
+}
+
 // forward transfers messages from source to destination (zero-copy).
+// Uses a goroutine for recv to enable context cancellation.
 func (rs *RouterServer) forward(
 	ctx context.Context,
 	recv func() (*pb.TunnelMessage, error),
 	send func(*pb.TunnelMessage) error,
 	logger *slog.Logger,
 ) error {
-	for {
-		msg, err := recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			if isExpectedClose(err) {
-				return nil
-			}
-			logger.DebugContext(ctx, "recv error", slog.String("error", err.Error()))
-			return err
-		}
+	// Channel for async receive results
+	recvCh := make(chan recvResult, 1)
 
-		// Handle message types
-		switch {
-		case msg.GetData() != nil:
-			if err := send(msg); err != nil {
-				if isExpectedClose(err) {
-					return nil
+	// Start receive goroutine
+	go func() {
+		for {
+			msg, err := recv()
+			select {
+			case recvCh <- recvResult{msg, err}:
+				if err != nil {
+					return // Stop on error
 				}
-				return err
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case result := <-recvCh:
+			if result.err == io.EOF {
+				return io.EOF
+			}
+			if result.err != nil {
+				if !isExpectedClose(result.err) {
+					logger.DebugContext(ctx, "recv error", slog.String("error", result.err.Error()))
+				}
+				return result.err
 			}
 
-		case msg.GetClose() != nil:
-			// Forward close message then exit - log but don't fail on error
-			if err := send(msg); err != nil && !isExpectedClose(err) {
-				logger.DebugContext(ctx, "failed to forward close message", slog.String("error", err.Error()))
-			}
-			return nil
+			// Handle message types
+			switch {
+			case result.msg.GetData() != nil:
+				if err := send(result.msg); err != nil {
+					return err
+				}
 
-		default:
-			// Skip init or unknown message types
-			logger.DebugContext(ctx, "skipping message", slog.String("type", fmt.Sprintf("%T", msg)))
-			continue
+			case result.msg.GetClose() != nil:
+				// Forward close message then exit - log but don't fail on error
+				if err := send(result.msg); err != nil && !isExpectedClose(err) {
+					logger.DebugContext(ctx, "failed to forward close message", slog.String("error", err.Error()))
+				}
+				return nil
+
+			default:
+				// Skip init or unknown message types
+				logger.DebugContext(ctx, "skipping message", slog.String("type", fmt.Sprintf("%T", result.msg)))
+				continue
+			}
 		}
 	}
 }
@@ -273,6 +299,23 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 		CreatedAt:     session.CreatedAt.Unix(),
 		OperationType: session.OperationType,
 	}, nil
+}
+
+// TerminateSession forcibly terminates an active session.
+func (rs *RouterServer) TerminateSession(ctx context.Context, req *pb.TerminateSessionRequest) (*pb.TerminateSessionResponse, error) {
+	if req.SessionKey == "" {
+		return nil, status.Error(codes.InvalidArgument, "session_key is required")
+	}
+
+	terminated := rs.store.TerminateSession(req.SessionKey, req.Reason)
+
+	rs.logger.InfoContext(ctx, "terminate session request",
+		slog.String("session_key", req.SessionKey),
+		slog.String("reason", req.Reason),
+		slog.Bool("terminated", terminated),
+	)
+
+	return &pb.TerminateSessionResponse{Terminated: terminated}, nil
 }
 
 // Helper functions

@@ -123,3 +123,18 @@ message SessionInfoResponse {
   // The operation type of the session.
   string operation_type = 4;
 }
+
+// TerminateSessionRequest is the request to forcibly terminate a session.
+message TerminateSessionRequest {
+  // The session key to terminate.
+  string session_key = 1;
+
+  // Optional reason for termination (will be sent to client/agent).
+  string reason = 2;
+}
+
+// TerminateSessionResponse is the response to the TerminateSessionRequest.
+message TerminateSessionResponse {
+  // Whether the session was found and terminated.
+  bool terminated = 1;
+}

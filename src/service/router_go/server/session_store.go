@@ -357,10 +357,42 @@ func (s *SessionStore) ReleaseSession(key string) {
 
 	s.sessions.Delete(key)
 	session.signalDone()
+	session.clientToAgent.Close()
+	session.agentToClient.Close()
 
 	s.logger.Debug("session deleted",
 		slog.String("session_key", key),
 		slog.String("operation", session.OperationType),
 		slog.Duration("duration", time.Since(session.CreatedAt)),
 	)
+}
+
+// TerminateSession forcibly terminates a session regardless of reference count.
+// Returns true if the session was found and terminated.
+func (s *SessionStore) TerminateSession(key, reason string) bool {
+	val, ok := s.sessions.Load(key)
+	if !ok {
+		return false
+	}
+
+	session := val.(*Session)
+
+	// Atomic check-and-set prevents duplicate cleanup
+	if !session.deleted.CompareAndSwap(false, true) {
+		return false // Already being terminated
+	}
+
+	s.sessions.Delete(key)
+	session.signalDone()
+	session.clientToAgent.Close()
+	session.agentToClient.Close()
+
+	s.logger.Info("session terminated",
+		slog.String("session_key", key),
+		slog.String("reason", reason),
+		slog.String("operation", session.OperationType),
+		slog.Duration("duration", time.Since(session.CreatedAt)),
+	)
+
+	return true
 }
