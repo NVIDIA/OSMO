@@ -44,7 +44,7 @@ export const env = createEnv({
   server: {
     AUTH_CLIENT_SECRET: z.string().optional().default(""),
     CLI_INSTALL_SCRIPT_URL: z.string().default("https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"),
-    DOCS_BASE_URL: z.string().default("https://nvidia.github.io/OSMO/user_guide/"),
+    DOCS_BASE_URL: z.string().default("https://nvidia.github.io/OSMO/main/user_guide/"),
   },
 
   /**

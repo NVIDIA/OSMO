@@ -83,7 +83,7 @@ Next, update your OSMO backend configuration to include the Grafana and Kubernet
   $ osmo config update BACKEND $BACKEND_NAME --file /tmp/backend_config.json
 
 
-Once configured, you can access dashboard and resource usage links for each workflow in the OSMO UI. See the `Workflow Resource Usage <https://nvidia.github.io/OSMO/user_guide/main/faq/index.html#how-to-determine-the-resource-usage-of-a-workflow>`__ for details.
+Once configured, you can access dashboard and resource usage links for each workflow in the OSMO UI. See the :ref:`Workflow Resource Usage <faq_workflow_resource_usage>` for details.
 
 
 Security Considerations
