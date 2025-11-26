@@ -178,6 +178,21 @@ func (s *Session) Done() <-chan struct{} {
 	return s.done
 }
 
+// IsConnected returns true if both client and agent have connected (rendezvous complete).
+func (s *Session) IsConnected() bool {
+	return s.clientConnected.Load() && s.agentConnected.Load()
+}
+
+// ClientConnected returns true if the client has connected.
+func (s *Session) ClientConnected() bool {
+	return s.clientConnected.Load()
+}
+
+// AgentConnected returns true if the agent has connected.
+func (s *Session) AgentConnected() bool {
+	return s.agentConnected.Load()
+}
+
 // WaitForAgent signals client is ready and waits for agent to connect.
 func (s *Session) WaitForAgent(ctx context.Context, timeout time.Duration) error {
 	if !s.clientConnected.CompareAndSwap(false, true) {

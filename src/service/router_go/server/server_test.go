@@ -629,39 +629,56 @@ func TestGetSessionInfo(t *testing.T) {
 	sessionKey := "info-test-session"
 	workflowID := "test-workflow"
 
-	sessionActive := make(chan struct{})
+	clientConnected := make(chan struct{})
+	agentConnected := make(chan struct{})
 
 	go func() {
 		client := env.clientService(t)
 		stream, _ := client.Tunnel(ctx)
 		sendInit(stream, sessionKey, "cookie", workflowID, nil)
-		close(sessionActive)
+		close(clientConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
 	}()
 
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-clientConnected                  // Wait for client first
+		time.Sleep(100 * time.Millisecond) // Give time for query below
 		agent := env.agentService(t)
 		stream, _ := agent.Tunnel(ctx)
 		sendInit(stream, sessionKey, "cookie", workflowID, nil)
+		close(agentConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
 	}()
 
-	<-sessionActive
-	time.Sleep(100 * time.Millisecond)
+	// Wait for client to connect
+	<-clientConnected
+	time.Sleep(50 * time.Millisecond)
 
+	// Query before agent connects - should exist but NOT be active (pre-rendezvous)
 	resp, err := control.GetSessionInfo(ctx, &pb.SessionInfoRequest{SessionKey: sessionKey})
 	if err != nil {
-		t.Fatalf("GetSessionInfo failed: %v", err)
+		t.Fatalf("GetSessionInfo failed (pre-rendezvous): %v", err)
 	}
-
-	if !resp.Active {
-		t.Error("expected session to be active")
+	if resp.Active {
+		t.Error("expected session to NOT be active before rendezvous")
 	}
 	if resp.WorkflowId != workflowID {
 		t.Errorf("expected workflow ID '%s', got '%s'", workflowID, resp.WorkflowId)
+	}
+
+	// Wait for agent to connect
+	<-agentConnected
+	time.Sleep(50 * time.Millisecond)
+
+	// Query after both connected - should be active
+	resp, err = control.GetSessionInfo(ctx, &pb.SessionInfoRequest{SessionKey: sessionKey})
+	if err != nil {
+		t.Fatalf("GetSessionInfo failed (post-rendezvous): %v", err)
+	}
+	if !resp.Active {
+		t.Error("expected session to be active after rendezvous")
 	}
 	if resp.OperationType != OperationExec {
 		t.Errorf("expected operation type '%s', got '%s'", OperationExec, resp.OperationType)

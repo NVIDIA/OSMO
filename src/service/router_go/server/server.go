@@ -262,8 +262,9 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 		return nil, err
 	}
 
+	// Active means both client and agent have completed rendezvous
 	return &pb.SessionInfoResponse{
-		Active:        true,
+		Active:        session.IsConnected(),
 		WorkflowId:    session.WorkflowID,
 		CreatedAt:     session.CreatedAt.Unix(),
 		OperationType: session.OperationType,
