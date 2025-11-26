@@ -143,9 +143,6 @@ type Session struct {
 	done    chan struct{}
 	deleted atomic.Bool
 
-	// Reference counting: session deleted only when both parties release
-	refCount atomic.Int32
-
 	// Ensure channels close exactly once
 	closeClientReady sync.Once
 	closeAgentReady  sync.Once
@@ -277,7 +274,7 @@ const (
 
 // GetOrCreateSession returns existing session or creates new one.
 // If session exists, validates that cookie matches.
-// Increments reference count - caller must call ReleaseSession when done.
+// Caller should call ReleaseSession when done to trigger cleanup.
 // Returns (session, existed, error).
 func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string) (*Session, bool, error) {
 	// Validate inputs
@@ -315,8 +312,6 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 		return nil, false, status.Error(codes.PermissionDenied, "cookie mismatch")
 	}
 
-	// Increment reference count (expect 2: one for client, one for agent)
-	newCount := session.refCount.Add(1)
 	if !loaded {
 		s.logger.Debug("session created",
 			slog.String("session_key", key),
@@ -325,7 +320,6 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 	} else {
 		s.logger.Debug("session joined",
 			slog.String("session_key", key),
-			slog.Int("ref_count", int(newCount)),
 		)
 	}
 
@@ -341,8 +335,9 @@ func (s *SessionStore) GetSession(key string) (*Session, error) {
 	return val.(*Session), nil
 }
 
-// ReleaseSession decrements reference count and deletes session when both parties have released.
-// Safe to call multiple times (idempotent per caller due to refCount).
+// ReleaseSession releases the session and triggers cleanup.
+// First caller wins - subsequent calls are no-ops.
+// This signals all handlers to exit immediately via the done channel.
 func (s *SessionStore) ReleaseSession(key string) {
 	val, ok := s.sessions.Load(key)
 	if !ok {
@@ -351,20 +346,7 @@ func (s *SessionStore) ReleaseSession(key string) {
 
 	session := val.(*Session)
 
-	// Decrement reference count
-	newCount := session.refCount.Add(-1)
-
-	s.logger.Debug("session released",
-		slog.String("session_key", key),
-		slog.Int("ref_count", int(newCount)),
-	)
-
-	// Only delete when last reference is released
-	if newCount > 0 {
-		return
-	}
-
-	// Atomic check-and-set prevents duplicate cleanup
+	// First releaser wins - atomic check-and-set prevents duplicate cleanup
 	if !session.deleted.CompareAndSwap(false, true) {
 		return
 	}
@@ -374,7 +356,7 @@ func (s *SessionStore) ReleaseSession(key string) {
 	session.clientToAgent.Close()
 	session.agentToClient.Close()
 
-	s.logger.Debug("session deleted",
+	s.logger.Debug("session released",
 		slog.String("session_key", key),
 		slog.String("operation", session.OperationType),
 		slog.Duration("duration", time.Since(session.CreatedAt)),

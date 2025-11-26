@@ -137,7 +137,7 @@ func TestSessionStore_ReleaseSession(t *testing.T) {
 	default:
 	}
 
-	// First release should delete since refCount goes to 0
+	// Release should trigger cleanup
 	store.ReleaseSession("key1")
 
 	// Verify done channel is closed
@@ -157,17 +157,17 @@ func TestSessionStore_ReleaseSession(t *testing.T) {
 	store.ReleaseSession("key1")
 }
 
-func TestSessionStore_RefCounting(t *testing.T) {
+func TestSessionStore_FirstReleaseWins(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(0)
 
-	// First party creates session (refCount = 1)
+	// First party creates session
 	session, existed, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
 	if existed {
 		t.Error("session should not exist on first creation")
 	}
 
-	// Second party joins session (refCount = 2)
+	// Second party joins session
 	session2, existed2, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
 	if !existed2 {
 		t.Error("session should exist on second creation")
@@ -176,30 +176,30 @@ func TestSessionStore_RefCounting(t *testing.T) {
 		t.Error("should return same session instance")
 	}
 
-	// First release (refCount = 1), session should still exist
-	store.ReleaseSession("key1")
-	_, err := store.GetSession("key1")
-	requireCode(t, err, codes.OK)
-
-	// Verify done channel is still open
+	// Verify done channel is open before release
 	select {
 	case <-session.Done():
 		t.Error("done channel should not be closed yet")
 	default:
 	}
 
-	// Second release (refCount = 0), session should be deleted
+	// First release triggers immediate cleanup
 	store.ReleaseSession("key1")
-	_, err = store.GetSession("key1")
+
+	// Session should be deleted immediately
+	_, err := store.GetSession("key1")
 	requireCode(t, err, codes.NotFound)
 
-	// Verify done channel is now closed
+	// Verify done channel is closed (signals other party to exit)
 	select {
 	case <-session.Done():
-		// Expected
+		// Expected - done channel signals all handlers to exit
 	case <-time.After(100 * time.Millisecond):
-		t.Error("done channel should be closed after all releases")
+		t.Error("done channel should be closed after first release")
 	}
+
+	// Second release is a no-op (session already gone)
+	store.ReleaseSession("key1")
 }
 
 func TestSessionStore_RendezvousSuccess(t *testing.T) {
@@ -399,7 +399,7 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 		}()
 		wg.Wait()
 
-		// Verify session is deleted (first release brings refCount to 0)
+		// Verify session is deleted (first release triggers cleanup)
 		_, err := store.GetSession(key)
 		if err == nil {
 			t.Errorf("session %s should be deleted", key)
