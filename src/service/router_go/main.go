@@ -37,6 +37,7 @@ const (
 	defaultRendezvousTimeout   = 60 * time.Second
 	defaultStreamSendTimeout   = 30 * time.Second
 	defaultMaxConcurrentStream = 1000
+	defaultMaxMessageSize      = 4 * 1024 * 1024 // 4MB
 )
 
 var (
@@ -47,6 +48,7 @@ var (
 	rendezvousTimeout    = flag.Duration("rendezvous-timeout", defaultRendezvousTimeout, "Rendezvous wait timeout")
 	streamSendTimeout    = flag.Duration("stream-send-timeout", defaultStreamSendTimeout, "Maximum time to block when forwarding data to the peer")
 	maxConcurrentStreams = flag.Uint("max-concurrent-streams", defaultMaxConcurrentStream, "Maximum concurrent gRPC streams per connection")
+	maxMessageSize       = flag.Int("max-message-size", defaultMaxMessageSize, "Maximum message size in bytes (default 4MB)")
 )
 
 func main() {
@@ -90,6 +92,8 @@ func main() {
 			PermitWithoutStream: true,
 		}),
 		grpc.MaxConcurrentStreams(uint32(*maxConcurrentStreams)),
+		grpc.MaxRecvMsgSize(*maxMessageSize),
+		grpc.MaxSendMsgSize(*maxMessageSize),
 	}
 
 	// Add TLS if enabled
@@ -118,6 +122,7 @@ func main() {
 		slog.Duration("rendezvous_timeout", *rendezvousTimeout),
 		slog.Duration("stream_send_timeout", *streamSendTimeout),
 		slog.Uint64("max_concurrent_streams", uint64(*maxConcurrentStreams)),
+		slog.Int("max_message_size", *maxMessageSize),
 		slog.String("keepalive", "60s ping, 20s timeout"),
 	)
 

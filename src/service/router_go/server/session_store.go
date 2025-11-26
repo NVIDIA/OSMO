@@ -109,16 +109,6 @@ func (p *Pipe) Close() {
 	})
 }
 
-// Sender returns a send function bound to the given context.
-func (p *Pipe) Sender(ctx context.Context) func(*pb.TunnelMessage) error {
-	return func(msg *pb.TunnelMessage) error { return p.Send(ctx, msg) }
-}
-
-// Receiver returns a receive function bound to the given context.
-func (p *Pipe) Receiver(ctx context.Context) func() (*pb.TunnelMessage, error) {
-	return func() (*pb.TunnelMessage, error) { return p.Receive(ctx) }
-}
-
 // Session represents an active tunnel session between a client and agent.
 type Session struct {
 	Key           string

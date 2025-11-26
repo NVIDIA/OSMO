@@ -162,18 +162,22 @@ func (rs *RouterServer) tunnelHandler(
 	// Get pipes for this role
 	outPipe, inPipe := cfg.outPipe(session), cfg.inPipe(session)
 
-	// Bidirectional streaming
+	// Bidirectional streaming with shared context for coordinated cancellation
 	g, gctx := errgroup.WithContext(ctx)
 
 	// Stream → Pipe (this party's data out)
 	g.Go(func() error {
 		defer outPipe.Close()
-		return rs.forward(gctx, recv, outPipe.Sender(gctx), logger)
+		return rs.forward(gctx, recv, func(msg *pb.TunnelMessage) error {
+			return outPipe.Send(gctx, msg)
+		}, logger)
 	})
 
 	// Pipe → Stream (other party's data in)
 	g.Go(func() error {
-		return rs.forward(gctx, inPipe.Receiver(gctx), send, logger)
+		return rs.forward(gctx, func() (*pb.TunnelMessage, error) {
+			return inPipe.Receive(gctx)
+		}, send, logger)
 	})
 
 	if err := g.Wait(); err != nil && !isExpectedClose(err) {
