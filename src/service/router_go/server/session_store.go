@@ -124,6 +124,56 @@ func (p *Pipe) Close() {
 }
 
 // Session represents an active tunnel session between a client and agent.
+//
+// SESSION LIFECYCLE
+// =================
+//
+//	                  ┌─────────────────────────────────────────────────────────┐
+//	                  │                      SESSION                            │
+//	                  │  Fields: deleted, done, clientReady, agentReady, pipes  │
+//	                  └─────────────────────────────────────────────────────────┘
+//
+//	CLIENT                           SESSION STORE                          AGENT
+//	  │                                   │                                   │
+//	  │  GetOrCreateSession(key)          │                                   │
+//	  │──────────────────────────────────>│  (session created, in map)        │
+//	  │                                   │                                   │
+//	  │  WaitForAgent()                   │                                   │
+//	  │──────────────────────────────────>│  (clientReady closed)             │
+//	  │                 ╔═════════════════╧═══════════════════╗               │
+//	  │                 ║     WAITING FOR RENDEZVOUS          ║               │
+//	  │                 ╚═════════════════╤═══════════════════╝               │
+//	  │                                   │   GetOrCreateSession(key)         │
+//	  │                                   │<──────────────────────────────────│
+//	  │                                   │                                   │
+//	  │                                   │          WaitForClient()          │
+//	  │                                   │<──────────────────────────────────│
+//	  │                                   │  (agentReady closed)              │
+//	  │                 ╔═════════════════╧═══════════════════╗               │
+//	  │                 ║        RENDEZVOUS COMPLETE          ║               │
+//	  │                 ║   (both clientReady & agentReady)   ║               │
+//	  │                 ╚═════════════════╤═══════════════════╝               │
+//	  │                                   │                                   │
+//	  │  ←──────── clientToAgent Pipe ────┼───────────────────────────────────│
+//	  │  ───────── agentToClient Pipe ────┼──────────────────────────────────>│
+//	  │                                   │                                   │
+//	  │                 ╔═════════════════╧═══════════════════╗               │
+//	  │                 ║          DATA STREAMING             ║               │
+//	  │                 ╚═════════════════╤═══════════════════╝               │
+//	  │                                   │                                   │
+//	  │                                   │                                   │
+//	  ├── EITHER PARTY DISCONNECTS ───────┼───────────────────────────────────┤
+//	  │   OR TerminateSession() called    │                                   │
+//	  │                                   │                                   │
+//	  │                                   ▼                                   │
+//	  │                 ╔═════════════════════════════════════╗               │
+//	  │                 ║          CLEANUP (first wins)       ║               │
+//	  │                 ║  1. deleted.CAS(false→true)         ║               │
+//	  │                 ║  2. Remove from map                 ║               │
+//	  │                 ║  3. Close done channel              ║───────────────│
+//	  │                 ║  4. Close pipes                     ║  (other party │
+//	  │                 ╚═════════════════════════════════════╝   sees done,  │
+//	  │                                                           exits)      │
 type Session struct {
 	Key           string
 	Cookie        string
@@ -135,15 +185,15 @@ type Session struct {
 	clientToAgent *Pipe
 	agentToClient *Pipe
 
-	// Rendezvous signaling (closed when party arrives)
+	// Rendezvous signaling - closed when party arrives
 	clientReady chan struct{}
 	agentReady  chan struct{}
 
 	// Lifecycle management
-	done    chan struct{}
-	deleted atomic.Bool
+	done    chan struct{} // closed on cleanup - signals all handlers to exit
+	deleted atomic.Bool   // CAS(false→true) ensures cleanup happens exactly once
 
-	// Ensure channels close exactly once
+	// Prevent double-close panics on channels
 	closeClientReady sync.Once
 	closeAgentReady  sync.Once
 	closeDone        sync.Once
