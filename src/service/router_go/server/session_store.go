@@ -73,26 +73,31 @@ func newPipe(sendTimeout time.Duration) *Pipe {
 //
 // Safe to call concurrently with Close - will not panic.
 func (p *Pipe) Send(ctx context.Context, msg RawMessage) error {
-	// Apply send timeout if configured
-	sendCtx := ctx
-	var cancel context.CancelFunc
-	if p.sendTimeout > 0 {
-		sendCtx, cancel = context.WithTimeout(ctx, p.sendTimeout)
-		defer cancel()
+	// Fast path: no timeout configured
+	if p.sendTimeout == 0 {
+		select {
+		case p.ch <- msg:
+			return nil
+		case <-p.done:
+			return errPipeClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
-	// Select on done channel to safely detect close without risking panic.
-	// The done channel is closed BEFORE ch is closed in Close().
+	// With timeout: use Timer directly (cheaper than context.WithTimeout)
+	timer := time.NewTimer(p.sendTimeout)
+	defer timer.Stop()
+
 	select {
 	case p.ch <- msg:
 		return nil
 	case <-p.done:
 		return errPipeClosed
-	case <-sendCtx.Done():
-		if p.sendTimeout > 0 && sendCtx.Err() == context.DeadlineExceeded {
-			return status.Error(codes.DeadlineExceeded, "pipe send timeout")
-		}
-		return sendCtx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return status.Error(codes.DeadlineExceeded, "pipe send timeout")
 	}
 }
 
