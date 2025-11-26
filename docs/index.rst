@@ -15,6 +15,10 @@
 
   SPDX-License-Identifier: Apache-2.0
 
+.. raw:: html
+
+   <link rel="stylesheet" href="_static/css/root_page.css">
+
 ===================
 OSMO Documentation
 ===================
@@ -64,3 +68,9 @@ Select one of the guides below to get started with OSMO.
           • Bring Your Own Compute
 
           • Advanced configuration
+
+.. toctree::
+   :hidden:
+
+   deployment_guide/index
+   user_guide/index

@@ -16,16 +16,12 @@
 
 # -- Path setup --------------------------------------------------------------
 
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('.'))
-
-# Determine if we're building from a subdirectory or root
-# Use current working directory since subdir conf.py files import this file
-_cwd = os.getcwd()
-_is_subdir = os.path.basename(_cwd) in ['user_guide', 'deployment_guide']
+# Add the directory containing conf.py to the path so custom extensions can be found
+# This is important for sphinx-multiversion which runs from temporary directories
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 # -- Project information -----------------------------------------------------
 
@@ -59,6 +55,9 @@ extensions = [
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
+    
+    # Theme extension
+    '_extensions.nvidia_theme_override',
 ]
 
 # Spelling
@@ -67,7 +66,7 @@ spelling_exclude_patterns = [
 ]
 spelling_show_suggestions = True
 spelling_warning = True
-spelling_word_list_filename = '../spelling_wordlist.txt'
+spelling_word_list_filename = 'spelling_wordlist.txt'
 
 # Linkcheck ignore
 linkcheck_ignore = [
@@ -106,14 +105,6 @@ exclude_patterns = [
     '**/*.in.rst',  # Ignore files that are embedded in other files
 ]
 
-# When building from root, exclude everything in subdirectories
-# The index files will still be parsed for TOC but won't build full pages
-if not _is_subdir:
-    exclude_patterns.extend([
-        'user_guide/**',
-        'deployment_guide/**',
-    ])
-
 suppress_warnings = [
     'toc.excluded',
 ]
@@ -128,22 +119,14 @@ html_theme = "nvidia_sphinx_theme"
 html_title = 'OSMO Documentation'
 html_show_sourcelink = False
 
-if _is_subdir:
-    html_favicon = '../_static/osmo_favicon.png'
-    html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
-    html_static_path = ['../_static']
-    templates_path = ['../_templates']
-    html_css_files_extra = []
-else:
-    html_favicon = '_static/osmo_favicon.png'
-    html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
-    html_static_path = ['_static']
-    # Hide sidebar completely for root page
-    html_sidebars = {
-        "**": []
-    }
-    # Add custom CSS to hide sidebar and remove vertical bar
-    html_css_files_extra = ['css/root_page.css']
+html_favicon = '_static/osmo_favicon.png'
+html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+html_static_path = ['_static']
+templates_path = ['_templates']
+
+html_sidebars = {
+    "index": [],
+}
 
 html_theme_options = {
     "collapse_navigation": False,
@@ -167,10 +150,6 @@ html_css_files = [
     'css/versioning.css',
     'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
-
-# Add extra CSS files for root page
-if 'html_css_files_extra' in dir() and html_css_files_extra:
-    html_css_files.extend(html_css_files_extra)
 
 # JavaScript files to include in the HTML output
 # Files are loaded in the order they appear in this list
@@ -249,3 +228,6 @@ smv_tag_whitelist = r'^$'
 smv_branch_whitelist = r'^main$|^release/.*$'
 smv_remote_whitelist = r'^origin$'
 smv_prefer_remote_refs = False
+
+# Latest version
+smv_latest_version = 'main'

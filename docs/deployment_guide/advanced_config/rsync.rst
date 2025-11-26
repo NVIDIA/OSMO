@@ -255,4 +255,4 @@ Troubleshooting
 
 .. seealso::
 
-  - Learn more about Rsync in OSMO at `Interactive Workflows <https://nvidia.github.io/OSMO/user_guide/main/workflows/interactive/rsync.html>`_
+  - Learn more about Rsync in OSMO at :ref:`Interactive Workflows <workflow_interactive_rsync>`
