@@ -47,6 +47,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
+    'sphinx_reredirects',
 
     # Custom extensions
     '_extensions.auto_include',
@@ -59,6 +60,13 @@ extensions = [
     # Theme extension
     '_extensions.nvidia_theme_override',
 ]
+
+# Redirects
+redirects = {
+    # Note: We still need the root index.rst to be present to be the
+    # root document and root toctree.
+    'index': 'user_guide/index.html',
+}
 
 # Spelling
 spelling_exclude_patterns = [
@@ -131,8 +139,9 @@ html_sidebars = {
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
-    "navbar_start": ["navbar-logo", "versioning.html"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_start": ["navbar-logo"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["versioning.html","theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
