@@ -46,6 +46,7 @@ var errPipeClosed = status.Error(codes.Unavailable, "pipe closed")
 // Unbuffered for zero-copy - messages pass directly from sender to receiver.
 type Pipe struct {
 	ch          chan *pb.TunnelMessage
+	done        chan struct{} // closed when pipe is closed, for select
 	closed      atomic.Bool
 	once        sync.Once
 	sendTimeout time.Duration
@@ -55,16 +56,14 @@ func newPipe(sendTimeout time.Duration) *Pipe {
 	// Unbuffered channel for true zero-copy semantics
 	return &Pipe{
 		ch:          make(chan *pb.TunnelMessage),
+		done:        make(chan struct{}),
 		sendTimeout: sendTimeout,
 	}
 }
 
 // Send sends a message through the pipe with timeout (zero-copy).
+// Safe to call concurrently with Close - will not panic.
 func (p *Pipe) Send(ctx context.Context, msg *pb.TunnelMessage) error {
-	if p.closed.Load() {
-		return errPipeClosed
-	}
-
 	// Apply send timeout if configured
 	sendCtx := ctx
 	var cancel context.CancelFunc
@@ -73,9 +72,13 @@ func (p *Pipe) Send(ctx context.Context, msg *pb.TunnelMessage) error {
 		defer cancel()
 	}
 
+	// Select on done channel to safely detect close without risking panic.
+	// The done channel is closed BEFORE ch is closed in Close().
 	select {
 	case p.ch <- msg:
 		return nil
+	case <-p.done:
+		return errPipeClosed
 	case <-sendCtx.Done():
 		if p.sendTimeout > 0 && sendCtx.Err() == context.DeadlineExceeded {
 			return status.Error(codes.DeadlineExceeded, "pipe send timeout")
@@ -84,37 +87,25 @@ func (p *Pipe) Send(ctx context.Context, msg *pb.TunnelMessage) error {
 	}
 }
 
-// TrySend attempts a non-blocking send. Returns false if no receiver ready or closed.
-func (p *Pipe) TrySend(msg *pb.TunnelMessage) bool {
-	if p.closed.Load() {
-		return false
-	}
-	select {
-	case p.ch <- msg:
-		return true
-	default:
-		return false
-	}
-}
-
 // Receive receives a message from the pipe (zero-copy).
 func (p *Pipe) Receive(ctx context.Context) (*pb.TunnelMessage, error) {
 	select {
-	case msg, ok := <-p.ch:
-		if !ok {
-			return nil, errPipeClosed
-		}
+	case msg := <-p.ch:
 		return msg, nil
+	case <-p.done:
+		return nil, errPipeClosed
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
 // Close closes the pipe (idempotent).
+// Only closes the done channel to signal. The data channel is NOT closed
+// to avoid panics from concurrent senders.
 func (p *Pipe) Close() {
 	p.once.Do(func() {
 		p.closed.Store(true)
-		close(p.ch)
+		close(p.done)
 	})
 }
 
@@ -147,6 +138,9 @@ type Session struct {
 	// Lifecycle management
 	done    chan struct{}
 	deleted atomic.Bool
+
+	// Reference counting: session deleted only when both parties release
+	refCount atomic.Int32
 
 	// Ensure channels close exactly once
 	closeClientReady sync.Once
@@ -255,9 +249,32 @@ func (s *SessionStore) RendezvousTimeout() time.Duration {
 	return s.config.RendezvousTimeout
 }
 
+// Validation constants
+const (
+	maxSessionKeyLen = 256
+	maxCookieLen     = 1024
+	maxWorkflowIDLen = 256
+)
+
 // GetOrCreateSession returns existing session or creates new one.
+// If session exists, validates that cookie matches.
+// Increments reference count - caller must call ReleaseSession when done.
 // Returns (session, existed, error).
 func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string) (*Session, bool, error) {
+	// Validate inputs
+	if key == "" {
+		return nil, false, status.Error(codes.InvalidArgument, "session key is required")
+	}
+	if len(key) > maxSessionKeyLen {
+		return nil, false, status.Errorf(codes.InvalidArgument, "session key exceeds max length of %d", maxSessionKeyLen)
+	}
+	if len(cookie) > maxCookieLen {
+		return nil, false, status.Errorf(codes.InvalidArgument, "cookie exceeds max length of %d", maxCookieLen)
+	}
+	if len(workflowID) > maxWorkflowIDLen {
+		return nil, false, status.Errorf(codes.InvalidArgument, "workflow ID exceeds max length of %d", maxWorkflowIDLen)
+	}
+
 	newSession := &Session{
 		Key:           key,
 		Cookie:        cookie,
@@ -272,7 +289,28 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 	}
 
 	actual, loaded := s.sessions.LoadOrStore(key, newSession)
-	return actual.(*Session), loaded, nil
+	session := actual.(*Session)
+
+	// If session existed, validate cookie matches
+	if loaded && session.Cookie != cookie {
+		return nil, false, status.Error(codes.PermissionDenied, "cookie mismatch")
+	}
+
+	// Increment reference count (expect 2: one for client, one for agent)
+	newCount := session.refCount.Add(1)
+	if !loaded {
+		s.logger.Debug("session created",
+			slog.String("session_key", key),
+			slog.String("operation", opType),
+		)
+	} else {
+		s.logger.Debug("session joined",
+			slog.String("session_key", key),
+			slog.Int("ref_count", int(newCount)),
+		)
+	}
+
+	return session, loaded, nil
 }
 
 // GetSession retrieves a session by key.
@@ -284,15 +322,28 @@ func (s *SessionStore) GetSession(key string) (*Session, error) {
 	return val.(*Session), nil
 }
 
-// DeleteSession removes a session and signals termination.
-// Safe to call multiple times (idempotent).
-func (s *SessionStore) DeleteSession(key string) {
+// ReleaseSession decrements reference count and deletes session when both parties have released.
+// Safe to call multiple times (idempotent per caller due to refCount).
+func (s *SessionStore) ReleaseSession(key string) {
 	val, ok := s.sessions.Load(key)
 	if !ok {
 		return
 	}
 
 	session := val.(*Session)
+
+	// Decrement reference count
+	newCount := session.refCount.Add(-1)
+
+	s.logger.Debug("session released",
+		slog.String("session_key", key),
+		slog.Int("ref_count", int(newCount)),
+	)
+
+	// Only delete when last reference is released
+	if newCount > 0 {
+		return
+	}
 
 	// Atomic check-and-set prevents duplicate cleanup
 	if !session.deleted.CompareAndSwap(false, true) {
@@ -301,4 +352,10 @@ func (s *SessionStore) DeleteSession(key string) {
 
 	s.sessions.Delete(key)
 	session.signalDone()
+
+	s.logger.Debug("session deleted",
+		slog.String("session_key", key),
+		slog.String("operation", session.OperationType),
+		slog.Duration("duration", time.Since(session.CreatedAt)),
+	)
 }

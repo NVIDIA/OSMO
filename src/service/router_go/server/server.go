@@ -123,6 +123,10 @@ func (rs *RouterServer) tunnelHandler(
 		return status.Error(codes.InvalidArgument, "first message must be init")
 	}
 
+	if err := validateTunnelInit(init); err != nil {
+		return err
+	}
+
 	opType := operationTypeFromInit(init)
 	logger := rs.logger.With(
 		slog.String("session_key", init.SessionKey),
@@ -145,7 +149,7 @@ func (rs *RouterServer) tunnelHandler(
 		return err
 	}
 
-	defer rs.store.DeleteSession(init.SessionKey)
+	defer rs.store.ReleaseSession(init.SessionKey)
 
 	// Wait for the other party
 	if err := cfg.rendezvous(session, ctx, rs.store.RendezvousTimeout()); err != nil {
@@ -237,7 +241,10 @@ func (rs *RouterServer) forward(
 			}
 
 		case msg.GetClose() != nil:
-			send(msg) // Best-effort
+			// Forward close message then exit - log but don't fail on error
+			if err := send(msg); err != nil && !isExpectedClose(err) {
+				logger.DebugContext(ctx, "failed to forward close message", slog.String("error", err.Error()))
+			}
 			return nil
 
 		default:
@@ -264,6 +271,38 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 }
 
 // Helper functions
+
+// validateTunnelInit validates the TunnelInit message.
+func validateTunnelInit(init *pb.TunnelInit) error {
+	if init.SessionKey == "" {
+		return status.Error(codes.InvalidArgument, "session_key is required")
+	}
+
+	switch op := init.Operation.(type) {
+	case *pb.TunnelInit_Exec:
+		// Exec is always valid
+	case *pb.TunnelInit_PortForward:
+		if op.PortForward == nil {
+			return status.Error(codes.InvalidArgument, "port_forward operation is nil")
+		}
+		if op.PortForward.Port <= 0 || op.PortForward.Port > 65535 {
+			return status.Errorf(codes.InvalidArgument, "invalid port: %d (must be 1-65535)", op.PortForward.Port)
+		}
+		if op.PortForward.Protocol == pb.PortForwardOperation_UNSPECIFIED {
+			return status.Error(codes.InvalidArgument, "port_forward protocol must be specified (TCP or UDP)")
+		}
+	case *pb.TunnelInit_Rsync:
+		// Rsync is always valid
+	case *pb.TunnelInit_WebSocket:
+		// WebSocket is always valid
+	case nil:
+		return status.Error(codes.InvalidArgument, "operation is required")
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown operation type: %T", init.Operation)
+	}
+
+	return nil
+}
 
 // operationTypeFromInit extracts operation type string from TunnelInit.
 func operationTypeFromInit(init *pb.TunnelInit) string {

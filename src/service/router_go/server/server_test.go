@@ -1019,3 +1019,95 @@ func TestMultipleMessagesBeforeClose(t *testing.T) {
 		t.Fatal("timeout")
 	}
 }
+
+func TestInitValidation(t *testing.T) {
+	t.Parallel()
+	env := setupTestEnv(t, 100*time.Millisecond)
+
+	tests := []struct {
+		name     string
+		init     *pb.TunnelInit
+		wantCode codes.Code
+	}{
+		{
+			name:     "empty session key",
+			init:     &pb.TunnelInit{SessionKey: "", Operation: &pb.TunnelInit_Exec{Exec: &pb.ExecOperation{}}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name:     "nil operation",
+			init:     &pb.TunnelInit{SessionKey: "key"},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "port zero",
+			init: &pb.TunnelInit{
+				SessionKey: "key",
+				Operation: &pb.TunnelInit_PortForward{
+					PortForward: &pb.PortForwardOperation{Port: 0, Protocol: pb.PortForwardOperation_TCP},
+				},
+			},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "port too high",
+			init: &pb.TunnelInit{
+				SessionKey: "key",
+				Operation: &pb.TunnelInit_PortForward{
+					PortForward: &pb.PortForwardOperation{Port: 70000, Protocol: pb.PortForwardOperation_TCP},
+				},
+			},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "port negative",
+			init: &pb.TunnelInit{
+				SessionKey: "key",
+				Operation: &pb.TunnelInit_PortForward{
+					PortForward: &pb.PortForwardOperation{Port: -1, Protocol: pb.PortForwardOperation_TCP},
+				},
+			},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "protocol unspecified",
+			init: &pb.TunnelInit{
+				SessionKey: "key",
+				Operation: &pb.TunnelInit_PortForward{
+					PortForward: &pb.PortForwardOperation{Port: 8080, Protocol: pb.PortForwardOperation_UNSPECIFIED},
+				},
+			},
+			wantCode: codes.InvalidArgument,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			client := env.clientService(t)
+			stream, err := client.Tunnel(ctx)
+			if err != nil {
+				t.Fatalf("failed to create stream: %v", err)
+			}
+
+			// Send the invalid init
+			err = stream.Send(&pb.TunnelMessage{
+				Message: &pb.TunnelMessage_Init{Init: tt.init},
+			})
+			if err != nil {
+				t.Fatalf("failed to send init: %v", err)
+			}
+
+			// Recv should return the validation error
+			_, err = stream.Recv()
+			if err == nil {
+				t.Fatal("expected error for invalid init")
+			}
+			if status.Code(err) != tt.wantCode {
+				t.Errorf("got code %v, want %v (err: %v)", status.Code(err), tt.wantCode, err)
+			}
+		})
+	}
+}

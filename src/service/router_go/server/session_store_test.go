@@ -68,8 +68,8 @@ func TestSessionStore_GetOrCreateSession(t *testing.T) {
 		t.Errorf("expected key 'key1', got '%s'", session.Key)
 	}
 
-	// Second call returns same session
-	session2, existed2, err := store.GetOrCreateSession("key1", "cookie2", "workflow2", OperationExec)
+	// Second call with SAME cookie returns same session
+	session2, existed2, err := store.GetOrCreateSession("key1", "cookie", "workflow2", OperationExec)
 	requireCode(t, err, codes.OK)
 	if !existed2 {
 		t.Error("session should exist on second creation")
@@ -77,6 +77,33 @@ func TestSessionStore_GetOrCreateSession(t *testing.T) {
 	if session != session2 {
 		t.Error("should return same session instance")
 	}
+}
+
+func TestSessionStore_CookieMismatch(t *testing.T) {
+	t.Parallel()
+	store := setupTestSessionStore(0)
+
+	// First call creates session
+	_, _, err := store.GetOrCreateSession("key1", "cookie-a", "workflow", OperationExec)
+	requireCode(t, err, codes.OK)
+
+	// Second call with different cookie should fail
+	_, _, err = store.GetOrCreateSession("key1", "cookie-b", "workflow", OperationExec)
+	requireCode(t, err, codes.PermissionDenied)
+}
+
+func TestSessionStore_InputValidation(t *testing.T) {
+	t.Parallel()
+	store := setupTestSessionStore(0)
+
+	// Empty session key
+	_, _, err := store.GetOrCreateSession("", "cookie", "workflow", OperationExec)
+	requireCode(t, err, codes.InvalidArgument)
+
+	// Session key too long
+	longKey := string(make([]byte, 300))
+	_, _, err = store.GetOrCreateSession(longKey, "cookie", "workflow", OperationExec)
+	requireCode(t, err, codes.InvalidArgument)
 }
 
 func TestSessionStore_GetSession(t *testing.T) {
@@ -96,7 +123,7 @@ func TestSessionStore_GetSession(t *testing.T) {
 	}
 }
 
-func TestSessionStore_DeleteSession(t *testing.T) {
+func TestSessionStore_ReleaseSession(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(0)
 
@@ -109,23 +136,69 @@ func TestSessionStore_DeleteSession(t *testing.T) {
 	default:
 	}
 
-	store.DeleteSession("key1")
+	// First release should delete since refCount goes to 0
+	store.ReleaseSession("key1")
 
 	// Verify done channel is closed
 	select {
 	case <-session.Done():
 		// Expected
 	case <-time.After(100 * time.Millisecond):
-		t.Error("done channel should be closed after deletion")
+		t.Error("done channel should be closed after release")
 	}
 
 	// Session should be gone
 	_, err := store.GetSession("key1")
 	requireCode(t, err, codes.NotFound)
 
-	// Multiple deletes should be safe
-	store.DeleteSession("key1")
-	store.DeleteSession("key1")
+	// Multiple releases should be safe (no-op)
+	store.ReleaseSession("key1")
+	store.ReleaseSession("key1")
+}
+
+func TestSessionStore_RefCounting(t *testing.T) {
+	t.Parallel()
+	store := setupTestSessionStore(0)
+
+	// First party creates session (refCount = 1)
+	session, existed, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	if existed {
+		t.Error("session should not exist on first creation")
+	}
+
+	// Second party joins session (refCount = 2)
+	session2, existed2, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	if !existed2 {
+		t.Error("session should exist on second creation")
+	}
+	if session != session2 {
+		t.Error("should return same session instance")
+	}
+
+	// First release (refCount = 1), session should still exist
+	store.ReleaseSession("key1")
+	_, err := store.GetSession("key1")
+	requireCode(t, err, codes.OK)
+
+	// Verify done channel is still open
+	select {
+	case <-session.Done():
+		t.Error("done channel should not be closed yet")
+	default:
+	}
+
+	// Second release (refCount = 0), session should be deleted
+	store.ReleaseSession("key1")
+	_, err = store.GetSession("key1")
+	requireCode(t, err, codes.NotFound)
+
+	// Verify done channel is now closed
+	select {
+	case <-session.Done():
+		// Expected
+	case <-time.After(100 * time.Millisecond):
+		t.Error("done channel should be closed after all releases")
+	}
 }
 
 func TestSessionStore_RendezvousSuccess(t *testing.T) {
@@ -258,7 +331,7 @@ func TestSessionStore_SessionClosed(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	store.DeleteSession("key1")
+	store.ReleaseSession("key1")
 
 	requireCode(t, <-done, codes.Aborted)
 }
@@ -305,7 +378,7 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 	}
 }
 
-func TestSessionStore_DoubleDeleteRace(t *testing.T) {
+func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(0)
 
@@ -317,15 +390,15 @@ func TestSessionStore_DoubleDeleteRace(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			store.DeleteSession(key)
+			store.ReleaseSession(key)
 		}()
 		go func() {
 			defer wg.Done()
-			store.DeleteSession(key)
+			store.ReleaseSession(key)
 		}()
 		wg.Wait()
 
-		// Verify session is deleted
+		// Verify session is deleted (first release brings refCount to 0)
 		_, err := store.GetSession(key)
 		if err == nil {
 			t.Errorf("session %s should be deleted", key)
@@ -412,34 +485,5 @@ func TestPipe_SendTimeout(t *testing.T) {
 	}
 	if status.Code(err) != codes.DeadlineExceeded {
 		t.Errorf("expected DeadlineExceeded, got %v", status.Code(err))
-	}
-}
-
-func TestPipe_TrySend(t *testing.T) {
-	t.Parallel()
-	pipe := newPipe(30 * time.Second)
-
-	// TrySend on unbuffered channel with no receiver should fail
-	if pipe.TrySend(tunnelDataMsg([]byte("test"))) {
-		t.Error("TrySend should fail with no receiver on unbuffered channel")
-	}
-
-	// TrySend with receiver waiting should succeed
-	done := make(chan struct{})
-	go func() {
-		pipe.Receive(context.Background())
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	if !pipe.TrySend(tunnelDataMsg([]byte("test"))) {
-		t.Error("TrySend should succeed with receiver waiting")
-	}
-	<-done
-
-	// TrySend to closed pipe should fail
-	pipe.Close()
-	if pipe.TrySend(tunnelDataMsg([]byte("test"))) {
-		t.Error("TrySend to closed pipe should fail")
 	}
 }
