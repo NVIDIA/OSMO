@@ -72,3 +72,18 @@ go_test(
         "@org_golang_google_grpc//test/bufconn",
     ],
 )
+
+# To run the tests with race detection:
+#
+# bazel test \
+#   --@io_bazel_rules_go//go/config:race \
+#  //src/service/router_go/server:wire_test
+go_test(
+    name = "wire_test",
+    srcs = ["wire_test.go"],
+    embed = [":server"],
+    deps = [
+        "//proto/router:router_go_proto",
+        "@org_golang_google_protobuf//proto:go_default_library",
+    ],
+)

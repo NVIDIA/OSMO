@@ -119,37 +119,34 @@ func (m *RawMessage) GetClose() *pb.TunnelClose {
 	return msg.GetClose()
 }
 
+// Protobuf wire tags for TunnelMessage oneof fields.
+//
+// In protobuf wire format, each field starts with a tag byte:
+//
+//	tag = (field_number << 3) | wire_type
+//
+// For embedded messages (wire type 2), fields 1-15 fit in a single byte.
+// These constants are verified by TestWireTagsMatchProto in wire_test.go.
+const (
+	TagInit  = 0x0a // field 1, wire type 2: (1 << 3) | 2
+	TagData  = 0x12 // field 2, wire type 2: (2 << 3) | 2
+	TagClose = 0x1a // field 3, wire type 2: (3 << 3) | 2
+)
+
 // IsData returns true if this looks like a data message.
 // Uses a quick heuristic check on the raw bytes without full parsing.
-//
-// Protobuf wire format for TunnelMessage:
-//   - field 1 (init):  tag = 0x0a (field 1, wire type 2)
-//   - field 2 (data):  tag = 0x12 (field 2, wire type 2)
-//   - field 3 (close): tag = 0x1a (field 3, wire type 2)
 func (m *RawMessage) IsData() bool {
-	if len(m.Raw) == 0 {
-		return false
-	}
-	// Field 2 (data) has tag byte 0x12
-	return m.Raw[0] == 0x12
+	return len(m.Raw) > 0 && m.Raw[0] == TagData
 }
 
 // IsInit returns true if this looks like an init message.
 func (m *RawMessage) IsInit() bool {
-	if len(m.Raw) == 0 {
-		return false
-	}
-	// Field 1 (init) has tag byte 0x0a
-	return m.Raw[0] == 0x0a
+	return len(m.Raw) > 0 && m.Raw[0] == TagInit
 }
 
 // IsClose returns true if this looks like a close message.
 func (m *RawMessage) IsClose() bool {
-	if len(m.Raw) == 0 {
-		return false
-	}
-	// Field 3 (close) has tag byte 0x1a
-	return m.Raw[0] == 0x1a
+	return len(m.Raw) > 0 && m.Raw[0] == TagClose
 }
 
 // ----------------------------------------------------------------------------
