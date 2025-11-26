@@ -49,7 +49,8 @@ Tools
           Required for database initialization and management tasks.
 
       .. grid-item-card:: :octicon:`file-code` OSMO Client
-          :link: https://nvidia.github.io/OSMO/user_guide/main/getting_started/install
+          :link: ../../user_guide/getting_started/install/index
+          :link-type: doc
           :class-card: tool-card
 
           OSMO client.

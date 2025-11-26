@@ -26,7 +26,7 @@ Deploying the backend operator will register your compute backend with OSMO, mak
 .. admonition:: Prerequisites
   :class: important
 
-  - Install `OSMO CLI <https://nvidia.github.io/OSMO/user_guide/main/getting_started/install>`_ before you begin
+  - Install :ref:`OSMO CLI <cli_install>` before you begin
   - Replace ``osmo.example.com`` with your domain name in the commands below
 
 .. _create_osmo_token:

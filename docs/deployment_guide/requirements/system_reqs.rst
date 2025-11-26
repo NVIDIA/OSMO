@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _system_requirements:
+.. _deployment_guide_system_requirements:
 
 ====================
 Instances
