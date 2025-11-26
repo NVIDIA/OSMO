@@ -18,7 +18,7 @@
 .. _user_guide_welcome:
 
 ================================
-**Welcome to OSMO**
+**User Guide**
 ================================
 
 **OSMO** is an open-source workflow orchestration platform purpose-built for Physical AI and robotics development.
