@@ -18,35 +18,41 @@ SPDX-License-Identifier: Apache-2.0
 
 package server
 
-// wire.go - Zero-copy message handling for the router
+// wire.go - Zero-allocation message handling for the router
 //
 // WHY THIS EXISTS:
 // When the router receives a message and forwards it to the other party,
-// we don't want to:
-//   1. Deserialize the protobuf (copies payload bytes)
-//   2. Re-serialize it again (copies payload bytes again)
+// we want to minimize:
+//   1. Memory allocations (reduces GC pressure)
+//   2. Unnecessary copies (improves throughput)
 //
-// Instead, we keep the raw bytes and only parse what we need (message type,
-// session key for init messages). The payload bytes are NEVER copied.
+// We keep the raw bytes and only parse what we need (message type,
+// session key for init messages). The payload bytes are never copied.
 //
 // NOTE: This is a "lightweight" solution compared to migrating to flatbuffers.
 //
 // HOW IT WORKS:
 //   1. gRPC receives raw bytes from the network
-//   2. Our custom codec wraps them in a RawMessage (just stores the pointer)
+//   2. Our custom codec stores reference in RawMessage (zero copy)
 //   3. We peek at the message type (init/data/close)
-//   4. For data messages: forward the raw bytes directly (ZERO COPY!)
+//   4. For data messages: forward the raw bytes directly
 //   5. For init/close: parse the small protobuf fields we need
 //
 // MEMORY LAYOUT:
 //
 //   Traditional approach:
 //     Network → gRPC buffer → Unmarshal → new TunnelMessage{payload: copy} → Marshal → new buffer → Network
-//                                                              ↑ COPY                        ↑ COPY
+//                                                              ↑ ALLOC+COPY                   ↑ ALLOC+COPY
 //
 //   Zero-copy approach:
-//     Network → gRPC buffer → RawMessage{raw: points to buffer} → forward same bytes → Network
-//                                          ↑ NO COPY                    ↑ NO COPY
+//     Network → gRPC buffer → RawMessage{Raw: buffer} → forward same bytes → Network
+//                                       ↑ NO COPY                  ↑ NO COPY
+//
+// gRPC BUFFER OWNERSHIP:
+// We store a reference to gRPC's receive buffer without copying. This relies on
+// gRPC-go allocating a fresh buffer for each RecvMsg call (current behavior).
+// TestGRPCBufferNotReused verifies this assumption and will fail if gRPC changes.
+// If that test ever fails, implement buffer pooling (see CODE_ANALYSIS_REPORT.md).
 
 import (
 	"google.golang.org/grpc/encoding"
@@ -55,12 +61,12 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
 
-// RawMessage wraps raw protobuf bytes for zero-copy forwarding.
+// RawMessage wraps raw protobuf bytes for zero-allocation forwarding.
 //
 // For DATA messages, we never parse the payload - we just forward the raw bytes.
 // For INIT/CLOSE messages, we parse them lazily when needed.
 type RawMessage struct {
-	// Raw bytes from the wire. This is the ONLY copy of the data.
+	// Raw bytes from the wire. This references gRPC's buffer directly.
 	// When we forward the message, we send these exact bytes.
 	Raw []byte
 
@@ -194,10 +200,11 @@ func (c rawCodec) Marshal(v interface{}) ([]byte, error) {
 
 // Unmarshal deserializes bytes into a message.
 //
-// If the target is a *RawMessage, we just store the bytes (zero copy).
-// Otherwise, we fall back to standard protobuf unmarshaling.
+// If the target is a *RawMessage, we store a reference to gRPC's buffer.
+// This is safe because gRPC allocates fresh buffers per RecvMsg (verified
+// by TestGRPCBufferNotReused). Otherwise, we fall back to protobuf unmarshaling.
 func (c rawCodec) Unmarshal(data []byte, v interface{}) error {
-	// Zero-copy path: if target is RawMessage, just store the bytes
+	// Zero-copy path: store reference to gRPC's buffer
 	if raw, ok := v.(*RawMessage); ok {
 		raw.Raw = data
 		raw.parsed = nil // Clear any cached parse
