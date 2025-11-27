@@ -41,7 +41,6 @@ const (
 	defaultMaxConcurrentStream = 1000
 	defaultMaxMessageSize      = 4 * 1024 * 1024 // 4MB
 	defaultMaxSessionKeyLen    = 256
-	defaultMaxCookieLen        = 1024
 	defaultMaxWorkflowIDLen    = 256
 )
 
@@ -55,7 +54,6 @@ var (
 	maxConcurrentStreams = flag.Int("max-concurrent-streams", defaultMaxConcurrentStream, "Maximum concurrent gRPC streams per connection")
 	maxMessageSize       = flag.Int("max-message-size", defaultMaxMessageSize, "Maximum message size in bytes (default 4MB)")
 	maxSessionKeyLen     = flag.Int("max-session-key-len", defaultMaxSessionKeyLen, "Maximum session key length")
-	maxCookieLen         = flag.Int("max-cookie-len", defaultMaxCookieLen, "Maximum cookie length")
 	maxWorkflowIDLen     = flag.Int("max-workflow-id-len", defaultMaxWorkflowIDLen, "Maximum workflow ID length")
 )
 
@@ -81,10 +79,6 @@ func main() {
 		logger.Error("invalid flag", slog.String("flag", "max-session-key-len"), slog.Int("value", *maxSessionKeyLen))
 		os.Exit(1)
 	}
-	if *maxCookieLen <= 0 {
-		logger.Error("invalid flag", slog.String("flag", "max-cookie-len"), slog.Int("value", *maxCookieLen))
-		os.Exit(1)
-	}
 	if *maxWorkflowIDLen <= 0 {
 		logger.Error("invalid flag", slog.String("flag", "max-workflow-id-len"), slog.Int("value", *maxWorkflowIDLen))
 		os.Exit(1)
@@ -95,7 +89,6 @@ func main() {
 		RendezvousTimeout: *rendezvousTimeout,
 		StreamSendTimeout: *streamSendTimeout,
 		MaxSessionKeyLen:  *maxSessionKeyLen,
-		MaxCookieLen:      *maxCookieLen,
 		MaxWorkflowIDLen:  *maxWorkflowIDLen,
 	}, logger)
 

@@ -22,20 +22,20 @@ import "src/proto/router/messages.proto";
 
 option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
-// RouterUserService handles connections from CLI users
+// RouterUserService handles connections from CLI users.
+// Users initiate tunnels by specifying an operation (exec, port-forward, etc).
 service RouterUserService {
-  // Tunnel establishes the user endpoint for any operation. User sends init,
-  // then bidirectional streaming begins.
-  rpc Tunnel(stream TunnelFrame) returns (stream TunnelFrame);
+  // Tunnel establishes a user tunnel. First frame must be UserInit with an
+  // operation, then bidirectional payload streaming begins.
+  rpc Tunnel(stream UserFrame) returns (stream UserFrame);
 }
 
-// RouterAgentService handles connections from osmo-ctrl agents. Agents send
-// TunnelFrame and the router streams TunnelFrame back so both
-// legs share the same schemas without conversion.
+// RouterAgentService handles connections from osmo-ctrl agents.
+// Agents join existing tunnels by session_key to respond to user requests.
 service RouterAgentService {
-  // Tunnel establishes the agent endpoint for any operation. Agent sends init,
-  // then bidirectional streaming begins.
-  rpc Tunnel(stream TunnelFrame) returns (stream TunnelFrame);
+  // Tunnel establishes an agent tunnel. First frame must be AgentInit with
+  // the session_key to join, then bidirectional payload streaming begins.
+  rpc Tunnel(stream AgentFrame) returns (stream AgentFrame);
 }
 
 // RouterControlService provides auxiliary operations

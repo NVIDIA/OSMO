@@ -71,14 +71,19 @@ func NewRouterServer(store *SessionStore, logger *slog.Logger) *RouterServer {
 //	                   │      AgentToUser                    │
 //	                   └─────────────────────────────────────┘
 //
-// ZERO-COPY PROTOCOL:
-// 1. First frame: TunnelInit (parsed for session setup)
-// 2. Subsequent frames: raw payload bytes (forwarded transparently)
-// 3. Stream EOF: signals end of tunnel
+
+// sessionInfo holds parsed init information needed for session setup.
+type sessionInfo struct {
+	SessionKey    string
+	Cookie        string
+	WorkflowID    string
+	OperationType string
+}
 
 // tunnelConfig holds role-specific tunnel configuration.
 type tunnelConfig struct {
 	role       string
+	parseInit  func(f *RawFrame) (*sessionInfo, error) // parse role-specific init
 	rendezvous func(s *Session, ctx context.Context, timeout time.Duration) error
 	outPipe    func(s *Session) *Pipe // this party → other party
 	inPipe     func(s *Session) *Pipe // other party → this party
@@ -95,12 +100,14 @@ type grpcStream interface {
 var (
 	userConfig = tunnelConfig{
 		role:       "user",
+		parseInit:  parseUserInit,
 		rendezvous: (*Session).WaitForAgent,
 		outPipe:    (*Session).ClientToAgent,
 		inPipe:     (*Session).AgentToClient,
 	}
 	agentConfig = tunnelConfig{
 		role:       "agent",
+		parseInit:  parseAgentInit,
 		rendezvous: (*Session).WaitForClient,
 		outPipe:    (*Session).AgentToClient,
 		inPipe:     (*Session).ClientToAgent,
@@ -119,11 +126,6 @@ func (rs *RouterServer) tunnelAgentToUser(stream grpcStream) error {
 
 // tunnelHandler is the common implementation for tunnel handling.
 //
-// ZERO-COPY DESIGN:
-// 1. Receive first frame, parse as TunnelInit for session setup
-// 2. After rendezvous, forward all frames as raw bytes (no parsing)
-// 3. EOF signals end of tunnel
-//
 // The payload bytes are NEVER copied or parsed by the router.
 func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) error {
 	ctx := stream.Context()
@@ -134,39 +136,34 @@ func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) erro
 		return status.Error(codes.InvalidArgument, "failed to receive init frame")
 	}
 
-	// Parse init frame
-	init := initFrame.GetInit()
-	if init == nil {
-		return status.Error(codes.InvalidArgument, "first frame must be init")
-	}
-
-	if err := validateTunnelInit(init); err != nil {
+	// Parse init frame (role-specific)
+	info, err := cfg.parseInit(&initFrame)
+	if err != nil {
 		return err
 	}
 
-	opType := operationTypeFromInit(init)
 	logger := rs.logger.With(
-		slog.String("session_key", init.SessionKey),
-		slog.String("operation", opType),
+		slog.String("session_key", info.SessionKey),
+		slog.String("operation", info.OperationType),
 		slog.String("role", cfg.role),
 	)
 
 	logger.InfoContext(ctx, cfg.role+" tunnel started",
-		slog.String("workflow_id", init.WorkflowId),
+		slog.String("workflow_id", info.WorkflowID),
 	)
 
 	// Get or create session
 	session, _, err := rs.store.GetOrCreateSession(
-		init.SessionKey,
-		init.Cookie,
-		init.WorkflowId,
-		opType,
+		info.SessionKey,
+		info.Cookie,
+		info.WorkflowID,
+		info.OperationType,
 	)
 	if err != nil {
 		return err
 	}
 
-	defer rs.store.ReleaseSession(init.SessionKey)
+	defer rs.store.ReleaseSession(info.SessionKey)
 
 	// Wait for the other party
 	if err := cfg.rendezvous(session, ctx, rs.store.RendezvousTimeout()); err != nil {
@@ -372,51 +369,73 @@ func (rs *RouterServer) TerminateSession(ctx context.Context, req *pb.TerminateS
 
 // Helper functions
 
-// validateTunnelInit validates the TunnelInit message.
-func validateTunnelInit(init *pb.TunnelInit) error {
+// parseUserInit parses and validates a UserInit from the raw frame.
+func parseUserInit(f *RawFrame) (*sessionInfo, error) {
+	init := f.GetUserInit()
+	if init == nil {
+		return nil, status.Error(codes.InvalidArgument, "first frame must be user init")
+	}
+
 	if init.SessionKey == "" {
-		return status.Error(codes.InvalidArgument, "session_key is required")
+		return nil, status.Error(codes.InvalidArgument, "session_key is required")
 	}
 
-	switch op := init.Operation.(type) {
-	case *pb.TunnelInit_Exec:
-		// Exec is always valid
-	case *pb.TunnelInit_PortForward:
-		if op.PortForward == nil {
-			return status.Error(codes.InvalidArgument, "port_forward operation is nil")
-		}
-		if op.PortForward.Port <= 0 || op.PortForward.Port > 65535 {
-			return status.Errorf(codes.InvalidArgument, "invalid port: %d (must be 1-65535)", op.PortForward.Port)
-		}
-		if op.PortForward.Protocol == pb.PortForwardOperation_UNSPECIFIED {
-			return status.Error(codes.InvalidArgument, "port_forward protocol must be specified (TCP or UDP)")
-		}
-	case *pb.TunnelInit_Rsync:
-		// Rsync is always valid
-	case *pb.TunnelInit_WebSocket:
-		// WebSocket is always valid
-	case nil:
-		return status.Error(codes.InvalidArgument, "operation is required")
-	default:
-		return status.Errorf(codes.InvalidArgument, "unknown operation type: %T", init.Operation)
+	// Validate and extract operation type
+	opType, err := validateUserOperation(init)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &sessionInfo{
+		SessionKey:    init.SessionKey,
+		Cookie:        init.Cookie,
+		WorkflowID:    init.WorkflowId,
+		OperationType: opType,
+	}, nil
 }
 
-// operationTypeFromInit extracts operation type string from TunnelInit.
-func operationTypeFromInit(init *pb.TunnelInit) string {
+// parseAgentInit parses and validates an AgentInit from the raw frame.
+func parseAgentInit(f *RawFrame) (*sessionInfo, error) {
+	init := f.GetAgentInit()
+	if init == nil {
+		return nil, status.Error(codes.InvalidArgument, "first frame must be agent init")
+	}
+
+	if init.SessionKey == "" {
+		return nil, status.Error(codes.InvalidArgument, "session_key is required")
+	}
+
+	// Agent doesn't specify operation - it joins an existing session
+	return &sessionInfo{
+		SessionKey:    init.SessionKey,
+		OperationType: "", // Will be filled from existing session
+	}, nil
+}
+
+// validateUserOperation validates the operation in UserInit and returns its type.
+func validateUserOperation(init *pb.UserInit) (string, error) {
 	switch op := init.Operation.(type) {
-	case *pb.TunnelInit_Exec:
-		return OperationExec
-	case *pb.TunnelInit_PortForward:
-		return OperationPortForward + "_" + op.PortForward.Protocol.String()
-	case *pb.TunnelInit_Rsync:
-		return OperationRsync
-	case *pb.TunnelInit_WebSocket:
-		return OperationWebSocket
+	case *pb.UserInit_Exec:
+		return OperationExec, nil
+	case *pb.UserInit_PortForward:
+		if op.PortForward == nil {
+			return "", status.Error(codes.InvalidArgument, "port_forward operation is nil")
+		}
+		if op.PortForward.Port <= 0 || op.PortForward.Port > 65535 {
+			return "", status.Errorf(codes.InvalidArgument, "invalid port: %d (must be 1-65535)", op.PortForward.Port)
+		}
+		if op.PortForward.Protocol == pb.PortForwardOperation_UNSPECIFIED {
+			return "", status.Error(codes.InvalidArgument, "port_forward protocol must be specified (TCP or UDP)")
+		}
+		return OperationPortForward + "_" + op.PortForward.Protocol.String(), nil
+	case *pb.UserInit_Rsync:
+		return OperationRsync, nil
+	case *pb.UserInit_WebSocket:
+		return OperationWebSocket, nil
+	case nil:
+		return "", status.Error(codes.InvalidArgument, "operation is required")
 	default:
-		return OperationUnknown
+		return "", status.Errorf(codes.InvalidArgument, "unknown operation type: %T", init.Operation)
 	}
 }
 

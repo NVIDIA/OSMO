@@ -41,12 +41,11 @@ func setupTestSessionStore(timeout time.Duration) *SessionStore {
 		RendezvousTimeout: timeout,
 		StreamSendTimeout: 30 * time.Second,
 		MaxSessionKeyLen:  256,
-		MaxCookieLen:      256,
 		MaxWorkflowIDLen:  256,
 	}, nil)
 }
 
-func requireCode(t *testing.T, err error, code codes.Code) {
+func assertResponse(t *testing.T, err error, code codes.Code) {
 	t.Helper()
 	if code == codes.OK {
 		if err != nil {
@@ -63,8 +62,8 @@ func TestSessionStore_GetOrCreateSession(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(0)
 
-	session, existed, err := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
-	requireCode(t, err, codes.OK)
+	session, existed, err := store.GetOrCreateSession("key1", "workflow", OperationExec)
+	assertResponse(t, err, codes.OK)
 	if existed {
 		t.Error("session should not exist on first creation")
 	}
@@ -72,9 +71,9 @@ func TestSessionStore_GetOrCreateSession(t *testing.T) {
 		t.Errorf("expected key 'key1', got '%s'", session.Key)
 	}
 
-	// Second call with SAME cookie returns same session
-	session2, existed2, err := store.GetOrCreateSession("key1", "cookie", "workflow2", OperationExec)
-	requireCode(t, err, codes.OK)
+	// Second call with same workflow ID returns same session
+	session2, existed2, err := store.GetOrCreateSession("key1", "workflow", OperationExec)
+	assertResponse(t, err, codes.OK)
 	if !existed2 {
 		t.Error("session should exist on second creation")
 	}
@@ -83,31 +82,35 @@ func TestSessionStore_GetOrCreateSession(t *testing.T) {
 	}
 }
 
-func TestSessionStore_CookieMismatch(t *testing.T) {
-	t.Parallel()
-	store := setupTestSessionStore(0)
-
-	// First call creates session
-	_, _, err := store.GetOrCreateSession("key1", "cookie-a", "workflow", OperationExec)
-	requireCode(t, err, codes.OK)
-
-	// Second call with different cookie should fail
-	_, _, err = store.GetOrCreateSession("key1", "cookie-b", "workflow", OperationExec)
-	requireCode(t, err, codes.PermissionDenied)
-}
-
 func TestSessionStore_InputValidation(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(0)
 
 	// Empty session key
-	_, _, err := store.GetOrCreateSession("", "cookie", "workflow", OperationExec)
-	requireCode(t, err, codes.InvalidArgument)
+	_, _, err := store.GetOrCreateSession("", "workflow", OperationExec)
+	assertResponse(t, err, codes.InvalidArgument)
 
 	// Session key too long
 	longKey := string(make([]byte, 300))
-	_, _, err = store.GetOrCreateSession(longKey, "cookie", "workflow", OperationExec)
-	requireCode(t, err, codes.InvalidArgument)
+	_, _, err = store.GetOrCreateSession(longKey, "workflow", OperationExec)
+	assertResponse(t, err, codes.InvalidArgument)
+}
+
+func TestSessionStore_WorkflowIDMismatch(t *testing.T) {
+	t.Parallel()
+	store := setupTestSessionStore(0)
+
+	// First party creates session with workflow-a
+	_, _, err := store.GetOrCreateSession("key1", "workflow-a", OperationExec)
+	assertResponse(t, err, codes.OK)
+
+	// Second party with different workflow ID should fail
+	_, _, err = store.GetOrCreateSession("key1", "workflow-b", OperationExec)
+	assertResponse(t, err, codes.PermissionDenied)
+
+	// Same workflow ID should succeed
+	_, _, err = store.GetOrCreateSession("key1", "workflow-a", OperationExec)
+	assertResponse(t, err, codes.OK)
 }
 
 func TestSessionStore_GetSession(t *testing.T) {
@@ -116,12 +119,12 @@ func TestSessionStore_GetSession(t *testing.T) {
 
 	// Non-existent
 	_, err := store.GetSession("nonexistent")
-	requireCode(t, err, codes.NotFound)
+	assertResponse(t, err, codes.NotFound)
 
 	// Create and get
-	store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	store.GetOrCreateSession("key1", "workflow", OperationExec)
 	session, err := store.GetSession("key1")
-	requireCode(t, err, codes.OK)
+	assertResponse(t, err, codes.OK)
 	if session.Key != "key1" {
 		t.Errorf("expected key 'key1', got '%s'", session.Key)
 	}
@@ -131,7 +134,7 @@ func TestSessionStore_ReleaseSession(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(0)
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	// Verify done channel is open
 	select {
@@ -153,7 +156,7 @@ func TestSessionStore_ReleaseSession(t *testing.T) {
 
 	// Session should be gone
 	_, err := store.GetSession("key1")
-	requireCode(t, err, codes.NotFound)
+	assertResponse(t, err, codes.NotFound)
 
 	// Multiple releases should be safe (no-op)
 	store.ReleaseSession("key1")
@@ -165,13 +168,13 @@ func TestSessionStore_FirstReleaseWins(t *testing.T) {
 	store := setupTestSessionStore(0)
 
 	// First party creates session
-	session, existed, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, existed, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 	if existed {
 		t.Error("session should not exist on first creation")
 	}
 
 	// Second party joins session
-	session2, existed2, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session2, existed2, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 	if !existed2 {
 		t.Error("session should exist on second creation")
 	}
@@ -191,7 +194,7 @@ func TestSessionStore_FirstReleaseWins(t *testing.T) {
 
 	// Session should be deleted immediately
 	_, err := store.GetSession("key1")
-	requireCode(t, err, codes.NotFound)
+	assertResponse(t, err, codes.NotFound)
 
 	// Verify done channel is closed (signals other party to exit)
 	select {
@@ -210,7 +213,7 @@ func TestSessionStore_RendezvousSuccess(t *testing.T) {
 	store := setupTestSessionStore(5 * time.Second)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	clientDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
@@ -224,8 +227,8 @@ func TestSessionStore_RendezvousSuccess(t *testing.T) {
 		agentDone <- session.WaitForClient(context.Background(), timeout)
 	}()
 
-	requireCode(t, <-clientDone, codes.OK)
-	requireCode(t, <-agentDone, codes.OK)
+	assertResponse(t, <-clientDone, codes.OK)
+	assertResponse(t, <-agentDone, codes.OK)
 }
 
 func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
@@ -233,7 +236,7 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 	store := setupTestSessionStore(5 * time.Second)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	agentDone := make(chan error, 1)
 	clientDone := make(chan error, 1)
@@ -247,8 +250,8 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 		clientDone <- session.WaitForAgent(context.Background(), timeout)
 	}()
 
-	requireCode(t, <-agentDone, codes.OK)
-	requireCode(t, <-clientDone, codes.OK)
+	assertResponse(t, <-agentDone, codes.OK)
+	assertResponse(t, <-clientDone, codes.OK)
 }
 
 func TestSessionStore_RendezvousTimeout(t *testing.T) {
@@ -256,10 +259,10 @@ func TestSessionStore_RendezvousTimeout(t *testing.T) {
 	store := setupTestSessionStore(100 * time.Millisecond)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	err := session.WaitForAgent(context.Background(), timeout)
-	requireCode(t, err, codes.DeadlineExceeded)
+	assertResponse(t, err, codes.DeadlineExceeded)
 }
 
 func TestSessionStore_RendezvousContextCancel(t *testing.T) {
@@ -267,7 +270,7 @@ func TestSessionStore_RendezvousContextCancel(t *testing.T) {
 	store := setupTestSessionStore(60 * time.Second)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -279,7 +282,7 @@ func TestSessionStore_RendezvousContextCancel(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 
-	requireCode(t, <-done, codes.Canceled)
+	assertResponse(t, <-done, codes.Canceled)
 }
 
 func TestSessionStore_DuplicateClient(t *testing.T) {
@@ -287,7 +290,7 @@ func TestSessionStore_DuplicateClient(t *testing.T) {
 	store := setupTestSessionStore(time.Second)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	// First client
 	done1 := make(chan error, 1)
@@ -299,7 +302,7 @@ func TestSessionStore_DuplicateClient(t *testing.T) {
 
 	// Second client should fail
 	err := session.WaitForAgent(context.Background(), timeout)
-	requireCode(t, err, codes.AlreadyExists)
+	assertResponse(t, err, codes.AlreadyExists)
 }
 
 func TestSessionStore_DuplicateAgent(t *testing.T) {
@@ -307,7 +310,7 @@ func TestSessionStore_DuplicateAgent(t *testing.T) {
 	store := setupTestSessionStore(time.Second)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	// First agent
 	done1 := make(chan error, 1)
@@ -319,7 +322,7 @@ func TestSessionStore_DuplicateAgent(t *testing.T) {
 
 	// Second agent should fail
 	err := session.WaitForClient(context.Background(), timeout)
-	requireCode(t, err, codes.AlreadyExists)
+	assertResponse(t, err, codes.AlreadyExists)
 }
 
 func TestSessionStore_SessionClosed(t *testing.T) {
@@ -327,7 +330,7 @@ func TestSessionStore_SessionClosed(t *testing.T) {
 	store := setupTestSessionStore(5 * time.Second)
 	timeout := store.RendezvousTimeout()
 
-	session, _, _ := store.GetOrCreateSession("key1", "cookie", "workflow", OperationExec)
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	done := make(chan error, 1)
 	go func() {
@@ -337,7 +340,7 @@ func TestSessionStore_SessionClosed(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	store.ReleaseSession("key1")
 
-	requireCode(t, <-done, codes.Aborted)
+	assertResponse(t, <-done, codes.Aborted)
 }
 
 func TestSessionStore_ConcurrentOperations(t *testing.T) {
@@ -353,7 +356,7 @@ func TestSessionStore_ConcurrentOperations(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			key := fmt.Sprintf("session-%d", id)
-			_, _, err := store.GetOrCreateSession(key, "cookie", "workflow", OperationExec)
+			_, _, err := store.GetOrCreateSession(key, "workflow", OperationExec)
 			if err != nil {
 				errs <- err
 			}
@@ -388,7 +391,7 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 
 	for i := range 100 {
 		key := fmt.Sprintf("race-session-%d", i)
-		store.GetOrCreateSession(key, "cookie", "workflow", OperationExec)
+		store.GetOrCreateSession(key, "workflow", OperationExec)
 
 		var wg sync.WaitGroup
 		wg.Add(2)
@@ -410,13 +413,9 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 	}
 }
 
-// Helper to create a RawFrame with payload.
-// This marshals the protobuf to bytes, simulating what gRPC does.
-func tunnelPayloadFrame(data []byte) RawFrame {
-	frame := &pb.TunnelFrame{
-		Frame: &pb.TunnelFrame_Payload{Payload: data},
-	}
-	raw, _ := proto.Marshal(frame)
+// payloadFrame creates a RawFrame with the given payload bytes.
+func payloadFrame(data []byte) RawFrame {
+	raw, _ := proto.Marshal(&pb.UserFrame{Frame: &pb.UserFrame_Payload{Payload: data}})
 	return RawFrame{Raw: raw}
 }
 
@@ -426,25 +425,21 @@ func TestPipe_SendReceive(t *testing.T) {
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		pipe.Send(context.Background(), tunnelPayloadFrame([]byte("hello")))
+		pipe.Send(context.Background(), payloadFrame([]byte("hello")))
 	}()
 
 	frame, err := pipe.Receive(context.Background())
 	if err != nil {
 		t.Fatalf("receive error: %v", err)
 	}
-	// Parse the raw frame to verify contents
 	if !frame.IsPayload() {
 		t.Fatal("expected payload frame")
 	}
-	// Unmarshal to get the payload
-	var parsed pb.TunnelFrame
-	if err := proto.Unmarshal(frame.Raw, &parsed); err != nil {
-		t.Fatalf("failed to parse frame: %v", err)
-	}
-	payload := parsed.GetPayload()
-	if string(payload) != "hello" {
-		t.Errorf("expected 'hello', got '%s'", string(payload))
+
+	var parsed pb.UserFrame
+	proto.Unmarshal(frame.Raw, &parsed)
+	if string(parsed.GetPayload()) != "hello" {
+		t.Errorf("got %q, want %q", parsed.GetPayload(), "hello")
 	}
 }
 
@@ -453,14 +448,11 @@ func TestPipe_Close(t *testing.T) {
 	pipe := newPipe(30 * time.Second)
 	pipe.Close()
 
-	_, err := pipe.Receive(context.Background())
-	if !errors.Is(err, errPipeClosed) {
-		t.Errorf("expected errPipeClosed, got %v", err)
+	if _, err := pipe.Receive(context.Background()); !errors.Is(err, errPipeClosed) {
+		t.Errorf("Receive: got %v, want errPipeClosed", err)
 	}
-
-	err = pipe.Send(context.Background(), tunnelPayloadFrame([]byte("test")))
-	if !errors.Is(err, errPipeClosed) {
-		t.Errorf("expected errPipeClosed, got %v", err)
+	if err := pipe.Send(context.Background(), payloadFrame([]byte("test"))); !errors.Is(err, errPipeClosed) {
+		t.Errorf("Send: got %v, want errPipeClosed", err)
 	}
 
 	// Multiple closes should be safe
@@ -475,30 +467,21 @@ func TestPipe_ContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	// Receive with canceled context should fail
-	_, err := pipe.Receive(ctx)
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context.Canceled, got %v", err)
+	if _, err := pipe.Receive(ctx); !errors.Is(err, context.Canceled) {
+		t.Errorf("Receive: got %v, want context.Canceled", err)
 	}
-
-	// Send with canceled context should fail (unbuffered, no receiver)
-	err = pipe.Send(ctx, tunnelPayloadFrame([]byte("test")))
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context.Canceled, got %v", err)
+	if err := pipe.Send(ctx, payloadFrame([]byte("test"))); !errors.Is(err, context.Canceled) {
+		t.Errorf("Send: got %v, want context.Canceled", err)
 	}
 }
 
 func TestPipe_SendTimeout(t *testing.T) {
 	t.Parallel()
-	// Very short timeout
 	pipe := newPipe(50 * time.Millisecond)
 
-	// No receiver, should timeout
-	err := pipe.Send(context.Background(), tunnelPayloadFrame([]byte("test")))
-	if err == nil {
-		t.Error("expected timeout error, got nil")
-	}
+	// No receiver - should timeout
+	err := pipe.Send(context.Background(), payloadFrame([]byte("test")))
 	if status.Code(err) != codes.DeadlineExceeded {
-		t.Errorf("expected DeadlineExceeded, got %v", status.Code(err))
+		t.Errorf("got %v, want DeadlineExceeded", status.Code(err))
 	}
 }

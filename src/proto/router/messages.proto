@@ -20,24 +20,24 @@ package router;
 
 option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
-// TunnelFrame is the message exchanged between clients/agents and the router.
+// ============================================================================
+// USER SERVICE MESSAGES
+// ============================================================================
+
+// UserFrame is the message exchanged between CLI users and the router.
 //
 // PROTOCOL:
 // 1. First frame MUST be init (parsed by router for session setup)
 // 2. All subsequent frames are payload (forwarded transparently, zero-copy)
 // 3. Stream close (CloseSend/EOF) signals end of tunnel
 //
-// ZERO-COPY DESIGN:
-// After the init frame, the router forwards payload frames without any
-// inspection or parsing. The payload bytes flow through unchanged.
-//
 // IMPORTANT: This is tightly coupled with wire.go in the router_go package.
-// Any changes to field numbers must be reflected there.
-message TunnelFrame {
+// The payload field MUST have tag 2 to match AgentFrame for zero-copy forwarding.
+message UserFrame {
   oneof frame {
     // Init message - only valid as the first frame.
     // Router parses this to establish the session.
-    TunnelInit init = 1;
+    UserInit init = 1;
 
     // Raw payload bytes - all frames after init.
     // Router forwards these transparently without parsing.
@@ -45,19 +45,47 @@ message TunnelFrame {
   }
 }
 
-// TunnelInit is the first message sent to establish a tunnel session.
-message TunnelInit {
+// UserInit is the first message sent by users to establish a tunnel session.
+// Users MUST specify an operation to indicate what they want to do.
+message UserInit {
   string session_key = 1;
-  string cookie = 2;
-  string workflow_id = 3;
+  string workflow_id = 2;
 
-  // The operation to perform.
+  // The operation to perform (required for users).
   oneof operation {
-    ExecOperation exec = 4;
-    PortForwardOperation port_forward = 5;
-    WebSocketOperation web_socket = 6;
-    RsyncOperation rsync = 7;
+    ExecOperation exec = 3;
+    PortForwardOperation port_forward = 4;
+    WebSocketOperation web_socket = 5;
+    RsyncOperation rsync = 6;
   }
+}
+
+// ============================================================================
+// AGENT SERVICE MESSAGES
+// ============================================================================
+
+// AgentFrame is the message exchanged between osmo-ctrl agents and the router.
+//
+// IMPORTANT: This is tightly coupled with wire.go in the router_go package.
+// The payload field MUST have tag 2 to match UserFrame for zero-copy forwarding.
+message AgentFrame {
+  oneof frame {
+    // Init message - only valid as the first frame.
+    // Router parses this to match with a waiting user.
+    AgentInit init = 1;
+
+    // Raw payload bytes - all frames after init.
+    // Router forwards these transparently without parsing.
+    bytes payload = 2;
+  }
+}
+
+// AgentInit is the first message sent by agents to join a tunnel session.
+// Agents provide session_key and workflow_id to rendezvous with a waiting user.
+// The operation is determined by the user who initiated the tunnel.
+message AgentInit {
+  string session_key = 1;
+  string workflow_id = 2;
 }
 
 // ExecOperation is the operation to execute a command on a remote machine.

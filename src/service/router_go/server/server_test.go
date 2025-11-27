@@ -102,39 +102,55 @@ func (e *testEnv) controlService(t *testing.T) pb.RouterControlServiceClient {
 	return pb.NewRouterControlServiceClient(e.dial(t))
 }
 
-// Helper functions for sending TunnelFrames
+// Helper functions for sending frames
 
-// sendInit sends a TunnelInit frame. If initTemplate is nil, creates a default exec operation.
-// Creates a copy to avoid race conditions when called from multiple goroutines.
-func sendInit(stream interface {
-	Send(*pb.TunnelFrame) error
-}, sessionKey, cookie, workflowID string, initTemplate *pb.TunnelInit) error {
-	init := &pb.TunnelInit{
+// sendUserInit sends a UserInit frame. If initTemplate is nil, creates a default exec operation.
+func sendUserInit(stream pb.RouterUserService_TunnelClient, sessionKey, cookie, workflowID string, initTemplate *pb.UserInit) error {
+	init := &pb.UserInit{
 		SessionKey: sessionKey,
 		Cookie:     cookie,
 		WorkflowId: workflowID,
 	}
 	if initTemplate == nil {
-		init.Operation = &pb.TunnelInit_Exec{Exec: &pb.ExecOperation{}}
+		init.Operation = &pb.UserInit_Exec{Exec: &pb.ExecOperation{}}
 	} else {
 		init.Operation = initTemplate.Operation
 	}
-	return stream.Send(&pb.TunnelFrame{
-		Frame: &pb.TunnelFrame_Init{Init: init},
+	return stream.Send(&pb.UserFrame{
+		Frame: &pb.UserFrame_Init{Init: init},
 	})
 }
 
-func sendPayload(stream interface {
-	Send(*pb.TunnelFrame) error
-}, data []byte) error {
-	return stream.Send(&pb.TunnelFrame{
-		Frame: &pb.TunnelFrame_Payload{Payload: data},
+// sendAgentInit sends an AgentInit frame.
+func sendAgentInit(stream pb.RouterAgentService_TunnelClient, sessionKey string) error {
+	return stream.Send(&pb.AgentFrame{
+		Frame: &pb.AgentFrame_Init{Init: &pb.AgentInit{SessionKey: sessionKey}},
 	})
 }
 
-// getPayload extracts payload bytes from a TunnelFrame
-func getPayload(frame *pb.TunnelFrame) []byte {
-	if p, ok := frame.Frame.(*pb.TunnelFrame_Payload); ok {
+func sendUserPayload(stream pb.RouterUserService_TunnelClient, data []byte) error {
+	return stream.Send(&pb.UserFrame{
+		Frame: &pb.UserFrame_Payload{Payload: data},
+	})
+}
+
+func sendAgentPayload(stream pb.RouterAgentService_TunnelClient, data []byte) error {
+	return stream.Send(&pb.AgentFrame{
+		Frame: &pb.AgentFrame_Payload{Payload: data},
+	})
+}
+
+// getUserPayload extracts payload bytes from a UserFrame
+func getUserPayload(frame *pb.UserFrame) []byte {
+	if p, ok := frame.Frame.(*pb.UserFrame_Payload); ok {
+		return p.Payload
+	}
+	return nil
+}
+
+// getAgentPayload extracts payload bytes from an AgentFrame
+func getAgentPayload(frame *pb.AgentFrame) []byte {
+	if p, ok := frame.Frame.(*pb.AgentFrame_Payload); ok {
 		return p.Payload
 	}
 	return nil
@@ -163,12 +179,12 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
 
-		if err := sendPayload(stream, []byte("hello")); err != nil {
+		if err := sendUserPayload(stream, []byte("hello")); err != nil {
 			userDone <- err
 			return
 		}
@@ -179,8 +195,8 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if string(getPayload(resp)) != "world" {
-			userDone <- fmt.Errorf("expected 'world', got '%s'", string(getPayload(resp)))
+		if string(getUserPayload(resp)) != "world" {
+			userDone <- fmt.Errorf("expected 'world', got '%s'", string(getUserPayload(resp)))
 			return
 		}
 
@@ -198,7 +214,7 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendAgentInit(stream, sessionKey); err != nil {
 			agentDone <- err
 			return
 		}
@@ -209,12 +225,12 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if string(getPayload(req)) != "hello" {
-			agentDone <- fmt.Errorf("expected 'hello', got '%s'", string(getPayload(req)))
+		if string(getAgentPayload(req)) != "hello" {
+			agentDone <- fmt.Errorf("expected 'hello', got '%s'", string(getAgentPayload(req)))
 			return
 		}
 
-		if err := sendPayload(stream, []byte("world")); err != nil {
+		if err := sendAgentPayload(stream, []byte("world")); err != nil {
 			agentDone <- err
 			return
 		}
@@ -258,7 +274,7 @@ func TestRendezvousTimeout(t *testing.T) {
 		t.Fatalf("failed to create stream: %v", err)
 	}
 
-	if err := sendInit(stream, "timeout-session", "cookie", "workflow", nil); err != nil {
+	if err := sendUserInit(stream, "timeout-session", "cookie", "workflow", nil); err != nil {
 		t.Fatalf("failed to send init: %v", err)
 	}
 
@@ -293,7 +309,7 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendAgentInit(stream, sessionKey); err != nil {
 			agentDone <- err
 			return
 		}
@@ -304,12 +320,12 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if string(getPayload(req)) != "ping" {
-			agentDone <- fmt.Errorf("expected 'ping', got '%s'", string(getPayload(req)))
+		if string(getAgentPayload(req)) != "ping" {
+			agentDone <- fmt.Errorf("expected 'ping', got '%s'", string(getAgentPayload(req)))
 			return
 		}
 
-		if err := sendPayload(stream, []byte("pong")); err != nil {
+		if err := sendAgentPayload(stream, []byte("pong")); err != nil {
 			agentDone <- err
 			return
 		}
@@ -329,12 +345,12 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
 
-		if err := sendPayload(stream, []byte("ping")); err != nil {
+		if err := sendUserPayload(stream, []byte("ping")); err != nil {
 			userDone <- err
 			return
 		}
@@ -345,8 +361,8 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if string(getPayload(resp)) != "pong" {
-			userDone <- fmt.Errorf("expected 'pong', got '%s'", string(getPayload(resp)))
+		if string(getUserPayload(resp)) != "pong" {
+			userDone <- fmt.Errorf("expected 'pong', got '%s'", string(getUserPayload(resp)))
 			return
 		}
 
@@ -386,7 +402,7 @@ func TestDuplicateUserConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("user1 failed: %v", err)
 	}
-	if err := sendInit(stream1, sessionKey, "cookie", "workflow", nil); err != nil {
+	if err := sendUserInit(stream1, sessionKey, "cookie", "workflow", nil); err != nil {
 		t.Fatalf("user1 init failed: %v", err)
 	}
 
@@ -399,7 +415,7 @@ func TestDuplicateUserConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("user2 failed: %v", err)
 	}
-	if err := sendInit(stream2, sessionKey, "cookie", "workflow", nil); err != nil {
+	if err := sendUserInit(stream2, sessionKey, "cookie", "workflow", nil); err != nil {
 		t.Fatalf("user2 init failed: %v", err)
 	}
 
@@ -439,12 +455,12 @@ func TestConcurrentSessions(t *testing.T) {
 				return
 			}
 
-			if err := sendInit(stream, key, "cookie", "workflow", nil); err != nil {
+			if err := sendUserInit(stream, key, "cookie", "workflow", nil); err != nil {
 				errs <- err
 				return
 			}
 
-			if err := sendPayload(stream, []byte(data)); err != nil {
+			if err := sendUserPayload(stream, []byte(data)); err != nil {
 				errs <- err
 				return
 			}
@@ -469,7 +485,7 @@ func TestConcurrentSessions(t *testing.T) {
 				return
 			}
 
-			if err := sendInit(stream, key, "cookie", "workflow", nil); err != nil {
+			if err := sendAgentInit(stream, key); err != nil {
 				errs <- err
 				return
 			}
@@ -479,12 +495,12 @@ func TestConcurrentSessions(t *testing.T) {
 				errs <- err
 				return
 			}
-			if getPayload(req) == nil {
+			if getAgentPayload(req) == nil {
 				errs <- fmt.Errorf("expected payload")
 				return
 			}
 
-			if err := sendPayload(stream, []byte("ack")); err != nil {
+			if err := sendAgentPayload(stream, []byte("ack")); err != nil {
 				errs <- err
 				return
 			}
@@ -526,12 +542,12 @@ func TestStreamCloseSignalsEnd(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
 
-		if err := sendPayload(stream, []byte("hello")); err != nil {
+		if err := sendUserPayload(stream, []byte("hello")); err != nil {
 			userDone <- err
 			return
 		}
@@ -551,7 +567,7 @@ func TestStreamCloseSignalsEnd(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendAgentInit(stream, sessionKey); err != nil {
 			agentDone <- err
 			return
 		}
@@ -562,7 +578,7 @@ func TestStreamCloseSignalsEnd(t *testing.T) {
 			agentDone <- err
 			return
 		}
-		if getPayload(req) == nil {
+		if getAgentPayload(req) == nil {
 			agentDone <- fmt.Errorf("expected payload")
 			return
 		}
@@ -620,7 +636,7 @@ func TestGetSessionInfo(t *testing.T) {
 	go func() {
 		user := env.userService(t)
 		stream, _ := user.Tunnel(ctx)
-		sendInit(stream, sessionKey, "cookie", workflowID, nil)
+		sendUserInit(stream, sessionKey, "cookie", workflowID, nil)
 		close(userConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
@@ -631,7 +647,7 @@ func TestGetSessionInfo(t *testing.T) {
 		time.Sleep(100 * time.Millisecond) // Give time for query below
 		agent := env.agentService(t)
 		stream, _ := agent.Tunnel(ctx)
-		sendInit(stream, sessionKey, "cookie", workflowID, nil)
+		sendAgentInit(stream, sessionKey)
 		close(agentConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
@@ -713,7 +729,7 @@ func TestTerminateSession(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -734,7 +750,7 @@ func TestTerminateSession(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendAgentInit(stream, sessionKey); err != nil {
 			agentDone <- err
 			return
 		}
@@ -822,12 +838,12 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
 
-		if err := sendPayload(stream, testData); err != nil {
+		if err := sendUserPayload(stream, testData); err != nil {
 			userDone <- err
 			return
 		}
@@ -838,8 +854,8 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		if len(getPayload(resp)) != dataSize {
-			userDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(getPayload(resp)))
+		if len(getUserPayload(resp)) != dataSize {
+			userDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(getUserPayload(resp)))
 			return
 		}
 
@@ -857,7 +873,7 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendAgentInit(stream, sessionKey); err != nil {
 			agentDone <- err
 			return
 		}
@@ -868,14 +884,14 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		payload := getPayload(req)
+		payload := getAgentPayload(req)
 		if len(payload) != dataSize {
 			agentDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(payload))
 			return
 		}
 
 		// Echo back
-		if err := sendPayload(stream, payload); err != nil {
+		if err := sendAgentPayload(stream, payload); err != nil {
 			agentDone <- err
 			return
 		}
@@ -921,9 +937,9 @@ func TestSimultaneousDisconnect(t *testing.T) {
 		defer wg.Done()
 		user := env.userService(t)
 		stream, _ := user.Tunnel(ctx)
-		sendInit(stream, sessionKey, "cookie", "workflow", nil)
+		sendUserInit(stream, sessionKey, "cookie", "workflow", nil)
 		for i := range 5 {
-			sendPayload(stream, []byte(fmt.Sprintf("msg-%d", i)))
+			sendUserPayload(stream, []byte(fmt.Sprintf("msg-%d", i)))
 		}
 		stream.CloseSend()
 	}()
@@ -934,7 +950,7 @@ func TestSimultaneousDisconnect(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		agent := env.agentService(t)
 		stream, _ := agent.Tunnel(ctx)
-		sendInit(stream, sessionKey, "cookie", "workflow", nil)
+		sendAgentInit(stream, sessionKey)
 		// Receive a couple then close immediately
 		stream.Recv()
 		stream.CloseSend()
@@ -960,18 +976,18 @@ func TestOperationTypes(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		init     *pb.TunnelInit
+		init     *pb.UserInit
 		wantType string
 	}{
 		{
 			"exec",
-			&pb.TunnelInit{Operation: &pb.TunnelInit_Exec{Exec: &pb.ExecOperation{}}},
+			&pb.UserInit{Operation: &pb.UserInit_Exec{Exec: &pb.ExecOperation{}}},
 			OperationExec,
 		},
 		{
 			"portforward_tcp",
-			&pb.TunnelInit{
-				Operation: &pb.TunnelInit_PortForward{
+			&pb.UserInit{
+				Operation: &pb.UserInit_PortForward{
 					PortForward: &pb.PortForwardOperation{
 						Protocol: pb.PortForwardOperation_TCP,
 						Port:     8080,
@@ -982,8 +998,8 @@ func TestOperationTypes(t *testing.T) {
 		},
 		{
 			"portforward_udp",
-			&pb.TunnelInit{
-				Operation: &pb.TunnelInit_PortForward{
+			&pb.UserInit{
+				Operation: &pb.UserInit_PortForward{
 					PortForward: &pb.PortForwardOperation{
 						Protocol: pb.PortForwardOperation_UDP,
 						Port:     8080,
@@ -994,14 +1010,14 @@ func TestOperationTypes(t *testing.T) {
 		},
 		{
 			"websocket",
-			&pb.TunnelInit{
-				Operation: &pb.TunnelInit_WebSocket{WebSocket: &pb.WebSocketOperation{}},
+			&pb.UserInit{
+				Operation: &pb.UserInit_WebSocket{WebSocket: &pb.WebSocketOperation{}},
 			},
 			OperationWebSocket,
 		},
 		{
 			"rsync",
-			&pb.TunnelInit{Operation: &pb.TunnelInit_Rsync{Rsync: &pb.RsyncOperation{}}},
+			&pb.UserInit{Operation: &pb.UserInit_Rsync{Rsync: &pb.RsyncOperation{}}},
 			OperationRsync,
 		},
 	}
@@ -1018,7 +1034,7 @@ func TestOperationTypes(t *testing.T) {
 			go func() {
 				user := env.userService(t)
 				stream, _ := user.Tunnel(ctx)
-				sendInit(stream, sessionKey, "cookie", "workflow", tt.init)
+				sendUserInit(stream, sessionKey, "cookie", "workflow", tt.init)
 				close(sessionActive)
 				time.Sleep(300 * time.Millisecond) // Keep session alive
 				stream.CloseSend()
@@ -1029,7 +1045,7 @@ func TestOperationTypes(t *testing.T) {
 				time.Sleep(50 * time.Millisecond)
 				agent := env.agentService(t)
 				stream, _ := agent.Tunnel(ctx)
-				sendInit(stream, sessionKey, "cookie", "workflow", tt.init)
+				sendAgentInit(stream, sessionKey)
 				time.Sleep(300 * time.Millisecond) // Keep session alive
 				stream.CloseSend()
 			}()
@@ -1071,13 +1087,13 @@ func TestMultiplePayloadsBeforeClose(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
 
 		for i := range numPayloads {
-			if err := sendPayload(stream, []byte(fmt.Sprintf("msg-%d", i))); err != nil {
+			if err := sendUserPayload(stream, []byte(fmt.Sprintf("msg-%d", i))); err != nil {
 				userDone <- err
 				return
 			}
@@ -1106,7 +1122,7 @@ func TestMultiplePayloadsBeforeClose(t *testing.T) {
 			return
 		}
 
-		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendAgentInit(stream, sessionKey); err != nil {
 			agentDone <- err
 			return
 		}
@@ -1117,7 +1133,7 @@ func TestMultiplePayloadsBeforeClose(t *testing.T) {
 				agentDone <- err
 				return
 			}
-			if err := sendPayload(stream, getPayload(req)); err != nil {
+			if err := sendAgentPayload(stream, getAgentPayload(req)); err != nil {
 				agentDone <- err
 				return
 			}
@@ -1153,24 +1169,24 @@ func TestInitValidation(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		init     *pb.TunnelInit
+		init     *pb.UserInit
 		wantCode codes.Code
 	}{
 		{
 			name:     "empty session key",
-			init:     &pb.TunnelInit{SessionKey: "", Operation: &pb.TunnelInit_Exec{Exec: &pb.ExecOperation{}}},
+			init:     &pb.UserInit{SessionKey: "", Operation: &pb.UserInit_Exec{Exec: &pb.ExecOperation{}}},
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name:     "nil operation",
-			init:     &pb.TunnelInit{SessionKey: "key"},
+			init:     &pb.UserInit{SessionKey: "key"},
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name: "port zero",
-			init: &pb.TunnelInit{
+			init: &pb.UserInit{
 				SessionKey: "key",
-				Operation: &pb.TunnelInit_PortForward{
+				Operation: &pb.UserInit_PortForward{
 					PortForward: &pb.PortForwardOperation{Port: 0, Protocol: pb.PortForwardOperation_TCP},
 				},
 			},
@@ -1178,9 +1194,9 @@ func TestInitValidation(t *testing.T) {
 		},
 		{
 			name: "port too high",
-			init: &pb.TunnelInit{
+			init: &pb.UserInit{
 				SessionKey: "key",
-				Operation: &pb.TunnelInit_PortForward{
+				Operation: &pb.UserInit_PortForward{
 					PortForward: &pb.PortForwardOperation{Port: 70000, Protocol: pb.PortForwardOperation_TCP},
 				},
 			},
@@ -1188,9 +1204,9 @@ func TestInitValidation(t *testing.T) {
 		},
 		{
 			name: "port negative",
-			init: &pb.TunnelInit{
+			init: &pb.UserInit{
 				SessionKey: "key",
-				Operation: &pb.TunnelInit_PortForward{
+				Operation: &pb.UserInit_PortForward{
 					PortForward: &pb.PortForwardOperation{Port: -1, Protocol: pb.PortForwardOperation_TCP},
 				},
 			},
@@ -1198,9 +1214,9 @@ func TestInitValidation(t *testing.T) {
 		},
 		{
 			name: "protocol unspecified",
-			init: &pb.TunnelInit{
+			init: &pb.UserInit{
 				SessionKey: "key",
-				Operation: &pb.TunnelInit_PortForward{
+				Operation: &pb.UserInit_PortForward{
 					PortForward: &pb.PortForwardOperation{Port: 8080, Protocol: pb.PortForwardOperation_UNSPECIFIED},
 				},
 			},
@@ -1220,8 +1236,8 @@ func TestInitValidation(t *testing.T) {
 			}
 
 			// Send the invalid init
-			err = stream.Send(&pb.TunnelFrame{
-				Frame: &pb.TunnelFrame_Init{Init: tt.init},
+			err = stream.Send(&pb.UserFrame{
+				Frame: &pb.UserFrame_Init{Init: tt.init},
 			})
 			if err != nil {
 				t.Fatalf("failed to send init: %v", err)

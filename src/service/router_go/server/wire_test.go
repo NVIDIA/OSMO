@@ -34,71 +34,84 @@ import (
 // TestWireTagsMatchProto verifies that our hardcoded wire tag constants
 // match the actual protobuf wire format. This test will fail if the proto
 // field numbers change, alerting us to update the constants.
+//
+// CRITICAL: UserFrame and AgentFrame MUST have matching tags for zero-copy:
+// - init = 1 (tag 0x0a) in both
+// - payload = 2 (tag 0x12) in both
 func TestWireTagsMatchProto(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		frame    *pb.TunnelFrame
-		wantTag  byte
-		constVal byte
-	}{
-		{
-			name: "init frame",
-			frame: &pb.TunnelFrame{
-				Frame: &pb.TunnelFrame_Init{
-					Init: &pb.TunnelInit{SessionKey: "test"},
-				},
+	// Test UserFrame tags
+	t.Run("UserFrame", func(t *testing.T) {
+		t.Parallel()
+
+		userInit := &pb.UserFrame{
+			Frame: &pb.UserFrame_Init{
+				Init: &pb.UserInit{SessionKey: "test"},
 			},
-			wantTag:  TagInit,
-			constVal: 0x0a,
-		},
-		{
-			name: "payload frame",
-			frame: &pb.TunnelFrame{
-				Frame: &pb.TunnelFrame_Payload{
-					Payload: []byte("test"),
-				},
+		}
+		userPayload := &pb.UserFrame{
+			Frame: &pb.UserFrame_Payload{Payload: []byte("test")},
+		}
+
+		initBytes, _ := proto.Marshal(userInit)
+		payloadBytes, _ := proto.Marshal(userPayload)
+
+		if initBytes[0] != TagInit {
+			t.Errorf("UserFrame init tag = 0x%02x, want 0x%02x", initBytes[0], TagInit)
+		}
+		if payloadBytes[0] != TagPayload {
+			t.Errorf("UserFrame payload tag = 0x%02x, want 0x%02x", payloadBytes[0], TagPayload)
+		}
+	})
+
+	// Test AgentFrame tags - MUST match UserFrame for zero-copy
+	t.Run("AgentFrame", func(t *testing.T) {
+		t.Parallel()
+
+		agentInit := &pb.AgentFrame{
+			Frame: &pb.AgentFrame_Init{
+				Init: &pb.AgentInit{SessionKey: "test"},
 			},
-			wantTag:  TagPayload,
-			constVal: 0x12,
-		},
-	}
+		}
+		agentPayload := &pb.AgentFrame{
+			Frame: &pb.AgentFrame_Payload{Payload: []byte("test")},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Verify constant has expected value
-			if tt.wantTag != tt.constVal {
-				t.Errorf("constant value mismatch: got 0x%02x, want 0x%02x", tt.wantTag, tt.constVal)
-			}
+		initBytes, _ := proto.Marshal(agentInit)
+		payloadBytes, _ := proto.Marshal(agentPayload)
 
-			// Marshal the frame and check first byte matches our constant
-			data, err := proto.Marshal(tt.frame)
-			if err != nil {
-				t.Fatalf("failed to marshal: %v", err)
-			}
+		if initBytes[0] != TagInit {
+			t.Errorf("AgentFrame init tag = 0x%02x, want 0x%02x", initBytes[0], TagInit)
+		}
+		if payloadBytes[0] != TagPayload {
+			t.Errorf("AgentFrame payload tag = 0x%02x, want 0x%02x", payloadBytes[0], TagPayload)
+		}
+	})
 
-			if len(data) == 0 {
-				t.Fatal("marshaled data is empty")
-			}
+	// Verify constant values
+	t.Run("constants", func(t *testing.T) {
+		t.Parallel()
 
-			if data[0] != tt.wantTag {
-				t.Errorf("wire format mismatch: first byte is 0x%02x, want 0x%02x (constant %s)",
-					data[0], tt.wantTag, tt.name)
-			}
-		})
-	}
+		if TagInit != 0x0a {
+			t.Errorf("TagInit = 0x%02x, want 0x0a", TagInit)
+		}
+		if TagPayload != 0x12 {
+			t.Errorf("TagPayload = 0x%02x, want 0x12", TagPayload)
+		}
+	})
 }
 
 // TestRawFrameTypeDetection verifies IsInit/IsPayload work correctly.
 func TestRawFrameTypeDetection(t *testing.T) {
 	t.Parallel()
 
-	initFrame := &pb.TunnelFrame{
-		Frame: &pb.TunnelFrame_Init{Init: &pb.TunnelInit{SessionKey: "key"}},
+	// Use UserFrame for testing (AgentFrame has same wire format)
+	initFrame := &pb.UserFrame{
+		Frame: &pb.UserFrame_Init{Init: &pb.UserInit{SessionKey: "key"}},
 	}
-	payloadFrame := &pb.TunnelFrame{
-		Frame: &pb.TunnelFrame_Payload{Payload: []byte("payload")},
+	payloadFrame := &pb.UserFrame{
+		Frame: &pb.UserFrame_Payload{Payload: []byte("payload")},
 	}
 
 	initBytes, _ := proto.Marshal(initFrame)
@@ -138,6 +151,7 @@ func TestRawFrameTypeDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := tt.raw.IsInit(); got != tt.wantInit {
 				t.Errorf("IsInit() = %v, want %v", got, tt.wantInit)
 			}
@@ -145,6 +159,187 @@ func TestRawFrameTypeDetection(t *testing.T) {
 				t.Errorf("IsPayload() = %v, want %v", got, tt.wantPayload)
 			}
 		})
+	}
+}
+
+// TestRawCodecZeroCopy verifies the codec does NOT copy bytes for RawFrame.
+// This is the core zero-copy guarantee: we store gRPC's buffer directly
+// and return it directly when forwarding.
+func TestRawCodecZeroCopy(t *testing.T) {
+	t.Parallel()
+	codec := rawCodec{}
+
+	t.Run("Unmarshal stores original slice", func(t *testing.T) {
+		t.Parallel()
+
+		// Simulate bytes from gRPC's receive buffer
+		wireBytes := []byte{0x12, 0x05, 'h', 'e', 'l', 'l', 'o'}
+
+		var rf RawFrame
+		if err := codec.Unmarshal(wireBytes, &rf); err != nil {
+			t.Fatalf("Unmarshal failed: %v", err)
+		}
+
+		// Verify same underlying array (zero-copy)
+		if &rf.Raw[0] != &wireBytes[0] {
+			t.Fatal("Unmarshal COPIED bytes - zero-copy violated!")
+		}
+	})
+
+	t.Run("Marshal returns original slice", func(t *testing.T) {
+		t.Parallel()
+
+		original := []byte{0x12, 0x05, 'h', 'e', 'l', 'l', 'o'}
+		rf := RawFrame{Raw: original}
+
+		marshaled, err := codec.Marshal(&rf)
+		if err != nil {
+			t.Fatalf("Marshal failed: %v", err)
+		}
+
+		// Verify same underlying array (zero-copy)
+		if &marshaled[0] != &original[0] {
+			t.Fatal("Marshal COPIED bytes - zero-copy violated!")
+		}
+	})
+
+	t.Run("full forwarding path is zero-copy", func(t *testing.T) {
+		t.Parallel()
+
+		// Simulate: gRPC receives bytes → Unmarshal → forward → Marshal → gRPC sends
+		wireBytes := []byte{0x12, 0x0a, 'f', 'o', 'r', 'w', 'a', 'r', 'd', 'e', 'd', '!'}
+
+		// Step 1: Unmarshal (gRPC receive)
+		var rf RawFrame
+		if err := codec.Unmarshal(wireBytes, &rf); err != nil {
+			t.Fatalf("Unmarshal failed: %v", err)
+		}
+
+		// Step 2: Marshal (gRPC send)
+		forwarded, err := codec.Marshal(&rf)
+		if err != nil {
+			t.Fatalf("Marshal failed: %v", err)
+		}
+
+		// Verify the entire path used the same buffer
+		if &forwarded[0] != &wireBytes[0] {
+			t.Fatal("Forwarding path COPIED bytes - zero-copy violated!")
+		}
+
+		t.Logf("Zero-copy verified: same buffer %p throughout", &wireBytes[0])
+	})
+}
+
+// TestRawCodecProtobufFallback verifies non-RawFrame types use standard protobuf.
+func TestRawCodecProtobufFallback(t *testing.T) {
+	t.Parallel()
+	codec := rawCodec{}
+
+	input := &pb.UserFrame{
+		Frame: &pb.UserFrame_Payload{Payload: []byte("test data")},
+	}
+
+	marshaled, err := codec.Marshal(input)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	var output pb.UserFrame
+	if err := codec.Unmarshal(marshaled, &output); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if string(output.GetPayload()) != "test data" {
+		t.Errorf("payload = %q, want %q", output.GetPayload(), "test data")
+	}
+}
+
+// TestInitParsing verifies GetUserInit and GetAgentInit extract fields correctly.
+func TestInitParsing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UserInit", func(t *testing.T) {
+		t.Parallel()
+		raw, _ := proto.Marshal(&pb.UserFrame{
+			Frame: &pb.UserFrame_Init{
+				Init: &pb.UserInit{
+					SessionKey: "session-123",
+					WorkflowId: "workflow-456",
+					Operation:  &pb.UserInit_Exec{Exec: &pb.ExecOperation{Command: "ls"}},
+				},
+			},
+		})
+
+		init := (&RawFrame{Raw: raw}).GetUserInit()
+		if init == nil {
+			t.Fatal("GetUserInit returned nil")
+		}
+		if init.SessionKey != "session-123" || init.WorkflowId != "workflow-456" {
+			t.Errorf("got (%q, %q), want (session-123, workflow-456)", init.SessionKey, init.WorkflowId)
+		}
+	})
+
+	t.Run("AgentInit", func(t *testing.T) {
+		t.Parallel()
+		raw, _ := proto.Marshal(&pb.AgentFrame{
+			Frame: &pb.AgentFrame_Init{
+				Init: &pb.AgentInit{SessionKey: "agent-session", WorkflowId: "agent-workflow"},
+			},
+		})
+
+		init := (&RawFrame{Raw: raw}).GetAgentInit()
+		if init == nil {
+			t.Fatal("GetAgentInit returned nil")
+		}
+		if init.SessionKey != "agent-session" || init.WorkflowId != "agent-workflow" {
+			t.Errorf("got (%q, %q), want (agent-session, agent-workflow)", init.SessionKey, init.WorkflowId)
+		}
+	})
+
+	t.Run("payload returns nil", func(t *testing.T) {
+		t.Parallel()
+		raw, _ := proto.Marshal(&pb.UserFrame{Frame: &pb.UserFrame_Payload{Payload: []byte("data")}})
+		rf := &RawFrame{Raw: raw}
+
+		if rf.GetUserInit() != nil || rf.GetAgentInit() != nil {
+			t.Error("init getters should return nil for payload frames")
+		}
+	})
+}
+
+// TestPayloadRoundTrip verifies payload bytes survive: proto → RawFrame → proto.
+func TestPayloadRoundTrip(t *testing.T) {
+	t.Parallel()
+	codec := rawCodec{}
+
+	// Test small, medium, large, and binary payloads
+	for _, payload := range [][]byte{
+		[]byte("hello"),
+		make([]byte, 64*1024), // 64KB with pattern
+		{0x00, 0xff, 0x7f, 0x80},
+	} {
+		// Fill large payload with pattern
+		for i := range payload {
+			if len(payload) > 100 {
+				payload[i] = byte(i % 256)
+			}
+		}
+
+		// proto.Marshal → codec.Unmarshal → codec.Marshal → proto.Unmarshal
+		wireBytes, _ := proto.Marshal(&pb.UserFrame{
+			Frame: &pb.UserFrame_Payload{Payload: payload},
+		})
+
+		var rf RawFrame
+		codec.Unmarshal(wireBytes, &rf)
+		forwarded, _ := codec.Marshal(&rf)
+
+		var received pb.UserFrame
+		proto.Unmarshal(forwarded, &received)
+
+		if string(received.GetPayload()) != string(payload) {
+			t.Errorf("payload corrupted: got %d bytes, want %d", len(received.GetPayload()), len(payload))
+		}
 	}
 }
 
@@ -218,15 +413,15 @@ func TestGRPCBufferNotReused(t *testing.T) {
 	}
 
 	// Send 10 payload frames with different content
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		payload := make([]byte, 1024) // 1KB payload
 		// Fill with unique pattern so we can detect overwrites
 		for j := range payload {
 			payload[j] = byte(i)
 		}
 
-		frame := &pb.TunnelFrame{
-			Frame: &pb.TunnelFrame_Payload{Payload: payload},
+		frame := &pb.UserFrame{
+			Frame: &pb.UserFrame_Payload{Payload: payload},
 		}
 
 		if err := stream.Send(frame); err != nil {
@@ -245,12 +440,10 @@ func TestGRPCBufferNotReused(t *testing.T) {
 	seen := make(map[uintptr]int)
 	for i, ptr := range tester.receivedPtrs {
 		if prevIdx, exists := seen[ptr]; exists {
-			t.Fatalf("BUFFER REUSE DETECTED! Frames %d and %d share buffer at %#x.\n"+
-				"gRPC is now reusing receive buffers. Implement buffer pooling:\n"+
-				"  1. In rawCodec.Unmarshal, copy data into a pooled buffer\n"+
-				"  2. Add RawFrame.Release() to return buffer to pool\n"+
-				"  3. Call Release() after SendMsg completes\n"+
-				"See CODE_ANALYSIS_REPORT.md section 8.1 for implementation details.",
+			t.Fatalf("BUFFER REUSE DETECTED: frames %d and %d share buffer at %#x\n"+
+				"gRPC is reusing receive buffers, which breaks zero-copy forwarding.\n"+
+				"The router forwards RawFrame.Raw directly; if gRPC reuses the buffer,\n"+
+				"it may be overwritten before SendMsg completes.",
 				prevIdx, i, ptr)
 		}
 		seen[ptr] = i

@@ -27,13 +27,20 @@ package server
 //   2. Unnecessary copies (improves throughput)
 //
 // HOW IT WORKS:
-//   1. First frame: parsed as TunnelInit (needed for session setup)
+//   1. First frame: parsed as UserInit or AgentInit (needed for session setup)
 //   2. All subsequent frames: forwarded as raw bytes (zero-copy)
 //
 // PROTOCOL:
-//   Client/Agent → Router: TunnelInit (first), then raw payload bytes
+//   User → Router: UserInit (first), then raw payload bytes
+//   Agent → Router: AgentInit (first), then raw payload bytes
 //   Router forwards payload frames transparently without inspection.
 //   Stream close (EOF) signals end of tunnel.
+//
+// ZERO-COPY FORWARDING:
+// UserFrame and AgentFrame have identical wire formats for payload:
+//   - Both use tag 2 for payload field
+//   - Wire format: [0x12][length][bytes]
+// This allows the router to forward bytes transparently between user and agent.
 //
 // MEMORY LAYOUT:
 //
@@ -66,11 +73,12 @@ type RawFrame struct {
 	// When we forward the frame, we send these exact bytes.
 	Raw []byte
 
-	// Lazily parsed init message. Only populated for init frames.
-	parsedInit *pb.TunnelInit
+	// Lazily parsed init messages. Only one is populated based on frame type.
+	parsedUserInit  *pb.UserInit
+	parsedAgentInit *pb.AgentInit
 }
 
-// Protobuf wire tags for TunnelFrame oneof fields.
+// Protobuf wire tags for UserFrame/AgentFrame oneof fields.
 //
 // In protobuf wire format, each field starts with a tag byte:
 //
@@ -78,6 +86,10 @@ type RawFrame struct {
 //
 // For embedded messages and bytes (wire type 2), fields 1-15 fit in a single byte.
 // These constants are verified by TestWireTagsMatchProto in wire_test.go.
+//
+// IMPORTANT: UserFrame and AgentFrame MUST use the same tags for zero-copy:
+//   - init = 1 (tag 0x0a) in both
+//   - payload = 2 (tag 0x12) in both
 const (
 	TagInit    = 0x0a // field 1, wire type 2: (1 << 3) | 2
 	TagPayload = 0x12 // field 2, wire type 2: (2 << 3) | 2
@@ -95,26 +107,48 @@ func (f *RawFrame) IsPayload() bool {
 	return len(f.Raw) > 0 && f.Raw[0] == TagPayload
 }
 
-// GetInit parses and returns the TunnelInit if this is an init frame.
+// GetUserInit parses and returns the UserInit if this is a user init frame.
 // Returns nil if it's not an init frame or parsing fails.
 // The parsed result is cached for subsequent calls.
-func (f *RawFrame) GetInit() *pb.TunnelInit {
+func (f *RawFrame) GetUserInit() *pb.UserInit {
 	if !f.IsInit() {
 		return nil
 	}
 
-	if f.parsedInit != nil {
-		return f.parsedInit
+	if f.parsedUserInit != nil {
+		return f.parsedUserInit
 	}
 
-	// Parse the TunnelFrame to extract TunnelInit
-	frame := &pb.TunnelFrame{}
+	// Parse the UserFrame to extract UserInit
+	frame := &pb.UserFrame{}
 	if err := proto.Unmarshal(f.Raw, frame); err != nil {
 		return nil
 	}
 
-	f.parsedInit = frame.GetInit()
-	return f.parsedInit
+	f.parsedUserInit = frame.GetInit()
+	return f.parsedUserInit
+}
+
+// GetAgentInit parses and returns the AgentInit if this is an agent init frame.
+// Returns nil if it's not an init frame or parsing fails.
+// The parsed result is cached for subsequent calls.
+func (f *RawFrame) GetAgentInit() *pb.AgentInit {
+	if !f.IsInit() {
+		return nil
+	}
+
+	if f.parsedAgentInit != nil {
+		return f.parsedAgentInit
+	}
+
+	// Parse the AgentFrame to extract AgentInit
+	frame := &pb.AgentFrame{}
+	if err := proto.Unmarshal(f.Raw, frame); err != nil {
+		return nil
+	}
+
+	f.parsedAgentInit = frame.GetInit()
+	return f.parsedAgentInit
 }
 
 // ----------------------------------------------------------------------------
@@ -169,7 +203,8 @@ func (c rawCodec) Unmarshal(data []byte, v interface{}) error {
 	// Zero-copy path: store reference to gRPC's buffer
 	if raw, ok := v.(*RawFrame); ok {
 		raw.Raw = data
-		raw.parsedInit = nil // Clear any cached parse
+		raw.parsedUserInit = nil  // Clear any cached parse
+		raw.parsedAgentInit = nil // Clear any cached parse
 		return nil
 	}
 

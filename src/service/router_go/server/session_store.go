@@ -67,11 +67,6 @@ func newPipe(sendTimeout time.Duration) *Pipe {
 }
 
 // Send sends a message through the pipe with timeout.
-//
-// ZERO-COPY: The RawFrame struct (~32 bytes) is passed by value, but the
-// payload bytes in msg.Raw are never copied - just the slice header.
-//
-// Safe to call concurrently with Close - will not panic.
 func (p *Pipe) Send(ctx context.Context, msg RawFrame) error {
 	// Fast path: no timeout configured
 	if p.sendTimeout == 0 {
@@ -85,7 +80,7 @@ func (p *Pipe) Send(ctx context.Context, msg RawFrame) error {
 		}
 	}
 
-	// With timeout: use Timer directly (cheaper than context.WithTimeout)
+	// Send with timeout
 	timer := time.NewTimer(p.sendTimeout)
 	defer timer.Stop()
 
@@ -102,9 +97,6 @@ func (p *Pipe) Send(ctx context.Context, msg RawFrame) error {
 }
 
 // Receive receives a message from the pipe.
-//
-// ZERO-COPY: Returns RawFrame by value. The struct is small (~32 bytes)
-// and the payload bytes in msg.Raw are never copied.
 func (p *Pipe) Receive(ctx context.Context) (RawFrame, error) {
 	select {
 	case msg := <-p.ch:
@@ -130,11 +122,6 @@ func (p *Pipe) Close() {
 //
 // SESSION LIFECYCLE
 // =================
-//
-//	                  ┌─────────────────────────────────────────────────────────┐
-//	                  │                      SESSION                            │
-//	                  │  Fields: deleted, done, clientReady, agentReady, pipes  │
-//	                  └─────────────────────────────────────────────────────────┘
 //
 //	CLIENT                           SESSION STORE                          AGENT
 //	  │                                   │                                   │
@@ -179,7 +166,6 @@ func (p *Pipe) Close() {
 //	  │                                                           exits)      │
 type Session struct {
 	Key           string
-	Cookie        string
 	WorkflowID    string
 	OperationType string
 	CreatedAt     time.Time
@@ -237,16 +223,6 @@ func (s *Session) IsConnected() bool {
 	return s.clientConnected.Load() && s.agentConnected.Load()
 }
 
-// ClientConnected returns true if the client has connected.
-func (s *Session) ClientConnected() bool {
-	return s.clientConnected.Load()
-}
-
-// AgentConnected returns true if the agent has connected.
-func (s *Session) AgentConnected() bool {
-	return s.agentConnected.Load()
-}
-
 // WaitForAgent signals client is ready and waits for agent to connect.
 func (s *Session) WaitForAgent(ctx context.Context, timeout time.Duration) error {
 	if !s.clientConnected.CompareAndSwap(false, true) {
@@ -294,7 +270,6 @@ type SessionStoreConfig struct {
 	RendezvousTimeout time.Duration
 	StreamSendTimeout time.Duration
 	MaxSessionKeyLen  int
-	MaxCookieLen      int
 	MaxWorkflowIDLen  int
 }
 
@@ -322,10 +297,9 @@ func (s *SessionStore) RendezvousTimeout() time.Duration {
 }
 
 // GetOrCreateSession returns existing session or creates new one.
-// If session exists, validates that cookie matches.
 // Caller should call ReleaseSession when done to trigger cleanup.
 // Returns (session, existed, error).
-func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string) (*Session, bool, error) {
+func (s *SessionStore) GetOrCreateSession(key, workflowID, opType string) (*Session, bool, error) {
 	// Validate inputs
 	if key == "" {
 		return nil, false, status.Error(codes.InvalidArgument, "session key is required")
@@ -333,16 +307,12 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 	if len(key) > s.config.MaxSessionKeyLen {
 		return nil, false, status.Errorf(codes.InvalidArgument, "session key exceeds max length of %d", s.config.MaxSessionKeyLen)
 	}
-	if len(cookie) > s.config.MaxCookieLen {
-		return nil, false, status.Errorf(codes.InvalidArgument, "cookie exceeds max length of %d", s.config.MaxCookieLen)
-	}
 	if len(workflowID) > s.config.MaxWorkflowIDLen {
 		return nil, false, status.Errorf(codes.InvalidArgument, "workflow ID exceeds max length of %d", s.config.MaxWorkflowIDLen)
 	}
 
 	newSession := &Session{
 		Key:           key,
-		Cookie:        cookie,
 		WorkflowID:    workflowID,
 		OperationType: opType,
 		CreatedAt:     time.Now(),
@@ -356,19 +326,25 @@ func (s *SessionStore) GetOrCreateSession(key, cookie, workflowID, opType string
 	actual, loaded := s.sessions.LoadOrStore(key, newSession)
 	session := actual.(*Session)
 
-	// If session existed, validate cookie matches
-	if loaded && session.Cookie != cookie {
-		return nil, false, status.Error(codes.PermissionDenied, "cookie mismatch")
-	}
+	if loaded {
+		// Joining existing session - validate workflow ID matches
+		if session.WorkflowID != workflowID {
+			return nil, false, status.Errorf(codes.PermissionDenied,
+				"workflow ID mismatch: expected %q, got %q", session.WorkflowID, workflowID)
+		}
 
-	if !loaded {
+		// If session was created by agent (empty operation type), fill in from user
+		if session.OperationType == "" && opType != "" {
+			session.OperationType = opType
+		}
+
+		s.logger.Debug("session joined",
+			slog.String("session_key", key),
+		)
+	} else {
 		s.logger.Debug("session created",
 			slog.String("session_key", key),
 			slog.String("operation", opType),
-		)
-	} else {
-		s.logger.Debug("session joined",
-			slog.String("session_key", key),
 		)
 	}
 
@@ -388,49 +364,22 @@ func (s *SessionStore) GetSession(key string) (*Session, error) {
 // First caller wins - subsequent calls are no-ops.
 // This signals all handlers to exit immediately via the done channel.
 func (s *SessionStore) ReleaseSession(key string) {
-	val, ok := s.sessions.Load(key)
-	if !ok {
-		return
+	if session := s.releaseSession(key); session != nil {
+		s.logger.Debug("session released",
+			slog.String("session_key", key),
+			slog.String("operation", session.OperationType),
+			slog.Duration("duration", time.Since(session.CreatedAt)),
+		)
 	}
-
-	session := val.(*Session)
-
-	// First releaser wins - atomic check-and-set prevents duplicate cleanup
-	if !session.deleted.CompareAndSwap(false, true) {
-		return
-	}
-
-	s.sessions.Delete(key)
-	session.signalDone()
-	session.clientToAgent.Close()
-	session.agentToClient.Close()
-
-	s.logger.Debug("session released",
-		slog.String("session_key", key),
-		slog.String("operation", session.OperationType),
-		slog.Duration("duration", time.Since(session.CreatedAt)),
-	)
 }
 
 // TerminateSession forcibly terminates a session regardless of reference count.
 // Returns true if the session was found and terminated.
 func (s *SessionStore) TerminateSession(key, reason string) bool {
-	val, ok := s.sessions.Load(key)
-	if !ok {
+	session := s.releaseSession(key)
+	if session == nil {
 		return false
 	}
-
-	session := val.(*Session)
-
-	// Atomic check-and-set prevents duplicate cleanup
-	if !session.deleted.CompareAndSwap(false, true) {
-		return false // Already being terminated
-	}
-
-	s.sessions.Delete(key)
-	session.signalDone()
-	session.clientToAgent.Close()
-	session.agentToClient.Close()
 
 	s.logger.Info("session terminated",
 		slog.String("session_key", key),
@@ -440,4 +389,27 @@ func (s *SessionStore) TerminateSession(key, reason string) bool {
 	)
 
 	return true
+}
+
+// releaseSession performs the actual session cleanup.
+// Returns the session if it was released, nil if not found or already released.
+func (s *SessionStore) releaseSession(key string) *Session {
+	val, ok := s.sessions.Load(key)
+	if !ok {
+		return nil
+	}
+
+	session := val.(*Session)
+
+	// First releaser wins - atomic check-and-set prevents duplicate cleanup
+	if !session.deleted.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	s.sessions.Delete(key)
+	session.signalDone()
+	session.clientToAgent.Close()
+	session.agentToClient.Close()
+
+	return session
 }
