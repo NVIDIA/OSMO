@@ -197,21 +197,6 @@ go_deps.module(
     sum = "h1:kuoIxZQy2WRRk1pttg9asf+WVv6tWQuBNVmK8+nqPr0=",
     version = "v1.4.0",
 )
-go_deps.module(
-    path = "github.com/coreos/go-systemd",
-    sum = "h1:iW4rZ826su+pqaw19uhpSCzhj44qo35pNgKFGqzDKkU=",
-    version = "v0.0.0-20191104093116-d3cd4ed1dbcf",
-)
-go_deps.module(
-    path = "golang.org/x/crypto",
-    sum = "h1:kJNSjF/Xp7kU0iB2Z+9viTPMW4EqqsrywMXLJOOsXSE=",
-    version = "v0.37.0",
-)
-go_deps.module(
-    path = "golang.org/x/sync",
-    sum = "h1:AauUjRAJ9OSnvULf/ARrrVywoJDy0YS2AwQ98I37610=",
-    version = "v0.13.0",
-)
 use_repo(
     go_deps,
     "com_github_conduitio_bwlimit",
@@ -223,13 +208,14 @@ use_repo(
 
     # Dependencies for building rsync for CLI distribution
     "com_github_burntsushi_toml",
-    "com_github_coreos_go_systemd",
-    "org_golang_x_crypto",
 
     # gRPC and Protobuf dependencies
     "org_golang_google_grpc",
     "org_golang_google_protobuf",
     "org_golang_x_sync",
+
+    # PostgreSQL dependencies (pulled from go.mod via go_deps.from_file)
+    "com_github_jackc_pgx_v5",
 )
 
 ################
