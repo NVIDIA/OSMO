@@ -102,12 +102,12 @@ func (e *testEnv) controlService(t *testing.T) pb.RouterControlServiceClient {
 	return pb.NewRouterControlServiceClient(e.dial(t))
 }
 
-// Helper functions for sending TunnelMessages
+// Helper functions for sending TunnelFrames
 
-// sendInit sends a TunnelInit message. If initTemplate is nil, creates a default exec operation.
+// sendInit sends a TunnelInit frame. If initTemplate is nil, creates a default exec operation.
 // Creates a copy to avoid race conditions when called from multiple goroutines.
 func sendInit(stream interface {
-	Send(*pb.TunnelMessage) error
+	Send(*pb.TunnelFrame) error
 }, sessionKey, cookie, workflowID string, initTemplate *pb.TunnelInit) error {
 	init := &pb.TunnelInit{
 		SessionKey: sessionKey,
@@ -119,27 +119,25 @@ func sendInit(stream interface {
 	} else {
 		init.Operation = initTemplate.Operation
 	}
-	return stream.Send(&pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Init{Init: init},
+	return stream.Send(&pb.TunnelFrame{
+		Frame: &pb.TunnelFrame_Init{Init: init},
 	})
 }
 
-func sendData(stream interface {
-	Send(*pb.TunnelMessage) error
+func sendPayload(stream interface {
+	Send(*pb.TunnelFrame) error
 }, data []byte) error {
-	return stream.Send(&pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Data{
-			Data: &pb.TunnelData{Payload: data},
-		},
+	return stream.Send(&pb.TunnelFrame{
+		Frame: &pb.TunnelFrame_Payload{Payload: data},
 	})
 }
 
-func sendClose(stream interface {
-	Send(*pb.TunnelMessage) error
-}) error {
-	return stream.Send(&pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Close{Close: &pb.TunnelClose{}},
-	})
+// getPayload extracts payload bytes from a TunnelFrame
+func getPayload(frame *pb.TunnelFrame) []byte {
+	if p, ok := frame.Frame.(*pb.TunnelFrame_Payload); ok {
+		return p.Payload
+	}
+	return nil
 }
 
 // Tests
@@ -151,49 +149,48 @@ func TestBasicExecRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	clientDone := make(chan error, 1)
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
 
 	sessionKey := "test-session"
 
-	// Client
+	// User
 	go func() {
-		client := env.userService(t)
-		stream, err := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
 		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if err := sendData(stream, []byte("hello")); err != nil {
-			clientDone <- err
+		if err := sendPayload(stream, []byte("hello")); err != nil {
+			userDone <- err
 			return
 		}
 
 		resp, err := stream.Recv()
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if string(resp.GetData().Payload) != "world" {
-			clientDone <- fmt.Errorf("expected 'world', got '%s'", string(resp.GetData().Payload))
+		if string(getPayload(resp)) != "world" {
+			userDone <- fmt.Errorf("expected 'world', got '%s'", string(getPayload(resp)))
 			return
 		}
 
-		sendClose(stream)
 		stream.CloseSend()
-		clientDone <- nil
+		userDone <- nil
 	}()
 
 	// Agent
 	go func() {
-		time.Sleep(50 * time.Millisecond) // Let client connect first
+		time.Sleep(50 * time.Millisecond) // Let user connect first
 		agent := env.agentService(t)
 		stream, err := agent.Tunnel(ctx)
 		if err != nil {
@@ -212,17 +209,17 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if string(req.GetData().Payload) != "hello" {
-			agentDone <- fmt.Errorf("expected 'hello', got '%s'", string(req.GetData().Payload))
+		if string(getPayload(req)) != "hello" {
+			agentDone <- fmt.Errorf("expected 'hello', got '%s'", string(getPayload(req)))
 			return
 		}
 
-		if err := sendData(stream, []byte("world")); err != nil {
+		if err := sendPayload(stream, []byte("world")); err != nil {
 			agentDone <- err
 			return
 		}
 
-		// Wait for close or EOF
+		// Wait for EOF (user closed)
 		stream.Recv()
 		stream.CloseSend()
 		agentDone <- nil
@@ -230,12 +227,12 @@ func TestBasicExecRoundTrip(t *testing.T) {
 
 	// Wait for both
 	select {
-	case err := <-clientDone:
+	case err := <-userDone:
 		if err != nil {
-			t.Fatalf("client error: %v", err)
+			t.Fatalf("user error: %v", err)
 		}
 	case <-ctx.Done():
-		t.Fatal("client timeout")
+		t.Fatal("user timeout")
 	}
 
 	select {
@@ -255,8 +252,8 @@ func TestRendezvousTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client := env.userService(t)
-	stream, err := client.Tunnel(ctx)
+	user := env.userService(t)
+	stream, err := user.Tunnel(ctx)
 	if err != nil {
 		t.Fatalf("failed to create stream: %v", err)
 	}
@@ -282,7 +279,7 @@ func TestAgentConnectsFirst(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	clientDone := make(chan error, 1)
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
 
 	sessionKey := "agent-first-session"
@@ -307,12 +304,12 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if string(req.GetData().Payload) != "ping" {
-			agentDone <- fmt.Errorf("expected 'ping', got '%s'", string(req.GetData().Payload))
+		if string(getPayload(req)) != "ping" {
+			agentDone <- fmt.Errorf("expected 'ping', got '%s'", string(getPayload(req)))
 			return
 		}
 
-		if err := sendData(stream, []byte("pong")); err != nil {
+		if err := sendPayload(stream, []byte("pong")); err != nil {
 			agentDone <- err
 			return
 		}
@@ -322,48 +319,47 @@ func TestAgentConnectsFirst(t *testing.T) {
 		agentDone <- nil
 	}()
 
-	// Client connects after
+	// User connects after
 	go func() {
 		time.Sleep(100 * time.Millisecond) // Agent connects first
-		client := env.userService(t)
-		stream, err := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
 		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if err := sendData(stream, []byte("ping")); err != nil {
-			clientDone <- err
+		if err := sendPayload(stream, []byte("ping")); err != nil {
+			userDone <- err
 			return
 		}
 
 		resp, err := stream.Recv()
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if string(resp.GetData().Payload) != "pong" {
-			clientDone <- fmt.Errorf("expected 'pong', got '%s'", string(resp.GetData().Payload))
+		if string(getPayload(resp)) != "pong" {
+			userDone <- fmt.Errorf("expected 'pong', got '%s'", string(getPayload(resp)))
 			return
 		}
 
-		sendClose(stream)
 		stream.CloseSend()
-		clientDone <- nil
+		userDone <- nil
 	}()
 
 	// Wait for both
 	for range 2 {
 		select {
-		case err := <-clientDone:
+		case err := <-userDone:
 			if err != nil {
-				t.Fatalf("client error: %v", err)
+				t.Fatalf("user error: %v", err)
 			}
 		case err := <-agentDone:
 			if err != nil {
@@ -375,42 +371,42 @@ func TestAgentConnectsFirst(t *testing.T) {
 	}
 }
 
-func TestDuplicateClientConnection(t *testing.T) {
+func TestDuplicateUserConnection(t *testing.T) {
 	t.Parallel()
 	env := setupTestEnv(t, 2*time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	sessionKey := "dup-client-session"
+	sessionKey := "dup-user-session"
 
-	// First client
-	client1 := env.userService(t)
-	stream1, err := client1.Tunnel(ctx)
+	// First user
+	user1 := env.userService(t)
+	stream1, err := user1.Tunnel(ctx)
 	if err != nil {
-		t.Fatalf("client1 failed: %v", err)
+		t.Fatalf("user1 failed: %v", err)
 	}
 	if err := sendInit(stream1, sessionKey, "cookie", "workflow", nil); err != nil {
-		t.Fatalf("client1 init failed: %v", err)
+		t.Fatalf("user1 init failed: %v", err)
 	}
 
-	// Wait for first client to register
+	// Wait for first user to register
 	time.Sleep(50 * time.Millisecond)
 
-	// Second client with same session key
-	client2 := env.userService(t)
-	stream2, err := client2.Tunnel(ctx)
+	// Second user with same session key
+	user2 := env.userService(t)
+	stream2, err := user2.Tunnel(ctx)
 	if err != nil {
-		t.Fatalf("client2 failed: %v", err)
+		t.Fatalf("user2 failed: %v", err)
 	}
 	if err := sendInit(stream2, sessionKey, "cookie", "workflow", nil); err != nil {
-		t.Fatalf("client2 init failed: %v", err)
+		t.Fatalf("user2 init failed: %v", err)
 	}
 
-	// Second client should get AlreadyExists error
+	// Second user should get AlreadyExists error
 	_, err = stream2.Recv()
 	if err == nil {
-		t.Fatal("expected error for duplicate client")
+		t.Fatal("expected error for duplicate user")
 	}
 	if status.Code(err) != codes.AlreadyExists {
 		t.Logf("got code: %v (expected AlreadyExists or similar)", status.Code(err))
@@ -433,11 +429,11 @@ func TestConcurrentSessions(t *testing.T) {
 		sessionKey := fmt.Sprintf("concurrent-session-%d", i)
 		testData := fmt.Sprintf("data-%d", i)
 
-		// Client
+		// User
 		go func(key, data string) {
 			defer wg.Done()
-			client := env.userService(t)
-			stream, err := client.Tunnel(ctx)
+			user := env.userService(t)
+			stream, err := user.Tunnel(ctx)
 			if err != nil {
 				errs <- err
 				return
@@ -448,7 +444,7 @@ func TestConcurrentSessions(t *testing.T) {
 				return
 			}
 
-			if err := sendData(stream, []byte(data)); err != nil {
+			if err := sendPayload(stream, []byte(data)); err != nil {
 				errs <- err
 				return
 			}
@@ -459,7 +455,6 @@ func TestConcurrentSessions(t *testing.T) {
 				return
 			}
 
-			sendClose(stream)
 			stream.CloseSend()
 		}(sessionKey, testData)
 
@@ -484,12 +479,12 @@ func TestConcurrentSessions(t *testing.T) {
 				errs <- err
 				return
 			}
-			if req.GetData() == nil {
-				errs <- fmt.Errorf("expected data")
+			if getPayload(req) == nil {
+				errs <- fmt.Errorf("expected payload")
 				return
 			}
 
-			if err := sendData(stream, []byte("ack")); err != nil {
+			if err := sendPayload(stream, []byte("ack")); err != nil {
 				errs <- err
 				return
 			}
@@ -509,44 +504,41 @@ func TestConcurrentSessions(t *testing.T) {
 	}
 }
 
-func TestCloseMessageForwarded(t *testing.T) {
+func TestStreamCloseSignalsEnd(t *testing.T) {
+	// Test that CloseSend() properly signals end of tunnel (replaces TestCloseMessageForwarded)
 	t.Parallel()
 	env := setupTestEnv(t, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	sessionKey := "close-forward-session"
-	agentReceivedClose := make(chan bool, 1)
-	clientDone := make(chan error, 1)
+	sessionKey := "stream-close-session"
+	agentReceivedEOF := make(chan bool, 1)
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
 
-	// Client
+	// User
 	go func() {
-		client := env.userService(t)
-		stream, err := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
 		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if err := sendData(stream, []byte("hello")); err != nil {
-			clientDone <- err
+		if err := sendPayload(stream, []byte("hello")); err != nil {
+			userDone <- err
 			return
 		}
 
-		if err := sendClose(stream); err != nil {
-			clientDone <- err
-			return
-		}
-
+		// Close the stream to signal end
 		stream.CloseSend()
-		clientDone <- nil
+		userDone <- nil
 	}()
 
 	// Agent
@@ -564,33 +556,23 @@ func TestCloseMessageForwarded(t *testing.T) {
 			return
 		}
 
-		// Receive data
+		// Receive payload
 		req, err := stream.Recv()
 		if err != nil {
 			agentDone <- err
 			return
 		}
-		if req.GetData() == nil {
-			agentDone <- fmt.Errorf("expected data")
+		if getPayload(req) == nil {
+			agentDone <- fmt.Errorf("expected payload")
 			return
 		}
 
-		// Receive close
-		req, err = stream.Recv()
+		// Receive EOF (user closed stream)
+		_, err = stream.Recv()
 		if err == io.EOF {
-			agentReceivedClose <- false
-			agentDone <- nil
-			return
-		}
-		if err != nil {
-			agentDone <- err
-			return
-		}
-
-		if req.GetClose() != nil {
-			agentReceivedClose <- true
+			agentReceivedEOF <- true
 		} else {
-			agentReceivedClose <- false
+			agentReceivedEOF <- false
 		}
 
 		stream.CloseSend()
@@ -598,16 +580,16 @@ func TestCloseMessageForwarded(t *testing.T) {
 	}()
 
 	// Wait for both
-	<-clientDone
+	<-userDone
 	<-agentDone
 
 	select {
-	case received := <-agentReceivedClose:
+	case received := <-agentReceivedEOF:
 		if !received {
-			t.Error("agent did not receive close message")
+			t.Error("agent did not receive EOF when user closed stream")
 		}
 	case <-time.After(100 * time.Millisecond):
-		t.Error("timeout waiting for close check")
+		t.Error("timeout waiting for EOF check")
 	}
 }
 
@@ -632,20 +614,20 @@ func TestGetSessionInfo(t *testing.T) {
 	sessionKey := "info-test-session"
 	workflowID := "test-workflow"
 
-	clientConnected := make(chan struct{})
+	userConnected := make(chan struct{})
 	agentConnected := make(chan struct{})
 
 	go func() {
-		client := env.userService(t)
-		stream, _ := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, _ := user.Tunnel(ctx)
 		sendInit(stream, sessionKey, "cookie", workflowID, nil)
-		close(clientConnected)
+		close(userConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
 	}()
 
 	go func() {
-		<-clientConnected                  // Wait for client first
+		<-userConnected                    // Wait for user first
 		time.Sleep(100 * time.Millisecond) // Give time for query below
 		agent := env.agentService(t)
 		stream, _ := agent.Tunnel(ctx)
@@ -655,8 +637,8 @@ func TestGetSessionInfo(t *testing.T) {
 		stream.CloseSend()
 	}()
 
-	// Wait for client to connect
-	<-clientConnected
+	// Wait for user to connect
+	<-userConnected
 	time.Sleep(50 * time.Millisecond)
 
 	// Query before agent connects - should exist but NOT be active (pre-rendezvous)
@@ -717,29 +699,29 @@ func TestTerminateSession(t *testing.T) {
 
 	// Create an active session and terminate it
 	sessionKey := "terminate-test-session"
-	clientDone := make(chan error, 1)
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
-	clientConnected := make(chan struct{})
+	userConnected := make(chan struct{})
 	agentConnected := make(chan struct{})
 
-	// Client
+	// User
 	go func() {
-		client := env.userService(t)
-		stream, err := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
 		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
-		close(clientConnected)
+		close(userConnected)
 
 		// Wait for data or error (termination should cause error)
 		_, err = stream.Recv()
-		clientDone <- err // Either nil, EOF, or cancellation error
+		userDone <- err // Either nil, EOF, or cancellation error
 	}()
 
 	// Agent
@@ -764,7 +746,7 @@ func TestTerminateSession(t *testing.T) {
 	}()
 
 	// Wait for both to connect
-	<-clientConnected
+	<-userConnected
 	<-agentConnected
 	time.Sleep(100 * time.Millisecond)
 
@@ -798,12 +780,12 @@ func TestTerminateSession(t *testing.T) {
 		t.Errorf("expected NotFound, got %v", status.Code(err))
 	}
 
-	// Both client and agent should receive errors
+	// Both user and agent should receive errors
 	select {
-	case <-clientDone:
-		// Client received error or EOF - expected
+	case <-userDone:
+		// User received error or EOF - expected
 	case <-time.After(2 * time.Second):
-		t.Error("client did not receive termination signal")
+		t.Error("user did not receive termination signal")
 	}
 
 	select {
@@ -828,42 +810,41 @@ func TestLargeDataTransfer(t *testing.T) {
 		testData[i] = byte(i % 256)
 	}
 
-	clientDone := make(chan error, 1)
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
 
-	// Client
+	// User
 	go func() {
-		client := env.userService(t)
-		stream, err := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
 		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if err := sendData(stream, testData); err != nil {
-			clientDone <- err
+		if err := sendPayload(stream, testData); err != nil {
+			userDone <- err
 			return
 		}
 
 		resp, err := stream.Recv()
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		if len(resp.GetData().Payload) != dataSize {
-			clientDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(resp.GetData().Payload))
+		if len(getPayload(resp)) != dataSize {
+			userDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(getPayload(resp)))
 			return
 		}
 
-		sendClose(stream)
 		stream.CloseSend()
-		clientDone <- nil
+		userDone <- nil
 	}()
 
 	// Agent
@@ -887,13 +868,14 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		if len(req.GetData().Payload) != dataSize {
-			agentDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(req.GetData().Payload))
+		payload := getPayload(req)
+		if len(payload) != dataSize {
+			agentDone <- fmt.Errorf("expected %d bytes, got %d", dataSize, len(payload))
 			return
 		}
 
 		// Echo back
-		if err := sendData(stream, req.GetData().Payload); err != nil {
+		if err := sendPayload(stream, payload); err != nil {
 			agentDone <- err
 			return
 		}
@@ -904,12 +886,12 @@ func TestLargeDataTransfer(t *testing.T) {
 	}()
 
 	select {
-	case err := <-clientDone:
+	case err := <-userDone:
 		if err != nil {
-			t.Fatalf("client error: %v", err)
+			t.Fatalf("user error: %v", err)
 		}
 	case <-ctx.Done():
-		t.Fatal("client timeout")
+		t.Fatal("user timeout")
 	}
 
 	select {
@@ -934,14 +916,14 @@ func TestSimultaneousDisconnect(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Client
+	// User
 	go func() {
 		defer wg.Done()
-		client := env.userService(t)
-		stream, _ := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, _ := user.Tunnel(ctx)
 		sendInit(stream, sessionKey, "cookie", "workflow", nil)
 		for i := range 5 {
-			sendData(stream, []byte(fmt.Sprintf("msg-%d", i)))
+			sendPayload(stream, []byte(fmt.Sprintf("msg-%d", i)))
 		}
 		stream.CloseSend()
 	}()
@@ -1032,10 +1014,10 @@ func TestOperationTypes(t *testing.T) {
 			sessionKey := fmt.Sprintf("op-test-%s", tt.name)
 			sessionActive := make(chan struct{})
 
-			// Client - keep alive while we query
+			// User - keep alive while we query
 			go func() {
-				client := env.userService(t)
-				stream, _ := client.Tunnel(ctx)
+				user := env.userService(t)
+				stream, _ := user.Tunnel(ctx)
 				sendInit(stream, sessionKey, "cookie", "workflow", tt.init)
 				close(sessionActive)
 				time.Sleep(300 * time.Millisecond) // Keep session alive
@@ -1068,51 +1050,50 @@ func TestOperationTypes(t *testing.T) {
 	}
 }
 
-func TestMultipleMessagesBeforeClose(t *testing.T) {
+func TestMultiplePayloadsBeforeClose(t *testing.T) {
 	t.Parallel()
 	env := setupTestEnv(t, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	sessionKey := "multi-msg-session"
-	numMessages := 100
-	clientDone := make(chan error, 1)
+	sessionKey := "multi-payload-session"
+	numPayloads := 100
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
 
-	// Client sends many messages
+	// User sends many payloads
 	go func() {
-		client := env.userService(t)
-		stream, err := client.Tunnel(ctx)
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
 		if err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
 		if err := sendInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
-			clientDone <- err
+			userDone <- err
 			return
 		}
 
-		for i := range numMessages {
-			if err := sendData(stream, []byte(fmt.Sprintf("msg-%d", i))); err != nil {
-				clientDone <- err
+		for i := range numPayloads {
+			if err := sendPayload(stream, []byte(fmt.Sprintf("msg-%d", i))); err != nil {
+				userDone <- err
 				return
 			}
 		}
 
 		// Receive all responses
-		for range numMessages {
+		for range numPayloads {
 			_, err := stream.Recv()
 			if err != nil {
-				clientDone <- err
+				userDone <- err
 				return
 			}
 		}
 
-		sendClose(stream)
 		stream.CloseSend()
-		clientDone <- nil
+		userDone <- nil
 	}()
 
 	// Agent echoes
@@ -1130,13 +1111,13 @@ func TestMultipleMessagesBeforeClose(t *testing.T) {
 			return
 		}
 
-		for range numMessages {
+		for range numPayloads {
 			req, err := stream.Recv()
 			if err != nil {
 				agentDone <- err
 				return
 			}
-			if err := sendData(stream, req.GetData().Payload); err != nil {
+			if err := sendPayload(stream, getPayload(req)); err != nil {
 				agentDone <- err
 				return
 			}
@@ -1148,9 +1129,9 @@ func TestMultipleMessagesBeforeClose(t *testing.T) {
 	}()
 
 	select {
-	case err := <-clientDone:
+	case err := <-userDone:
 		if err != nil {
-			t.Fatalf("client error: %v", err)
+			t.Fatalf("user error: %v", err)
 		}
 	case <-ctx.Done():
 		t.Fatal("timeout")
@@ -1232,15 +1213,15 @@ func TestInitValidation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			client := env.userService(t)
-			stream, err := client.Tunnel(ctx)
+			user := env.userService(t)
+			stream, err := user.Tunnel(ctx)
 			if err != nil {
 				t.Fatalf("failed to create stream: %v", err)
 			}
 
 			// Send the invalid init
-			err = stream.Send(&pb.TunnelMessage{
-				Message: &pb.TunnelMessage_Init{Init: tt.init},
+			err = stream.Send(&pb.TunnelFrame{
+				Frame: &pb.TunnelFrame_Init{Init: tt.init},
 			})
 			if err != nil {
 				t.Fatalf("failed to send init: %v", err)

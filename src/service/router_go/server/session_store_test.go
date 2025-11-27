@@ -410,16 +410,14 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 	}
 }
 
-// Helper to create a RawMessage with data payload.
+// Helper to create a RawFrame with payload.
 // This marshals the protobuf to bytes, simulating what gRPC does.
-func tunnelDataMsg(data []byte) RawMessage {
-	msg := &pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Data{
-			Data: &pb.TunnelData{Payload: data},
-		},
+func tunnelPayloadFrame(data []byte) RawFrame {
+	frame := &pb.TunnelFrame{
+		Frame: &pb.TunnelFrame_Payload{Payload: data},
 	}
-	raw, _ := proto.Marshal(msg)
-	return RawMessage{Raw: raw}
+	raw, _ := proto.Marshal(frame)
+	return RawFrame{Raw: raw}
 }
 
 func TestPipe_SendReceive(t *testing.T) {
@@ -428,20 +426,25 @@ func TestPipe_SendReceive(t *testing.T) {
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		pipe.Send(context.Background(), tunnelDataMsg([]byte("hello")))
+		pipe.Send(context.Background(), tunnelPayloadFrame([]byte("hello")))
 	}()
 
-	msg, err := pipe.Receive(context.Background())
+	frame, err := pipe.Receive(context.Background())
 	if err != nil {
 		t.Fatalf("receive error: %v", err)
 	}
-	// Parse the raw message to verify contents
-	data := msg.GetData()
-	if data == nil {
-		t.Fatal("expected data message")
+	// Parse the raw frame to verify contents
+	if !frame.IsPayload() {
+		t.Fatal("expected payload frame")
 	}
-	if string(data.Payload) != "hello" {
-		t.Errorf("expected 'hello', got '%s'", string(data.Payload))
+	// Unmarshal to get the payload
+	var parsed pb.TunnelFrame
+	if err := proto.Unmarshal(frame.Raw, &parsed); err != nil {
+		t.Fatalf("failed to parse frame: %v", err)
+	}
+	payload := parsed.GetPayload()
+	if string(payload) != "hello" {
+		t.Errorf("expected 'hello', got '%s'", string(payload))
 	}
 }
 
@@ -455,7 +458,7 @@ func TestPipe_Close(t *testing.T) {
 		t.Errorf("expected errPipeClosed, got %v", err)
 	}
 
-	err = pipe.Send(context.Background(), tunnelDataMsg([]byte("test")))
+	err = pipe.Send(context.Background(), tunnelPayloadFrame([]byte("test")))
 	if !errors.Is(err, errPipeClosed) {
 		t.Errorf("expected errPipeClosed, got %v", err)
 	}
@@ -479,7 +482,7 @@ func TestPipe_ContextCancel(t *testing.T) {
 	}
 
 	// Send with canceled context should fail (unbuffered, no receiver)
-	err = pipe.Send(ctx, tunnelDataMsg([]byte("test")))
+	err = pipe.Send(ctx, tunnelPayloadFrame([]byte("test")))
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
@@ -491,7 +494,7 @@ func TestPipe_SendTimeout(t *testing.T) {
 	pipe := newPipe(50 * time.Millisecond)
 
 	// No receiver, should timeout
-	err := pipe.Send(context.Background(), tunnelDataMsg([]byte("test")))
+	err := pipe.Send(context.Background(), tunnelPayloadFrame([]byte("test")))
 	if err == nil {
 		t.Error("expected timeout error, got nil")
 	}

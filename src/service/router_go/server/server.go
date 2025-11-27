@@ -36,7 +36,7 @@ import (
 func init() {
 	// Register our zero-copy codec at startup.
 	// This replaces the default protobuf codec with one that preserves
-	// raw bytes for RawMessage types, enabling zero-copy forwarding.
+	// raw bytes for RawFrame types, enabling zero-copy forwarding.
 	RegisterRawCodec()
 }
 
@@ -58,17 +58,23 @@ func NewRouterServer(store *SessionStore, logger *slog.Logger) *RouterServer {
 }
 
 // Router Data Flow:
-//                            ROUTER
-//                     ┌─────────────────────────────────────┐
-//                     │                                     │
-//   CLIENT            │      ClientToAgent                  │          AGENT
-//  ┌──────┐           │    ════════════════►                │         ┌──────┐
-//  │      │ ── recv ──┼--──► outPipe ════════════════►  ────┼── send ─│      │
-//  │      │           │                                     │         │      │
-//  │      │ ◄─ send ──┼─--─◄ inPipe  ◄════════════════  ◄───┼── recv ─│      │
-//  └──────┘           │    ◄════════════════                │         └──────┘
-//                     │      AgentToClient                  │
-//                     └─────────────────────────────────────┘
+//
+//	                          ROUTER
+//	                   ┌─────────────────────────────────────┐
+//	                   │                                     │
+//	 USER              │      UserToAgent                    │          AGENT
+//	┌──────┐           │    ════════════════►                │         ┌──────┐
+//	│      │ ── recv ──┼──► outPipe ════════════════►  ──────┼── send ─│      │
+//	│      │           │                                     │         │      │
+//	│      │ ◄─ send ──┼──◄ inPipe  ◄════════════════  ◄─────┼── recv ─│      │
+//	└──────┘           │    ◄════════════════                │         └──────┘
+//	                   │      AgentToUser                    │
+//	                   └─────────────────────────────────────┘
+//
+// ZERO-COPY PROTOCOL:
+// 1. First frame: TunnelInit (parsed for session setup)
+// 2. Subsequent frames: raw payload bytes (forwarded transparently)
+// 3. Stream EOF: signals end of tunnel
 
 // tunnelConfig holds role-specific tunnel configuration.
 type tunnelConfig struct {
@@ -79,7 +85,7 @@ type tunnelConfig struct {
 }
 
 // grpcStream is the interface for gRPC bidirectional streams.
-// Both client and agent streams implement this.
+// Both user and agent streams implement this.
 type grpcStream interface {
 	Context() context.Context
 	SendMsg(m any) error
@@ -87,8 +93,8 @@ type grpcStream interface {
 }
 
 var (
-	clientConfig = tunnelConfig{
-		role:       "client",
+	userConfig = tunnelConfig{
+		role:       "user",
 		rendezvous: (*Session).WaitForAgent,
 		outPipe:    (*Session).ClientToAgent,
 		inPipe:     (*Session).AgentToClient,
@@ -101,37 +107,37 @@ var (
 	}
 )
 
-// tunnelClientToAgent handles client tunnel connections.
-func (rs *RouterServer) tunnelClientToAgent(stream grpcStream) error {
-	return rs.tunnelHandler(stream, &clientConfig)
+// tunnelUserToAgent handles user tunnel connections.
+func (rs *RouterServer) tunnelUserToAgent(stream grpcStream) error {
+	return rs.tunnelHandler(stream, &userConfig)
 }
 
-// tunnelAgentToClient handles agent tunnel connections.
-func (rs *RouterServer) tunnelAgentToClient(stream grpcStream) error {
+// tunnelAgentToUser handles agent tunnel connections.
+func (rs *RouterServer) tunnelAgentToUser(stream grpcStream) error {
 	return rs.tunnelHandler(stream, &agentConfig)
 }
 
 // tunnelHandler is the common implementation for tunnel handling.
 //
 // ZERO-COPY DESIGN:
-// 1. Receive raw bytes from gRPC (using our custom codec)
-// 2. For data messages (ONLY): forward raw bytes through pipe WITHOUT parsing
-// 3. Send raw bytes to gRPC (using our custom codec)
+// 1. Receive first frame, parse as TunnelInit for session setup
+// 2. After rendezvous, forward all frames as raw bytes (no parsing)
+// 3. EOF signals end of tunnel
 //
-// The payload bytes in data messages are NEVER copied or parsed.
+// The payload bytes are NEVER copied or parsed by the router.
 func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) error {
 	ctx := stream.Context()
 
-	// Receive init message using zero-copy codec
-	var initMsg RawMessage
-	if err := stream.RecvMsg(&initMsg); err != nil {
-		return status.Error(codes.InvalidArgument, "failed to receive init message")
+	// Receive init frame using zero-copy codec
+	var initFrame RawFrame
+	if err := stream.RecvMsg(&initFrame); err != nil {
+		return status.Error(codes.InvalidArgument, "failed to receive init frame")
 	}
 
-	// Parse init message
-	init := initMsg.GetInit()
+	// Parse init frame
+	init := initFrame.GetInit()
 	if init == nil {
-		return status.Error(codes.InvalidArgument, "first message must be init")
+		return status.Error(codes.InvalidArgument, "first frame must be init")
 	}
 
 	if err := validateTunnelInit(init); err != nil {
@@ -198,7 +204,7 @@ func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) erro
 
 // Tunnel handles user connections (implements RouterUserService).
 func (rs *RouterServer) Tunnel(stream pb.RouterUserService_TunnelServer) error {
-	return rs.tunnelClientToAgent(stream)
+	return rs.tunnelUserToAgent(stream)
 }
 
 // RouterAgentServer wraps RouterServer to implement RouterAgentService.Tunnel.
@@ -210,7 +216,7 @@ type RouterAgentServer struct {
 
 // Tunnel handles agent connections (implements RouterAgentService).
 func (ras *RouterAgentServer) Tunnel(stream pb.RouterAgentService_TunnelServer) error {
-	return ras.tunnelAgentToClient(stream)
+	return ras.tunnelAgentToUser(stream)
 }
 
 // Register registers all router services with the gRPC server.
@@ -223,11 +229,14 @@ func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
 
 // recvResult holds the result of an async receive operation.
 type recvResult struct {
-	msg RawMessage
-	err error
+	frame RawFrame
+	err   error
 }
 
-// forwardStreamToPipe receives messages from gRPC and sends to pipe.
+// forwardStreamToPipe receives frames from gRPC and sends to pipe.
+//
+// ZERO-COPY: After init, all frames are forwarded as raw bytes without
+// any inspection or parsing. This is the core of the zero-copy design.
 //
 // The sessionDone channel is used to detect when the session is terminated
 // externally (e.g., via TerminateSession API).
@@ -244,10 +253,10 @@ func (rs *RouterServer) forwardStreamToPipe(
 	// Start receive goroutine
 	go func() {
 		for {
-			var msg RawMessage
-			err := stream.RecvMsg(&msg)
+			var frame RawFrame
+			err := stream.RecvMsg(&frame)
 			select {
-			case recvCh <- recvResult{msg, err}:
+			case recvCh <- recvResult{frame, err}:
 				if err != nil {
 					return // Stop on error
 				}
@@ -270,6 +279,7 @@ func (rs *RouterServer) forwardStreamToPipe(
 
 		case result := <-recvCh:
 			if result.err == io.EOF {
+				// Stream closed - this is the normal way to end a tunnel
 				return io.EOF
 			}
 			if result.err != nil {
@@ -279,36 +289,16 @@ func (rs *RouterServer) forwardStreamToPipe(
 				return result.err
 			}
 
-			// Check message type using quick byte inspection (no full parse)
-			switch {
-			case result.msg.IsData():
-				// ZERO-COPY: Forward raw bytes through pipe
-				if err := pipe.Send(ctx, result.msg); err != nil {
-					return err
-				}
-
-			case result.msg.IsClose():
-				// Forward close message then exit
-				if err := pipe.Send(ctx, result.msg); err != nil && !isExpectedClose(err) {
-					logger.DebugContext(ctx, "failed to forward close message", slog.String("error", err.Error()))
-				}
-				return nil
-
-			case result.msg.IsInit():
-				// Skip init messages after the first one
-				logger.DebugContext(ctx, "skipping extra init message")
-				continue
-
-			default:
-				// Unknown message type - skip
-				logger.DebugContext(ctx, "skipping unknown message")
-				continue
+			// ZERO-COPY: Forward raw bytes through pipe without inspection
+			// We don't check frame type here - after init, everything is payload
+			if err := pipe.Send(ctx, result.frame); err != nil {
+				return err
 			}
 		}
 	}
 }
 
-// forwardPipeToStream receives messages from pipe and sends to gRPC.
+// forwardPipeToStream receives frames from pipe and sends to gRPC.
 //
 // The sessionDone channel is used to detect when the session is terminated
 // externally (e.g., via TerminateSession API).
@@ -330,7 +320,7 @@ func (rs *RouterServer) forwardPipeToStream(
 			// Continue to receive
 		}
 
-		msg, err := pipe.Receive(ctx)
+		frame, err := pipe.Receive(ctx)
 		if err != nil {
 			if isExpectedClose(err) {
 				return nil
@@ -338,7 +328,7 @@ func (rs *RouterServer) forwardPipeToStream(
 			return err
 		}
 
-		if err := stream.SendMsg(msg); err != nil {
+		if err := stream.SendMsg(frame); err != nil {
 			if !isExpectedClose(err) {
 				logger.DebugContext(ctx, "send error", slog.String("error", err.Error()))
 			}
@@ -354,7 +344,7 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 		return nil, err
 	}
 
-	// Active means both client and agent have completed rendezvous
+	// Active means both user and agent have completed rendezvous
 	return &pb.SessionInfoResponse{
 		Active:        session.IsConnected(),
 		WorkflowId:    session.WorkflowID,

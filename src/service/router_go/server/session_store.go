@@ -43,14 +43,14 @@ var errPipeClosed = status.Error(codes.Unavailable, "pipe closed")
 // Pipe is a zero-copy channel-based unidirectional pipe.
 //
 // ZERO-COPY DESIGN:
-// The pipe carries RawMessage by value. RawMessage is small (~32 bytes) and
+// The pipe carries RawFrame by value. RawFrame is small (~32 bytes) and
 // contains a slice header pointing to the actual payload bytes. Passing by
 // value avoids heap allocation while the payload itself is never copied.
 //
 // The channel is unbuffered so messages pass directly from sender to
 // receiver without any intermediate buffering.
 type Pipe struct {
-	ch          chan RawMessage
+	ch          chan RawFrame
 	done        chan struct{} // closed when pipe is closed, for select
 	closed      atomic.Bool
 	once        sync.Once
@@ -60,7 +60,7 @@ type Pipe struct {
 func newPipe(sendTimeout time.Duration) *Pipe {
 	// Unbuffered channel - messages go directly from sender to receiver
 	return &Pipe{
-		ch:          make(chan RawMessage),
+		ch:          make(chan RawFrame),
 		done:        make(chan struct{}),
 		sendTimeout: sendTimeout,
 	}
@@ -68,11 +68,11 @@ func newPipe(sendTimeout time.Duration) *Pipe {
 
 // Send sends a message through the pipe with timeout.
 //
-// ZERO-COPY: The RawMessage struct (~32 bytes) is passed by value, but the
+// ZERO-COPY: The RawFrame struct (~32 bytes) is passed by value, but the
 // payload bytes in msg.Raw are never copied - just the slice header.
 //
 // Safe to call concurrently with Close - will not panic.
-func (p *Pipe) Send(ctx context.Context, msg RawMessage) error {
+func (p *Pipe) Send(ctx context.Context, msg RawFrame) error {
 	// Fast path: no timeout configured
 	if p.sendTimeout == 0 {
 		select {
@@ -103,16 +103,16 @@ func (p *Pipe) Send(ctx context.Context, msg RawMessage) error {
 
 // Receive receives a message from the pipe.
 //
-// ZERO-COPY: Returns RawMessage by value. The struct is small (~32 bytes)
+// ZERO-COPY: Returns RawFrame by value. The struct is small (~32 bytes)
 // and the payload bytes in msg.Raw are never copied.
-func (p *Pipe) Receive(ctx context.Context) (RawMessage, error) {
+func (p *Pipe) Receive(ctx context.Context) (RawFrame, error) {
 	select {
 	case msg := <-p.ch:
 		return msg, nil
 	case <-p.done:
-		return RawMessage{}, errPipeClosed
+		return RawFrame{}, errPipeClosed
 	case <-ctx.Done():
-		return RawMessage{}, ctx.Err()
+		return RawFrame{}, ctx.Err()
 	}
 }
 

@@ -20,30 +20,32 @@ package router;
 
 option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
-// Unified Tunnel messages
+// TunnelFrame is the message exchanged between clients/agents and the router.
 //
-// This provides a single interface for all messages between a client and an agent in
-// either direction.
+// PROTOCOL:
+// 1. First frame MUST be init (parsed by router for session setup)
+// 2. All subsequent frames are payload (forwarded transparently, zero-copy)
+// 3. Stream close (CloseSend/EOF) signals end of tunnel
 //
-// IMPORTANT: This is tightly coupled with the wire.go file in the router_go package.
-// Any changes to this message must be reflected in the wire.go file and vice versa.
-message TunnelMessage {
-
-  // The message body
-  oneof message {
-
-    // The initial message to initiate a session.
+// ZERO-COPY DESIGN:
+// After the init frame, the router forwards payload frames without any
+// inspection or parsing. The payload bytes flow through unchanged.
+//
+// IMPORTANT: This is tightly coupled with wire.go in the router_go package.
+// Any changes to field numbers must be reflected there.
+message TunnelFrame {
+  oneof frame {
+    // Init message - only valid as the first frame.
+    // Router parses this to establish the session.
     TunnelInit init = 1;
 
-    // The data message contains the payload being tunneled.
-    TunnelData data = 2;
-
-    // The message that contains details about the close of the tunnel session.
-    TunnelClose close = 3;
+    // Raw payload bytes - all frames after init.
+    // Router forwards these transparently without parsing.
+    bytes payload = 2;
   }
 }
 
-// TunnelInit is the initial message sent by a client or agent to initiate a session.
+// TunnelInit is the first message sent to establish a tunnel session.
 message TunnelInit {
   string session_key = 1;
   string cookie = 2;
@@ -89,21 +91,6 @@ message WebSocketOperation {}
 // remote task and a client.
 message RsyncOperation {}
 
-// TunnelData is the message that contains the payload being tunneled.
-message TunnelData {
-  // The payload being tunneled.
-  bytes payload = 1;
-}
-
-// TunnelClose is the message that contains the details about the close of the tunnel session.
-message TunnelClose {
-  // The exit code of the operation.
-  int32 exit_code = 1;
-
-  // The reason for the close of the tunnel session.
-  string message = 2;
-}
-
 // Control service messages
 
 // SessionInfoRequest is the request to the control service to get information about a session.
@@ -131,7 +118,7 @@ message TerminateSessionRequest {
   // The session key to terminate.
   string session_key = 1;
 
-  // Optional reason for termination (will be sent to client/agent).
+  // Optional reason for termination (logged but not sent to peers).
   string reason = 2;
 }
 

@@ -39,14 +39,14 @@ func TestWireTagsMatchProto(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		msg      *pb.TunnelMessage
+		frame    *pb.TunnelFrame
 		wantTag  byte
 		constVal byte
 	}{
 		{
-			name: "init message",
-			msg: &pb.TunnelMessage{
-				Message: &pb.TunnelMessage_Init{
+			name: "init frame",
+			frame: &pb.TunnelFrame{
+				Frame: &pb.TunnelFrame_Init{
 					Init: &pb.TunnelInit{SessionKey: "test"},
 				},
 			},
@@ -54,24 +54,14 @@ func TestWireTagsMatchProto(t *testing.T) {
 			constVal: 0x0a,
 		},
 		{
-			name: "data message",
-			msg: &pb.TunnelMessage{
-				Message: &pb.TunnelMessage_Data{
-					Data: &pb.TunnelData{Payload: []byte("test")},
+			name: "payload frame",
+			frame: &pb.TunnelFrame{
+				Frame: &pb.TunnelFrame_Payload{
+					Payload: []byte("test"),
 				},
 			},
-			wantTag:  TagData,
+			wantTag:  TagPayload,
 			constVal: 0x12,
-		},
-		{
-			name: "close message",
-			msg: &pb.TunnelMessage{
-				Message: &pb.TunnelMessage_Close{
-					Close: &pb.TunnelClose{},
-				},
-			},
-			wantTag:  TagClose,
-			constVal: 0x1a,
 		},
 	}
 
@@ -82,8 +72,8 @@ func TestWireTagsMatchProto(t *testing.T) {
 				t.Errorf("constant value mismatch: got 0x%02x, want 0x%02x", tt.wantTag, tt.constVal)
 			}
 
-			// Marshal the message and check first byte matches our constant
-			data, err := proto.Marshal(tt.msg)
+			// Marshal the frame and check first byte matches our constant
+			data, err := proto.Marshal(tt.frame)
 			if err != nil {
 				t.Fatalf("failed to marshal: %v", err)
 			}
@@ -100,65 +90,49 @@ func TestWireTagsMatchProto(t *testing.T) {
 	}
 }
 
-// TestRawMessageTypeDetection verifies IsInit/IsData/IsClose work correctly.
-func TestRawMessageTypeDetection(t *testing.T) {
+// TestRawFrameTypeDetection verifies IsInit/IsPayload work correctly.
+func TestRawFrameTypeDetection(t *testing.T) {
 	t.Parallel()
 
-	initMsg := &pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Init{Init: &pb.TunnelInit{SessionKey: "key"}},
+	initFrame := &pb.TunnelFrame{
+		Frame: &pb.TunnelFrame_Init{Init: &pb.TunnelInit{SessionKey: "key"}},
 	}
-	dataMsg := &pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Data{Data: &pb.TunnelData{Payload: []byte("payload")}},
-	}
-	closeMsg := &pb.TunnelMessage{
-		Message: &pb.TunnelMessage_Close{Close: &pb.TunnelClose{}},
+	payloadFrame := &pb.TunnelFrame{
+		Frame: &pb.TunnelFrame_Payload{Payload: []byte("payload")},
 	}
 
-	initBytes, _ := proto.Marshal(initMsg)
-	dataBytes, _ := proto.Marshal(dataMsg)
-	closeBytes, _ := proto.Marshal(closeMsg)
+	initBytes, _ := proto.Marshal(initFrame)
+	payloadBytes, _ := proto.Marshal(payloadFrame)
 
 	tests := []struct {
-		name      string
-		raw       *RawMessage
-		wantInit  bool
-		wantData  bool
-		wantClose bool
+		name        string
+		raw         *RawFrame
+		wantInit    bool
+		wantPayload bool
 	}{
 		{
-			name:      "init message",
-			raw:       &RawMessage{Raw: initBytes},
-			wantInit:  true,
-			wantData:  false,
-			wantClose: false,
+			name:        "init frame",
+			raw:         &RawFrame{Raw: initBytes},
+			wantInit:    true,
+			wantPayload: false,
 		},
 		{
-			name:      "data message",
-			raw:       &RawMessage{Raw: dataBytes},
-			wantInit:  false,
-			wantData:  true,
-			wantClose: false,
+			name:        "payload frame",
+			raw:         &RawFrame{Raw: payloadBytes},
+			wantInit:    false,
+			wantPayload: true,
 		},
 		{
-			name:      "close message",
-			raw:       &RawMessage{Raw: closeBytes},
-			wantInit:  false,
-			wantData:  false,
-			wantClose: true,
+			name:        "empty frame",
+			raw:         &RawFrame{Raw: nil},
+			wantInit:    false,
+			wantPayload: false,
 		},
 		{
-			name:      "empty message",
-			raw:       &RawMessage{Raw: nil},
-			wantInit:  false,
-			wantData:  false,
-			wantClose: false,
-		},
-		{
-			name:      "empty bytes",
-			raw:       &RawMessage{Raw: []byte{}},
-			wantInit:  false,
-			wantData:  false,
-			wantClose: false,
+			name:        "empty bytes",
+			raw:         &RawFrame{Raw: []byte{}},
+			wantInit:    false,
+			wantPayload: false,
 		},
 	}
 
@@ -167,11 +141,8 @@ func TestRawMessageTypeDetection(t *testing.T) {
 			if got := tt.raw.IsInit(); got != tt.wantInit {
 				t.Errorf("IsInit() = %v, want %v", got, tt.wantInit)
 			}
-			if got := tt.raw.IsData(); got != tt.wantData {
-				t.Errorf("IsData() = %v, want %v", got, tt.wantData)
-			}
-			if got := tt.raw.IsClose(); got != tt.wantClose {
-				t.Errorf("IsClose() = %v, want %v", got, tt.wantClose)
+			if got := tt.raw.IsPayload(); got != tt.wantPayload {
+				t.Errorf("IsPayload() = %v, want %v", got, tt.wantPayload)
 			}
 		})
 	}
@@ -185,18 +156,18 @@ type bufferReuseTester struct {
 
 func (s *bufferReuseTester) Tunnel(stream pb.RouterUserService_TunnelServer) error {
 	for {
-		var msg RawMessage
-		if err := stream.RecvMsg(&msg); err != nil {
+		var frame RawFrame
+		if err := stream.RecvMsg(&frame); err != nil {
 			return err
 		}
 
 		// Record the underlying buffer's memory address
-		if len(msg.Raw) > 0 {
-			ptr := uintptr(unsafe.Pointer(&msg.Raw[0]))
+		if len(frame.Raw) > 0 {
+			ptr := uintptr(unsafe.Pointer(&frame.Raw[0]))
 			s.receivedPtrs = append(s.receivedPtrs, ptr)
 		}
 
-		// Stop after receiving 10 messages
+		// Stop after receiving 10 frames
 		if len(s.receivedPtrs) >= 10 {
 			return nil
 		}
@@ -246,22 +217,20 @@ func TestGRPCBufferNotReused(t *testing.T) {
 		t.Fatalf("failed to create stream: %v", err)
 	}
 
-	// Send 10 messages with different payloads
+	// Send 10 payload frames with different content
 	for i := 0; i < 10; i++ {
-		msg := &pb.TunnelMessage{
-			Message: &pb.TunnelMessage_Data{
-				Data: &pb.TunnelData{
-					Payload: make([]byte, 1024), // 1KB payload
-				},
-			},
-		}
+		payload := make([]byte, 1024) // 1KB payload
 		// Fill with unique pattern so we can detect overwrites
-		for j := range msg.GetData().Payload {
-			msg.GetData().Payload[j] = byte(i)
+		for j := range payload {
+			payload[j] = byte(i)
 		}
 
-		if err := stream.Send(msg); err != nil {
-			t.Fatalf("failed to send message %d: %v", i, err)
+		frame := &pb.TunnelFrame{
+			Frame: &pb.TunnelFrame_Payload{Payload: payload},
+		}
+
+		if err := stream.Send(frame); err != nil {
+			t.Fatalf("failed to send frame %d: %v", i, err)
 		}
 	}
 
@@ -269,17 +238,17 @@ func TestGRPCBufferNotReused(t *testing.T) {
 	if err := stream.CloseSend(); err != nil {
 		t.Fatalf("failed to close send: %v", err)
 	}
-	// Wait for server to receive and process all messages
+	// Wait for server to receive and process all frames
 	_, _ = stream.Recv()
 
 	// Verify all buffer pointers are unique (no reuse)
 	seen := make(map[uintptr]int)
 	for i, ptr := range tester.receivedPtrs {
 		if prevIdx, exists := seen[ptr]; exists {
-			t.Fatalf("BUFFER REUSE DETECTED! Messages %d and %d share buffer at %#x.\n"+
+			t.Fatalf("BUFFER REUSE DETECTED! Frames %d and %d share buffer at %#x.\n"+
 				"gRPC is now reusing receive buffers. Implement buffer pooling:\n"+
 				"  1. In rawCodec.Unmarshal, copy data into a pooled buffer\n"+
-				"  2. Add RawMessage.Release() to return buffer to pool\n"+
+				"  2. Add RawFrame.Release() to return buffer to pool\n"+
 				"  3. Call Release() after SendMsg completes\n"+
 				"See CODE_ANALYSIS_REPORT.md section 8.1 for implementation details.",
 				prevIdx, i, ptr)
@@ -287,5 +256,5 @@ func TestGRPCBufferNotReused(t *testing.T) {
 		seen[ptr] = i
 	}
 
-	t.Logf("Verified %d messages received with unique buffer pointers (no reuse)", len(tester.receivedPtrs))
+	t.Logf("Verified %d frames received with unique buffer pointers (no reuse)", len(tester.receivedPtrs))
 }

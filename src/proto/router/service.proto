@@ -26,16 +26,16 @@ option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 service RouterUserService {
   // Tunnel establishes the user endpoint for any operation. User sends init,
   // then bidirectional streaming begins.
-  rpc Tunnel(stream TunnelMessage) returns (stream TunnelMessage);
+  rpc Tunnel(stream TunnelFrame) returns (stream TunnelFrame);
 }
 
 // RouterAgentService handles connections from osmo-ctrl agents. Agents send
-// TunnelMessage frames and the router streams TunnelMessage frames back so both
+// TunnelFrame and the router streams TunnelFrame back so both
 // legs share the same schemas without conversion.
 service RouterAgentService {
   // Tunnel establishes the agent endpoint for any operation. Agent sends init,
   // then bidirectional streaming begins.
-  rpc Tunnel(stream TunnelMessage) returns (stream TunnelMessage);
+  rpc Tunnel(stream TunnelFrame) returns (stream TunnelFrame);
 }
 
 // RouterControlService provides auxiliary operations
