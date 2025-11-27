@@ -9,6 +9,7 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gorilla/websocket v1.5.0
 	github.com/jackc/pgx/v5 v5.7.4
+	github.com/pashagolub/pgxmock/v4 v4.9.0
 	golang.org/x/sync v0.18.0
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
@@ -20,7 +21,6 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20250303204525-1544bccde3a3 // indirect
 	github.com/mmcloughlin/md4 v0.1.2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect

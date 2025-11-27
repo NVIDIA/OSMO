@@ -216,6 +216,9 @@ use_repo(
 
     # PostgreSQL dependencies (pulled from go.mod via go_deps.from_file)
     "com_github_jackc_pgx_v5",
+
+    # Testing dependencies
+    "com_github_pashagolub_pgxmock_v4",
 )
 
 ################

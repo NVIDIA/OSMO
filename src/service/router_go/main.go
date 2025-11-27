@@ -62,7 +62,7 @@ var (
 func main() {
 	flag.Parse()
 
-	// Setup structured logging first so we can use it for validation errors
+	// Setup structured logging
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
