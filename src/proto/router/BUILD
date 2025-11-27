@@ -27,6 +27,11 @@ proto_library(
     ],
 )
 
+# To generate go code for IDE support, run the following commands:
+#
+# bazel build //src/proto/router:router_go_proto
+# cp $(bazel info bazel-bin)/src/proto/router/router_go_proto_/go.corp.nvidia.com/osmo/proto/router/*.go src/proto/router/
+#
 go_proto_library(
     name = "router_go_proto",
     compilers = ["@io_bazel_rules_go//proto:go_grpc"],

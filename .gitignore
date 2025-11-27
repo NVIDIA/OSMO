@@ -27,3 +27,7 @@ docs/**/domain_config.js
 .pnpm-store
 
 .ruff_cache
+
+# Ignore generated go code from protobuf
+# IDE support only
+**/src/proto/**/*.pb.go
