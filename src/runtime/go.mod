@@ -1,4 +1,4 @@
-module go.corp.nvidia.com/osmo
+module go.corp.nvidia.com/osmo/runtime
 
 go 1.24.3
 
