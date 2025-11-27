@@ -1,0 +1,142 @@
+//SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package router;
+
+option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
+
+// Unified Tunnel messages
+//
+// This provides a single interface for all messages between a client and an agent in
+// either direction.
+//
+// IMPORTANT: This is tightly coupled with the wire.go file in the router_go package.
+// Any changes to this message must be reflected in the wire.go file and vice versa.
+message TunnelMessage {
+
+  // The message body
+  oneof message {
+
+    // The initial message to initiate a session.
+    TunnelInit init = 1;
+
+    // The data message contains the payload being tunneled.
+    TunnelData data = 2;
+
+    // The message that contains details about the close of the tunnel session.
+    TunnelClose close = 3;
+  }
+}
+
+// TunnelInit is the initial message sent by a client or agent to initiate a session.
+message TunnelInit {
+  string session_key = 1;
+  string cookie = 2;
+  string workflow_id = 3;
+
+  // The operation to perform.
+  oneof operation {
+    ExecOperation exec = 4;
+    PortForwardOperation port_forward = 5;
+    WebSocketOperation web_socket = 6;
+    RsyncOperation rsync = 7;
+  }
+}
+
+// ExecOperation is the operation to execute a command on a remote machine.
+message ExecOperation {
+  // The command to execute on the remote machine.
+  string command = 1;
+}
+
+// PortForwardOperation is the operation to forward a port from a remote task to a client.
+message PortForwardOperation {
+
+  // Possible protocols for port forwarding.
+  enum Protocol {
+    UNSPECIFIED = 0;
+    TCP = 1;
+    UDP = 2;
+  }
+
+  // The protocol to use for the port forward.
+  Protocol protocol = 1;
+
+  // The port on the remote task to forward FROM.
+  int32 port = 2;
+}
+
+// WebSocketOperation is the operation to proxy a WebSocket connection
+// from a remote task to a client.
+message WebSocketOperation {}
+
+// RsyncOperation is the operation to proxy rsync operations between a
+// remote task and a client.
+message RsyncOperation {}
+
+// TunnelData is the message that contains the payload being tunneled.
+message TunnelData {
+  // The payload being tunneled.
+  bytes payload = 1;
+}
+
+// TunnelClose is the message that contains the details about the close of the tunnel session.
+message TunnelClose {
+  // The exit code of the operation.
+  int32 exit_code = 1;
+
+  // The reason for the close of the tunnel session.
+  string message = 2;
+}
+
+// Control service messages
+
+// SessionInfoRequest is the request to the control service to get information about a session.
+message SessionInfoRequest {
+  string session_key = 1;
+}
+
+// SessionInfoResponse is the response to the SessionInfoRequest.
+message SessionInfoResponse {
+  // Whether the session is active.
+  bool active = 1;
+
+  // The workflow ID of the session.
+  string workflow_id = 2;
+
+  // The creation timestamp of the session.
+  int64 created_at = 3;
+
+  // The operation type of the session.
+  string operation_type = 4;
+}
+
+// TerminateSessionRequest is the request to forcibly terminate a session.
+message TerminateSessionRequest {
+  // The session key to terminate.
+  string session_key = 1;
+
+  // Optional reason for termination (will be sent to client/agent).
+  string reason = 2;
+}
+
+// TerminateSessionResponse is the response to the TerminateSessionRequest.
+message TerminateSessionResponse {
+  // Whether the session was found and terminated.
+  bool terminated = 1;
+}

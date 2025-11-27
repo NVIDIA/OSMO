@@ -185,28 +185,11 @@ bazel_dep(name = "protobuf", version = "29.3")
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(
-    go_mod = "//src/runtime:go.mod",
+    go_mod = "//src:go.mod",
 )
 
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
-go_deps.from_file(go_mod = "//src/runtime:go.mod")
-
-# gRPC and Protobuf dependencies for router_go
-go_deps.module(
-    path = "google.golang.org/grpc",
-    sum = "h1:OgPcDAFKHnH8X3O4WcO4XUc8GRDeKsKReqbQtiCj7N8=",
-    version = "v1.67.3",
-)
-go_deps.module(
-    path = "google.golang.org/protobuf",
-    sum = "h1:82DV7MYdb8anAVi3qge1wSnMDrnKK7ebr+I0hHRN1BU=",
-    version = "v1.36.3",
-)
-go_deps.module(
-    path = "github.com/prometheus/client_golang",
-    sum = "h1:cxppBPuYhUnsO6yo/aoRol4L7q7UFfdm+bR9r+8l63Y=",
-    version = "v1.20.5",
-)
+go_deps.from_file(go_mod = "//src:go.mod")
 
 # Additional dependencies for building rsync for CLI distribution
 go_deps.module(
@@ -242,11 +225,10 @@ use_repo(
     "com_github_burntsushi_toml",
     "com_github_coreos_go_systemd",
     "org_golang_x_crypto",
-    
+
     # gRPC and Protobuf dependencies
     "org_golang_google_grpc",
     "org_golang_google_protobuf",
-    "com_github_prometheus_client_golang",
     "org_golang_x_sync",
 )
 

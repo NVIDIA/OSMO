@@ -23,10 +23,10 @@ go_library(
         "session_store.go",
         "wire.go",
     ],
-    importpath = "go.corp.nvidia.com/osmo/src/service/router_go/server",
+    importpath = "go.corp.nvidia.com/osmo/service/router_go/server",
     visibility = ["//src/service/router_go:__subpackages__"],
     deps = [
-        "//proto/router:router_go_proto",
+        "//src/proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//encoding",
@@ -47,7 +47,7 @@ go_test(
     srcs = ["session_store_test.go"],
     embed = [":server"],
     deps = [
-        "//proto/router:router_go_proto",
+        "//src/proto/router:router_go_proto",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//proto:go_default_library",
@@ -64,7 +64,7 @@ go_test(
     srcs = ["server_test.go"],
     embed = [":server"],
     deps = [
-        "//proto/router:router_go_proto",
+        "//src/proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials/insecure",
@@ -83,7 +83,7 @@ go_test(
     srcs = ["wire_test.go"],
     embed = [":server"],
     deps = [
-        "//proto/router:router_go_proto",
+        "//src/proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",
         "@org_golang_google_protobuf//proto:go_default_library",

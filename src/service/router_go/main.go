@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 
-	"go.corp.nvidia.com/osmo/src/service/router_go/server"
+	"go.corp.nvidia.com/osmo/service/router_go/server"
 )
 
 const (

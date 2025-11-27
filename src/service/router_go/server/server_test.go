@@ -58,6 +58,9 @@ func setupTestEnv(t *testing.T, rendezvousTimeout time.Duration) *testEnv {
 	store := NewSessionStore(SessionStoreConfig{
 		RendezvousTimeout: rendezvousTimeout,
 		StreamSendTimeout: 30 * time.Second,
+		MaxSessionKeyLen:  256,
+		MaxCookieLen:      256,
+		MaxWorkflowIDLen:  256,
 	}, logger)
 	rs := NewRouterServer(store, logger)
 	RegisterRouterServices(server, rs)

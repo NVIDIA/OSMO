@@ -40,6 +40,9 @@ func setupTestSessionStore(timeout time.Duration) *SessionStore {
 	return NewSessionStore(SessionStoreConfig{
 		RendezvousTimeout: timeout,
 		StreamSendTimeout: 30 * time.Second,
+		MaxSessionKeyLen:  256,
+		MaxCookieLen:      256,
+		MaxWorkflowIDLen:  256,
 	}, nil)
 }
 

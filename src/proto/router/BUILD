@@ -14,27 +14,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+package(default_visibility = ["//visibility:public"])
 
-go_library(
-    name = "router_go_lib",
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "router_proto",
     srcs = [
-        "main.go",
-    ],
-    importpath = "go.corp.nvidia.com/osmo/service/router_go",
-    visibility = ["//visibility:private"],
-    deps = [
-        "//src/service/router_go/server",
-        "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//credentials",
-        "@org_golang_google_grpc//health",
-        "@org_golang_google_grpc//health/grpc_health_v1",
-        "@org_golang_google_grpc//keepalive",
+        "messages.proto",
+        "service.proto",
     ],
 )
 
-go_binary(
-    name = "router_go",
-    embed = [":router_go_lib"],
-    visibility = ["//visibility:public"],
+go_proto_library(
+    name = "router_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
+    importpath = "go.corp.nvidia.com/osmo/proto/router",
+    proto = ":router_proto",
 )

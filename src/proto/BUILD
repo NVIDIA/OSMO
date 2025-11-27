@@ -13,28 +13,3 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-
-go_library(
-    name = "router_go_lib",
-    srcs = [
-        "main.go",
-    ],
-    importpath = "go.corp.nvidia.com/osmo/service/router_go",
-    visibility = ["//visibility:private"],
-    deps = [
-        "//src/service/router_go/server",
-        "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//credentials",
-        "@org_golang_google_grpc//health",
-        "@org_golang_google_grpc//health/grpc_health_v1",
-        "@org_golang_google_grpc//keepalive",
-    ],
-)
-
-go_binary(
-    name = "router_go",
-    embed = [":router_go_lib"],
-    visibility = ["//visibility:public"],
-)
