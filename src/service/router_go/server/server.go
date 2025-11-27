@@ -44,7 +44,7 @@ func init() {
 type RouterServer struct {
 	store  *SessionStore
 	logger *slog.Logger
-	pb.UnimplementedRouterClientServiceServer
+	pb.UnimplementedRouterUserServiceServer
 	pb.UnimplementedRouterAgentServiceServer
 	pb.UnimplementedRouterControlServiceServer
 }
@@ -196,8 +196,8 @@ func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) erro
 	return nil
 }
 
-// Tunnel handles client connections (implements RouterClientService).
-func (rs *RouterServer) Tunnel(stream pb.RouterClientService_TunnelServer) error {
+// Tunnel handles user connections (implements RouterUserService).
+func (rs *RouterServer) Tunnel(stream pb.RouterUserService_TunnelServer) error {
 	return rs.tunnelClientToAgent(stream)
 }
 
@@ -216,7 +216,7 @@ func (ras *RouterAgentServer) Tunnel(stream pb.RouterAgentService_TunnelServer) 
 // Register registers all router services with the gRPC server.
 // This version handles the agent service separately.
 func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
-	pb.RegisterRouterClientServiceServer(s, rs)
+	pb.RegisterRouterUserServiceServer(s, rs)
 	pb.RegisterRouterAgentServiceServer(s, &RouterAgentServer{RouterServer: rs})
 	pb.RegisterRouterControlServiceServer(s, rs)
 }

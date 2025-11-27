@@ -90,8 +90,8 @@ func (e *testEnv) dial(t *testing.T) *grpc.ClientConn {
 	return conn
 }
 
-func (e *testEnv) clientService(t *testing.T) pb.RouterClientServiceClient {
-	return pb.NewRouterClientServiceClient(e.dial(t))
+func (e *testEnv) userService(t *testing.T) pb.RouterUserServiceClient {
+	return pb.NewRouterUserServiceClient(e.dial(t))
 }
 
 func (e *testEnv) agentService(t *testing.T) pb.RouterAgentServiceClient {
@@ -158,7 +158,7 @@ func TestBasicExecRoundTrip(t *testing.T) {
 
 	// Client
 	go func() {
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, err := client.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
@@ -255,7 +255,7 @@ func TestRendezvousTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client := env.clientService(t)
+	client := env.userService(t)
 	stream, err := client.Tunnel(ctx)
 	if err != nil {
 		t.Fatalf("failed to create stream: %v", err)
@@ -325,7 +325,7 @@ func TestAgentConnectsFirst(t *testing.T) {
 	// Client connects after
 	go func() {
 		time.Sleep(100 * time.Millisecond) // Agent connects first
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, err := client.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
@@ -385,7 +385,7 @@ func TestDuplicateClientConnection(t *testing.T) {
 	sessionKey := "dup-client-session"
 
 	// First client
-	client1 := env.clientService(t)
+	client1 := env.userService(t)
 	stream1, err := client1.Tunnel(ctx)
 	if err != nil {
 		t.Fatalf("client1 failed: %v", err)
@@ -398,7 +398,7 @@ func TestDuplicateClientConnection(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Second client with same session key
-	client2 := env.clientService(t)
+	client2 := env.userService(t)
 	stream2, err := client2.Tunnel(ctx)
 	if err != nil {
 		t.Fatalf("client2 failed: %v", err)
@@ -436,7 +436,7 @@ func TestConcurrentSessions(t *testing.T) {
 		// Client
 		go func(key, data string) {
 			defer wg.Done()
-			client := env.clientService(t)
+			client := env.userService(t)
 			stream, err := client.Tunnel(ctx)
 			if err != nil {
 				errs <- err
@@ -523,7 +523,7 @@ func TestCloseMessageForwarded(t *testing.T) {
 
 	// Client
 	go func() {
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, err := client.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
@@ -636,7 +636,7 @@ func TestGetSessionInfo(t *testing.T) {
 	agentConnected := make(chan struct{})
 
 	go func() {
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, _ := client.Tunnel(ctx)
 		sendInit(stream, sessionKey, "cookie", workflowID, nil)
 		close(clientConnected)
@@ -724,7 +724,7 @@ func TestTerminateSession(t *testing.T) {
 
 	// Client
 	go func() {
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, err := client.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
@@ -833,7 +833,7 @@ func TestLargeDataTransfer(t *testing.T) {
 
 	// Client
 	go func() {
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, err := client.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
@@ -937,7 +937,7 @@ func TestSimultaneousDisconnect(t *testing.T) {
 	// Client
 	go func() {
 		defer wg.Done()
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, _ := client.Tunnel(ctx)
 		sendInit(stream, sessionKey, "cookie", "workflow", nil)
 		for i := range 5 {
@@ -1034,7 +1034,7 @@ func TestOperationTypes(t *testing.T) {
 
 			// Client - keep alive while we query
 			go func() {
-				client := env.clientService(t)
+				client := env.userService(t)
 				stream, _ := client.Tunnel(ctx)
 				sendInit(stream, sessionKey, "cookie", "workflow", tt.init)
 				close(sessionActive)
@@ -1082,7 +1082,7 @@ func TestMultipleMessagesBeforeClose(t *testing.T) {
 
 	// Client sends many messages
 	go func() {
-		client := env.clientService(t)
+		client := env.userService(t)
 		stream, err := client.Tunnel(ctx)
 		if err != nil {
 			clientDone <- err
@@ -1232,7 +1232,7 @@ func TestInitValidation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			client := env.clientService(t)
+			client := env.userService(t)
 			stream, err := client.Tunnel(ctx)
 			if err != nil {
 				t.Fatalf("failed to create stream: %v", err)

@@ -179,11 +179,11 @@ func TestRawMessageTypeDetection(t *testing.T) {
 
 // bufferReuseTester is a minimal gRPC server for testing buffer behavior.
 type bufferReuseTester struct {
-	pb.UnimplementedRouterClientServiceServer
+	pb.UnimplementedRouterUserServiceServer
 	receivedPtrs []uintptr // Stores pointer addresses of received buffers
 }
 
-func (s *bufferReuseTester) Tunnel(stream pb.RouterClientService_TunnelServer) error {
+func (s *bufferReuseTester) Tunnel(stream pb.RouterUserService_TunnelServer) error {
 	for {
 		var msg RawMessage
 		if err := stream.RecvMsg(&msg); err != nil {
@@ -223,7 +223,7 @@ func TestGRPCBufferNotReused(t *testing.T) {
 
 	tester := &bufferReuseTester{}
 	srv := grpc.NewServer()
-	pb.RegisterRouterClientServiceServer(srv, tester)
+	pb.RegisterRouterUserServiceServer(srv, tester)
 
 	go func() {
 		_ = srv.Serve(listener)
@@ -240,7 +240,7 @@ func TestGRPCBufferNotReused(t *testing.T) {
 	}
 	defer conn.Close()
 
-	client := pb.NewRouterClientServiceClient(conn)
+	client := pb.NewRouterUserServiceClient(conn)
 	stream, err := client.Tunnel(context.Background())
 	if err != nil {
 		t.Fatalf("failed to create stream: %v", err)

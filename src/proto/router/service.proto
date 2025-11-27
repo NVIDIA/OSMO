@@ -22,9 +22,9 @@ import "src/proto/router/messages.proto";
 
 option go_package = "go.corp.nvidia.com/osmo/proto/router;router";
 
-// RouterClientService handles connections from CLI clients
-service RouterClientService {
-  // Tunnel establishes the client endpoint for any operation. Client sends init,
+// RouterUserService handles connections from CLI users
+service RouterUserService {
+  // Tunnel establishes the user endpoint for any operation. User sends init,
   // then bidirectional streaming begins.
   rpc Tunnel(stream TunnelMessage) returns (stream TunnelMessage);
 }
