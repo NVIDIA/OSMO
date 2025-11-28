@@ -92,3 +92,26 @@ go_test(
     ],
     size = "small",
 )
+
+# Benchmark: Zero-copy vs Traditional forwarding
+#
+# This is a MANUAL target - it won't run with `bazel test //...`
+# Run explicitly with:
+#
+#   bazel run //src/service/router_go/server:wire_benchmark
+#
+# Or with standard go test flags:
+#
+#   bazel run //src/service/router_go/server:wire_benchmark -- -test.bench=. -test.benchmem
+#
+go_test(
+    name = "wire_benchmark",
+    srcs = ["wire_benchmark_test.go"],
+    embed = [":server"],
+    deps = [
+        "//src/proto/router:router_go_proto",
+        "@org_golang_google_protobuf//proto:go_default_library",
+    ],
+    tags = ["manual"],
+    size = "large",
+)
