@@ -89,7 +89,7 @@ type tunnelRole struct {
 	parseInit      func(f *RawFrame) (*sessionInfo, error)
 	registerStream func(s *Session, stream TunnelStream)
 	rendezvous     func(s *Session, ctx context.Context, timeout time.Duration) error
-	getPartner     func(s *Session) TunnelStream
+	getPeer        func(s *Session) TunnelStream
 }
 
 var (
@@ -98,14 +98,14 @@ var (
 		parseInit:      parseUserInit,
 		registerStream: (*Session).RegisterUserStream,
 		rendezvous:     (*Session).WaitForAgent,
-		getPartner:     (*Session).AgentStream,
+		getPeer:        (*Session).AgentStream,
 	}
 	agentRole = tunnelRole{
 		name:           "agent",
 		parseInit:      parseAgentInit,
 		registerStream: (*Session).RegisterAgentStream,
 		rendezvous:     (*Session).WaitForUser,
-		getPartner:     (*Session).UserStream,
+		getPeer:        (*Session).UserStream,
 	}
 )
 
@@ -122,15 +122,19 @@ func (rs *RouterServer) tunnelAgentToUser(stream TunnelStream) error {
 // tunnelHandler is the common implementation for tunnel handling.
 //
 // DIRECT FORWARDING WITH GRPC FLOW CONTROL:
+//
 // After rendezvous, each handler reads from its own stream and writes to the
-// partner's stream. gRPC's HTTP/2 flow control provides natural backpressure:
+// peer's stream. gRPC's HTTP/2 flow control provides natural backpressure:
+//
 // - When the receiver is slow, the sender's stream.Send() blocks
 // - This throttles the sender without artificial timeouts
 // - Throughput adjusts organically to network/receiver capacity
 //
 // IMPORTANT: Each handler only does ONE direction of forwarding:
+//
 // - User handler: reads from user stream → sends to agent stream
 // - Agent handler: reads from agent stream → sends to user stream
+//
 // This avoids race conditions on stream access.
 func (rs *RouterServer) tunnelHandler(stream TunnelStream, role *tunnelRole) error {
 	ctx := stream.Context()
@@ -169,7 +173,7 @@ func (rs *RouterServer) tunnelHandler(stream TunnelStream, role *tunnelRole) err
 
 	defer rs.store.ReleaseSession(info.SessionKey)
 
-	// Register our stream so partner can access it
+	// Register our stream so peer can access it
 	role.registerStream(session, stream)
 
 	// Wait for the other party
@@ -180,16 +184,15 @@ func (rs *RouterServer) tunnelHandler(stream TunnelStream, role *tunnelRole) err
 
 	logger.InfoContext(ctx, "rendezvous successful")
 
-	// Get partner's stream for direct forwarding
-	partner := role.getPartner(session)
-	if partner == nil {
-		return status.Error(codes.Internal, "partner stream not available")
+	// Get peer's stream for direct forwarding
+	peer := role.getPeer(session)
+	if peer == nil {
+		return status.Error(codes.Internal, "peer stream not available")
 	}
 
-	// SINGLE DIRECTION: Read from our stream, send to partner
-	// The partner's handler does the reverse direction.
-	// This avoids race conditions from multiple goroutines accessing the same stream.
-	err = rs.forwardStream(ctx, stream, partner, session.Done(), logger)
+	// SINGLE DIRECTION: Read from our stream, send to peer.
+	// The peer's handler does the reverse direction.
+	err = rs.forwardStream(ctx, stream, peer, session.Done(), logger)
 	if err != nil && !isExpectedClose(err) {
 		logger.ErrorContext(ctx, "tunnel error", slog.String("error", err.Error()))
 		return err
@@ -285,7 +288,7 @@ func (rs *RouterServer) forwardStream(
 				return result.err
 			}
 
-			// ZERO-COPY FORWARD: Send raw bytes to partner stream
+			// ZERO-COPY FORWARD: Send raw bytes to peer stream
 			// gRPC flow control blocks here if receiver is slow - this is the
 			// natural backpressure mechanism that replaces artificial timeouts
 			if err := dst.SendMsg(result.frame); err != nil {

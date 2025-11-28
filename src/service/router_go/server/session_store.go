@@ -48,7 +48,7 @@ type TunnelStream interface {
 // Session represents an active tunnel session between a user and agent.
 //
 // DIRECT FORWARDING: After rendezvous, each handler reads from its own stream
-// and writes to the partner's stream. gRPC's HTTP/2 flow control provides
+// and writes to the peer's stream. gRPC's HTTP/2 flow control provides
 // natural backpressure - no artificial timeouts needed.
 //
 // LIFECYCLE: First party creates session, second party joins via same key.
