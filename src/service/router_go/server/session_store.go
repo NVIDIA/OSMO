@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -37,6 +38,9 @@ const (
 	OperationWebSocket   = "websocket"
 )
 
+// ErrSessionTerminated is the cause used when cancelling contexts due to session termination.
+var ErrSessionTerminated = errors.New("session terminated")
+
 // TunnelStream is the interface for gRPC bidirectional streams.
 // Both user and agent streams implement this via their generated types.
 type TunnelStream interface {
@@ -52,31 +56,34 @@ type TunnelStream interface {
 // natural backpressure - no artificial timeouts needed.
 //
 // LIFECYCLE: First party creates session, second party joins via same key.
-// Either party disconnecting (or TerminateSession) triggers cleanup.
-// The done channel signals all handlers to exit.
+// Either party disconnecting (or TerminateSession) triggers cleanup via
+// context cancellation.
 type Session struct {
 	Key        string
 	WorkflowID string
 	CreatedAt  time.Time
 
-	// mu protects mutable fields: streams and operationType
+	// mu protects mutable fields
 	mu            sync.Mutex
 	operationType string
 	userStream    TunnelStream
 	agentStream   TunnelStream
+
+	// Context cancellation for external termination.
+	// When session is released/terminated, these are called to unblock streams.
+	userCancel  context.CancelCauseFunc
+	agentCancel context.CancelCauseFunc
 
 	// Rendezvous signaling - closed when party arrives
 	userReady  chan struct{}
 	agentReady chan struct{}
 
 	// Lifecycle management
-	done    chan struct{} // closed on cleanup - signals all handlers to exit
-	deleted atomic.Bool   // CAS(false→true) ensures cleanup happens exactly once
+	deleted atomic.Bool // CAS(false→true) ensures cleanup happens exactly once
 
 	// Prevent double-close panics on channels
 	closeUserReady  sync.Once
 	closeAgentReady sync.Once
-	closeDone       sync.Once
 
 	// Prevent duplicate connections
 	userConnected  atomic.Bool
@@ -127,6 +134,41 @@ func (s *Session) RegisterAgentStream(stream TunnelStream) {
 	s.agentStream = stream
 }
 
+// RegisterUserContext creates a cancellable context for the user handler.
+// The returned context will be cancelled when the session is terminated.
+func (s *Session) RegisterUserContext(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+	s.mu.Lock()
+	s.userCancel = cancel
+	s.mu.Unlock()
+	return ctx
+}
+
+// RegisterAgentContext creates a cancellable context for the agent handler.
+// The returned context will be cancelled when the session is terminated.
+func (s *Session) RegisterAgentContext(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+	s.mu.Lock()
+	s.agentCancel = cancel
+	s.mu.Unlock()
+	return ctx
+}
+
+// cancelAll cancels all registered stream contexts.
+// Called by releaseSession to unblock any blocked RecvMsg/SendMsg calls.
+func (s *Session) cancelAll(cause error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.userCancel != nil {
+		s.userCancel(cause)
+		s.userCancel = nil
+	}
+	if s.agentCancel != nil {
+		s.agentCancel(cause)
+		s.agentCancel = nil
+	}
+}
+
 // signalUserReady marks user as ready (idempotent).
 func (s *Session) signalUserReady() {
 	s.closeUserReady.Do(func() { close(s.userReady) })
@@ -135,16 +177,6 @@ func (s *Session) signalUserReady() {
 // signalAgentReady marks agent as ready (idempotent).
 func (s *Session) signalAgentReady() {
 	s.closeAgentReady.Do(func() { close(s.agentReady) })
-}
-
-// signalDone closes the done channel (idempotent).
-func (s *Session) signalDone() {
-	s.closeDone.Do(func() { close(s.done) })
-}
-
-// Done returns a channel that's closed when the session is terminated.
-func (s *Session) Done() <-chan struct{} {
-	return s.done
 }
 
 // IsConnected returns true if both user and agent have connected (rendezvous complete).
@@ -178,8 +210,6 @@ func (s *Session) waitForParty(ctx context.Context, timeout time.Duration, ready
 	select {
 	case <-ready:
 		return nil
-	case <-s.done:
-		return status.Error(codes.Aborted, "session closed")
 	case <-timeoutCtx.Done():
 		// Check once more in case they arrived just in time
 		select {
@@ -187,7 +217,11 @@ func (s *Session) waitForParty(ctx context.Context, timeout time.Duration, ready
 			return nil
 		default:
 		}
+		// Distinguish between parent ctx cancel (session terminated) vs timeout
 		if ctx.Err() != nil {
+			if context.Cause(ctx) == ErrSessionTerminated {
+				return status.Error(codes.Aborted, "session terminated")
+			}
 			return status.Error(codes.Canceled, "context cancelled")
 		}
 		return status.Errorf(codes.DeadlineExceeded, "rendezvous timeout: %s did not connect", party)
@@ -246,7 +280,6 @@ func (s *SessionStore) GetOrCreateSession(key, workflowID, opType string) (*Sess
 		CreatedAt:     time.Now(),
 		userReady:     make(chan struct{}),
 		agentReady:    make(chan struct{}),
-		done:          make(chan struct{}),
 	}
 
 	actual, loaded := s.sessions.LoadOrStore(key, newSession)
@@ -328,7 +361,9 @@ func (s *SessionStore) releaseSession(key string) *Session {
 	}
 
 	s.sessions.Delete(key)
-	session.signalDone()
+
+	// Cancel all stream contexts - this unblocks any blocked RecvMsg/SendMsg
+	session.cancelAll(ErrSessionTerminated)
 
 	return session
 }

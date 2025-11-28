@@ -85,27 +85,30 @@ type sessionInfo struct {
 
 // tunnelRole defines the role-specific behavior for tunnel handling.
 type tunnelRole struct {
-	name           string
-	parseInit      func(f *RawFrame) (*sessionInfo, error)
-	registerStream func(s *Session, stream TunnelStream)
-	rendezvous     func(s *Session, ctx context.Context, timeout time.Duration) error
-	getPeer        func(s *Session) TunnelStream
+	name            string
+	parseInit       func(f *RawFrame) (*sessionInfo, error)
+	registerStream  func(s *Session, stream TunnelStream)
+	registerContext func(s *Session, ctx context.Context) context.Context
+	rendezvous      func(s *Session, ctx context.Context, timeout time.Duration) error
+	getPeer         func(s *Session) TunnelStream
 }
 
 var (
 	userRole = tunnelRole{
-		name:           "user",
-		parseInit:      parseUserInit,
-		registerStream: (*Session).RegisterUserStream,
-		rendezvous:     (*Session).WaitForAgent,
-		getPeer:        (*Session).AgentStream,
+		name:            "user",
+		parseInit:       parseUserInit,
+		registerStream:  (*Session).RegisterUserStream,
+		registerContext: (*Session).RegisterUserContext,
+		rendezvous:      (*Session).WaitForAgent,
+		getPeer:         (*Session).AgentStream,
 	}
 	agentRole = tunnelRole{
-		name:           "agent",
-		parseInit:      parseAgentInit,
-		registerStream: (*Session).RegisterAgentStream,
-		rendezvous:     (*Session).WaitForUser,
-		getPeer:        (*Session).UserStream,
+		name:            "agent",
+		parseInit:       parseAgentInit,
+		registerStream:  (*Session).RegisterAgentStream,
+		registerContext: (*Session).RegisterAgentContext,
+		rendezvous:      (*Session).WaitForUser,
+		getPeer:         (*Session).UserStream,
 	}
 )
 
@@ -176,6 +179,10 @@ func (rs *RouterServer) tunnelHandler(stream TunnelStream, role *tunnelRole) err
 	// Register our stream so peer can access it
 	role.registerStream(session, stream)
 
+	// Register context for external cancellation.
+	// The returned ctx will be cancelled if session is terminated externally.
+	ctx = role.registerContext(session, ctx)
+
 	// Wait for the other party
 	if err := role.rendezvous(session, ctx, rs.store.RendezvousTimeout()); err != nil {
 		logger.ErrorContext(ctx, "rendezvous failed", slog.String("error", err.Error()))
@@ -192,7 +199,7 @@ func (rs *RouterServer) tunnelHandler(stream TunnelStream, role *tunnelRole) err
 
 	// SINGLE DIRECTION: Read from our stream, send to peer.
 	// The peer's handler does the reverse direction.
-	err = rs.forwardStream(ctx, stream, peer, session.Done(), logger)
+	err = rs.forwardStream(ctx, stream, peer, logger)
 	if err != nil && !isExpectedClose(err) {
 		logger.ErrorContext(ctx, "tunnel error", slog.String("error", err.Error()))
 		return err
@@ -227,13 +234,12 @@ func RegisterRouterServices(s *grpc.Server, rs *RouterServer) {
 	pb.RegisterRouterControlServiceServer(s, rs)
 }
 
-// recvResult holds the result of an async receive operation.
-type recvResult struct {
-	frame RawFrame
-	err   error
-}
-
 // forwardStream reads from src and writes to dst with zero-copy forwarding.
+//
+// ARCHITECTURE:
+// A single goroutine runs the blocking recv→send loop. The main goroutine
+// monitors for context cancellation (session termination). Frames stay on
+// the forwarding goroutine's stack - no channel overhead per frame.
 //
 // NATURAL BACKPRESSURE:
 // dst.SendMsg() blocks when the receiver's flow control window is full.
@@ -243,60 +249,66 @@ func (rs *RouterServer) forwardStream(
 	ctx context.Context,
 	src TunnelStream,
 	dst TunnelStream,
-	sessionDone <-chan struct{},
 	logger *slog.Logger,
 ) error {
-	// Channel for async receive results
-	recvCh := make(chan recvResult, 1)
+	// errCh receives the final result from the forwarding loop.
+	// Only the final error goes through the channel - frames stay on stack.
+	errCh := make(chan error, 1)
 
-	// Start receive goroutine
 	go func() {
-		for {
-			var frame RawFrame
-			err := src.RecvMsg(&frame)
-			select {
-			case recvCh <- recvResult{frame, err}:
-				if err != nil {
-					return // Stop on error
-				}
-			case <-ctx.Done():
-				return
-			case <-sessionDone:
-				return
-			}
-		}
+		errCh <- rs.doForward(src, dst, logger)
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
+	select {
+	case err := <-errCh:
+		// Forwarding completed (EOF, error, or peer disconnect)
+		if err == io.EOF {
+			return io.EOF
+		}
+		if err != nil && !isExpectedClose(err) {
+			return err
+		}
+		return nil
 
-		case <-sessionDone:
-			// Session was terminated externally
+	case <-ctx.Done():
+		// Session was terminated externally (ReleaseSession/TerminateSession)
+		if context.Cause(ctx) == ErrSessionTerminated {
 			return nil
+		}
+		return ctx.Err()
+	}
+}
 
-		case result := <-recvCh:
-			if result.err == io.EOF {
-				// Stream closed - this is the normal way to end a tunnel
+// doForward is the inner forwarding loop. Runs in a goroutine.
+// Frames stay on this goroutine's stack - zero channel overhead per frame.
+func (rs *RouterServer) doForward(
+	src TunnelStream,
+	dst TunnelStream,
+	logger *slog.Logger,
+) error {
+	for {
+		var frame RawFrame
+
+		// RecvMsg blocks until data arrives or stream ends
+		err := src.RecvMsg(&frame)
+		if err != nil {
+			if err == io.EOF {
 				return io.EOF
 			}
-			if result.err != nil {
-				if !isExpectedClose(result.err) {
-					logger.DebugContext(ctx, "recv error", slog.String("error", result.err.Error()))
-				}
-				return result.err
+			if !isExpectedClose(err) {
+				logger.Debug("recv error", slog.String("error", err.Error()))
 			}
+			return err
+		}
 
-			// ZERO-COPY FORWARD: Send raw bytes to peer stream
-			// gRPC flow control blocks here if receiver is slow - this is the
-			// natural backpressure mechanism that replaces artificial timeouts
-			if err := dst.SendMsg(result.frame); err != nil {
-				if !isExpectedClose(err) {
-					logger.DebugContext(ctx, "send error", slog.String("error", err.Error()))
-				}
-				return err
+		// ZERO-COPY FORWARD: Send raw bytes to peer stream
+		// gRPC flow control blocks here if receiver is slow
+		err = dst.SendMsg(frame)
+		if err != nil {
+			if !isExpectedClose(err) {
+				logger.Debug("send error", slog.String("error", err.Error()))
 			}
+			return err
 		}
 	}
 }

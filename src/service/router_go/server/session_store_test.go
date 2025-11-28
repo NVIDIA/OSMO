@@ -134,22 +134,28 @@ func TestSessionStore_ReleaseSession(t *testing.T) {
 
 	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
-	// Verify done channel is open
+	// Register a context to detect cancellation
+	ctx := session.RegisterUserContext(context.Background())
+
+	// Verify context is not cancelled yet
 	select {
-	case <-session.Done():
-		t.Error("done channel should not be closed yet")
+	case <-ctx.Done():
+		t.Error("context should not be cancelled yet")
 	default:
 	}
 
-	// Release should trigger cleanup
+	// Release should trigger cleanup and cancel context
 	store.ReleaseSession("key1")
 
-	// Verify done channel is closed
+	// Verify context is cancelled
 	select {
-	case <-session.Done():
-		// Expected
+	case <-ctx.Done():
+		// Expected - check cause
+		if context.Cause(ctx) != ErrSessionTerminated {
+			t.Errorf("expected cause ErrSessionTerminated, got %v", context.Cause(ctx))
+		}
 	case <-time.After(100 * time.Millisecond):
-		t.Error("done channel should be closed after release")
+		t.Error("context should be cancelled after release")
 	}
 
 	// Session should be gone
@@ -180,10 +186,19 @@ func TestSessionStore_FirstReleaseWins(t *testing.T) {
 		t.Error("should return same session instance")
 	}
 
-	// Verify done channel is open before release
+	// Register contexts to detect cancellation
+	userCtx := session.RegisterUserContext(context.Background())
+	agentCtx := session.RegisterAgentContext(context.Background())
+
+	// Verify contexts are not cancelled yet
 	select {
-	case <-session.Done():
-		t.Error("done channel should not be closed yet")
+	case <-userCtx.Done():
+		t.Error("user context should not be cancelled yet")
+	default:
+	}
+	select {
+	case <-agentCtx.Done():
+		t.Error("agent context should not be cancelled yet")
 	default:
 	}
 
@@ -194,12 +209,18 @@ func TestSessionStore_FirstReleaseWins(t *testing.T) {
 	_, err := store.GetSession("key1")
 	assertResponse(t, err, codes.NotFound)
 
-	// Verify done channel is closed (signals other party to exit)
+	// Verify both contexts are cancelled (signals all handlers to exit)
 	select {
-	case <-session.Done():
-		// Expected - done channel signals all handlers to exit
+	case <-userCtx.Done():
+		// Expected
 	case <-time.After(100 * time.Millisecond):
-		t.Error("done channel should be closed after first release")
+		t.Error("user context should be cancelled after first release")
+	}
+	select {
+	case <-agentCtx.Done():
+		// Expected
+	case <-time.After(100 * time.Millisecond):
+		t.Error("agent context should be cancelled after first release")
 	}
 
 	// Second release is a no-op (session already gone)
@@ -323,16 +344,19 @@ func TestSessionStore_DuplicateAgent(t *testing.T) {
 	assertResponse(t, err, codes.AlreadyExists)
 }
 
-func TestSessionStore_SessionClosed(t *testing.T) {
+func TestSessionStore_SessionTerminated(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(5 * time.Second)
 	timeout := store.RendezvousTimeout()
 
 	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
+	// Register context first so rendezvous can detect termination
+	ctx := session.RegisterUserContext(context.Background())
+
 	done := make(chan error, 1)
 	go func() {
-		done <- session.WaitForAgent(context.Background(), timeout)
+		done <- session.WaitForAgent(ctx, timeout)
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -437,6 +461,36 @@ func TestSession_StreamRegistration(t *testing.T) {
 	}
 	if session.AgentStream() != mockAgentStream {
 		t.Error("agent stream not stored correctly")
+	}
+}
+
+func TestSession_ContextCancellation(t *testing.T) {
+	t.Parallel()
+	store := setupTestSessionStore(0)
+
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
+
+	// Register both contexts
+	userCtx := session.RegisterUserContext(context.Background())
+	agentCtx := session.RegisterAgentContext(context.Background())
+
+	// Verify both are active
+	if userCtx.Err() != nil {
+		t.Error("user context should not be cancelled initially")
+	}
+	if agentCtx.Err() != nil {
+		t.Error("agent context should not be cancelled initially")
+	}
+
+	// Terminate session
+	store.TerminateSession("key1", "test termination")
+
+	// Both should be cancelled with ErrSessionTerminated
+	if context.Cause(userCtx) != ErrSessionTerminated {
+		t.Errorf("user context cause = %v, want ErrSessionTerminated", context.Cause(userCtx))
+	}
+	if context.Cause(agentCtx) != ErrSessionTerminated {
+		t.Errorf("agent context cause = %v, want ErrSessionTerminated", context.Cause(agentCtx))
 	}
 }
 
