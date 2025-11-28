@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"time"
 
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -57,77 +56,83 @@ func NewRouterServer(store *SessionStore, logger *slog.Logger) *RouterServer {
 	return &RouterServer{store: store, logger: logger}
 }
 
-// Router Data Flow:
+// Router Data Flow (Direct Forwarding with gRPC Flow Control):
 //
 //	                          ROUTER
 //	                   ┌─────────────────────────────────────┐
 //	                   │                                     │
-//	 USER              │      UserToAgent                    │          AGENT
-//	┌──────┐           │    ════════════════►                │         ┌──────┐
-//	│      │ ── recv ──┼──► outPipe ════════════════►  ──────┼── send ─│      │
-//	│      │           │                                     │         │      │
-//	│      │ ◄─ send ──┼──◄ inPipe  ◄════════════════  ◄─────┼── recv ─│      │
-//	└──────┘           │    ◄════════════════                │         └──────┘
-//	                   │      AgentToUser                    │
+//	 USER              │      Direct Stream Forwarding       │          AGENT
+//	┌──────┐           │    ════════════════════════════►    │         ┌──────┐
+//	│      │ ── recv ──┼─────────────────────────────────────┼── send ─│      │
+//	│      │           │     (gRPC flow control applies)     │         │      │
+//	│      │ ◄─ send ──┼─────────────────────────────────────┼── recv ─│      │
+//	└──────┘           │    ◄════════════════════════════    │         └──────┘
+//	                   │                                     │
 //	                   └─────────────────────────────────────┘
 //
+// NATURAL BACKPRESSURE:
+// - gRPC uses HTTP/2 flow control windows
+// - When receiver is slow, Send() blocks until window has space
+// - No artificial timeouts - throughput adjusts organically
+// - Sender and receiver naturally synchronize
 
 // sessionInfo holds parsed init information needed for session setup.
 type sessionInfo struct {
 	SessionKey    string
-	Cookie        string
 	WorkflowID    string
 	OperationType string
 }
 
-// tunnelConfig holds role-specific tunnel configuration.
-type tunnelConfig struct {
-	role       string
-	parseInit  func(f *RawFrame) (*sessionInfo, error) // parse role-specific init
-	rendezvous func(s *Session, ctx context.Context, timeout time.Duration) error
-	outPipe    func(s *Session) *Pipe // this party → other party
-	inPipe     func(s *Session) *Pipe // other party → this party
-}
-
-// grpcStream is the interface for gRPC bidirectional streams.
-// Both user and agent streams implement this.
-type grpcStream interface {
-	Context() context.Context
-	SendMsg(m any) error
-	RecvMsg(m any) error
+// tunnelRole defines the role-specific behavior for tunnel handling.
+type tunnelRole struct {
+	name           string
+	parseInit      func(f *RawFrame) (*sessionInfo, error)
+	registerStream func(s *Session, stream TunnelStream)
+	rendezvous     func(s *Session, ctx context.Context, timeout time.Duration) error
+	getPartner     func(s *Session) TunnelStream
 }
 
 var (
-	userConfig = tunnelConfig{
-		role:       "user",
-		parseInit:  parseUserInit,
-		rendezvous: (*Session).WaitForAgent,
-		outPipe:    (*Session).ClientToAgent,
-		inPipe:     (*Session).AgentToClient,
+	userRole = tunnelRole{
+		name:           "user",
+		parseInit:      parseUserInit,
+		registerStream: (*Session).RegisterUserStream,
+		rendezvous:     (*Session).WaitForAgent,
+		getPartner:     (*Session).AgentStream,
 	}
-	agentConfig = tunnelConfig{
-		role:       "agent",
-		parseInit:  parseAgentInit,
-		rendezvous: (*Session).WaitForClient,
-		outPipe:    (*Session).AgentToClient,
-		inPipe:     (*Session).ClientToAgent,
+	agentRole = tunnelRole{
+		name:           "agent",
+		parseInit:      parseAgentInit,
+		registerStream: (*Session).RegisterAgentStream,
+		rendezvous:     (*Session).WaitForUser,
+		getPartner:     (*Session).UserStream,
 	}
 )
 
 // tunnelUserToAgent handles user tunnel connections.
-func (rs *RouterServer) tunnelUserToAgent(stream grpcStream) error {
-	return rs.tunnelHandler(stream, &userConfig)
+func (rs *RouterServer) tunnelUserToAgent(stream TunnelStream) error {
+	return rs.tunnelHandler(stream, &userRole)
 }
 
 // tunnelAgentToUser handles agent tunnel connections.
-func (rs *RouterServer) tunnelAgentToUser(stream grpcStream) error {
-	return rs.tunnelHandler(stream, &agentConfig)
+func (rs *RouterServer) tunnelAgentToUser(stream TunnelStream) error {
+	return rs.tunnelHandler(stream, &agentRole)
 }
 
 // tunnelHandler is the common implementation for tunnel handling.
 //
-// The payload bytes are NEVER copied or parsed by the router.
-func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) error {
+// DIRECT FORWARDING WITH GRPC FLOW CONTROL:
+// After rendezvous, each handler reads from its own stream and writes to the
+// partner's stream. gRPC's HTTP/2 flow control provides natural backpressure:
+// - When the receiver is slow, the sender's stream.Send() blocks
+// - This throttles the sender without artificial timeouts
+// - Throughput adjusts organically to network/receiver capacity
+//
+// IMPORTANT: Each handler only does ONE direction of forwarding:
+// - User handler: reads from user stream → sends to agent stream
+// - Agent handler: reads from agent stream → sends to user stream
+// This avoids race conditions on stream access.
+func (rs *RouterServer) tunnelHandler(stream TunnelStream, role *tunnelRole) error {
 	ctx := stream.Context()
 
 	// Receive init frame using zero-copy codec
@@ -137,7 +142,7 @@ func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) erro
 	}
 
 	// Parse init frame (role-specific)
-	info, err := cfg.parseInit(&initFrame)
+	info, err := role.parseInit(&initFrame)
 	if err != nil {
 		return err
 	}
@@ -145,17 +150,16 @@ func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) erro
 	logger := rs.logger.With(
 		slog.String("session_key", info.SessionKey),
 		slog.String("operation", info.OperationType),
-		slog.String("role", cfg.role),
+		slog.String("role", role.name),
 	)
 
-	logger.InfoContext(ctx, cfg.role+" tunnel started",
+	logger.InfoContext(ctx, role.name+" tunnel started",
 		slog.String("workflow_id", info.WorkflowID),
 	)
 
 	// Get or create session
 	session, _, err := rs.store.GetOrCreateSession(
 		info.SessionKey,
-		info.Cookie,
 		info.WorkflowID,
 		info.OperationType,
 	)
@@ -165,32 +169,28 @@ func (rs *RouterServer) tunnelHandler(stream grpcStream, cfg *tunnelConfig) erro
 
 	defer rs.store.ReleaseSession(info.SessionKey)
 
+	// Register our stream so partner can access it
+	role.registerStream(session, stream)
+
 	// Wait for the other party
-	if err := cfg.rendezvous(session, ctx, rs.store.RendezvousTimeout()); err != nil {
+	if err := role.rendezvous(session, ctx, rs.store.RendezvousTimeout()); err != nil {
 		logger.ErrorContext(ctx, "rendezvous failed", slog.String("error", err.Error()))
 		return err
 	}
 
 	logger.InfoContext(ctx, "rendezvous successful")
 
-	// Get pipes for this role
-	outPipe, inPipe := cfg.outPipe(session), cfg.inPipe(session)
+	// Get partner's stream for direct forwarding
+	partner := role.getPartner(session)
+	if partner == nil {
+		return status.Error(codes.Internal, "partner stream not available")
+	}
 
-	// Bidirectional streaming with shared context for coordinated cancellation
-	g, gctx := errgroup.WithContext(ctx)
-
-	// Stream → Pipe (receive from gRPC, send to pipe)
-	g.Go(func() error {
-		defer outPipe.Close()
-		return rs.forwardStreamToPipe(gctx, stream, outPipe, session.Done(), logger)
-	})
-
-	// Pipe → Stream (receive from pipe, send to gRPC)
-	g.Go(func() error {
-		return rs.forwardPipeToStream(gctx, inPipe, stream, session.Done(), logger)
-	})
-
-	if err := g.Wait(); err != nil && !isExpectedClose(err) {
+	// SINGLE DIRECTION: Read from our stream, send to partner
+	// The partner's handler does the reverse direction.
+	// This avoids race conditions from multiple goroutines accessing the same stream.
+	err = rs.forwardStream(ctx, stream, partner, session.Done(), logger)
+	if err != nil && !isExpectedClose(err) {
 		logger.ErrorContext(ctx, "tunnel error", slog.String("error", err.Error()))
 		return err
 	}
@@ -230,17 +230,16 @@ type recvResult struct {
 	err   error
 }
 
-// forwardStreamToPipe receives frames from gRPC and sends to pipe.
+// forwardStream reads from src and writes to dst with zero-copy forwarding.
 //
-// ZERO-COPY: After init, all frames are forwarded as raw bytes without
-// any inspection or parsing. This is the core of the zero-copy design.
-//
-// The sessionDone channel is used to detect when the session is terminated
-// externally (e.g., via TerminateSession API).
-func (rs *RouterServer) forwardStreamToPipe(
+// NATURAL BACKPRESSURE:
+// dst.SendMsg() blocks when the receiver's flow control window is full.
+// This automatically throttles the sender without artificial timeouts,
+// allowing throughput to adjust organically to network and receiver capacity.
+func (rs *RouterServer) forwardStream(
 	ctx context.Context,
-	stream grpcStream,
-	pipe *Pipe,
+	src TunnelStream,
+	dst TunnelStream,
 	sessionDone <-chan struct{},
 	logger *slog.Logger,
 ) error {
@@ -251,7 +250,7 @@ func (rs *RouterServer) forwardStreamToPipe(
 	go func() {
 		for {
 			var frame RawFrame
-			err := stream.RecvMsg(&frame)
+			err := src.RecvMsg(&frame)
 			select {
 			case recvCh <- recvResult{frame, err}:
 				if err != nil {
@@ -286,50 +285,15 @@ func (rs *RouterServer) forwardStreamToPipe(
 				return result.err
 			}
 
-			// ZERO-COPY: Forward raw bytes through pipe without inspection
-			// We don't check frame type here - after init, everything is payload
-			if err := pipe.Send(ctx, result.frame); err != nil {
+			// ZERO-COPY FORWARD: Send raw bytes to partner stream
+			// gRPC flow control blocks here if receiver is slow - this is the
+			// natural backpressure mechanism that replaces artificial timeouts
+			if err := dst.SendMsg(result.frame); err != nil {
+				if !isExpectedClose(err) {
+					logger.DebugContext(ctx, "send error", slog.String("error", err.Error()))
+				}
 				return err
 			}
-		}
-	}
-}
-
-// forwardPipeToStream receives frames from pipe and sends to gRPC.
-//
-// The sessionDone channel is used to detect when the session is terminated
-// externally (e.g., via TerminateSession API).
-func (rs *RouterServer) forwardPipeToStream(
-	ctx context.Context,
-	pipe *Pipe,
-	stream grpcStream,
-	sessionDone <-chan struct{},
-	logger *slog.Logger,
-) error {
-	for {
-		// Check if session was terminated
-		select {
-		case <-sessionDone:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// Continue to receive
-		}
-
-		frame, err := pipe.Receive(ctx)
-		if err != nil {
-			if isExpectedClose(err) {
-				return nil
-			}
-			return err
-		}
-
-		if err := stream.SendMsg(frame); err != nil {
-			if !isExpectedClose(err) {
-				logger.DebugContext(ctx, "send error", slog.String("error", err.Error()))
-			}
-			return err
 		}
 	}
 }
@@ -341,12 +305,11 @@ func (rs *RouterServer) GetSessionInfo(ctx context.Context, req *pb.SessionInfoR
 		return nil, err
 	}
 
-	// Active means both user and agent have completed rendezvous
 	return &pb.SessionInfoResponse{
 		Active:        session.IsConnected(),
 		WorkflowId:    session.WorkflowID,
 		CreatedAt:     session.CreatedAt.Unix(),
-		OperationType: session.OperationType,
+		OperationType: session.OperationType(),
 	}, nil
 }
 
@@ -388,7 +351,6 @@ func parseUserInit(f *RawFrame) (*sessionInfo, error) {
 
 	return &sessionInfo{
 		SessionKey:    init.SessionKey,
-		Cookie:        init.Cookie,
 		WorkflowID:    init.WorkflowId,
 		OperationType: opType,
 	}, nil
@@ -405,9 +367,14 @@ func parseAgentInit(f *RawFrame) (*sessionInfo, error) {
 		return nil, status.Error(codes.InvalidArgument, "session_key is required")
 	}
 
+	if init.WorkflowId == "" {
+		return nil, status.Error(codes.InvalidArgument, "workflow_id is required")
+	}
+
 	// Agent doesn't specify operation - it joins an existing session
 	return &sessionInfo{
 		SessionKey:    init.SessionKey,
+		WorkflowID:    init.WorkflowId,
 		OperationType: "", // Will be filled from existing session
 	}, nil
 }
@@ -443,17 +410,10 @@ func isExpectedClose(err error) bool {
 	if err == nil {
 		return false
 	}
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	if errors.Is(err, errPipeClosed) {
-		return true
-	}
-	if status.Code(err) == codes.Canceled {
-		return true
-	}
-	return false
+	return status.Code(err) == codes.Canceled
 }

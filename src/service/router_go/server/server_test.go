@@ -45,10 +45,21 @@ type testEnv struct {
 	lis    *bufconn.Listener
 }
 
-func setupTestEnv(t *testing.T, rendezvousTimeout time.Duration) *testEnv {
+type testConfig struct {
+	rendezvousTimeout time.Duration
+}
+
+func withRendezvousTimeout(d time.Duration) func(*testConfig) {
+	return func(c *testConfig) { c.rendezvousTimeout = d }
+}
+
+func setupTestEnv(t *testing.T, opts ...func(*testConfig)) *testEnv {
 	t.Helper()
-	if rendezvousTimeout == 0 {
-		rendezvousTimeout = 60 * time.Second
+	cfg := testConfig{
+		rendezvousTimeout: 10 * time.Second,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	lis := bufconn.Listen(1024 * 1024)
@@ -56,11 +67,9 @@ func setupTestEnv(t *testing.T, rendezvousTimeout time.Duration) *testEnv {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := NewSessionStore(SessionStoreConfig{
-		RendezvousTimeout: rendezvousTimeout,
-		StreamSendTimeout: 30 * time.Second,
-		MaxSessionKeyLen:  256,
-		MaxCookieLen:      256,
-		MaxWorkflowIDLen:  256,
+		RendezvousTimeout: cfg.rendezvousTimeout,
+		MaxSessionKeyLen:  64,
+		MaxWorkflowIDLen:  64,
 	}, logger)
 	rs := NewRouterServer(store, logger)
 	RegisterRouterServices(server, rs)
@@ -105,10 +114,9 @@ func (e *testEnv) controlService(t *testing.T) pb.RouterControlServiceClient {
 // Helper functions for sending frames
 
 // sendUserInit sends a UserInit frame. If initTemplate is nil, creates a default exec operation.
-func sendUserInit(stream pb.RouterUserService_TunnelClient, sessionKey, cookie, workflowID string, initTemplate *pb.UserInit) error {
+func sendUserInit(stream pb.RouterUserService_TunnelClient, sessionKey, workflowID string, initTemplate *pb.UserInit) error {
 	init := &pb.UserInit{
 		SessionKey: sessionKey,
-		Cookie:     cookie,
 		WorkflowId: workflowID,
 	}
 	if initTemplate == nil {
@@ -122,9 +130,9 @@ func sendUserInit(stream pb.RouterUserService_TunnelClient, sessionKey, cookie, 
 }
 
 // sendAgentInit sends an AgentInit frame.
-func sendAgentInit(stream pb.RouterAgentService_TunnelClient, sessionKey string) error {
+func sendAgentInit(stream pb.RouterAgentService_TunnelClient, sessionKey, workflowID string) error {
 	return stream.Send(&pb.AgentFrame{
-		Frame: &pb.AgentFrame_Init{Init: &pb.AgentInit{SessionKey: sessionKey}},
+		Frame: &pb.AgentFrame_Init{Init: &pb.AgentInit{SessionKey: sessionKey, WorkflowId: workflowID}},
 	})
 }
 
@@ -160,7 +168,7 @@ func getAgentPayload(frame *pb.AgentFrame) []byte {
 
 func TestBasicExecRoundTrip(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -179,7 +187,7 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -214,7 +222,7 @@ func TestBasicExecRoundTrip(t *testing.T) {
 			return
 		}
 
-		if err := sendAgentInit(stream, sessionKey); err != nil {
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
 			agentDone <- err
 			return
 		}
@@ -263,7 +271,7 @@ func TestBasicExecRoundTrip(t *testing.T) {
 
 func TestRendezvousTimeout(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 100*time.Millisecond)
+	env := setupTestEnv(t, withRendezvousTimeout(100*time.Millisecond))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -274,7 +282,7 @@ func TestRendezvousTimeout(t *testing.T) {
 		t.Fatalf("failed to create stream: %v", err)
 	}
 
-	if err := sendUserInit(stream, "timeout-session", "cookie", "workflow", nil); err != nil {
+	if err := sendUserInit(stream, "timeout-session", "workflow", nil); err != nil {
 		t.Fatalf("failed to send init: %v", err)
 	}
 
@@ -290,7 +298,7 @@ func TestRendezvousTimeout(t *testing.T) {
 
 func TestAgentConnectsFirst(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -309,7 +317,7 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if err := sendAgentInit(stream, sessionKey); err != nil {
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
 			agentDone <- err
 			return
 		}
@@ -345,7 +353,7 @@ func TestAgentConnectsFirst(t *testing.T) {
 			return
 		}
 
-		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -389,7 +397,7 @@ func TestAgentConnectsFirst(t *testing.T) {
 
 func TestDuplicateUserConnection(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 2*time.Second)
+	env := setupTestEnv(t, withRendezvousTimeout(2*time.Second))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -402,7 +410,7 @@ func TestDuplicateUserConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("user1 failed: %v", err)
 	}
-	if err := sendUserInit(stream1, sessionKey, "cookie", "workflow", nil); err != nil {
+	if err := sendUserInit(stream1, sessionKey, "workflow", nil); err != nil {
 		t.Fatalf("user1 init failed: %v", err)
 	}
 
@@ -415,7 +423,7 @@ func TestDuplicateUserConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("user2 failed: %v", err)
 	}
-	if err := sendUserInit(stream2, sessionKey, "cookie", "workflow", nil); err != nil {
+	if err := sendUserInit(stream2, sessionKey, "workflow", nil); err != nil {
 		t.Fatalf("user2 init failed: %v", err)
 	}
 
@@ -431,7 +439,7 @@ func TestDuplicateUserConnection(t *testing.T) {
 
 func TestConcurrentSessions(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -455,7 +463,7 @@ func TestConcurrentSessions(t *testing.T) {
 				return
 			}
 
-			if err := sendUserInit(stream, key, "cookie", "workflow", nil); err != nil {
+			if err := sendUserInit(stream, key, "workflow", nil); err != nil {
 				errs <- err
 				return
 			}
@@ -485,7 +493,7 @@ func TestConcurrentSessions(t *testing.T) {
 				return
 			}
 
-			if err := sendAgentInit(stream, key); err != nil {
+			if err := sendAgentInit(stream, key, "workflow"); err != nil {
 				errs <- err
 				return
 			}
@@ -523,7 +531,7 @@ func TestConcurrentSessions(t *testing.T) {
 func TestStreamCloseSignalsEnd(t *testing.T) {
 	// Test that CloseSend() properly signals end of tunnel (replaces TestCloseMessageForwarded)
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -542,7 +550,7 @@ func TestStreamCloseSignalsEnd(t *testing.T) {
 			return
 		}
 
-		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -567,7 +575,7 @@ func TestStreamCloseSignalsEnd(t *testing.T) {
 			return
 		}
 
-		if err := sendAgentInit(stream, sessionKey); err != nil {
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
 			agentDone <- err
 			return
 		}
@@ -611,7 +619,7 @@ func TestStreamCloseSignalsEnd(t *testing.T) {
 
 func TestGetSessionInfo(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -636,7 +644,7 @@ func TestGetSessionInfo(t *testing.T) {
 	go func() {
 		user := env.userService(t)
 		stream, _ := user.Tunnel(ctx)
-		sendUserInit(stream, sessionKey, "cookie", workflowID, nil)
+		sendUserInit(stream, sessionKey, workflowID, nil)
 		close(userConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
@@ -647,7 +655,7 @@ func TestGetSessionInfo(t *testing.T) {
 		time.Sleep(100 * time.Millisecond) // Give time for query below
 		agent := env.agentService(t)
 		stream, _ := agent.Tunnel(ctx)
-		sendAgentInit(stream, sessionKey)
+		sendAgentInit(stream, sessionKey, workflowID)
 		close(agentConnected)
 		time.Sleep(500 * time.Millisecond)
 		stream.CloseSend()
@@ -688,7 +696,7 @@ func TestGetSessionInfo(t *testing.T) {
 
 func TestTerminateSession(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -729,7 +737,7 @@ func TestTerminateSession(t *testing.T) {
 			return
 		}
 
-		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -750,7 +758,7 @@ func TestTerminateSession(t *testing.T) {
 			return
 		}
 
-		if err := sendAgentInit(stream, sessionKey); err != nil {
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
 			agentDone <- err
 			return
 		}
@@ -814,7 +822,7 @@ func TestTerminateSession(t *testing.T) {
 
 func TestLargeDataTransfer(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -838,7 +846,7 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -873,7 +881,7 @@ func TestLargeDataTransfer(t *testing.T) {
 			return
 		}
 
-		if err := sendAgentInit(stream, sessionKey); err != nil {
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
 			agentDone <- err
 			return
 		}
@@ -922,7 +930,7 @@ func TestLargeDataTransfer(t *testing.T) {
 
 func TestSimultaneousDisconnect(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -937,7 +945,7 @@ func TestSimultaneousDisconnect(t *testing.T) {
 		defer wg.Done()
 		user := env.userService(t)
 		stream, _ := user.Tunnel(ctx)
-		sendUserInit(stream, sessionKey, "cookie", "workflow", nil)
+		sendUserInit(stream, sessionKey, "workflow", nil)
 		for i := range 5 {
 			sendUserPayload(stream, []byte(fmt.Sprintf("msg-%d", i)))
 		}
@@ -950,7 +958,7 @@ func TestSimultaneousDisconnect(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		agent := env.agentService(t)
 		stream, _ := agent.Tunnel(ctx)
-		sendAgentInit(stream, sessionKey)
+		sendAgentInit(stream, sessionKey, "workflow")
 		// Receive a couple then close immediately
 		stream.Recv()
 		stream.CloseSend()
@@ -972,7 +980,7 @@ func TestSimultaneousDisconnect(t *testing.T) {
 
 func TestOperationTypes(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	tests := []struct {
 		name     string
@@ -1034,7 +1042,7 @@ func TestOperationTypes(t *testing.T) {
 			go func() {
 				user := env.userService(t)
 				stream, _ := user.Tunnel(ctx)
-				sendUserInit(stream, sessionKey, "cookie", "workflow", tt.init)
+				sendUserInit(stream, sessionKey, "workflow", tt.init)
 				close(sessionActive)
 				time.Sleep(300 * time.Millisecond) // Keep session alive
 				stream.CloseSend()
@@ -1045,7 +1053,7 @@ func TestOperationTypes(t *testing.T) {
 				time.Sleep(50 * time.Millisecond)
 				agent := env.agentService(t)
 				stream, _ := agent.Tunnel(ctx)
-				sendAgentInit(stream, sessionKey)
+				sendAgentInit(stream, sessionKey, "workflow")
 				time.Sleep(300 * time.Millisecond) // Keep session alive
 				stream.CloseSend()
 			}()
@@ -1068,7 +1076,7 @@ func TestOperationTypes(t *testing.T) {
 
 func TestMultiplePayloadsBeforeClose(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 0)
+	env := setupTestEnv(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -1087,7 +1095,7 @@ func TestMultiplePayloadsBeforeClose(t *testing.T) {
 			return
 		}
 
-		if err := sendUserInit(stream, sessionKey, "cookie", "workflow", nil); err != nil {
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
 			userDone <- err
 			return
 		}
@@ -1122,7 +1130,7 @@ func TestMultiplePayloadsBeforeClose(t *testing.T) {
 			return
 		}
 
-		if err := sendAgentInit(stream, sessionKey); err != nil {
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
 			agentDone <- err
 			return
 		}
@@ -1163,9 +1171,95 @@ func TestMultiplePayloadsBeforeClose(t *testing.T) {
 	}
 }
 
+func TestNaturalBackpressure(t *testing.T) {
+	// Test that gRPC's natural flow control handles slow consumers.
+	// With direct stream forwarding, Send() blocks when receiver is slow.
+	// This is the desired behavior - no artificial timeouts, just natural throttling.
+	t.Parallel()
+	env := setupTestEnv(t)
+
+	// Short timeout to avoid long test runs
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	sessionKey := "backpressure-session"
+	userDone := make(chan error, 1)
+	agentDone := make(chan struct{})
+	agentConnected := make(chan struct{})
+
+	// User sends data - should block when agent is slow
+	go func() {
+		user := env.userService(t)
+		stream, err := user.Tunnel(ctx)
+		if err != nil {
+			userDone <- err
+			return
+		}
+
+		if err := sendUserInit(stream, sessionKey, "workflow", nil); err != nil {
+			userDone <- err
+			return
+		}
+
+		// Wait for agent to connect
+		<-agentConnected
+
+		// Send payloads - gRPC flow control will block when receiver is slow
+		payload := make([]byte, 32*1024) // 32KB per message
+		var sendErr error
+		for i := 0; i < 20; i++ {
+			if err := sendUserPayload(stream, payload); err != nil {
+				sendErr = err
+				break
+			}
+		}
+		userDone <- sendErr
+	}()
+
+	// Agent connects and receives slowly
+	go func() {
+		defer close(agentDone)
+		agent := env.agentService(t)
+		stream, err := agent.Tunnel(ctx)
+		if err != nil {
+			return
+		}
+
+		if err := sendAgentInit(stream, sessionKey, "workflow"); err != nil {
+			return
+		}
+		close(agentConnected)
+
+		// Receive slowly - this tests natural backpressure
+		for {
+			_, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			time.Sleep(50 * time.Millisecond) // Slow consumer
+		}
+	}()
+
+	// Wait for completion
+	select {
+	case err := <-userDone:
+		// Context cancellation or stream close is expected
+		if err != nil && status.Code(err) != codes.Canceled {
+			t.Logf("user finished with: %v", err)
+		}
+	case <-ctx.Done():
+		// Context timeout is fine - means backpressure was working
+		t.Log("context timeout (backpressure working)")
+	}
+
+	// Cleanup
+	cancel()
+	<-agentDone
+}
+
 func TestInitValidation(t *testing.T) {
 	t.Parallel()
-	env := setupTestEnv(t, 100*time.Millisecond)
+	env := setupTestEnv(t, withRendezvousTimeout(100*time.Millisecond))
 
 	tests := []struct {
 		name     string

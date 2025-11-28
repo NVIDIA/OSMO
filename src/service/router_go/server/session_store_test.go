@@ -20,7 +20,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -39,7 +38,6 @@ func setupTestSessionStore(timeout time.Duration) *SessionStore {
 	}
 	return NewSessionStore(SessionStoreConfig{
 		RendezvousTimeout: timeout,
-		StreamSendTimeout: 30 * time.Second,
 		MaxSessionKeyLen:  256,
 		MaxWorkflowIDLen:  256,
 	}, nil)
@@ -215,19 +213,19 @@ func TestSessionStore_RendezvousSuccess(t *testing.T) {
 
 	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
-	clientDone := make(chan error, 1)
+	userDone := make(chan error, 1)
 	agentDone := make(chan error, 1)
 
 	go func() {
-		clientDone <- session.WaitForAgent(context.Background(), timeout)
+		userDone <- session.WaitForAgent(context.Background(), timeout)
 	}()
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		agentDone <- session.WaitForClient(context.Background(), timeout)
+		agentDone <- session.WaitForUser(context.Background(), timeout)
 	}()
 
-	assertResponse(t, <-clientDone, codes.OK)
+	assertResponse(t, <-userDone, codes.OK)
 	assertResponse(t, <-agentDone, codes.OK)
 }
 
@@ -239,19 +237,19 @@ func TestSessionStore_RendezvousAgentFirst(t *testing.T) {
 	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
 	agentDone := make(chan error, 1)
-	clientDone := make(chan error, 1)
+	userDone := make(chan error, 1)
 
 	go func() {
-		agentDone <- session.WaitForClient(context.Background(), timeout)
+		agentDone <- session.WaitForUser(context.Background(), timeout)
 	}()
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		clientDone <- session.WaitForAgent(context.Background(), timeout)
+		userDone <- session.WaitForAgent(context.Background(), timeout)
 	}()
 
 	assertResponse(t, <-agentDone, codes.OK)
-	assertResponse(t, <-clientDone, codes.OK)
+	assertResponse(t, <-userDone, codes.OK)
 }
 
 func TestSessionStore_RendezvousTimeout(t *testing.T) {
@@ -285,14 +283,14 @@ func TestSessionStore_RendezvousContextCancel(t *testing.T) {
 	assertResponse(t, <-done, codes.Canceled)
 }
 
-func TestSessionStore_DuplicateClient(t *testing.T) {
+func TestSessionStore_DuplicateUser(t *testing.T) {
 	t.Parallel()
 	store := setupTestSessionStore(time.Second)
 	timeout := store.RendezvousTimeout()
 
 	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
 
-	// First client
+	// First user
 	done1 := make(chan error, 1)
 	go func() {
 		done1 <- session.WaitForAgent(context.Background(), timeout)
@@ -300,7 +298,7 @@ func TestSessionStore_DuplicateClient(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	// Second client should fail
+	// Second user should fail
 	err := session.WaitForAgent(context.Background(), timeout)
 	assertResponse(t, err, codes.AlreadyExists)
 }
@@ -315,13 +313,13 @@ func TestSessionStore_DuplicateAgent(t *testing.T) {
 	// First agent
 	done1 := make(chan error, 1)
 	go func() {
-		done1 <- session.WaitForClient(context.Background(), timeout)
+		done1 <- session.WaitForUser(context.Background(), timeout)
 	}()
 
 	time.Sleep(50 * time.Millisecond)
 
 	// Second agent should fail
-	err := session.WaitForClient(context.Background(), timeout)
+	err := session.WaitForUser(context.Background(), timeout)
 	assertResponse(t, err, codes.AlreadyExists)
 }
 
@@ -413,75 +411,44 @@ func TestSessionStore_DoubleReleaseRace(t *testing.T) {
 	}
 }
 
+func TestSession_StreamRegistration(t *testing.T) {
+	t.Parallel()
+	store := setupTestSessionStore(0)
+
+	session, _, _ := store.GetOrCreateSession("key1", "workflow", OperationExec)
+
+	// Initially nil
+	if session.UserStream() != nil {
+		t.Error("user stream should be nil initially")
+	}
+	if session.AgentStream() != nil {
+		t.Error("agent stream should be nil initially")
+	}
+
+	// Register streams (using nil for now, real tests use mock streams)
+	mockUserStream := &mockStream{}
+	mockAgentStream := &mockStream{}
+
+	session.RegisterUserStream(mockUserStream)
+	session.RegisterAgentStream(mockAgentStream)
+
+	if session.UserStream() != mockUserStream {
+		t.Error("user stream not stored correctly")
+	}
+	if session.AgentStream() != mockAgentStream {
+		t.Error("agent stream not stored correctly")
+	}
+}
+
+// mockStream implements TunnelStream for testing stream registration
+type mockStream struct{}
+
+func (m *mockStream) Context() context.Context { return context.Background() }
+func (m *mockStream) SendMsg(msg any) error    { return nil }
+func (m *mockStream) RecvMsg(msg any) error    { return nil }
+
 // payloadFrame creates a RawFrame with the given payload bytes.
 func payloadFrame(data []byte) RawFrame {
 	raw, _ := proto.Marshal(&pb.UserFrame{Frame: &pb.UserFrame_Payload{Payload: data}})
 	return RawFrame{Raw: raw}
-}
-
-func TestPipe_SendReceive(t *testing.T) {
-	t.Parallel()
-	pipe := newPipe(30 * time.Second)
-
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		pipe.Send(context.Background(), payloadFrame([]byte("hello")))
-	}()
-
-	frame, err := pipe.Receive(context.Background())
-	if err != nil {
-		t.Fatalf("receive error: %v", err)
-	}
-	if !frame.IsPayload() {
-		t.Fatal("expected payload frame")
-	}
-
-	var parsed pb.UserFrame
-	proto.Unmarshal(frame.Raw, &parsed)
-	if string(parsed.GetPayload()) != "hello" {
-		t.Errorf("got %q, want %q", parsed.GetPayload(), "hello")
-	}
-}
-
-func TestPipe_Close(t *testing.T) {
-	t.Parallel()
-	pipe := newPipe(30 * time.Second)
-	pipe.Close()
-
-	if _, err := pipe.Receive(context.Background()); !errors.Is(err, errPipeClosed) {
-		t.Errorf("Receive: got %v, want errPipeClosed", err)
-	}
-	if err := pipe.Send(context.Background(), payloadFrame([]byte("test"))); !errors.Is(err, errPipeClosed) {
-		t.Errorf("Send: got %v, want errPipeClosed", err)
-	}
-
-	// Multiple closes should be safe
-	pipe.Close()
-	pipe.Close()
-}
-
-func TestPipe_ContextCancel(t *testing.T) {
-	t.Parallel()
-	pipe := newPipe(30 * time.Second)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	if _, err := pipe.Receive(ctx); !errors.Is(err, context.Canceled) {
-		t.Errorf("Receive: got %v, want context.Canceled", err)
-	}
-	if err := pipe.Send(ctx, payloadFrame([]byte("test"))); !errors.Is(err, context.Canceled) {
-		t.Errorf("Send: got %v, want context.Canceled", err)
-	}
-}
-
-func TestPipe_SendTimeout(t *testing.T) {
-	t.Parallel()
-	pipe := newPipe(50 * time.Millisecond)
-
-	// No receiver - should timeout
-	err := pipe.Send(context.Background(), payloadFrame([]byte("test")))
-	if status.Code(err) != codes.DeadlineExceeded {
-		t.Errorf("got %v, want DeadlineExceeded", status.Code(err))
-	}
 }

@@ -14,22 +14,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+package(default_visibility = ["//visibility:public"])
+
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "router",
-    srcs = ["tunnel.go"],
+    srcs = glob(["*.go"]),
     importpath = "go.corp.nvidia.com/osmo/pkg/router",
-    visibility = ["//visibility:public"],
     deps = [
         "//src/proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
-        "@org_golang_x_sync//errgroup",
     ],
 )
 
 go_test(
-    name = "router_test",
+    name = "tunnel_test",
     srcs = ["tunnel_test.go"],
     embed = [":router"],
     deps = [

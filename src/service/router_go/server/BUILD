@@ -52,6 +52,7 @@ go_test(
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//proto:go_default_library",
     ],
+    size = "small",
 )
 
 # To run the tests with race detection:
@@ -71,6 +72,7 @@ go_test(
         "@org_golang_google_grpc//status",
         "@org_golang_google_grpc//test/bufconn",
     ],
+    size = "small",
 )
 
 # To run the tests with race detection:
@@ -88,4 +90,5 @@ go_test(
         "@org_golang_google_grpc//credentials/insecure",
         "@org_golang_google_protobuf//proto:go_default_library",
     ],
+    size = "small",
 )
