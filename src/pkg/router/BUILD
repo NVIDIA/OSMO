@@ -20,7 +20,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "router",
-    srcs = glob(["*.go"]),
+    srcs = ["tunnel.go"],
     importpath = "go.corp.nvidia.com/osmo/pkg/router",
     deps = [
         "//src/proto/router:router_go_proto",
@@ -28,11 +28,33 @@ go_library(
     ],
 )
 
+# To run the tests with race detection:
+#
+# bazel test \
+#   --@io_bazel_rules_go//go/config:race \
+#  //src/pkg/router:tunnel_test
 go_test(
     name = "tunnel_test",
     srcs = ["tunnel_test.go"],
     embed = [":router"],
-    deps = [
-        "//src/proto/router:router_go_proto",
-    ],
+    size = "small",
+)
+
+# Benchmark: Zero-copy vs Traditional forwarding
+#
+# This is a MANUAL target - it won't run with `bazel test //...`
+# Run explicitly with:
+#
+#   bazel run //src/pkg/router:tunnel_benchmark
+#
+# Or with standard go test flags:
+#
+#   bazel run //src/pkg/router:tunnel_benchmark -- -test.bench=. -test.benchmem
+#
+go_test(
+    name = "tunnel_benchmark",
+    srcs = ["tunnel_benchmark_test.go"],
+    embed = [":router"],
+    tags = ["manual"],
+    size = "large",
 )
