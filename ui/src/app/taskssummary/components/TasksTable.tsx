@@ -30,7 +30,6 @@ import { WorkflowTableRowAction } from "~/app/workflows/components/WorkflowTable
 import { type ToolParamUpdaterProps } from "~/app/workflows/hooks/useToolParamUpdater";
 import { commonFilterFns } from "~/components/commonFilterFns";
 import { TableBase } from "~/components/TableBase";
-import { TableLoader } from "~/components/TableLoader";
 import { TablePagination } from "~/components/TablePagination";
 import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
@@ -153,10 +152,10 @@ export const TasksTable = ({
         cell: ({ row }) =>
           row.original.workflow_id ? (
             <WorkflowTableRowAction
+              id={`workflow-${row.original.workflow_id}`}
               name={row.original.workflow_id}
               selected={row.original.workflow_id === selectedWorkflowId}
               updateUrl={updateUrl}
-              disableScrollIntoView={true}
             />
           ) : undefined,
         sortingFn: "alphanumericCaseSensitive",
@@ -176,6 +175,9 @@ export const TasksTable = ({
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => {
+      return showWF ? `${row.user}-${row.workflow_id}` : row.user;
+    },
     state: {
       sorting,
       columnVisibility,
@@ -193,29 +195,17 @@ export const TasksTable = ({
     autoResetPageIndex: false,
   });
 
-  if (isLoading) {
-    return <TableLoader table={table} />;
-  }
-
   return (
-    <div className="h-full w-full">
-      {isLoading ? (
-        <TableLoader table={table} />
-      ) : (
-        <div className="flex flex-col h-full w-full">
-          <TableBase
-            columns={columns}
-            table={table}
-            paddingOffset={10}
-            className="body-component"
-          >
-            <TablePagination
-              table={table}
-              totalRows={processResources.length}
-            />
-          </TableBase>
-        </div>
-      )}
-    </div>
+    <TableBase
+      columns={columns}
+      table={table}
+      className="body-component"
+      isLoading={isLoading}
+    >
+      <TablePagination
+        table={table}
+        totalRows={processResources.length}
+      />
+    </TableBase>
   );
 };

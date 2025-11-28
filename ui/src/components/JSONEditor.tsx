@@ -146,8 +146,8 @@ export const JSONEditor: React.FC<JSONEditorProps> = ({
       onSubmit={handleSaveChanges}
       className="w-full h-full"
     >
-      <div className="flex flex-col gap-3 h-full w-full">
-        <div className="w-full h-full p-3">
+      <div className="flex flex-col gap-global h-full w-full">
+        <div className="w-full h-full p-global">
           {isEditMode ? (
             <textarea
               aria-label="JSON Editor"
@@ -166,7 +166,7 @@ export const JSONEditor: React.FC<JSONEditorProps> = ({
           )}
         </div>
         <div className="flex flex-col">
-          {message && <InlineBanner status={isError ? "error" : "success"}>{message}</InlineBanner>}
+          <InlineBanner status={!message ? "none" : isError ? "error" : "success"}>{message}</InlineBanner>
           <div className="modal-footer">
             {isEditMode ? (
               <>

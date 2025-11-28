@@ -13,85 +13,77 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useState, useEffect } from "react";
-
-import { setEachValueInMap } from "~/utils/state";
-
-import { Accordion } from "./Accordion";
-import { CheckboxWithLabel } from "./Checkbox";
-import { Switch } from "./Switch";
+export enum StatusFilterType {
+  ALL = "all",
+  CURRENT = "current",
+  COMPLETED = "completed",
+  FAILED = "failed",
+  CUSTOM = "custom",
+}
 
 export const StatusFilter = ({
-  statusMap,
-  setStatusMap,
-  className,
-  allStatuses,
-  setAllStatuses,
+  statusFilterType,
+  setStatusFilterType,
 }: {
-  statusMap: Map<any, boolean>;
-  setStatusMap: (map: Map<any, boolean>) => void;
   className?: string;
-  allStatuses: boolean;
-  setAllStatuses: (allStatuses: boolean) => void;
+  statusFilterType?: StatusFilterType;
+  setStatusFilterType: (statusFilterType: StatusFilterType) => void;
 }) => {
-  const [openIndex, setOpenIndex] = useState<number>(-1);
-
-  useEffect(() => {
-    const count = Array.from(statusMap.values()).filter(Boolean).length;
-    if (count === 0) {
-      setAllStatuses(false);
-    } else if (count === statusMap.size) {
-      setAllStatuses(true);
-    } else {
-      setAllStatuses(false);
-    }
-  }, [statusMap, setAllStatuses]);
-
-  useEffect(() => {
-    setOpenIndex(allStatuses ? -1 : 0);
-  }, [allStatuses]);
-
   return (
-    <div className={className}>
-      <Accordion
-        items={[
-          {
-            slotLeft: (
-              <Switch
-                id="select-all"
-                label="All Statuses"
-                labelPosition="right"
-                size="small"
-                className="whitespace-nowrap"
-                checked={allStatuses ?? false}
-                onChange={(checked) => {
-                  setAllStatuses(checked);
-                  setStatusMap(setEachValueInMap<any, boolean>(statusMap, checked));
-                }}
-              />
-            ),
-            content: (
-              <>
-                {Array.from(statusMap.entries()).map(([name, checked]) => (
-                  <CheckboxWithLabel
-                    key={name}
-                    label={name}
-                    checked={checked}
-                    containerClassName="p-1"
-                    onChange={(event) => {
-                      const newMap = new Map(statusMap);
-                      newMap.set(name, Boolean(event.target.checked));
-                      setStatusMap(newMap);
-                    }}
-                  />
-                ))}
-              </>
-            ),
-          },
-        ]}
-        openIndex={openIndex}
-        setOpenIndex={setOpenIndex}
-      />
-    </div>
+    <fieldset className="flex flex-col gap-1 mb-2">
+      <legend>Status</legend>
+      <div className="flex flex-row gap-radios">
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="statusFilterType"
+            value={StatusFilterType.ALL}
+            checked={statusFilterType === StatusFilterType.ALL}
+            onChange={() => setStatusFilterType(StatusFilterType.ALL)}
+          />
+          All
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="statusFilterType"
+            value={StatusFilterType.CURRENT}
+            checked={statusFilterType === StatusFilterType.CURRENT}
+            onChange={() => setStatusFilterType(StatusFilterType.CURRENT)}
+          />
+          Current
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="statusFilterType"
+            value={StatusFilterType.COMPLETED}
+            checked={statusFilterType === StatusFilterType.COMPLETED}
+            onChange={() => setStatusFilterType(StatusFilterType.COMPLETED)}
+          />
+          Completed
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="statusFilterType"
+            value={StatusFilterType.FAILED}
+            checked={statusFilterType === StatusFilterType.FAILED}
+            onChange={() => setStatusFilterType(StatusFilterType.FAILED)}
+          />
+          Failed
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            name="statusFilterType"
+            value={StatusFilterType.CUSTOM}
+            checked={statusFilterType === StatusFilterType.CUSTOM}
+            onChange={() => setStatusFilterType(StatusFilterType.CUSTOM)}
+          />
+          Custom
+        </label>
+      </div>
+    </fieldset>
   );
 };
