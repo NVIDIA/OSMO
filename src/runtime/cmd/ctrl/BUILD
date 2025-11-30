@@ -134,6 +134,7 @@ go_test(
     srcs = ["forward_benchmark_test.go"],
     embed = [":ctrl"],
     deps = [
+        "//src/pkg/router",
         "//src/proto/router:router_go_proto",
         "//src/runtime/pkg/args:ctrl_args",
         "@com_github_gorilla_websocket//:go_default_library",

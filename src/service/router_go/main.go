@@ -41,6 +41,20 @@ const (
 	defaultMaxMessageSize      = 4 * 1024 * 1024 // 4MB
 	defaultMaxSessionKeyLen    = 256
 	defaultMaxWorkflowIDLen    = 256
+
+	// HTTP/2 flow control tuning for high-throughput forwarding.
+	// Default is 64KB which causes stalls at high data rates.
+	// Larger windows reduce WINDOW_UPDATE frame frequency.
+	defaultInitialWindowSize     = 1 << 21 // 2MB per-stream window
+	defaultInitialConnWindowSize = 1 << 24 // 16MB per-connection window
+
+	// Buffer sizes for better throughput
+	defaultWriteBufferSize = 128 * 1024 // 128KB write buffer
+	defaultReadBufferSize  = 128 * 1024 // 128KB read buffer
+
+	// Number of stream workers for parallel stream handling.
+	// 0 = one goroutine per stream (default), >0 = shared worker pool.
+	defaultNumStreamWorkers = 16
 )
 
 var (
@@ -103,6 +117,22 @@ func main() {
 		grpc.MaxConcurrentStreams(uint32(*maxConcurrentStreams)),
 		grpc.MaxRecvMsgSize(*maxMessageSize),
 		grpc.MaxSendMsgSize(*maxMessageSize),
+
+		// HTTP/2 flow control tuning for high-throughput forwarding.
+		// Larger windows reduce stalls when forwarding at high data rates.
+		grpc.InitialWindowSize(defaultInitialWindowSize),
+		grpc.InitialConnWindowSize(defaultInitialConnWindowSize),
+
+		// Larger buffers improve throughput at the cost of memory.
+		grpc.WriteBufferSize(defaultWriteBufferSize),
+		grpc.ReadBufferSize(defaultReadBufferSize),
+
+		// Use shared worker pool for stream handling instead of one goroutine per stream.
+		// Reduces goroutine overhead at high concurrency.
+		grpc.NumStreamWorkers(uint32(defaultNumStreamWorkers)),
+
+		// Share write buffers across streams to reduce allocations.
+		grpc.SharedWriteBuffer(true),
 	}
 
 	// Add TLS if enabled

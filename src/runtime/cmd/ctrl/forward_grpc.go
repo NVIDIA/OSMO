@@ -121,8 +121,6 @@ func (f *grpcForwarder) Close() error {
 //  3. router_go pairs them
 //  4. Single tunnel handles all HTTP traffic (multiplexed)
 func (f *grpcForwarder) ServePortForward(ctx context.Context, cfg *PortForwardConfig) error {
-	log.Printf("grpc: ServePortForward session %s to port %d", cfg.Key, cfg.Port)
-
 	opts := &ForwardOpts{
 		EnableTelemetry: cfg.EnableTelemetry,
 		MetricChan:      cfg.MetricChan,
@@ -176,8 +174,6 @@ func (f *grpcForwarder) ForwardTCP(ctx context.Context, key, cookie string, port
 	}
 	defer conn.Close()
 
-	log.Printf("grpc: forwarding to 127.0.0.1:%d, session %s", port, key)
-
 	enableTelemetry := false
 	var metricChan chan metrics.Metric
 	var actionType ActionType
@@ -198,7 +194,6 @@ func (f *grpcForwarder) ForwardConn(ctx context.Context, key, cookie string, con
 	}
 	defer tunnel.Close()
 
-	log.Printf("grpc: forwarding to connection, session %s", key)
 	return f.bridge(tunnel, conn, false, nil, "")
 }
 
@@ -346,8 +341,6 @@ func (f *grpcForwarder) ForwardWebSocket(ctx context.Context, key, cookie string
 		return fmt.Errorf("connect to local WebSocket: %w", wsErr)
 	}
 	defer wsConn.Close()
-
-	log.Printf("grpc: forwarding to WS %s, session %s", wsAddr, key)
 
 	var wg sync.WaitGroup
 	wg.Add(2)

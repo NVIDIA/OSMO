@@ -257,7 +257,6 @@ func (f *wsForwarder) ForwardTCP(ctx context.Context, key, cookie string, localP
 
 	// Wait for both goroutines to complete cleanup
 	wg.Wait()
-	log.Println("portforwardConnectTCP: both directions done. key: ", key)
 	return nil
 }
 
