@@ -65,6 +65,13 @@ func CtrlParse() CtrlArgs {
 		"storing messages.")
 	cacheSize := flag.Int("cacheSize", 0, "The maximum mount cache size (in MiB) "+
 		"split across inputs.")
+
+	// gRPC Router configuration
+	useGrpcRouter := flag.Bool("useGrpcRouter", false,
+		"Enable gRPC router for data tunnels (port forward, rsync, exec).")
+	grpcRouterAddress := flag.String("grpcRouterAddress", "",
+		"Address of the gRPC router service (e.g., 'router-grpc:50051').")
+
 	flag.Parse()
 
 	// logSource is also the name of the task in the workflow
@@ -126,6 +133,10 @@ func CtrlParse() CtrlArgs {
 		LogsPeriod:         finalLogsPeriod,
 		LogsBufferSize:     finalLogsBufferSize,
 		CacheSize:          *cacheSize,
+
+		// gRPC Router
+		UseGrpcRouter:     *useGrpcRouter,
+		GrpcRouterAddress: *grpcRouterAddress,
 	}
 	return parsedArgs
 }

@@ -72,4 +72,8 @@ type CtrlArgs struct {
 	LogsPeriod         int
 	LogsBufferSize     int
 	CacheSize          int
+
+	// gRPC Router configuration
+	UseGrpcRouter     bool   // Feature flag to enable gRPC router
+	GrpcRouterAddress string // Address of the gRPC router (e.g., "router-grpc:50051")
 }

@@ -20,6 +20,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
@@ -37,7 +38,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -122,7 +122,7 @@ type DialWebsocketError struct {
 }
 
 func (e *DialWebsocketError) Error() string {
-	return fmt.Sprintf(e.Message)
+	return fmt.Sprintf("%s", e.Message)
 }
 
 func refreshJWTToken(cmdArgs args.CtrlArgs) error {
@@ -320,14 +320,16 @@ func putLogs(
 }
 
 type ServiceRequest struct {
-	Action          ActionType
-	RouterAddress   string `json:"router_address"`
-	EntryCommand    string `json:"entry_command"`
-	TaskPort        int    `json:"task_port"`
-	Key             string `json:"key"`
-	Cookie          string `json:"cookie"`
-	UseUDP          bool   `json:"use_udp"`
-	EnableTelemetry bool   `json:"enable_telemetry"`
+	Action            ActionType
+	RouterAddress     string `json:"router_address"`
+	GrpcRouterAddress string `json:"grpc_router_address"` // gRPC router address
+	EntryCommand      string `json:"entry_command"`
+	TaskPort          int    `json:"task_port"`
+	Key               string `json:"key"`
+	Cookie            string `json:"cookie"`
+	UseUDP            bool   `json:"use_udp"`
+	EnableTelemetry   bool   `json:"enable_telemetry"`
+	UseGrpcRouter     bool   `json:"use_grpc_router"` // Feature flag from workflow service
 }
 
 func createWebsocketConnection(
@@ -376,144 +378,6 @@ func sendUserExecStart(unixConn net.Conn, entryCommand string) error {
 		messages.UserExecStartRequest(entryCommand))
 }
 
-func ctrlUserExec(unixConn net.Conn, routerAddress string, key string, cookie string,
-	cmdArgs args.CtrlArgs) {
-	defer unixConn.Close()
-	url := fmt.Sprintf("%s/api/router/exec/%s/backend/%s", routerAddress, cmdArgs.Workflow, key)
-	var conn *websocket.Conn
-	var err error
-	var retryMax int = 5
-
-	for i := 0; i < retryMax; i++ {
-		conn, err = createWebsocketConnection(url, cookie, cmdArgs)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		log.Println("User Exec: error connecting to the router:", err)
-		return
-	}
-	defer conn.Close()
-
-	var waitGroup sync.WaitGroup
-	waitGroup.Add(1)
-
-	go func() {
-		for {
-			_, data, err := conn.ReadMessage()
-			if err != nil && err != io.EOF {
-				log.Println(
-					"User Exec: Error from connection to exec instance. ", err)
-				break
-			}
-			_, err = unixConn.Write(data)
-			if err != nil {
-				log.Println("User Exec: Error write to exec instance", err)
-				break
-			}
-		}
-	}()
-
-	go func() {
-		defer waitGroup.Done()
-		data := make([]byte, 1024)
-		for {
-			n, err := unixConn.Read(data)
-			if err != nil {
-				log.Println("User Exec: Error from exec instance to connection.", err)
-				break
-			}
-			err = conn.WriteMessage(websocket.BinaryMessage, data[:n])
-			if err != nil {
-				log.Println("User Exec: Error writing to connection.", err)
-				break
-			}
-		}
-	}()
-	waitGroup.Wait()
-}
-
-func userPortForwardTCP(
-	routerAddress string,
-	clientInfo ServiceRequest,
-	cmdArgs args.CtrlArgs,
-	metricChan chan metrics.Metric,
-) {
-	url := fmt.Sprintf(
-		"%s/api/router/%s/%s/backend/%s",
-		routerAddress, clientInfo.Action, cmdArgs.Workflow, clientInfo.Key)
-
-	var conn *websocket.Conn
-	var err error
-	var retryMax int = 10
-	for i := 0; i < retryMax; i++ {
-		conn, err = createWebsocketConnection(url, clientInfo.Cookie, cmdArgs)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		log.Println("userPortForwardTCP: error connecting to the router:", err)
-		return
-	}
-	defer conn.Close()
-
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			if err == io.EOF {
-				log.Println("userPortForwardTCP: EOF reached.")
-				break
-			}
-			log.Println("userPortForwardTCP: Error reading websocket connection:", err)
-			break
-		}
-
-		// Get the key and cookie of the remote connection
-		var message PortForwardMessage
-		err = json.Unmarshal(data, &message)
-		if err != nil {
-			log.Println("userPortForwardTCP: Error parsing json:", err)
-			break
-		}
-
-		if message.Type == PortForwardWS {
-			go portforwardConnectWS(
-				routerAddress, message, clientInfo.TaskPort, cmdArgs)
-		} else {
-			go portforwardConnectTCP(
-				clientInfo.Action,
-				routerAddress,
-				message.Key,
-				message.Cookie,
-				clientInfo.TaskPort,
-				cmdArgs,
-				clientInfo.EnableTelemetry,
-				metricChan,
-			)
-		}
-	}
-}
-
-func copyWebsocket(dst, src *websocket.Conn, closeConn chan bool) {
-	defer func() { closeConn <- true }()
-	for {
-		messageType, data, err := src.ReadMessage()
-		if err != nil {
-			log.Printf("Error reading from websocket: %v", err)
-			return
-		}
-		err = dst.WriteMessage(messageType, data)
-		if err != nil {
-			log.Printf("Error writing to websocket: %v", err)
-			return
-		}
-	}
-}
-
 func putPortforwardTCPTelemetry(
 	metricChan chan metrics.Metric,
 	metricsType string,
@@ -541,305 +405,12 @@ func putPortforwardTCPTelemetry(
 	}
 }
 
-func portforwardConnectTCP(
-	actionType ActionType,
-	routerAddress string,
-	key string,
-	cookie string,
-	localPort int,
-	cmdArgs args.CtrlArgs,
-	enableTelemetry bool,
-	metricChan chan metrics.Metric,
-) {
-	var remoteConn *websocket.Conn
-	var localConn net.Conn
-	var err error
-	var retryMax int = 5
-	closeConn := make(chan bool)
-
-	// Wait for both go routines to complete
-	defer func() {
-		<-closeConn
-	}()
-
-	url := fmt.Sprintf(
-		"%s/api/router/portforward/%s/backend/%s", routerAddress, cmdArgs.Workflow, key)
-	for i := 0; i < retryMax; i++ {
-		remoteConn, err = createWebsocketConnection(url, cookie, cmdArgs)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		log.Println("portforwardConnectTCP: error connecting to the router:", err)
-		return
-	}
-
-	defer remoteConn.Close()
-
-	localAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
-	localConn, err = createConnection(localAddr, retryMax, "tcp")
-	if err != nil {
-		log.Println("portforwardConnectTCP: error connecting to local server listening at port: ",
-			localPort, err)
-		return
-	}
-	defer localConn.Close()
-	defer log.Println("Closing local and remote connections. key: ",
-		key, localConn.LocalAddr(), remoteConn.LocalAddr())
-
-	go func() {
-		// Optional telemetry for portforward output
-		var bytesSent atomic.Int64
-		if enableTelemetry {
-			startTime := time.Now().Format("2006-01-02 15:04:05.000")
-			defer func() {
-				go putPortforwardTCPTelemetry(
-					metricChan,
-					strings.ToUpper(string(actionType))+"_OUTPUT",
-					cmdArgs,
-					startTime,
-					bytesSent.Load(),
-					250*time.Millisecond,
-				)
-			}()
-		}
-
-		buffer := make([]byte, BUFFERSIZE)
-		for {
-			n, err := localConn.Read(buffer)
-			if err != nil {
-				log.Println("portforwardConnectTCP: Error reading for localConn: ", err)
-				log.Println("Address for local and remote: ",
-					localConn.LocalAddr(), localConn.RemoteAddr())
-				break
-			}
-			err = remoteConn.WriteMessage(websocket.BinaryMessage, buffer[:n])
-			if err != nil {
-				log.Println("portforwardConnectTCP: Error writing for remoteConn: ", err)
-				log.Println("Address for local and remote: ",
-					remoteConn.LocalAddr(), remoteConn.RemoteAddr())
-				break
-			}
-
-			if enableTelemetry {
-				bytesSent.Add(int64(n))
-			}
-		}
-		log.Println("portforwardConnectTCP: local to remote for loop is done. key: ", key)
-		closeConn <- true
-	}()
-
-	go func() {
-		// Optional telemetry for portforward input
-		var bytesReceived atomic.Int64
-		if enableTelemetry {
-			startTime := time.Now().Format("2006-01-02 15:04:05.000")
-			defer func() {
-				go putPortforwardTCPTelemetry(
-					metricChan,
-					strings.ToUpper(string(actionType))+"_INPUT",
-					cmdArgs,
-					startTime,
-					bytesReceived.Load(),
-					250*time.Millisecond,
-				)
-			}()
-		}
-
-		for {
-			_, data, err := remoteConn.ReadMessage()
-			if err != nil {
-				log.Println("portforwardConnectTCP: Error reading for remoteConn: ", err)
-				log.Println("Address for local and remote: ",
-					remoteConn.LocalAddr(), remoteConn.RemoteAddr())
-				break
-			}
-
-			_, err = localConn.Write(data)
-			if err != nil {
-				log.Println("portforwardConnectTCP: Error writing for localConn: ", err)
-				log.Println("Address for local and remote: ",
-					localConn.LocalAddr(), localConn.RemoteAddr())
-				break
-			}
-
-			if enableTelemetry {
-				bytesReceived.Add(int64(len(data)))
-			}
-		}
-		log.Println("portforwardConnectTCP: remote to local for loop is done. key: ", key)
-		closeConn <- true
-	}()
-
-	// If one connection breaks, close both
-	<-closeConn
-}
-
-func portforwardConnectWS(routerAddress string, message PortForwardMessage, localPort int,
-	cmdArgs args.CtrlArgs) {
-	var remoteConn *websocket.Conn
-	var localConn *websocket.Conn
-	var err error
-	var retryMax int = 5
-	closeConn := make(chan bool)
-
-	// Wait for both go routines to complete
-	defer func() {
-		<-closeConn
-	}()
-
-	url := fmt.Sprintf(
-		"%s/api/router/portforward/%s/backend/%s", routerAddress, cmdArgs.Workflow, message.Key)
-	for i := 0; i < retryMax; i++ {
-		remoteConn, err = createWebsocketConnection(url, message.Cookie, cmdArgs)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		log.Println("portforwardConnectWS: error connecting to the router:", err)
-		return
-	}
-
-	defer remoteConn.Close()
-
-	localAddr := fmt.Sprintf("ws://127.0.0.1:%d%s", localPort, message.Payload["path"])
-	log.Println("portforwardConnectWS: localAddr", localAddr)
-	headers := http.Header{}
-	if headerMap, ok := message.Payload["headers"].(map[string]interface{}); ok {
-		for key, value := range headerMap {
-			if strValue, ok := value.(string); ok {
-				headers.Set(key, strValue)
-			}
-		}
-	}
-
-	for i := 0; i < retryMax; i++ {
-		localConn, _, err = websocket.DefaultDialer.Dial(localAddr, headers)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		log.Println("portforwardConnectWS: error connecting to local server listening at port: ",
-			localPort, err)
-		return
-	}
-	defer localConn.Close()
-	defer log.Println("Closing local and remote connections. key: ",
-		message.Key, localConn.LocalAddr(), remoteConn.LocalAddr())
-
-	log.Println("start coroutine")
-	go copyWebsocket(remoteConn, localConn, closeConn)
-	go copyWebsocket(localConn, remoteConn, closeConn)
-
-	// If one connection breaks, close both
-	<-closeConn
-}
-
-func userPortForwardUDP(
-	routerAddress string, key string, cookie string, taskPort int, cmdArgs args.CtrlArgs) {
-	url := fmt.Sprintf(
-		"%s/api/router/portforward/%s/backend/%s", routerAddress, cmdArgs.Workflow, key)
-
-	var conn *websocket.Conn
-	var mutex sync.Mutex
-	var err error
-	var retryMax int = 10
-	for i := 0; i < retryMax; i++ {
-		conn, err = createWebsocketConnection(url, cookie, cmdArgs)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		log.Println("userPortForwardUDP: error connecting to the router:", err)
-		return
-	}
-	defer conn.Close()
-
-	map_addr := make(map[string]net.Conn)
-	// Some services like Isaac-sim can not resolve "localhost"
-	localAddr := fmt.Sprintf("127.0.0.1:%d", taskPort)
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			if err == io.EOF {
-				log.Println("userPortForwardUDP: EOF reached. for port ", taskPort)
-			} else {
-				log.Println(
-					"userPortForwardUDP: Error reading remote connection with port", taskPort, err)
-			}
-			break
-		}
-
-		srcAddr := getSrcAddr(data)
-		if map_addr[srcAddr] == nil {
-			// Create UDP transport
-			localConn, err := createConnection(localAddr, retryMax, "udp")
-			if err != nil {
-				log.Println("userPortForwardUDP: error connecting to local port:", taskPort, err)
-				continue
-			}
-			map_addr[srcAddr] = localConn
-			// Read from UDP transport
-			go readUDP(conn, &mutex, localConn, data[:6])
-		}
-
-		// Write to UDP transport
-		_, err = map_addr[srcAddr].Write(data[6:])
-		if err != nil {
-			log.Println("userPortForwardUDP: Error local write to local port: ", taskPort, err)
-			continue
-		}
-	}
-
-	// Close all transports
-	for _, localConn := range map_addr {
-		localConn.Close()
-	}
-}
-
 func getSrcAddr(data []byte) string {
 	host := (net.IP)(data[:4])
 	var portData = []byte{0, 0, data[4], data[5]}
 	port := binary.BigEndian.Uint32(portData)
 	srcAddr := fmt.Sprintf("%s:%d", host.String(), port)
 	return srcAddr
-}
-
-func readUDP(remoteConn *websocket.Conn, mutex *sync.Mutex,
-	localConn net.Conn, data []byte) {
-	buffer := make([]byte, BUFFERSIZE)
-	copy(buffer[:6], data[:6])
-
-	for {
-		n, err := localConn.Read(buffer[6:])
-		if err != nil {
-			if err != io.EOF {
-				log.Println("readUDP: Error reading: ", err)
-				log.Println("Address for local and remote:",
-					localConn.LocalAddr(), localConn.RemoteAddr())
-			} else {
-				log.Println("readUDP: EOF reached. Address for local and remote:",
-					localConn.LocalAddr(), localConn.RemoteAddr())
-			}
-			break
-		}
-
-		mutex.Lock()
-		err = remoteConn.WriteMessage(websocket.BinaryMessage, buffer[:n+6])
-		mutex.Unlock()
-		if err != nil {
-			log.Println("readUDP: Error write to websocket", err)
-			return
-		}
-	}
 }
 
 func sendLogs(logSource string, logQueue *common.CircularBuffer, logsPeriodMs int,
@@ -968,19 +539,78 @@ func pingPang(timeout time.Duration, url string, osmoChan chan string, startExec
 					log.Println("Error connect to user terminal", err)
 					continue
 				}
-				go ctrlUserExec(execConn, clientInfo.RouterAddress, clientInfo.Key,
-					clientInfo.Cookie, cmdArgs)
+
+				// Use Forwarder interface for exec
+				forwarder, fwdErr := NewForwarder(clientInfo, cmdArgs)
+				if fwdErr != nil {
+					log.Printf("Failed to create forwarder: %v", fwdErr)
+					execConn.Close()
+					continue
+				}
+				go func() {
+					defer forwarder.Close()
+					defer execConn.Close()
+					if err := forwarder.ForwardConn(context.Background(), clientInfo.Key, clientInfo.Cookie, execConn); err != nil {
+						log.Printf("Exec forward error: %v", err)
+					}
+				}()
 			} else if clientInfo.Action == ActionPortForward {
 				log.Printf("Receive portforward action")
+
+				forwarder, fwdErr := NewForwarder(clientInfo, cmdArgs)
+				if fwdErr != nil {
+					log.Printf("Failed to create forwarder: %v", fwdErr)
+					continue
+				}
+
 				if clientInfo.UseUDP {
-					go userPortForwardUDP(
-						clientInfo.RouterAddress, clientInfo.Key,
-						clientInfo.Cookie, clientInfo.TaskPort, cmdArgs)
+					go func() {
+						defer forwarder.Close()
+						if err := forwarder.ForwardUDP(context.Background(), clientInfo.Key, clientInfo.Cookie, clientInfo.TaskPort); err != nil {
+							log.Printf("UDP forward error: %v", err)
+						}
+					}()
 				} else {
-					go userPortForwardTCP(clientInfo.RouterAddress, clientInfo, cmdArgs, metricChan)
+					cfg := &PortForwardConfig{
+						Key:             clientInfo.Key,
+						Cookie:          clientInfo.Cookie,
+						Port:            clientInfo.TaskPort,
+						RouterAddress:   clientInfo.RouterAddress,
+						Action:          clientInfo.Action,
+						EnableTelemetry: clientInfo.EnableTelemetry,
+						MetricChan:      metricChan,
+						CmdArgs:         cmdArgs,
+					}
+					go func() {
+						defer forwarder.Close()
+						if err := forwarder.ServePortForward(context.Background(), cfg); err != nil {
+							log.Printf("PortForward error: %v", err)
+						}
+					}()
 				}
 			} else if clientInfo.Action == ActionWebServer {
-				go userPortForwardTCP(clientInfo.RouterAddress, clientInfo, cmdArgs, metricChan)
+				log.Printf("Receive webserver action")
+
+				// Webserver always uses WS forwarder (descoped from gRPC migration)
+				// Python Router sends notifications directly to stored websocket
+				forwarder := newWSForwarder(clientInfo.RouterAddress, cmdArgs.Workflow, cmdArgs)
+
+				cfg := &PortForwardConfig{
+					Key:             clientInfo.Key,
+					Cookie:          clientInfo.Cookie,
+					Port:            clientInfo.TaskPort,
+					RouterAddress:   clientInfo.RouterAddress,
+					Action:          clientInfo.Action,
+					EnableTelemetry: clientInfo.EnableTelemetry,
+					MetricChan:      metricChan,
+					CmdArgs:         cmdArgs,
+				}
+				go func() {
+					defer forwarder.Close()
+					if err := forwarder.ServePortForward(context.Background(), cfg); err != nil {
+						log.Printf("WebServer error: %v", err)
+					}
+				}()
 			} else if clientInfo.Action == ActionBarrier {
 				log.Printf("Receive barrier action")
 				barrierMutex.Lock()
@@ -1011,7 +641,23 @@ func pingPang(timeout time.Duration, url string, osmoChan chan string, startExec
 					clientInfo.TaskPort = int(common.RsyncPort)
 				}
 
-				go userPortForwardTCP(clientInfo.RouterAddress, clientInfo, cmdArgs, metricChan)
+				// Use Forwarder interface for rsync (single TCP connection)
+				forwarder, fwdErr := NewForwarder(clientInfo, cmdArgs)
+				if fwdErr != nil {
+					log.Printf("Failed to create forwarder for rsync: %v", fwdErr)
+					continue
+				}
+				go func() {
+					defer forwarder.Close()
+					opts := &ForwardOpts{
+						EnableTelemetry: clientInfo.EnableTelemetry,
+						MetricChan:      metricChan,
+						ActionType:      ActionRsync,
+					}
+					if err := forwarder.ForwardTCP(context.Background(), clientInfo.Key, clientInfo.Cookie, clientInfo.TaskPort, opts); err != nil {
+						log.Printf("Rsync forward error: %v", err)
+					}
+				}()
 			}
 		}
 	}
