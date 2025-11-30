@@ -25,6 +25,9 @@ go_library(
     deps = [
         "//src/proto/router:router_go_proto",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//keepalive",
     ],
 )
 

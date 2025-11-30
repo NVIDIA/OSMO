@@ -34,14 +34,73 @@ package router
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	pb "go.corp.nvidia.com/osmo/proto/router"
 )
+
+// DialOption configures gRPC dial settings.
+type DialOption func(*dialOptions)
+
+type dialOptions struct {
+	insecure bool
+}
+
+// WithInsecure disables TLS for local development.
+func WithInsecure() DialOption {
+	return func(o *dialOptions) {
+		o.insecure = true
+	}
+}
+
+// Dial creates a gRPC connection to the router with TLS using system root CAs.
+// This is the recommended way to connect to router_go for both CLI and agent.
+//
+// By default, Dial uses TLS with the system CA pool (same as wss:// for WebSocket).
+// Use WithInsecure() for local development without TLS.
+//
+// Example:
+//
+//	// Production: TLS with system CAs
+//	conn, err := router.Dial("router-grpc.example.com:443")
+//
+//	// Local development: no TLS
+//	conn, err := router.Dial("localhost:50051", router.WithInsecure())
+func Dial(address string, opts ...DialOption) (*grpc.ClientConn, error) {
+	do := &dialOptions{}
+	for _, opt := range opts {
+		opt(do)
+	}
+
+	var grpcOpts []grpc.DialOption
+
+	// TLS configuration
+	if do.insecure {
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		// Empty tls.Config{} uses system CA pool automatically
+		creds := credentials.NewTLS(&tls.Config{})
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(creds))
+	}
+
+	// Keepalive for long-running tunnels
+	grpcOpts = append(grpcOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                60 * time.Second,
+		Timeout:             20 * time.Second,
+		PermitWithoutStream: true,
+	}))
+
+	return grpc.Dial(address, grpcOpts...)
+}
 
 // ErrTunnelClosed is returned when operations are attempted on a closed tunnel.
 var ErrTunnelClosed = errors.New("tunnel closed")
