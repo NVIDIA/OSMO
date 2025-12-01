@@ -24,6 +24,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'workflows/**'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -57,11 +58,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+          git fetch
           pip install -U -r docs/locked_requirements.txt
 
       - name: Build Sphinx documentation
         run: |
-          make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
+          make -C docs build-multiversion ERR_DIR=build_error_logs OUT_DIR=public
 
       - name: Check for build errors
         run: |

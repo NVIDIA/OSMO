@@ -20,7 +20,7 @@
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS  ?=
-SPHINXBUILD ?= sphinx-build
+SPHINXBUILD ?= sphinx-multiversion
 SOURCEDIR   = .
 OUT_DIR     = _build/public/out
 ERR_DIR     = _build/public/err
@@ -31,29 +31,28 @@ help:
 
 .PHONY: help generate build generate-and-build Makefile
 
+clean:
+	rm -rf _build
+
 build:
-	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
-	export OSMO_DOMAIN=public && sphinx-build -b html deployment_guide -w $(ERR_DIR)/deployment_guide.log $(OUT_DIR)/deployment_guide
-	export OSMO_DOMAIN=public && sphinx-build -b markdown user_guide $(OUT_DIR)/user_guide -w $(ERR_DIR)/user_guide_markdown.log
-	export OSMO_DOMAIN=public && sphinx-build -b markdown deployment_guide $(OUT_DIR)/deployment_guide -w $(ERR_DIR)/deployment_guide_markdown.log
-	rm -rf $(OUT_DIR)/user_guide/_sources
-	rm -rf $(OUT_DIR)/deployment_guide/_sources
+	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/build.log $(OUT_DIR)
+	export OSMO_DOMAIN=public && sphinx-build -b markdown . -w $(ERR_DIR)/markdown.log $(OUT_DIR)
+	rm -rf $(OUT_DIR)/_sources
 
+build-multiversion:
+	export OSMO_DOMAIN=public && $(SPHINXBUILD) . $(OUT_DIR)
+	rm -rf $(OUT_DIR)/_sources
 
-build-user-html:
-	export OSMO_DOMAIN=public && sphinx-build -b html user_guide -w $(ERR_DIR)/user_guide.log  $(OUT_DIR)/user_guide
-	rm -rf $(OUT_DIR)/user_guide/_sources
-
-
-build-deployment-html:
-	export OSMO_DOMAIN=public && sphinx-build -b html deployment_guide -w $(ERR_DIR)/deployment_guide.log $(OUT_DIR)/deployment_guide
-	rm -rf $(OUT_DIR)/deployment_guide/_sources
+build-html:
+	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/build.log $(OUT_DIR)
+	rm -rf $(OUT_DIR)/_sources
 
 
 spelling:
-	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/user_guide.log -N user_guide $(OUT_DIR)/user_guide
-	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/deployment_guide.log -N deployment_guide $(OUT_DIR)/deployment_guide
+	export OSMO_DOMAIN=public && sphinx-build -b spelling -j auto -w $(ERR_DIR)/spelling.log -N . $(OUT_DIR)
 
+linkcheck:
+	export OSMO_DOMAIN=public && sphinx-build -b linkcheck -w $(ERR_DIR)/root.log . $(OUT_DIR)
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).

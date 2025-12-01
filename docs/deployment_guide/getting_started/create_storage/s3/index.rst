@@ -31,7 +31,7 @@ To handle who can access Datasets, the necessary AWS resources/policies must be 
 Setting up the bucket
 =====================
 
-First, navigate to the `AWS S3 console <https://s3.console.aws.amazon.com/s3/home?region=us-west-2>`_
+First, navigate to the `AWS S3 console <https://console.aws.amazon.com:443/s3/home?region=us-west-2>`_
 
 Click on the ``Create Bucket`` button.
 

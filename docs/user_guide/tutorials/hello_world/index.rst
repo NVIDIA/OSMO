@@ -102,7 +102,7 @@ The following steps will guide you through submitting a workflow to OSMO using t
 
 .. seealso::
 
-  Please refer to :ref:`System Requirements <system_requirements>` for the recommended web browsers.
+  Please refer to :ref:`System Requirements <getting_started_system_requirements>` for the recommended web browsers.
 
 .. image:: ui_hello_world.gif
   :alt: OSMO Web UI workflow

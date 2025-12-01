@@ -219,7 +219,7 @@ Set the timeout when initializing the process group in your training code:
        timeout=timedelta(minutes=60)
    )
 
-For more information, see `torch.distributed.init_process_group <https://pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group>`_.
+For more information, see `torch.distributed.init_process_group <https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group>`_.
 
 **4. Use PyTorch Distributed Flight Recorder**
 
@@ -247,7 +247,7 @@ Additional Resources
 
 * `NCCL User Guide <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html>`_
 * `NCCL Troubleshooting <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html>`_
-* `PyTorch Distributed Overview <https://pytorch.org/tutorials/beginner/dist_overview.html>`_
-* `PyTorch Elastic Documentation <https://pytorch.org/docs/stable/elastic/run.html>`_
+* `PyTorch Distributed Overview <https://docs.pytorch.org/tutorials/beginner/dist_overview.html>`_
+* `PyTorch Elastic Documentation <https://docs.pytorch.org/docs/stable/elastic/run.html>`_
 * `NCCL Tests Repository <https://github.com/NVIDIA/nccl-tests>`_
-* `Debugging PyTorch Distributed Applications <https://pytorch.org/docs/stable/distributed.html#debugging-torch-distributed-applications>`_
+* `Debugging PyTorch Distributed Applications <https://docs.pytorch.org/docs/stable/distributed.html#debugging-torch-distributed-applications>`_

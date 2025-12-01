@@ -23,7 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ### Workflow Orchestration Purpose-built for Physical AI
 
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
-<a href="https://nvidia.github.io/OSMO/user_guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
+<a href="https://nvidia.github.io/OSMO/main/user_guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
 <a href="https://kubernetes.io/"><img src="https://img.shields.io/badge/Kubernetes-Native-326ce5.svg" alt="Kubernetes"></a>
 
 <a href="#ready-to-begin">Get Started</a>
@@ -116,13 +116,13 @@ OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-co
 
 | **What You Can Do** | **Example** |
 |---------------------|----------------------|
-| **Interactively develop** on remote GPU nodes with VSCode, SSH, or Jupyter notebooks | [Interactive Workflows](https://nvidia.github.io/OSMO/user_guide/workflows/interactive/index.html) |
-| **Generate synthetic data** at scale using Isaac Sim or custom simulation environments | [Isaac Sim SDG](https://nvidia.github.io/OSMO/user_guide/how_to/isaac_sim_sdg.html) |
-| **Train models** with diverse datasets across distributed GPU clusters | [Model Training](https://nvidia.github.io/OSMO/user_guide/how_to/training.html) |
-| **Train policies** for robots using data-parallel reinforcement learning | [Reinforcement Learning](https://nvidia.github.io/OSMO/user_guide/how_to/reinforcement_learning.html) |
-| **Validate models** in simulation with hardware-in-the-loop testing | [Hardware In The Loop](https://nvidia.github.io/OSMO/user_guide/tutorials/hardware_in_the_loop/index.html) |
-| **Transform and post-process data** for iterative improvement | [Working with Data](https://nvidia.github.io/OSMO/user_guide/tutorials/data/index.html) |
-| **Benchmark system software** on actual robot hardware (NVIDIA Jetson, custom platforms) | [Hardware Testing](https://nvidia.github.io/OSMO/user_guide/how_to/hil.html) |
+| **Interactively develop** on remote GPU nodes with VSCode, SSH, or Jupyter notebooks | [Interactive Workflows](https://nvidia.github.io/OSMO/main/user_guide/workflows/interactive/index.html) |
+| **Generate synthetic data** at scale using Isaac Sim or custom simulation environments | [Isaac Sim SDG](https://nvidia.github.io/OSMO/main/user_guide/how_to/isaac_sim_sdg.html) |
+| **Train models** with diverse datasets across distributed GPU clusters | [Model Training](https://nvidia.github.io/OSMO/main/user_guide/how_to/training.html) |
+| **Train policies** for robots using data-parallel reinforcement learning | [Reinforcement Learning](https://nvidia.github.io/OSMO/main/user_guide/how_to/reinforcement_learning.html) |
+| **Validate models** in simulation with hardware-in-the-loop testing | [Hardware In The Loop](https://nvidia.github.io/OSMO/main/user_guide/tutorials/hardware_in_the_loop/index.html) |
+| **Transform and post-process data** for iterative improvement | [Working with Data](https://nvidia.github.io/OSMO/main/user_guide/tutorials/data/index.html) |
+| **Benchmark system software** on actual robot hardware (NVIDIA Jetson, custom platforms) | [Hardware Testing](https://nvidia.github.io/OSMO/main/user_guide/how_to/hil.html) |
 
 ### Battle-Tested in Production
 
@@ -135,7 +135,7 @@ OSMO is production-grade and proven at scale. Originally developed to power Phys
 Select one of the deployment options below depending on your needs and environment to get started
 
 <div align="center">
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/introduction/whats_next.html">
+  <a href="https://nvidia.github.io/OSMO/main/deployment_guide/introduction/whats_next.html">
     <img src="./docs/deployment_options.svg" width="85%"/>
   </a>
 </div>
@@ -146,11 +146,11 @@ Select one of the deployment options below depending on your needs and environme
 
 | Resource | Description |
 |:---------|:------------|
-| 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
-| 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/deployment_guide/) | Deploy production grade on cloud providers  |
-| 📘 [**User Guide**](https://nvidia.github.io/OSMO/user_guide/) | Tutorials, workflows, and how-to guides for developers |
+| 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
+| 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/) | Deploy production grade on cloud providers  |
+| 📘 [**User Guide**](https://nvidia.github.io/OSMO/main/user_guide/) | Tutorials, workflows, and how-to guides for developers |
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
-| 💻 [**Getting Started**](https://nvidia.github.io/OSMO/user_guide/getting_started/install/index.html) | Install command-line interface to get started |
+| 💻 [**Getting Started**](https://nvidia.github.io/OSMO/main/user_guide/getting_started/install/index.html) | Install command-line interface to get started |
 
 ## Community & Support
 

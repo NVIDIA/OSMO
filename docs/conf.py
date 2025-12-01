@@ -16,11 +16,12 @@
 
 # -- Path setup --------------------------------------------------------------
 
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('.'))
+# Add the directory containing conf.py to the path so custom extensions can be found
+# This is important for sphinx-multiversion which runs from temporary directories
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 # -- Project information -----------------------------------------------------
 
@@ -30,10 +31,14 @@ author = "NVIDIA"
 
 # -- General configuration ---------------------------------------------------
 
+# Add templates directory
+templates_path = ['_templates']
+
 extensions = [
     # Standard extensions
     'sphinx_copybutton',
     'sphinx_design',
+    'sphinx_multiversion',
     'sphinx_new_tab_link',
     'sphinx_simplepdf',
     'sphinx_substitution_extensions',
@@ -42,6 +47,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
+    'sphinx_reredirects',
 
     # Custom extensions
     '_extensions.auto_include',
@@ -50,7 +56,17 @@ extensions = [
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
+    
+    # Theme extension
+    '_extensions.nvidia_theme_override',
 ]
+
+# Redirects
+redirects = {
+    # Note: We still need the root index.rst to be present to be the
+    # root document and root toctree.
+    'index': 'user_guide/index.html',
+}
 
 # Spelling
 spelling_exclude_patterns = [
@@ -58,7 +74,23 @@ spelling_exclude_patterns = [
 ]
 spelling_show_suggestions = True
 spelling_warning = True
-spelling_word_list_filename = '../spelling_wordlist.txt'
+spelling_word_list_filename = 'spelling_wordlist.txt'
+
+# Linkcheck ignore
+linkcheck_ignore = [
+    'https://osmo-example-url.com*',
+    'http://osmo.example.com*',
+    'https://osmo.example.com*',
+    'http://localhost:*',
+    # Requires authentication so we can't check it
+    'https://github.com/settings/tokens/new',
+    'https://console.volcengine.com*',
+    'https://us-east-1.console.aws.amazon.com*'
+]
+
+linkcheck_anchors = False
+
+linkcheck_timeout = 150
 
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
@@ -82,7 +114,7 @@ exclude_patterns = [
 ]
 
 suppress_warnings = [
-    'toc.excluded'
+    'toc.excluded',
 ]
 
 # -- Options for HTML output -------------------------------------------------
@@ -92,15 +124,24 @@ suppress_warnings = [
 #
 html_theme = "nvidia_sphinx_theme"
 
-html_title = 'OSMO User Guide'
+html_title = 'OSMO Documentation'
 html_show_sourcelink = False
-html_favicon = '../_static/osmo_favicon.png'
-html_logo = '../_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+
+html_favicon = '_static/osmo_favicon.png'
+html_logo = '_static/nvidia-logo-horiz-rgb-wht-for-screen.png'
+html_static_path = ['_static']
+templates_path = ['_templates']
+
+html_sidebars = {
+    "index": [],
+}
 
 html_theme_options = {
     "collapse_navigation": False,
     "github_url": "https://github.com/NVIDIA/OSMO/",
     "navbar_start": ["navbar-logo"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["versioning.html","theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
@@ -109,17 +150,13 @@ html_extra_path_opts = {
     'follow_symlinks': True,
 }
 
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['../_static']
-
 # These paths are either relative to html_static_path
 # or fully qualified paths (eg. https://...)
 html_css_files = [
     'css/base.css',
     'css/lifecycle-timeline.css',
-    'mermaid_custom.css',
+    'css/mermaid_custom.css',
+    'css/versioning.css',
     'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
 ]
 
@@ -190,3 +227,16 @@ autodoc_typehints_format = 'short'
 # -- Options for Mermaid -------------------------------------------------
 
 mermaid_version = '11.12.1'
+
+# -- Options for Multiversion -------------------------------------------------
+
+# Exclude all tags
+smv_tag_whitelist = r'^$'
+
+# Allow only the main branch and any branches that begin with 'release/' to be rendered
+smv_branch_whitelist = r'^main$|^release/.*$'
+smv_remote_whitelist = r'^origin$'
+smv_prefer_remote_refs = False
+
+# Latest version
+smv_latest_version = 'main'

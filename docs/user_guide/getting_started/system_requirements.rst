@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 ..
 
-.. _system_requirements:
+.. _getting_started_system_requirements:
 
 ===================
 System Requirements

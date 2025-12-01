@@ -63,7 +63,7 @@ Setup Guide
        * `Node pools <https://cloud.google.com/kubernetes-engine/docs/concepts/node-pools>`__
      - * **Backend-Operator**: n1-standard-4 (4 vCPUs, 8 GB RAM, auto-scaling: 1-3 nodes)
        * **Compute (CPU)**: n1-standard-8
-       * **Compute (GPU)**: n1-standard-4 with T4/A100, a2-highgpu-1g (A100), a3-highgpu-8g (H100) - `GPUs on Compute Engine <https://cloud.google.com/compute/docs/gpus>`__
+       * **Compute (GPU)**: n1-standard-4 with T4/A100, a2-highgpu-1g (A100), a3-highgpu-8g (H100) - `GPUs on Compute Engine <https://docs.cloud.google.com/compute/docs/gpus>`__
 
 .. note::
 

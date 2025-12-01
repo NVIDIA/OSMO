@@ -39,7 +39,7 @@ Positional Arguments
 ====================
 
 :kbd:`revision`
-   Revision to roll back to in format <CONFIG_TYPE>:<revision>, e.g. SERVICE:12
+   Revision to roll back to in format <CONFIG_TYPE>:<revision>, e.g. ``SERVICE:12``
 
 
 Named Arguments

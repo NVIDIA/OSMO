@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 770" width="100%" style="max-width: 100%; height: auto;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="100%" style="max-width: 100%; height: auto;">
   <defs>
     <style>
       /* Light mode (default) */
@@ -39,7 +39,7 @@
 
       .card-title,
       .card-text {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: var(--pst-font-family-base, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
         font-size: 24px;
         line-height: 1.8;
       }
@@ -116,9 +116,9 @@
   </defs>
 
   <!-- Card 1: Local Deployment -->
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_local.html" class="card-link">
+  <a href="../appendix/deploy_local.html" class="card-link">
     <g id="card-local">
-      <rect class="card-bg" x="30" y="30" width="360" height="710" rx="8"/>
+      <rect class="card-bg" x="30" y="30" width="360" height="740" rx="8"/>
       
       <!-- Computer/Laptop Icon -->
       <g class="icon-color" transform="translate(50, 55) scale(1.5)">
@@ -129,28 +129,29 @@
       
       <text class="card-title" x="50" y="135">Time: <tspan class="card-text" font-weight="400">~10 minutes</tspan></text>
       
-      <text class="card-title" x="50" y="190">Best for: <tspan class="card-text" font-weight="400">Evaluation, learning,</tspan></text>
-      <text class="card-text" x="50" y="230">testing only</text>
+      <text class="card-title" x="50" y="195">Best for: <tspan class="card-text" font-weight="400">Evaluation,</tspan></text>
+      <text class="card-text" x="50" y="235">learning, testing only</text>
       
-      <text class="card-title" x="50" y="295">Key Benefits:</text>
+      <text class="card-title" x="50" y="305">Key Benefits:</text>
       
-      <text class="card-text" x="50" y="340">✓ No cloud costs</text>
-      <text class="card-text" x="50" y="390">✓ No infrastructure setup</text>
-      <text class="card-text" x="50" y="440">✓ Single node deployment</text>
+      <text class="card-text" x="50" y="355">✓ No cloud costs</text>
+      <text class="card-text" x="50" y="400">✓ No infrastructure setup</text>
+      <text class="card-text" x="50" y="445">✓ Single node deployment</text>
       <text class="card-text" x="50" y="490">✓ Limited features</text>
       
-      <text class="card-title" x="50" y="555">Summary:</text>
+      <text class="card-title" x="50" y="560">Summary:</text>
       
-      <text class="card-text" x="50" y="595">Try OSMO on your workstation</text>
-      <text class="card-text" x="50" y="635">with zero cloud costs. Perfect</text>
-      <text class="card-text" x="50" y="675">for evaluating the platform.</text>
+      <text class="card-text" x="50" y="610">Try OSMO on your</text>
+      <text class="card-text" x="50" y="650">workstation with zero cloud</text>
+      <text class="card-text" x="50" y="690">costs. Perfect for evaluating</text>
+      <text class="card-text" x="50" y="730">the platform.</text>
     </g>
   </a>
 
   <!-- Card 2: Minimal Deployment -->
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/appendix/deploy_minimal.html" class="card-link">
+  <a href="../appendix/deploy_minimal.html" class="card-link">
     <g id="card-minimal">
-      <rect class="card-bg" x="420" y="30" width="360" height="710" rx="8"/>
+      <rect class="card-bg" x="420" y="30" width="360" height="740" rx="8"/>
       
       <!-- Rocket Icon -->
       <g class="icon-color" transform="translate(440, 55) scale(1.5)">
@@ -161,28 +162,29 @@
       
       <text class="card-title" x="440" y="135">Time: <tspan class="card-text" font-weight="400">~30 minutes</tspan></text>
       
-      <text class="card-title" x="440" y="190">Best for: <tspan class="card-text" font-weight="400">Evaluation, testing,</tspan></text>
-      <text class="card-text" x="440" y="230">development only</text>
+      <text class="card-title" x="440" y="195">Best for: <tspan class="card-text" font-weight="400">Evaluation,</tspan></text>
+      <text class="card-text" x="440" y="235">testing, development only</text>
       
-      <text class="card-title" x="440" y="295">Key Benefits:</text>
+      <text class="card-title" x="440" y="305">Key Benefits:</text>
       
-      <text class="card-text" x="440" y="340">✓ Cloud-based setup</text>
-      <text class="card-text" x="440" y="390">✓ No authentication</text>
-      <text class="card-text" x="440" y="440">✓ Single namespace</text>
+      <text class="card-text" x="440" y="355">✓ Cloud-based setup</text>
+      <text class="card-text" x="440" y="400">✓ No authentication</text>
+      <text class="card-text" x="440" y="445">✓ Single namespace</text>
       <text class="card-text" x="440" y="490">✓ Limited features</text>
       
-      <text class="card-title" x="440" y="555">Summary:</text>
+      <text class="card-title" x="440" y="560">Summary:</text>
       
-      <text class="card-text" x="440" y="595">Get a feel for the platform and</text>
-      <text class="card-text" x="440" y="635">explore capabilities with this</text>
-      <text class="card-text" x="440" y="675">minimal cloud deployment.</text>
+      <text class="card-text" x="440" y="610">Get a feel for the platform</text>
+      <text class="card-text" x="440" y="650">and explore capabilities with</text>
+      <text class="card-text" x="440" y="690">this minimal cloud</text>
+      <text class="card-text" x="440" y="730">deployment.</text>
     </g>
   </a>
 
   <!-- Card 3: Production Deployment -->
-  <a href="https://nvidia.github.io/OSMO/deployment_guide/requirements/prereqs.html" class="card-link">
+  <a href="../requirements/prereqs.html" class="card-link">
     <g id="card-production">
-      <rect class="card-bg" x="810" y="30" width="360" height="710" rx="8"/>
+      <rect class="card-bg" x="810" y="30" width="360" height="740" rx="8"/>
       
       <!-- Cloud Icon -->
       <g class="icon-color" transform="translate(830, 55) scale(1.5)">
@@ -193,22 +195,22 @@
       
       <text class="card-title" x="830" y="135">Time: <tspan class="card-text" font-weight="400">2-4 hours</tspan></text>
       
-      <text class="card-title" x="830" y="190">Best for: <tspan class="card-text" font-weight="400">Production, Multi-user</tspan></text>
-      <text class="card-text" x="830" y="230">environments</text>
+      <text class="card-title" x="830" y="195">Best for: <tspan class="card-text" font-weight="400">Production,</tspan></text>
+      <text class="card-text" x="830" y="235">multi-user environments</text>
       
-      <text class="card-title" x="830" y="295">Key Benefits:</text>
+      <text class="card-title" x="830" y="305">Key Benefits:</text>
       
-      <text class="card-text" x="830" y="340">✓ Production-ready</text>
-      <text class="card-text" x="830" y="390">✓ SSO authentication</text>
-      <text class="card-text" x="830" y="440">✓ Multi-backend support</text>
+      <text class="card-text" x="830" y="355">✓ Production-ready</text>
+      <text class="card-text" x="830" y="400">✓ SSO authentication</text>
+      <text class="card-text" x="830" y="445">✓ Multi-backend support</text>
       <text class="card-text" x="830" y="490">✓ Interactive workflows</text>
       
-      <text class="card-title" x="830" y="555">Summary:</text>
+      <text class="card-title" x="830" y="560">Summary:</text>
       
-      <text class="card-text" x="830" y="595">Complete production-ready</text>
-      <text class="card-text" x="830" y="635">deployment with SSO, data</text>
-      <text class="card-text" x="830" y="675">storage, monitoring, and multi-</text>
-      <text class="card-text" x="830" y="715">backend support.</text>
+      <text class="card-text" x="830" y="610">Complete production-ready</text>
+      <text class="card-text" x="830" y="650">deployment with SSO, data</text>
+      <text class="card-text" x="830" y="690">storage, monitoring, and</text>
+      <text class="card-text" x="830" y="730">multi-backend support.</text>
     </g>
   </a>
 </svg>
