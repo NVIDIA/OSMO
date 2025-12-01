@@ -114,6 +114,10 @@ spec:
         - {{ .Values.services.backendListener.podCacheTtl | quote }}
         - --include_namespace_usage
         - {{ .Values.global.includeNamespaceUsage | quote }}
+        - --api_qps
+        - {{ .Values.services.backendListener.apiQps | quote }}
+        - --api_burst
+        - {{ .Values.services.backendListener.apiBurst | quote }}
         {{- range $arg := .Values.services.backendListener.extraArgs }}
         - {{$arg}}
         {{- end }}
