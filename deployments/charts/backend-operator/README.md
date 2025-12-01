@@ -119,6 +119,8 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.resources.requests.memory` | Memory requests | `16Gi` |
 | `services.backendListener.resources.limits.cpu` | CPU limits | `2` |
 | `services.backendListener.resources.limits.memory` | Memory limits | `16Gi` |
+| `services.backendListener.apiQps` | QPS (Queries Per Second) to Kube-API Server | `20` |
+| `services.backendListener.apiBurst` | API Burst Setting for Kube-API requests | `30` |
 
 #### Backend Worker
 

@@ -328,6 +328,14 @@ services:
       limits:
         memory: "2Gi"
 
+    ## Kubernetes API client QPS (queries per second) setting.
+    ##
+    apiQps: 20
+
+    ## Kubernetes API client burst setting.
+    ##
+    apiBurst: 30
+
   ## Backend worker configuration
   ## Executes jobs received from the backend listener
   ##
