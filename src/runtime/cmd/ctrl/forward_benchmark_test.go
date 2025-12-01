@@ -114,7 +114,6 @@ var (
 		256 * 1024,      // 256KB
 		1024 * 1024,     // 1MB
 		4 * 1024 * 1024, // 4MB
-		8 * 1024 * 1024, // 8MB
 	}
 
 	// Pre-generated payloads for deterministic benchmarks.
