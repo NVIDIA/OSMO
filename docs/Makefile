@@ -42,6 +42,7 @@ build:
 build-multiversion:
 	export OSMO_DOMAIN=public && $(SPHINXBUILD) . $(OUT_DIR)
 	rm -rf $(OUT_DIR)/_sources
+	@cp _redirect/redirect_user_guide.html $(OUT_DIR)/index.html
 
 build-html:
 	export OSMO_DOMAIN=public && sphinx-build -b html . -w $(ERR_DIR)/build.log $(OUT_DIR)
