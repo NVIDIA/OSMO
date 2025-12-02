@@ -21,6 +21,7 @@ This extension provides a custom directive that wraps sphinxarg.ext's argparse
 directive and adds:
 1. Reference labels (targets) for each subcommand section
 2. Anchor IDs for all arguments (positional and options)
+3. Scoped IDs for subsections to avoid _repeat1, _repeat2 suffixes
 
 Usage:
     .. argparse-with-postprocess::
@@ -34,6 +35,9 @@ Usage:
     This will automatically generate reference labels like:
     - cli_reference_workflow_submit
     - cli_reference_workflow_restart
+    - cli_reference_workflow_submit_positional_arguments
+    - cli_reference_workflow_submit_named_arguments
+    - cli_reference_workflow_submit_examples
     - cli_reference_workflow_submit_format_type (if :argument-anchor: is set)
     - cli_reference_workflow_submit_workflow_file (if :argument-anchor: is set)
 
@@ -128,6 +132,47 @@ def add_argument_refs(
                     LOGGER.debug(f"Added argument ref: {arg_id}")
 
 
+def add_subsection_refs(
+    section: nodes.section,
+    env,
+    parent_ref: str,
+    docname: str
+) -> None:
+    """Add scoped reference targets to ALL subsections within a section.
+
+    This prevents docutils from adding _repeat1, _repeat2 suffixes
+    by giving each subsection a unique, hierarchically scoped ID.
+    """
+    for child in section.children:
+        if not isinstance(child, nodes.section):
+            continue
+
+        # Get the title of this subsection
+        if not child.children or not isinstance(child[0], nodes.title):
+            continue
+
+        title = child[0].astext()
+        slug = slugify(title)
+
+        if not slug:
+            continue
+
+        ref_id = f"{parent_ref}_{slug}"
+
+        # Replace the existing IDs with our scoped one
+        # This removes the original unscoped ID that causes _repeat suffixes
+        child['ids'] = [ref_id]
+
+        # Register with Sphinx's standard domain
+        std_domain = env.get_domain('std')
+        std_domain.anonlabels[ref_id] = (docname, ref_id)
+        std_domain.labels[ref_id] = (docname, ref_id, title)
+        LOGGER.debug(f"Added subsection ref: {ref_id}")
+
+        # Recursively handle nested subsections
+        add_subsection_refs(child, env, ref_id, docname)
+
+
 def add_subcommand_refs(
     result_nodes: List[nodes.Node],
     env,
@@ -188,6 +233,9 @@ def add_subcommand_refs(
                 std_domain.anonlabels[ref_id] = (docname, ref_id)
                 std_domain.labels[ref_id] = (docname, ref_id, title)
                 LOGGER.debug(f"Added subcommand ref: {ref_id} -> {title}")
+
+            # Add scoped refs for ALL subsections (prevents _repeat suffixes)
+            add_subsection_refs(child, env, ref_id, docname)
 
             # Add refs for arguments within this subcommand if requested
             if add_argument_anchors:
