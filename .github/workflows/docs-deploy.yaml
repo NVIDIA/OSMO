@@ -99,5 +99,7 @@ jobs:
         with:
           branch: gh-pages/documentation
           folder: docs/public
-          clean-exclude: pr-preview/
+          clean-exclude: |
+            pr-preview/
+            .nojekyll
           force: false
