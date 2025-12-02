@@ -323,9 +323,14 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             </fieldset>
             <FilterButton
               showFilters={showFilters}
-              setShowFilters={setShowFilters}
-              filterCount={filterCount}
+              setShowFilters={(showFilters) => {
+                if (view === ViewType.List) {
+                  setShowFilters(showFilters);
+                }
+              }}
+              filterCount={view === ViewType.List ? filterCount : 0}
               aria-controls="tasks-filters"
+              aria-disabled={view !== ViewType.List}
             />
           </>
         )}
