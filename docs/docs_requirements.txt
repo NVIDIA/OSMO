@@ -20,6 +20,7 @@
 # pip-compile ./docs_requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
 # Building documentation
+commonmark==0.9.1
 nvidia-sphinx-theme==0.0.8
 sphinx==7.4.7
 sphinx-argparse==0.5.2
