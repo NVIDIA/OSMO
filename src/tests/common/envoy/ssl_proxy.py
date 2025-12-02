@@ -175,16 +175,16 @@ class SSLProxy(network.NetworkAwareContainer):
         # Wait for certs and config to be copied into the container before starting envoy
         # This ensures that envoy is started in the main process, allowing logs to be
         # inspected via docker logs
-        startup_script = """#!/bin/sh
-        echo "Waiting for config files..."
-        while [ ! -f /etc/envoy/envoy.yaml ] || \
-            [ ! -f /etc/envoy/certs/cert.pem ] || \
-            [ ! -f /etc/envoy/certs/key.pem ]; do
-            sleep 0.5
-        done
-        echo "Files found, starting Envoy..."
-        exec envoy -c /etc/envoy/envoy.yaml
-        """
+        startup_script = '''#!/bin/sh
+echo 'Waiting for config files...'
+while [ ! -f /etc/envoy/envoy.yaml ] || \
+    [ ! -f /etc/envoy/certs/cert.pem ] || \
+    [ ! -f /etc/envoy/certs/key.pem ]; do
+    sleep 0.5
+done
+echo 'Files found, starting Envoy...'
+exec envoy -c /etc/envoy/envoy.yaml
+'''
         self.with_command(f'/bin/sh -c "{startup_script}"')
 
     @waiting_utils.wait_container_is_ready(
@@ -263,6 +263,8 @@ class SslProxyFixture(network.NetworkFixture):
 
         logger.info('Waiting for Envoy SSL Proxy testcontainer to be ready ...')
         cls.ssl_proxy.start()
+        utils.patch_requests_session_for_ssl_verification()
+
         logger.info('Envoy SSL Proxy testcontainer is ready.')
 
     @classmethod
@@ -270,5 +272,6 @@ class SslProxyFixture(network.NetworkFixture):
         logger.info('Tearing down Envoy SSL Proxy testcontainer.')
         try:
             cls.ssl_proxy.stop()
+            utils.restore_requests_session_init()
         finally:
             super().tearDownClass()

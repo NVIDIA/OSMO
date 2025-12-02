@@ -2926,6 +2926,9 @@ class ActionPermissions(pydantic.BaseModel):
     cancel: PermissionLevel = PermissionLevel.PRIVATE
     rsync: PermissionLevel = PermissionLevel.PRIVATE
 
+    class Config:
+        use_enum_values = True
+
 class PoolResourceCountable(pydantic.BaseModel):
     """
     Resources like GPU or CPU that have a discrete number. For guarantee and maximum, a value of -1
