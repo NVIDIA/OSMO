@@ -22,6 +22,7 @@
 # Building documentation
 nvidia-sphinx-theme==0.0.8
 sphinx==7.4.7
+sphinx-argparse==0.5.2
 sphinx-copybutton==0.5.2
 sphinx-design==0.6.1
 sphinx-markdown-builder==0.6.8
