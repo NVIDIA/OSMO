@@ -39,6 +39,7 @@ export const SlideOut = ({
   paused = false,
   dimBackground = true,
   returnFocusOnDeactivate = true,
+  ariaLabel,
   ...props
 }: {
   id: string;
@@ -57,6 +58,7 @@ export const SlideOut = ({
   paused?: boolean;
   dimBackground?: boolean;
   returnFocusOnDeactivate?: boolean;
+  ariaLabel?: string;
 } & React.HTMLAttributes<HTMLDivElement>) => {
   const allowPinning = useMediaQuery("(min-width: 1024px)");
   const isActivated = useRef(false);
@@ -119,7 +121,8 @@ export const SlideOut = ({
           role={localPinned ? "region" : "dialog"}
           aria-live={localPinned ? "polite" : undefined}
           aria-modal={!localPinned}
-          aria-labelledby={header ? `${id}-header` : undefined}
+          aria-label={ariaLabel}
+          aria-labelledby={header && !ariaLabel ? `${id}-header` : undefined}
           className={`text-left flex flex-col ${open ? "block" : "hidden"} ${localPinned ? "relative" : "absolute z-30"} ${position === "right" ? "right-0" : "left-0"} body-component max-h-full ${dimBackground && !localPinned ? "shadow-xl shadow-black/50" : ""} ${className}`}
           style={{
             top: top,

@@ -325,6 +325,7 @@ export default function Workflows() {
           className="workflow-details-slideout border-t-0"
           headerClassName="brand-header"
           bodyClassName="dag-details-body"
+          ariaLabel={`Workflow Details for ${selectedWorkflowName}`}
         >
           {selectedWorkflow.isLoading ? (
             <div className="flex justify-center items-center h-full">
