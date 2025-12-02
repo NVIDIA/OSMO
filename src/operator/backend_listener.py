@@ -1136,7 +1136,9 @@ def watch_pod_events(progress_writer: progress.ProgressWriter,
                             yield pod
                     refreshed_resource_state = False
 
-                for event in watcher.stream(api.list_pod_for_all_namespaces, timeout_seconds=0,
+                for event in watcher.stream(api.list_namespaced_pod,
+                                            namespace=config.namespace,
+                                            timeout_seconds=0,
                                             _request_timeout=TIMEOUT_SEC,
                                             resource_version=last_resource_version):
                     progress_writer.report_progress()
