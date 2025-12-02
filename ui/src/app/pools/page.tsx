@@ -104,7 +104,11 @@ export default function Pools() {
             onRefresh={forceRefetch}
           />
         </SlideOut>
-        <div className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden">
+        <div
+          className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden"
+          role="list"
+          aria-label="Pool usage gauges"
+        >
           <AggregatePanels
             totals={processPools.totalResources}
             isLoading={isFetching}
