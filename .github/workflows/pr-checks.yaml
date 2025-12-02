@@ -134,7 +134,7 @@ jobs:
       (
         needs.check-paths.outputs.ci == 'true' &&
         github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.fork == false
+        github.event.pull_request.head.repo.fork == false &&
         github.event.action != 'closed'
       )
     runs-on: self-hosted
