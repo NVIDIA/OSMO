@@ -43,7 +43,7 @@ concurrency:
 
 jobs:
   # Build job for Sphinx documentation
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -89,11 +89,6 @@ jobs:
         with:
           path: 'docs/public/'
 
-  # Deploy job
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
