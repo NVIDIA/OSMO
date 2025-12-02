@@ -25,11 +25,11 @@ SOURCEDIR   = .
 OUT_DIR     = _build/public/out
 ERR_DIR     = _build/public/err
 
-# Set PYTHONPATH for all targets (includes docs folder and external for src module)
+# Set PYTHONPATH for all targets (includes docs folder and repo root for src module)
 DOCS_PATH := $(CURDIR)
-EXTERNAL_PATH := $(CURDIR)/../../external
+REPO_ROOT := $(CURDIR)/..
 ifeq (,$(findstring $(DOCS_PATH),$(PYTHONPATH)))
-  export PYTHONPATH := $(DOCS_PATH):$(EXTERNAL_PATH):$(PYTHONPATH)
+  export PYTHONPATH := $(DOCS_PATH):$(REPO_ROOT):$(PYTHONPATH)
 endif
 
 # Put it first so that "make" without argument is like "make help".
