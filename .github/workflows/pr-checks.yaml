@@ -199,6 +199,15 @@ jobs:
       - name: Build Sphinx documentation
         run: |
           make -C docs build-html ERR_DIR=build_error_logs OUT_DIR=public
+
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./docs/public/
+          preview-branch: gh-pages/documentation
+
+      - name: Run spelling and linkcheck
+        run: |
           make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
           make -C docs linkcheck ERR_DIR=linkcheck_error_logs OUT_DIR=public
 
@@ -239,12 +248,6 @@ jobs:
             docs/spelling_error_logs/
             docs/linkcheck_error_logs/
           retention-days: 3
-
-      - name: Deploy preview
-        uses: rossjrw/pr-preview-action@v1
-        with:
-          source-dir: ./docs/public/
-          preview-branch: gh-pages/documentation
 
   #######################
   #      CI Docs        #
