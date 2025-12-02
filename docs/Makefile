@@ -25,6 +25,13 @@ SOURCEDIR   = .
 OUT_DIR     = _build/public/out
 ERR_DIR     = _build/public/err
 
+# Set PYTHONPATH for all targets (includes docs folder and external for src module)
+DOCS_PATH := $(CURDIR)
+EXTERNAL_PATH := $(CURDIR)/../../external
+ifeq (,$(findstring $(DOCS_PATH),$(PYTHONPATH)))
+  export PYTHONPATH := $(DOCS_PATH):$(EXTERNAL_PATH):$(PYTHONPATH)
+endif
+
 # Put it first so that "make" without argument is like "make help".
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)

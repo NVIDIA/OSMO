@@ -22,11 +22,7 @@ from pathlib import Path
 
 # Add the directory containing conf.py to the path so custom extensions can be found
 # This is important for sphinx-multiversion which runs from temporary directories
-parent_dir = Path(__file__).parent.resolve()
-parent_parent_dir = parent_dir.parent.resolve()
-
-sys.path.insert(0, str(parent_parent_dir))
-sys.path.insert(0, str(parent_dir))
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 # -- Project information -----------------------------------------------------
 
