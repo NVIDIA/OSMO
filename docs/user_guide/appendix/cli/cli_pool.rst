@@ -23,65 +23,10 @@
 osmo pool
 ================================================
 
-.. code-block::
-
-   usage: osmo pool [-h] {list} ...
-
-Positional Arguments
-====================
-
-:kbd:`command`
-   Possible choices: list
-
-Sub-commands
-============
-
-.. _cli_reference_pool_list:
-
-list
-----
-
-Pool resource display formats::
-
-  Mode           | Description
-  ---------------|----------------------------------------------------
-  Used (default) | Shows the number of GPUs used and total GPUs
-  Free           | Shows the number of GPUs available for use
-
-Display table columns::
-
-  Column          | Description
-  ----------------|----------------------------------------------------
-  Quota Limit     | Max GPUs for HIGH/NORMAL priority workflows
-  Quota Used      | GPUs used by HIGH/NORMAL priority workflows
-  Quota Free      | Available GPUs for HIGH/NORMAL priority workflows
-  Total Capacity  | Total GPUs available on nodes in the pool
-  Total Usage     | Total GPUs used by all workflows in pool
-  Total Free      | Free GPUs on nodes in the pool
-
-
-.. code-block::
-
-   osmo pool list [-h] [--pool POOL [POOL ...]] [--format-type {json,text}] [--mode {free,used}]
-
-Named Arguments
-~~~~~~~~~~~~~~~
-
---pool, -p
-   Display resources for specified pool.
-
-   Default: ``[]``
-
---format-type, -t
-   Possible choices: json, text
-
-   Specify the output format type (Default text).
-
-   Default: ``'text'``
-
---mode, -m
-   Possible choices: free, used
-
-   Show free or used resources (Default used).
-
-   Default: ``'used'``
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: pool
+   :ref-prefix: cli_reference_pool
+   :argument-anchor:

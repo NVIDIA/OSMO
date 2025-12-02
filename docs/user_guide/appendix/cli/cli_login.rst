@@ -23,43 +23,10 @@
 osmo login
 ================================================
 
-.. code-block::
-
-   usage: osmo login [-h] [--device-endpoint DEVICE_ENDPOINT] [--method {code,password,token,dev}] [--username USERNAME]
-                  [--password PASSWORD | --password-file PASSWORD_FILE] [--token TOKEN | --token-file TOKEN_FILE]
-                  url
-
-Positional Arguments
-====================
-
-:kbd:`url`
-   The url of the osmo server to connect to
-
-
-Named Arguments
-===============
-
---device-endpoint
-   The url to use to completed device flow authentication. If not provided, it will be fetched from the service.
-
---method
-   Possible choices: code, password, token, dev
-
-   code: Get a device code and url to log in securely through browser. password: Provide username and password directly through CLI. token: Read an idToken directly from a file.
-
-   Default: ``'code'``
-
---username
-   Username if logging in with credentials. This should only be used for service accounts that cannot authenticate via web browser.
-
---password
-   Password if logging in with credentials.
-
---password-file
-   File containing password if logging in with credentials.
-
---token
-   Token if logging in with credentials.
-
---token-file
-   File containing the refresh token URL, with all parameters appended.
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: login
+   :ref-prefix: cli_reference_login
+   :argument-anchor:
