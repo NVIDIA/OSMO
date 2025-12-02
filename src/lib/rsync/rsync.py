@@ -33,7 +33,6 @@ import socket
 import sys
 from typing import Callable, Dict, List, Set, Tuple
 
-from python import runfiles  # type: ignore
 import requests
 from watchdog import events, observers  # type: ignore
 from watchdog.observers import api  # type: ignore
@@ -50,7 +49,6 @@ from ..utils import (
     validation
 )
 
-BAZEL_RSYNC_BIN = 'osmo_workspace/src/lib/rsync/rsync_bin'
 RSYNC_BUFFER_SIZE = 8 * 1024  # 8KB
 RSYNC_FLAGS = '-av'
 LOCAL_HOST_IP = '127.0.0.1'
@@ -335,14 +333,6 @@ class RsyncClient:
     @staticmethod
     def _resolve_rsync_bin_path() -> str:
         """Resolve the path to the rsync binary."""
-        # If we are running in a Bazel environment
-        bazel_runfiles = runfiles.Runfiles.Create()
-        if bazel_runfiles is not None:
-            bin_path = bazel_runfiles.Rlocation(BAZEL_RSYNC_BIN)
-            if bin_path is not None:
-                return bin_path
-
-        # Fallback to local path
         current_dir = os.path.dirname(os.path.realpath(__file__))
         rsync_bin_path = os.path.join(current_dir, 'rsync_bin')
 

@@ -19,9 +19,14 @@
 import sys
 from pathlib import Path
 
+
 # Add the directory containing conf.py to the path so custom extensions can be found
 # This is important for sphinx-multiversion which runs from temporary directories
-sys.path.insert(0, str(Path(__file__).parent.resolve()))
+parent_dir = Path(__file__).parent.resolve()
+parent_parent_dir = parent_dir.parent.resolve()
+
+sys.path.insert(0, str(parent_parent_dir))
+sys.path.insert(0, str(parent_dir))
 
 # -- Project information -----------------------------------------------------
 
@@ -45,18 +50,20 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
+    'sphinxarg.ext',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
     'sphinx_reredirects',
 
     # Custom extensions
+    '_extensions.argparse_postprocess',
     '_extensions.auto_include',
     '_extensions.code_annotations',
     '_extensions.collapsible_code_block',
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
-    
+
     # Theme extension
     '_extensions.nvidia_theme_override',
 ]
@@ -141,7 +148,7 @@ html_theme_options = {
     "github_url": "https://github.com/NVIDIA/OSMO/",
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["versioning.html","theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["versioning.html", "theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
