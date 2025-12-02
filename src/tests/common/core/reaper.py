@@ -135,6 +135,8 @@ class ReaperFixture(network.NetworkFixture):
 
         patch_reaper_create_instance(cls.reaper)
 
+        container.Reaper.get_instance()  # Explicitly trigger reaper to start
+
     @classmethod
     def tearDownClass(cls):
         try:
