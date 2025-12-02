@@ -27,6 +27,7 @@ from functools import cache
 
 import boto3
 import docker  # type: ignore
+import requests
 from testcontainers.core import config, utils  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -43,24 +44,35 @@ config.testcontainers_config.sleep_time = 1
 config.testcontainers_config.ryuk_image = f'{DOCKER_HUB_REGISTRY}/{config.RYUK_IMAGE}'
 
 # Save the original boto3.Session function to allow restoration
-_OriginalSession = boto3.Session
+_ORIGINAL_BOTO3_SESSION = boto3.Session
+
+# Save the original requests.Session.__init__ to allow restoration
+_ORIGINAL_SESSION_INIT = requests.Session.__init__
+
+
+def _patched_boto3_session(*args, **kwargs):
+    """
+    Patched boto3.Session that disables SSL verification globally.
+    """
+    session = _ORIGINAL_BOTO3_SESSION(*args, **kwargs)
+    original_session_client = session.client
+
+    def _patched_session_client(service_name, **client_kwargs):
+        if 'verify' not in client_kwargs:
+            client_kwargs['verify'] = False
+        return original_session_client(service_name, **client_kwargs)
+
+    setattr(session, 'client', _patched_session_client)
+    return session
 
 
 def patch_boto3_session_for_ssl_verification():
     """
     Patches boto3.Session to disable SSL verification globally
     """
-    def _patched_boto3_session(*args, **kwargs):
-        session = _OriginalSession(*args, **kwargs)
-        original_session_client = session.client
-
-        def _patched_session_client(service_name, **client_kwargs):
-            if 'verify' not in client_kwargs:
-                client_kwargs['verify'] = False
-            return original_session_client(service_name, **client_kwargs)
-
-        setattr(session, 'client', _patched_session_client)
-        return session
+    if boto3.Session is _patched_boto3_session:
+        # Already patched, do nothing
+        return
 
     setattr(boto3, 'Session', _patched_boto3_session)
 
@@ -69,17 +81,47 @@ def restore_boto3_session():
     """
     Restores the original boto3.Session
     """
-    setattr(boto3, 'Session', _OriginalSession)
+    setattr(boto3, 'Session', _ORIGINAL_BOTO3_SESSION)
 
-#patch added for CVE-2025-8194 - to prevent tarfile.InvalidHeaderError
+
+def _patched_session_init(self, *args, **kwargs):
+    """
+    Patched __init__ for requests.Session that disables SSL verification.
+    """
+    _ORIGINAL_SESSION_INIT(self, *args, **kwargs)
+    self.verify = False
+
+
+def patch_requests_session_for_ssl_verification():
+    """
+    Patches requests.Session to disable SSL verification.
+    """
+    if requests.Session.__init__ is _patched_session_init:
+        # Already patched, do nothing
+        return
+
+    setattr(requests.Session, '__init__', _patched_session_init)
+
+
+def restore_requests_session_init():
+    """
+    Restores the original requests.Session.__init__
+    """
+    setattr(requests.Session, '__init__', _ORIGINAL_SESSION_INIT)
+
+
+# patch added for CVE-2025-8194 - to prevent tarfile.InvalidHeaderError
 _ORIGINAL_TARINFO_BLOCK = getattr(tarfile.TarInfo, '_block')
+
 
 def _patched_tarinfo_block(self, count):
     if count < 0:
-        raise tarfile.InvalidHeaderError('invalid offset') # type: ignore[attr-defined]
+        raise tarfile.InvalidHeaderError('invalid offset')  # type: ignore[attr-defined]
     return _ORIGINAL_TARINFO_BLOCK(self, count)
 
+
 setattr(tarfile.TarInfo, '_block', _patched_tarinfo_block)
+
 
 def copy_file_to_container(container, host_path, container_path):
     """

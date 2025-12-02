@@ -44,9 +44,16 @@ from . import osmo_errors
 
 # If no registry hostname is provided, default to dockerhub
 DEFAULT_REGISTRY = 'registry-1.docker.io'
-# Regex rules for parsing docker images
-HOST_REGEX = r'(?P<host>[a-zA-Z0-9._-]+\.[a-zA-Z0-9]+)'
+
+# Docker registry hostnames (either IP or DNS name)
+IP_COMPONENT = r'([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])'
+IP_REGEX = fr'({IP_COMPONENT}\.){3}{IP_COMPONENT}'
+HOST_NAME_COMPONENT = r'[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?'
+HOST_NAME_REGEX = fr'({HOST_NAME_COMPONENT}\.)*({HOST_NAME_COMPONENT})'
+HOST_REGEX = fr'(?P<host>({IP_REGEX}|{HOST_NAME_REGEX}))'
 PORT_REGEX = r'(?P<port>[0-9]{1,5})'
+
+# Regex rules for parsing docker images
 NAME_COMPONENT = r'([0-9a-z][0-9a-z_.-]*[0-9a-z])'
 NAME_REGEX = fr'(?P<name>{NAME_COMPONENT}(/{NAME_COMPONENT})*)'
 TAG_REGEX = r'(?P<tag>[a-zA-Z0-9_][a-zA-Z0-9._-]+)'

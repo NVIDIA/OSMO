@@ -16,19 +16,26 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from src.tests.common.core import network, reaper
-from src.tests.common.database import postgres
-from src.tests.common.envoy import ssl_proxy
-from src.tests.common.storage import redis, swift, s3
+from src.tests.common.core.network import NetworkFixture
+from src.tests.common.core.reaper import ReaperFixture
+from src.tests.common.database.postgres import PostgresFixture, PostgresTestIsolationFixture
+from src.tests.common.envoy.ssl_proxy import SslProxyFixture
+from src.tests.common.registry.registry import DockerRegistryFixture
+from src.tests.common.storage.swift import SwiftStorageFixture
+from src.tests.common.storage.s3 import S3StorageFixture
+from src.tests.common.storage.redis import RedisStorageFixture
 
-NetworkFixture = network.NetworkFixture
-ReaperFixture = reaper.ReaperFixture
-PostgresFixture = postgres.PostgresFixture
-PostgresTestIsolationFixture = postgres.PostgresTestIsolationFixture
-SslProxyFixture = ssl_proxy.SslProxyFixture
-SwiftStorageFixture = swift.SwiftStorageFixture
-S3StorageFixture = s3.S3StorageFixture
-RedisStorageFixture = redis.RedisStorageFixture
+__all__ = [
+    "DockerRegistryFixture",
+    "NetworkFixture",
+    "PostgresFixture",
+    "PostgresTestIsolationFixture",
+    "RedisStorageFixture",
+    "ReaperFixture",
+    "SslProxyFixture",
+    "SwiftStorageFixture",
+    "S3StorageFixture",
+]
 
 
 class OsmoTestFixture(ReaperFixture, NetworkFixture):
