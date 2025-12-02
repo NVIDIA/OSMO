@@ -79,33 +79,6 @@ class WorkflowServiceTestCase(
         # Create a test image
         cls.registry_container.create_image(cls.TEST_IMAGE_NAME)
 
-    def test_submit_workflow_success(self):
-        # Arrange
-        pool_name = 'test_pool'
-        backend_name = 'test_backend'
-        platform_name = 'test_platform'
-        self.create_backend(backend_name)
-        self.create_pool(pool_name, backend_name, platform_name)
-        workflow_template = self.create_workflow_template(platform_name)
-
-        # Act
-        response = self.client.post(
-            f'/api/pool/{pool_name}/workflow',
-            json=workflow_template.dict(),
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('name', response.json())
-        workflow_obj = workflow.Workflow.fetch_from_db(
-            postgres.PostgresConnector.get_instance(),
-            response.json()['name'],
-        )
-        self.assertEqual(workflow_obj.status, workflow.WorkflowStatus.PENDING)
-        self.assertTrue(
-            self.is_workflow_job_in_queue(f'dedupe:{workflow_obj.workflow_uuid}-submit'),
-        )
-
     def create_backend(self, backend_name: str):
         postgres_connector = postgres.PostgresConnector.get_instance()
         message = backend_messages.InitBody(
@@ -189,6 +162,33 @@ class WorkflowServiceTestCase(
         logger.info('Checking if job %s is in queue', job_key)
         redis_client = self.redis_container.get_client()
         return redis_client.get(job_key) is not None
+
+    def test_submit_workflow_success(self):
+        # Arrange
+        pool_name = 'test_pool'
+        backend_name = 'test_backend'
+        platform_name = 'test_platform'
+        self.create_backend(backend_name)
+        self.create_pool(pool_name, backend_name, platform_name)
+        workflow_template = self.create_workflow_template(platform_name)
+
+        # Act
+        response = self.client.post(
+            f'/api/pool/{pool_name}/workflow',
+            json=workflow_template.dict(),
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('name', response.json())
+        workflow_obj = workflow.Workflow.fetch_from_db(
+            postgres.PostgresConnector.get_instance(),
+            response.json()['name'],
+        )
+        self.assertEqual(workflow_obj.status, workflow.WorkflowStatus.PENDING)
+        self.assertTrue(
+            self.is_workflow_job_in_queue(f'dedupe:{workflow_obj.workflow_uuid}-submit'),
+        )
 
 
 if __name__ == '__main__':
