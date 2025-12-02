@@ -37,6 +37,7 @@ export const Checkbox = ({
           appearance-none w-full h-full border-1 border-gray-400 rounded-none bg-white
           checked:bg-brand checked:border-0
           disabled:opacity-50 disabled:cursor-not-allowed
+          focus-visible:outline-offset-2
         `}
         {...props}
       />
