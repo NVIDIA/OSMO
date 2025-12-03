@@ -20,36 +20,15 @@ import { type PropsWithChildren, useEffect, useRef, useState } from "react";
 import { ThemeProvider } from "next-themes";
 
 import { env } from "~/env.mjs";
-import { type AuthClaims } from "~/models/auth-model";
 import { ZERO_WIDTH_SPACE } from "~/utils/string";
 
-import { useAuth } from "./AuthProvider";
-import { FilledIcon, OutlinedIcon } from "./Icon";
-import { NavbarProfileMenu } from "./NavbarProfileMenu";
+import { OutlinedIcon } from "./Icon";
 import { HeaderOutlet, PageHeaderProvider, TitleOutlet } from "./PageHeaderProvider";
 import { SlideOut } from "./SlideOut";
 import { TopMenu } from "./TopMenu";
 
-const getUserDetails = (claims: AuthClaims | null) => {
-  if (!claims) {
-    return { initials: "NA", userName: "Guest" };
-  }
-
-  const { given_name, family_name, name } = claims;
-  const first = (given_name ?? name ?? "").charAt(0).toUpperCase();
-  const last = (family_name ?? name?.split(" ")[1] ?? "").charAt(0).toUpperCase();
-
-  return {
-    initials: `${first}${last}`,
-    userName: `${name}`,
-  };
-};
-
 export const Layout = ({ children }: PropsWithChildren) => {
-  const auth = useAuth();
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [mainMenuOpen, setMainMenuOpen] = useState(false);
-  const { initials, userName } = getUserDetails(auth.claims);
   const headerRef = useRef<HTMLDivElement>(null);
   const mainMenuButtonRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -135,30 +114,6 @@ export const Layout = ({ children }: PropsWithChildren) => {
               </div>
               <HeaderOutlet />
             </div>
-            <button
-              className="btn btn-tertiary p-0"
-              aria-expanded={profileMenuOpen}
-              aria-haspopup="true"
-              aria-controls="profile-menu"
-              onClick={() => {
-                if (!profileMenuOpen) {
-                  setProfileMenuOpen(true);
-                }
-              }}
-            >
-              <FilledIcon
-                name="account_circle"
-                className="block! lg:hidden! text-blue-800"
-              />
-              <div className="hidden lg:flex flex-row items-center pl-0 pr-2 gap-0 relative">
-                <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>
-                <span className="ml-1 ">{userName}</span>
-                <OutlinedIcon
-                  className="bg-transparent absolute bottom-[-0.5rem] right-0"
-                  name="arrow_drop_down"
-                />
-              </div>
-            </button>
           </header>
           <main
             id="main-content"
@@ -172,39 +127,17 @@ export const Layout = ({ children }: PropsWithChildren) => {
               open={mainMenuOpen}
               onClose={() => setMainMenuOpen(false)}
               dimBackground={false}
-              className="border-t-0 h-full shadow-2xl"
+              className="border-t-0 h-full shadow-lg shadow-black/50 min-w-80"
+              bodyClassName="h-full"
               position="left"
             >
-              <div role="navigation">
-                <ul
-                  className="flex flex-col list-none p-global pr-8"
-                  aria-label="Main menu"
-                >
-                  <TopMenu
-                    className="m-0 py-0"
-                    onItemClick={() => {
-                      setMainMenuOpen(false);
-                      setTimeout(() => {
-                        titleRef.current?.focus();
-                      }, 500);
-                    }}
-                  />
-                </ul>
-              </div>
-            </SlideOut>
-            <SlideOut
-              id="profile-menu"
-              open={profileMenuOpen}
-              onClose={() => {
-                setProfileMenuOpen(false);
-              }}
-              dimBackground={false}
-              className="border-t-0"
-            >
-              <NavbarProfileMenu
-                onItemClick={() => setProfileMenuOpen(false)}
-                userName={userName}
-                initials={initials}
+              <TopMenu
+                onItemClick={() => {
+                  setMainMenuOpen(false);
+                  setTimeout(() => {
+                    titleRef.current?.focus();
+                  }, 500);
+                }}
               />
             </SlideOut>
           </main>

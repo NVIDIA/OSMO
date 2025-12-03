@@ -25,9 +25,7 @@ export const metadata = {
 export default function WorkflowsSubmitPage() {
   return (
     <>
-      <PageHeader>
-        <h2 className="grow">Submit Workflow</h2>
-      </PageHeader>
+      <PageHeader title="Workflow Submit" />
       <WorkflowsSubmit />
     </>
   );

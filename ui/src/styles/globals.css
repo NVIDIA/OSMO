@@ -363,6 +363,14 @@ SPDX-License-Identifier: Apache-2.0
       @apply left-1 opacity-100;
     }
   }
+
+  .top-menu {
+    @apply flex flex-col list-none grow;
+
+    li {
+      @apply px-global list-none m-0;
+    }
+  }
 }
 
 * {

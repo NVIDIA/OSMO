@@ -15,82 +15,293 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { OutlinedIcon } from "~/components/Icon";
+import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { UrlTypes, useStore } from "~/components/StoreProvider";
+import useSafeTimeout from "~/hooks/useSafeTimeout";
+import { type AuthClaims } from "~/models/auth-model";
+import { useRuntimeEnv } from "~/runtime-env";
+import { api } from "~/trpc/react";
 
-export const getTopLevelLinks = (
-  sidebarData: Map<UrlTypes, string>,
-): { label: string; to: string; icon: React.ReactNode }[] => [
-  {
-    label: "Pools",
-    to: `/pools${sidebarData.get(UrlTypes.Pools) ?? ""}`,
-    icon: <OutlinedIcon name="pool" />,
-  },
-  {
-    label: "Resources",
-    to: `/resources${sidebarData.get(UrlTypes.Resources) ?? ""}`,
-    icon: <OutlinedIcon name="cloud" />,
-  },
-  {
-    label: "Workflows",
-    to: `/workflows${sidebarData.get(UrlTypes.Workflows) ?? ""}`,
-    icon: <OutlinedIcon name="work_outline" />,
-  },
-  {
-    label: "Tasks",
-    to: `/tasks${sidebarData.get(UrlTypes.Tasks) ?? ""}`,
-    icon: <OutlinedIcon name="task" />,
-  },
-  {
-    label: "Datasets",
-    to: `/datasets${sidebarData.get(UrlTypes.Datasets) ?? ""}`,
-    icon: <OutlinedIcon name="dataset" />,
-  },
-];
+import { useAuth } from "./AuthProvider";
+import { IconButton } from "./IconButton";
+import { InlineBanner } from "./InlineBanner";
+import { SlideOut } from "./SlideOut";
+import { TextInput } from "./TextInput";
 
-export const TopMenu = ({
-  showIcons = true,
+const getUserDetails = (claims: AuthClaims | null) => {
+  if (!claims) {
+    return { initials: "NA", userName: "Guest" };
+  }
+
+  const { given_name, family_name, name } = claims;
+  const first = (given_name ?? name ?? "").charAt(0).toUpperCase();
+  const last = (family_name ?? name?.split(" ")[1] ?? "").charAt(0).toUpperCase();
+
+  return {
+    initials: `${first}${last}`,
+    userName: `${name}`,
+  };
+};
+
+const MenuLink = ({
+  key,
+  label,
+  to,
+  icon,
+  isActive,
   onItemClick,
-  className = "",
 }: {
-  showIcons?: boolean;
-  onItemClick?: () => void;
-  className?: string;
+  key: string;
+  label: string;
+  to: string;
+  icon: React.ReactNode;
+  isActive: boolean;
+  onItemClick: () => void;
 }) => {
+  return (
+    <li key={key}>
+      <Link
+        href={to}
+        className={`btn btn-link no-underline m-0 p-0 ${isActive ? "font-bold" : ""}`}
+        aria-current={isActive}
+        onClick={onItemClick}
+      >
+        {icon}
+        {label}
+      </Link>
+    </li>
+  );
+};
+
+const MenuExternalLink = ({
+  key,
+  label,
+  href,
+  icon,
+}: {
+  key: string;
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+}) => {
+  return (
+    <li key={key}>
+      <a
+        target="_blank"
+        rel="noopener noreferrer"
+        href={href}
+        className="btn btn-link no-underline m-0 p-0"
+      >
+        {icon}
+        {label}
+      </a>
+    </li>
+  );
+};
+
+const MenuSeparator = () => {
+  return <li className="list-none border-b border-border pt-global mb-global" />;
+};
+
+export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
+  const auth = useAuth();
+  const runtimeEnv = useRuntimeEnv();
   const { sidebarData } = useStore();
-  const links = getTopLevelLinks(sidebarData);
   const pathname = usePathname();
-  const [activeLink, setActiveLink] = useState<number>(0);
+  const [activeRoute, setActiveRoute] = useState<string | undefined>(undefined);
+  const { initials, userName } = getUserDetails(auth.claims);
+  const [openCLI, setOpenCLI] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const cliCurl = `curl -fsSL ${runtimeEnv.CLI_INSTALL_SCRIPT_URL} | bash`;
+  const { setSafeTimeout } = useSafeTimeout();
+
+  const version = api.version.get.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const links = useMemo((): React.ReactNode[] => {
+    const links: React.ReactNode[] = [
+      <MenuLink
+        key="pools"
+        label="Pools"
+        to={`/pools${sidebarData.get(UrlTypes.Pools) ?? ""}`}
+        icon={<OutlinedIcon name="pool" />}
+        isActive={activeRoute === "pools"}
+        onItemClick={onItemClick}
+      />,
+      <MenuLink
+        key="resources"
+        label="Resources"
+        to={`/resources${sidebarData.get(UrlTypes.Resources) ?? ""}`}
+        icon={<OutlinedIcon name="cloud" />}
+        isActive={activeRoute === "resources"}
+        onItemClick={onItemClick}
+      />,
+      <MenuLink
+        key="workflows"
+        label="Workflows"
+        to={`/workflows${sidebarData.get(UrlTypes.Workflows) ?? ""}`}
+        icon={<OutlinedIcon name="work_outline" />}
+        isActive={activeRoute === "workflows" && pathname !== "/workflows/submit"}
+        onItemClick={onItemClick}
+      />,
+      <MenuLink
+        key="tasks"
+        label="Tasks"
+        to={`/tasks${sidebarData.get(UrlTypes.Tasks) ?? ""}`}
+        icon={<OutlinedIcon name="task" />}
+        isActive={activeRoute === "tasks"}
+        onItemClick={onItemClick}
+      />,
+      <MenuLink
+        key="datasets"
+        label="Datasets"
+        to={`/datasets${sidebarData.get(UrlTypes.Datasets) ?? ""}`}
+        icon={<OutlinedIcon name="dataset" />}
+        isActive={activeRoute === "datasets"}
+        onItemClick={onItemClick}
+      />,
+    ];
+
+    if (auth.claims) {
+      links.push(
+        <MenuLink
+          key="profile"
+          label="Profile"
+          to={`/profile`}
+          icon={<OutlinedIcon name="person" />}
+          isActive={activeRoute === "profile"}
+          onItemClick={onItemClick}
+        />,
+      );
+    }
+
+    links.push(<MenuSeparator />);
+
+    links.push(
+      <MenuExternalLink
+        key="docs"
+        label="Documentation"
+        href={runtimeEnv.DOCS_BASE_URL}
+        icon={<FilledIcon name="menu_book" />}
+      />,
+    );
+
+    links.push(
+      <li key="download-cli">
+        <IconButton
+          alwaysShowText
+          icon="download"
+          text="Download CLI"
+          className="btn btn-link no-underline m-0 p-0 w-full"
+          onClick={() => {
+            setOpenCLI(!openCLI);
+          }}
+          aria-expanded={openCLI}
+          aria-haspopup="true"
+          aria-controls="cli"
+        />
+      </li>,
+    );
+
+    links.push(
+      <MenuLink
+        key="submit-workflow"
+        label="Submit Workflow"
+        to={`/workflows/submit`}
+        icon={<OutlinedIcon name="send" />}
+        isActive={pathname === "/workflows/submit"}
+        onItemClick={onItemClick}
+      />,
+    );
+
+    if (auth.claims) {
+      links.push(<MenuSeparator />);
+
+      links.push(
+        <li key="sign-out">
+          <button
+            className="btn btn-link no-underline m-0 p-0 w-full"
+            onClick={(e) => {
+              e.preventDefault();
+              void auth.logout();
+              onItemClick();
+            }}
+          >
+            <OutlinedIcon name="logout" />
+            Sign Out
+          </button>
+        </li>,
+      );
+    }
+
+    return links;
+  }, [sidebarData, activeRoute, onItemClick, auth, runtimeEnv, openCLI, setOpenCLI, pathname]);
 
   useEffect(() => {
     const route = pathname.split("/")[1];
-    const index = links.findIndex((link) => {
-      const linkRoute = link.to.split("?")[0];
-      return linkRoute?.split("/")[1] === route;
-    });
+    setActiveRoute(route ?? undefined);
+  }, [pathname]);
 
-    setActiveLink(index ?? 0);
-  }, [pathname, links]);
-
-  return links.map((link, index) => (
-    <li
-      key={link.to}
-      className={`${className} list-none`}
+  return (
+    <div
+      role="navigation"
+      className="h-full flex flex-col justify-between gap-global"
     >
-      <Link
-        href={link.to}
-        className={`btn btn-link no-underline text-lg p-0 ${activeLink === index ? "font-bold" : ""}`}
-        aria-current={activeLink === index}
-        onClick={onItemClick}
+      <div className="body-footer border-b border-border flex flex-row p-1 items-center">
+        <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>
+        <p className="p-global font-semibold whitespace-nowrap">{userName}</p>
+      </div>
+      <ul
+        className="top-menu"
+        aria-label="Main menu"
       >
-        {showIcons && link.icon}
-        {link.label}
-      </Link>
-    </li>
-  ));
+        {links}
+      </ul>
+      {version.data && <p className="body-footer p-global text-center">{version.data}</p>}
+      <SlideOut
+        id="cli"
+        open={openCLI}
+        onClose={() => setOpenCLI(false)}
+        className="fixed top-0 left-2 mt-32 rounded-xl w-fit max-w-[90%]"
+      >
+        <div className="flex flex-col gap-global p-global">
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="mt-6"
+          >
+            <div className="grid grid-cols-[1fr_auto] gap-global">
+              <TextInput
+                id="cli-curl"
+                value={cliCurl}
+                readOnly
+                size={cliCurl.length}
+                label="Use the following command to download the CLI"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary mt-5"
+                onClick={async () => {
+                  if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(cliCurl);
+                    setCopied(true);
+                    setSafeTimeout(() => setCopied(false), 2000);
+                  }
+                }}
+                title="Copy to clipboard"
+              >
+                <OutlinedIcon name="content_copy" />
+              </button>
+            </div>
+          </form>
+          <InlineBanner status={copied ? "success" : "none"}>{copied ? "Copied" : ""}</InlineBanner>
+        </div>
+      </SlideOut>
+    </div>
+  );
 };

@@ -21,10 +21,17 @@ import { usePathname } from "next/navigation";
 
 import { usePageHeaderContext } from "./PageHeaderProvider";
 
-export default function PageHeader({ children }: PropsWithChildren) {
+export default function PageHeader({ children, title }: PropsWithChildren<{ title?: string }>) {
   const { setHeaderNode, setTitle } = usePageHeaderContext();
   const pathname = usePathname();
-  const title = pathname.split("/")[1];
+
+  useEffect(() => {
+    if (title !== undefined) {
+      setTitle(title);
+    } else {
+      setTitle(pathname.split("/")[1] ?? undefined);
+    }
+  }, [title, setTitle, pathname]);
 
   useEffect(() => {
     setHeaderNode(
@@ -37,10 +44,6 @@ export default function PageHeader({ children }: PropsWithChildren) {
       setHeaderNode(null);
     };
   }, [children, setHeaderNode]);
-
-  useEffect(() => {
-    setTitle(title);
-  }, [title, setTitle]);
 
   // Inline header for large screens; hidden on small to avoid duplication.
   return undefined;
