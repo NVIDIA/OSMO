@@ -99,19 +99,39 @@ export const PoolDetails = ({
       </h2>
       {pool ? (
         <div className="max-h-full w-full">
-          {pool.resource_usage && (
-            <div
-              className="grid lg:grid-cols-2 overflow-x-hidden"
-              role="list"
-            >
-              <AggregatePanels
-                totals={pool.resource_usage}
-                isLoading={false}
-                isShowingUsed={isShowingUsed ?? true}
-              />
-            </div>
-          )}
-          <div className="flex flex-col lg:p-global gap-global">
+          <div className="flex flex-col">
+            {Object.entries(pool.platforms).length > 1 && (
+              <div className="card p-0">
+                <h3
+                  className="body-header text-base p-global"
+                  id="platforms"
+                >
+                  Platforms
+                </h3>
+                <div className="flex flex-wrap gap-1 m-3">
+                  {Object.entries(pool.platforms).map(([platform]) => (
+                    <PlatformTag
+                      key={platform}
+                      platform={platform}
+                      selectedPlatform={selectedPlatform}
+                      platformsAsLinks={platformsAsLinks}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {pool.resource_usage && (
+              <div
+                className="grid lg:grid-cols-2 overflow-x-hidden"
+                role="list"
+              >
+                <AggregatePanels
+                  totals={pool.resource_usage}
+                  isLoading={false}
+                  isShowingUsed={isShowingUsed ?? true}
+                />
+              </div>
+            )}
             <div className="card p-0">
               <h3
                 className="body-header text-base p-global"
@@ -153,26 +173,6 @@ export const PoolDetails = ({
                 <dd>{pool.max_queue_timeout}</dd>
               </dl>
             </div>
-            {Object.entries(pool.platforms).length > 1 && (
-              <div className="card p-0">
-                <h3
-                  className="body-header text-base p-global"
-                  id="platforms"
-                >
-                  Platforms
-                </h3>
-                <div className="flex flex-wrap gap-1 m-3">
-                  {Object.entries(pool.platforms).map(([platform]) => (
-                    <PlatformTag
-                      key={platform}
-                      platform={platform}
-                      selectedPlatform={selectedPlatform}
-                      platformsAsLinks={platformsAsLinks}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="card p-0">
               <h3
                 className="body-header text-base p-global"

@@ -84,7 +84,9 @@ export const PlatformDetails = ({
                   aria-labelledby="default-mounts"
                   className="p-global"
                 >
-                  {defaultMounts?.map((mount) => <li key={mount}>{mount}</li>)}
+                  {defaultMounts?.map((mount) => (
+                    <li key={mount}>{mount}</li>
+                  ))}
                 </ul>
               ) : (
                 <p className="p-global">None</p>
@@ -102,7 +104,9 @@ export const PlatformDetails = ({
                   aria-labelledby="allowed-mounts"
                   className="p-global"
                 >
-                  {allowedMounts?.map((mount) => <li key={mount}>{mount}</li>)}
+                  {allowedMounts?.map((mount) => (
+                    <li key={mount}>{mount}</li>
+                  ))}
                 </ul>
               ) : (
                 <p className="p-global">None</p>
