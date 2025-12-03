@@ -53,8 +53,12 @@ export const usePageHeaderContext = () => {
 
 export const HeaderOutlet = () => {
   const { headerNode } = usePageHeaderContext();
-  if (!headerNode) {
-    return null;
-  }
-  return <div className="lg:hidden grow min-w-0">{headerNode}</div>;
+
+  return headerNode;
+};
+
+export const TitleOutlet = () => {
+  const { title } = usePageHeaderContext();
+
+  return title;
 };

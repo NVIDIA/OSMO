@@ -238,10 +238,10 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .page-header {
-    @apply flex items-center gap-global border-b border-border px-global pt-global pb-global bg-white grow shadow-sm;
+    @apply flex items-center gap-global pr-global pt-global pb-global bg-white grow;
 
     h1 {
-      @apply text-2xl font-semibold p-0 m-0 capitalize mb-[-0.5rem];
+      @apply text-lg font-semibold p-0 m-0 capitalize;
     }
 
     h2 {
@@ -357,7 +357,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .skip-to-content {
-    @apply bg-white border-0 absolute top-1 left-[-9999px] z-1000 outline-offset-0 hidden lg:flex;
+    @apply bg-white border-0 absolute top-1 left-[-9999px] z-1000 outline-offset-0 flex;
 
     &:focus-visible {
       @apply left-1 opacity-100;

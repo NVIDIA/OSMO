@@ -17,9 +17,7 @@
 
 import { type PropsWithChildren, useEffect, useRef, useState } from "react";
 
-import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
-import { useMediaQuery } from "usehooks-ts";
 
 import { env } from "~/env.mjs";
 import { type AuthClaims } from "~/models/auth-model";
@@ -28,7 +26,7 @@ import { ZERO_WIDTH_SPACE } from "~/utils/string";
 import { useAuth } from "./AuthProvider";
 import { FilledIcon, OutlinedIcon } from "./Icon";
 import { NavbarProfileMenu } from "./NavbarProfileMenu";
-import { HeaderOutlet, PageHeaderProvider } from "./PageHeaderProvider";
+import { HeaderOutlet, PageHeaderProvider, TitleOutlet } from "./PageHeaderProvider";
 import { SlideOut } from "./SlideOut";
 import { TopMenu } from "./TopMenu";
 
@@ -49,13 +47,12 @@ const getUserDetails = (claims: AuthClaims | null) => {
 
 export const Layout = ({ children }: PropsWithChildren) => {
   const auth = useAuth();
-  const pathname = usePathname();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [mainMenuOpen, setMainMenuOpen] = useState(false);
   const { initials, userName } = getUserDetails(auth.claims);
   const headerRef = useRef<HTMLDivElement>(null);
-  const showTopMenu = useMediaQuery("(min-width: 1024px)");
   const mainMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     // Only run in browser environment
@@ -99,6 +96,18 @@ export const Layout = ({ children }: PropsWithChildren) => {
           >
             <div className="flex items-center gap-global grow min-w-0">
               <div className="flex items-center gap-global">
+                <button
+                  className="btn btn-secondary"
+                  aria-expanded={mainMenuOpen}
+                  aria-haspopup="true"
+                  aria-controls="main-menu"
+                  onClick={() => {
+                    setMainMenuOpen(!mainMenuOpen);
+                  }}
+                  ref={mainMenuButtonRef}
+                >
+                  <OutlinedIcon name="menu" />
+                </button>
                 <svg
                   enableBackground="new 0 0 974.7 179.7"
                   version="1.1"
@@ -116,40 +125,14 @@ export const Layout = ({ children }: PropsWithChildren) => {
                     d="m101.3 53.6v-16.2c1.6-0.1 3.2-0.2 4.8-0.2 44.4-1.4 73.5 38.2 73.5 38.2s-31.4 43.6-65.1 43.6c-4.5 0-8.9-0.7-13.1-2.1v-49.2c17.3 2.1 20.8 9.7 31.1 27l23.1-19.4s-16.9-22.1-45.3-22.1c-3-0.1-6 0.1-9 0.4m0-53.6v24.2l4.8-0.3c61.7-2.1 102 50.6 102 50.6s-46.2 56.2-94.3 56.2c-4.2 0-8.3-0.4-12.4-1.1v15c3.4 0.4 6.9 0.7 10.3 0.7 44.8 0 77.2-22.9 108.6-49.9 5.2 4.2 26.5 14.3 30.9 18.7-29.8 25-99.3 45.1-138.7 45.1-3.8 0-7.4-0.2-11-0.6v21.1h170.2v-179.7h-170.4zm0 116.9v12.8c-41.4-7.4-52.9-50.5-52.9-50.5s19.9-22 52.9-25.6v14h-0.1c-17.3-2.1-30.9 14.1-30.9 14.1s7.7 27.3 31 35.2m-73.5-39.5s24.5-36.2 73.6-40v-13.2c-54.4 4.4-101.4 50.4-101.4 50.4s26.6 77 101.3 84v-14c-54.8-6.8-73.5-67.2-73.5-67.2z"
                   ></path>
                 </svg>
-                <p className="text-lg font-bold">{env.NEXT_PUBLIC_APP_NAME}</p>
+                <h1
+                  className="text-lg font-bold focus-visible:outline-none"
+                  ref={titleRef}
+                  tabIndex={-1}
+                >
+                  {env.NEXT_PUBLIC_APP_NAME} <TitleOutlet />
+                </h1>
               </div>
-              {showTopMenu ? (
-                <div role="navigation">
-                  <ul
-                    className="list-none flex items-center gap-4 ml-2"
-                    aria-label="Main menu"
-                  >
-                    <TopMenu
-                      showIcons={false}
-                      className="m-0"
-                    />
-                  </ul>
-                </div>
-              ) : (
-                <>
-                  <button
-                    className="btn btn-tertiary px-0 gap-0 relative capitalize text-lg font-bold"
-                    aria-expanded={mainMenuOpen}
-                    aria-haspopup="true"
-                    aria-controls="main-menu"
-                    onClick={() => {
-                      setMainMenuOpen(!mainMenuOpen);
-                    }}
-                    ref={mainMenuButtonRef}
-                  >
-                    {pathname.split("/")[1]}
-                    <OutlinedIcon
-                      className="bg-transparent absolute text-3xl! bottom-[-1rem] right-[-0.6rem]"
-                      name="arrow_drop_down"
-                    />
-                  </button>
-                </>
-              )}
               <HeaderOutlet />
             </div>
             <button
@@ -189,16 +172,23 @@ export const Layout = ({ children }: PropsWithChildren) => {
               open={mainMenuOpen}
               onClose={() => setMainMenuOpen(false)}
               dimBackground={false}
-              className="border-t-0"
-              left={mainMenuButtonRef.current?.getBoundingClientRect().left ?? 0}
+              className="border-t-0 h-full shadow-2xl"
               position="left"
             >
               <div role="navigation">
                 <ul
-                  className="flex flex-col list-none p-global"
+                  className="flex flex-col list-none p-global pr-8"
                   aria-label="Main menu"
                 >
-                  <TopMenu className="m-0 py-0" />
+                  <TopMenu
+                    className="m-0 py-0"
+                    onItemClick={() => {
+                      setMainMenuOpen(false);
+                      setTimeout(() => {
+                        titleRef.current?.focus();
+                      }, 500);
+                    }}
+                  />
                 </ul>
               </div>
             </SlideOut>

@@ -22,24 +22,26 @@ import { usePathname } from "next/navigation";
 import { usePageHeaderContext } from "./PageHeaderProvider";
 
 export default function PageHeader({ children }: PropsWithChildren) {
-  const { setHeaderNode } = usePageHeaderContext();
+  const { setHeaderNode, setTitle } = usePageHeaderContext();
   const pathname = usePathname();
   const title = pathname.split("/")[1];
 
   useEffect(() => {
-    // Provide a compact header for small screens to be rendered in the root Layout header.
-    setHeaderNode(<div className="flex items-center gap-global justify-end">{children}</div>);
+    setHeaderNode(
+      <div className="page-header">
+        <div className="flex items-center gap-global grow justify-end">{children}</div>
+      </div>,
+    );
 
     return () => {
       setHeaderNode(null);
     };
   }, [children, setHeaderNode]);
 
+  useEffect(() => {
+    setTitle(title);
+  }, [title, setTitle]);
+
   // Inline header for large screens; hidden on small to avoid duplication.
-  return (
-    <div className="page-header hidden lg:flex">
-      {title && <h1>{title}</h1>}
-      <div className="flex items-center gap-global grow justify-end">{children}</div>
-    </div>
-  );
+  return undefined;
 }
