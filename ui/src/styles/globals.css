@@ -30,7 +30,7 @@ SPDX-License-Identifier: Apache-2.0
   --spacing-radios: 0.5rem;
 
   --color-text: black;
-  --color-body-bg: #fcfcfc;
+  --color-body-bg: #fafafa;
   --color-page-header-bg: white;
   --color-border: lightgray;
   --color-footerbg: #f0f0f0;
@@ -486,4 +486,8 @@ div[role="main"] {
     border-radius: 4px;
     outline: 2px solid var(--colors-displayFgLowPrimary) !important;
   }
+}
+
+.chonky-chonkyRoot {
+  @apply bg-body-bg!;
 }

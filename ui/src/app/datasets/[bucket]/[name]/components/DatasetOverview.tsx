@@ -148,7 +148,7 @@ export default function DatasetOverview({
         <div
           className={`grid h-full w-full overflow-x-auto ${openFileData ? "grid-cols-[1fr_1fr]" : "grid-cols-[1fr_auto]"}`}
         >
-          <div className="relative min-w-100 h-full">
+          <div className="relative min-w-100 h-full border-t-1 border-border">
             <FileBrowser
               currentVersion={selectedVersionData}
               dataset={dataset}
@@ -174,7 +174,7 @@ export default function DatasetOverview({
               }}
             />
           ) : (
-            <div className="h-full flex flex-col overflow-y-auto w-[33vw] max-w-150 body-component shadow-xl shadow-black/50 z-10">
+            <div className="h-full flex flex-col overflow-y-auto w-[33vw] max-w-150 body-component shadow-xl shadow-black/10 z-10">
               <DatasetDetails dataset={dataset} />
               <DatasetVersionDetails
                 datasetVersion={selectedVersionData}

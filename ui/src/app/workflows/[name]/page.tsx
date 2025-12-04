@@ -84,7 +84,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   }, [selectedWorkflow.data]);
 
   const forceSingleTaskView = useMemo(() => {
-    return flatTasks.length === 1;
+    return flatTasks.length <= 1;
   }, [flatTasks]);
 
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
 
   const gridClass = useMemo(() => {
     if (view === ViewType.SingleTask) {
-      return "grid grid-cols-[1fr_auto_1fr] p-global gap-1";
+      return "grid grid-cols-[1fr_auto_2fr]";
     } else if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
     } else if (showWF) {

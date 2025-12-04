@@ -109,7 +109,7 @@ export default function ProfileSettingsPage() {
   return (
     <>
       <PageHeader />
-      <div className={`flex md:flex-row flex-wrap w-full md:h-full gap-global p-global`}>
+      <div className={`flex md:flex-row flex-wrap w-full md:h-full gap-global`}>
         <div className="flex flex-col body-component md:h-full w-full md:w-auto">
           <section
             className={`popup-header brand-header`}
