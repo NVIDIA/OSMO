@@ -251,9 +251,9 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   return (
     <div
       role="navigation"
-      className="h-full flex flex-col justify-between gap-global"
+      className="h-full flex flex-col justify-between gap-global bg-body-bg bg-page-header-bg`"
     >
-      <div className="body-footer border-b border-border flex flex-row p-1 items-center">
+      <div className="border-y border-border flex flex-row p-1 items-center shadow-sm">
         <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>
         <p className="p-global font-semibold whitespace-nowrap">{userName}</p>
       </div>
@@ -263,7 +263,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
       >
         {links}
       </ul>
-      {version.data && <p className="body-footer p-global text-center">{version.data}</p>}
+      {version.data && <p className="border-1 border-border p-global text-center font-semibold">{version.data}</p>}
       <SlideOut
         id="cli"
         open={openCLI}

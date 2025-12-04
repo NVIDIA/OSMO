@@ -70,7 +70,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
             Skip to content
           </a>
           <header
-            className="page-header py-1 px-1 md:px-2 bg-white lg:border-b-0 shadow-sm"
+            className="page-header py-1 px-1 md:px-2 bg-page-header-bg lg:border-b-0 shadow-sm"
             ref={headerRef}
           >
             <div className="flex items-center gap-global grow min-w-0">

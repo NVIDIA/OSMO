@@ -30,7 +30,8 @@ SPDX-License-Identifier: Apache-2.0
   --spacing-radios: 0.5rem;
 
   --color-text: black;
-  --color-bg: white;
+  --color-body-bg: #fcfcfc;
+  --color-page-header-bg: white;
   --color-border: lightgray;
   --color-footerbg: #f0f0f0;
   --color-headerbg: #f0f0f0;
@@ -76,7 +77,7 @@ SPDX-License-Identifier: Apache-2.0
 
 @layer base {
   body {
-    @apply font-['Nvidia_Sans','Nvidia_Sans_Fallback'] bg-bg text-text text-sm;
+    @apply font-['Nvidia_Sans','Nvidia_Sans_Fallback'] bg-body-bg text-text text-sm;
 
     * {
       @apply outline-brand focus-visible:outline-offset-1;
@@ -112,7 +113,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   tbody {
-    @apply bg-white align-baseline;
+    @apply bg-body-bg align-baseline;
   }
 
   td,
@@ -238,7 +239,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .page-header {
-    @apply flex items-center gap-global pr-global pt-global pb-global bg-white grow;
+    @apply flex items-center gap-global pr-global pt-global pb-global bg-page-header-bg grow;
 
     h1 {
       @apply text-lg font-semibold p-0 m-0 capitalize;
@@ -254,7 +255,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .body-component {
-    @apply bg-white border-1 border-border;
+    @apply bg-body-bg border-1 border-border;
   }
 
   .body-header {
