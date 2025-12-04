@@ -251,7 +251,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   return (
     <div
       role="navigation"
-      className="h-full flex flex-col justify-between gap-global bg-body-bg bg-page-header-bg`"
+      className="h-full flex flex-col justify-between gap-global bg-page-header-bg`"
     >
       <div className="border-y border-border flex flex-row p-1 items-center shadow-sm">
         <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>

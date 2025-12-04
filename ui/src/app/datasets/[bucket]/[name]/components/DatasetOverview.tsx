@@ -174,7 +174,7 @@ export default function DatasetOverview({
               }}
             />
           ) : (
-            <div className="h-full flex flex-col overflow-y-auto w-[33vw] max-w-150 body-component shadow-xl shadow-black/10 z-10">
+            <div className="h-full flex flex-col overflow-y-auto w-[33vw] max-w-150 body-component shadow-xl shadow-black/30 z-10">
               <DatasetDetails dataset={dataset} />
               <DatasetVersionDetails
                 datasetVersion={selectedVersionData}
