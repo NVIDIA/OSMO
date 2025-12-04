@@ -57,7 +57,8 @@ HOST_NAME_WITH_DOT_REGEX = fr'({HOST_NAME_COMPONENT}\.)+({HOST_NAME_COMPONENT})'
 LOCALHOST_REGEX = r'localhost'
 # Bare hostname is only valid when followed by :port/ (port presence indicates registry)
 HOST_NAME_WITH_PORT_REGEX = fr'{HOST_NAME_COMPONENT}(?=:\d+/)'
-HOST_REGEX = fr'(?P<host>({IP_REGEX}|{LOCALHOST_REGEX}|{HOST_NAME_WITH_DOT_REGEX}|{HOST_NAME_WITH_PORT_REGEX}))'
+HOST_REGEX = fr'(?P<host>({IP_REGEX}|{LOCALHOST_REGEX}|' \
+    fr'{HOST_NAME_WITH_DOT_REGEX}|{HOST_NAME_WITH_PORT_REGEX}))'
 PORT_REGEX = r'(?P<port>[0-9]{1,5})'
 
 # Regex rules for parsing docker images
