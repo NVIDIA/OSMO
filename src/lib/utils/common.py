@@ -73,7 +73,7 @@ DATASET_BUCKET_NAME_TAG_REGEX = \
     fr'(:(?P<tag>{DATASET_BUCKET_TAG_REGEX[1:-1]}))?$'
 
 # Regex rules for datasets in workflow spec
-DATASET_NAME_IN_WORKFLOW_COMPONENT = r'[a-zA-Z0-9_{}-]+'
+DATASET_NAME_IN_WORKFLOW_COMPONENT  = r'[a-zA-Z0-9_{}-]+'
 DATASET_NAME_IN_WORKFLOW_REGEX = fr'^{DATASET_NAME_IN_WORKFLOW_COMPONENT}$'
 DATASET_BUCKET_TAG_IN_WORKFLOW_REGEX = r'^([a-zA-Z0-9_{}-]*)$'
 DATASET_BUCKET_NAME_TAG_IN_WORKFLOW_REGEX =\
@@ -139,7 +139,7 @@ OSMO_CONFIG_OVERRIDE = 'OSMO_CONFIG_FILE_DIR'
 OSMO_STATE_OVERRIDE = 'OSMO_LOG_FILE_DIR'
 TIMEOUT = 60
 
-DATE_TIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'  # format of datetime.utcnow()
+DATE_TIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f' # format of datetime.utcnow()
 
 BACKEND_HEARTBEAT_WINDOW = datetime.timedelta(minutes=2)
 
@@ -227,7 +227,7 @@ class AppStructure:
 
     @classmethod
     def from_parts(cls, name: str, version: int | None = None) \
-            -> 'AppStructure':
+        -> 'AppStructure':
         if version is None:
             return cls(name)
         return cls(f'{name}:{version}')
@@ -286,13 +286,11 @@ class LRUCache:
             if len(self.cache) > self.capacity:
                 self.cache.popitem(last=False)  # Remove oldest item
 
-
 class TokenBucket:
     """
     A rate-limiting utility that controls access to resources using the Token Bucket algorithm.
     Allows bursts up to a defined capacity and refills tokens at a specified rate over time.
     """
-
     def __init__(self, capacity: float, refill_rate: float):
         """
         Initialize the TokenBucket with a specified capacity and refill rate.
@@ -403,16 +401,16 @@ def registry_auth(url: str, username: Optional[str] = None,
                 break
         if token is None:
             raise osmo_errors.OSMOCredentialError(
-                f'Could not find token in auth response for {url}. '
+                f'Could not find token in auth response for {url}. ' \
                 f'Expected one of {DOCKER_AUTH_TOKEN_KEYS} but got {list(response_payload.keys())}')
 
         # Step 5: The client retries the original request with the Bearer token embedded in the
         # request’s Authorization header.
         response = requests.get(url, headers={
                                 'Authorization': f'Bearer {token}',
-                                'Accept': f'{OCI_IMAGE_INDEX_ENCODING}, '
-                                          f'{OCI_IMAGE_MANIFEST_ENCODING}, '
-                                          f'{DOCKER_MANIFEST_ENCODING}, '
+                                'Accept': f'{OCI_IMAGE_INDEX_ENCODING}, '\
+                                          f'{OCI_IMAGE_MANIFEST_ENCODING}, '\
+                                          f'{DOCKER_MANIFEST_ENCODING}, '\
                                           f'{DOCKER_MANIFEST_LIST_ENCODING}'},
                                 timeout=TIMEOUT)
         # Step 6: The Registry authorizes the client by validating the Bearer token and the claim
@@ -472,7 +470,6 @@ class AllocatableResource(NamedTuple):
             return f'{self.name.capitalize()} [{self.unit}]'
         else:
             return f'{(self.name).upper()} [#]'
-
 
 # List of allocatable resource types
 ALLOCATABLE_RESOURCES_LABELS = [
@@ -722,7 +719,7 @@ def etag_checksum(filename, chunk_size=CHUNK_SIZE):
     return f'{digests_md5.hexdigest()}-{len(md5s)}'
 
 
-def osmo_table(header: List[str], fit_width=False) -> texttable.Texttable:
+def osmo_table(header: List[str], fit_width = False)-> texttable.Texttable:
     """
     returns texttable object with common format for all CLI's
 
@@ -778,7 +775,7 @@ def verify_dict_keys(data: Dict):
             verify_dict_keys(data[key])
         else:
             if not re.fullmatch(regex, key):
-                raise osmo_errors.OSMOUserError('Keys can only consist of lower and upper ' +
+                raise osmo_errors.OSMOUserError('Keys can only consist of lower and upper ' +\
                                                 f'case letters, numbers, "-" and "_": {key}')
 
 
@@ -920,7 +917,6 @@ def mask_string(base: str, elements: Set[str]) -> str:
         base = base.replace(element, '[MASKED]')
     return base
 
-
 def readable_timedelta(td: datetime.timedelta) -> str:
     """
     Turn a timedelta into a human-readable timedelta string.
@@ -957,7 +953,6 @@ def relative_path(full_path: str, sub_path: str) -> str:
 
 class IterableMerger:
     ''' Takes in a bunch of Iterables and returns the next smallest element '''
-
     def __init__(self, iterables: Iterable[Iterator[Any]]):
         self.iterables = list(iterables)
         self.iterators = [(iter(it), idx) for idx, it in enumerate(self.iterables)]
