@@ -80,31 +80,36 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   );
 
   const flatTasks = useMemo(() => {
+    if (!selectedWorkflow.data) {
+      return undefined;
+    }
     return (selectedWorkflow.data?.groups ?? []).flatMap((group) => group.tasks);
   }, [selectedWorkflow.data]);
 
   const forceSingleTaskView = useMemo(() => {
+    if (!flatTasks) {
+      return undefined;
+    }
     return flatTasks.length <= 1;
   }, [flatTasks]);
 
-  useEffect(() => {
+  const localView = useMemo(() => {
     if (forceSingleTaskView) {
-      updateUrl({ view: ViewType.SingleTask });
-    } else if (!view) {
-      updateUrl({ view: ViewType.List });
+      return ViewType.SingleTask;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return view ?? ViewType.List;
   }, [forceSingleTaskView, view]);
 
   useEffect(() => {
-    if (view === ViewType.SingleTask && (!selectedTaskName || retryId === undefined)) {
+    if (localView === ViewType.SingleTask && (!selectedTaskName || retryId === undefined)) {
       const task = selectedWorkflow.data?.groups?.[0]?.tasks?.[0];
       if (task) {
         updateUrl({ task: task.name, retry_id: task.retry_id });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, selectedTaskName, retryId, selectedWorkflow.data]);
+  }, [localView, selectedTaskName, retryId, selectedWorkflow.data]);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {
@@ -137,7 +142,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   }, [selectedWorkflow.data, tool]);
 
   useEffect(() => {
-    if (selectedTaskName && retryId !== undefined) {
+    if (flatTasks && selectedTaskName && retryId !== undefined) {
       const taskIndex = flatTasks.findIndex((t) => t.name === selectedTaskName && t.retry_id === retryId);
 
       setSelectedTask(taskIndex === undefined ? undefined : flatTasks[taskIndex]);
@@ -149,14 +154,14 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   }, [flatTasks, selectedTaskName, retryId]);
 
   const nextTask = useMemo(() => {
-    if (selectedTaskIndex !== undefined && selectedTaskIndex < flatTasks.length - 1) {
+    if (flatTasks && selectedTaskIndex !== undefined && selectedTaskIndex < flatTasks.length - 1) {
       return flatTasks[selectedTaskIndex + 1];
     }
     return undefined;
   }, [selectedTaskIndex, flatTasks]);
 
   const previousTask = useMemo(() => {
-    if (selectedTaskIndex !== undefined && selectedTaskIndex > 0) {
+    if (flatTasks && selectedTaskIndex !== undefined && selectedTaskIndex > 0) {
       return flatTasks[selectedTaskIndex - 1];
     }
     return undefined;
@@ -175,7 +180,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   }, [previousTask, updateUrl]);
 
   const gridClass = useMemo(() => {
-    if (view === ViewType.SingleTask) {
+    if (localView === ViewType.SingleTask) {
       return "grid grid-cols-[1fr_auto_2fr]";
     } else if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
@@ -186,7 +191,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     } else {
       return "flex flex-row";
     }
-  }, [showWF, selectedTask, taskPinned, view]);
+  }, [showWF, selectedTask, taskPinned, localView]);
 
   const verbose = useMemo(() => {
     const tasks = (selectedWorkflow.data?.groups ?? []).flatMap((group) => group.tasks);
@@ -213,7 +218,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     );
   }
 
-  if (!selectedWorkflow.data || !view) {
+  if (!selectedWorkflow.data || !localView) {
     return (
       <div className="h-full flex justify-center items-center">
         <Spinner
@@ -269,7 +274,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
                 updateUrl({ showWF: !showWF });
               }}
               aria-pressed={showWF}
-              disabled={view === ViewType.SingleTask}
+              disabled={localView === ViewType.SingleTask}
             >
               <StatusBadge
                 className="tag-filter right-[-0.75rem] top-[-0.35rem]"
@@ -283,7 +288,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             >
               <ViewToggleButton
                 name="taskViewType"
-                checked={view === ViewType.SingleTask}
+                checked={localView === ViewType.SingleTask}
                 onChange={() => updateUrl({ view: ViewType.SingleTask, showWF: true })}
               >
                 <FilledIcon name="task" />
@@ -296,7 +301,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
               </ViewToggleButton>
               <ViewToggleButton
                 name="taskViewType"
-                checked={view === ViewType.List}
+                checked={localView === ViewType.List}
                 onChange={() => updateUrl({ view: ViewType.List })}
               >
                 <FilledIcon name="list" />
@@ -309,7 +314,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
               </ViewToggleButton>
               <ViewToggleButton
                 name="taskViewType"
-                checked={view === ViewType.Graph}
+                checked={localView === ViewType.Graph}
                 onChange={() => updateUrl({ view: ViewType.Graph })}
               >
                 <FilledIcon name="border_clear" />
@@ -324,13 +329,13 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             <FilterButton
               showFilters={showFilters}
               setShowFilters={(showFilters) => {
-                if (view === ViewType.List) {
+                if (localView === ViewType.List) {
                   setShowFilters(showFilters);
                 }
               }}
-              filterCount={view === ViewType.List ? filterCount : 0}
+              filterCount={localView === ViewType.List ? filterCount : 0}
               aria-controls="tasks-filters"
-              aria-disabled={view !== ViewType.List}
+              aria-disabled={localView !== ViewType.List}
             />
           </>
         )}
@@ -365,7 +370,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           >
             <div className={`popup-header sticky top-0 z-10 brand-header`}>
               <h2 id="workflow-details-header">Workflow Details</h2>
-              {view !== ViewType.SingleTask && (
+              {localView !== ViewType.SingleTask && (
                 <button
                   className="btn btn-action"
                   aria-label="Close Workflow Details"
@@ -386,14 +391,14 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           </div>
         )}
         <div className="h-full w-full overflow-x-auto">
-          <div className={`h-full w-full ${view === ViewType.Graph ? "block p-1" : "hidden"}`}>
+          <div className={`h-full w-full ${localView === ViewType.Graph ? "block p-1" : "hidden"}`}>
             {selectedWorkflow.data?.groups?.length > 0 ? (
               <ReactFlowProvider>
                 <DirectedAcyclicGraph
                   workflow={selectedWorkflow.data}
                   refetch={selectedWorkflow.refetch}
                   selectedTask={selectedTask}
-                  visible={view === ViewType.Graph}
+                  visible={localView === ViewType.Graph}
                   updateUrl={updateUrl}
                 />
               </ReactFlowProvider>
@@ -408,7 +413,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
               </div>
             )}
           </div>
-          <div className={`h-full w-full ${view === ViewType.List ? "block" : "hidden"}`}>
+          <div className={`h-full w-full ${localView === ViewType.List ? "block" : "hidden"}`}>
             <TasksTable
               workflow={selectedWorkflow.data}
               name={nameFilter}
@@ -417,17 +422,17 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
               statuses={statusFilter}
               statusFilterType={statusFilterType}
               pod_ip={podIp}
-              selectedTask={view === ViewType.List ? selectedTask : undefined}
-              visible={view === ViewType.List}
+              selectedTask={localView === ViewType.List ? selectedTask : undefined}
+              visible={localView === ViewType.List}
               verbose={verbose}
               updateUrl={updateUrl}
             />
           </div>
         </div>
         <SlideOut
-          canClose={view !== ViewType.SingleTask}
-          canPin={view !== ViewType.SingleTask}
-          pinned={view === ViewType.SingleTask || taskPinned}
+          canClose={localView !== ViewType.SingleTask}
+          canPin={localView !== ViewType.SingleTask}
+          pinned={localView === ViewType.SingleTask || taskPinned}
           paused={!!activeTool}
           onPinChange={(pinned) => {
             setTaskPinned(pinned);
@@ -448,7 +453,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             <TaskDetails
               task={selectedTask}
               updateUrl={updateUrl}
-              hasNavigation={view === ViewType.SingleTask && !forceSingleTaskView}
+              hasNavigation={localView === ViewType.SingleTask && !forceSingleTaskView}
               onNext={onNextTask}
               onPrevious={onPreviousTask}
               hasNext={!!nextTask}

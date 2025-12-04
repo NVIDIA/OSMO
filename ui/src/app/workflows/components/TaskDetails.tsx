@@ -69,41 +69,37 @@ const TaskDetails = ({
           <p className="font-semibold p-global text-center w-full">{task.name}</p>
         ) : (
           <>
-            {hasPrevious ? (
-              <button
-                className="no-underline p-0 m-1"
-                onClick={onPrevious}
-                title="Previous Task"
-              >
-                <OutlinedIcon
-                  name="keyboard_double_arrow_left"
-                  className="text-lg!"
-                />
-              </button>
-            ) : (
+            <button
+              className="no-underline p-0 m-1"
+              onClick={() => {
+                if (hasPrevious) {
+                  onPrevious?.();
+                }
+              }}
+              title="Previous Task"
+              aria-disabled={!hasPrevious}
+            >
               <OutlinedIcon
                 name="keyboard_double_arrow_left"
-                className="text-lg! opacity-50 m-1"
+                className="text-lg!"
               />
-            )}
+            </button>
             <p className="font-semibold">{task.name}</p>
-            {hasNext ? (
-              <button
-                className="no-underline p-0 m-1"
-                onClick={onNext}
-                title="Next Task"
-              >
-                <OutlinedIcon
-                  name="keyboard_double_arrow_right"
-                  className="text-lg!"
-                />
-              </button>
-            ) : (
+            <button
+              className="no-underline p-0 m-1"
+              onClick={() => {
+                if (hasNext) {
+                  onNext?.();
+                }
+              }}
+              title="Next Task"
+              aria-disabled={!hasNext}
+            >
               <OutlinedIcon
                 name="keyboard_double_arrow_right"
-                className="text-lg! opacity-50 m-1"
+                className="text-lg!"
               />
-            )}
+            </button>
           </>
         )}
       </div>
