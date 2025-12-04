@@ -21,6 +21,10 @@ from src.lib.utils import common
 
 
 class TestCommon(unittest.TestCase):
+    """
+    Unit tests for the common module.
+    """
+
     def test_convert_resource_value(self):
         self.assertEqual(common.convert_resource_value_str('10Gi', target='TiB'), 10.0 / 1024)
         self.assertEqual(common.convert_resource_value_str('1.5Ti', target='GiB'), 1.5 * 1024)
@@ -64,6 +68,13 @@ class TestCommon(unittest.TestCase):
             # IP-based registries
             ('192.168.1.100:5000/myimage', '192.168.1.100', 5000, 'myimage', 'latest', None),
             ('10.0.0.1:5000/org/image:v2', '10.0.0.1', 5000, 'org/image', 'v2', None),
+
+            # Bare hostname with port (Docker-in-Docker, testcontainers, etc.)
+            # Port presence disambiguates registry from org
+            ('docker:5000/image', 'docker', 5000, 'image', 'latest', None),
+            ('docker:32781/test_image', 'docker', 32781, 'test_image', 'latest', None),
+            ('registry:5000/org/image:v1', 'registry', 5000, 'org/image', 'v1', None),
+            ('myhost:8080/project/app:latest', 'myhost', 8080, 'project/app', 'latest', None),
 
             # Images with digest
             ('ubuntu@sha256:abc123def456', common.DEFAULT_REGISTRY,
