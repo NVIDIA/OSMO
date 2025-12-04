@@ -245,6 +245,18 @@ Rate limit sidecar container
     runAsUser: 1001
   command: ["sh", "-c"]
   args:
+    {{- if .Values.sidecars.rateLimit.args }}
+    {{- /* Full override - completely replace default args */}}
+    {{- if kindIs "slice" .Values.sidecars.rateLimit.args }}
+    {{- range .Values.sidecars.rateLimit.args }}
+    - {{ . }}
+    {{- end }}
+    {{- else }}
+    - {{ .Values.sidecars.rateLimit.args }}
+    {{- end }}
+    {{- else }}
+    {{- /* Default behavior with optional extraArgs appended */}}
+    - /bin/ratelimit
     {{- if .Values.sidecars.rateLimit.extraArgs }}
     {{- if kindIs "slice" .Values.sidecars.rateLimit.extraArgs }}
     {{- range .Values.sidecars.rateLimit.extraArgs }}
@@ -254,7 +266,7 @@ Rate limit sidecar container
     - {{ .Values.sidecars.rateLimit.extraArgs }}
     {{- end }}
     {{- end }}
-    - /bin/ratelimit
+    {{- end }}
   resources:
   {{- toYaml .Values.sidecars.rateLimit.resources | nindent 10 }}
   env:

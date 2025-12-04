@@ -19,7 +19,12 @@ name: PR Checks
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   #######################
@@ -69,7 +74,8 @@ jobs:
     needs: [check-paths]
     if: |
       (needs.check-paths.outputs.ci == 'true') &&
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true) &&
+      (github.event.action != 'closed')
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -128,7 +134,8 @@ jobs:
       (
         needs.check-paths.outputs.ci == 'true' &&
         github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.fork == false
+        github.event.pull_request.head.repo.fork == false &&
+        github.event.action != 'closed'
       )
     runs-on: self-hosted
     environment:
@@ -188,21 +195,35 @@ jobs:
           lfs: true
 
       - name: Setup Python
+        if: github.event.action != 'closed'
         uses: actions/setup-python@v4
         with:
           python-version: '3.10.18'
 
       - name: Install dependencies
+        if: github.event.action != 'closed'
         run: |
           pip install -U -r docs/locked_requirements.txt
 
       - name: Build Sphinx documentation
+        if: github.event.action != 'closed'
         run: |
           make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
+
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./docs/public/
+          preview-branch: gh-pages/documentation
+
+      - name: Run spelling and linkcheck
+        if: github.event.action != 'closed'
+        run: |
           make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
           make -C docs linkcheck ERR_DIR=linkcheck_error_logs OUT_DIR=public
 
       - name: Check for build errors
+        if: github.event.action != 'closed'
         run: |
           has_spelling_errors=false
           has_linkcheck_errors=false
@@ -229,7 +250,7 @@ jobs:
           fi
 
       - name: Upload build artifacts
-        if: always()
+        if: always() && github.event.action != 'closed'
         uses: actions/upload-artifact@v4
         with:
           name: documentation-build
@@ -245,7 +266,9 @@ jobs:
   #######################
   ci-docs:
     needs: [check-paths]
-    if: needs.check-paths.outputs.docs == 'true'
+    if: |
+      (needs.check-paths.outputs.docs == 'true' && github.event.action != 'closed') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -302,7 +325,9 @@ jobs:
   #######################
   ui-build:
     needs: [check-paths]
-    if: needs.check-paths.outputs.ui == 'true' || github.event_name == 'workflow_dispatch'
+    if: |
+      (needs.check-paths.outputs.ui == 'true' && github.event.action != 'closed') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

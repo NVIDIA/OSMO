@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_library")
-load("@osmo_tests_python_deps//:requirements.bzl", "requirement")
 
-osmo_py_library(
-    name = "common",
-    srcs = glob(["*.py"]),
+load("//bzl:py.bzl", "osmo_py_test")
+load("@osmo_python_deps//:requirements.bzl", osmo_requirement = "requirement")
+load("@osmo_tests_python_deps//:requirements.bzl", osmo_tests_requirement = "requirement")
+
+osmo_py_test(
+    name = "test_workflow_service",
+    srcs = ["test_workflow_service.py"],
     deps = [
-        "//src/tests/common/core",
-        "//src/tests/common/database",
-        "//src/tests/common/envoy",
+        "//src/service/core:service_lib",
+        "//src/tests/common",
         "//src/tests/common/registry",
-        "//src/tests/common/storage",
+        osmo_requirement("fastapi"),
+        osmo_tests_requirement("httpx"),
+        osmo_tests_requirement("testcontainers"),
+    ],
+    tags = [
+        "requires-network",
     ],
     visibility = ["//visibility:public"],
 )

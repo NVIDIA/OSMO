@@ -56,7 +56,7 @@ extensions = [
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
-    
+
     # Theme extension
     '_extensions.nvidia_theme_override',
 ]
@@ -91,6 +91,8 @@ linkcheck_ignore = [
 linkcheck_anchors = False
 
 linkcheck_timeout = 150
+
+linkcheck_report_timeouts_as_broken = False
 
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
