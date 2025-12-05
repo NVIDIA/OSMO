@@ -60,7 +60,7 @@ const WorkflowsSubmitPage = ({ params }: WorkflowSlugParams) => {
         </Container>
       ) : (templatedSpecError ?? renderedSpecError) ? (
         <PageError
-          className="h-screen"
+          className="h-full w-full"
           title="Failed to load workflow spec"
           errorMessage={templatedSpecError?.message ?? renderedSpecError?.message}
           icon="error_outline"

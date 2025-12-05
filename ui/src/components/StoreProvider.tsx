@@ -24,6 +24,7 @@ export const TASK_PINNED_KEY = `${APP_NAME}-task-pinned`;
 export const POOL_PINNED_KEY = `${APP_NAME}-pool-pinned`;
 export const WORKFLOW_PINNED_KEY = `${APP_NAME}-workflow-pinned`;
 export const TABLE_PAGE_SIZE_KEY = `${APP_NAME}-table-page-size`;
+export const MAIN_MENU_PINNED_KEY = `${APP_NAME}-main-menu-pinned`;
 
 export enum UrlTypes {
   Workflows = "WORKFLOWS",

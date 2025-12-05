@@ -69,7 +69,7 @@ export default function PoolPlatform({ pool, platform }: { pool: string; platfor
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center h-full w-full">
         <Spinner
           size="large"
           description="Loading..."

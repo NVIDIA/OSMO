@@ -23,7 +23,6 @@ import { usePathname } from "next/navigation";
 import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { UrlTypes, useStore } from "~/components/StoreProvider";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { type AuthClaims } from "~/models/auth-model";
 import { useRuntimeEnv } from "~/runtime-env";
 import { api } from "~/trpc/react";
 
@@ -32,21 +31,6 @@ import { IconButton } from "./IconButton";
 import { InlineBanner } from "./InlineBanner";
 import { SlideOut } from "./SlideOut";
 import { TextInput } from "./TextInput";
-
-const getUserDetails = (claims: AuthClaims | null) => {
-  if (!claims) {
-    return { initials: "NA", userName: "Guest" };
-  }
-
-  const { given_name, family_name, name } = claims;
-  const first = (given_name ?? name ?? "").charAt(0).toUpperCase();
-  const last = (family_name ?? name?.split(" ")[1] ?? "").charAt(0).toUpperCase();
-
-  return {
-    initials: `${first}${last}`,
-    userName: `${name}`,
-  };
-};
 
 const MenuLink = ({
   key,
@@ -114,7 +98,6 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   const { sidebarData } = useStore();
   const pathname = usePathname();
   const [activeRoute, setActiveRoute] = useState<string | undefined>(undefined);
-  const { initials, userName } = getUserDetails(auth.claims);
   const [openCLI, setOpenCLI] = useState(false);
   const [copied, setCopied] = useState(false);
   const cliCurl = `curl -fsSL ${runtimeEnv.CLI_INSTALL_SCRIPT_URL} | bash`;
@@ -251,19 +234,15 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   return (
     <div
       role="navigation"
-      className="h-full flex flex-col justify-between gap-global bg-page-header-bg`"
+      className="h-full flex flex-col justify-between gap-global bg-page-header-bg"
     >
-      <div className="border-y border-border flex flex-row p-1 items-center shadow-sm">
-        <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>
-        <p className="p-global font-semibold whitespace-nowrap">{userName}</p>
-      </div>
       <ul
         className="top-menu"
         aria-label="Main menu"
       >
         {links}
       </ul>
-      {version.data && <p className="border-1 border-border p-global text-center font-semibold">{version.data}</p>}
+      {version.data && <p className="border-y-1 border-border p-global text-center font-semibold">{version.data}</p>}
       <SlideOut
         id="cli"
         open={openCLI}

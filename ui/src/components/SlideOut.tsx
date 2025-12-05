@@ -20,6 +20,10 @@ import { useMediaQuery } from "usehooks-ts";
 
 import { FilledIcon, OutlinedIcon } from "./Icon";
 
+export const useAllowPinning = (minWidth = 1024) => {
+  return useMediaQuery(`(min-width: ${minWidth}px)`);
+};
+
 export const SlideOut = ({
   id,
   top = 0,
@@ -60,7 +64,7 @@ export const SlideOut = ({
   returnFocusOnDeactivate?: boolean;
   ariaLabel?: string;
 } & React.HTMLAttributes<HTMLDivElement>) => {
-  const allowPinning = useMediaQuery("(min-width: 1024px)");
+  const allowPinning = useAllowPinning();
   const isActivated = useRef(false);
   const [active, setActive] = useState(false);
   const localPinned = canPin ? pinned && allowPinning : pinned;

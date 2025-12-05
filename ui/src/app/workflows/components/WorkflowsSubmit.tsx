@@ -202,7 +202,7 @@ export const WorkflowsSubmit = ({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen translate-y-[-10%]">
+      <div className="flex justify-center items-center h-full w-full">
         <Spinner
           size="large"
           description="Loading..."
@@ -214,7 +214,7 @@ export const WorkflowsSubmit = ({
   if (!parsedProfileData?.success || !selectedPool) {
     return (
       <PageError
-        className="h-screen"
+        className="h-full w-full"
         title="Failed to Fetch Available Pools"
         errorMessage="Please contact support or restart your session and try again."
         icon="error_outline"

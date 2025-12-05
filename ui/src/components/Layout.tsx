@@ -15,23 +15,57 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { type PropsWithChildren, useEffect, useRef, useState } from "react";
+import { type PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 
 import { ThemeProvider } from "next-themes";
 
 import { env } from "~/env.mjs";
+import { type AuthClaims } from "~/models/auth-model";
 import { ZERO_WIDTH_SPACE } from "~/utils/string";
 
+import { useAuth } from "./AuthProvider";
 import { OutlinedIcon } from "./Icon";
 import { HeaderOutlet, PageHeaderProvider, TitleOutlet } from "./PageHeaderProvider";
-import { SlideOut } from "./SlideOut";
+import { SlideOut, useAllowPinning as useMinScreenWidth } from "./SlideOut";
+import { MAIN_MENU_PINNED_KEY } from "./StoreProvider";
 import { TopMenu } from "./TopMenu";
 
+const getUserDetails = (claims: AuthClaims | null) => {
+  if (!claims) {
+    return { initials: "NA", userName: "Guest" };
+  }
+
+  const { given_name, family_name, name } = claims;
+  const first = (given_name ?? name ?? "").charAt(0).toUpperCase();
+  const last = (family_name ?? name?.split(" ")[1] ?? "").charAt(0).toUpperCase();
+
+  return {
+    initials: `${first}${last}`,
+    userName: `${name}`,
+  };
+};
+
 export const Layout = ({ children }: PropsWithChildren) => {
+  const auth = useAuth();
+  const { initials, userName } = useMemo(() => getUserDetails(auth.claims), [auth.claims]);
   const [mainMenuOpen, setMainMenuOpen] = useState(false);
+  const [mainMenuPinned, setMainMenuPinned] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
   const mainMenuButtonRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const defaultPinned = useMinScreenWidth(1400);
+
+  useEffect(() => {
+    const mainMenuPinned = localStorage.getItem(MAIN_MENU_PINNED_KEY);
+    if (mainMenuPinned !== null) {
+      const pinned = mainMenuPinned === "true";
+      setMainMenuPinned(pinned);
+      setMainMenuOpen(pinned);
+    } else {
+      setMainMenuPinned(defaultPinned);
+      setMainMenuOpen(defaultPinned);
+    }
+  }, [defaultPinned]);
 
   useEffect(() => {
     // Only run in browser environment
@@ -81,7 +115,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   aria-haspopup="true"
                   aria-controls="main-menu"
                   onClick={() => {
-                    setMainMenuOpen(!mainMenuOpen);
+                    setMainMenuOpen(true);
                   }}
                   ref={mainMenuButtonRef}
                 >
@@ -118,28 +152,43 @@ export const Layout = ({ children }: PropsWithChildren) => {
           <main
             id="main-content"
             tabIndex={-1}
-            className="relative flex flex-col h-full w-screen overflow-y-auto"
+            className={`relative h-full w-full overflow-y-auto overflow-x-auto ${mainMenuPinned && mainMenuOpen ? "grid grid-cols-[auto_1fr]" : "flex flex-row"}`}
             aria-label="Main content"
           >
-            {children}
             <SlideOut
               id="main-menu"
               open={mainMenuOpen}
               onClose={() => setMainMenuOpen(false)}
               dimBackground={false}
-              className="border-t-0 h-full shadow-lg shadow-black/50 min-w-80"
-              bodyClassName="h-full"
+              className="h-full shadow-sm"
+              bodyClassName="h-full min-w-50 shadow-2xl shadow-black/50"
               position="left"
+              canPin={true}
+              pinned={mainMenuPinned}
+              onPinChange={(pinned) => {
+                setMainMenuPinned(pinned);
+                localStorage.setItem(MAIN_MENU_PINNED_KEY, pinned.toString());
+              }}
+              header={
+                <div className="flex flex-row items-center">
+                  <span className="rounded-full bg-blue-800 text-white p-1">{initials}</span>
+                  <p className="p-global font-semibold whitespace-nowrap">{userName}</p>
+                </div>
+              }
+              headerClassName="body-header"
             >
               <TopMenu
                 onItemClick={() => {
-                  setMainMenuOpen(false);
+                  if (!mainMenuPinned) {
+                    setMainMenuOpen(false);
+                  }
                   setTimeout(() => {
                     titleRef.current?.focus();
                   }, 500);
                 }}
               />
             </SlideOut>
+            <div className="flex w-full grow overflow-x-auto">{children}</div>
           </main>
         </div>
       </PageHeaderProvider>

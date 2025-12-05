@@ -366,7 +366,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .top-menu {
-    @apply flex flex-col list-none grow;
+    @apply flex flex-col list-none grow pt-global;
 
     li {
       @apply px-global list-none m-0;

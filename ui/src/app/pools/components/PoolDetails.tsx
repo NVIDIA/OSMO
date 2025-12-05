@@ -121,15 +121,23 @@ export const PoolDetails = ({
               </div>
             )}
             {pool.resource_usage && (
-              <div
-                className="grid lg:grid-cols-2 overflow-x-hidden"
-                role="list"
-              >
-                <AggregatePanels
-                  totals={pool.resource_usage}
-                  isLoading={false}
-                  isShowingUsed={isShowingUsed ?? true}
-                />
+              <div className="card p-0">
+                <h3
+                  className="body-header text-base p-global"
+                  id="resource-usage"
+                >
+                  Resource Usage
+                </h3>
+                <div
+                  className="grid lg:grid-cols-2 overflow-x-hidden"
+                  role="list"
+                >
+                  <AggregatePanels
+                    totals={pool.resource_usage}
+                    isLoading={false}
+                    isShowingUsed={isShowingUsed ?? true}
+                  />
+                </div>
               </div>
             )}
             <div className="card p-0">
