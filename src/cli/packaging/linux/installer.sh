@@ -17,13 +17,6 @@
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
-# Determine if we're doing a system or user install
-if [ ! -w "/usr/local" ]; then
-    echo "Error: You do not have permission to install OSMO for Linux system-wide."
-    echo "Please run the installer via sudo or as root."
-    exit 1
-fi
-
 OSMO_CLI_INSTALL_DIR="/usr/local"
 OSMO_CLI_INSTALL_PATH="$OSMO_CLI_INSTALL_DIR/osmo"
 OSMO_CLI_SYMLINK_PATH="/usr/local/bin/osmo"
@@ -31,6 +24,40 @@ OSMO_CLI_BASH_COMPLETION_DIR="/usr/share/bash-completion/completions"
 
 OSMO_CLI_TMP_DIR="/tmp/osmo-install-$$"  # $$ = process ID
 OSMO_CLI_PACKAGE_NAME="osmo-client-linux.tgz"
+
+########################################################
+# Sudo detection and helper
+########################################################
+
+# Check if we need elevated privileges
+NEED_SUDO=false
+if [ "$(id -u)" -ne 0 ]; then
+    # Not running as root, check if we can write to install locations
+    if [ ! -w "$OSMO_CLI_INSTALL_DIR" ] || \
+       [ ! -w "/usr/local/bin" ] || \
+       [ ! -w "$OSMO_CLI_BASH_COMPLETION_DIR" ] 2>/dev/null; then
+        NEED_SUDO=true
+    fi
+fi
+
+# If we need sudo, verify it's available
+if [ "$NEED_SUDO" = true ]; then
+    if ! command -v sudo &> /dev/null; then
+        echo "Error: This installation requires elevated privileges, but 'sudo' is not available."
+        echo "Please run this installer as root or install sudo."
+        exit 1
+    fi
+    echo "Note: Installation requires elevated privileges. You may be prompted for your password."
+fi
+
+# Helper function to run commands with sudo only when needed
+run_privileged() {
+    if [ "$NEED_SUDO" = true ]; then
+        sudo "$@"
+    else
+        "$@"
+    fi
+}
 
 ########################################################
 # Extract the archive from the script
@@ -70,10 +97,10 @@ echo "Installing OSMO for Linux..."
 
 if [ -e "$OSMO_CLI_INSTALL_PATH" ]; then
     # OSMO client already installed, delete previous installation
-    rm -rf "$OSMO_CLI_INSTALL_PATH"
+    run_privileged rm -rf "$OSMO_CLI_INSTALL_PATH"
 fi
 
-tar -xzf "$OSMO_CLI_TMP_DIR/$OSMO_CLI_PACKAGE_NAME" -C "$OSMO_CLI_INSTALL_DIR"
+run_privileged tar -xzf "$OSMO_CLI_TMP_DIR/$OSMO_CLI_PACKAGE_NAME" -C "$OSMO_CLI_INSTALL_DIR"
 
 if [ ! -d "$OSMO_CLI_INSTALL_PATH" ]; then
     echo "Installation unsuccessful, please try again."
@@ -81,12 +108,12 @@ if [ ! -d "$OSMO_CLI_INSTALL_PATH" ]; then
 fi
 
 # Add symlink
-ln -s -f "$OSMO_CLI_INSTALL_PATH/osmo" "$OSMO_CLI_SYMLINK_PATH"
+run_privileged ln -s -f "$OSMO_CLI_INSTALL_PATH/osmo" "$OSMO_CLI_SYMLINK_PATH"
 
 # Setup bash autocomplete
 if [ -f "$OSMO_CLI_INSTALL_PATH/autocomplete.bash" ]; then
-    mkdir -p "$OSMO_CLI_BASH_COMPLETION_DIR"
-    cp "$OSMO_CLI_INSTALL_PATH/autocomplete.bash" "$OSMO_CLI_BASH_COMPLETION_DIR/osmo"
+    run_privileged mkdir -p "$OSMO_CLI_BASH_COMPLETION_DIR"
+    run_privileged cp "$OSMO_CLI_INSTALL_PATH/autocomplete.bash" "$OSMO_CLI_BASH_COMPLETION_DIR/osmo"
     echo "Bash autocomplete installed"
 fi
 
