@@ -1,0 +1,54 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: osmo
+nodes:
+  - role: control-plane
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=ingress,nvidia.com/gpu.deploy.operands=false"
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 80
+        protocol: TCP
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=kai-scheduler,nvidia.com/gpu.deploy.operands=false"
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
+    extraMounts:
+      - hostPath: /tmp/localstack-s3
+        containerPath: /var/lib/localstack
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
+  - role: worker
+    kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "node_group=compute,nvidia.com/gpu.deploy.operands=false"
