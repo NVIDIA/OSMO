@@ -104,7 +104,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.worker.scaling.minReplicas` | Minimum replicas | `2` |
 | `services.worker.scaling.maxReplicas` | Maximum replicas | `10` |
-| `services.worker.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
+| `services.worker.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.worker.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.worker.imageName` | Worker image name | `worker` |
 | `services.worker.serviceName` | Service name | `osmo-worker` |
 | `services.worker.initContainers` | Init containers for worker | `[]` |
@@ -120,7 +121,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.service.scaling.minReplicas` | Minimum replicas | `3` |
 | `services.service.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.service.scaling.hpaTarget` | HPA target utilization | `80` |
+| `services.service.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
@@ -140,7 +142,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.logger.scaling.minReplicas` | Minimum replicas | `3` |
 | `services.logger.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.logger.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
+| `services.logger.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.logger.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.logger.imageName` | Logger image name | `logger` |
 | `services.logger.serviceName` | Service name | `osmo-logger` |
 | `services.logger.initContainers` | Init containers for logger service | `[]` |
@@ -155,7 +158,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.agent.scaling.minReplicas` | Minimum replicas | `1` |
 | `services.agent.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.agent.scaling.hpaTarget` | HPA target utilization | `80` |
+| `services.agent.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.agent.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.agent.imageName` | Agent image name | `agent` |
 | `services.agent.serviceName` | Service name | `osmo-agent` |
 | `services.agent.initContainers` | Init containers for agent service | `[]` |
