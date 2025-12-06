@@ -77,7 +77,7 @@ export const UserFilter = ({
     <>
       <fieldset className="flex flex-col gap-1 mb-2">
         <legend>Users</legend>
-        <div className="flex flex-row gap-7">
+        <div className="flex flex-row gap-radios">
           <label className="flex items-center gap-1">
             <input
               type="radio"

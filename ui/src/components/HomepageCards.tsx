@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useRuntimeEnv } from "~/runtime-env";
 
 interface HomepageCardProps {
+  id: string;
   title: string;
   imageUrl: string;
   imageAlt: string;
@@ -30,6 +31,7 @@ interface HomepageCardProps {
 }
 
 export const HomepageCard: React.FC<HomepageCardProps> = ({
+  id,
   title,
   imageUrl,
   imageAlt,
@@ -38,7 +40,11 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
   workflowLink,
 }) => {
   return (
-    <div className="card flex flex-col">
+    <div
+      className="card flex flex-col"
+      role="listitem"
+      id={id}
+    >
       <div className="relative h-50">
         <Image
           fill
@@ -49,8 +55,8 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
         />
       </div>
       <div className="flex flex-col justify-between flex-grow bg-white">
-        <div className="p-4 flex flex-col">
-          <h4>{title}</h4>
+        <div className="p-global flex flex-col">
+          <h4 id={`${id}-title`}>{title}</h4>
           <p>{body}</p>
         </div>
         <div className="modal-footer">
@@ -59,12 +65,14 @@ export const HomepageCard: React.FC<HomepageCardProps> = ({
             href={tutorialLink}
             target="_blank"
             rel="noopener noreferrer"
+            aria-describedby={`${id}-title`}
           >
             View Tutorial
           </a>
           <Link
             className="btn btn-primary"
             href={workflowLink}
+            aria-describedby={`${id}-title`}
           >
             Launch Workflow
           </Link>
@@ -78,10 +86,20 @@ export const HomepageCards = () => {
   const runtimeEnv = useRuntimeEnv();
 
   return (
-    <div className="flex flex-col gap-3 p-3">
-      <h2 className="text-center">Getting Started</h2>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4 lg:grid-cols-3 md:grid-cols-2">
+    <div className="flex flex-col gap-global p-global">
+      <h2
+        id="getting-started"
+        className="text-center"
+      >
+        Getting Started
+      </h2>
+      <div
+        className="grid grid-cols-1 gap-global xl:grid-cols-4 lg:grid-cols-3 md:grid-cols-2"
+        role="list"
+        aria-labelledby="getting-started"
+      >
         <HomepageCard
+          id="isaac-sim-sdg"
           title="Isaac Sim: Generating Synthetic Data"
           imageUrl="/sdg.png"
           imageAlt="Synthetic Data Generation"
@@ -104,6 +122,7 @@ export const HomepageCards = () => {
           workflowLink="/workflows/submit/isaac_sim_sdg"
         />
         <HomepageCard
+          id="torchrun-training"
           title="TorchRun: Training Deep Learning Models"
           imageUrl="/train.jpg"
           imageAlt="Training"
@@ -125,6 +144,7 @@ export const HomepageCards = () => {
           workflowLink="/workflows/submit/mnist_training"
         />
         <HomepageCard
+          id="isaac-lab-training"
           title="Isaac Lab: Training robot policy with Reinforcement Learning (RL)"
           imageUrl="/robot.png"
           imageAlt="Humanoid in Isaac Lab"
@@ -146,6 +166,7 @@ export const HomepageCards = () => {
           workflowLink="/workflows/submit/reinforcement_learning"
         />
         <HomepageCard
+          id="isaac-groot-notebook"
           title="Isaac Groot: Interactive Notebook for Inference and Fine-tuning"
           imageUrl="/groot.png"
           imageAlt="Groot N1.5"

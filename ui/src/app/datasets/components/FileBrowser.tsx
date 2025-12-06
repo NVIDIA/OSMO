@@ -308,40 +308,40 @@ const FileBrowser: React.FC<DatasetFileBrowserProps> = ({ dataset, currentVersio
     disableDragAndDropProvider: true,
   });
 
+  if (!isSuccess) {
+    return null;
+  }
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {isSuccess && (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        <ChonkyFileBrowser
-          instanceId="file-browser"
-          files={files}
-          folderChain={folderChain}
-          onFileAction={handleFileBrowserAction}
-          disableSelection={true}
-          defaultFileViewActionId={ChonkyActions.EnableListView.id}
-          thumbnailGenerator={(file: FileData) => {
-            // Only render thumbnail for PNG, JPEG, GIF and MP4
-            if (file.name.match(/\.(mp4|png|jpe?g)$/)) {
-              return file.thumbnailUrl;
-            }
-          }}
-          disableDefaultFileActions={[
-            ChonkyActions.MouseClickFile.id,
-            ChonkyActions.OpenSelection.id,
-            ChonkyActions.SelectAllFiles.id,
-            ChonkyActions.ClearSelection.id,
-            ChonkyActions.SortFilesByDate.id,
-            ChonkyActions.ToggleHiddenFiles.id,
-            ChonkyActions.ChangeSelection.id,
-          ]}
-        >
-          <FileNavbar />
-          <FileToolbar />
-          <FileList />
-        </ChonkyFileBrowser>
-      )}
-    </div>
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    <ChonkyFileBrowser
+      instanceId="file-browser"
+      files={files}
+      folderChain={folderChain}
+      onFileAction={handleFileBrowserAction}
+      disableSelection={true}
+      defaultFileViewActionId={ChonkyActions.EnableListView.id}
+      thumbnailGenerator={(file: FileData) => {
+        // Only render thumbnail for PNG, JPEG, GIF and MP4
+        if (file.name.match(/\.(mp4|png|jpe?g)$/)) {
+          return file.thumbnailUrl;
+        }
+      }}
+      disableDefaultFileActions={[
+        ChonkyActions.MouseClickFile.id,
+        ChonkyActions.OpenSelection.id,
+        ChonkyActions.SelectAllFiles.id,
+        ChonkyActions.ClearSelection.id,
+        ChonkyActions.SortFilesByDate.id,
+        ChonkyActions.ToggleHiddenFiles.id,
+        ChonkyActions.ChangeSelection.id,
+      ]}
+    >
+      <FileNavbar />
+      <FileToolbar />
+      <FileList />
+    </ChonkyFileBrowser>
   );
 };
 
