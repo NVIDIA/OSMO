@@ -23,6 +23,10 @@
 osmo logout
 ================================================
 
-.. code-block::
-
-   usage: osmo logout [-h]
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: logout
+   :ref-prefix: cli_reference_logout
+   :argument-anchor:

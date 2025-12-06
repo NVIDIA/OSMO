@@ -204,6 +204,7 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           pip install -U -r docs/locked_requirements.txt
+          pip install -U -r src/locked_requirements.txt
 
       - name: Build Sphinx documentation
         if: github.event.action != 'closed'

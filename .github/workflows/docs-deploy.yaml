@@ -54,6 +54,7 @@ jobs:
         run: |
           git fetch
           pip install -U -r docs/locked_requirements.txt
+          pip install -U -r src/locked_requirements.txt
 
       - name: Build Sphinx documentation
         run: |

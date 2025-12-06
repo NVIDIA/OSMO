@@ -23,34 +23,10 @@
 osmo bucket
 ================================================
 
-.. code-block::
-
-   usage: osmo bucket [-h] {list} ...
-
-Positional Arguments
-====================
-
-:kbd:`command`
-   Possible choices: list
-
-Sub-commands
-============
-
-list
-----
-
-List available and default buckets
-
-.. code-block::
-
-   osmo bucket list [-h] [--format-type {json,text}]
-
-Named Arguments
-~~~~~~~~~~~~~~~
-
---format-type, -t
-   Possible choices: json, text
-
-   Specify the output format type (Default text).
-
-   Default: ``'text'``
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: bucket
+   :ref-prefix: cli_reference_bucket
+   :argument-anchor:
