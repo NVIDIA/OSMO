@@ -224,4 +224,11 @@ spec:
       container: {{ .Values.services.worker.serviceName }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.worker.scaling.hpaTarget }}
+        averageUtilization: {{ .Values.services.worker.scaling.hpaMemoryTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: {{ .Values.services.worker.serviceName }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.worker.scaling.hpaCpuTarget }}
