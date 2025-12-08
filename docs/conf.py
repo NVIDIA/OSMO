@@ -87,12 +87,10 @@ linkcheck_ignore = [
     'https://console.volcengine.com*',
     'https://us-east-1.console.aws.amazon.com*'
 ]
-
 linkcheck_anchors = False
-
-linkcheck_timeout = 150
-
 linkcheck_report_timeouts_as_broken = False
+linkcheck_retries = 3
+linkcheck_timeout = 150
 
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
@@ -143,7 +141,7 @@ html_theme_options = {
     "github_url": "https://github.com/NVIDIA/OSMO/",
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["versioning.html","theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["versioning.html", "theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
