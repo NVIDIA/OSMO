@@ -50,14 +50,12 @@ Follow instructions [here](https://docs.nvidia.com/brev/latest/brev-cli.html#ins
 
 ### Step 2: Set Up Port Forwarding
 
-Forward port 8000 from your Brev instance to local port 80:
+Forward port 8000 from your Brev instance to local port 8000. This port will need to be forwarded for you to use the OSMO CLI from your workstation.
 
 ```bash
 # Find your instance name with brev ls
 brev port-forward <your-instance-name> --port 8000:8000
 ```
-
-> **Tip:** Keep this terminal window open while you work with OSMO. The port forward will remain active as long as this session is running.
 
 ### Step 4: Install OSMO CLI
 
