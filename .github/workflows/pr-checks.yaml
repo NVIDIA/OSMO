@@ -30,6 +30,7 @@ jobs:
   #######################
   #    Path Filters     #
   #######################
+
   check-paths:
     runs-on: ubuntu-latest
     outputs:
