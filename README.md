@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 -->
 
 
-<img src="./docs/front_cover.png" width="100%"/>
+<img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/front_cover.png" width="100%"/>
 
 # Welcome to OSMO
 ### Workflow Orchestration Purpose-built for Physical AI
@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 <a href="https://nvidia.github.io/OSMO/main/user_guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
 <a href="https://kubernetes.io/"><img src="https://img.shields.io/badge/Kubernetes-Native-326ce5.svg" alt="Kubernetes"></a>
+<a href="https://brev.nvidia.com/launchable/deploy?launchableID=env-36GS9OFgl7TesV00OHiU8d5XHKl"><img src="https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg" alt="Brev deployment"></a>
 
 <a href="#ready-to-begin">Get Started</a>
 | <a href="#documentation">Documentation</a>
@@ -35,7 +36,7 @@ SPDX-License-Identifier: Apache-2.0
 Use OSMO to manage your workflows, version your datasets and even remotely develop on a backend node. Using OSMO's backend configuration, run your workflows seamlessly on any cloud environment. Build a data factory to manage your synthetic and real robot data, train neural networks with experiment tracking, train robot policies with reinforcement learning, evaluate your models and publish the results, test the robot in simulation with software or hardware in loop (HIL) and automate your workflows on any CI/CD systems
 
 <div align="center">
-  <img src="./docs/user_guide/overview.svg" width="85%"/>
+  <img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/user_guide/overview.svg" width="85%"/>
 </div>
 
 
@@ -105,7 +106,7 @@ Traditionally, orchestrating workflows across these heterogeneous systems requir
 OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
 
 <div align="center">
-  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+  <img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
 </div>
 
 
@@ -136,7 +137,7 @@ Select one of the deployment options below depending on your needs and environme
 
 <div align="center">
   <a href="https://nvidia.github.io/OSMO/main/deployment_guide/introduction/whats_next.html">
-    <img src="./docs/deployment_options.svg" width="85%"/>
+    <img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/deployment_options.svg" width="85%"/>
   </a>
 </div>
 
@@ -147,6 +148,7 @@ Select one of the deployment options below depending on your needs and environme
 | Resource | Description |
 |:---------|:------------|
 | 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
+| ⚡ [**Brev Deployment**](https://brev.nvidia.com/launchable/deploy?launchableID=env-36GS9OFgl7TesV00OHiU8d5XHKl) | Run it on a Brev instance with a GPU in 10 minutes |
 | 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/) | Deploy production grade on cloud providers  |
 | 📘 [**User Guide**](https://nvidia.github.io/OSMO/main/user_guide/) | Tutorials, workflows, and how-to guides for developers |
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
