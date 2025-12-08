@@ -253,7 +253,12 @@ jobs:
         if: github.event.action != 'closed'
         continue-on-error: true
         run: |
+          shopt -s globstar
           mkdir -p ./docs/link_check_error_logs
+
+          # Debug: show how many files will be checked
+          echo "HTML files to check: $(find ./docs/public -name '*.html' | wc -l)"
+
           lychee \
             --config ./docs/lychee.toml \
             --verbose \
@@ -261,7 +266,7 @@ jobs:
             --exclude-all-private \
             --format markdown \
             --output ./docs/link_check_error_logs/lychee-report.md \
-            './docs/public/**/*.html' || true
+            ./docs/public/**/*.html || true
 
       - name: Save lychee cache
         uses: actions/cache/save@v4
