@@ -301,4 +301,11 @@ spec:
       container: {{ .Values.services.logger.serviceName }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.logger.scaling.hpaTarget }}
+        averageUtilization: {{ .Values.services.logger.scaling.hpaMemoryTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: {{ .Values.services.logger.serviceName }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.logger.scaling.hpaCpuTarget }}
