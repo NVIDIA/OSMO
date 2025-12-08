@@ -49,7 +49,17 @@ exclude = [
 
 # Exclude paths
 exclude_path = [
+    # CI (runs from /docs)
+    "_build",
+    "_redirect",
+    "_templates",
+    "public/_static",
+
+    # Local (runs from project root)
     "docs/_build",
+    "docs/_redirect",
+    "docs/_templates",
+    "docs/public/_static",
 ]
 
 # Don't check mail addresses

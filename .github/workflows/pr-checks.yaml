@@ -241,14 +241,27 @@ jobs:
           key: cache-lychee-${{ github.run_id }}
           restore-keys: cache-lychee-
 
+      - name: Install lychee
+        if: github.event.action != 'closed'
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --version
+          jobSummary: false
+
       - name: Run link check with lychee
         id: lychee
         if: github.event.action != 'closed'
         continue-on-error: true
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: --config ./docs/lychee.toml --verbose --no-progress --exclude-all-private './docs/**/*.rst'
-          output: ./docs/link_check_error_logs/lychee-report.md
+        run: |
+          mkdir -p ./docs/link_check_error_logs
+          lychee \
+            --config ./docs/lychee.toml \
+            --verbose \
+            --no-progress \
+            --exclude-all-private \
+            --format markdown \
+            --output ./docs/link_check_error_logs/lychee-report.md \
+            './docs/public/**/*.html' || true
 
       - name: Save lychee cache
         uses: actions/cache/save@v4
