@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 -->
 
 
-<img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/front_cover.png" width="100%"/>
+<img src="./docs/front_cover.png" width="100%"/>
 
 # Welcome to OSMO
 ### Workflow Orchestration Purpose-built for Physical AI
@@ -36,7 +36,7 @@ SPDX-License-Identifier: Apache-2.0
 Use OSMO to manage your workflows, version your datasets and even remotely develop on a backend node. Using OSMO's backend configuration, run your workflows seamlessly on any cloud environment. Build a data factory to manage your synthetic and real robot data, train neural networks with experiment tracking, train robot policies with reinforcement learning, evaluate your models and publish the results, test the robot in simulation with software or hardware in loop (HIL) and automate your workflows on any CI/CD systems
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/user_guide/overview.svg" width="85%"/>
+  <img src="./docs/user_guide/overview.svg" width="85%"/>
 </div>
 
 
@@ -106,7 +106,7 @@ Traditionally, orchestrating workflows across these heterogeneous systems requir
 OSMO solves this [Three Computer Problem](https://blogs.nvidia.com/blog/three-computers-robotics/) for robotics by orchestrating your entire Physical AI pipeline — from training to simulation to hardware testing all in a simple YAML. No custom scripts, no infrastructure expertise required. OSMO orchestrates tasks across heterogeneous Kubernetes clusters, managing dependencies and resource allocation. By solving this fundamental problem, OSMO brings us one step closer towards making Physical AI a reality.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
+  <img src="./docs/user_guide/tutorials/hardware_in_the_loop/robot_simulation.svg" width="70%"/>
 </div>
 
 
@@ -137,7 +137,7 @@ Select one of the deployment options below depending on your needs and environme
 
 <div align="center">
   <a href="https://nvidia.github.io/OSMO/main/deployment_guide/introduction/whats_next.html">
-    <img src="https://raw.githubusercontent.com/NVIDIA/OSMO/main/external/docs/deployment_options.svg" width="85%"/>
+    <img src="./docs/deployment_options.svg" width="85%"/>
   </a>
 </div>
 
