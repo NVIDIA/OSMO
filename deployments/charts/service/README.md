@@ -135,6 +135,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.service.resources` | Resource limits and requests | `{}` |
 | `services.service.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 | `services.service.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.service.envoy` | API service Envoy configuration overrides | `{}` |
 
 #### Logger Service
 
@@ -151,6 +152,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.logger.tolerations` | Pod tolerations | `[]` |
 | `services.logger.resources` | Resource limits and requests | See values.yaml |
 | `services.logger.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.logger.envoy` | Logger service Envoy configuration overrides | `{}` |
 
 #### Agent Service
 
@@ -167,6 +169,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.agent.tolerations` | Pod tolerations | `[]` |
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.agent.envoy` | Agent service Envoy configuration overrides | `{}` |
 
 ### Ingress Settings
 
@@ -188,7 +191,22 @@ This Helm chart deploys the OSMO platform with its core services and required si
 
 ### Sidecar Configuration
 
-The chart now supports extensible sidecar configuration through the `sidecars` section:
+The chart now supports extensible sidecar configuration through the `sidecars` section.
+
+#### Per-Service Envoy Overrides
+
+Each service (API, Logger, Agent) can override global Envoy settings using `services.<service>.envoy`. These per-service settings are merged with the global `sidecars.envoy` configuration, allowing you to customize specific settings without duplicating the entire configuration.
+
+Example - Override `maxRequests` for the API service only:
+
+```yaml
+services:
+  service:
+    envoy:
+      maxRequests: 200  # Override global default of 100
+```
+
+Any field from `sidecars.envoy` can be overridden at the service level. Fields not specified in the service-level config will inherit the global defaults.
 
 #### Envoy Proxy Settings
 
