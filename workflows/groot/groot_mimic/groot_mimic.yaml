@@ -16,6 +16,9 @@
 
 # To submit:
 # osmo workflow submit groot_mimic.yaml
+#
+# To use more demonstrations:
+# osmo workflow submit groot_mimic.yaml --set num_envs=10 num_trials=1000
 
 workflow:
   groups:
@@ -40,7 +43,7 @@ workflow:
             --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
 
           ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-            --device cpu --enable_cameras --headless --num_envs 1 --generation_num_trials 10 \
+            --device cpu --enable_cameras --headless --num_envs {{ num_envs }} --generation_num_trials {{ num_trials }} \
             --input_file ./datasets/annotated_dataset.hdf5 --output_file {{output}}/output/mimic/mimic_dataset_1k.hdf5 \
             --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0
 
@@ -55,7 +58,7 @@ workflow:
           cp -r logs/robomimic {{output}}/output/mimic
 
         path: /tmp/entry.sh
-      image: nvcr.io/nvidia/isaac-lab:2.2.0
+      image: nvcr.io/nvidia/isaac-lab:2.3.0
       name: mimic
       outputs:
       - dataset:
@@ -68,3 +71,7 @@ workflow:
       gpu: 1
       memory: 64Gi
       storage: 64Gi
+
+default-values:
+  num_envs: 1
+  num_trials: 10
