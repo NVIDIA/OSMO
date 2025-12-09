@@ -44,6 +44,21 @@ command_exists() {
 }
 
 # ============================================
+# Version Constants
+# ============================================
+# NVIDIA Driver minimum version
+NVIDIA_MIN_DRIVER_VERSION="575"
+
+# nvidia-container-toolkit versions
+NVIDIA_CTK_MIN_VERSION="1.18.0"
+NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
+
+# Helm chart versions
+GPU_OPERATOR_VERSION="v25.10.0"
+KAI_SCHEDULER_VERSION="v0.8.1"
+OSMO_QUICKSTART_VERSION="1.0.0"
+
+# ============================================
 # Step 0: System Configuration
 # ============================================
 print_status "Configuring system settings..."
@@ -65,7 +80,6 @@ fi
 
 # Check NVIDIA driver version
 print_status "Checking NVIDIA driver version..."
-NVIDIA_MIN_DRIVER_VERSION="575"
 NVIDIA_DRIVER_FULL_VERSION=""
 NVIDIA_DRIVER_VERSION=""
 NVIDIA_DRIVER_SUFFICIENT="false"
@@ -129,9 +143,6 @@ else
 fi
 
 # Install or upgrade nvidia-container-toolkit to version 1.18+
-NVIDIA_CTK_MIN_VERSION="1.18.0"
-NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
-
 # Check current version
 if command_exists nvidia-ctk; then
     current_version=$(nvidia-ctk --version 2>&1 | grep -oP 'version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
@@ -306,9 +317,9 @@ nvkind cluster print-gpus || print_warning "Could not verify GPUs, but continuin
 print_status "Installing GPU Operator..."
 
 cd ~/osmo-deployment
-helm fetch https://helm.ngc.nvidia.com/nvidia/charts/gpu-operator-v25.10.0.tgz
+helm fetch https://helm.ngc.nvidia.com/nvidia/charts/gpu-operator-${GPU_OPERATOR_VERSION}.tgz
 
-helm upgrade --install gpu-operator gpu-operator-v25.10.0.tgz \
+helm upgrade --install gpu-operator gpu-operator-${GPU_OPERATOR_VERSION}.tgz \
   --namespace gpu-operator \
   --create-namespace \
   --set driver.enabled=false \
@@ -325,7 +336,7 @@ print_status "Installing KAI Scheduler..."
 
 helm upgrade --install kai-scheduler \
   oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-  --version v0.8.1 \
+  --version ${KAI_SCHEDULER_VERSION} \
   --create-namespace -n kai-scheduler \
   --set global.nodeSelector.node_group=kai-scheduler \
   --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
@@ -340,9 +351,9 @@ print_status "KAI Scheduler installed successfully"
 print_status "Installing OSMO (this may take 5-10 minutes)..."
 
 cd ~/osmo-deployment
-helm fetch https://helm.ngc.nvidia.com/nvidia/osmo/charts/quick-start-1.0.0.tgz
+helm fetch https://helm.ngc.nvidia.com/nvidia/osmo/charts/quick-start-${OSMO_QUICKSTART_VERSION}.tgz
 
-helm upgrade --install osmo quick-start-1.0.0.tgz \
+helm upgrade --install osmo quick-start-${OSMO_QUICKSTART_VERSION}.tgz \
   --namespace osmo \
   --create-namespace \
   --set web-ui.services.ui.hostname="" \
