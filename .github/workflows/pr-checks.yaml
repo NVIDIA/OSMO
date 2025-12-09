@@ -241,30 +241,15 @@ jobs:
           key: cache-lychee-${{ github.run_id }}
           restore-keys: cache-lychee-
 
-      - name: Install lychee
+      - name: Link Checker
+        id: link-checker
         if: github.event.action != 'closed'
         uses: lycheeverse/lychee-action@v2
-        with:
-          args: --version
-          jobSummary: false
-
-      - name: Run link check with lychee
-        id: lychee
-        if: github.event.action != 'closed'
         continue-on-error: true
-        run: |
-          mkdir -p ./docs/link_check_error_logs
-
-          # Run from docs/public so lychee's glob works correctly
-          cd ./docs/public
-          lychee \
-            --config ../lychee.toml \
-            --verbose \
-            --no-progress \
-            --exclude-all-private \
-            --format markdown \
-            --output ../link_check_error_logs/lychee-report.md \
-            '**/*.html' || true
+        with:
+          args: --root-dir "$(pwd)" --config ./lychee.toml --verbose --no-progress './**/*.html'
+          output: ./link_check_error_logs/lychee-report.md
+          workingDirectory: docs/public
 
       - name: Save lychee cache
         uses: actions/cache/save@v4
@@ -276,10 +261,10 @@ jobs:
       - name: Check spelling and link results
         if: github.event.action != 'closed'
         run: |
-          if [ "${{ steps.spelling.outcome }}" == "failure" ] || [ "${{ steps.lychee.outcome }}" == "failure" ]; then
+          if [ "${{ steps.spelling.outcome }}" == "failure" ] || [ "${{ steps.link-checker.outcome }}" == "failure" ]; then
             echo "::error::One or more checks failed:"
             [ "${{ steps.spelling.outcome }}" == "failure" ] && echo "  - Spelling check failed"
-            [ "${{ steps.lychee.outcome }}" == "failure" ] && echo "  - Link check failed"
+            [ "${{ steps.link-checker.outcome }}" == "failure" ] && echo "  - Link check failed"
             exit 1
           fi
           echo "All checks passed"
