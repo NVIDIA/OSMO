@@ -41,7 +41,6 @@ osmo_py_library(
         "//src/lib/utils:paths",
         "//src/lib/utils:port_forward",
         "//src/lib/utils:validation",
-        "@rules_python//python/runfiles",
     ],
     data = [
         ":rsync_bin",

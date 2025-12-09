@@ -19,6 +19,7 @@
 import sys
 from pathlib import Path
 
+
 # Add the directory containing conf.py to the path so custom extensions can be found
 # This is important for sphinx-multiversion which runs from temporary directories
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
@@ -45,11 +46,13 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
+    'sphinxarg.ext',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
     'sphinx_reredirects',
 
     # Custom extensions
+    '_extensions.argparse_postprocess',
     '_extensions.auto_include',
     '_extensions.code_annotations',
     '_extensions.collapsible_code_block',
