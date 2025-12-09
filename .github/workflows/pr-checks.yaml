@@ -247,8 +247,8 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         continue-on-error: true
         with:
-          args: --root-dir "$(pwd)" --config ./lychee.toml --verbose --no-progress './**/*.html'
-          output: ./link_check_error_logs/lychee-report.md
+          args: --config ../lychee.toml --verbose --no-progress '**/*.html'
+          output: ../link_check_error_logs/lychee-report.md
           workingDirectory: docs/public
 
       - name: Save lychee cache
