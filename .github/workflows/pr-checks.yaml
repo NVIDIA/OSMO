@@ -237,7 +237,7 @@ jobs:
         if: github.event.action != 'closed'
         uses: actions/cache/restore@v4
         with:
-          path: .lycheecache
+          path: docs/public/.lycheecache
           key: cache-lychee-${{ github.run_id }}
           restore-keys: cache-lychee-
 
@@ -253,26 +253,24 @@ jobs:
         if: github.event.action != 'closed'
         continue-on-error: true
         run: |
-          shopt -s globstar
           mkdir -p ./docs/link_check_error_logs
 
-          # Debug: show how many files will be checked
-          echo "HTML files to check: $(find ./docs/public -name '*.html' | wc -l)"
-
+          # Run from docs/public so lychee's glob works correctly
+          cd ./docs/public
           lychee \
-            --config ./docs/lychee.toml \
+            --config ../lychee.toml \
             --verbose \
             --no-progress \
             --exclude-all-private \
             --format markdown \
-            --output ./docs/link_check_error_logs/lychee-report.md \
-            ./docs/public/**/*.html || true
+            --output ../link_check_error_logs/lychee-report.md \
+            '**/*.html' || true
 
       - name: Save lychee cache
         uses: actions/cache/save@v4
         if: github.event.action != 'closed'
         with:
-          path: .lycheecache
+          path: docs/public/.lycheecache
           key: cache-lychee-${{ github.run_id }}
 
       - name: Check spelling and link results
