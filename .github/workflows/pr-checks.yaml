@@ -245,13 +245,13 @@ jobs:
           mkdir -p ../link_check_error_logs
           lychee \
             --config ../lychee.toml \
-            --root-dir $(pwd) \
             --verbose \
             --no-progress \
             --exclude-all-private \
             --format markdown \
             --output ../link_check_error_logs/lychee-report.md \
-            --glob-ignore-case '**/*.html' \
+            --glob-ignore-case \
+            '**/*.html' \
             .
 
       # - name: Save lychee cache
