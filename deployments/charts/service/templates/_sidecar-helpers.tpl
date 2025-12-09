@@ -309,32 +309,34 @@ Envoy volumes
 */}}
 {{- define "osmo.envoy-volumes" -}}
 {{- $serviceName := .serviceName | default .Values.sidecars.envoy.serviceName }}
-{{- if .Values.sidecars.envoy.enabled }}
+{{- $serviceEnvoy := .serviceEnvoy | default dict }}
+{{- $envoy := mergeOverwrite (deepCopy .Values.sidecars.envoy) $serviceEnvoy }}
+{{- if $envoy.enabled }}
 - name: envoy-config
   configMap:
     name: {{ $serviceName }}-envoy-config
-{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
+{{- if $envoy.useKubernetesSecrets }}
 - name: envoy-secrets
   secret:
-    secretName: {{ .Values.sidecars.envoy.oauth2Filter.secretName | default "oidc-secrets" }}
+    secretName: {{ $envoy.oauth2Filter.secretName | default "oidc-secrets" }}
     items:
-    - key: {{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
+    - key: {{ $envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
       path: client_secret
-    - key: {{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
+    - key: {{ $envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
       path: hmac_secret
 {{- end }}
-{{- if .Values.sidecars.envoy.ssl.enabled }}
+{{- if $envoy.ssl.enabled }}
 - name: ssl-cert
   secret:
-    secretName: {{ .Values.sidecars.envoy.ssl.cert.secretName }}
+    secretName: {{ $envoy.ssl.cert.secretName }}
     items:
-    - key: {{ .Values.sidecars.envoy.ssl.cert.secretKey }}
+    - key: {{ $envoy.ssl.cert.secretKey }}
       path: cert.crt
 - name: ssl-key
   secret:
-    secretName: {{ .Values.sidecars.envoy.ssl.privateKey.secretName }}
+    secretName: {{ $envoy.ssl.privateKey.secretName }}
     items:
-    - key: {{ .Values.sidecars.envoy.ssl.privateKey.secretKey }}
+    - key: {{ $envoy.ssl.privateKey.secretKey }}
       path: private_key.key
 {{- end }}
 {{- end }}
