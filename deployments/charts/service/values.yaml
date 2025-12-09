@@ -689,6 +689,15 @@ services:
     ##
     serviceAccountName: ""
 
+    ## Per-service Envoy proxy configuration overrides
+    ## These settings override the global sidecars.envoy configuration for this service only
+    ## Any field from sidecars.envoy can be specified here to override the global default
+    ##
+    envoy: {}
+    # maxRequests: 200
+    # routes: [...]
+    # skipAuthPaths: [...]
+
   ## Logger service configuration for log collection and processing
   ##
   logger:
@@ -789,6 +798,14 @@ services:
     ## Service account name for the logger service
     ##
     serviceAccountName: ""
+
+    ## Per-service Envoy proxy configuration overrides
+    ## These settings override the global sidecars.envoy configuration for this service only
+    ## Any field from sidecars.envoy can be specified here to override the global default
+    ##
+    envoy: {}
+    # maxRequests: 50
+    # routes: [...]
 
   ## Agent service configuration for client communication and management
   ##
@@ -891,12 +908,22 @@ services:
     ##
     serviceAccountName: ""
 
+    ## Per-service Envoy proxy configuration overrides
+    ## These settings override the global sidecars.envoy configuration for this service only
+    ## Any field from sidecars.envoy can be specified here to override the global default
+    ##
+    envoy: {}
+    # maxRequests: 100
+    # routes: [...]
+
 ## Configuration for service sidecar containers
 ##
 sidecars:
 
   ## Global Envoy proxy configuration shared across all services
   ## Applied to: osmo-service, osmo-logger, osmo-agent
+  ## To override these settings per-service, use services.<service>.envoy
+  ## Example: services.service.envoy.maxRequests to override maxRequests for API service only
   ##
   envoy:
     ## List of IP addresses to block

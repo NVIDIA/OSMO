@@ -15,8 +15,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{- define "osmo.envoy-config" -}}
-{{- $serviceName := .serviceName | default .Values.sidecars.envoy.serviceName }}
-{{- if .Values.sidecars.envoy.enabled }}
+{{- $serviceEnvoy := .serviceEnvoy | default dict }}
+{{- $envoy := mergeOverwrite (deepCopy .Values.sidecars.envoy) $serviceEnvoy }}
+{{- $serviceName := .serviceName | default $envoy.serviceName }}
+{{- if $envoy.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -31,35 +33,35 @@ data:
           address: 0.0.0.0
           port_value: 9901
     static_resources:
-      {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
+      {{- if $envoy.useKubernetesSecrets }}
       secrets:
       - name: token
         generic_secret:
           secret:
-            filename: /etc/envoy/secrets/{{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey }}
+            filename: /etc/envoy/secrets/{{ $envoy.oauth2Filter.clientSecretKey }}
       - name: hmac
         generic_secret:
           secret:
-            filename: /etc/envoy/secrets/{{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey }}
+            filename: /etc/envoy/secrets/{{ $envoy.oauth2Filter.hmacSecretKey }}
       {{- else }}
       secrets:
       - name: token
         generic_secret:
           secret:
-            filename: {{ .Values.sidecars.envoy.secretPaths.clientSecret }}
+            filename: {{ $envoy.secretPaths.clientSecret }}
       - name: hmac
         generic_secret:
           secret:
-            filename: {{ .Values.sidecars.envoy.secretPaths.hmacSecret }}
+            filename: {{ $envoy.secretPaths.hmacSecret }}
       {{- end }}
 
       listeners:
       - name: svc_listener
         address:
-          {{- if .Values.sidecars.envoy.ssl.enabled }}
+          {{- if $envoy.ssl.enabled }}
           socket_address: { address: 0.0.0.0, port_value: 443 }
           {{- else }}
-          socket_address: { address: 0.0.0.0, port_value: {{ .Values.sidecars.envoy.listenerPort }} }
+          socket_address: { address: 0.0.0.0, port_value: {{ $envoy.listenerPort }} }
           {{- end }}
         filter_chains:
         - filters:
@@ -103,12 +105,12 @@ data:
                 - name: service
                   domains: ["*"]
                   routes:
-                  {{- toYaml .Values.sidecars.envoy.routes | nindent 18}}
+                  {{- toYaml $envoy.routes | nindent 18}}
 
               upgrade_configs:
               - upgrade_type: websocket
                 enabled: true
-              max_request_headers_kb: {{ .Values.sidecars.envoy.maxHeadersSizeKb }}
+              max_request_headers_kb: {{ $envoy.maxHeadersSizeKb }}
               http_filters:
               - name: block-spam-ips
                 typed_config:
@@ -122,7 +124,7 @@ data:
 
                         -- List of IPs to block
                         local blocked_ips = {
-                        {{- range $index, $ip := .Values.sidecars.envoy.blockedIPs }}
+                        {{- range $index, $ip := $envoy.blockedIPs }}
                           {{- if $index }},{{ end }}
                           ["{{ $ip }}"] = true
                         {{- end }}
@@ -161,7 +163,7 @@ data:
 
                       function envoy_on_request(request_handle)
                         skip = false
-                        {{- range .Values.sidecars.envoy.skipAuthPaths }}
+                        {{- range $envoy.skipAuthPaths }}
                         if (starts_with(request_handle:headers():get(':path'), '{{.}}')) then
                           skip = true
                         end
@@ -192,7 +194,7 @@ data:
                         local new_cookie = ''
                         local first = true
                         local new_age = nil
-                        local hostname = "{{ .Values.sidecars.envoy.service.hostname }}"
+                        local hostname = "{{ $envoy.service.hostname }}"
                         local cookie_name = nil
 
                         for all, key, value in string.gmatch(cookie, "(([^=;]+)=?([^;]*))") do
@@ -285,19 +287,19 @@ data:
                       config:
                         token_endpoint:
                           cluster: oauth
-                          uri: {{ .Values.sidecars.envoy.oauth2Filter.tokenEndpoint }}
+                          uri: {{ $envoy.oauth2Filter.tokenEndpoint }}
                           timeout: 3s
-                        authorization_endpoint: {{ .Values.sidecars.envoy.oauth2Filter.authEndpoint }}
-                        redirect_uri: https://{{ .Values.sidecars.envoy.service.hostname }}/{{ .Values.sidecars.envoy.oauth2Filter.redirectPath }}
+                        authorization_endpoint: {{ $envoy.oauth2Filter.authEndpoint }}
+                        redirect_uri: https://{{ $envoy.service.hostname }}/{{ $envoy.oauth2Filter.redirectPath }}
                         redirect_path_matcher:
                           path:
-                            exact: /{{ .Values.sidecars.envoy.oauth2Filter.redirectPath }}
+                            exact: /{{ $envoy.oauth2Filter.redirectPath }}
                         signout_path:
                           path:
-                            exact: /{{ .Values.sidecars.envoy.oauth2Filter.logoutPath }}
-                        forward_bearer_token: {{ .Values.sidecars.envoy.oauth2Filter.forwardBearerToken }}
+                            exact: /{{ $envoy.oauth2Filter.logoutPath }}
+                        forward_bearer_token: {{ $envoy.oauth2Filter.forwardBearerToken }}
                         credentials:
-                          client_id: {{ .Values.sidecars.envoy.oauth2Filter.clientId }}
+                          client_id: {{ $envoy.oauth2Filter.clientId }}
                           token_secret:
                             name: token
                           hmac_secret:
@@ -340,7 +342,7 @@ data:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
                       providers:
-                        {{- range $i, $provider := .Values.sidecars.envoy.jwt.providers }}
+                        {{- range $i, $provider := $envoy.jwt.providers }}
                         provider_{{$i}}:
                           issuer: {{ $provider.issuer }}
                           audiences:
@@ -367,7 +369,7 @@ data:
                                 max_interval: 3s
                           claim_to_headers:
                           - claim_name: {{$provider.user_claim}}
-                            header_name: {{$.Values.sidecars.envoy.jwt.user_header}}
+                            header_name: {{$envoy.jwt.user_header}}
 
 
                         {{- end }}
@@ -377,11 +379,11 @@ data:
                         requires:
                           requires_any:
                             requirements:
-                            {{- range $i, $provider := .Values.sidecars.envoy.jwt.providers }}
+                            {{- range $i, $provider := $envoy.jwt.providers }}
                             - provider_name: provider_{{$i}}
                             {{- end}}
 
-              {{- with .Values.sidecars.envoy.lua }}
+              {{- with $envoy.lua }}
               - name: envoy.filters.http.lua
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
@@ -423,7 +425,7 @@ data:
               - name: envoy.filters.http.router
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-          {{- if .Values.sidecars.envoy.ssl.enabled }}
+          {{- if $envoy.ssl.enabled }}
           transport_socket:
             name: envoy.transport_sockets.tls
             typed_config:
@@ -436,17 +438,17 @@ data:
                     filename: /etc/ssl/private/private_key.key
           {{- end }}
 
-      {{- if .Values.sidecars.envoy.inClusterPaths.enabled }}
+      {{- if $envoy.inClusterPaths.enabled }}
       - name: in_cluster_listener
         address:
-          socket_address: { address: 0.0.0.0, port_value: {{ .Values.sidecars.envoy.inClusterPaths.port }} }
+          socket_address: { address: 0.0.0.0, port_value: {{ $envoy.inClusterPaths.port }} }
         filter_chains:
         - filters:
           - name: envoy.filters.network.http_connection_manager
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
               stat_prefix: ingress_http
-              max_request_headers_kb: {{ .Values.sidecars.envoy.maxHeadersSizeKb }}
+              max_request_headers_kb: {{ $envoy.maxHeadersSizeKb }}
               http_filters:
               - name: envoy.filters.http.router
                 typed_config:
@@ -463,7 +465,7 @@ data:
                 - name: service
                   domains: ["*"]
                   routes:
-                  {{- range .Values.sidecars.envoy.inClusterPaths.paths }}
+                  {{- range $envoy.inClusterPaths.paths }}
                   - match:
                       path: {{.}}
                       headers:
@@ -511,24 +513,24 @@ data:
             - endpoint:
                 address:
                   socket_address:
-                    address: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+                    address: {{ $envoy.oauth2Filter.authProvider }}
                     port_value: 443
         transport_socket:
           name: envoy.transport_sockets.tls
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-            sni: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+            sni: {{ $envoy.oauth2Filter.authProvider }}
 
       - name: service
         connect_timeout: 3s
         type: STRICT_DNS
         dns_lookup_family: V4_ONLY
         lb_policy: ROUND_ROBIN
-        {{- if .Values.sidecars.envoy.maxRequests }}
+        {{- if $envoy.maxRequests }}
         circuit_breakers:
           thresholds:
           - priority: DEFAULT
-            max_requests: {{.Values.sidecars.envoy.maxRequests}}
+            max_requests: {{$envoy.maxRequests}}
         {{- end }}
         load_assignment:
           cluster_name: service
@@ -537,8 +539,8 @@ data:
             - endpoint:
                 address:
                   socket_address:
-                    address: {{ .Values.sidecars.envoy.service.address }}
-                    port_value: {{ .Values.sidecars.envoy.service.port }}
+                    address: {{ $envoy.service.address }}
+                    port_value: {{ $envoy.service.port }}
 
 {{- end }}
 {{- end }}
