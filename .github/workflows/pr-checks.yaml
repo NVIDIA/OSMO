@@ -54,8 +54,8 @@ jobs:
               # - 'BUILD'
               # - 'MODULE.bazel'
               # - 'bzl/**'
-              # - 'src/**'
-              - 'run/**'
+              - 'src/**'
+              # - 'run/**'
             docs:
               - '.github/workflows/pr-checks.yaml'
               - 'docs/**'
@@ -221,18 +221,6 @@ jobs:
           source-dir: ./docs/public/
           preview-branch: gh-pages/documentation
 
-      - name: Run spelling check
-        id: spelling
-        if: github.event.action != 'closed'
-        continue-on-error: true
-        run: |
-          make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
-          if [ -d "docs/spelling_error_logs" ] && [ "$(find docs/spelling_error_logs -name '*.log' -size +0c)" ]; then
-            echo "Spelling errors found:"
-            find docs/spelling_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
-            exit 1
-          fi
-
       - name: Restore lychee cache
         if: github.event.action != 'closed'
         uses: actions/cache/restore@v4
@@ -256,13 +244,12 @@ jobs:
         run: |
           echo "=== Debug: checking docs/public ==="
           pwd
-          ls -la | head -10
+          ls -la
           echo "HTML files: $(find . -name '*.html' | wc -l)"
           echo "=== Running lychee ==="
           mkdir -p ../link_check_error_logs
           lychee \
             --config ../lychee.toml \
-            --root-dir ../ \
             --verbose \
             --no-progress \
             --exclude-all-private \
@@ -276,6 +263,18 @@ jobs:
         with:
           path: docs/public/.lycheecache
           key: cache-lychee-${{ github.run_id }}
+
+      - name: Run spelling check
+        id: spelling
+        if: github.event.action != 'closed'
+        continue-on-error: true
+        run: |
+          make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
+          if [ -d "docs/spelling_error_logs" ] && [ "$(find docs/spelling_error_logs -name '*.log' -size +0c)" ]; then
+            echo "Spelling errors found:"
+            find docs/spelling_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
+            exit 1
+          fi
 
       - name: Check spelling and link results
         if: github.event.action != 'closed'
