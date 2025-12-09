@@ -249,6 +249,13 @@ jobs:
           args: --config docs/lychee.toml --no-progress '**/*.html' docs/public
           output: docs/link_check_error_logs/lychee-report.md
 
+      - name: Save lychee cache
+        uses: actions/cache/save@v4
+        if: github.event.action != 'closed' && steps.link-checker.outcome == 'success'
+        with:
+          path: docs/public/.lycheecache
+          key: cache-lychee-pr-${{ github.event.pull_request.number }}
+
       - name: Check spelling and link results
         if: github.event.action != 'closed'
         run: |
