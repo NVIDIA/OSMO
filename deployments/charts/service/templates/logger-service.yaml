@@ -199,7 +199,7 @@ spec:
       {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
       {{- include "osmo.extra-sidecars" .Values.services.logger | nindent 6 }}
       volumes:
-        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.logger.serviceName "Values" .Values) | nindent 8 }}
+        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values) | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}
@@ -222,7 +222,7 @@ spec:
 ---
 {{- if .Values.sidecars.envoy.enabled }}
 
-{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.logger.serviceName "Values" .Values "Release" .Release) }}
+{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values "Release" .Release) }}
 ---
 {{- end }}
 
