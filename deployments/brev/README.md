@@ -20,9 +20,14 @@ SPDX-License-Identifier: Apache-2.0
 
 [![ Click here to deploy.](https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg)](https://brev.nvidia.com/launchable/deploy?launchableID=env-36a6a7qnkOMOP2vgiBRaw2e3jpW)
 
-The OSMO Brev deployment provides a pre-configured OSMO instance running in the cloud, allowing you to quickly try OSMO without setting up local infrastructure. This deployment uses a [Brev.dev](https://brev.dev) cloud instance with the [OSMO local deployment](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) pre-installed.
+The OSMO Brev deployment provides a pre-configured OSMO instance running in the cloud, allowing you
+to quickly try OSMO without setting up local infrastructure. This deployment uses a
+[Brev.dev](https://brev.dev) cloud instance with the
+[OSMO local deployment](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html)
+pre-installed.
 
-> The Brev deployment is for evaluation purposes only and is not recommended for production use as it lacks authentication and has limited resources.
+> The Brev deployment is for evaluation purposes only and is not recommended for production use as
+> it lacks authentication and has limited resources.
 
 ## Compute requirements
 
@@ -42,20 +47,50 @@ The OSMO Web UI is available through a secure Brev link exposed from your instan
 
 ## [Optional] Local CLI Setup
 
-To use the OSMO CLI and UI from your local machine, you'll need to set up port forwarding and install the necessary tools.
+To use the OSMO CLI and UI from your local machine, you'll need to set up port forwarding and
+install the necessary tools.
 
 ### Step 1: Install Brev CLI
 
-Follow instructions [here](https://docs.nvidia.com/brev/latest/brev-cli.html#installation-instructions).
+Follow instructions
+[here](https://docs.nvidia.com/brev/latest/brev-cli.html#installation-instructions). Be sure to
+`brev login`.
 
 ### Step 2: Set Up Port Forwarding
 
-Forward port 8000 from your Brev instance to local port 8000. This port will need to be forwarded for you to use the OSMO CLI from your workstation.
+Forward port 8000 from your Brev instance to local port 80. This port will need to be forwarded for
+you to use the OSMO CLI from your workstation.
+
+You can find your instance's IP address at the top of the deployment page.
 
 ```bash
 # Find your instance name with brev ls
-brev port-forward <your-instance-name> --port 8000:8000
+sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 shadeform@<your instance IP>
 ```
+
+> If you see `Permission denied (publickey)` it may be because:
+>
+> - You did not log in using `brev auth`
+> - The username is different than `shadeform`
+>
+> You can see your username in the Brev Console:
+>
+> 1. Log in to your Brev console at https://console.brev.dev
+> 2. Navigate to your OSMO instance
+> 3. Select "Logs"
+> 4. Look at the output of "Script Logs". You should see "Current user: <brev instance username>"
+>
+> Use the Brev instance username in the above ssh command instead of `shadeform`.
+
+### Step 3: Set Up Networking
+
+Add a host entry to access OSMO from your browser:
+
+```bash
+echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+```
+
+This allows you to visit `http://quick-start.osmo` in your web browser.
 
 ### Step 4: Install OSMO CLI
 
@@ -70,7 +105,7 @@ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install
 Authenticate with the OSMO instance through your port forward:
 
 ```bash
-osmo login http://localhost:8000 --method=dev --username=testuser
+osmo login http://quick-start.osmo --method=dev --username=testuser
 ```
 
 ### Step 6: Update the service URL
@@ -88,7 +123,9 @@ osmo config update SERVICE \
 
 ## Next Steps
 
-Visit the [User Guide](https://nvidia.github.io/OSMO/main/user_guide/getting_started/next_steps.html#getting-started-next-steps) for tutorials on submitting workflows, interactive development, distributed training, and more.
+Visit the
+[User Guide](https://nvidia.github.io/OSMO/main/user_guide/getting_started/next_steps.html#getting-started-next-steps)
+for tutorials on submitting workflows, interactive development, distributed training, and more.
 
 ## Additional Resources
 

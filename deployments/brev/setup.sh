@@ -396,7 +396,9 @@ echo "=================================================="
 echo ""
 
 # Display version information
+CURRENT_USER=$(whoami)
 print_status "System Information:"
+print_status "  • Current User: $CURRENT_USER"
 print_status "  • NVIDIA Driver Version: $NVIDIA_DRIVER_FULL_VERSION (minimum: $NVIDIA_MIN_DRIVER_VERSION)"
 print_status "  • nvidia-ctk Version: $NVIDIA_CTK_VERSION (minimum: $NVIDIA_CTK_MIN_VERSION)"
 echo ""
