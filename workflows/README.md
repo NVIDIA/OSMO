@@ -56,7 +56,7 @@ This directory contains brief examples of workflows that can be used in combinat
 | Isaac Lab: Multi-Node Reinforcement Learning Training                   | [README](./reinforcement_learning/multi_node/README.md)         |
 | Isaac Groot: Interactive Notebook for Inference and Fine-tuning        | [README](./groot/groot_notebook/README.md)                    |
 | Isaac Groot: Finetuning a Model                                        | [README](./groot/groot_finetune/README.md)                       |
-| Isaac Groot: Running Groot Mimic through Imitation Learning            | [README](./groot/groot_mimic/README.md)                       |
+| Isaac Groot: Imitation Learning using Groot Mimic                      | [README](./groot/groot_mimic/README.md)                       |
 | ROS2: Running Simulation with Foxglove Visualization                   | [README](./ros/turtlebot/README.md)                     |
 | Gazebo: Generating Synthetic Data                                      | [README](./synthetic_data_generation/gazebo/README.md)  |
 | Cosmos Predict: Video2World Generation                                 | [README](./cosmos/predict/README.md) |

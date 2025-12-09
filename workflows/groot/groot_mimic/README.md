@@ -16,14 +16,15 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Isaac Groot: Running Groot Mimic through Imitation Learning
+# Isaac Groot: Imitation Learning using Groot Mimic
 
 ## Overview
 
 This workflow allows you to generate additional robot demonstrations that can be used to train a visuomotor policy directly
 using [Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/index.html).
+Afterwards, this workflow allows you to train an agent with the generated demonstrations.
 
-The full tutorial from Isaac Lab can be found [here](https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/augmented_imitation.html).
+The full tutorial from Isaac Lab can be found [here](https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/overview/imitation-learning/teleop_imitation.html#generating-additional-demonstrations-with-isaac-lab-mimic).
 
 ## Running the Workflow
 ```bash
@@ -31,7 +32,7 @@ curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/groot/groot
 osmo workflow submit groot_mimic.yaml
 ```
 
-You can find the generated demonstrations through the `mimic-dataset` dataset after the workflow completes:
+You can find the generated demonstrations and agent checkpoints through the `mimic-dataset` dataset after the workflow completes:
 
 ```bash
 osmo dataset download mimic-dataset
