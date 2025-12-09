@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("@pylint_python_deps//:requirements.bzl", "requirement")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 def _py_lint_test(name, srcs, tags):
     """
@@ -112,4 +113,60 @@ def osmo_py_test(
         srcs = srcs,
         tags = tags,
         **kwargs
+    )
+
+def osmo_python_wrapper(
+        name,
+        bin_name,
+        main,
+        runfiles_dir,
+        package_dir = "/usr/bin",
+        python_interpreter = "/usr/bin/python3"):
+
+    # Generate the wrapper script
+    wrapper_target = name + "_script"
+    native.genrule(
+        name = wrapper_target,
+        outs = [bin_name],
+        cmd = """
+            cat > $@ << 'EOF'
+#!{python_interpreter}
+import os
+import sys
+import glob
+
+# Set up PYTHONPATH to include app code and dependencies
+pythonpath = ["{runfiles_dir}/_main"]
+local_runfiles_dir = "{runfiles_dir}"
+local_main_dir = "{runfiles_dir}/_main"
+if os.path.isdir("/osmo_workspace+"):
+    local_runfiles_dir = "/osmo_workspace+" + local_runfiles_dir
+    local_main_dir = local_runfiles_dir + "/osmo_workspace+"
+    pythonpath.append(local_runfiles_dir + "/osmo_workspace+")
+
+# Add all site-packages directories
+site_packages = glob.glob(local_runfiles_dir + "/rules_python++pip+*/site-packages")
+pythonpath.extend(site_packages)
+
+# Set PYTHONPATH
+os.environ["PYTHONPATH"] = ":".join(pythonpath)
+
+# Execute target script directly with system Python
+os.execv("{python_interpreter}", ["{python_interpreter}", local_main_dir + "{main}"] + sys.argv[1:])
+EOF
+            chmod +x $@
+        """.format(
+            python_interpreter = python_interpreter,
+            runfiles_dir = runfiles_dir,
+            main = main,
+        ),
+    )
+
+    # Package the wrapper into a tarball
+    pkg_tar(
+        name = name,
+        extension = "tgz",
+        srcs = [wrapper_target],
+        mode = "0755",
+        package_dir = package_dir,
     )

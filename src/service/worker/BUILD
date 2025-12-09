@@ -16,11 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
@@ -38,55 +37,42 @@ osmo_py_library(
         "//src/lib/utils:logging",
         "//src/utils:static_config",
         "//src/utils/job",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
+    ],
+    data = [
+        "//src/lib/utils:version.yaml",
+        "//src/utils/resources:email_notification.html",
+        "//src/utils/resources:osmo_logo.png",
     ],
     visibility = ["//visibility:public"],
 )
 
 osmo_py_binary(
-    name = "worker",
+    name = "worker_binary",
     srcs = ["worker.py"],
     main = "worker.py",
     deps = [":worker_lib"],
 )
 
-run_binary(
-    name = "worker_onedir",
-    args = [
-        "--name osmo-worker",
-        "--main $(location :worker.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--add-data $(location //src/utils/resources:email_notification.html):src/utils/resources/",
-        "--add-data $(location //src/utils/resources:osmo_logo.png):src/utils/resources/",
-        "--additional-hooks $(locations //src/service/builder:extra_hooks)",
-        "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
-    ],
-    out_dirs = ["osmo_worker_onedir"],
-    tool = "//src/service/builder:service_builder",
-    srcs = [
-        ":worker_lib",
-        "worker.py",
-        "//src/lib/data/storage:extra_hooks",
-        "//src/lib/utils:version.yaml",
-        "//src/service/builder:extra_hooks",
-        "//src/utils/resources:email_notification.html",
-        "//src/utils/resources:osmo_logo.png",
-    ],
+py_image_layer(
+    name = "worker_layer",
+    binary = ":worker_binary",
 )
 
-pkg_tar(
-    name = "worker_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_worker_onedir": ".",
-    },
-    srcs = [":worker_onedir"],
-    symlinks = {
-        "/usr/bin/worker": "/osmo/osmo-worker/osmo-worker",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
+osmo_python_wrapper(
+    name = "worker_wrapper",
+    bin_name = "worker",
+    main = "/src/service/worker/worker.py",
+    runfiles_dir = "/src/service/worker/worker_binary.runfiles",
+)
+
+filegroup(
+    name = "worker_image_layers",
+    srcs = [
+        ":worker_layer_default",
+        ":worker_layer_packages",
+        ":worker_wrapper",
+    ],
 )
 
 ################
@@ -97,8 +83,8 @@ oci_image(
     name = "worker_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":worker_onedir_pkg",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":worker_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -138,8 +124,8 @@ oci_image(
     name = "worker_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":worker_onedir_pkg",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":worker_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
