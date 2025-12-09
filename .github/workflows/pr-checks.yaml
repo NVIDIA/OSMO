@@ -237,7 +237,7 @@ jobs:
         if: github.event.action != 'closed'
         uses: actions/cache/restore@v4
         with:
-          path: docs/public/.lycheecache
+          path: .lycheecache
           key: cache-lychee-pr-${{ github.event.pull_request.number }}
           restore-keys: cache-lychee-
 
@@ -253,7 +253,7 @@ jobs:
         uses: actions/cache/save@v4
         if: github.event.action != 'closed' && steps.link-checker.outcome == 'success'
         with:
-          path: docs/public/.lycheecache
+          path: .lycheecache
           key: cache-lychee-pr-${{ github.event.pull_request.number }}
 
       - name: Check spelling and link results
