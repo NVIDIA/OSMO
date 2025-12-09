@@ -18,6 +18,13 @@
 cache = true
 max_cache_age = "1d"
 
+# Use browser-like user agent to avoid being blocked by sites that reject bots
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Throttling to avoid rate limiting and bot detection
+max_concurrency = 8           # Limit parallel requests (default is 128)
+max_requests_per_second = 4   # Rate limit requests per second
+
 # Timeout and retries
 timeout = 60
 max_retries = 5
