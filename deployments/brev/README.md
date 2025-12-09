@@ -56,7 +56,7 @@ You can find your instance's IP address at the top of the deployment page.
 
 ```bash
 # Find your instance name with brev ls
-sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 shadeform@<your instance IP>
+sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 shadeform@[your instance IP]
 ```
 
 If you see `Permission denied (publickey)` it may be because:
@@ -69,7 +69,7 @@ You can see your username in the Brev Console:
 1. Log in to your Brev console at https://console.brev.dev
 2. Navigate to your OSMO instance
 3. Select "Logs"
-4. Look at the output of "Script Logs". You should see "Current user: <brev instance username>"
+4. Look at the output of "Script Logs". You should see `Current user: [brev instance username]`
 
 Use the Brev instance username in the above ssh command instead of `shadeform`.
 
@@ -97,19 +97,6 @@ Authenticate with the OSMO instance through your port forward:
 
 ```bash
 osmo login http://quick-start.osmo --method=dev --username=testuser
-```
-
-### Step 6: Update the service URL
-
-Get your [Brev Secure Link](#web-ui-access) and update the `service_base_url` to that address.
-
-```bash
-echo '{
-  "service_base_url": "<your Brev Secure Link>"
-}' > /tmp/service_config.json
-osmo config update SERVICE \
-  --file /tmp/service_config.json \
-  --description "Use Brev Secure Link for service_base_url"
 ```
 
 ## Next Steps
