@@ -50,21 +50,21 @@ jobs:
           token: ''
           filters: |
             ci:
-              # - '.github/workflows/pr-checks.yaml'
-              # - 'BUILD'
-              # - 'MODULE.bazel'
-              # - 'bzl/**'
+              - '.github/workflows/pr-checks.yaml'
+              - 'BUILD'
+              - 'MODULE.bazel'
+              - 'bzl/**'
               - 'src/**'
-              # - 'run/**'
+              - 'run/**'
             docs:
               - '.github/workflows/pr-checks.yaml'
               - 'docs/**'
               - 'workflows/**'
             ui:
-              # - '.github/workflows/pr-checks.yaml'
-              # - 'BUILD'
-              # - 'MODULE.bazel'
-              # - 'bzl/**'
+              - '.github/workflows/pr-checks.yaml'
+              - 'BUILD'
+              - 'MODULE.bazel'
+              - 'bzl/**'
               - 'ui/**'
 
   #######################
@@ -127,59 +127,59 @@ jobs:
         run: |
           bazel test --test_output=errors -- //... -//ui/...
 
-  # ci-internal:
-  #   needs: [check-paths]
-  #   if: |
-  #     (github.event_name == 'workflow_dispatch') ||
-  #     (
-  #       needs.check-paths.outputs.ci == 'true' &&
-  #       github.event_name == 'pull_request' &&
-  #       github.event.pull_request.head.repo.fork == false &&
-  #       github.event.action != 'closed'
-  #     )
-  #   runs-on: self-hosted
-  #   environment:
-  #     name: internal-ci
-  #   container:
-  #     image: python:3.10-bullseye
-  #     env:
-  #       DOCKER_HOST: "tcp://docker:2375"
-  #       DOCKER_TLS_CERTDIR: ""
-  #   services:
-  #     docker:
-  #       image: docker:dind
-  #       env:
-  #         DOCKER_TLS_CERTDIR: ""
-  #         DOCKER_DRIVER: overlay2
-  #       options: --privileged
-  #       ports:
-  #         - 2375:2375
-  #   steps:
-  #     - name: Install dependencies
-  #       run: |
-  #         apt-get update
-  #         apt-get install -y git-lfs
+  ci-internal:
+    needs: [check-paths]
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (
+        needs.check-paths.outputs.ci == 'true' &&
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.fork == false &&
+        github.event.action != 'closed'
+      )
+    runs-on: self-hosted
+    environment:
+      name: internal-ci
+    container:
+      image: python:3.10-bullseye
+      env:
+        DOCKER_HOST: "tcp://docker:2375"
+        DOCKER_TLS_CERTDIR: ""
+    services:
+      docker:
+        image: docker:dind
+        env:
+          DOCKER_TLS_CERTDIR: ""
+          DOCKER_DRIVER: overlay2
+        options: --privileged
+        ports:
+          - 2375:2375
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs
 
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         lfs: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
-  #     - name: Setup Bazel
-  #       uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
-  #       with:
-  #         bazelisk-cache: true
-  #         bazelisk-version: 1.27.0
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
 
-  #     - name: Run Tests
-  #       run: |
-  #         bazel test --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
-  #           --test_env=DOCKER_HOST=tcp://docker:2375 \
-  #           --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
-  #           --test_output=errors \
-  #           -- \
-  #           //... \
-  #           -//ui/...
+      - name: Run Tests
+        run: |
+          bazel test --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+            --test_env=DOCKER_HOST=tcp://docker:2375 \
+            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
+            --test_output=errors \
+            -- \
+            //... \
+            -//ui/...
 
   #######################
   #    Docs Build       #
@@ -221,13 +221,13 @@ jobs:
           source-dir: ./docs/public/
           preview-branch: gh-pages/documentation
 
-      # - name: Restore lychee cache
-      #   if: github.event.action != 'closed'
-      #   uses: actions/cache/restore@v4
-      #   with:
-      #     path: docs/public/.lycheecache
-      #     key: cache-lychee-${{ github.run_id }}
-      #     restore-keys: cache-lychee-
+      - name: Restore lychee cache
+        if: github.event.action != 'closed'
+        uses: actions/cache/restore@v4
+        with:
+          path: docs/public/.lycheecache
+          key: cache-lychee-${{ github.run_id }}
+          restore-keys: cache-lychee-
 
       - name: Install lychee
         if: github.event.action != 'closed'
@@ -254,12 +254,12 @@ jobs:
             '**/*.html' \
             .
 
-      # - name: Save lychee cache
-      #   uses: actions/cache/save@v4
-      #   if: github.event.action != 'closed'
-      #   with:
-      #     path: docs/public/.lycheecache
-      #     key: cache-lychee-${{ github.run_id }}
+      - name: Save lychee cache
+        uses: actions/cache/save@v4
+        if: github.event.action != 'closed'
+        with:
+          path: docs/public/.lycheecache
+          key: cache-lychee-${{ github.run_id }}
 
       - name: Run spelling check
         id: spelling
