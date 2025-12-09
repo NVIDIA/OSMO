@@ -724,6 +724,44 @@ backendTestRunner:
     description: "Automated test runner for {{.BackendName}} - {{.TestName}}"
     scheduler: "backend-test-scheduler"
 
+  ## Extra test runner roles for cross-namespace access
+  ## These are additional Role/RoleBinding resources for the test runner to access
+  ## resources in other namespaces (e.g., backend namespace, gpu-operator namespace)
+  ##
+  extraRoles: []
+  # Example:
+  # - apiVersion: rbac.authorization.k8s.io/v1
+  #   kind: Role
+  #   metadata:
+  #     name: test-runner-backend-ns
+  #     namespace: osmo-prod
+  #   rules:
+  #   - apiGroups: [""]
+  #     resources: ["pods"]
+  #     verbs: ["list", "get", "watch", "delete", "create"]
+  #   - apiGroups: [""]
+  #     resources: ["pods/log"]
+  #     verbs: ["get", "list"]
+  #   - apiGroups: [""]
+  #     resources: ["pods/exec"]
+  #     verbs: ["get", "list", "watch", "create"]
+  #   - apiGroups: ["apps"]
+  #     resources: ["daemonsets"]
+  #     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # - apiVersion: rbac.authorization.k8s.io/v1
+  #   kind: RoleBinding
+  #   metadata:
+  #     name: test-runner-backend-ns
+  #     namespace: osmo-prod
+  #   subjects:
+  #   - kind: ServiceAccount
+  #     name: <release-name>-test-runner
+  #     namespace: <backendTestNamespace>
+  #   roleRef:
+  #     kind: Role
+  #     name: test-runner-backend-ns
+  #     apiGroup: rbac.authorization.k8s.io
+
 ## Extra ConfigMaps
 ## Define additional ConfigMaps to be created alongside the chart
 ##
