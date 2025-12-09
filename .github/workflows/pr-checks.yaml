@@ -246,7 +246,7 @@ jobs:
         if: github.event.action != 'closed'
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --config docs/lychee.toml --verbose --no-progress '**/*.html' docs/public
+          args: --config docs/lychee.toml --no-progress '**/*.html' docs/public
           output: docs/link_check_error_logs/lychee-report.md
 
       - name: Check spelling and link results
