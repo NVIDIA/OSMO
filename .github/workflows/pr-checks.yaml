@@ -242,14 +242,10 @@ jobs:
         continue-on-error: true
         working-directory: docs/public
         run: |
-          echo "=== Debug: checking docs/public ==="
-          pwd
-          ls -la
-          echo "HTML files: $(find . -name '*.html' | wc -l)"
-          echo "=== Running lychee ==="
           mkdir -p ../link_check_error_logs
           lychee \
             --config ../lychee.toml \
+            --root-dir $(pwd) \
             --verbose \
             --no-progress \
             --exclude-all-private \
