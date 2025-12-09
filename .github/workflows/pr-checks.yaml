@@ -221,46 +221,6 @@ jobs:
           source-dir: ./docs/public/
           preview-branch: gh-pages/documentation
 
-      - name: Restore lychee cache
-        if: github.event.action != 'closed'
-        uses: actions/cache/restore@v4
-        with:
-          path: docs/public/.lycheecache
-          key: cache-lychee-${{ github.run_id }}
-          restore-keys: cache-lychee-
-
-      - name: Install lychee
-        if: github.event.action != 'closed'
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: --version
-          jobSummary: false
-
-      - name: Link Checker
-        id: link-checker
-        if: github.event.action != 'closed'
-        continue-on-error: true
-        working-directory: docs/public
-        run: |
-          mkdir -p ../link_check_error_logs
-          lychee \
-            --config ../lychee.toml \
-            --verbose \
-            --no-progress \
-            --exclude-all-private \
-            --format markdown \
-            --output ../link_check_error_logs/lychee-report.md \
-            --glob-ignore-case \
-            '**/*.html' \
-            .
-
-      - name: Save lychee cache
-        uses: actions/cache/save@v4
-        if: github.event.action != 'closed'
-        with:
-          path: docs/public/.lycheecache
-          key: cache-lychee-${{ github.run_id }}
-
       - name: Run spelling check
         id: spelling
         if: github.event.action != 'closed'
@@ -272,6 +232,22 @@ jobs:
             find docs/spelling_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
             exit 1
           fi
+
+      - name: Restore lychee cache
+        if: github.event.action != 'closed'
+        uses: actions/cache/restore@v4
+        with:
+          path: docs/public/.lycheecache
+          key: cache-lychee-pr-${{ github.event.pull_request.number }}
+          restore-keys: cache-lychee-
+
+      - name: Link Checker
+        id: link-checker
+        if: github.event.action != 'closed'
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config docs/lychee.toml --verbose --no-progress '**/*.html' docs/public
+          output: docs/link_check_error_logs/lychee-report.md
 
       - name: Check spelling and link results
         if: github.event.action != 'closed'
