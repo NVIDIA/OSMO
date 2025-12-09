@@ -373,6 +373,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     # Handle 'port-forward' command
     port_forward_parser = subparsers.add_parser('port-forward',
         help='Port-forward data from workflow to local machine.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples
 ========
