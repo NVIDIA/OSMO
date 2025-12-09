@@ -19,9 +19,9 @@ cache = true
 max_cache_age = "1d"
 
 # Timeout and retries
-timeout = 30
-max_retries = 3
-retry_wait_time = 2
+timeout = 60
+max_retries = 5
+retry_wait_time = 10
 
 # Accept these status codes as valid
 accept = [200, 204, 301, 302]
