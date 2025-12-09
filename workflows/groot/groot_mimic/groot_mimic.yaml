@@ -54,6 +54,7 @@ workflow:
           ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
             --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc \
             --dataset {{output}}/output/mimic/mimic_dataset_1k.hdf5
+            --epochs {{ num_epochs }}
 
           cp -r logs/robomimic {{output}}/output/mimic
 
@@ -75,3 +76,4 @@ workflow:
 default-values:
   num_envs: 1
   num_trials: 10
+  num_epochs: 100
