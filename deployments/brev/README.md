@@ -121,5 +121,5 @@ kill -9 $(lsof -ti:8000)
 Delete your Brev instance through the Brev console or CLI:
 
 ```bash
-brev delete <your-instance-name>
+brev delete [your instance name]
 ```
