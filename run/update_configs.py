@@ -343,12 +343,6 @@ def _update_backend_config(mode: str) -> None:
 
         backend_config = {
             'router_address': router_address,
-            'scheduler_settings': {
-                'scheduler_type': 'kai',
-                'scheduler_name': 'kai-scheduler',
-                'coscheduling': True,
-                'scheduler_timeout': 30
-            }
         }
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:

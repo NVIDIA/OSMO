@@ -116,6 +116,9 @@ def create_backend(postgres: connectors.PostgresConnector,
         raise osmo_errors.OSMOBackendError(f'Backend {name} is already being used by a '
                                            'different cluster')
 
+    if k8s_info[0].is_new:
+        config_helpers.update_backend_queues(connectors.Backend.fetch_from_db(postgres, name))
+
     # Update node_conditions column to set the prefix while preserving existing values
     update_cmd = '''
         WITH old_values AS (

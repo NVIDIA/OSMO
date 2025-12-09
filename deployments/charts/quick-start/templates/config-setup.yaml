@@ -93,7 +93,7 @@ spec:
                   "client": "'"${OSMO_IMAGE_LOCATION}"'/client:'"${OSMO_IMAGE_TAG}"'"'"$(
                     if [ -n "${CONTAINER_REGISTRY}" ] && \
                        [ -n "${CONTAINER_REGISTRY_USERNAME}" ] && \
-                       [ -n "${CONTAINER_REGISTRY_PASSWORD}" ]; then 
+                       [ -n "${CONTAINER_REGISTRY_PASSWORD}" ]; then
                       echo ',
                   "credential": {
                     "registry": "'"${CONTAINER_REGISTRY}"'",
@@ -260,13 +260,7 @@ spec:
             "$BASE_URL/api/configs/backend/default" \
             -d '{
               "configs": {
-                "router_address": "ws://quick-start.osmo",
-                "scheduler_settings": {
-                    "scheduler_type": "kai",
-                    "scheduler_name": "kai-scheduler",
-                    "coscheduling": true,
-                    "scheduler_timeout": 30
-                }
+                "router_address": "ws://quick-start.osmo"
               },
               "description": "Update default backend config"
             }'

@@ -1,0 +1,115 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Helm Chart Lint
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'deployments/charts/**'
+      - '.github/workflows/helm-chart-lint.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  #######################
+  #   Detect Changes    #
+  #######################
+  detect-chart-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.detect.outputs.charts }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed charts
+        id: detect
+        run: |
+          # Get list of changed files
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1)
+          fi
+
+          # Find unique chart directories that have changes
+          CHARTS=""
+          for chart_dir in deployments/charts/*/; do
+            chart_name=$(basename "$chart_dir")
+            if echo "$CHANGED_FILES" | grep -q "^deployments/charts/${chart_name}/"; then
+              if [ -z "$CHARTS" ]; then
+                CHARTS="\"${chart_name}\""
+              else
+                CHARTS="${CHARTS},\"${chart_name}\""
+              fi
+            fi
+          done
+
+          if [ -z "$CHARTS" ]; then
+            echo "No chart changes detected"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "charts=[]" >> $GITHUB_OUTPUT
+          else
+            echo "Changed charts: [$CHARTS]"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "charts=[$CHARTS]" >> $GITHUB_OUTPUT
+          fi
+
+  #######################
+  #    Helm Lint        #
+  #######################
+  helm-lint:
+    needs: [detect-chart-changes]
+    if: needs.detect-chart-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect-chart-changes.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Helm Lint
+        run: |
+          echo "Linting chart: ${{ matrix.chart }}"
+          helm lint deployments/charts/${{ matrix.chart }}
+
+      - name: Helm Template (validate rendering)
+        run: |
+          echo "Validating template rendering for: ${{ matrix.chart }}"
+          # Capture output, only show on failure
+          if ! OUTPUT=$(helm template test-release deployments/charts/${{ matrix.chart }} 2>&1); then
+            echo "❌ Template rendering failed:"
+            echo "$OUTPUT"
+            exit 1
+          fi
+          echo "✓ Template rendering successful"
+
