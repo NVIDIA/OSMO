@@ -188,7 +188,8 @@ data:
               containers:
                 - name: backend-test-runner
                   {{- $imageTag := .Values.backendTestRunner.podTemplate.image.tag | default .Values.global.osmoImageTag }}
-                  image: {{ .Values.backendTestRunner.podTemplate.image.repository }}:{{ $imageTag }}
+                  {{- $imageRepository := .Values.backendTestRunner.podTemplate.image.repository | default .Values.global.osmoImageLocation }}
+                  image: {{ $imageRepository }}:{{ $imageTag }}
                   imagePullPolicy: {{ .Values.backendTestRunner.podTemplate.image.pullPolicy }}
                   command: ["backend_test_runner"]
                   args: {{ toYaml .Values.backendTestRunner.podTemplate.container.args | nindent 20 }}
