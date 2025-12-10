@@ -326,6 +326,7 @@ export default function TasksSummary() {
           )}
         </SlideOut>
         <SlideOut
+          animate={true}
           id="total-resources"
           open={showTotalResources}
           onClose={() => setShowTotalResources(false)}
@@ -374,6 +375,7 @@ export default function TasksSummary() {
               showWF={showWF ?? false}
             />
             <SlideOut
+              animate={true}
               header={
                 <Link
                   id="workflow-details-header"

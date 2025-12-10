@@ -291,6 +291,7 @@ export default function Workflows() {
           updateUrl={updateUrl}
         />
         <SlideOut
+          animate={true}
           header={
             selectedWorkflowName && (
               <Link

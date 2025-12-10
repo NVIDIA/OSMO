@@ -20,6 +20,7 @@ import { type PropsWithChildren, useEffect, useMemo, useRef, useState } from "re
 import { ThemeProvider } from "next-themes";
 
 import { env } from "~/env.mjs";
+import useSafeTimeout from "~/hooks/useSafeTimeout";
 import { type AuthClaims } from "~/models/auth-model";
 import { ZERO_WIDTH_SPACE } from "~/utils/string";
 
@@ -49,11 +50,13 @@ export const Layout = ({ children }: PropsWithChildren) => {
   const auth = useAuth();
   const { initials, userName } = useMemo(() => getUserDetails(auth.claims), [auth.claims]);
   const [mainMenuOpen, setMainMenuOpen] = useState(false);
+  const [mainMenuCanOpen, setMainMenuCanOpen] = useState(true);
   const [mainMenuPinned, setMainMenuPinned] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
   const mainMenuButtonRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const defaultPinned = useMinScreenWidth(1400);
+  const { setSafeTimeout } = useSafeTimeout();
 
   useEffect(() => {
     const mainMenuPinned = localStorage.getItem(MAIN_MENU_PINNED_KEY);
@@ -66,6 +69,14 @@ export const Layout = ({ children }: PropsWithChildren) => {
       setMainMenuOpen(defaultPinned);
     }
   }, [defaultPinned]);
+
+  useEffect(() => {
+    if (mainMenuOpen) {
+      setMainMenuCanOpen(false);
+    } else {
+      setSafeTimeout(() => setMainMenuCanOpen(true), 500);
+    }
+  }, [mainMenuOpen, setSafeTimeout]);
 
   useEffect(() => {
     // Only run in browser environment
@@ -115,7 +126,9 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   aria-haspopup="true"
                   aria-controls="main-menu"
                   onClick={() => {
-                    setMainMenuOpen(true);
+                    if (!mainMenuOpen && mainMenuCanOpen) {
+                      setMainMenuOpen(true);
+                    }
                   }}
                   ref={mainMenuButtonRef}
                 >
@@ -139,7 +152,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   ></path>
                 </svg>
                 <h1
-                  className="text-lg font-bold focus-visible:outline-none"
+                  className="text-lg font-bold focus:outline-3"
                   ref={titleRef}
                   tabIndex={-1}
                 >
@@ -157,10 +170,11 @@ export const Layout = ({ children }: PropsWithChildren) => {
           >
             <SlideOut
               id="main-menu"
+              animate={true}
               open={mainMenuOpen}
               onClose={() => setMainMenuOpen(false)}
               dimBackground={false}
-              className="h-full shadow-sm"
+              className="h-full"
               bodyClassName="h-full min-w-50 shadow-2xl shadow-black/50"
               position="left"
               canPin={true}
@@ -182,7 +196,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   if (!mainMenuPinned) {
                     setMainMenuOpen(false);
                   }
-                  setTimeout(() => {
+                  setSafeTimeout(() => {
                     titleRef.current?.focus();
                   }, 500);
                 }}

@@ -407,6 +407,7 @@ export default function Tasks() {
           showWF={showWF ?? false}
         />
         <SlideOut
+          animate={true}
           header={
             showWF ? (
               <Link

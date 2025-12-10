@@ -220,7 +220,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
 
   if (!selectedWorkflow.data || !localView) {
     return (
-      <div className="h-full flex justify-center items-center">
+      <div className="h-full w-full flex justify-center items-center">
         <Spinner
           description="Generating Overview..."
           size="large"
@@ -430,6 +430,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           </div>
         </div>
         <SlideOut
+          animate={true}
           canClose={localView !== ViewType.SingleTask}
           canPin={localView !== ViewType.SingleTask}
           pinned={localView === ViewType.SingleTask || taskPinned}

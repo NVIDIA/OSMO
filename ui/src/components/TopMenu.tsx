@@ -99,6 +99,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   const pathname = usePathname();
   const [activeRoute, setActiveRoute] = useState<string | undefined>(undefined);
   const [openCLI, setOpenCLI] = useState(false);
+  const [cliCanOpen, setCliCanOpen] = useState(true);
   const [copied, setCopied] = useState(false);
   const cliCurl = `curl -fsSL ${runtimeEnv.CLI_INSTALL_SCRIPT_URL} | bash`;
   const { setSafeTimeout } = useSafeTimeout();
@@ -106,6 +107,14 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
   const version = api.version.get.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    if (openCLI) {
+      setCliCanOpen(false);
+    } else {
+      setSafeTimeout(() => setCliCanOpen(true), 100);
+    }
+  }, [openCLI, setSafeTimeout]);
 
   const links = useMemo((): React.ReactNode[] => {
     const links: React.ReactNode[] = [
@@ -183,7 +192,9 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
           text="Download CLI"
           className="btn btn-link no-underline m-0 p-0 w-full"
           onClick={() => {
-            setOpenCLI(!openCLI);
+            if (!openCLI && cliCanOpen) {
+              setOpenCLI(true);
+            }
           }}
           aria-expanded={openCLI}
           aria-haspopup="true"
@@ -224,7 +235,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
     }
 
     return links;
-  }, [sidebarData, activeRoute, onItemClick, auth, runtimeEnv, openCLI, setOpenCLI, pathname]);
+  }, [sidebarData, activeRoute, onItemClick, auth, runtimeEnv, openCLI, setOpenCLI, pathname, cliCanOpen]);
 
   useEffect(() => {
     const route = pathname.split("/")[1];
@@ -245,9 +256,10 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
       {version.data && <p className="border-y-1 border-border p-global text-center font-semibold">{version.data}</p>}
       <SlideOut
         id="cli"
+        animate={false}
         open={openCLI}
         onClose={() => setOpenCLI(false)}
-        className="fixed top-0 left-2 mt-32 rounded-xl w-fit max-w-[90%]"
+        className="fixed top-0 left-2 mt-32 rounded-xl w-fit max-w-[90vw]"
       >
         <div className="flex flex-col gap-global p-global">
           <form
