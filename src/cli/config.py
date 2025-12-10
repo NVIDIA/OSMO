@@ -23,6 +23,7 @@ import subprocess
 from typing import Any, Dict, Literal, Set, TypedDict
 
 from src.cli import editor
+from src.cli.formatters import RstStrippingHelpFormatter
 from src.lib.utils import client, common, config_history, osmo_errors, role, validation
 
 CONFIG_TYPES_STRING = ', '.join(config_history.CONFIG_TYPES)
@@ -1144,18 +1145,33 @@ Roll back with description and tags::
     set_parser = config_subparsers.add_parser(
         'set',
         help='Set a field into the config',
-        formatter_class=argparse.RawTextHelpFormatter,
+        description='Set a field into the config',
+        formatter_class=RstStrippingHelpFormatter,
         usage='osmo config set [-h] config_type name type [--field FIELD] '
               '[--description DESCRIPTION] [--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {", ".join(set_choices)}\n\n'
-               'Ex. osmo config set ROLE my-backend-role backend --field name-of-backend \n'
-               'Ex. osmo config set ROLE osmo-<pool-name-prefix> pool'
+        epilog='''
+Examples
+========
+
+Creating a new pool role::
+
+    osmo config set ROLE osmo-pool-name pool
+
+.. note::
+
+    The pool name **MUST** start with ``osmo-`` to be correctly recognized so that users
+    can see the pool in the UI and profile settings. This will be changed to be more flexible
+    in the future.
+
+Creating a new backend role::
+
+    osmo config set ROLE my-backend-role backend --field name-of-backend
+        '''
     )
     set_parser.add_argument(
         'config',
         choices=set_choices,
         help='Config type to set (CONFIG_TYPE)',
-        metavar='config_type',
     )
     set_parser.add_argument(
         'name',
