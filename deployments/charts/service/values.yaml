@@ -1598,6 +1598,127 @@ sidecars:
     ##
     debugPort: 6070
 
+  ## Authorization sidecar configuration (role-based access control)
+  ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
+  ##
+  authz:
+    ## Enable authorization sidecar (set to true to use authz_sidecar instead of middleware)
+    ##
+    enabled: false
+
+    ## Authorization sidecar Docker image
+    ##
+    image: ""  # Set to: {{ .Values.global.osmoImageLocation }}/authz-sidecar:{{ .Values.global.osmoImageTag }}
+
+    ## Image pull policy for authorization sidecar
+    ##
+    imagePullPolicy: IfNotPresent
+
+    ## gRPC port for authorization service
+    ##
+    grpcPort: 50052
+
+    ## PostgreSQL connection configuration
+    ##
+    postgres:
+      ## PostgreSQL host (usually 'postgres' for in-cluster service)
+      ##
+      host: postgres
+
+      ## PostgreSQL port
+      ##
+      port: 5432
+
+      ## PostgreSQL database name
+      ##
+      database: osmo_db
+
+      ## PostgreSQL user
+      ##
+      user: postgres
+
+      ## Kubernetes secret containing PostgreSQL password
+      ##
+      passwordSecretName: postgres-secret
+
+      ## Key in the secret containing the password
+      ##
+      passwordSecretKey: password
+
+      ## PostgreSQL SSL mode (disable, require, verify-full)
+      ##
+      sslMode: disable
+
+      ## Maximum number of open connections in the pool
+      ##
+      maxOpenConns: 10
+
+      ## Maximum number of idle connections in the pool
+      ##
+      maxIdleConns: 5
+
+      ## Maximum lifetime of a connection
+      ##
+      connMaxLifetime: 300s
+
+    ## Role cache configuration
+    ##
+    cache:
+      ## Enable in-memory caching of role policies
+      ##
+      enabled: true
+
+      ## Cache time-to-live (how long to cache role policies)
+      ##
+      ttl: 300s
+
+      ## Maximum number of role combinations to cache
+      ##
+      maxSize: 1000
+
+    ## Resource limits and requests for authorization sidecar
+    ##
+    resources:
+      ## Resource requests (guaranteed allocation)
+      ##
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      ## Resource limits (maximum allocation)
+      ##
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    ## Liveness probe configuration
+    ##
+    livenessProbe:
+      grpc:
+        port: 50052
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+    ## Readiness probe configuration
+    ##
+    readinessProbe:
+      grpc:
+        port: 50052
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+
+    ## Security context for authorization sidecar
+    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 10001
+
 ## Global configuration for extra ConfigMaps
 ## These ConfigMaps can be used for custom configurations
 ##

@@ -214,6 +214,7 @@ spec:
           timeoutSeconds: 20
 
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.authz-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
