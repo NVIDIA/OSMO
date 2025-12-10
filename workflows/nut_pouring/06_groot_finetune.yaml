@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 6: Fine-tune GROOT-N1.5 VLA model on prepared dataset
+# Usage: osmo workflow submit 06_groot_finetune.yaml --pool default
+
+version: 2
+
+workflow:
+  name: nut-pouring-groot-finetune
+  timeout:
+    exec_timeout: 7d
+    queue_timeout: 2d
+  resources:
+    default:
+      cpu: 64
+      gpu: {{ num_gpus }}
+      memory: 512Gi
+      storage: 256Gi
+      platform: {{ platform }}
+
+  groups:
+  - name: training
+    tasks:
+    - name: groot-finetune
+      image: {{ image }}
+      lead: true
+      inputs:
+      - dataset:
+          name: {{ input_dataset }}
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+          path: checkpoints
+      command: ["bash"]
+      args: ["-c", |
+        set -ex
+        nvidia-smi
+        
+        export WANDB_MODE=disabled
+        
+        source /opt/conda/etc/profile.d/conda.sh
+        conda activate gr00t
+        
+        pip install torchcodec || true
+        
+        cd /opt/Isaac-GR00T
+        
+        export OUTPUT_DIR={{output}}/checkpoints
+        mkdir -p $OUTPUT_DIR
+        
+        python scripts/gr00t_finetune.py \
+            --dataset-path {{input:0}}/lerobot \
+            --output-dir $OUTPUT_DIR \
+            --data-config {{ data_config }} \
+            --batch-size {{ batch_size }} \
+            --max-steps {{ max_steps }} \
+            --num-gpus {{ num_gpus }} \
+            --save-steps {{ save_steps }} \
+            --base-model-path {{ base_model }} \
+            --no-tune-llm \
+            --tune-visual \
+            --tune-projector \
+            --tune-diffusion-model \
+            --no-resume \
+            --dataloader-num-workers {{ num_workers }} \
+            --report-to none \
+            --embodiment-tag {{ embodiment_tag }}
+      ]
+
+default-values:
+  platform: rtx6000
+  image: nvcr.io/nvidia/isaac-groot:1.5
+  input_dataset: nut-pouring-lerobot
+  output_dataset: nut-pouring-finetuned-model
+  data_config: fourier_gr1_arms_only
+  batch_size: 32
+  max_steps: 10000
+  num_gpus: 1
+  save_steps: 1000
+  base_model: nvidia/GR00T-N1.5-3B
+  num_workers: 12
+  embodiment_tag: gr1
+

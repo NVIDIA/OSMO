@@ -1,0 +1,79 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 4: Merge augmented MP4 videos back into HDF5 format
+# Usage: osmo workflow submit 04_mp4_to_hdf5.yaml --pool default
+
+workflow:
+  name: nut-pouring-mp4-to-hdf5
+  timeout:
+    exec_timeout: 24h
+    queue_timeout: 12h
+  resources:
+    default:
+      cpu: 16
+      gpu: 1
+      memory: 64Gi
+      storage: 256Gi
+      platform: {{ platform }}
+
+  tasks:
+  - name: mp4-to-hdf5
+    image: {{ image }}
+    environment:
+      ACCEPT_EULA: "Y"
+      OMNI_KIT_ALLOW_ROOT: "1"
+      NO_NUCLEUS: "Y"
+    inputs:
+    - dataset:
+        name: {{ original_hdf5_dataset }}
+    - dataset:
+        name: {{ augmented_mp4_dataset }}
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+        path: hdf5
+    command: ["bash"]
+    args: ["-c", |
+      set -euxo pipefail
+      nvidia-smi
+      
+      cd /workspace/isaaclab
+      INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
+      echo "Reference HDF5: $INPUT_HDF5"
+      
+      mkdir -p {{output}}/hdf5
+      
+      /workspace/isaaclab/_isaac_sim/python.sh scripts/tools/mp4_to_hdf5.py \
+        --input_file $INPUT_HDF5 \
+        --videos_dir {{input:1}} \
+        --output_file {{output}}/hdf5/cosmos_augmented_dataset.hdf5
+      
+      /workspace/isaaclab/_isaac_sim/python.sh -c "
+      import h5py
+      with h5py.File('{{output}}/hdf5/cosmos_augmented_dataset.hdf5', 'r') as f:
+          demos = len([k for k in f['data'].keys() if k.startswith('demo_')])
+          print(f'Total demonstrations: {demos}')
+      "
+    ]
+
+default-values:
+  platform: rtx6000
+  image: nvcr.io/nvidia/isaac-lab:4.5.0
+  original_hdf5_dataset: nut-pouring-mimic-generated
+  augmented_mp4_dataset: nut-pouring-cosmos-augmented
+  output_dataset: nut-pouring-augmented-hdf5
+

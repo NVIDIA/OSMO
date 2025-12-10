@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 1: MimicGen - Generate synthetic demonstrations from teleoperation data
+# Usage: osmo workflow submit 01_mimic_generation.yaml --pool default
+
+workflow:
+  name: nut-pouring-mimic-gen
+  timeout:
+    exec_timeout: 168h
+    queue_timeout: 48h
+  resources:
+    default:
+      cpu: 64
+      gpu: 1
+      memory: 128Gi
+      storage: 500Gi
+      platform: {{ platform }}
+
+  tasks:
+  - name: mimic-generation
+    image: {{ image }}
+    environment:
+      ACCEPT_EULA: "Y"
+      NO_NUCLEUS: "Y"
+      OMNI_KIT_ALLOW_ROOT: "1"
+    inputs:
+    - dataset:
+        name: {{ input_dataset }}
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+        path: generated
+    command: ["bash"]
+    args: ["-c", |
+      set -euxo pipefail
+      
+      if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
+        mv /usr/share/vulkan /usr/share/vulkan_hidden
+      fi
+      
+      DATASET_DIR={{input:0}}/groot_mimic
+      ls -lh $DATASET_DIR
+      nvidia-smi
+      
+      cd /workspace/isaaclab
+      ./isaaclab.sh --install
+      
+      # Register GR1 tasks
+      echo "from . import pinocchio_envs" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
+      
+      # Patch Pink IK for Pinocchio compatibility
+      sed -i 's/self\._all_joint_names = self\.full_model\.names\.tolist()\[1:\]/self._all_joint_names = [str(n) for n in self.full_model.names][1:]/' \
+         source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py
+      
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+        --device cuda:0 \
+        --headless \
+        --num_envs 1 \
+        --generation_num_trials {{ num_trials }} \
+        --input_file $DATASET_DIR/dataset_annotated_gr1_nut_pouring.hdf5 \
+        --output_file {{output}}/generated/generated_dataset.hdf5 \
+        --task {{ task }} \
+        --enable_cameras
+    ]
+
+default-values:
+  platform: rtx6000
+  image: nvcr.io/nvidia/isaac-lab:4.5.0
+  input_dataset: nut-pouring-teleop
+  output_dataset: nut-pouring-mimic-generated
+  num_trials: 10
+  task: Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0
+
