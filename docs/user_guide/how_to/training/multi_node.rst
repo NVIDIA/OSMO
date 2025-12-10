@@ -105,7 +105,7 @@ Use ``nslookup`` as an example to resolve the hostname to an IP address:
 
 .. code-block:: bash
 
-  TASK_IP=$(nslookup {{host:master}} | grep -oP \
+  TASK_IP=$(nslookup -type=A {{host:master}} | grep -oP \
     'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | head -n1)
 
 Scaling up to Arbitrary Number of Nodes

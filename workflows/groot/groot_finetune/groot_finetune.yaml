@@ -27,7 +27,7 @@ workflow:
       storage: 40Gi
   tasks:
   - name: groot-finetune
-    image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
+    image: pytorch/pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
     command: ["/bin/bash"]
     args: ["/tmp/entry.sh"]
     environment:

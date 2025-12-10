@@ -185,7 +185,7 @@ The special tokens are:
             args: [/tmp/run.sh]
             files:
             - contents: |
-                nc -w 50 -l -p 24831 < /tmp/hello.txt 
+                nc -w 50 -l -p 24831 < /tmp/hello.txt
               path: /tmp/run.sh
             - contents: |-
                 hello
@@ -197,7 +197,7 @@ The special tokens are:
             files:
             - contents: |
                 retries=45
-                while ! nslookup {{host:server}} > /dev/null ; do 
+                while ! nslookup -type=A {{host:server}} > /dev/null ; do
                   echo "Waiting for server pod, $retries retries left..."
                   if [ $retries -eq 0 ] ; then
                     echo "Server pod not started in time!"
@@ -208,7 +208,7 @@ The special tokens are:
                 done
 
                 retries=20
-                while ! nc -w 30 {{host:server}} 24831 > tmp/tcp_echo.txt ; do 
+                while ! nc -w 30 {{host:server}} 24831 > tmp/tcp_echo.txt ; do
                   echo "Attempting to connect to server, $retries retries left..."
                   if [ $retries -eq 0 ] ; then
                     echo "Could not connect to server in time!"
@@ -218,7 +218,7 @@ The special tokens are:
                   sleep 1
                 done
 
-                cat tmp/tcp_echo.txt > {{output}}/tcp_echo.txt 
+                cat tmp/tcp_echo.txt > {{output}}/tcp_echo.txt
               path: /tmp/run.sh
 
     .. code-annotations::

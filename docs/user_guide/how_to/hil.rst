@@ -203,6 +203,7 @@ We will now build the workflow to run the HIL simulation, starting with the ``re
 .. important::
   Make sure to use the correct platform for the machine you are using.
   Check the annotations for the platform in the resource spec.
+  To read more about this, please refer to :ref:`Platforms <concepts_platforms>`.
 
 Next we will add the discovery-server task:
 

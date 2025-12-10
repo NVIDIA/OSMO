@@ -17,7 +17,7 @@
 
 apt update && apt install -y net-tools netcat dnsutils
 
-DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+DISCOVERY_SERVER_IP=$(nslookup -type=A {{host:discovery-server}} | grep -oP \
     'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
 
 # Add env variables
