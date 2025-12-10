@@ -556,6 +556,16 @@ html[data-mode="dark"] .glightbox-container .gslide-media {
   background: transparent;
 }
 
+/* ==================== Image Spacing ==================== */
+
+img.mb-1 {
+  margin-bottom: 1rem;
+}
+
+img.mb-2 {
+  margin-bottom: 2rem;
+}
+
 /* ==================== Code Block Emphasis Color ==================== */
 
 /* Light green background for emphasized lines in code blocks */

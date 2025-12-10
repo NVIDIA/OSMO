@@ -21,42 +21,10 @@
 osmo config diff
 ================
 
-Show the difference between two config revisions
-
-.. code-block::
-
-   osmo config diff [-h] first [second]
-
-   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
-
-   Ex. osmo config diff WORKFLOW:15
-   Ex. osmo config diff SERVICE:14 SERVICE:15
-
-Positional Arguments
-====================
-
-:kbd:`first`
-   First config to compare. Format: <CONFIG_TYPE>[:<revision>] (e.g. BACKEND:3). If no revision is provided, uses the current revision.
-
-
-:kbd:`second`
-   Second config to compare. Format: <CONFIG_TYPE>[:<revision>] (e.g. BACKEND:6). If no revision is provided, uses the current revision.
-
-Examples
-========
-
-Show changes made to the workflow config since revision 15:
-
-.. code-block:: bash
-
-    $ osmo config diff WORKFLOW:15
-
-.. image:: images/config_diff_workflow.png
-
-Show changes made between two revisions of the service configuration:
-
-.. code-block:: bash
-
-    $ osmo config diff SERVICE:14 SERVICE:15
-
-.. image:: images/config_diff_service.png
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: config diff
+   :ref-prefix: cli_reference_config_diff
+   :argument-anchor:
