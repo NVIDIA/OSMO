@@ -27,7 +27,7 @@ import { ZERO_WIDTH_SPACE } from "~/utils/string";
 import { useAuth } from "./AuthProvider";
 import { OutlinedIcon } from "./Icon";
 import { HeaderOutlet, PageHeaderProvider, TitleOutlet } from "./PageHeaderProvider";
-import { SlideOut, useAllowPinning as useMinScreenWidth } from "./SlideOut";
+import { SlideOut, useMinScreenWidth } from "./SlideOut";
 import { MAIN_MENU_PINNED_KEY } from "./StoreProvider";
 import { TopMenu } from "./TopMenu";
 
@@ -53,14 +53,14 @@ export const Layout = ({ children }: PropsWithChildren) => {
   const [mainMenuCanOpen, setMainMenuCanOpen] = useState(true);
   const [mainMenuPinned, setMainMenuPinned] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
-  const mainMenuButtonRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const defaultPinned = useMinScreenWidth(1400);
   const { setSafeTimeout } = useSafeTimeout();
+  const allowPinning = useMinScreenWidth();
 
   useEffect(() => {
     const mainMenuPinned = localStorage.getItem(MAIN_MENU_PINNED_KEY);
-    if (mainMenuPinned !== null) {
+    if (mainMenuPinned !== null && allowPinning) {
       const pinned = mainMenuPinned === "true";
       setMainMenuPinned(pinned);
       setMainMenuOpen(pinned);
@@ -68,7 +68,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
       setMainMenuPinned(defaultPinned);
       setMainMenuOpen(defaultPinned);
     }
-  }, [defaultPinned]);
+  }, [defaultPinned, allowPinning]);
 
   useEffect(() => {
     if (mainMenuOpen) {
@@ -130,7 +130,6 @@ export const Layout = ({ children }: PropsWithChildren) => {
                       setMainMenuOpen(true);
                     }
                   }}
-                  ref={mainMenuButtonRef}
                 >
                   <OutlinedIcon name="menu" />
                 </button>
@@ -165,7 +164,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
           <main
             id="main-content"
             tabIndex={-1}
-            className={`relative h-full w-full overflow-y-auto overflow-x-auto ${mainMenuPinned && mainMenuOpen ? "grid grid-cols-[auto_1fr]" : "flex flex-row"}`}
+            className="relative h-full w-full overflow-y-auto overflow-x-auto flex flex-row"
             aria-label="Main content"
           >
             <SlideOut
@@ -198,7 +197,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   }
                   setSafeTimeout(() => {
                     titleRef.current?.focus();
-                  }, 500);
+                  }, 1000);
                 }}
               />
             </SlideOut>

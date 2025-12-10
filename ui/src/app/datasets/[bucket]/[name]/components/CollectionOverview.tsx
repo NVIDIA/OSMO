@@ -51,7 +51,7 @@ export default function CollectionOverview({
         </h2>
         <Tag color={Colors.collection}>Collection</Tag>
       </PageHeader>
-      <div className="grid h-full w-full grid-cols-[1fr_auto] relative overflow-auto">
+      <div className="grid h-full w-full grid-cols-[1fr_auto] relative">
         <CollectionVersionsTable collection={dataset} />
         <CollectionDetails dataset={dataset} />
       </div>

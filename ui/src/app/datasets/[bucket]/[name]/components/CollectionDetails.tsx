@@ -31,7 +31,7 @@ export const CollectionDetails = ({ dataset }: DatasetDetailsProps) => {
   const toolParamUpdater = useToolParamUpdater();
 
   return (
-    <div className="h-full flex flex-col overflow-y-auto w-[33vw] max-w-150 body-component shadow-xl shadow-black/50 z-10">
+    <div className="h-full flex flex-col overflow-y-auto w-[33vw] max-w-150 body-component shadow-lg shadow-black/50 z-10">
       <section
         aria-labelledby="details-title"
         className="h-full w-full flex flex-col dag-details-body"
