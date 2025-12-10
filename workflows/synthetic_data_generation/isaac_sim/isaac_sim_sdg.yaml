@@ -49,4 +49,3 @@ workflow:
       gpu: 1
       memory: 32Gi
       storage: 10Gi
-      platform: x86-5090
