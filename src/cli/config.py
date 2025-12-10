@@ -1006,17 +1006,32 @@ Delete with description and tags::
     history_parser = config_subparsers.add_parser(
         'history',
         help='List history of configuration changes',
+        description='List history of configuration changes',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config history [-h] [config_type] [--offset OFFSET] [--count COUNT] '
               '[--order {asc,desc}] [--name NAME] [--revision REVISION] [--tags TAGS [TAGS ...]] '
               '[--at-timestamp AT_TIMESTAMP] [--created-before CREATED_BEFORE] '
               '[--created-after CREATED_AFTER] [--format-type {json,text}] [--fit-width]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config history\n'
-               'Ex. osmo config history --format-type json --offset 10 --count 2\n'
-               'Ex. osmo config history SERVICE\n'
-               'Ex. osmo config history --created-after "2025-05-18" --created-before "2025-05-25"'
-               '\n'
+        epilog='''
+Examples
+========
+
+View history in text format (default)::
+
+    osmo config history
+
+View history in JSON format with pagination::
+
+    osmo config history --format-type json --offset 10 --count 2
+
+View history for a specific configuration type::
+
+    osmo config history SERVICE
+    
+View history for a specific time range::
+
+    osmo config history --created-after "2025-05-18" --created-before "2025-05-25"
+        '''
     )
 
     # Add all query parameters as CLI arguments
@@ -1040,10 +1055,9 @@ Delete with description and tags::
     )
     history_parser.add_argument(
         'config',
-        metavar='config_type',
         nargs='?',
         choices=config_history.CONFIG_TYPES,
-        help='Config type to show history for (CONFIG_TYPE)'
+        help='Config type to show history'
     )
     history_parser.add_argument('--name', '-n',
         help='Filter by changes to a particular config, e.g. "isaac-hil" pool')
