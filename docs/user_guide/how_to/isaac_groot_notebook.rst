@@ -46,12 +46,24 @@ Fetch the workflow spec:
 
     The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/groot/groot_notebook>`_.
 
-Add any platform value if necessary.
+Add any platform value if necessary to target a specific type of hardware.
+To read more about platforms, please refer to the :ref:`Platforms <concepts_platforms>`.
 
 .. important::
 
   The workflow has a timeout of **2 hours**. If the workflow runs for longer than that, it will be terminated.
-  If you need to run the workflow for longer than 2 hours, you can increase the timeout by modifying the workflow spec.
+  If you need to run the workflow for longer than 2 hours, you can increase the timeout by modifying the timeout field:
+
+  .. code-block:: yaml
+
+    workflow:
+      timeout:
+        exec_timeout: 2h #(1)
+
+  .. code-annotations::
+
+    1. Modify this field to the desired timeout.
+       Units can be `s` for seconds, `m` for minutes, `h` for hours, or `d` for days.
 
 After the workflow starts running, check the logs to see if the workflow logs this messages:
 
@@ -64,7 +76,7 @@ After the workflow starts running, check the logs to see if the workflow logs th
 
 Before the workflow logs this message, the workflow is installing all the necessary dependencies
 before spinning up the JupyterLab interface. You will have to wait for the installation to complete
-before you can move on to the next step.
+before you can move on to the next step. This will take around **15** minutes.
 
 Then, you can access the JupyterLab interface by running the following command:
 

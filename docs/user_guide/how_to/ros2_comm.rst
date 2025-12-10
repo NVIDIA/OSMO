@@ -98,7 +98,7 @@ Let's examine the key components of the ROS 2 communication workflow:
               apt-get install -y dnsutils
 
               # (1)
-              DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              DISCOVERY_SERVER_IP=$(nslookup -type=A {{host:discovery-server}} | grep -oP \
                   'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
 
               export ROS_DISCOVERY_SERVER=$DISCOVERY_SERVER_IP:11811
@@ -121,7 +121,7 @@ Let's examine the key components of the ROS 2 communication workflow:
               apt-get update
               apt-get install -y dnsutils
 
-              DISCOVERY_SERVER_IP=$(nslookup {{host:discovery-server}} | grep -oP \
+              DISCOVERY_SERVER_IP=$(nslookup -type=A {{host:discovery-server}} | grep -oP \
                   'Address: \K\d[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
 
               export ROS_DISCOVERY_SERVER=$DISCOVERY_SERVER_IP:11811
@@ -139,7 +139,7 @@ Let's examine the key components of the ROS 2 communication workflow:
           memory: 1Gi
           storage: 1Gi
       timeout:
-        exec_timeout: 15m
+        exec_timeout: 1h
 
 
 .. code-annotations::
@@ -179,5 +179,17 @@ machines in different networks.
 
 .. note::
 
-  This workflow has a timeout of **15 minutes**. If the workflow runs for longer than that,
+  This workflow has a timeout of **1 hour**. If the workflow runs for longer than that,
   it will be terminated by the service automatically.
+  If you need to run the workflow for longer than 1 hour, you can increase the timeout by modifying the timeout field:
+
+  .. code-block:: yaml
+
+    workflow:
+      timeout:
+        exec_timeout: 2h #(1)
+
+  .. code-annotations::
+
+    1. Modify this field to the desired timeout.
+       Units can be `s` for seconds, `m` for minutes, `h` for hours, or `d` for days.
