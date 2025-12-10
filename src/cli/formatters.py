@@ -23,10 +23,10 @@ import re
 class RstStrippingHelpFormatter(argparse.RawTextHelpFormatter):
     """Formatter that strips RST directives from epilog for terminal output."""
 
-    # Pattern to match RST directives like .. note::, .. warning::, etc.
-    # Matches the directive line itself (e.g., ".. note::\n")
+    # Pattern to match RST directives like .. note::, .. warning::, .. image::, etc.
+    # Matches the directive line and any indented continuation lines (options like :align:)
     RST_DIRECTIVE_PATTERN = re.compile(
-        r'^\.\.\s+\w+::\s*\n',
+        r'^\.\.\s+\w+::.*\n(?:[ \t]+.*\n)*',
         re.MULTILINE
     )
 

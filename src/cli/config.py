@@ -1247,7 +1247,7 @@ Update tags for current revision::
         help='Show the difference between two config revisions',
         description='Show the difference between two config revisions\n\n'
                     f'Available config types (config_type): {CONFIG_TYPES_STRING}',
-        formatter_class=argparse.RawTextHelpFormatter,
+        formatter_class=RstStrippingHelpFormatter,
         epilog='''
 Examples
 ========
@@ -1256,9 +1256,17 @@ Show changes made to the workflow config since revision 15::
 
   osmo config diff WORKFLOW:15
 
+.. image:: images/config_diff_workflow.png
+    :align: center
+    :class: mb-2
+
 Show changes made between two revisions of the service configuration::
 
   osmo config diff SERVICE:14 SERVICE:15
+
+.. image:: images/config_diff_service.png
+    :align: center
+    :class: mb-2
         '''
     )
     diff_parser.add_argument(
