@@ -879,9 +879,8 @@ Show the ``user_workflow_limits`` workflow configuration in a previous revision:
     )
     show_parser.add_argument(
         'config',
-        metavar='config_type',
-        help=('Config to show in format <CONFIG_TYPE>[:<revision>]. '
-              f'Available CONFIG_TYPE values: {CONFIG_TYPES_STRING}')
+        choices=config_history.CONFIG_TYPES,
+        help='Config to show in format <CONFIG_TYPE>[:<revision>]',
     )
     show_parser.add_argument(
         'names',
@@ -896,20 +895,31 @@ Show the ``user_workflow_limits`` workflow configuration in a previous revision:
     update_parser = config_subparsers.add_parser(
         'update',
         help='Update a configuration',
-        formatter_class=argparse.RawTextHelpFormatter,
+        description='Update a configuration',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION]'
               ' [--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config update SERVICE\n'
-               'Ex. osmo config update POOL my-pool --description "Updated pool settings" '
-               '--tags production high-priority\n'
-               'Ex. osmo config update BACKEND my-backend --file config.json'
+        epilog='''
+Examples
+========
+
+Update a service configuration::
+
+    osmo config update SERVICE
+
+Update a backend configuration from a file::
+
+    osmo config update BACKEND my-backend --file config.json
+
+Update with description and tags::
+
+    osmo config update POOL my-pool --description "Updated pool settings" --tags production high-priority
+        '''
     )
     update_parser.add_argument(
         'config',
         choices=config_history.CONFIG_TYPES,
-        metavar='config_type',
-        help='Config type to update (CONFIG_TYPE)'
+        help='Config type to update',
     )
     update_parser.add_argument(
         'name',
@@ -959,9 +969,8 @@ Delete with description and tags::
     )
     delete_parser.add_argument(
         'config',
-        metavar='config_type',
-        help='Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a '
-             f'specific revision. Available config_type values: {", ".join(delete_choices)}'
+        choices=config_history.CONFIG_TYPES,
+        help='Config type to delete or CONFIG_TYPE:revision_number to delete a specific revision',
     )
     delete_parser.add_argument(
         'name',

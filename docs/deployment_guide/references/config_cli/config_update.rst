@@ -21,71 +21,10 @@
 osmo config update
 ==================
 
-Update a configuration
-
-.. code-block::
-
-   osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
-
-   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
-
-   Ex. osmo config update SERVICE
-   Ex. osmo config update POOL my-pool --description "Updated pool settings" --tags production high-priority
-   Ex. osmo config update BACKEND my-backend --file config.json
-
-Positional Arguments
-====================
-
-:kbd:`config_type`
-   Config type to update (CONFIG_TYPE)
-
-
-:kbd:`name`
-   Optional name of the config to update
-
-
-Named Arguments
-===============
-
---file, -f
-   Path to a JSON file containing the updated config
-
---description, -d
-   Description of the config update
-
---tags, -t
-   Tags for the config update
-
-Examples
-========
-
-Update a service configuration:
-
-.. code-block:: bash
-
-    $ osmo config show SERVICE cli_config latest_version
-    Key              Value
-    =========================
-    latest_version   6.0.0
-
-    $ osmo config update SERVICE
-    Successfully updated SERVICE config
-
-    $ osmo config show SERVICE cli_config latest_version
-    Key              Value
-    =========================
-    latest_version   6.0.1
-
-Update a backend configuration from a file:
-
-.. code-block:: bash
-
-    $ osmo config update BACKEND my-backend --file config.json
-    Successfully updated BACKEND config
-
-Update with description and tags:
-
-.. code-block:: bash
-
-    $ osmo config update POOL my-pool --description "Updated pool settings" --tags production high-priority
-    Successfully updated POOL config
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: config update
+   :ref-prefix: cli_reference_config_update
+   :argument-anchor:
