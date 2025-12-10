@@ -1164,17 +1164,37 @@ View history for a specific time range::
     tag_parser = config_subparsers.add_parser(
         'tag',
         help='Update tags for a config revision',
+        description='Update tags for a config revision. Tags can be used for organizing configs by '
+                    'category and filtering output of ``osmo config history``. Tags do not'
+                    'affect the configuration itself.',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
               '[--delete DELETE [DELETE ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config tag BACKEND:5 --set foo --delete test-4 test-3\n'
-               'Ex. osmo config tag BACKEND --set current-tag'
+        epilog='''
+Examples
+========
+
+View current tags for a revision::
+
+    osmo config history BACKEND -r 5
+
+Update tags by adding and removing::
+
+    osmo config tag BACKEND:5 --set foo --delete test-4 test-3
+
+Verify the updated tags::
+
+    osmo config history BACKEND -r 5
+
+Update tags for current revision::
+
+    osmo config tag BACKEND --set current-tag
+        '''
     )
     tag_parser.add_argument(
         'config',
+        choices=config_history.CONFIG_TYPES,
         help='Config to update tags for in format <CONFIG_TYPE>[:<revision>]',
-        metavar='config_type',
     )
     tag_parser.add_argument(
         '--set', '-s',
