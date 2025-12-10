@@ -28,22 +28,22 @@ import (
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"google.golang.org/grpc/codes"
 
-	"go.corp.nvidia.com/osmo/service/utils_go"
+	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
 )
 
 // MockPostgresClient implements a mock PostgreSQL client for testing
 type MockPostgresClient struct {
-	roles map[string]*utils_go.Role
+	roles map[string]*postgres.Role
 }
 
 func NewMockPostgresClient() *MockPostgresClient {
 	return &MockPostgresClient{
-		roles: make(map[string]*utils_go.Role),
+		roles: make(map[string]*postgres.Role),
 	}
 }
 
-func (m *MockPostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*utils_go.Role, error) {
-	var result []*utils_go.Role
+func (m *MockPostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*postgres.Role, error) {
+	var result []*postgres.Role
 	for _, name := range roleNames {
 		if role, exists := m.roles[name]; exists {
 			result = append(result, role)
@@ -52,7 +52,7 @@ func (m *MockPostgresClient) GetRoles(ctx context.Context, roleNames []string) (
 	return result, nil
 }
 
-func (m *MockPostgresClient) AddRole(role *utils_go.Role) {
+func (m *MockPostgresClient) AddRole(role *postgres.Role) {
 	m.roles[role.Name] = role
 }
 
@@ -71,12 +71,12 @@ func TestAuthzServerIntegration(t *testing.T) {
 	mockPG := NewMockPostgresClient()
 
 	// Add osmo-default role
-	mockPG.AddRole(&utils_go.Role{
+	mockPG.AddRole(&postgres.Role{
 		Name:        "osmo-default",
 		Description: "Default role",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "/api/version", Method: "*"},
 					{Base: "http", Path: "/health", Method: "*"},
 					{Base: "http", Path: "/api/auth/login", Method: "Get"},
@@ -86,12 +86,12 @@ func TestAuthzServerIntegration(t *testing.T) {
 	})
 
 	// Add osmo-user role
-	mockPG.AddRole(&utils_go.Role{
+	mockPG.AddRole(&postgres.Role{
 		Name:        "osmo-user",
 		Description: "User role",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "/api/workflow", Method: "*"},
 					{Base: "http", Path: "/api/workflow/*", Method: "*"},
 					{Base: "http", Path: "/api/task", Method: "*"},
@@ -102,12 +102,12 @@ func TestAuthzServerIntegration(t *testing.T) {
 	})
 
 	// Add osmo-admin role
-	mockPG.AddRole(&utils_go.Role{
+	mockPG.AddRole(&postgres.Role{
 		Name:        "osmo-admin",
 		Description: "Admin role",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "*", Method: "*"},
 					{Base: "http", Path: "!/api/agent/*", Method: "*"},
 				},
@@ -259,11 +259,11 @@ func TestAuthzServerCaching(t *testing.T) {
 
 	// Create mock postgres client
 	mockPG := NewMockPostgresClient()
-	mockPG.AddRole(&utils_go.Role{
+	mockPG.AddRole(&postgres.Role{
 		Name: "osmo-default",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "/health", Method: "*"},
 				},
 			},
@@ -377,11 +377,11 @@ func TestAuthzServerEmptyRoles(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	mockPG := NewMockPostgresClient()
-	mockPG.AddRole(&utils_go.Role{
+	mockPG.AddRole(&postgres.Role{
 		Name: "osmo-default",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "/health", Method: "*"},
 				},
 			},

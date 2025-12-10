@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package utils_go
+package postgres
 
 import (
 	"context"
@@ -225,4 +225,3 @@ func joinStrings(strs []string, sep string) string {
 	}
 	return result
 }
-

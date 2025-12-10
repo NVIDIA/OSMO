@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"go.corp.nvidia.com/osmo/service/utils_go"
+	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
 )
 
 func TestRoleCache_GetSet(t *testing.T) {
@@ -37,7 +37,7 @@ func TestRoleCache_GetSet(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user", "osmo-default"}
-	roles := []*utils_go.Role{
+	roles := []*postgres.Role{
 		{Name: "osmo-user"},
 		{Name: "osmo-default"},
 	}
@@ -77,7 +77,7 @@ func TestRoleCache_CacheKeyOrdering(t *testing.T) {
 	}
 	cache := NewRoleCache(config, logger)
 
-	roles := []*utils_go.Role{
+	roles := []*postgres.Role{
 		{Name: "role1"},
 		{Name: "role2"},
 	}
@@ -106,7 +106,7 @@ func TestRoleCache_Expiration(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*utils_go.Role{{Name: "osmo-user"}}
+	roles := []*postgres.Role{{Name: "osmo-user"}}
 
 	// Set cache
 	cache.Set(roleNames, roles)
@@ -137,7 +137,7 @@ func TestRoleCache_Disabled(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*utils_go.Role{{Name: "osmo-user"}}
+	roles := []*postgres.Role{{Name: "osmo-user"}}
 
 	// Set cache (should do nothing)
 	cache.Set(roleNames, roles)
@@ -161,7 +161,7 @@ func TestRoleCache_MaxSize(t *testing.T) {
 	// Add 4 entries (exceeds max size of 3)
 	for i := 0; i < 4; i++ {
 		roleNames := []string{string(rune('a' + i))}
-		roles := []*utils_go.Role{{Name: string(rune('a' + i))}}
+		roles := []*postgres.Role{{Name: string(rune('a' + i))}}
 		cache.Set(roleNames, roles)
 		time.Sleep(10 * time.Millisecond) // Ensure different timestamps
 	}
@@ -190,7 +190,7 @@ func TestRoleCache_Stats(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*utils_go.Role{{Name: "osmo-user"}}
+	roles := []*postgres.Role{{Name: "osmo-user"}}
 
 	// Cause a miss
 	cache.Get(roleNames)
@@ -230,7 +230,7 @@ func TestRoleCache_Clear(t *testing.T) {
 	cache := NewRoleCache(config, logger)
 
 	roleNames := []string{"osmo-user"}
-	roles := []*utils_go.Role{{Name: "osmo-user"}}
+	roles := []*postgres.Role{{Name: "osmo-user"}}
 
 	// Set cache
 	cache.Set(roleNames, roles)
@@ -256,4 +256,3 @@ func TestRoleCache_Clear(t *testing.T) {
 		t.Errorf("expected cache size 0 after clear, got %d", stats["size"])
 	}
 }
-

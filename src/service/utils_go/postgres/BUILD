@@ -13,3 +13,27 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
+
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "postgres",
+    srcs = [
+        "postgres_client.go",
+    ],
+    importpath = "go.corp.nvidia.com/osmo/service/utils_go/postgres",
+    visibility = ["//src/service:__subpackages__"],
+    deps = [
+        "@com_github_lib_pq//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "postgres_test",
+    srcs = [
+        "postgres_client_test.go",
+    ],
+    embed = [":postgres"],
+    deps = [],
+)
+

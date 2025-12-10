@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
@@ -30,7 +30,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//src/service/authz_sidecar/server:server",
-        "//src/service/utils_go:utils_go",
+        "//src/service/utils_go/postgres:postgres",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//health:go_default_library",
         "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
@@ -60,5 +60,19 @@ pkg_tar(
     srcs = [":authz_sidecar_bin"],
     mode = "0755",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "authz_sidecar_integration_test",
+    srcs = ["integration_test.go"],
+    deps = [
+        "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:auth",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials/insecure:go_default_library",
+        "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
+    ],
+    visibility = ["//visibility:public"],
+    tags = ["external", "manual"],  # Requires external service
+    local = True,  # Run locally without sandboxing
 )
 
