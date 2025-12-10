@@ -23,6 +23,7 @@ import subprocess
 from typing import Any, Dict, Literal, Set, TypedDict
 
 from src.cli import editor
+from src.cli.formatters import RstStrippingHelpFormatter
 from src.lib.utils import client, common, config_history, osmo_errors, role, validation
 
 CONFIG_TYPES_STRING = ', '.join(config_history.CONFIG_TYPES)
@@ -35,8 +36,10 @@ class ConfigApiMapping(TypedDict):
 
 
 # Mapping of config types to their API endpoints and payload keys
-UPDATE_CONFIG_API_MAPPING: Dict[config_history.ConfigHistoryType,
-                         Dict[Literal['default', 'named'], ConfigApiMapping | None]] = {
+UPDATE_CONFIG_API_MAPPING: Dict[
+    config_history.ConfigHistoryType,
+    Dict[Literal['default', 'named'], ConfigApiMapping | None]
+] = {
     config_history.ConfigHistoryType.SERVICE: {
         'default': {'method': client.RequestMethod.PATCH, 'payload_key': 'configs_dict'},
         'named': None,  # Named configs not supported
@@ -414,7 +417,8 @@ def deep_diff(current: Any, updated: Any) -> Any:
                 value_diff = deep_diff(current[key], value)
             if value_diff is not None:
                 diff[key] = value_diff
-        return diff if diff else None # Required when a field is removed
+
+        return diff if diff else None  # Required when a field is removed
 
     return updated
 
@@ -834,7 +838,7 @@ def setup_parser(parser: argparse._SubParsersAction):
         parser: The parser to be configured
     """
     config_parser = parser.add_parser('config',
-        help='Commands for managing configurations')
+                                      help='Commands for managing configurations')
     config_subparsers = config_parser.add_subparsers(dest='subcommand')
     config_subparsers.required = True
 
@@ -842,12 +846,25 @@ def setup_parser(parser: argparse._SubParsersAction):
     list_parser = config_subparsers.add_parser(
         'list',
         help='List current configuration revisions for each config type',
-        epilog='Ex. osmo config list'
+        description='List current configuration revisions for each config type',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples
+========
+
+List configurations in text format (default)::
+
+    osmo config list
+
+List configurations in JSON format::
+
+    osmo config list --format-type json
+        '''
     )
     list_parser.add_argument('--format-type', '-t',
-        choices=('json', 'text'),
-        default='text',
-        help='Specify the output format type (default text)')
+                             choices=('json', 'text'),
+                             default='text',
+                             help='Specify the output format type (default text)')
     list_parser.add_argument(
         '--fit-width',
         action='store_true',
@@ -858,16 +875,31 @@ def setup_parser(parser: argparse._SubParsersAction):
     show_parser = config_subparsers.add_parser(
         'show',
         help='Show a configuration or previous revision of a configuration',
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config show SERVICE\n'
-               'Ex. osmo config show RESOURCE_VALIDATION default_cpu\n'
-               'Ex. osmo config show WORKFLOW:3 user_workflow_limits'
+        description='Show a configuration or previous revision of a configuration',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
+Examples
+========
+
+Show a service configuration in JSON format::
+
+    osmo config show SERVICE
+
+Show the ``default_cpu`` resource validation rule::
+
+    osmo config show RESOURCE_VALIDATION default_cpu
+
+Show the ``user_workflow_limits`` workflow configuration in a previous revision::
+
+    osmo config show WORKFLOW:3 user_workflow_limits
+'''
     )
     show_parser.add_argument(
         'config',
         metavar='config_type',
-        help='Config to show in format <CONFIG_TYPE>[:<revision>]'
+        help='Config to show in format <CONFIG_TYPE>[:<revision>]',
     )
     show_parser.add_argument(
         'names',
@@ -882,20 +914,34 @@ def setup_parser(parser: argparse._SubParsersAction):
     update_parser = config_subparsers.add_parser(
         'update',
         help='Update a configuration',
-        formatter_class=argparse.RawTextHelpFormatter,
+        description='Update a configuration',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION]'
               ' [--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config update SERVICE\n'
-               'Ex. osmo config update POOL my-pool --description "Updated pool settings" '
-               '--tags production high-priority\n'
-               'Ex. osmo config update BACKEND my-backend --file config.json'
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
+Examples
+========
+
+Update a service configuration::
+
+    osmo config update SERVICE
+
+Update a backend configuration from a file::
+
+    osmo config update BACKEND my-backend --file config.json
+
+Update with description and tags::
+
+    osmo config update POOL my-pool --description "Updated pool settings" --tags production high-priority
+        '''
     )
     update_parser.add_argument(
         'config',
         choices=config_history.CONFIG_TYPES,
         metavar='config_type',
-        help='Config type to update (CONFIG_TYPE)'
+        help='Config type to update (CONFIG_TYPE)',
     )
     update_parser.add_argument(
         'name',
@@ -922,20 +968,34 @@ def setup_parser(parser: argparse._SubParsersAction):
     delete_parser = config_subparsers.add_parser(
         'delete',
         help='Delete a named configuration or a specific config revision',
-        formatter_class=argparse.RawTextHelpFormatter,
+        description='Delete a named configuration or a specific config revision',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config delete [-h] config_type [name] [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {", ".join(delete_choices)}\n\n'
-               'Ex. osmo config delete POOL my-pool\n'
-               'Ex. osmo config delete SERVICE:123\n'
-               'Ex. osmo config delete BACKEND my-backend --description "Removing unused backend" '
-               '--tags cleanup deprecated'
+        epilog=f'''
+Available config types (CONFIG_TYPE): {", ".join(delete_choices)}
+
+Examples
+========
+
+Delete a named pool configuration::
+
+    osmo config delete POOL my-pool
+
+Delete a specific revision::
+
+    osmo config delete SERVICE:123
+
+Delete with description and tags::
+
+    osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
+        '''
     )
     delete_parser.add_argument(
         'config',
         metavar='config_type',
         help='Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a '
-             'specific revision'
+             'specific revision',
     )
     delete_parser.add_argument(
         'name',
@@ -958,17 +1018,34 @@ def setup_parser(parser: argparse._SubParsersAction):
     history_parser = config_subparsers.add_parser(
         'history',
         help='List history of configuration changes',
+        description='List history of configuration changes',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config history [-h] [config_type] [--offset OFFSET] [--count COUNT] '
               '[--order {asc,desc}] [--name NAME] [--revision REVISION] [--tags TAGS [TAGS ...]] '
               '[--at-timestamp AT_TIMESTAMP] [--created-before CREATED_BEFORE] '
               '[--created-after CREATED_AFTER] [--format-type {json,text}] [--fit-width]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config history\n'
-               'Ex. osmo config history --format-type json --offset 10 --count 2\n'
-               'Ex. osmo config history SERVICE\n'
-               'Ex. osmo config history --created-after "2025-05-18" --created-before "2025-05-25"'
-               '\n'
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
+Examples
+========
+
+View history in text format (default)::
+
+    osmo config history
+
+View history in JSON format with pagination::
+
+    osmo config history --format-type json --offset 10 --count 2
+
+View history for a specific configuration type::
+
+    osmo config history SERVICE
+    
+View history for a specific time range::
+
+    osmo config history --created-after "2025-05-18" --created-before "2025-05-25"
+        '''
     )
 
     # Add all query parameters as CLI arguments
@@ -997,14 +1074,17 @@ def setup_parser(parser: argparse._SubParsersAction):
         choices=config_history.CONFIG_TYPES,
         help='Config type to show history for (CONFIG_TYPE)'
     )
-    history_parser.add_argument('--name', '-n',
-        help='Filter by changes to a particular config, e.g. "isaac-hil" pool')
+    history_parser.add_argument(
+        '--name',
+        '-n',
+        help='Filter by changes to a particular config, e.g. "isaac-hil" pool',
+    )
     history_parser.add_argument('--revision', '-r',
-        type=validation.positive_integer,
-        help='Filter by revision number')
+                                type=validation.positive_integer,
+                                help='Filter by revision number')
     history_parser.add_argument('--tags',
-        nargs='+',
-        help='Filter by tags')
+                                nargs='+',
+                                help='Filter by tags')
     history_parser.add_argument(
         '--at-timestamp',
         type=validation.date_or_datetime_str,
@@ -1024,9 +1104,9 @@ def setup_parser(parser: argparse._SubParsersAction):
              ' in current timezone'
     )
     history_parser.add_argument('--format-type', '-t',
-        choices=('json', 'text'),
-        default='text',
-        help='Specify the output format type (default text)')
+                                choices=('json', 'text'),
+                                default='text',
+                                help='Specify the output format type (default text)')
     history_parser.add_argument(
         '--fit-width',
         action='store_true',
@@ -1039,13 +1119,27 @@ def setup_parser(parser: argparse._SubParsersAction):
     rollback_parser = config_subparsers.add_parser(
         'rollback',
         help='Roll back a configuration to a previous revision',
+        description='Roll back a configuration to a previous revision\n\n'
+                    'When rolling back a configuration, the revision number is incremented by 1 '
+                    'and a new revision is created. The new revision will have the same data as '
+                    'the desired rollback revision.',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config rollback [-h] revision [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config rollback SERVICE:4\n'
-               'Ex. osmo config rollback BACKEND:7 --description "Rolling back to stable version" '
-               '--tags rollback stable'
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
+Examples
+========
+
+Roll back a service configuration::
+
+    osmo config rollback SERVICE:4
+
+Roll back with description and tags::
+
+    osmo config rollback BACKEND:7 --description "Rolling back to stable version" --tags rollback stable
+        '''
     )
     rollback_parser.add_argument(
         'revision',
@@ -1059,18 +1153,35 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  help='Optional tags for the rollback action')
     rollback_parser.set_defaults(func=_run_rollback_command)
 
-
     # Handle 'set' command
     # NOTE: Custom usage message! If you change arguments, you need to update usage.
     set_parser = config_subparsers.add_parser(
         'set',
         help='Set a field into the config',
-        formatter_class=argparse.RawTextHelpFormatter,
+        description='Set a field into the config',
+        formatter_class=RstStrippingHelpFormatter,
         usage='osmo config set [-h] config_type name type [--field FIELD] '
               '[--description DESCRIPTION] [--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {", ".join(set_choices)}\n\n'
-               'Ex. osmo config set ROLE my-backend-role backend --field name-of-backend \n'
-               'Ex. osmo config set ROLE osmo-<pool-name-prefix> pool'
+        epilog=f'''
+Available config types (CONFIG_TYPE): {", ".join(set_choices)}
+
+Examples
+========
+
+Creating a new pool role::
+
+    osmo config set ROLE osmo-pool-name pool
+
+.. note::
+
+    The pool name **MUST** start with ``osmo-`` to be correctly recognized so that users
+    can see the pool in the UI and profile settings. This will be changed to be more flexible
+    in the future.
+
+Creating a new backend role::
+
+    osmo config set ROLE my-backend-role backend --field name-of-backend
+        '''
     )
     set_parser.add_argument(
         'config',
@@ -1102,12 +1213,34 @@ def setup_parser(parser: argparse._SubParsersAction):
     tag_parser = config_subparsers.add_parser(
         'tag',
         help='Update tags for a config revision',
+        description='Update tags for a config revision. Tags can be used for organizing configs by '
+                    'category and filtering output of ``osmo config history``. Tags do not '
+                    'affect the configuration itself.',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
               '[--delete DELETE [DELETE ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config tag BACKEND:5 --set foo --delete test-4 test-3\n'
-               'Ex. osmo config tag BACKEND --set current-tag'
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
+Examples
+========
+
+View current tags for a revision::
+
+    osmo config history BACKEND -r 5
+
+Update tags by adding and removing::
+
+    osmo config tag BACKEND:5 --set foo --delete test-4 test-3
+
+Verify the updated tags::
+
+    osmo config history BACKEND -r 5
+
+Update tags for current revision::
+
+    osmo config tag BACKEND --set current-tag
+        '''
     )
     tag_parser.add_argument(
         'config',
@@ -1130,20 +1263,39 @@ def setup_parser(parser: argparse._SubParsersAction):
     diff_parser = config_subparsers.add_parser(
         'diff',
         help='Show the difference between two config revisions',
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config diff WORKFLOW:15\n'
-               'Ex. osmo config diff SERVICE:14 SERVICE:15'
+        description='Show the difference between two config revisions\n\n'
+                    f'Available config types (config_type): {CONFIG_TYPES_STRING}',
+        formatter_class=RstStrippingHelpFormatter,
+        epilog='''
+Examples
+========
+
+Show changes made to the workflow config since revision 15::
+
+  osmo config diff WORKFLOW:15
+
+.. image:: images/config_diff_workflow.png
+    :align: center
+    :class: mb-2
+
+Show changes made between two revisions of the service configuration::
+
+  osmo config diff SERVICE:14 SERVICE:15
+
+.. image:: images/config_diff_service.png
+    :align: center
+    :class: mb-2
+        '''
     )
     diff_parser.add_argument(
         'first',
-        help='First config to compare. Format: <CONFIG_TYPE>[:<revision>] '
+        help='First config to compare. Format: <config_type>[:<revision>] '
              '(e.g. BACKEND:3). If no revision is provided, uses the current revision.',
     )
     diff_parser.add_argument(
         'second',
         nargs='?',
-        help='Second config to compare. Format: <CONFIG_TYPE>[:<revision>] '
+        help='Second config to compare. Format: <config_type>[:<revision>] '
              '(e.g. BACKEND:6). If no revision is provided, uses the current revision.',
     )
     diff_parser.set_defaults(func=_run_diff_command)
