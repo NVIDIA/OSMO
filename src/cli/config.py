@@ -897,7 +897,7 @@ Show the ``user_workflow_limits`` workflow configuration in a previous revision:
     show_parser.add_argument(
         'config',
         choices=config_history.CONFIG_TYPES,
-        help='Config to show in format <CONFIG_TYPE>[:<revision>]',
+        help='Config to show in format <config_type>[:<revision>]',
     )
     show_parser.add_argument(
         'names',
@@ -987,7 +987,7 @@ Delete with description and tags::
     delete_parser.add_argument(
         'config',
         choices=config_history.CONFIG_TYPES,
-        help='Config type to delete or CONFIG_TYPE:revision_number to delete a specific revision',
+        help='Config type to delete or config_type:revision_number to delete a specific revision',
     )
     delete_parser.add_argument(
         'name',
@@ -1130,8 +1130,8 @@ Roll back with description and tags::
     )
     rollback_parser.add_argument(
         'revision',
-        help='Revision to roll back to in format <CONFIG_TYPE>:<revision> (e.g. SERVICE:12).\n'
-             f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}',
+        help='Revision to roll back to in format <config_type>:<revision> (e.g. SERVICE:12).\n'
+             f'Available config types (config_type): {CONFIG_TYPES_STRING}',
     )
     rollback_parser.add_argument('--description',
                                  help='Optional description for the rollback action')
@@ -1171,7 +1171,7 @@ Creating a new backend role::
     set_parser.add_argument(
         'config',
         choices=set_choices,
-        help='Config type to set (CONFIG_TYPE)',
+        help='Config type to set (config_type)',
     )
     set_parser.add_argument(
         'name',
@@ -1227,7 +1227,7 @@ Update tags for current revision::
     tag_parser.add_argument(
         'config',
         choices=config_history.CONFIG_TYPES,
-        help='Config to update tags for in format <CONFIG_TYPE>[:<revision>]',
+        help='Config to update tags for in format <config_type>[:<revision>]',
     )
     tag_parser.add_argument(
         '--set', '-s',
@@ -1246,7 +1246,7 @@ Update tags for current revision::
         'diff',
         help='Show the difference between two config revisions',
         description='Show the difference between two config revisions\n\n'
-                    f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}',
+                    f'Available config types (config_type): {CONFIG_TYPES_STRING}',
         formatter_class=argparse.RawTextHelpFormatter,
         epilog='''
 Examples
@@ -1263,13 +1263,13 @@ Show changes made between two revisions of the service configuration::
     )
     diff_parser.add_argument(
         'first',
-        help='First config to compare. Format: <CONFIG_TYPE>[:<revision>] '
+        help='First config to compare. Format: <config_type>[:<revision>] '
              '(e.g. BACKEND:3). If no revision is provided, uses the current revision.',
     )
     diff_parser.add_argument(
         'second',
         nargs='?',
-        help='Second config to compare. Format: <CONFIG_TYPE>[:<revision>] '
+        help='Second config to compare. Format: <config_type>[:<revision>] '
              '(e.g. BACKEND:6). If no revision is provided, uses the current revision.',
     )
     diff_parser.set_defaults(func=_run_diff_command)
