@@ -1198,7 +1198,7 @@ Creating a new backend role::
         'tag',
         help='Update tags for a config revision',
         description='Update tags for a config revision. Tags can be used for organizing configs by '
-                    'category and filtering output of ``osmo config history``. Tags do not'
+                    'category and filtering output of ``osmo config history``. Tags do not '
                     'affect the configuration itself.',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
