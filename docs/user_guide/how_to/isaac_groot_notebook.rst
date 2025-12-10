@@ -60,7 +60,7 @@ To read more about platforms, please refer to the :ref:`Platforms <concepts_plat
       timeout:
         exec_timeout: 2h #(1)
 
-  .. code-annotation::
+  .. code-annotations::
 
     1. Modify this field to the desired timeout.
        Units can be `s` for seconds, `m` for minutes, `h` for hours, or `d` for days.

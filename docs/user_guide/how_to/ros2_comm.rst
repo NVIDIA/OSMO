@@ -184,11 +184,12 @@ machines in different networks.
   If you need to run the workflow for longer than 1 hour, you can increase the timeout by modifying the timeout field:
 
   .. code-block:: yaml
+
     workflow:
       timeout:
         exec_timeout: 2h #(1)
 
-  .. code-annotation::
+  .. code-annotations::
 
     1. Modify this field to the desired timeout.
        Units can be `s` for seconds, `m` for minutes, `h` for hours, or `d` for days.
