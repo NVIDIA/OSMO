@@ -922,20 +922,31 @@ def setup_parser(parser: argparse._SubParsersAction):
     delete_parser = config_subparsers.add_parser(
         'delete',
         help='Delete a named configuration or a specific config revision',
-        formatter_class=argparse.RawTextHelpFormatter,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config delete [-h] config_type [name] [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {", ".join(delete_choices)}\n\n'
-               'Ex. osmo config delete POOL my-pool\n'
-               'Ex. osmo config delete SERVICE:123\n'
-               'Ex. osmo config delete BACKEND my-backend --description "Removing unused backend" '
-               '--tags cleanup deprecated'
+        epilog='''
+Examples
+========
+
+Delete a named pool configuration::
+
+    osmo config delete POOL my-pool
+
+Delete a specific revision::
+
+    osmo config delete SERVICE:123
+
+Delete with description and tags::
+
+    osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
+        '''
     )
     delete_parser.add_argument(
         'config',
         metavar='config_type',
         help='Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a '
-             'specific revision'
+             f'specific revision. Available config_type values: {", ".join(delete_choices)}'
     )
     delete_parser.add_argument(
         'name',
