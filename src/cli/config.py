@@ -858,16 +858,30 @@ def setup_parser(parser: argparse._SubParsersAction):
     show_parser = config_subparsers.add_parser(
         'show',
         help='Show a configuration or previous revision of a configuration',
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config show SERVICE\n'
-               'Ex. osmo config show RESOURCE_VALIDATION default_cpu\n'
-               'Ex. osmo config show WORKFLOW:3 user_workflow_limits'
+        description='Show a configuration or previous revision of a configuration',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples
+========
+
+Show a service configuration in JSON format::
+
+    osmo config show SERVICE
+
+Show the ``default_cpu`` resource validation rule::
+
+    osmo config show RESOURCE_VALIDATION default_cpu
+
+Show the ``user_workflow_limits`` workflow configuration in a previous revision::
+
+    osmo config show WORKFLOW:3 user_workflow_limits
+'''
     )
     show_parser.add_argument(
         'config',
         metavar='config_type',
-        help='Config to show in format <CONFIG_TYPE>[:<revision>]'
+        help=('Config to show in format <CONFIG_TYPE>[:<revision>]. '
+              f'Available CONFIG_TYPE values: {CONFIG_TYPES_STRING}')
     )
     show_parser.add_argument(
         'names',
@@ -922,6 +936,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     delete_parser = config_subparsers.add_parser(
         'delete',
         help='Delete a named configuration or a specific config revision',
+        description='Delete a named configuration or a specific config revision',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config delete [-h] config_type [name] [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
