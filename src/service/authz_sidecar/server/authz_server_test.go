@@ -23,7 +23,7 @@ import (
 	"os"
 	"testing"
 
-	"go.corp.nvidia.com/osmo/service/utils_go"
+	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
 )
 
 func TestMatchMethod(t *testing.T) {
@@ -148,18 +148,18 @@ func TestHasAccess(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		role       *utils_go.Role
+		role       *postgres.Role
 		path       string
 		method     string
 		wantAccess bool
 	}{
 		{
 			name: "exact path and method match",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "Get"},
 						},
 					},
@@ -171,11 +171,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "wildcard path match",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow/*", Method: "Get"},
 						},
 					},
@@ -187,11 +187,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "wildcard method match",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "*"},
 						},
 					},
@@ -203,11 +203,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "deny pattern blocks access",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "*", Method: "*"},
 							{Base: "http", Path: "!/api/admin/*", Method: "*"},
 						},
@@ -220,11 +220,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "deny pattern allows other paths",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "*", Method: "*"},
 							{Base: "http", Path: "!/api/admin/*", Method: "*"},
 						},
@@ -237,11 +237,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "no matching path",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "Get"},
 						},
 					},
@@ -253,11 +253,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "no matching method",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow", Method: "Get"},
 						},
 					},
@@ -269,16 +269,16 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "multiple policies first matches",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow/*", Method: "Get"},
 						},
 					},
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/task/*", Method: "Post"},
 						},
 					},
@@ -290,16 +290,16 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "multiple policies second matches",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/workflow/*", Method: "Get"},
 						},
 					},
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/task/*", Method: "Post"},
 						},
 					},
@@ -311,11 +311,11 @@ func TestHasAccess(t *testing.T) {
 		},
 		{
 			name: "websocket method match",
-			role: &utils_go.Role{
+			role: &postgres.Role{
 				Name: "test-role",
-				Policies: []utils_go.RolePolicy{
+				Policies: []postgres.RolePolicy{
 					{
-						Actions: []utils_go.RoleAction{
+						Actions: []postgres.RoleAction{
 							{Base: "http", Path: "/api/router/*/*/client/*", Method: "Websocket"},
 						},
 					},
@@ -342,11 +342,11 @@ func TestDefaultRoleAccess(t *testing.T) {
 	server := NewAuthzServer(nil, nil, logger)
 
 	// Simulate the osmo-default role permissions
-	defaultRole := &utils_go.Role{
+	defaultRole := &postgres.Role{
 		Name: "osmo-default",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "/api/version", Method: "*"},
 					{Base: "http", Path: "/health", Method: "*"},
 					{Base: "http", Path: "/api/auth/login", Method: "Get"},
@@ -408,11 +408,11 @@ func TestAdminRoleAccess(t *testing.T) {
 	server := NewAuthzServer(nil, nil, logger)
 
 	// Simulate the osmo-admin role permissions
-	adminRole := &utils_go.Role{
+	adminRole := &postgres.Role{
 		Name: "osmo-admin",
-		Policies: []utils_go.RolePolicy{
+		Policies: []postgres.RolePolicy{
 			{
-				Actions: []utils_go.RoleAction{
+				Actions: []postgres.RoleAction{
 					{Base: "http", Path: "*", Method: "*"},
 					{Base: "http", Path: "!/api/agent/*", Method: "*"},
 					{Base: "http", Path: "!/api/logger/*", Method: "*"},

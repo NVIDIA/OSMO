@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package utils_go
+package postgres
 
 import (
 	"testing"
@@ -111,4 +111,3 @@ func TestRoleStructures(t *testing.T) {
 // Note: Full PostgreSQL integration tests require a running database
 // and are better suited for integration test environments.
 // These unit tests verify the structure and helper functions.
-

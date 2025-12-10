@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"go.corp.nvidia.com/osmo/service/authz_sidecar/server"
-	"go.corp.nvidia.com/osmo/service/utils_go"
+	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
 )
 
 const (
@@ -71,7 +71,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Create PostgreSQL client
-	pgConfig := utils_go.PostgresConfig{
+	pgConfig := postgres.PostgresConfig{
 		Host:            *postgresHost,
 		Port:            *postgresPort,
 		Database:        *postgresDB,
@@ -83,7 +83,7 @@ func main() {
 		SSLMode:         *postgresSSLMode,
 	}
 
-	pgClient, err := utils_go.NewPostgresClient(pgConfig, logger)
+	pgClient, err := postgres.NewPostgresClient(pgConfig, logger)
 	if err != nil {
 		logger.Error("failed to create postgres client", slog.String("error", err.Error()))
 		os.Exit(1)

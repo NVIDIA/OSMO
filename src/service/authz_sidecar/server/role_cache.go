@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"go.corp.nvidia.com/osmo/service/utils_go"
+	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
 )
 
 // RoleCacheConfig holds configuration for the role cache
@@ -37,7 +37,7 @@ type RoleCacheConfig struct {
 
 // cachedRoles holds roles with expiration timestamp
 type cachedRoles struct {
-	roles     []*utils_go.Role
+	roles     []*postgres.Role
 	expiresAt time.Time
 }
 
@@ -70,7 +70,7 @@ func NewRoleCache(config RoleCacheConfig, logger *slog.Logger) *RoleCache {
 
 // Get retrieves roles from cache by role names
 // Returns the roles and a boolean indicating if found and not expired
-func (c *RoleCache) Get(roleNames []string) ([]*utils_go.Role, bool) {
+func (c *RoleCache) Get(roleNames []string) ([]*postgres.Role, bool) {
 	if !c.config.Enabled {
 		return nil, false
 	}
@@ -110,7 +110,7 @@ func (c *RoleCache) Get(roleNames []string) ([]*utils_go.Role, bool) {
 }
 
 // Set stores roles in cache with the configured TTL
-func (c *RoleCache) Set(roleNames []string, roles []*utils_go.Role) {
+func (c *RoleCache) Set(roleNames []string, roles []*postgres.Role) {
 	if !c.config.Enabled {
 		return
 	}
@@ -163,13 +163,13 @@ func (c *RoleCache) Stats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"enabled":   c.config.Enabled,
-		"size":      len(c.cache),
-		"max_size":  c.config.MaxSize,
-		"hits":      c.hits,
-		"misses":    c.misses,
-		"evicted":   c.evicted,
-		"hit_rate":  hitRate,
+		"enabled":     c.config.Enabled,
+		"size":        len(c.cache),
+		"max_size":    c.config.MaxSize,
+		"hits":        c.hits,
+		"misses":      c.misses,
+		"evicted":     c.evicted,
+		"hit_rate":    hitRate,
 		"ttl_seconds": c.config.TTL.Seconds(),
 	}
 }
@@ -234,4 +234,3 @@ func (c *RoleCache) cleanupExpired() {
 		}
 	}
 }
-

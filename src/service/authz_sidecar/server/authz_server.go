@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	"go.corp.nvidia.com/osmo/service/utils_go"
+	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
 )
 
 const (
@@ -45,7 +45,7 @@ const (
 
 // PostgresClientInterface defines the interface for PostgreSQL operations
 type PostgresClientInterface interface {
-	GetRoles(ctx context.Context, roleNames []string) ([]*utils_go.Role, error)
+	GetRoles(ctx context.Context, roleNames []string) ([]*postgres.Role, error)
 	Close() error
 	Ping(ctx context.Context) error
 }
@@ -183,7 +183,7 @@ func (s *AuthzServer) checkAccess(ctx context.Context, path, method string, role
 
 // hasAccess checks if a role has access to the given path and method
 // This implements the same logic as Python's Role.has_access()
-func (s *AuthzServer) hasAccess(role *utils_go.Role, path, method string) bool {
+func (s *AuthzServer) hasAccess(role *postgres.Role, path, method string) bool {
 	allowed := false
 
 	for _, policy := range role.Policies {
