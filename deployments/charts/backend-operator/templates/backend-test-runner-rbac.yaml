@@ -88,4 +88,11 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 {{- end }}
 
+{{- if .Values.backendTestRunner.extraRoles }}
+{{- range $roleObj := .Values.backendTestRunner.extraRoles }}
+{{- toYaml $roleObj | nindent 0 }}
+---
+{{- end }}
+{{- end }}
+
 {{- end }}
