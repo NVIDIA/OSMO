@@ -35,8 +35,10 @@ class ConfigApiMapping(TypedDict):
 
 
 # Mapping of config types to their API endpoints and payload keys
-UPDATE_CONFIG_API_MAPPING: Dict[config_history.ConfigHistoryType,
-                         Dict[Literal['default', 'named'], ConfigApiMapping | None]] = {
+UPDATE_CONFIG_API_MAPPING: Dict[
+    config_history.ConfigHistoryType,
+    Dict[Literal['default', 'named'], ConfigApiMapping | None]
+] = {
     config_history.ConfigHistoryType.SERVICE: {
         'default': {'method': client.RequestMethod.PATCH, 'payload_key': 'configs_dict'},
         'named': None,  # Named configs not supported
@@ -414,7 +416,8 @@ def deep_diff(current: Any, updated: Any) -> Any:
                 value_diff = deep_diff(current[key], value)
             if value_diff is not None:
                 diff[key] = value_diff
-        return diff if diff else None # Required when a field is removed
+
+        return diff if diff else None  # Required when a field is removed
 
     return updated
 
@@ -834,7 +837,7 @@ def setup_parser(parser: argparse._SubParsersAction):
         parser: The parser to be configured
     """
     config_parser = parser.add_parser('config',
-        help='Commands for managing configurations')
+                                      help='Commands for managing configurations')
     config_subparsers = config_parser.add_subparsers(dest='subcommand')
     config_subparsers.required = True
 
@@ -858,9 +861,9 @@ List configurations in JSON format::
         '''
     )
     list_parser.add_argument('--format-type', '-t',
-        choices=('json', 'text'),
-        default='text',
-        help='Specify the output format type (default text)')
+                             choices=('json', 'text'),
+                             default='text',
+                             help='Specify the output format type (default text)')
     list_parser.add_argument(
         '--fit-width',
         action='store_true',
@@ -1059,14 +1062,17 @@ View history for a specific time range::
         choices=config_history.CONFIG_TYPES,
         help='Config type to show history'
     )
-    history_parser.add_argument('--name', '-n',
-        help='Filter by changes to a particular config, e.g. "isaac-hil" pool')
+    history_parser.add_argument(
+        '--name',
+        '-n',
+        help='Filter by changes to a particular config, e.g. "isaac-hil" pool',
+    )
     history_parser.add_argument('--revision', '-r',
-        type=validation.positive_integer,
-        help='Filter by revision number')
+                                type=validation.positive_integer,
+                                help='Filter by revision number')
     history_parser.add_argument('--tags',
-        nargs='+',
-        help='Filter by tags')
+                                nargs='+',
+                                help='Filter by tags')
     history_parser.add_argument(
         '--at-timestamp',
         type=validation.date_or_datetime_str,
@@ -1086,9 +1092,9 @@ View history for a specific time range::
              ' in current timezone'
     )
     history_parser.add_argument('--format-type', '-t',
-        choices=('json', 'text'),
-        default='text',
-        help='Specify the output format type (default text)')
+                                choices=('json', 'text'),
+                                default='text',
+                                help='Specify the output format type (default text)')
     history_parser.add_argument(
         '--fit-width',
         action='store_true',
@@ -1101,18 +1107,30 @@ View history for a specific time range::
     rollback_parser = config_subparsers.add_parser(
         'rollback',
         help='Roll back a configuration to a previous revision',
+        description='Roll back a configuration to a previous revision\n\n'
+                    'When rolling back a configuration, the revision number is incremented by 1 '
+                    'and a new revision is created. The new revision will have the same data as '
+                    'the desired rollback revision.',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config rollback [-h] revision [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config rollback SERVICE:4\n'
-               'Ex. osmo config rollback BACKEND:7 --description "Rolling back to stable version" '
-               '--tags rollback stable'
+        epilog='''
+Examples
+========
+
+Roll back a service configuration::
+
+    osmo config rollback SERVICE:4
+
+Roll back with description and tags::
+
+    osmo config rollback BACKEND:7 --description "Rolling back to stable version" --tags rollback stable
+        '''
     )
     rollback_parser.add_argument(
         'revision',
-        help='Revision to roll back to in format <CONFIG_TYPE>:<revision>, '
-             'e.g. SERVICE:12'
+        help='Revision to roll back to in format <CONFIG_TYPE>:<revision> (e.g. SERVICE:12).\n'
+             f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}',
     )
     rollback_parser.add_argument('--description',
                                  help='Optional description for the rollback action')
@@ -1120,7 +1138,6 @@ View history for a specific time range::
                                  nargs='+',
                                  help='Optional tags for the rollback action')
     rollback_parser.set_defaults(func=_run_rollback_command)
-
 
     # Handle 'set' command
     # NOTE: Custom usage message! If you change arguments, you need to update usage.
