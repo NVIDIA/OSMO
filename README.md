@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 <a href="https://nvidia.github.io/OSMO/main/user_guide"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg" alt="Documentation"></a>
 <a href="https://kubernetes.io/"><img src="https://img.shields.io/badge/Kubernetes-Native-326ce5.svg" alt="Kubernetes"></a>
+<a href="https://brev.nvidia.com/launchable/deploy?launchableID=env-36a6a7qnkOMOP2vgiBRaw2e3jpW"><img src="https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg" alt="Brev deployment"></a>
 
 <a href="#ready-to-begin">Get Started</a>
 | <a href="#documentation">Documentation</a>
@@ -147,6 +148,7 @@ Select one of the deployment options below depending on your needs and environme
 | Resource | Description |
 |:---------|:------------|
 | 🚀 [**Local Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) | Run it locally on your workstation in 10 minutes |
+| ⚡ [**Brev Deployment**](https://brev.nvidia.com/launchable/deploy?launchableID=env-36a6a7qnkOMOP2vgiBRaw2e3jpW) | Run it on a Brev instance with a GPU in 10 minutes |
 | 🛠️ [**Cloud Deployment**](https://nvidia.github.io/OSMO/main/deployment_guide/) | Deploy production grade on cloud providers  |
 | 📘 [**User Guide**](https://nvidia.github.io/OSMO/main/user_guide/) | Tutorials, workflows, and how-to guides for developers |
 | 💡 [**Workflow Examples**](./workflows/) | Robotics workflow examples
