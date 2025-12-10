@@ -137,6 +137,7 @@ export function TableBase<TData, TValue>({
               <td
                 colSpan={columns.length}
                 className="h-full"
+                aria-live="polite"
               >
                 {isLoading ? (
                   <div className="h-full flex items-center justify-center">
@@ -145,15 +146,10 @@ export function TableBase<TData, TValue>({
                       description="Loading..."
                     />
                   </div>
+                ) : table.getFilteredRowModel().rows.length > 0 ? (
+                  <p className="sr-only">{`${table.getFilteredRowModel().rows.length} results found`}</p>
                 ) : (
-                  !table.getRowModel().rows.length && (
-                    <p
-                      role="alert"
-                      className="text-center"
-                    >
-                      No results found
-                    </p>
-                  )
+                  <p className="text-center">No results found</p>
                 )}
               </td>
             </tr>
