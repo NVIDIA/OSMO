@@ -33,14 +33,12 @@ import { SlideOut } from "./SlideOut";
 import { TextInput } from "./TextInput";
 
 const MenuLink = ({
-  key,
   label,
   to,
   icon,
   isActive,
   onItemClick,
 }: {
-  key: string;
   label: string;
   to: string;
   icon: React.ReactNode;
@@ -48,7 +46,7 @@ const MenuLink = ({
   onItemClick: () => void;
 }) => {
   return (
-    <li key={key}>
+    <li>
       <Link
         href={to}
         className={`btn btn-link no-underline m-0 p-0 ${isActive ? "font-bold" : ""}`}
@@ -62,19 +60,9 @@ const MenuLink = ({
   );
 };
 
-const MenuExternalLink = ({
-  key,
-  label,
-  href,
-  icon,
-}: {
-  key: string;
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-}) => {
+const MenuExternalLink = ({ label, href, icon }: { label: string; href: string; icon: React.ReactNode }) => {
   return (
-    <li key={key}>
+    <li>
       <a
         target="_blank"
         rel="noopener noreferrer"
@@ -173,7 +161,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
       );
     }
 
-    links.push(<MenuSeparator />);
+    links.push(<MenuSeparator key="main-actions-separator" />);
 
     links.push(
       <MenuExternalLink
@@ -215,7 +203,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
     );
 
     if (auth.claims) {
-      links.push(<MenuSeparator />);
+      links.push(<MenuSeparator key="user-actions-separator" />);
 
       links.push(
         <li key="sign-out">
