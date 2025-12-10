@@ -37,3 +37,33 @@ go_test(
     deps = [],
 )
 
+# Integration test - requires running PostgreSQL instance
+#
+# To run this test:
+#   1. Start PostgreSQL:
+#      docker run --rm -d --name postgres -p 5432:5432 \
+#        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
+#
+#   2. Run the test:
+#      bazel test //src/service/utils_go/postgres:postgres_integration_test --test_output=streamed
+#
+# Custom PostgreSQL configuration:
+#   bazel test //src/service/utils_go/postgres:postgres_integration_test \
+#     --test_output=streamed \
+#     --test_arg=-postgres-host=localhost \
+#     --test_arg=-postgres-port=5432 \
+#     --test_arg=-postgres-db=osmo_db \
+#     --test_arg=-postgres-user=postgres \
+#     --test_arg=-postgres-password=osmo
+#
+go_test(
+    name = "postgres_integration_test",
+    srcs = [
+        "postgres_integration_test.go",
+    ],
+    embed = [":postgres"],
+    deps = [],
+    tags = ["manual", "external"],  # Requires running PostgreSQL instance
+    local = True,  # Run locally without sandboxing to access external database
+)
+

@@ -116,7 +116,8 @@ func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*R
 	}
 
 	// Build query with ANY clause for array matching
-	query := `SELECT name, description, policies, immutable
+	// Convert JSONB[] to JSON array for easier parsing in Go
+	query := `SELECT name, description, array_to_json(policies)::text as policies, immutable
               FROM roles
               WHERE name = ANY($1)
               ORDER BY name`
@@ -142,9 +143,9 @@ func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*R
 	var roles []*Role
 	for rows.Next() {
 		var role Role
-		var policiesJSON []byte
+		var policiesStr string // Scan as string first to handle PostgreSQL's JSONB representation
 
-		err := rows.Scan(&role.Name, &role.Description, &policiesJSON, &role.Immutable)
+		err := rows.Scan(&role.Name, &role.Description, &policiesStr, &role.Immutable)
 		if err != nil {
 			c.logger.Error("failed to scan role",
 				slog.String("error", err.Error()),
@@ -152,8 +153,9 @@ func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*R
 			return nil, fmt.Errorf("failed to scan role: %w", err)
 		}
 
-		// Parse policies JSON array
-		// PostgreSQL returns JSONB[] as a text representation
+		policiesJSON := []byte(policiesStr)
+
+		// Parse policies JSON array (converted from JSONB[] via array_to_json)
 		var policiesArray []json.RawMessage
 		err = json.Unmarshal(policiesJSON, &policiesArray)
 		if err != nil {
@@ -174,6 +176,7 @@ func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*R
 				c.logger.Error("failed to unmarshal policy",
 					slog.String("error", err.Error()),
 					slog.String("role", role.Name),
+					slog.String("policy_raw", string(policyRaw)),
 				)
 				return nil, fmt.Errorf("failed to unmarshal policy for role %s: %w", role.Name, err)
 			}
