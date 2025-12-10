@@ -1245,10 +1245,21 @@ Update tags for current revision::
     diff_parser = config_subparsers.add_parser(
         'diff',
         help='Show the difference between two config revisions',
+        description='Show the difference between two config revisions\n\n'
+                    f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}',
         formatter_class=argparse.RawTextHelpFormatter,
-        epilog=f'Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}\n\n'
-               'Ex. osmo config diff WORKFLOW:15\n'
-               'Ex. osmo config diff SERVICE:14 SERVICE:15'
+        epilog='''
+Examples
+========
+
+Show changes made to the workflow config since revision 15::
+
+  osmo config diff WORKFLOW:15
+
+Show changes made between two revisions of the service configuration::
+
+  osmo config diff SERVICE:14 SERVICE:15
+        '''
     )
     diff_parser.add_argument(
         'first',
