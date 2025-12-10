@@ -842,7 +842,20 @@ def setup_parser(parser: argparse._SubParsersAction):
     list_parser = config_subparsers.add_parser(
         'list',
         help='List current configuration revisions for each config type',
-        epilog='Ex. osmo config list'
+        description='List current configuration revisions for each config type',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples
+========
+
+List configurations in text format (default)::
+
+    osmo config list
+
+List configurations in JSON format::
+
+    osmo config list --format-type json
+        '''
     )
     list_parser.add_argument('--format-type', '-t',
         choices=('json', 'text'),
