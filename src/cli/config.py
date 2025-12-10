@@ -877,7 +877,9 @@ List configurations in JSON format::
         help='Show a configuration or previous revision of a configuration',
         description='Show a configuration or previous revision of a configuration',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
 Examples
 ========
 
@@ -896,8 +898,8 @@ Show the ``user_workflow_limits`` workflow configuration in a previous revision:
     )
     show_parser.add_argument(
         'config',
-        choices=config_history.CONFIG_TYPES,
-        help='Config to show in format <config_type>[:<revision>]',
+        metavar='config_type',
+        help='Config to show in format <CONFIG_TYPE>[:<revision>]',
     )
     show_parser.add_argument(
         'names',
@@ -916,7 +918,9 @@ Show the ``user_workflow_limits`` workflow configuration in a previous revision:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config update [-h] config_type [name] [--file FILE] [--description DESCRIPTION]'
               ' [--tags TAGS [TAGS ...]]',
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
 Examples
 ========
 
@@ -936,7 +940,8 @@ Update with description and tags::
     update_parser.add_argument(
         'config',
         choices=config_history.CONFIG_TYPES,
-        help='Config type to update',
+        metavar='config_type',
+        help='Config type to update (CONFIG_TYPE)',
     )
     update_parser.add_argument(
         'name',
@@ -967,7 +972,9 @@ Update with description and tags::
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config delete [-h] config_type [name] [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {", ".join(delete_choices)}
+
 Examples
 ========
 
@@ -986,8 +993,9 @@ Delete with description and tags::
     )
     delete_parser.add_argument(
         'config',
-        choices=config_history.CONFIG_TYPES,
-        help='Config type to delete or config_type:revision_number to delete a specific revision',
+        metavar='config_type',
+        help='Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a '
+             'specific revision',
     )
     delete_parser.add_argument(
         'name',
@@ -1016,7 +1024,9 @@ Delete with description and tags::
               '[--order {asc,desc}] [--name NAME] [--revision REVISION] [--tags TAGS [TAGS ...]] '
               '[--at-timestamp AT_TIMESTAMP] [--created-before CREATED_BEFORE] '
               '[--created-after CREATED_AFTER] [--format-type {json,text}] [--fit-width]',
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
 Examples
 ========
 
@@ -1059,9 +1069,10 @@ View history for a specific time range::
     )
     history_parser.add_argument(
         'config',
+        metavar='config_type',
         nargs='?',
         choices=config_history.CONFIG_TYPES,
-        help='Config type to show history'
+        help='Config type to show history for (CONFIG_TYPE)'
     )
     history_parser.add_argument(
         '--name',
@@ -1115,7 +1126,9 @@ View history for a specific time range::
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config rollback [-h] revision [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
 Examples
 ========
 
@@ -1130,8 +1143,8 @@ Roll back with description and tags::
     )
     rollback_parser.add_argument(
         'revision',
-        help='Revision to roll back to in format <config_type>:<revision> (e.g. SERVICE:12).\n'
-             f'Available config types (config_type): {CONFIG_TYPES_STRING}',
+        help='Revision to roll back to in format <CONFIG_TYPE>:<revision>, '
+             'e.g. SERVICE:12'
     )
     rollback_parser.add_argument('--description',
                                  help='Optional description for the rollback action')
@@ -1149,7 +1162,9 @@ Roll back with description and tags::
         formatter_class=RstStrippingHelpFormatter,
         usage='osmo config set [-h] config_type name type [--field FIELD] '
               '[--description DESCRIPTION] [--tags TAGS [TAGS ...]]',
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {", ".join(set_choices)}
+
 Examples
 ========
 
@@ -1171,7 +1186,8 @@ Creating a new backend role::
     set_parser.add_argument(
         'config',
         choices=set_choices,
-        help='Config type to set (config_type)',
+        help='Config type to set (CONFIG_TYPE)',
+        metavar='config_type',
     )
     set_parser.add_argument(
         'name',
@@ -1203,7 +1219,9 @@ Creating a new backend role::
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
               '[--delete DELETE [DELETE ...]]',
-        epilog='''
+        epilog=f'''
+Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
+
 Examples
 ========
 
@@ -1226,8 +1244,8 @@ Update tags for current revision::
     )
     tag_parser.add_argument(
         'config',
-        choices=config_history.CONFIG_TYPES,
-        help='Config to update tags for in format <config_type>[:<revision>]',
+        help='Config to update tags for in format <CONFIG_TYPE>[:<revision>]',
+        metavar='config_type',
     )
     tag_parser.add_argument(
         '--set', '-s',
