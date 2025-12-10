@@ -190,12 +190,7 @@ constants = {
     'data_prefix': 's3://'
 }
 
-rst_prolog = ''
-for key, value in constants.items():
-    rst_prolog += f'.. |{key}| replace:: {value}\n'
-
-# Custom badge roles
-rst_prolog += '''
+custom_rst_roles = '''
 .. role:: bdg-pending
    :class: badge bg-pending badge-pending
 
@@ -218,6 +213,17 @@ rst_prolog += '''
    :class: tag tag-maintenance
 
 '''
+
+
+def build_rst_prolog():
+    prolog = ''
+    for key, value in constants.items():
+        prolog += f'.. |{key}| replace:: {value}\n'
+    prolog += custom_rst_roles
+    return prolog
+
+
+rst_prolog = build_rst_prolog()
 
 # -- Options for Autodoc -------------------------------------------------
 
