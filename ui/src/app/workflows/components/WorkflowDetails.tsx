@@ -170,7 +170,7 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
       </div>
       <WorkflowActions
         workflow={workflow}
-        className="lg:sticky lg:bottom-0"
+        className="xl:sticky xl:bottom-0"
         updateUrl={updateUrl}
       />
     </div>

@@ -157,7 +157,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   dl {
-    @apply m-0 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-global text-sm items-start content-baseline;
+    @apply m-0 grid grid-cols-1 xl:grid-cols-[auto_1fr] gap-global text-sm items-start content-baseline;
   }
 
   dt {
@@ -216,7 +216,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .dag-actions {
-    @apply px-global py-1 w-full grid md:grid-cols-2 gap-1;
+    @apply px-global py-1 w-full grid xl:grid-cols-2 gap-1;
   }
 
   .btn-badge {
@@ -267,7 +267,7 @@ SPDX-License-Identifier: Apache-2.0
   }
 
   .workflow-details-slideout {
-    @apply h-full min-w-[25vw] overflow-y-auto;
+    @apply h-full w-[25vw] overflow-y-auto;
   }
 
   .popup-header {

@@ -181,11 +181,11 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
 
   const gridClass = useMemo(() => {
     if (localView === ViewType.SingleTask) {
-      return "grid grid-cols-[1fr_auto_2fr]";
+      return "grid grid-cols-[auto_auto_auto]";
     } else if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
     } else if (showWF) {
-      return "grid grid-cols-[25vw_75vw]";
+      return "grid grid-cols-[1fr_auto]";
     } else if (taskPinned && selectedTask) {
       return "grid grid-cols-[1fr_auto]";
     } else {
@@ -390,7 +390,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             </div>
           </div>
         )}
-        <div className="h-full w-full overflow-x-auto">
+        <div className={`h-full ${localView === ViewType.SingleTask ? "w-0" : "w-full"} overflow-x-auto`}>
           <div className={`h-full w-full ${localView === ViewType.Graph ? "block p-1" : "hidden"}`}>
             {selectedWorkflow.data?.groups?.length > 0 ? (
               <ReactFlowProvider>
@@ -446,7 +446,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           onClose={() => {
             updateUrl({ task: null });
           }}
-          className="workflow-details-slideout"
+          className={`body-component ${localView === ViewType.SingleTask ? "h-full overflow-y-auto grow" : "workflow-details-slideout"}`}
           headerClassName="brand-header"
           bodyClassName="dag-details-body"
         >

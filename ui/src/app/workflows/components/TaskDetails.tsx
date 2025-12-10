@@ -217,7 +217,7 @@ const TaskDetails = ({
       </div>
       <TaskActions
         task={task}
-        className="lg:sticky lg:bottom-0"
+        className="xl:sticky xl:bottom-0"
         updateUrl={updateUrl}
       />
     </div>

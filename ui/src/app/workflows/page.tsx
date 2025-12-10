@@ -179,7 +179,7 @@ export default function Workflows() {
 
   const gridClass = useMemo(() => {
     if (workflowPinned && selectedWorkflowName) {
-      return "grid grid-cols-[75vw_25vw]";
+      return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
@@ -258,7 +258,7 @@ export default function Workflows() {
           aria-controls="workflows-filters"
         />
       </PageHeader>
-      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
+      <div className={`${gridClass} h-full w-full overflow-hidden relative`}>
         <SlideOut
           id="workflows-filters"
           open={showFilters}

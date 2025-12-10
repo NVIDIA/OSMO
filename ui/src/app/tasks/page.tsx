@@ -224,7 +224,7 @@ export default function Tasks() {
 
   const gridClass = useMemo(() => {
     if (taskPinned && selectedTaskName) {
-      return "grid grid-cols-[75vw_25vw]";
+      return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
