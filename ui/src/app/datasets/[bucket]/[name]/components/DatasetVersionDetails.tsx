@@ -32,7 +32,10 @@ export const DatasetVersionDetails = ({ datasetVersion, bucket }: DatasetVersion
   const toolParamUpdater = useToolParamUpdater();
 
   return (
-    <section aria-labelledby="dataset-version-details-title">
+    <section
+      aria-labelledby="dataset-version-details-title"
+      className="body-component"
+    >
       <h2
         id="dataset-version-details-title"
         className="text-center p-global font-semibold brand-header"

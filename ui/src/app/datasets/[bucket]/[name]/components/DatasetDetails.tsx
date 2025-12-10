@@ -30,10 +30,13 @@ export const DatasetDetails = ({ dataset }: DatasetDetailsProps) => {
   const toolParamUpdater = useToolParamUpdater();
 
   return (
-    <section aria-labelledby="dataset-details-title">
+    <section
+      aria-labelledby="dataset-details-title"
+      className="body-component shadow-xl"
+    >
       <h2
         id="dataset-details-title"
-        className="text-center p-global font-semibold brand-header"
+        className="brand-header p-global"
       >
         {dataset.name}
       </h2>

@@ -329,7 +329,7 @@ export default function Workflows() {
           ariaLabel={`Workflow Details for ${selectedWorkflowName}`}
         >
           {selectedWorkflow.isLoading ? (
-            <div className="flex justify-center items-center h-full">
+            <div className="flex justify-center items-center h-full w-full">
               <Spinner description="Loading workflow..." />
             </div>
           ) : selectedWorkflow.error ? (

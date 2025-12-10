@@ -52,7 +52,7 @@ const WorkflowsSubmitPage = ({ params }: WorkflowSlugParams) => {
         <h2 className="grow">{workflowName}</h2>
       </PageHeader>
       {templatedSpecLoading || renderedSpecLoading ? (
-        <Container className="h-full items-center justify-center">
+        <Container className="h-full w-full items-center justify-center">
           <Spinner
             description="Loading Spec..."
             size="large"

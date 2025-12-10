@@ -51,7 +51,7 @@ export default function DatasetPage({ params }: { params: { bucket: string; name
 
   if (!dataset) {
     return (
-      <div className="h-full flex justify-center items-center">
+      <div className="h-full w-full flex justify-center items-center">
         <Spinner
           description="Loading Dataset..."
           size="large"

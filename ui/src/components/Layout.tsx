@@ -152,7 +152,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
                   ></path>
                 </svg>
                 <h1
-                  className="text-lg font-bold focus:outline-3"
+                  className="text-lg font-bold"
                   ref={titleRef}
                   tabIndex={-1}
                 >
