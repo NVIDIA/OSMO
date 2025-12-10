@@ -4063,7 +4063,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(base='http', path='/api/auth/access_tokenq', method='*'),
                     role.RoleAction(base='http', path='/api/version', method='*'),
                     role.RoleAction(base='http', path='/api/router/version', method='*'),
                     role.RoleAction(base='http', path='/api/auth/login', method='Get'),
