@@ -81,6 +81,8 @@ spec:
         env:
         - name: PORT
           value: '{{ .Values.services.ui.containerPort }}'
+        - name: NODE_OPTIONS
+          value: '--max-http-header-size={{ mul .Values.services.ui.maxHttpHeaderSizeKb 1024 }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
           value: {{ .Values.services.ui.apiHostname }}
         - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
