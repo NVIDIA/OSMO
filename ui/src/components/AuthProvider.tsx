@@ -252,7 +252,7 @@ class Auth {
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const auth = useMemo(() => new Auth(), []);
   const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
   const router = useRouter();
 
   useEffect(() => {
@@ -261,7 +261,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     setIsLoading(true);
-    setIsError(false);
+    setError(undefined);
 
     void auth
       .login()
@@ -269,9 +269,12 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         setIsLoading(false);
       })
       .catch((error) => {
-        console.warn(`Failed to login: ${error instanceof Error ? error.message : "Unknown error"}`);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.warn(errorMessage);
+        setError(errorMessage);
+      })
+      .finally(() => {
         setIsLoading(false);
-        setIsError(true);
       });
   }, [auth]);
 
@@ -279,12 +282,13 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     return null;
   }
 
-  if (isError) {
+  if (error) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <PageError
           title="Authentication failed"
           errorMessage="This may be related to an access issue or service outage. Please contact support for further assistance."
+          subText={error}
         >
           <button
             className="btn btn-primary"
