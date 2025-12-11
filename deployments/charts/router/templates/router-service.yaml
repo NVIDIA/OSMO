@@ -65,8 +65,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
       serviceAccountName: {{ $routerServiceAccount }}
       {{- with .Values.services.service.initContainers }}
       initContainers:
