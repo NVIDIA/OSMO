@@ -21,7 +21,6 @@ import { useRouter } from "next/navigation";
 
 import { env } from "~/env.mjs";
 import { AuthClaimsSchema, TokenCheckSchema, TokenRefreshSchema, type AuthClaims } from "~/models/auth-model";
-import { useRuntimeEnv } from "~/runtime-env";
 
 import { PageError } from "./PageError";
 
@@ -254,7 +253,6 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const auth = useMemo(() => new Auth(), []);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
-  const runtimeEnv = useRuntimeEnv();
   const router = useRouter();
 
   useEffect(() => {
