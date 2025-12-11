@@ -316,7 +316,7 @@ def _start_service_worker():
     logger.info('👷 Starting OSMO service worker...')
 
     cmd = [
-            'bazel', 'run', '@osmo_workspace//src/service/worker:worker_binary',
+        'bazel', 'run', '@osmo_workspace//src/service/worker:worker_binary',
         '--',
         '--method=dev',
         '--progress_file', '/tmp/osmo/service/last_progress_worker'
