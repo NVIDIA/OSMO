@@ -117,7 +117,7 @@ class Auth {
       const data = await res.json();
       this.authEnabled = data.auth_enabled;
     } catch (error) {
-      console.warn(`Failed to fetch login info: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to fetch login info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 
     if (!this.authEnabled) {
