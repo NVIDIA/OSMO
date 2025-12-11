@@ -34,11 +34,11 @@ import (
 	"syscall"
 	"time"
 
-	"go.corp.nvidia.com/osmo/pkg/args"
-	"go.corp.nvidia.com/osmo/pkg/common"
-	"go.corp.nvidia.com/osmo/pkg/data"
-	"go.corp.nvidia.com/osmo/pkg/messages"
-	"go.corp.nvidia.com/osmo/pkg/rsync"
+	"go.corp.nvidia.com/osmo/runtime/pkg/args"
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/data"
+	"go.corp.nvidia.com/osmo/runtime/pkg/messages"
+	"go.corp.nvidia.com/osmo/runtime/pkg/rsync"
 
 	"github.com/creack/pty"
 	"github.com/google/shlex"

@@ -21,7 +21,7 @@ load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 go_library(
     name = "rsync",
     srcs = ["rsync.go"],
-    importpath = "go.corp.nvidia.com/osmo/cmd/user/rsync",
+    importpath = "go.corp.nvidia.com/osmo/runtime/cmd/user/rsync",
     deps = [
         "//src/runtime/pkg/common:common",
         "@com_github_conduitio_bwlimit//:go_default_library",

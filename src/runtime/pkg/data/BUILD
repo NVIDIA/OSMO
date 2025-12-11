@@ -23,7 +23,7 @@ go_library(
         "input_output.go",
         "storage_backends.go"
         ],
-    importpath = "go.corp.nvidia.com/osmo/pkg/data",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/data",
     visibility = ["//visibility:public"],
     deps = [
         "//src/runtime/pkg/common:common",
