@@ -190,6 +190,11 @@ go_sdk.from_file(
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//src:go.mod")
 
+go_deps.gazelle_override(
+    build_file_generation = "on",
+    path = "github.com/cncf/xds/go",
+)
+
 # Additional dependencies for building rsync for CLI distribution
 go_deps.module(
     path = "github.com/BurntSushi/toml",

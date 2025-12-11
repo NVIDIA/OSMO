@@ -95,3 +95,35 @@ go_test(
     local = True,  # Run locally without sandboxing
 )
 
+# Performance comparison test - Python middleware vs Go authz_sidecar
+#
+# To run this test:
+#   1. Start PostgreSQL:
+#      docker run --rm -d --name postgres -p 5432:5432 \
+#        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
+#
+#   2. Start Python test service:
+#      cd external/src/service/authz_sidecar/test_service_python
+#      pip install -r requirements.txt
+#      python service.py --postgres-password=osmo
+#
+#   3. Start Go authz_sidecar:
+#      cd external && bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
+#        --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
+#
+#   4. Run the benchmark:
+#      bazel test //src/service/authz_sidecar:performance_comparison --test_output=streamed
+#
+go_test(
+    name = "performance_comparison",
+    srcs = ["performance_comparison_test.go"],
+    deps = [
+        "@com_github_envoyproxy_go_control_plane//envoy/service/auth/v3:auth",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials/insecure:go_default_library",
+    ],
+    visibility = ["//visibility:public"],
+    tags = ["external", "manual", "benchmark"],
+    local = True,
+)
+
