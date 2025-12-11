@@ -22,8 +22,8 @@ import unittest
 from typing import cast
 from unittest import mock
 
-from src.lib.data.storage.backends import backends, s3
-from src.lib.data.storage.core import header
+from src.lib.data.storage.backends import azure, backends, s3
+from src.lib.data.storage.core import client, header
 
 
 class TestBackends(unittest.TestCase):
@@ -143,6 +143,121 @@ class TestBackends(unittest.TestCase):
 
         self.assertTrue(storage_backend_2 in storage_backend_1)
         self.assertTrue(storage_backend_1 not in storage_backend_2)
+
+
+class TestAzureBackend(unittest.TestCase):
+    """
+    Tests for Azure Blob Storage backend.
+    """
+
+    @mock.patch('src.lib.data.storage.backends.azure.blob.BlobServiceClient')
+    def test_azure_create_client_with_connection_string(self, mock_blob_client):
+        """Test that create_client uses from_connection_string when connection_string provided."""
+        # Arrange
+        connection_string = 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key'
+
+        # Act
+        azure.create_client(connection_string=connection_string)
+
+        # Assert
+        mock_blob_client.from_connection_string.assert_called_once_with(
+            conn_str=connection_string
+        )
+
+    @mock.patch('src.lib.data.storage.backends.azure.DefaultAzureCredential')
+    @mock.patch('src.lib.data.storage.backends.azure.blob.BlobServiceClient')
+    def test_azure_create_client_with_workload_identity(self, mock_blob_client, mock_credential):
+        """Test that create_client uses DefaultAzureCredential when only account_url provided."""
+        # Arrange
+        mock_cred_instance = mock.Mock()
+        mock_credential.return_value = mock_cred_instance
+        account_url = 'https://myaccount.blob.core.windows.net'
+
+        # Act
+        azure.create_client(account_url=account_url)
+
+        # Assert
+        mock_credential.assert_called_once()
+        mock_blob_client.assert_called_once_with(
+            account_url=account_url,
+            credential=mock_cred_instance,
+        )
+
+    def test_azure_create_client_no_credentials_raises_error(self):
+        """Test that create_client raises error when no credentials provided."""
+        # Act & Assert
+        with self.assertRaises(client.OSMODataStorageClientError):
+            azure.create_client()
+
+    def test_azure_backend_client_factory_with_connection_string(self):
+        """Test that Azure backend client_factory passes connection string."""
+        # Arrange
+        azure_backend = cast(
+            backends.AzureBlobStorageBackend,
+            backends.construct_storage_backend(uri='azure://mystorageaccount/mycontainer/path'),
+        )
+        connection_string = 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key'
+
+        # Act
+        factory = azure_backend.client_factory(
+            access_key_id=None,
+            access_key=connection_string,
+        )
+
+        # Assert
+        self.assertEqual(factory.connection_string, connection_string)
+        self.assertEqual(factory.account_url, azure_backend.endpoint)
+
+    def test_azure_backend_client_factory_with_workload_identity(self):
+        """Test that Azure backend client_factory works without credentials (workload identity)."""
+        # Arrange
+        azure_backend = cast(
+            backends.AzureBlobStorageBackend,
+            backends.construct_storage_backend(uri='azure://mystorageaccount/mycontainer/path'),
+        )
+
+        # Act
+        factory = azure_backend.client_factory(
+            access_key_id=None,
+            access_key=None,
+        )
+
+        # Assert
+        self.assertIsNone(factory.connection_string)
+        self.assertEqual(factory.account_url, azure_backend.endpoint)
+
+    @mock.patch('src.lib.data.storage.backends.azure.create_client')
+    def test_azure_backend_data_auth_with_workload_identity(self, mock_create_client):
+        """Test that Azure data_auth works with workload identity (no connection string)."""
+        # Arrange
+        mock_service_client = mock.Mock()
+        mock_create_client.return_value.__enter__ = mock.Mock(return_value=mock_service_client)
+        mock_create_client.return_value.__exit__ = mock.Mock(return_value=False)
+
+        mock_container_client = mock.Mock()
+        mock_service_client.get_container_client.return_value.__enter__ = mock.Mock(
+            return_value=mock_container_client
+        )
+        mock_service_client.get_container_client.return_value.__exit__ = mock.Mock(
+            return_value=False
+        )
+
+        azure_backend = cast(
+            backends.AzureBlobStorageBackend,
+            backends.construct_storage_backend(uri='azure://mystorageaccount/mycontainer/path'),
+        )
+
+        # Act
+        azure_backend.data_auth(
+            access_key_id=None,
+            access_key=None,
+        )
+
+        # Assert
+        mock_create_client.assert_called_once_with(
+            connection_string=None,
+            account_url=azure_backend.endpoint,
+        )
 
 
 if __name__ == '__main__':
