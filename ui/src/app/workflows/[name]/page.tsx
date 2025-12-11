@@ -181,7 +181,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
 
   const gridClass = useMemo(() => {
     if (localView === ViewType.SingleTask) {
-      return "grid grid-cols-[auto_auto_auto]";
+      return "grid grid-cols-[auto_0fr_1fr]";
     } else if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
     } else if (showWF) {
