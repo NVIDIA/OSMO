@@ -286,16 +286,16 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       <div className="flex h-screen w-screen items-center justify-center">
         <PageError
           title="Authentication failed"
-          errorMessage="This may be related to an access issue. Contact support for further assistance."
+          errorMessage="This may be related to an access issue or service outage. Please contact support for further assistance."
         >
-          <a
-            href={`${runtimeEnv.DOCS_BASE_URL.replace("user_guide", "deployment_guide")}getting_started/deploy_service.html#step-2-configure-keycloak`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             className="btn btn-primary"
+            onClick={() => {
+              window.location.reload();
+            }}
           >
-            More Info
-          </a>
+            Reload
+          </button>
         </PageError>
       </div>
     );
