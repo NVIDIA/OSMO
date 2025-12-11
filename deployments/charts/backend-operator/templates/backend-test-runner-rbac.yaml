@@ -36,7 +36,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["list", "delete", "create", "get"]
+  verbs: ["list", "delete", "create", "get", "watch"]
 - apiGroups: [""]
   resources: ["pods/exec"]
   verbs: ["get", "list", "watch", "create"]
@@ -86,6 +86,13 @@ roleRef:
   kind: ClusterRole
   name: {{ $name }}-test-runner
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
+
+{{- if .Values.backendTestRunner.extraRoles }}
+{{- range $roleObj := .Values.backendTestRunner.extraRoles }}
+{{- toYaml $roleObj | nindent 0 }}
+---
+{{- end }}
 {{- end }}
 
 {{- end }}

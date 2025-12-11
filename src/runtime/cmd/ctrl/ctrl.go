@@ -206,6 +206,7 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 
 	var err error
 	var newConn *websocket.Conn
+	var resp *http.Response
 	var isRefresh bool = false
 
 	// Check if token is valid
@@ -228,9 +229,17 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 	headers.Add(headerKey, jwtToken)
 	jwtTokenMux.RUnlock()
 
-	newConn, _, err = dialer.Dial(url, headers)
+	newConn, resp, err = dialer.Dial(url, headers)
 	*conn = newConn
 	if err != nil {
+		// Enhanced error logging with HTTP response details
+		if resp != nil {
+			log.Printf("Websocket connection failed - URL: %s, Status: %s (%d), Error: %s",
+				url, resp.Status, resp.StatusCode, err)
+			if len(resp.Header) > 0 {
+				log.Printf("Response headers: %v", resp.Header)
+			}
+		}
 		if !data.WebsocketConnection.ReachedTimeout() {
 			// Exponential backoff
 			exponent := common.Min(retryCount, 5)
@@ -255,7 +264,7 @@ func connWorkflowService(url string, cmdArgs args.CtrlArgs) {
 		err := dialWebsocket(url, &webConn, cmdArgs, count)
 		if err != nil {
 			count++
-			if count == 1 {
+			if count%100 == 1 {
 				switch e := err.(type) {
 				case *DialWebsocketError:
 					if e.ErrorType == string(PendingError) {

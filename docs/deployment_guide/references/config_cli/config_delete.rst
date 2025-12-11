@@ -21,59 +21,10 @@
 osmo config delete
 ==================
 
-Delete a named configuration or a specific config revision
-
-.. code-block::
-
-   osmo config delete [-h] config_type [name] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
-
-   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE
-
-   Ex. osmo config delete POOL my-pool
-   Ex. osmo config delete SERVICE:123
-   Ex. osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
-
-Positional Arguments
-====================
-
-:kbd:`config_type`
-   Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a specific revision
-
-
-:kbd:`name`
-   Name of the config to delete (required when not deleting a revision)
-
-
-Named Arguments
-===============
-
---description, -d
-   Description of the deletion (only used when deleting a named config)
-
---tags, -t
-   Tags for the deletion (only used when deleting a named config)
-
-
-Examples
-========
-
-Delete a named pool configuration:
-
-.. code-block:: bash
-
-    $ osmo config delete POOL my-pool
-    Successfully deleted POOL config "my-pool"
-
-Delete a specific revision:
-
-.. code-block:: bash
-
-    $ osmo config delete SERVICE:123
-    Successfully deleted revision 123 of SERVICE config
-
-Delete with description and tags:
-
-.. code-block:: bash
-
-    $ osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
-    Successfully deleted BACKEND config "my-backend"
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: config delete
+   :ref-prefix: cli_reference_config_delete
+   :argument-anchor:

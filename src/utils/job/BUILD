@@ -27,7 +27,7 @@ osmo_py_library(
         requirement("pydantic"),
         "//src/lib/utils:osmo_errors",
         "//src/utils/connectors",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     visibility = ["//visibility:public"],
 )
@@ -55,7 +55,7 @@ osmo_py_library(
         "//src/lib/utils:osmo_errors",
         "//src/utils:backend_messages",
         "//src/utils/connectors",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     data = [
         "test_runner_cronjob_spec_file",
@@ -97,7 +97,7 @@ osmo_py_library(
         "//src/utils:yaml",
         "//src/utils/connectors",
         "//src/utils/metrics",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     visibility = ["//visibility:public"],
 )

@@ -373,7 +373,15 @@ def setup_parser(parser: argparse._SubParsersAction):
     # Handle 'port-forward' command
     port_forward_parser = subparsers.add_parser('port-forward',
         help='Port-forward data from workflow to local machine.',
-        epilog='Ex. osmo workflow port-forward wf-1 sim-task --port 47995-48012,49000-49007 --udp')
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples
+========
+
+Forward UDP traffic from a task to your local machine::
+
+  osmo workflow port-forward wf-1 sim-task --port 47995-48012,49000-49007 --udp
+        ''')
     port_forward_parser.add_argument('workflow_id',
                                      help='The ID or UUID of the workflow to port forward from')
     port_forward_parser.add_argument('task',
@@ -409,16 +417,34 @@ def setup_parser(parser: argparse._SubParsersAction):
                     'automatically upload any changes to the remote task.\n\n'
                     '/osmo/run/workspace is always available as a remote path.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='examples:\n'
-               '  Upload to a task:\t\tosmo workflow rsync <workflow_id> <task_name> '
-               '<local_path>:<remote_path>\n'
-               '  Upload to lead task:\t\tosmo workflow rsync <workflow_id> '
-               '<local_path>:<remote_path>\n'
-               '  Run a single upload:\t\tosmo workflow rsync <workflow_id> '
-               '<local_path>:<remote_path> --once\n'
-               '  Get the status of daemons:\tosmo workflow rsync --status\n'
-               '  Stop all daemons:\t\tosmo workflow rsync --stop\n'
-               '  Stop a specific daemon:\tosmo workflow rsync <workflow_id> --stop')
+        epilog='''
+Examples
+========
+
+Upload to a task::
+
+    osmo workflow rsync <workflow_id> <task_name> <local_path>:<remote_path>
+
+Upload to lead task::
+
+    osmo workflow rsync <workflow_id> <local_path>:<remote_path>
+
+Run a single upload::
+
+    osmo workflow rsync <workflow_id> <local_path>:<remote_path> --once
+
+Get the status of daemons::
+
+    osmo workflow rsync --status
+
+Stop all daemons::
+
+    osmo workflow rsync --stop
+
+Stop a specific daemon::
+
+    osmo workflow rsync <workflow_id> --stop
+        ''')
     rsync_parser.add_argument('workflow_id',
                               nargs='?',
                               help='The ID or UUID of the workflow to rsync to/from')

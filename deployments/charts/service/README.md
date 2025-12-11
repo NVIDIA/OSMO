@@ -104,7 +104,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.worker.scaling.minReplicas` | Minimum replicas | `2` |
 | `services.worker.scaling.maxReplicas` | Maximum replicas | `10` |
-| `services.worker.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
+| `services.worker.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.worker.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.worker.imageName` | Worker image name | `worker` |
 | `services.worker.serviceName` | Service name | `osmo-worker` |
 | `services.worker.initContainers` | Init containers for worker | `[]` |
@@ -120,7 +121,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.service.scaling.minReplicas` | Minimum replicas | `3` |
 | `services.service.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.service.scaling.hpaTarget` | HPA target utilization | `80` |
+| `services.service.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
@@ -133,6 +135,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.service.resources` | Resource limits and requests | `{}` |
 | `services.service.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 | `services.service.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.service.envoy` | API service Envoy configuration overrides | `{}` |
 
 #### Logger Service
 
@@ -140,7 +143,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.logger.scaling.minReplicas` | Minimum replicas | `3` |
 | `services.logger.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.logger.scaling.hpaTarget` | Target Memory utilization percentage for HPA scaling | `80` |
+| `services.logger.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.logger.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.logger.imageName` | Logger image name | `logger` |
 | `services.logger.serviceName` | Service name | `osmo-logger` |
 | `services.logger.initContainers` | Init containers for logger service | `[]` |
@@ -148,6 +152,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.logger.tolerations` | Pod tolerations | `[]` |
 | `services.logger.resources` | Resource limits and requests | See values.yaml |
 | `services.logger.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.logger.envoy` | Logger service Envoy configuration overrides | `{}` |
 
 #### Agent Service
 
@@ -155,7 +160,8 @@ This Helm chart deploys the OSMO platform with its core services and required si
 |-----------|-------------|---------|
 | `services.agent.scaling.minReplicas` | Minimum replicas | `1` |
 | `services.agent.scaling.maxReplicas` | Maximum replicas | `9` |
-| `services.agent.scaling.hpaTarget` | HPA target utilization | `80` |
+| `services.agent.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.agent.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
 | `services.agent.imageName` | Agent image name | `agent` |
 | `services.agent.serviceName` | Service name | `osmo-agent` |
 | `services.agent.initContainers` | Init containers for agent service | `[]` |
@@ -163,6 +169,7 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.agent.tolerations` | Pod tolerations | `[]` |
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.agent.envoy` | Agent service Envoy configuration overrides | `{}` |
 
 ### Ingress Settings
 
@@ -184,7 +191,22 @@ This Helm chart deploys the OSMO platform with its core services and required si
 
 ### Sidecar Configuration
 
-The chart now supports extensible sidecar configuration through the `sidecars` section:
+The chart now supports extensible sidecar configuration through the `sidecars` section.
+
+#### Per-Service Envoy Overrides
+
+Each service (API, Logger, Agent) can override global Envoy settings using `services.<service>.envoy`. These per-service settings are merged with the global `sidecars.envoy` configuration, allowing you to customize specific settings without duplicating the entire configuration.
+
+Example - Override `maxRequests` for the API service only:
+
+```yaml
+services:
+  service:
+    envoy:
+      maxRequests: 200  # Override global default of 100
+```
+
+Any field from `sidecars.envoy` can be overridden at the service level. Fields not specified in the service-level config will inherit the global defaults.
 
 #### Envoy Proxy Settings
 

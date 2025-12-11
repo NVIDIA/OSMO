@@ -27,3 +27,5 @@ docs/**/domain_config.js
 .pnpm-store
 
 .ruff_cache
+
+.lycheecache

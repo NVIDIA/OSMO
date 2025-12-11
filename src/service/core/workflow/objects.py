@@ -857,19 +857,8 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                         f'Pool {self.pool} is undergoing maintenance. '
                         'Users will have to wait until maintenance is completed before submission.')
 
-            # Validate co-scheduling
-            backend_info = connectors.Backend.fetch_from_db(self.context.database, self.backend)
-            if not backend_info.scheduler_settings.coscheduling:
-                for group_obj_spec in rendered_spec.groups:
-                    if len(group_obj_spec.tasks) > 1:
-                        upload_workflow_spec = False
-                        raise osmo_errors.OSMOUsageError(
-                            f'Group {group_obj_spec.name} cannot have mutiple tasks. ' \
-                            f'Backend {self.backend} does not support co-scheduling.',
-                            workflow_id=self.name
-                        )
-
             # Validate priority
+            backend_info = connectors.Backend.fetch_from_db(self.context.database, self.backend)
             object_factory = kb_objects.get_k8s_object_factory(backend_info)
             if not object_factory.priority_supported():
                 if priority != wf_priority.WorkflowPriority.NORMAL:

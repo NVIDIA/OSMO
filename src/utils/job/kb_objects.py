@@ -321,124 +321,6 @@ class K8sObjectFactory:
         return False
 
 
-class SchedulerPluginsK8sObjectFactory(K8sObjectFactory):
-    """Define a k8s object factory for the scheduler plugins schduler"""
-    def __init__(self, scheduler_name: str, timeout: int):
-        super().__init__(scheduler_name)
-        self._scheduler_timeout = timeout
-
-    def create_group_k8s_resources(self, group_uuid: str,
-        pods: List[Dict], labels: Dict[str, str], pool_name: str,
-        priority: wf_priority.WorkflowPriority) -> List[Dict]:
-        """
-        Given the target pod specs, this returns the k8s resources needed to create tme as a gang
-        scheduled group.
-
-        Args:
-            group_uuid (str): The group uuid.
-            pods (List[Dict]): The list of pod specs to create in the backend.
-            labels (Dict[str, str]): OSMO labels.
-
-        Returns:
-            List[Dict]: A list of k8s objects to create in the cluster.
-        """
-        for pod in pods:
-            self.update_pod_k8s_resource(pod, group_uuid, pool_name, priority)
-
-        return pods + [{
-            'apiVersion': 'scheduling.x-k8s.io/v1alpha1',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': labels,
-            },
-            'spec': {
-                'scheduleTimeoutSeconds': self._scheduler_timeout,
-                'minMember': len(pods)
-            }
-        }]
-
-    def update_pod_k8s_resource(self, pod: Dict, group_uuid: str, pool_name: str,
-                                priority: wf_priority.WorkflowPriority):
-        """
-        Given the target pod spec, this adds the k8s resource needed to create the pod.
-        """
-        # pylint: disable=unused-argument
-        pod['metadata']['labels']['scheduling.x-k8s.io/pod-group'] = group_uuid
-        pod['spec']['schedulerName'] = self._scheduler_name
-
-    def get_group_cleanup_specs(self, labels: Dict[str, str]) -> \
-        List[backend_job_defs.BackendCleanupSpec]:
-        """Returns the objects to cleanup for this pod group"""
-        return [backend_job_defs.BackendCleanupSpec(resource_type='Pod', labels=labels),
-                backend_job_defs.BackendCleanupSpec(
-                    resource_type='PodGroup',
-                    labels=labels,
-                    custom_api=backend_job_defs.BackendCustomApi(
-                        api_major='scheduling.x-k8s.io',
-                        api_minor='v1alpha1',
-                        path='podgroups'))]
-
-
-class VolcanoK8sObjectFactory(K8sObjectFactory):
-    """Define a k8s object factory for the volcano scheduler"""
-
-    def create_group_k8s_resources(self, group_uuid: str,
-        pods: List[Dict], labels: Dict[str, str], pool_name: str,
-        priority: wf_priority.WorkflowPriority) -> List[Dict]:
-        """
-        Given the target pod specs, this returns the k8s resources needed to create tme as a gang
-        scheduled group.
-
-        Args:
-            group_uuid (str): The group uuid.
-            pods (List[Dict]): The list of pod specs to create in the backend.
-            labels (Dict[str, str]): OSMO labels.
-
-        Returns:
-            List[Dict]: A list of k8s objects to create in the cluster.
-        """
-        for pod in pods:
-            self.update_pod_k8s_resource(pod, group_uuid, pool_name, priority)
-
-        # PodGroup must come first so it is created before the pods
-        return [{
-            'apiVersion': 'scheduling.volcano.sh/v1beta1',
-            'kind': 'PodGroup',
-            'metadata': {
-                'name': group_uuid,
-                'labels': labels
-            },
-            'spec': {
-                'minMember': len(pods),
-                'queue': 'default',
-            }
-        }] + pods
-
-    def update_pod_k8s_resource(self, pod: Dict, group_uuid: str, pool_name: str,
-                                priority: wf_priority.WorkflowPriority):
-        """
-        Given the target pod spec, this adds the k8s resource needed to create the pod.
-        """
-        if 'annotations' not in pod['metadata']:
-            pod['metadata']['annotations'] = {}
-        pod['metadata']['annotations']['scheduling.k8s.io/group-name'] = group_uuid
-        pod['spec']['schedulerName'] = self._scheduler_name
-
-    def get_group_cleanup_specs(self, labels: Dict[str, str]) -> \
-        List[backend_job_defs.BackendCleanupSpec]:
-        """Returns the objects to cleanup for this pod group"""
-        return [
-            backend_job_defs.BackendCleanupSpec(resource_type='Pod', labels=labels),
-            backend_job_defs.BackendCleanupSpec(
-                    resource_type='PodGroup',
-                    labels=labels,
-                    custom_api=backend_job_defs.BackendCustomApi(
-                        api_major='scheduling.volcano.sh',
-                        api_minor='v1beta1',
-                        path='podgroups'))]
-
-
 class KaiK8sObjectFactory(K8sObjectFactory):
     """Define a k8s object factory for the KAI scheduler"""
 
@@ -523,7 +405,6 @@ class KaiK8sObjectFactory(K8sObjectFactory):
                         api_minor='v2alpha2',
                         path='podgroups'))]
 
-
     def list_queues_spec(self, backend: connectors.Backend) \
         -> backend_job_defs.BackendCleanupSpec | None:
         return backend_job_defs.BackendCleanupSpec(
@@ -600,15 +481,10 @@ class KaiK8sObjectFactory(K8sObjectFactory):
 def get_k8s_object_factory(backend: connectors.Backend) -> K8sObjectFactory:
     scheduler_settings = backend.scheduler_settings
     scheduler_type = scheduler_settings.scheduler_type
-    if scheduler_type == connectors.BackendSchedulerType.SCHEDULER_PLUGINS:
-        return SchedulerPluginsK8sObjectFactory(scheduler_settings.scheduler_name,
-                                                scheduler_settings.scheduler_timeout)
-    elif scheduler_type == connectors.BackendSchedulerType.VOLCANO:
-        return VolcanoK8sObjectFactory(scheduler_settings.scheduler_name)
-    elif scheduler_type == connectors.BackendSchedulerType.KAI:
+    if scheduler_type == connectors.BackendSchedulerType.KAI:
         return KaiK8sObjectFactory(backend)
     else:
-        return K8sObjectFactory(scheduler_settings.scheduler_name)
+        raise ValueError(f'Unsupported scheduler type: {scheduler_type}')
 
 
 class FileMount(pydantic.BaseModel):

@@ -14,63 +14,38 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
-
-###################################
-# Osmo init Pyinstaller Packaging #
-###################################
-
-osmo_py_library(
-    name = "init",
-    srcs = ["init.py"],
-    deps = [
-        requirement("pydantic"),
-    ],
-)
-
 osmo_py_binary(
-    name = "builder",
-    main = "builder.py",
-    srcs = ["builder.py"],
-    deps = [
-        requirement("pyinstaller"),
-        ":init",
-    ],
+    name = "init",
+    main = "init.py",
+    srcs = ["init.py"],
 )
 
-run_binary(
-    name = "init_onedir",
-    args = [
-        "--output_dir $(@D)",
-        "--main $(location :init.py)",
-    ],
-    out_dirs = ["osmo_init_onedir"],
-    tool = ":builder",
+py_image_layer(
+    name = "init_layer",
+    binary = ":init",
+)
+
+# Create a wrapper that uses system Python and sets up PYTHONPATH
+osmo_python_wrapper(
+    name = "init_wrapper",
+    bin_name = "osmo_init",
+    main = "/src/runtime/init.py",
+    runfiles_dir = "/src/runtime/init.runfiles",
+)
+
+filegroup(
+    name = "init_image_layers",
     srcs = [
-        "init.py",
-        ":init",
+        ":init_layer_default",
+        ":init_layer_packages",
+        ":init_wrapper",
     ],
-    visibility = ["//visibility:public"],
-)
-
-pkg_tar(
-    name = "init_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_init_onedir": ".",
-    },
-    srcs = [":init_onedir"],
-    symlinks = {
-        "/usr/bin/osmo_init": "/osmo/osmo-init/osmo-init",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
 )
 
 ################
@@ -81,7 +56,7 @@ oci_image(
     name = "init_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":init_onedir_pkg",
+        ":init_image_layers",
         "//src/cli:osmo_cli_pkg_amd64",
         "//src/runtime/cmd/ctrl:osmo_ctrl_x86_64_pkg",
         "//src/runtime/cmd/user:osmo_exec_x86_64_pkg",
@@ -127,7 +102,7 @@ oci_image(
     name = "init_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":init_onedir_pkg",
+        ":init_image_layers",
         "//src/cli:osmo_cli_pkg_arm64",
         "//src/runtime/cmd/ctrl:osmo_ctrl_arm64_pkg",
         "//src/runtime/cmd/user:osmo_exec_arm64_pkg",

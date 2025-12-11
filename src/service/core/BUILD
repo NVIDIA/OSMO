@@ -16,11 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
@@ -56,46 +55,31 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "service",
+    name = "service_binary",
     main = "service.py",
     srcs = ["service.py"],
     deps = [":service_lib"],
 )
 
-
-run_binary(
-    name = "service_onedir",
-    args = [
-        "--name osmo-service",
-        "--main $(location :service.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--additional-hooks $(locations //src/service/builder:extra_hooks)",
-        "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
-    ],
-    out_dirs = ["osmo_service_onedir"],
-    tool = "//src/service/builder:service_builder",
-    srcs = [
-        "service.py",
-        ":service_lib",
-        "//src/service/builder:extra_hooks",
-        "//src/lib/data/storage:extra_hooks",
-        "//src/lib/utils:version.yaml",
-    ],
+py_image_layer(
+    name = "service_layer",
+    binary = ":service_binary",
 )
 
-pkg_tar(
-    name = "service_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_service_onedir": ".",
-    },
-    srcs = [":service_onedir"],
-    symlinks = {
-        "/usr/bin/service": "/osmo/osmo-service/osmo-service",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
+osmo_python_wrapper(
+    name = "service_wrapper",
+    bin_name = "service",
+    main = "/src/service/core/service.py",
+    runfiles_dir = "/src/service/core/service_binary.runfiles",
+)
+
+filegroup(
+    name = "service_image_layers",
+    srcs = [
+        ":service_layer_default",
+        ":service_layer_packages",
+        ":service_wrapper",
+    ],
 )
 
 ################
@@ -106,8 +90,8 @@ oci_image(
     name = "service_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":service_onedir_pkg",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -147,8 +131,8 @@ oci_image(
     name = "service_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":service_onedir_pkg",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
