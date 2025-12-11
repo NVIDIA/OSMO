@@ -44,16 +44,18 @@ _Describe the problem this project solves. What is the current situation?_
 
 | Use Case | Description |
 |---|---|
-| <name> | <description> |
+| _name_ | _description_ |
 | Upload a dataset | A user with an existing dataset on their workstation can upload... |
 
 ## Requirements
 
 | Title | Description | Type |
-| <title> | <description> | <type> |
-| Upload a new dataset version | A user can upload a new version of the same... | Functional |
-| Support dataset versions up to 100 TiB in size | A user can access a dataset of 100 TiB without delay... | KPI |
-| Datasets cannot be accessed by users without sufficient roles | A user without the dataset read role... | Security |
+|---|---|---|
+| _title_ | _<entity> shall <do thing>_ | _type_ |
+| _title_ | _<pre-condition> <entity> shall <do thing>_ | _type_ |
+| Upload a new dataset version | A user shall be able to upload a new version... | Functional |
+| Support dataset versions up to 100 TiB in size | OSMO shall support uploading a dataset of up to 100 TiB... | KPI |
+| Datasets cannot be accessed by users without sufficient roles | If the user does not have sufficient roles, a user shall not be able to... | Security |
 
 ## Architectural Details
 
