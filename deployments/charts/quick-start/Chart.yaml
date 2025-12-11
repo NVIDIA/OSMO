@@ -26,16 +26,16 @@ dependencies:
   version: 4.13.2
   repository: https://kubernetes.github.io/ingress-nginx
 - name: service
-  version: 1.0.0
+  version: 1.0.1
   repository: file://../service
 - name: web-ui
-  version: 1.0.0
+  version: 1.0.1
   repository: file://../web-ui
 - name: router
   version: 1.0.0
   repository: file://../router
 - name: backend-operator
-  version: 1.0.0
+  version: 1.0.1
   repository: file://../backend-operator
 
 appVersion: "1.0.0"
