@@ -55,6 +55,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `services.ui.resources` | Resource limits and requests for the UI container | `{}` |
 | `services.ui.docsBaseUrl` | Documentation base URL users will see from the UI | `"https://nvidia.github.io/OSMO/main/user_guide/"` |
 | `services.ui.cliInstallScriptUrl` | CLI Installation Script URL displayed in the UI | `"https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"` |
+| `services.ui.maxHttpHeaderSizeKb` | Maximum HTTP header size in KB for Node.js server (should match Envoy's limit to prevent 431 errors) | `128` |
 
 ### UI Scaling Settings
 

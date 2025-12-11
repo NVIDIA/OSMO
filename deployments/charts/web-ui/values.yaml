@@ -94,6 +94,12 @@ services:
     ##
     serviceAccountName: osmo
 
+    ## Maximum HTTP header size in KB for Node.js server
+    ## Prevents 431 "Request Header Fields Too Large" errors
+    ## Should match sidecars.envoy.maxHeadersSizeKb
+    ##
+    maxHttpHeaderSizeKb: 128
+
     ## Command override for the container
     ## Leave empty to use the default command from the image
     ##
