@@ -26,14 +26,14 @@ End-to-end data pipeline for fine-tuning GROOT-N1.5 Vision-Language-Action model
 Teleop Data → MimicGen → HDF5 → MP4 → Cosmos Augmentation → HDF5 → LeRobot → GROOT Fine-tuning
 ```
 
-| Step | Workflow | Description | Duration |
-|------|----------|-------------|----------|
-| 1 | `01_mimic_generation.yaml` | Generate synthetic demos from teleoperation data | ~2-4h |
-| 2 | `02_hdf5_to_mp4.yaml` | Extract camera observations to MP4 format | ~30min |
-| 3 | `03_cosmos_augmentation.yaml` | Apply Cosmos Transfer 2.5 for visual augmentation | ~2-6h |
-| 4 | `04_mp4_to_hdf5.yaml` | Merge augmented videos back to HDF5 | ~30min |
-| 5 | `05_lerobot_conversion.yaml` | Convert to LeRobot dataset format | ~1h |
-| 6 | `06_groot_finetune.yaml` | Fine-tune GROOT-N1.5-3B model | ~12-24h |
+| Step | Workflow | Description | 
+|------|----------|-------------|
+| 1 | `01_mimic_generation.yaml` | Generate synthetic demos from teleoperation data |
+| 2 | `02_hdf5_to_mp4.yaml` | Extract camera observations to MP4 format |
+| 3 | `03_cosmos_augmentation.yaml` | Apply Cosmos Transfer 2.5 for visual augmentation |
+| 4 | `04_mp4_to_hdf5.yaml` | Merge augmented videos back to HDF5 |
+| 5 | `05_lerobot_conversion.yaml` | Convert to LeRobot dataset format |
+| 6 | `06_groot_finetune.yaml` | Fine-tune GROOT-N1.5-3B model |
 
 ## Prerequisites
 
