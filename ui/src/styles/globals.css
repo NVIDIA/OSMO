@@ -77,7 +77,7 @@ SPDX-License-Identifier: Apache-2.0
 
 @layer base {
   body {
-    @apply font-['Nvidia_Sans','Nvidia_Sans_Fallback'] bg-body-bg text-text text-sm;
+    @apply font-sans bg-body-bg text-text text-sm;
 
     * {
       @apply outline-brand focus-visible:outline-offset-1;

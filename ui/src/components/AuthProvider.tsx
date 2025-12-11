@@ -22,6 +22,8 @@ import { useRouter } from "next/navigation";
 import { env } from "~/env.mjs";
 import { AuthClaimsSchema, TokenCheckSchema, TokenRefreshSchema, type AuthClaims } from "~/models/auth-model";
 
+import { PageError } from "./PageError";
+
 const AuthContext = createContext<Auth | null>(null);
 
 export const useAuth = () => {
@@ -115,7 +117,7 @@ class Auth {
       const data = await res.json();
       this.authEnabled = data.auth_enabled;
     } catch (error) {
-      console.warn(`Failed to fetch login info: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to fetch login info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 
     if (!this.authEnabled) {
@@ -163,21 +165,19 @@ class Auth {
     try {
       const res = await fetch("/auth/check_token", {
         headers: osmoHeaders,
+        cache: "no-store",
       });
       checkTokenResponse = await res.json();
     } catch (error: unknown) {
-      console.warn(`Failed to check token: ${error instanceof Error ? error.message : "Unknown error"}`);
       if (env.NEXT_PUBLIC_OSMO_ENV === "production") {
-        window.location.reload();
+        throw new Error(`Failed to check token: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
       return;
     }
 
     const checkToken = TokenCheckSchema.safeParse(checkTokenResponse);
-
     if (!checkToken.success) {
-      console.warn(`Failed to parse initial refresh response: ${checkToken.error.message}`);
-      return;
+      throw new Error(`Failed to parse initial refresh response: ${checkToken.error.message}`);
     }
 
     if (!checkToken.data.isFailure) {
@@ -186,10 +186,7 @@ class Auth {
     }
 
     if (env.NEXT_PUBLIC_OSMO_ENV === "production") {
-      // If token check or refresh fails in production, reload the page to
-      // force the user back through keycloak
-      window.location.reload();
-      return;
+      throw new Error("Token check failed");
     }
 
     // ENV is only "local-against-production"
@@ -202,15 +199,13 @@ class Auth {
       });
       refreshTokenResponse = await res.json();
     } catch (error: unknown) {
-      console.warn(`Failed to refresh token: ${error instanceof Error ? error.message : "Unknown error"}`);
-      return;
+      throw new Error(`Failed to refresh token: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 
     const refreshToken = TokenRefreshSchema.safeParse(refreshTokenResponse);
 
     if (!refreshToken.success) {
-      console.warn(`Failed to parse refresh token response: ${refreshToken.error.message}`);
-      return;
+      throw new Error(`Failed to parse refresh token response: ${refreshToken.error.message}`);
     }
 
     if (refreshToken.data.isFailure) {
@@ -257,20 +252,55 @@ class Auth {
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const auth = useMemo(() => new Auth(), []);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [error, setError] = useState<string | undefined>(undefined);
   const router = useRouter();
+
   useEffect(() => {
     auth.setRouterPush(router);
   }, [auth, router]);
 
   useEffect(() => {
-    void auth.login().then(() => {
-      setIsLoading(false);
-    });
+    setIsLoading(true);
+    setError(undefined);
+
+    void auth
+      .login()
+      .then(() => {
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.warn(errorMessage);
+        setError(errorMessage);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, [auth]);
 
   if (isLoading) {
     return null;
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <PageError
+          title="Authentication failed"
+          errorMessage="This may be related to an access issue or service outage. Please contact support for further assistance."
+          subText={error}
+        >
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              window.location.reload();
+            }}
+          >
+            Reload
+          </button>
+        </PageError>
+      </div>
+    );
   }
 
   return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
