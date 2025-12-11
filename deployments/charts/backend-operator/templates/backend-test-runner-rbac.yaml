@@ -36,7 +36,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["list", "delete", "create", "get"]
+  verbs: ["list", "delete", "create", "get", "watch"]
 - apiGroups: [""]
   resources: ["pods/exec"]
   verbs: ["get", "list", "watch", "create"]
