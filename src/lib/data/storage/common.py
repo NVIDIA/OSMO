@@ -138,7 +138,27 @@ class OperationSummary(metrics.MetricsProducer):
 
 class OperationStream(Generic[T, R], Generator[T, None, R]):
     """
-    A stream of operations that returns an operation summary.
+    A generator wrapper that yields operation results and captures the final summary.
+
+    This class wraps a generator to provide streaming access to operation results
+    (e.g., individual file transfer statuses) while automatically capturing the
+    operation summary when the generator completes.
+
+    Type Parameters:
+        T: The type of items yielded during iteration (e.g., file paths, transfer results).
+        R: The type of the operation summary returned when iteration completes.
+
+    Example:
+        .. code-block:: python
+
+            # Iterate over results and get the summary at the end
+            stream = client.list_objects(prefix="data/")
+            for item in stream:
+                print(item.key)
+            print(f"Total items: {stream.summary.count}")
+
+    :ivar R | None summary: The operation summary, available after iteration completes.
+                           ``None`` until the stream is fully consumed.
     """
 
     def __init__(
@@ -147,6 +167,7 @@ class OperationStream(Generic[T, R], Generator[T, None, R]):
     ):
         self._gen = gen
         self.summary: R | None = None
+        """The operation summary, populated when the stream is exhausted."""
 
     def __iter__(self) -> 'OperationStream[T, R]':
         return self
@@ -178,7 +199,25 @@ class OperationStream(Generic[T, R], Generator[T, None, R]):
 
 class OperationIO(Generic[I, R], io.IOBase):
     """
-    A file-like object that contains an operation summary.
+    A file-like wrapper that captures an operation summary when closed.
+
+    This class wraps file-like operations (e.g., streaming reads/writes) and
+    automatically captures a summary of the operation when the stream is closed.
+
+    Type Parameters:
+        I: The type of the underlying file-like object being wrapped.
+        R: The type of the operation summary returned when closed.
+
+    Example:
+        .. code-block:: python
+
+            # Stream data and get transfer summary when done
+            with client.get_object_stream("data/file.txt") as stream:
+                content = stream.read()
+            print(f"Bytes read: {stream.summary.size}")
+
+    :ivar R | None summary: The operation summary, available after the stream is closed.
+                           ``None`` until ``close()`` is called.
     """
 
     def __init__(
@@ -192,6 +231,7 @@ class OperationIO(Generic[I, R], io.IOBase):
         self._delegate = open_with_stack(self._stack)
         self._finalize = finalize
         self.summary: R | None = None
+        """The operation summary, populated when the stream is closed."""
 
     def __enter__(self) -> 'OperationIO[I, R]':
         return self

@@ -47,6 +47,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinxarg.ext',
+    'sphinxcontrib.autodoc_pydantic',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
     'sphinx_reredirects',
@@ -59,6 +60,7 @@ extensions = [
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
+    '_extensions.module_aliasing',
 
     # Theme extension
     '_extensions.nvidia_theme_override',
@@ -118,6 +120,7 @@ exclude_patterns = [
 
 suppress_warnings = [
     'toc.excluded',
+    'misc.highlighting_failure',
 ]
 
 # -- Options for HTML output -------------------------------------------------
@@ -225,13 +228,26 @@ def build_rst_prolog():
 
 rst_prolog = build_rst_prolog()
 
-# -- Options for Autodoc -------------------------------------------------
+# -- Options for Autodoc --------------------------------------------------
 
-autodoc_typehints = 'description'
-autodoc_member_order = 'bysource'
-autodoc_unqualified_typehints = True
-add_module_names = False
-autodoc_typehints_format = 'short'
+# Hide __init__ signature for classes (cleaner rendering for dataclasses)
+autodoc_class_signature = 'separated'
+autodoc_default_options = {
+    'exclude-members': '__init__, __new__, __repr__, __eq__, __hash__',
+}
+
+# -- Options for Autodoc Pydantic -----------------------------------------
+
+autodoc_pydantic_field_show_constraints = False
+autodoc_pydantic_dataclass_show_config_summary = False
+autodoc_pydantic_model_member_order = 'bysource'
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_signature_prefix = 'class'
+autodoc_pydantic_model_summary_list_order = 'bysource'
 
 # -- Options for Mermaid -------------------------------------------------
 

@@ -164,16 +164,16 @@ class DownloadSummary(common.TransferSummary):
     """
     Summary of a download operation.
 
-    :param datetime.datetime start_time: The start time of the download.
-    :param datetime.datetime end_time: The end time of the download.
-    :param int retries: The number of retries that were made during the download.
-    :param List[str] failures: A list of messages describing failed downloads.
-    :param int size: The total size of the downloaded data.
-    :param int size_transferred: The total size of the downloaded data that was transferred
+    :ivar datetime.datetime start_time: The start time of the download.
+    :ivar datetime.datetime end_time: The end time of the download.
+    :ivar int retries: The number of retries that were made during the download.
+    :ivar List[str] failures: A list of messages describing failed downloads.
+    :ivar int size: The total size of the downloaded data.
+    :ivar int size_transferred: The total size of the downloaded data that was transferred
+                                (instead of skipped due to resumable download).
+    :ivar int count: The total number of files that were downloaded.
+    :ivar int count_transferred: The total number of files that were transferred
                                  (instead of skipped due to resumable download).
-    :param int count: The total number of files that were downloaded.
-    :param int count_transferred: The total number of files that were transferred
-                                  (instead of skipped due to resumable download).
     """
     pass
 

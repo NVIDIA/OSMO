@@ -245,6 +245,17 @@ class UploadParams:
 class UploadSummary(common.TransferSummary):
     """
     Summary of an upload operation.
+
+    :ivar datetime.datetime start_time: The start time of the upload.
+    :ivar datetime.datetime end_time: The end time of the upload.
+    :ivar int retries: The number of retries that were made during the upload.
+    :ivar List[str] failures: A list of messages describing failed uploads.
+    :ivar int size: The total size of the uploaded data.
+    :ivar int size_transferred: The total size of the uploaded data that was transferred
+                                (instead of skipped due to resumable upload).
+    :ivar int count: The total number of files that were uploaded.
+    :ivar int count_transferred: The total number of files that were transferred
+                                 (instead of skipped due to resumable upload).
     """
     pass
 
