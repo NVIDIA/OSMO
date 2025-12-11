@@ -47,7 +47,7 @@ For smaller, localized changes, a normal issue and pull request are sufficient a
 
 ## Stages
 
-The projects process has four stages, tracked via the **Stage** field in the Projects project board.
+The projects process has four stages, tracked via the **Stage** field in the Projects project board. Only OSMO team members can change the Stage field in the Projects board. This ensures proper governance and tracking of proposals through their lifecycle.
 
 ### Stage 1 – Project Proposal (Issue)
 
@@ -68,8 +68,6 @@ The projects process has four stages, tracked via the **Stage** field in the Pro
 - **Accepted** – The proposal is approved by OSMO team members. For significant projects, proceed to Stage 2 (Project Design). For smaller projects, skip to Stage 3 (Implementation).
 - **Rejected** – The proposal is declined by OSMO team members. OSMO team updates **Stage = Rejected** and closes the issue with an explanation.
 - **Needs more detail** – The proposal needs further refinement or a detailed design. Provide feedback and iterate.
-
-**Note: Only OSMO team members can change the Stage field** in the Projects board. This ensures proper governance and tracking of proposals through their lifecycle.
 
 ### Stage 2 – Project Design (Markdown)
 

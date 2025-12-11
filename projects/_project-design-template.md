@@ -24,43 +24,47 @@ related_issues:
   - "#123"
 ---
 
-# Summary
+# <Project Title>
+
+## Overview
+
+_The Overview section should be largely identical to the project proposal issue._
 
 _Provide a concise 2-3 sentence summary of what this project does and why it matters._
 
-## Problem / Opportunity
-
-_Describe the problem this project solves or the opportunity it addresses. What is the current situation? Why does this matter? This should align with the "Problem / Opportunity" field from the project proposal._
-
-## Goals
+### Motivation
 
 _Why should we do this project? What are the key goals we're trying to achieve?_
 
-This should align with the "Goals" field from the project proposal. Consider using a bulleted list:
+### Problem
 
-- Goal 1: ...
-- Goal 2: ...
-- Goal 3: ...
+_Describe the problem this project solves. What is the current situation?_
 
-## Non-Goals
+## Use Cases
 
-_What is explicitly out of scope for this project? What will we NOT do?_
+| Use Case | Description |
+|---|---|
+| <name> | <description> |
+| Upload a dataset | A user with an existing dataset on their workstation can upload... |
 
-This should align with the "Non-Goals" field from the project proposal.
+## Requirements
 
-- Non-goal 1: ...
-- Non-goal 2: ...
-- Non-goal 3: ...
+| Title | Description | Type |
+| <title> | <description> | <type> |
+| Upload a new dataset version | A user can upload a new version of the same... | Functional |
+| Support dataset versions up to 100 TiB in size | A user can access a dataset of 100 TiB without delay... | KPI |
+| Datasets cannot be accessed by users without sufficient roles | A user without the dataset read role... | Security |
 
-## Project Design (Overview)
+## Architectural Details
 
-_Provide a high-level technical overview of the proposed solution. How will we solve the problem? What is the general approach?_
+_Provide a high-level technical overview of the proposed solution. Include block diagrams if applicable. How will we solve the problem? What is the general approach?_
 
 This should expand on the "High-Level Approach" field from the project proposal. Include:
 
 - Architecture overview
 - Key components or modules
 - How they fit together
+- Static and dynamic components
 - User-facing changes (if applicable)
 
 ## Detailed Design
@@ -79,7 +83,7 @@ Include:
 
 Break this into subsections as needed for clarity.
 
-## Alternatives Considered
+### Alternatives Considered
 
 _What other approaches did you consider? Why did you choose this design over the alternatives?_
 
@@ -88,10 +92,6 @@ For each alternative:
 - Describe the approach
 - List pros and cons
 - Explain why it was not chosen
-
-## Impact
-
-_Describe the impact of this project on various aspects of the system._
 
 ### Backwards Compatibility
 
@@ -115,7 +115,7 @@ _What documentation needs to be created or updated?_
 
 ### Testing
 
-_What unit, integration, or end-to-end tests need to be created or updated?_
+_What unit, integration, or end-to-end tests need to be created or updated? How will these tests be integrated in automation? What test metrics will be tracked and what are KPIs?_
 
 ### Dependencies
 
