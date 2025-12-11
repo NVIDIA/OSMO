@@ -18,76 +18,128 @@
 # Usage: osmo workflow submit 05_lerobot_conversion.yaml --pool default
 
 workflow:
-  name: nut-pouring-lerobot-conversion
+  name: {{workflow_name}}
   timeout:
-    exec_timeout: 24h
-    queue_timeout: 12h
+    exec_timeout: 168h # 7 days
+    queue_timeout: 48h
   resources:
     default:
-      cpu: 32
-      gpu: 1
-      memory: 128Gi
-      storage: 256Gi
-      platform: {{ platform }}
+      cpu: {{ncpus}}
+      gpu: {{ngpus}}
+      memory: {{memory}}
+      storage: {{storage}}
+      platform: {{platform}}
 
   tasks:
-  - name: lerobot-conversion
-    image: {{ image }}
+  - name: master  # Master task for torchrun
+    image: {{image_name}} 
     environment:
-      ACCEPT_EULA: "Y"
-      NO_NUCLEUS: "Y"
-      OMNI_KIT_ALLOW_ROOT: "1"
+      ACCEPT_EULA: Y
+      NO_NUCLEUS: Y
+      OMNI_KIT_ALLOW_ROOT: 1
+      # PRIVACY_CONSENT: Y
+      OMNI_SERVER: isaac-dev.ov.nvidia.com
+    downloadType: download  # In total, download seems to be faster than mounting
+    
     inputs:
-    - dataset:
-        name: {{ input_dataset }}
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedHDF5
+
     outputs:
-    - dataset:
-        name: {{ output_dataset }}
-        path: lerobot
-    command: ["bash"]
-    args: ["-c", |
-      set -euxo pipefail
-      
-      if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
-        mv /usr/share/vulkan /usr/share/vulkan_hidden
-      fi
-      
-      isaaclab_python() { /workspace/isaaclab/isaaclab.sh -p "$@"; }
-      
-      apt-get update && apt-get install -y git ffmpeg libsm6 libxext6
-      
-      git clone https://github.com/isaac-sim/IsaacLabEvalTasks.git /tmp/IsaacLabEvalTasks
-      cd /tmp/IsaacLabEvalTasks
-      sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
-      git submodule init && git submodule update --recursive
-      
-      cd submodules/Isaac-GR00T
-      isaaclab_python -m pip install --upgrade setuptools
-      isaaclab_python -m pip install -e .[base]
-      
-      cd ../..
-      isaaclab_python -m pip install -e source/isaaclab_eval_tasks
-      
-      nvidia-smi
-      
-      DATASET_DIR=/tmp/conversion
-      mkdir -p $DATASET_DIR
-      
-      HDF5_FILE=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
-      cp $HDF5_FILE $DATASET_DIR/{{ task_name }}.hdf5
-      
-      isaaclab_python scripts/convert_hdf5_to_lerobot.py \
-        --task-name {{ task_name }} \
-        --data-root $DATASET_DIR
-      
-      mkdir -p {{output}}/lerobot
-      cp -r $DATASET_DIR/{{ task_name }} {{output}}/lerobot/
-    ]
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-LeRobotDataset
 
+    command: ["bash"] 
+    args: ["/tmp/entry.sh"]
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+
+          set -e
+          set -euxo pipefail
+          # Hide conflicting vulkan files, if needed
+          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
+            mv /usr/share/vulkan /usr/share/vulkan_hidden
+          fi
+
+          # Create function for isaaclab.sh
+          isaaclab_python() {
+            /workspace/isaaclab/isaaclab.sh -p "$@"
+          }
+
+          pwd 
+          cd ..
+
+          apt-get update && apt-get install -y \
+            git \
+            ffmpeg \
+            libsm6 \
+            libxext6
+
+          # Install IsaacLabEvalTasks
+          git clone https://github.com/isaac-sim/IsaacLabEvalTasks.git
+          cd IsaacLabEvalTasks/
+          sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+          git submodule init
+          git submodule update --recursive
+          
+          echo "IsaacLabEvalTasks Cloned successfully ..."
+
+          # Submodule locked gr00t to N1
+          cd submodules/Isaac-GR00T
+          isaaclab_python -m pip install --upgrade setuptools
+          isaaclab_python -m pip install -e .[base]
+          # isaaclab_python -m pip install --no-build-isolation flash-attn==2.7.1.post4
+          export PYTHONPATH=${PYTHONPATH:-}:IsaacLabEvalTasks/submodules/Isaac-GR00T
+
+          echo "Installed Isaac-GR00T"
+
+          # verify gr00t is installed
+          isaaclab_python -c "import gr00t; print('gr00t imported successfully')"
+          
+          echo "Verified Isaac-GR00T"
+
+          # Within IsaacLabEvalTasks directory
+          echo "Installing IsaacLabEvalTasks"
+
+          echo "Changing directory to IsaacLabEvalTasks"
+          
+          cd ../..
+          isaaclab_python -m pip install -e source/isaaclab_eval_tasks
+          echo "Installed IsaacLabEvalTasks"
+          
+          # Display info on the system
+          nvidia-smi
+          
+          # Prepare dataset directory
+          DATASET_DIR=/tmp/dataset_conversion
+          mkdir -p $DATASET_DIR
+          
+          # Find the HDF5 file
+          HDF5_FILE=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
+          echo "Found HDF5 file: $HDF5_FILE"
+          
+          # Create the expected filename for the script
+          cp $HDF5_FILE $DATASET_DIR/nut_pouring_task.hdf5
+          
+          # Run data conversion script with the full path
+          # First try to see what arguments are available
+          isaaclab_python scripts/convert_hdf5_to_lerobot.py --help || true
+          
+          # Run with inferred arguments based on tyro conventions
+          isaaclab_python scripts/convert_hdf5_to_lerobot.py \
+            --task-name nutpouring \
+            --data-root $DATASET_DIR
+          
+          # Copy converted dataset to output
+          mkdir -p {{output}}
+          cp -r $DATASET_DIR/nut_pouring_task {{output}}/
+
+
+# Update default values
 default-values:
+  workflow_name: dataset_conversion_augmented
+  memory: 128Gi
+  storage: 256Gi
+  ngpus: 1
+  ncpus: 32
   platform: rtx6000
-  image: nvcr.io/nvidia/isaac-lab:4.5.0
-  input_dataset: nut-pouring-augmented-hdf5
-  output_dataset: nut-pouring-lerobot
-  task_name: nut_pouring_task
-
+  image_name: nvcr.io/nvidian/isaac-lab:IsaacLab-main-5.1.0

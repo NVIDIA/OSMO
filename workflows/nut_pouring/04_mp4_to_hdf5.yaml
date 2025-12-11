@@ -18,62 +18,94 @@
 # Usage: osmo workflow submit 04_mp4_to_hdf5.yaml --pool default
 
 workflow:
-  name: nut-pouring-mp4-to-hdf5
+  name: {{ workflow_name }}
   timeout:
     exec_timeout: 24h
     queue_timeout: 12h
   resources:
     default:
-      cpu: 16
-      gpu: 1
-      memory: 64Gi
-      storage: 256Gi
+      cpu: {{ ncpus }}
+      gpu: {{ ngpus }}
+      memory: {{ memory }}
+      storage: {{ storage }}
       platform: {{ platform }}
 
   tasks:
-  - name: mp4-to-hdf5
-    image: {{ image }}
+  - name: mp4_to_hdf5_conversion
+    image: {{ image_name }}
     environment:
-      ACCEPT_EULA: "Y"
-      OMNI_KIT_ALLOW_ROOT: "1"
-      NO_NUCLEUS: "Y"
+      ACCEPT_EULA: Y
+      OMNI_KIT_ALLOW_ROOT: 1
+      NO_NUCLEUS: Y
+    credentials:
+      hf_token:
+        HF_TOKEN: HF_TOKEN
+    
     inputs:
-    - dataset:
-        name: {{ original_hdf5_dataset }}
-    - dataset:
-        name: {{ augmented_mp4_dataset }}
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step1-MimicGenerated
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedMP4
+    
     outputs:
-    - dataset:
-        name: {{ output_dataset }}
-        path: hdf5
-    command: ["bash"]
-    args: ["-c", |
-      set -euxo pipefail
-      nvidia-smi
-      
-      cd /workspace/isaaclab
-      INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
-      echo "Reference HDF5: $INPUT_HDF5"
-      
-      mkdir -p {{output}}/hdf5
-      
-      /workspace/isaaclab/_isaac_sim/python.sh scripts/tools/mp4_to_hdf5.py \
-        --input_file $INPUT_HDF5 \
-        --videos_dir {{input:1}} \
-        --output_file {{output}}/hdf5/cosmos_augmented_dataset.hdf5
-      
-      /workspace/isaaclab/_isaac_sim/python.sh -c "
-      import h5py
-      with h5py.File('{{output}}/hdf5/cosmos_augmented_dataset.hdf5', 'r') as f:
-          demos = len([k for k in f['data'].keys() if k.startswith('demo_')])
-          print(f'Total demonstrations: {demos}')
-      "
-    ]
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedHDF5
+    
+    args:
+    - /tmp/entry.sh
+    command:
+    - bash
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+
+          set -e
+          set -euxo pipefail
+          
+          echo "=== System Info ==="
+          nvidia-smi
+          
+          echo "=== Input Locations ==="
+          echo "Original HDF5 (reference): {{input:0}}"
+          echo "Augmented MP4 videos: {{input:1}}"
+          ls -lah {{input:0}}
+          ls -lah {{input:1}}
+          
+          echo "=== Working Directory ==="
+          cd /workspace/isaaclab
+          pwd
+          
+          echo "=== Find original HDF5 file (for structure reference) ==="
+          INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
+          echo "Using reference HDF5: $INPUT_HDF5"
+          
+          echo "=== Convert augmented MP4 back to HDF5 ==="
+          /workspace/isaaclab/_isaac_sim/python.sh scripts/tools/mp4_to_hdf5.py \
+            --input_file $INPUT_HDF5 \
+            --videos_dir {{input:1}} \
+            --output_file {{output}}/cosmos_augmented_dataset.hdf5
+          
+          echo "=== Verify output HDF5 ==="
+          /workspace/isaaclab/_isaac_sim/python.sh << PYTHON_CHECK
+          import h5py
+          with h5py.File("{{output}}/cosmos_augmented_dataset.hdf5", "r") as f:
+              num_demos = len([k for k in f["data"].keys() if k.startswith("demo_")])
+              print(f"Total demonstrations: {num_demos}")
+              demo_0 = f["data/demo_0"]
+              obs_keys = list(demo_0["obs"].keys())
+              print(f"Observation keys: {obs_keys}")
+          PYTHON_CHECK
+          
+          echo "=== Conversion complete ==="
+          ls -lah {{output}}
+          
+          echo "=== MP4 to HDF5 Conversion Complete ==="
+          
+    resource: default
 
 default-values:
+  workflow_name: mp4_to_hdf5_conversion
+  image_name: nvcr.io/nvidian/isaac-lab:IsaacLab-main-5.1.0
+  memory: 64Gi
+  storage: 256Gi
+  ngpus: 1
+  ncpus: 16
   platform: rtx6000
-  image: nvcr.io/nvidia/isaac-lab:4.5.0
-  original_hdf5_dataset: nut-pouring-mimic-generated
-  augmented_mp4_dataset: nut-pouring-cosmos-augmented
-  output_dataset: nut-pouring-augmented-hdf5
 

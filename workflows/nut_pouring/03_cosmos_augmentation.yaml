@@ -18,74 +18,146 @@
 # Usage: osmo workflow submit 03_cosmos_augmentation.yaml --pool default
 
 workflow:
-  name: nut-pouring-cosmos-augmentation
+  name: {{ workflow_name }}
   timeout:
     exec_timeout: 72h
     queue_timeout: 24h
   resources:
     default:
-      cpu: 16
-      gpu: 1
-      memory: 128Gi
-      storage: 256Gi
+      cpu: {{ ncpus }}
+      gpu: {{ ngpus }}
+      memory: {{ memory }}
+      storage: {{ storage }}
       platform: {{ platform }}
 
   tasks:
-  - name: cosmos-augmentation
-    image: {{ image }}
+  - name: cosmos_transfer_augmentation
+    image: {{ image_name }}
     environment:
-      ACCEPT_EULA: "Y"
+      ACCEPT_EULA: Y
+    credentials:
+      hf_token:
+        HF_TOKEN: HF_TOKEN
+    
     inputs:
-    - dataset:
-        name: {{ input_dataset }}
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-MP4Videos
+    
     outputs:
-    - dataset:
-        name: {{ output_dataset }}
-        path: augmented
-    command: ["bash"]
-    args: ["-c", |
-      set -euxo pipefail
-      nvidia-smi
-      
-      cd /workspace
-      mkdir -p {{output}}/augmented
-      mkdir -p /tmp/cosmos_specs
-      
-      for mp4_file in {{input:0}}/*_robot_pov_cam.mp4; do
-          [[ "$mp4_file" == *"_depth.mp4" ]] && continue
-          [ -f "$mp4_file" ] || continue
+    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-CosmosAugmentedMP4
+    
+    args:
+    - /tmp/entry.sh
+    command:
+    - bash
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+
+          set -e
+          set -euxo pipefail
           
-          demo_name=$(basename "$mp4_file" .mp4)
-          depth_file="{{input:0}}/${demo_name}_depth.mp4"
-          spec_file="/tmp/cosmos_specs/${demo_name}_spec.json"
+          echo "=== System Info ==="
+          nvidia-smi
           
-          cp /workspace/assets/robot_example/depth/robot_depth_spec.json "$spec_file"
+          echo "=== Input MP4 Videos Location ==="
+          echo "MP4 videos available at: {{input:0}}"
+          ls -lah {{input:0}}
+          echo "Total MP4 files:"
+          find {{input:0}} -name "*.mp4" | wc -l
           
-          python3 -c "
-      import json
-      with open('$spec_file', 'r') as f: spec = json.load(f)
-      spec['video_path'] = '$mp4_file'
-      if 'depth' in spec: spec['depth']['control_path'] = '$depth_file'
-      with open('$spec_file', 'w') as f: json.dump(spec, f, indent=2)
-      "
+          echo "=== Working Directory ==="
+          cd /workspace
+          pwd
+          ls -lah
           
-          python /workspace/examples/inference.py \
-            --params_file "$spec_file" \
-            --num_gpus 1 || echo "Warning: Failed for $demo_name"
+          echo "=== Preparing output directory ==="
+          mkdir -p {{output}}
           
-          if [ -d "/workspace/outputs" ]; then
-              mkdir -p {{output}}/augmented/${demo_name}
-              cp -r /workspace/outputs/* {{output}}/augmented/${demo_name}/
-              rm -rf /workspace/outputs/*
-          fi
-      done
-      
-      echo "Created $(find {{output}}/augmented -name '*.mp4' | wc -l) augmented videos"
-    ]
+          echo "=== Running Cosmos Transfer 2.5 Augmentation ==="
+          
+          # Process each robot_pov_cam MP4 video
+          echo "Processing MP4 videos from {{input:0}}"
+          
+          # Create a temporary directory for spec files
+          mkdir -p /tmp/cosmos_specs
+          
+          # Loop through all demo MP4 files (RGB videos only, not depth)
+          for mp4_file in {{input:0}}/demo_*_robot_pov_cam.mp4; do
+              # Skip depth videos - only process RGB videos
+              if [[ "$mp4_file" == *"_depth.mp4" ]]; then
+                  continue
+              fi
+              
+              if [ -f "$mp4_file" ]; then
+                  echo "Processing: $mp4_file"
+                  demo_name=$(basename "$mp4_file" .mp4)
+                  echo "Demo name: $demo_name"
+                  
+                  # Find corresponding depth video
+                  depth_file="{{input:0}}/${demo_name}_depth.mp4"
+                  echo "Depth video: $depth_file"
+                  
+                  # Create custom spec file for this demo
+                  # Based on the robot_example spec but with our input video
+                  spec_file="/tmp/cosmos_specs/${demo_name}_spec.json"
+                  
+                  # Copy the example spec and modify it
+                  cp /workspace/assets/robot_example/depth/robot_depth_spec.json "$spec_file"
+                  
+                  # Update the spec file with our video paths using Python
+                  python3 << PYTHON_SPEC
+          import json
+          with open("$spec_file", 'r') as f:
+              spec = json.load(f)
+          
+          # Update paths to use our input videos (RGB and depth)
+          spec['video_path'] = "$mp4_file"
+          
+          # Update depth control path
+          if 'depth' in spec:
+              spec['depth']['control_path'] = "$depth_file"
+          
+          with open("$spec_file", 'w') as f:
+              json.dump(spec, f, indent=2)
+          
+          print(f"Created spec file: $spec_file")
+          print(f"  RGB video: $mp4_file")
+          print(f"  Depth video: $depth_file")
+          PYTHON_SPEC
+                  
+                  # Run Cosmos Transfer 2.5 inference with custom spec
+                  python /workspace/examples/inference.py \
+                    --params_file "$spec_file" \
+                    --num_gpus 1 || echo "Warning: Processing failed for $demo_name"
+                  
+                  # Copy generated videos from Cosmos default output to OSMO output
+                  if [ -d "/workspace/outputs" ]; then
+                      echo "Copying outputs from /workspace/outputs to {{output}}/${demo_name}/"
+                      mkdir -p {{output}}/${demo_name}
+                      cp -r /workspace/outputs/* {{output}}/${demo_name}/ || echo "No outputs found in /workspace/outputs"
+                      # Clean up for next demo
+                      rm -rf /workspace/outputs/*
+                  fi
+                  
+                  echo "Completed: $demo_name"
+              fi
+          done
+          
+          echo "=== Cosmos Transfer 2.5 Augmentation Complete ==="
+          echo "Output directory contents:"
+          ls -lah {{output}}
+          echo "Total output files:"
+          find {{output}} -type f | wc -l
+          echo "Generated videos:"
+          find {{output}} -name "*.mp4" -type f
+          
+    resource: default
 
 default-values:
+  workflow_name: cosmos_transfer_augmentation
+  image_name: nvcr.io/0494750157232081/cosmos-transfer2.5:v1.0.4
+  memory: 128Gi
+  storage: 256Gi
+  ngpus: 1
+  ncpus: 16
   platform: rtx6000
-  image: nvcr.io/nvidia/cosmos-transfer:2.5
-  input_dataset: nut-pouring-mp4-videos
-  output_dataset: nut-pouring-cosmos-augmented
-

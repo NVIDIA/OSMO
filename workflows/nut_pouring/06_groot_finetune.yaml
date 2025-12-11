@@ -20,78 +20,82 @@
 version: 2
 
 workflow:
-  name: nut-pouring-groot-finetune
-  timeout:
-    exec_timeout: 7d
-    queue_timeout: 2d
-  resources:
-    default:
-      cpu: 64
-      gpu: {{ num_gpus }}
-      memory: 512Gi
-      storage: 256Gi
-      platform: {{ platform }}
-
   groups:
   - name: training
     tasks:
-    - name: groot-finetune
-      image: {{ image }}
-      lead: true
+    - args:
+      - /tmp/entry.sh
+      command:
+      - bash
+      files:
+      - path: /tmp/entry.sh
+        contents: |
+          set -ex
+          
+          nvidia-smi
+          echo "Input directory:"
+          ls {{input:0}}/nut_pouring_task/lerobot
+          echo "Output directory: {{output}}"
+          
+          # Disable wandb
+          export WANDB_MODE=disabled
+          
+          # Activate conda environment
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate gr00t
+          conda info --envs
+          
+          # Install torchcodec (if needed)
+          pip install torchcodec || true
+          
+          # Navigate to Isaac-GR00T directory
+          cd /opt/Isaac-GR00T
+          
+          # Set output directory
+          export OUTPUT_DIR={{output}}
+          mkdir -p $OUTPUT_DIR
+          
+          echo "Running GR00T finetuning with single GPU..."
+          
+          # Run training
+          python scripts/gr00t_finetune.py \
+              --dataset-path {{input:0}}/nut_pouring_task/lerobot \
+              --output-dir $OUTPUT_DIR \
+              --data-config fourier_gr1_arms_only \
+              --batch-size 32 \
+              --max-steps 10000 \
+              --num-gpus 1 \
+              --save-steps 1000 \
+              --base-model-path nvidia/GR00T-N1.5-3B \
+              --no-tune-llm \
+              --tune-visual \
+              --tune-projector \
+              --tune-diffusion-model \
+              --no-resume \
+              --dataloader-num-workers 12 \
+              --report-to tensorboard \
+              --embodiment-tag gr1
+      
+      image: {{ groot_image }}
       inputs:
-      - dataset:
-          name: {{ input_dataset }}
+      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-LeRobotDataset
+      lead: true
+      name: master
       outputs:
-      - dataset:
-          name: {{ output_dataset }}
-          path: checkpoints
-      command: ["bash"]
-      args: ["-c", |
-        set -ex
-        nvidia-smi
-        
-        export WANDB_MODE=disabled
-        
-        source /opt/conda/etc/profile.d/conda.sh
-        conda activate gr00t
-        
-        pip install torchcodec || true
-        
-        cd /opt/Isaac-GR00T
-        
-        export OUTPUT_DIR={{output}}/checkpoints
-        mkdir -p $OUTPUT_DIR
-        
-        python scripts/gr00t_finetune.py \
-            --dataset-path {{input:0}}/lerobot \
-            --output-dir $OUTPUT_DIR \
-            --data-config {{ data_config }} \
-            --batch-size {{ batch_size }} \
-            --max-steps {{ max_steps }} \
-            --num-gpus {{ num_gpus }} \
-            --save-steps {{ save_steps }} \
-            --base-model-path {{ base_model }} \
-            --no-tune-llm \
-            --tune-visual \
-            --tune-projector \
-            --tune-diffusion-model \
-            --no-resume \
-            --dataloader-num-workers {{ num_workers }} \
-            --report-to none \
-            --embodiment-tag {{ embodiment_tag }}
-      ]
+      - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-GR00T-Finetuned
+
+  name: {{ workflow_name }}
+  resources:
+    default:
+      cpu: 64
+      gpu: 1
+      memory: 512Gi
+      platform: rtx6000
+      storage: 256Gi
+  timeout:
+    exec_timeout: 7d
+    queue_timeout: 2d
 
 default-values:
-  platform: rtx6000
-  image: nvcr.io/nvidia/isaac-groot:1.5
-  input_dataset: nut-pouring-lerobot
-  output_dataset: nut-pouring-finetuned-model
-  data_config: fourier_gr1_arms_only
-  batch_size: 32
-  max_steps: 10000
-  num_gpus: 1
-  save_steps: 1000
-  base_model: nvidia/GR00T-N1.5-3B
-  num_workers: 12
-  embodiment_tag: gr1
-
+  groot_image: "nvcr.io/nvidian/refarch_groot"
+  workflow_name: groot_finetune_nut_pouring
