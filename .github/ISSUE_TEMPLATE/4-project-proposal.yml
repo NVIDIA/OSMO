@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Project proposal
+description: Propose a new project or significant change.
+title: "New Project: <short sentence describing proposal>"
+labels: ["project-proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a new project! Please fill out the sections below to help the team understand and evaluate your proposal.
+
+  - type: checkboxes
+    attributes:
+      label: Have you read the Project Process docs?
+      description: See the [Project Proposal documentation](https://github.com/NVIDIA/OSMO/projects/README.md)
+      options:
+        - label: Yes, I have read and understood the RFC docs
+          required: true
+
+  - type: textarea
+    attributes:
+      label: Summary
+      description: Short 2-3 sentence summary of project proposal.
+      placeholder: "e.g., Add workflow templating engine..."
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Person in Charge (PIC)
+      description: "GitHub handle of the proposal's PIC."
+      placeholder: "@username or Seeking PIC"
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why should this project be developed?
+      placeholder: Describe the high-level justification.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve?
+      placeholder: Describe the current situation and the issue this project resolves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: prior_art
+    attributes:
+      label: References
+      description: Links to related issues, external documentation, or similar implementations.
+      placeholder: |
+        - Issue #123
+        - https://example.com/related-doc
+    validations:
+      required: false
