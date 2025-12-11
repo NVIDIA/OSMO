@@ -69,19 +69,6 @@ class OptionalParams(TypedDict, total=False):
 class Client(pydantic.BaseModel):
     """
     A storage client that can be used to perform data operations against a remote storage.
-
-    :param str storage_uri: The URI of the remote storage this client will operate against.
-    :param str | None metrics_dir: The path to the metrics output directory.
-    :param bool enable_progress_tracker: Whether to enable progress tracking.
-    :param int logging_level: The logging level for the storage client.
-    :param ExecutorParameters executor_params: The executor parameters for the storage client.
-    :param credentials.DataCredential | None data_credential: Remote storage data credentials.
-    :param cache.CacheConfig | None cache_config: Remote storage cache configuration.
-    :param Dict[str, str] | None headers: Headers to apply to all requests of this client.
-
-    .. note::
-        If no data credential is provided, the client will attempt to resolve it from the
-        file system.
     """
 
     class Config:
@@ -142,9 +129,11 @@ class Client(pydantic.BaseModel):
         Creates a new storage client from given parameters.
 
         .. important::
+
             Either storage_uri or storage_backend must be provided, not both.
 
         .. important::
+
             If data_credential is not provided, it will be resolved from the file system.
 
         :param str | None storage_uri: The storage URI to use for the client.
@@ -544,6 +533,7 @@ class Client(pydantic.BaseModel):
         """
         Uploads data using UploadWorkerInput objects.
 
+        :meta private:
         :param List[UploadWorkerInput] | Generator[UploadWorkerInput, None, None] source:
             A list of UploadWorkerInput objects or a generator of UploadWorkerInput objects.
         :param Dict[str, str] | None extra_headers: Extra headers to add to the request.
@@ -929,6 +919,7 @@ class Client(pydantic.BaseModel):
         Downloads using DownloadWorkerInput objects. This is a low-level API where the
         caller is responsible for providing the DownloadWorkerInput objects.
 
+        :meta private:
         :param List[DownloadWorkerInput] | Generator[DownloadWorkerInput, None, None] source:
             The list or generator of download worker input objects.
 

@@ -125,6 +125,13 @@ class StreamParams:
 class StreamSummary(common.OperationSummary):
     """
     Summary of a stream operation.
+
+    :ivar int size: The size of the fetched data.
+    :ivar int lines: The number of lines in the streamed data. Only set if stream_lines is provided.
+    :ivar datetime.datetime start_time: The start time of the stream operation.
+    :ivar datetime.datetime end_time: The end time of the stream operation.
+    :ivar int retries: The number of retries that were made during the stream operation.
+    :ivar List[str] failures: A list of messages describing failed stream operations.
     """
 
     size: int = pydantic.Field(
