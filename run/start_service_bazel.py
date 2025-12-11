@@ -294,7 +294,7 @@ def _start_core_service():
 
     host_ip = get_host_ip()
     cmd = [
-        'bazel', 'run', '@osmo_workspace//src/service/core:service',
+        'bazel', 'run', '@osmo_workspace//src/service/core:service_binary',
         '--',
         '--host', f'http://{host_ip}:8000',
         '--method=dev',
@@ -316,7 +316,7 @@ def _start_service_worker():
     logger.info('👷 Starting OSMO service worker...')
 
     cmd = [
-        'bazel', 'run', '@osmo_workspace//src/service/worker',
+        'bazel', 'run', '@osmo_workspace//src/service/worker:worker_binary',
         '--',
         '--method=dev',
         '--progress_file', '/tmp/osmo/service/last_progress_worker'
@@ -385,7 +385,8 @@ def _start_delayed_job_monitor():
     logger.info('⏰ Starting OSMO delayed job monitor...')
 
     cmd = [
-        'bazel', 'run', '@osmo_workspace//src/service/delayed_job_monitor',
+        'bazel', 'run',
+        '@osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_binary',
         '--',
         '--method=dev',
         '--progress_file', '/tmp/osmo/service/last_progress_delayed_job_monitor'
@@ -411,7 +412,7 @@ def _start_router_service():
 
     host_ip = get_host_ip()
     cmd = [
-        'bazel', 'run', '@osmo_workspace//src/service/router',
+        'bazel', 'run', '@osmo_workspace//src/service/router:router_binary',
         '--',
         '--host', f'http://{host_ip}:8001',
         '--method=dev'

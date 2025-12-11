@@ -116,7 +116,7 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
         service_type: Either 'listener' or 'worker'
         emoji: Emoji to use in log messages
     """
-    service_name = f'backend_{service_type}'
+    service_name = f'backend_{service_type}_binary'
     display_name = f'Backend {service_type}'
 
     logger.info('%s Starting OSMO %s...', emoji, display_name.lower())
