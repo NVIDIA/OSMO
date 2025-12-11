@@ -17,8 +17,6 @@
 # Step 6: Fine-tune GROOT-N1.5 VLA model on prepared dataset
 # Usage: osmo workflow submit 06_groot_finetune.yaml --pool default
 
-version: 2
-
 workflow:
   groups:
   - name: training
@@ -28,35 +26,55 @@ workflow:
       command:
       - bash
       files:
-      - path: /tmp/entry.sh
-        contents: |
+      - contents: |-
           set -ex
-          
+
           nvidia-smi
-          echo "Input directory:"
-          ls {{input:0}}/nut_pouring_task/lerobot
-          echo "Output directory: {{output}}"
-          
-          # Disable wandb
-          export WANDB_MODE=disabled
-          
-          # Activate conda environment
-          source /opt/conda/etc/profile.d/conda.sh
-          conda activate gr00t
-          conda info --envs
-          
+          # echo "Input directory:"
+          # ls {{input:0}}/nut_pouring_task/lerobot
+          # echo "Output directory: {{output}}"
+
+          # Install Dependencies
+          export DEBIAN_FRONTEND=noninteractive
+          export TZ=America/Los_Angeles
+          apt update && \
+              apt install -y tzdata && \
+              ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime && \
+              apt install -y netcat dnsutils && \
+              apt-get update && \
+              apt-get install -y libgl1-mesa-glx git libvulkan-dev \
+              zip unzip wget curl git git-lfs build-essential cmake \
+              vim less sudo htop ca-certificates man tmux ffmpeg tensorrt \
+              libglib2.0-0 libsm6 libxext6 libxrender-dev
+
+          git clone https://github.com/NVIDIA/Isaac-GR00T.git && \
+            cd Isaac-GR00T && \
+            git checkout 796ca8d87360913c47e9f75e17c11d63f7805048
+
+          pip install --upgrade setuptools && \
+            pip install gpustat wandb==0.19.0 && \
+            pip install -e .[base] && \
+            pip install jupyterlab==4.0.10
+
+          pip uninstall -y transformer-engine && \
+            pip install flash_attn==2.7.1.post4 -U --force-reinstall && \
+            pip uninstall -y opencv-python opencv-python-headless || true && \
+            rm -rf /usr/local/lib/python3.10/dist-packages/cv2 || true && \
+            pip install opencv-python==4.8.0.74 && \
+            pip install --force-reinstall torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 numpy==1.26.4
+
+          pip install -e . --no-deps && \
+            pip install accelerate>=0.26.0
+
           # Install torchcodec (if needed)
           pip install torchcodec || true
-          
-          # Navigate to Isaac-GR00T directory
-          cd /opt/Isaac-GR00T
-          
+
           # Set output directory
           export OUTPUT_DIR={{output}}
           mkdir -p $OUTPUT_DIR
-          
+
           echo "Running GR00T finetuning with single GPU..."
-          
+
           # Run training
           python scripts/gr00t_finetune.py \
               --dataset-path {{input:0}}/nut_pouring_task/lerobot \
@@ -75,16 +93,15 @@ workflow:
               --dataloader-num-workers 12 \
               --report-to tensorboard \
               --embodiment-tag gr1
-      
-      image: {{ groot_image }}
+        path: /tmp/entry.sh
+      image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
       inputs:
       - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-LeRobotDataset
       lead: true
       name: master
       outputs:
       - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-GR00T-Finetuned
-
-  name: {{ workflow_name }}
+  name: groot_finetune_nut_pouring
   resources:
     default:
       cpu: 64
@@ -95,7 +112,3 @@ workflow:
   timeout:
     exec_timeout: 7d
     queue_timeout: 2d
-
-default-values:
-  groot_image: "nvcr.io/nvidian/refarch_groot"
-  workflow_name: groot_finetune_nut_pouring
