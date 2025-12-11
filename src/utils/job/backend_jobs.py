@@ -748,7 +748,8 @@ class BackendSynchronizeBackendTest(backend_job_defs.BackendSynchronizeBackendTe
 
         for test_name, test_config in self.test_configs.items():
             try:
-                resource_name = f'{self.backend}-{test_name}'.lower()
+
+                resource_name = f'{test_name}'.lower()
                 configmap_name = f'{resource_name}-config'
 
                 # Load and render CronJob spec from template.
