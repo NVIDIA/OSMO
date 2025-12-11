@@ -184,10 +184,6 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
       return "grid grid-cols-[auto_0fr_1fr]";
     } else if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
-    } else if (showWF) {
-      return "grid grid-cols-[1fr_auto]";
-    } else if (taskPinned && selectedTask) {
-      return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
@@ -390,7 +386,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             </div>
           </div>
         )}
-        <div className={`h-full ${localView === ViewType.SingleTask ? "w-0" : "w-full"} overflow-x-auto`}>
+        <div className={`h-full ${localView === ViewType.SingleTask ? "w-0" : "w-full grow"} overflow-x-auto`}>
           <div className={`h-full w-full ${localView === ViewType.Graph ? "block p-1" : "hidden"}`}>
             {selectedWorkflow.data?.groups?.length > 0 ? (
               <ReactFlowProvider>
