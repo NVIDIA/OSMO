@@ -21,6 +21,9 @@ import { useRouter } from "next/navigation";
 
 import { env } from "~/env.mjs";
 import { AuthClaimsSchema, TokenCheckSchema, TokenRefreshSchema, type AuthClaims } from "~/models/auth-model";
+import { useRuntimeEnv } from "~/runtime-env";
+
+import { PageError } from "./PageError";
 
 const AuthContext = createContext<Auth | null>(null);
 
@@ -163,21 +166,19 @@ class Auth {
     try {
       const res = await fetch("/auth/check_token", {
         headers: osmoHeaders,
+        cache: "no-store",
       });
       checkTokenResponse = await res.json();
     } catch (error: unknown) {
-      console.warn(`Failed to check token: ${error instanceof Error ? error.message : "Unknown error"}`);
       if (env.NEXT_PUBLIC_OSMO_ENV === "production") {
-        window.location.reload();
+        throw new Error(`Failed to check token: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
       return;
     }
 
     const checkToken = TokenCheckSchema.safeParse(checkTokenResponse);
-
     if (!checkToken.success) {
-      console.warn(`Failed to parse initial refresh response: ${checkToken.error.message}`);
-      return;
+      throw new Error(`Failed to parse initial refresh response: ${checkToken.error.message}`);
     }
 
     if (!checkToken.data.isFailure) {
@@ -186,10 +187,7 @@ class Auth {
     }
 
     if (env.NEXT_PUBLIC_OSMO_ENV === "production") {
-      // If token check or refresh fails in production, reload the page to
-      // force the user back through keycloak
-      window.location.reload();
-      return;
+      throw new Error("Token check failed");
     }
 
     // ENV is only "local-against-production"
@@ -202,15 +200,13 @@ class Auth {
       });
       refreshTokenResponse = await res.json();
     } catch (error: unknown) {
-      console.warn(`Failed to refresh token: ${error instanceof Error ? error.message : "Unknown error"}`);
-      return;
+      throw new Error(`Failed to refresh token: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 
     const refreshToken = TokenRefreshSchema.safeParse(refreshTokenResponse);
 
     if (!refreshToken.success) {
-      console.warn(`Failed to parse refresh token response: ${refreshToken.error.message}`);
-      return;
+      throw new Error(`Failed to parse refresh token response: ${refreshToken.error.message}`);
     }
 
     if (refreshToken.data.isFailure) {
@@ -257,20 +253,52 @@ class Auth {
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const auth = useMemo(() => new Auth(), []);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [isError, setIsError] = useState(false);
+  const runtimeEnv = useRuntimeEnv();
   const router = useRouter();
+
   useEffect(() => {
     auth.setRouterPush(router);
   }, [auth, router]);
 
   useEffect(() => {
-    void auth.login().then(() => {
-      setIsLoading(false);
-    });
+    setIsLoading(true);
+    setIsError(false);
+
+    void auth
+      .login()
+      .then(() => {
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        console.warn(`Failed to login: ${error instanceof Error ? error.message : "Unknown error"}`);
+        setIsLoading(false);
+        setIsError(true);
+      });
   }, [auth]);
 
   if (isLoading) {
     return null;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <PageError
+          title="Authentication failed"
+          errorMessage="This may be related to an access issue. Contact support for further assistance."
+        >
+          <a
+            href={`${runtimeEnv.DOCS_BASE_URL.replace("user_guide", "deployment_guide")}getting_started/deploy_service.html#step-2-configure-keycloak`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            More Info
+          </a>
+        </PageError>
+      </div>
+    );
   }
 
   return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
