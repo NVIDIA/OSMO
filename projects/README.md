@@ -24,9 +24,9 @@ This directory contains the **projects process** for proposing, designing, and i
 
 The projects process consists of three key artifacts:
 
-1. **Project proposal** (GitHub Issue) – A structured issue that outlines a new project or major change.
-2. **Project design** (Markdown document) – A detailed technical design document for accepted proposals.
-3. **Projects project board** (GitHub Project) – A tracking board that provides visibility into proposal status and progress.
+1. **Project proposal** ([GitHub Issue](../.github/ISSUE_TEMPLATE/4-project-proposal.yml)) – A structured issue that outlines a new project or major change.
+2. **Project design** ([Markdown document](./_project-design-template.md)) – A detailed technical design document for accepted proposals.
+3. **Projects project board** ([GitHub Project](https://github.com/orgs/NVIDIA/projects/157)) – A tracking board that provides visibility into proposal status and progress.
 
 ## When to Use a Project Proposal
 
