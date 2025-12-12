@@ -61,7 +61,7 @@ const getColorMapping = (color: (typeof Colors)[keyof typeof Colors], reverseCol
       if (reverseColors) {
         return "bg-[var(--color-error-bg-reversed)] text-[var(--color-error-text-reversed)] hover:bg-[var(--color-error-bg-reversed)] hover:text-[var(--color-error-text-reversed)] border-[var(--color-error-bg-reversed)]";
       } else {
-        return "bg-[var(--color-error-bg)] text-[var(--color-error-text)] hover:bg-[var(--color-error-bg)] hover:text-[var(--color-error-text)] border-[var(--color-error-text)";
+        return "bg-[var(--color-error-bg)] text-[var(--color-error-text)] hover:bg-[var(--color-error-bg)] hover:text-[var(--color-error-text)] border-[var(--color-error-text)]";
       }
     case Colors.pending:
       return "bg-[var(--color-pending-bg-reversed)] text-[var(--color-pending-text)] hover:bg-[var(--color-pending-bg)] hover:text-[var(--color-pending-text)] border-[var(--color-pending-text)]";
@@ -93,11 +93,27 @@ export const Tag = ({
   ...props
 }: TagProps & HTMLAttributes<HTMLDivElement>) => {
   const colorMapping = getColorMapping(color, reverseColors);
-  const sizeMapping = `text-${size} rounded-${rounded ? "full" : "md"}`;
+  const sizeClass = (() => {
+    switch (size) {
+      case TagSizes.xxs:
+      case TagSizes.xs:
+        return "text-xs";
+      case TagSizes.sm:
+        return "text-sm";
+      case TagSizes.base:
+        return "text-base";
+      case TagSizes.lg:
+        return "text-lg";
+      default:
+        checkExhaustive(size);
+        return "";
+    }
+  })();
+  const roundedClass = rounded ? "rounded-full" : "rounded-md";
 
   return (
     <div
-      className={`${colorMapping} border-1 text-center flex flex-row items-center gap-1 ${sizeMapping} py-0 px-2 ${className}`}
+      className={`${colorMapping} border-1 text-center flex flex-row items-center gap-1 ${sizeClass} ${roundedClass} py-0 px-2 ${className}`}
       {...props}
     >
       {props.children}
@@ -109,7 +125,7 @@ export const DatasetTag = ({ isCollection, ...props }: { isCollection: boolean }
   return (
     <Tag
       color={isCollection ? Colors.collection : Colors.dataset}
-      className="break-all"
+      className="inline-block"
       {...props}
     >
       {props.children}

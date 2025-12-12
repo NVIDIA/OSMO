@@ -21,6 +21,14 @@ export const PoolActions = ({ name }: { name: string }) => {
   return (
     <>
       <Link
+        href={`/resources?allPools=false&pools=${name}`}
+        className="btn btn-link no-underline"
+        role="listitem"
+      >
+        <OutlinedIcon name="cloud" />
+        View Resources
+      </Link>
+      <Link
         href={`/workflows?allPools=false&pools=${name}`}
         className="btn btn-link no-underline"
         role="listitem"
@@ -51,14 +59,6 @@ export const PoolActions = ({ name }: { name: string }) => {
       >
         <OutlinedIcon name="task" />
         All Tasks
-      </Link>
-      <Link
-        href={`/resources?allPools=false&pools=${name}`}
-        className="btn btn-link no-underline"
-        role="listitem"
-      >
-        <OutlinedIcon name="cloud" />
-        View Resources
       </Link>
     </>
   );

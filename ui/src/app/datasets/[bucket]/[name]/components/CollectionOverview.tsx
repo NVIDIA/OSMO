@@ -15,11 +15,12 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useSearchParams } from "next/navigation";
 
-import { DatasetTag } from "~/components/Tag";
+import PageHeader from "~/components/PageHeader";
+import { Colors, Tag } from "~/components/Tag";
 import { type DataInfoResponse, type DatasetTypesSchema } from "~/models";
 
 import { CollectionDetails } from "./CollectionDetails";
@@ -37,7 +38,6 @@ export default function CollectionOverview({
   const searchParams = useSearchParams();
   const toolParamUpdater = useToolParamUpdater();
   const [tool, setTool] = useState<ToolType | undefined>(undefined);
-  const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTool(searchParams.get(PARAM_KEYS.tool) as ToolType | undefined);
@@ -45,17 +45,13 @@ export default function CollectionOverview({
 
   return (
     <>
-      <div
-        className="page-header mb-3 flex items-center text-center gap-3"
-        ref={headerRef}
-      >
-        <DatasetTag isCollection={dataset.type === "COLLECTION"}>{dataset.type}</DatasetTag>
-        <h1>
+      <PageHeader>
+        <h2 className="grow">
           {dataset.bucket}/{dataset.name}
-        </h1>
-        <div className="w-25" />
-      </div>
-      <div className="grid h-full w-full gap-3 grid-cols-[1fr_auto] relative px-3">
+        </h2>
+        <Tag color={Colors.collection}>Collection</Tag>
+      </PageHeader>
+      <div className="grid h-full w-full grid-cols-[1fr_auto] relative">
         <CollectionVersionsTable collection={dataset} />
         <CollectionDetails dataset={dataset} />
       </div>

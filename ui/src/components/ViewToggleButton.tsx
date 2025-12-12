@@ -20,11 +20,11 @@ interface ViewToggleButtonProps extends React.InputHTMLAttributes<HTMLInputEleme
 export const ViewToggleButton = ({ checked, onChange, children, ...props }: ViewToggleButtonProps) => {
   return (
     <label
-      className={`flex items-center gap-1 btn ${checked ? "btn-primary" : "btn-secondary"} focus-within:outline-2`}
+      className={`flex items-center gap-1 btn ${checked ? "btn-primary z-10" : "btn-tertiary border-1 border-border"} rounded-none`}
     >
       <input
         type="radio"
-        className="appearance-none w-0 h-0"
+        className="appearance-none w-0 h-0 mr-[-0.25rem]"
         checked={checked}
         onChange={onChange}
         {...props}

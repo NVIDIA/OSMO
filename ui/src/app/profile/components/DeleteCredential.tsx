@@ -54,7 +54,7 @@ export const DeleteCredential = ({ credential, onUpdate }: { credential: string;
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-global p-global">
         <p>
           Are you sure you want to delete the credential <strong>{credential}</strong>?
         </p>

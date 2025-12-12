@@ -36,12 +36,12 @@ export const HomepageHero = () => {
       </>
       <div className="bg-gradient-to-r from-black/75 to-black/25 text-white relative p-4 lg:px-16 lg:py-6">
         <div className="flex flex-col gap-4 justify-start">
-          <h1>Welcome to {env.NEXT_PUBLIC_APP_NAME}</h1>
+          <h1 id="welcome-to-osmo">Welcome to {env.NEXT_PUBLIC_APP_NAME}</h1>
           <p>
             Run your workflows seamlessly on any cloud environment including AWS, Azure, GCP, NVIDIA Omniverse Cloud and
             On-premise Kubernetes clusters
           </p>
-          <ul>
+          <ul aria-labelledby="welcome-to-osmo">
             <li>Build a Data factory to manage your synthetic and real data</li>
             <li>Train Deep Neural Networks with experiment tracking</li>
             <li>Evaluate your models and publish the results</li>

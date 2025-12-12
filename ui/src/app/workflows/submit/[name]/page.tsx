@@ -16,8 +16,8 @@
 "use client";
 
 import { Container } from "~/components/Container";
-import { GenericHeader } from "~/components/Header";
 import { PageError } from "~/components/PageError";
+import PageHeader from "~/components/PageHeader";
 import { Spinner } from "~/components/Spinner";
 import type { WorkflowSlugParams } from "~/models";
 import { api } from "~/trpc/react";
@@ -46,38 +46,31 @@ const WorkflowsSubmitPage = ({ params }: WorkflowSlugParams) => {
     use_template: false,
   });
 
-  if (templatedSpecLoading || renderedSpecLoading) {
-    return (
-      <Container className="h-full items-center justify-center">
-        <Spinner
-          description="Loading Spec..."
-          size="large"
-        />
-      </Container>
-    );
-  }
-
-  if (templatedSpecError ?? renderedSpecError) {
-    return (
-      <PageError
-        className="h-screen"
-        title="Failed to load workflow spec"
-        errorMessage={templatedSpecError?.message ?? renderedSpecError?.message}
-        icon="error_outline"
-      />
-    );
-  }
-
   return (
     <>
-      <GenericHeader
-        rootSegment="workflows"
-        tailSegment={["submit", workflowName]}
-      />
-      <WorkflowsSubmit
-        placeholderFile={templatedSpec ?? mockCreatedWorkflowFile}
-        renderedSpec={renderedSpec ?? mockCreatedWorkflowFile}
-      />
+      <PageHeader>
+        <h2 className="grow">{workflowName}</h2>
+      </PageHeader>
+      {templatedSpecLoading || renderedSpecLoading ? (
+        <Container className="h-full w-full items-center justify-center">
+          <Spinner
+            description="Loading Spec..."
+            size="large"
+          />
+        </Container>
+      ) : (templatedSpecError ?? renderedSpecError) ? (
+        <PageError
+          className="h-full w-full"
+          title="Failed to load workflow spec"
+          errorMessage={templatedSpecError?.message ?? renderedSpecError?.message}
+          icon="error_outline"
+        />
+      ) : (
+        <WorkflowsSubmit
+          placeholderFile={templatedSpec ?? mockCreatedWorkflowFile}
+          renderedSpec={renderedSpec ?? mockCreatedWorkflowFile}
+        />
+      )}
     </>
   );
 };
