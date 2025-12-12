@@ -93,6 +93,7 @@ workflow:
 
                   # Copy the example spec and modify it
                   cp /workspace/cosmos-transfer2.5/assets/robot_example/depth/robot_depth_spec.json "$spec_file"
+                  cp /workspace/cosmos-transfer2.5/assets/robot_example/robot_prompt.txt /tmp/robot_prompt.txt
 
                   # Update the spec file with our video paths using Python
                   python3 << PYTHON_SPEC
@@ -117,16 +118,15 @@ workflow:
 
                   # Run Cosmos Transfer 2.5 inference with custom spec
                   python /workspace/cosmos-transfer2.5/examples/inference.py \
-                    --params_file "$spec_file" \
-                    --num_gpus 1 || echo "Warning: Processing failed for $demo_name"
+                    -i "$spec_file" \
+                    -o /workspace/cosmos-transfer2.5/outputs \
+                    || echo "Warning: Processing failed for $demo_name"
 
                   # Copy generated videos from Cosmos default output to OSMO output
                   if [ -d "/workspace/cosmos-transfer2.5/outputs" ]; then
                       echo "Copying outputs from /workspace/cosmos-transfer2.5/outputs to {{output}}/${demo_name}/"
                       mkdir -p {{output}}/${demo_name}
                       cp -r /workspace/cosmos-transfer2.5/outputs/* {{output}}/${demo_name}/ || echo "No outputs found in /workspace/cosmos-transfer2.5/outputs"
-                      # Clean up for next demo
-                      rm -rf /workspace/cosmos-transfer2.5/outputs/*
                   fi
 
                   echo "Completed: $demo_name"
@@ -154,8 +154,10 @@ workflow:
       cpu: 30
       gpu: 1
       memory: 128Gi
-      platform: rtx6000
+      # platform: rtx6000
+      platform: ovx-a40
       storage: 256Gi
   timeout:
     exec_timeout: 3d
     queue_timeout: 1d
+
