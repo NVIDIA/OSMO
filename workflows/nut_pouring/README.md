@@ -18,27 +18,49 @@ SPDX-License-Identifier: Apache-2.0
 
 # Nut Pouring: End-to-End VLA Fine-tuning Pipeline
 
-End-to-end data pipeline for fine-tuning GROOT-N1.5 Vision-Language-Action model using the Nut-Pouring task on GR1 humanoid robot.
+## Overview
 
-## Pipeline Overview
+End-to-end (E2E) pipeline implementation is essential for developers seeking to utilize collected teleoperation (Teleop) data to train modern robotic policies. This workflow presents a robust, six-step data preparation and augmentation pipeline designed to transform raw Teleop data into a training-ready format for the powerful **GROOT-N1.5 Vision-Language-Action (VLA)** model, leveraging **NVIDIA OSMO** for workflow orchestration.
+
+Using the **Nut-Pouring Task Dataset**—a multi-step industrial manipulation task—as a concrete example, we showcase the entire data lifecycle necessary to effectively leverage a foundation VLA model. The critical data pipeline steps demonstrated are:
+
+- **MimicGen** - Synthetic demonstration generation
+- **Data Format Conversion** - HDF5 ↔ MP4 transformations
+- **Cosmos Transfer** - Visual augmentation for sim-to-real
+- **LeRobot Format Conversion** - Training-ready dataset preparation
+
+The pipeline culminates in a successful GROOT-N1.5 fine-tuning run, validating its ability to prepare data for this complex, cross-embodiment architecture. This provides a clear, actionable roadmap for constructing reliable E2E data pipelines using NVIDIA OSMO, allowing rapid fine-tuning of state-of-the-art VLA models from collected Teleop data.
+
+## Data Flow
 
 ```
-Teleop Data → MimicGen → HDF5 → MP4 → Cosmos Augmentation → HDF5 → LeRobot → GROOT Fine-tuning
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   Teleop     │    │   Synthetic  │    │   Augmented  │    │   LeRobot    │
+│    HDF5      │───▶│   Demos      │───▶│    Videos    │───▶│   Dataset    │
+│              │    │   (HDF5)     │    │   (MP4)      │    │   (Parquet)  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+                           │                   │                   │
+                           │                   │                   │
+                     MimicGen            Cosmos Transfer      GROOT Training
+                     (100x demos)        (Sim-to-Real)        (Fine-tune)
 ```
 
-| Step | Workflow | Description | 
-|------|----------|-------------|
-| 1 | `01_mimic_generation.yaml` | Generate synthetic demos from teleoperation data |
-| 2 | `02_hdf5_to_mp4.yaml` | Extract camera observations to MP4 format |
-| 3 | `03_cosmos_augmentation.yaml` | Apply Cosmos Transfer 2.5 for visual augmentation |
-| 4 | `04_mp4_to_hdf5.yaml` | Merge augmented videos back to HDF5 |
-| 5 | `05_lerobot_conversion.yaml` | Convert to LeRobot dataset format |
-| 6 | `06_groot_finetune.yaml` | Fine-tune GROOT-N1.5-3B model |
+## Pipeline Steps
+
+| Step | Workflow | Description | Input | Output |
+|------|----------|-------------|-------|--------|
+| 1 | `01_mimic_generation.yaml` | Generate synthetic demos from teleoperation data | Teleop HDF5 | Augmented HDF5 |
+| 2 | `02_hdf5_to_mp4.yaml` | Extract camera observations to MP4 format | HDF5 | MP4 videos |
+| 3 | `03_cosmos_augmentation.yaml` | Apply Cosmos Transfer 2.5 for visual augmentation | MP4 | Augmented MP4 |
+| 4 | `04_mp4_to_hdf5.yaml` | Merge augmented videos back to HDF5 | MP4 | HDF5 |
+| 5 | `05_lerobot_conversion.yaml` | Convert to LeRobot dataset format | HDF5 | LeRobot Dataset |
+| 6 | `06_groot_finetune.yaml` | Fine-tune GROOT-N1.5-3B model | LeRobot Dataset | Fine-tuned Model |
 
 ## Prerequisites
 
 - OSMO CLI installed and authenticated
 - Access to GPU pool (RTX 6000 recommended)
+- NGC API key for GROOT model access
 
 ## Running the Pipeline
 
@@ -81,10 +103,9 @@ osmo workflow submit 06_groot_finetune.yaml --pool default \
   --set batch_size=64
 ```
 
-## Key Components
+## References
 
-- **MimicGen**: Isaac Lab's data augmentation framework for generating synthetic demonstrations
-- **Cosmos Transfer 2.5**: Depth-conditioned video generation for sim-to-real visual augmentation
-- **LeRobot**: Hugging Face dataset format for robot learning
-- **GROOT-N1.5**: NVIDIA's Vision-Language-Action foundation model
-
+- [GROOT-N1.5 Documentation](https://developer.nvidia.com/groot)
+- [NVIDIA OSMO](https://developer.nvidia.com/osmo)
+- [Cosmos Transfer](https://developer.nvidia.com/cosmos)
+- [LeRobot](https://huggingface.co/lerobot)
