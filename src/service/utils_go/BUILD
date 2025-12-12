@@ -13,21 +13,3 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "data",
-    srcs = [
-        "data.go",
-        "input_output.go",
-        "storage_backends.go"
-        ],
-    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/data",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//src/runtime/pkg/common:common",
-        "//src/runtime/pkg/metrics",
-        "//src/runtime/pkg/osmo_errors:osmo_errors",
-    ]
-)

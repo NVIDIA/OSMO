@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"strings"
 
-	"go.corp.nvidia.com/osmo/pkg/osmo_errors"
+	"go.corp.nvidia.com/osmo/runtime/pkg/osmo_errors"
 )
 
 type StorageBackendType string

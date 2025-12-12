@@ -24,7 +24,7 @@ gazelle(name = "gazelle")
 go_library(
     name = "user",
     srcs = ["user.go"],
-    importpath = "go.corp.nvidia.com/osmo/cmd/user",
+    importpath = "go.corp.nvidia.com/osmo/runtime/cmd/user",
     visibility = ["//visibility:private"],
     deps = [
         "//src/runtime/pkg/args:exec_args",
