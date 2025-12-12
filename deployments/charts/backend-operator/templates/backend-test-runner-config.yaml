@@ -158,6 +158,7 @@ data:
               initContainers:
                 - name: config-validator
                   image: {{ .Values.backendTestRunner.podTemplate.initContainer.image | quote }}
+                  imagePullPolicy: {{ .Values.backendTestRunner.podTemplate.initContainer.imagePullPolicy }}
                   command: ["/bin/sh"]
                   args:
                     - -c
