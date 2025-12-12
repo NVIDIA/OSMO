@@ -21,23 +21,14 @@ import { createContext, useContext, type ReactNode } from "react";
 export interface RuntimeEnv {
   DOCS_BASE_URL: string;
   CLI_INSTALL_SCRIPT_URL: string;
+  PORT_FORWARD_ENABLED: boolean;
 }
 
 const RuntimeEnvContext = createContext<RuntimeEnv | null>(null);
 
 // Client component wrapper for the provider
-export function RuntimeEnvProvider({
-  children,
-  value: envValue
-}: {
-  children: ReactNode;
-  value: RuntimeEnv;
-}) {
-  return (
-    <RuntimeEnvContext.Provider value={envValue}>
-      {children}
-    </RuntimeEnvContext.Provider>
-  );
+export function RuntimeEnvProvider({ children, value: envValue }: { children: ReactNode; value: RuntimeEnv }) {
+  return <RuntimeEnvContext.Provider value={envValue}>{children}</RuntimeEnvContext.Provider>;
 }
 
 // Export a proper hook instead of property getters

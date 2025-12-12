@@ -19,7 +19,7 @@ import Link from "next/link";
 
 import { OutlinedIcon } from "~/components/Icon";
 import { type WorkflowResponse } from "~/models";
-import { api } from "~/trpc/react";
+import { useRuntimeEnv } from "~/runtime-env";
 
 import { ToolType, type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
@@ -32,12 +32,8 @@ export default function WorkflowActions({
   className?: string;
   updateUrl: (params: ToolParamUpdaterProps) => void;
 }) {
+  const runtimeEnv = useRuntimeEnv();
   const [submitUrl, setSubmitUrl] = useState<string>("");
-
-  const { data: webServerEnabled } = api.router.enabled.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-  });
 
   useEffect(() => {
     setSubmitUrl(
@@ -171,7 +167,7 @@ export default function WorkflowActions({
               <OutlinedIcon name="keyboard_alt" />
               Shell
             </button>
-            {webServerEnabled && (
+            {runtimeEnv.PORT_FORWARD_ENABLED && (
               <button
                 className="btn btn-action"
                 onClick={() => updateUrl({ tool: ToolType.PortForwarding })}

@@ -329,6 +329,7 @@ Create the following values files for the minimal deployment:
         # hostname: <your-domain>
 
         apiHostname: osmo-service.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
+        portForwardEnabled: false
 
         ingress:
           enabled: false  # Set to true if you want to enable ingress for external access
