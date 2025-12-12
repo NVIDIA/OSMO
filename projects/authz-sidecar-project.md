@@ -40,11 +40,9 @@ The Authorization Sidecar project implements a high-performance Golang gRPC serv
 
 Currently, authorization is implemented as Python ASGI middleware (`AccessControlMiddleware`) embedded in each service. This approach has several limitations:
 
-1. **Duplicated Logic**: Authorization code repeated across multiple Python services
-2. **Performance Overhead**: Python vs Go
-3. **Limited Caching**: No role cache, leading to redundant database queries
-4. **Difficult to Audit**: Authorization decisions scattered across multiple service logs
-5. **Tight Coupling**: Authorization logic intertwined with business logic
+1. **Performance Overhead**: Python vs Go
+2. **Limited Caching**: No role cache, leading to redundant database queries
+4. **Tight Coupling**: Authorization logic intertwined with service logic
 
 ## Use Cases
 
