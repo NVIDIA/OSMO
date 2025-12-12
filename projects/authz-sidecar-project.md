@@ -18,8 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 ---
 title: "Authorization Sidecar (authz_sidecar)"
-author: "RyaliNV"
-pic: "RyaliNV"
+author: "@RyaliNvidia"
+pic: "@RyaliNvidia"
 related_issues: []
 ---
 
