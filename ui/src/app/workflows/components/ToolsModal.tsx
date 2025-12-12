@@ -138,7 +138,9 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
       const newUrl = new URL(url.origin + url.pathname);
       newUrl.search = params.toString();
 
-      return newUrl.toString();
+      // Remove the origin from the URL. Use the absolute path to support when
+      // the UI is served from a different host than the API hostname.
+      return newUrl.toString().substring(newUrl.origin.length);
     }
     return undefined;
   }, [
