@@ -531,6 +531,10 @@ backendTestRunner:
       ##
       image: "ubuntu:22.04"
 
+      ## Image pull policy for init container
+      ##
+      imagePullPolicy: "IfNotPresent"
+
       ## Resource limits and requests for init container
       ##
       resources:
