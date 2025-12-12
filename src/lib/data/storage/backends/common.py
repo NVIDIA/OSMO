@@ -241,3 +241,17 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
         Returns a factory for creating storage clients.
         """
         pass
+
+    @property
+    def supports_environment_auth(self) -> bool:
+        """
+        Returns whether this storage backend supports environment-based authentication.
+
+        When True, the backend can authenticate without explicit access keys,
+        using credentials from the runtime environment (e.g., managed identities,
+        service account tokens, or credential chains).
+
+        Returns:
+            bool: True if environment-based auth is supported, False otherwise.
+        """
+        return False

@@ -501,6 +501,8 @@ class PostgresConnector:
     def encrypt_dict(self, input_dict: Dict, user: str) -> Dict:
         result = {}
         for key, value in input_dict.items():
+            if value is None:
+                continue
             encrypted = self.secret_manager.encrypt(value, user)
             result[key] = encrypted.value
         return result
@@ -1210,6 +1212,33 @@ class PostgresConnector:
             self.execute_commit_command(cmd, (new_encrypted,))
         return func
 
+    def _get_bucket_credential(
+        self,
+        bucket: 'BucketConfig',
+        bucket_info: storage.StorageBackend,
+    ) -> credentials.DecryptedDataCredential | None:
+        """
+        Get credential for a bucket based on its configuration.
+
+        Returns a DecryptedDataCredential if the bucket has a default credential
+        or supports environment-based authentication, otherwise returns None.
+        """
+        if bucket.default_credential:
+            return credentials.DecryptedDataCredential(
+                region=bucket.region,
+                access_key_id=bucket.default_credential.access_key_id,
+                access_key=bucket.default_credential.get_access_key_value(),
+                endpoint=bucket_info.profile
+            )
+        if bucket_info.supports_environment_auth:
+            return credentials.DecryptedDataCredential(
+                region=bucket.region,
+                access_key_id=None,
+                access_key=None,
+                endpoint=bucket_info.profile
+            )
+        return None
+
     def get_data_cred(self, user: str, profile: str) -> credentials.DecryptedDataCredential:
         """ Fetch data credentials by profile. """
         select_data_cmd = PostgresSelectCommand(
@@ -1219,22 +1248,18 @@ class PostgresConnector:
         row = self.execute_fetch_command(*select_data_cmd.get_args())
         if row:
             return credentials.DecryptedDataCredential(**self.decrypt_credential(row[0]))
-        else:
-            # Check default bucket creds
-            for bucket in self.get_dataset_configs().buckets.values():
-                bucket_info = storage.construct_storage_backend(bucket.dataset_path)
-                if bucket_info.profile == profile:
-                    if bucket.default_credential:
-                        return credentials.DecryptedDataCredential(
-                            region=bucket.region,
-                            access_key_id=bucket.default_credential.access_key_id,
-                            access_key=bucket.default_credential.get_access_key_value(),
-                            endpoint=bucket_info.profile
-                        )
-                    break
 
-            raise osmo_errors.OSMOCredentialError(
-                f'Could not find {profile} credential for user {user}.')
+        # Check bucket credentials
+        for bucket in self.get_dataset_configs().buckets.values():
+            bucket_info = storage.construct_storage_backend(bucket.dataset_path)
+            if bucket_info.profile == profile:
+                cred = self._get_bucket_credential(bucket, bucket_info)
+                if cred:
+                    return cred
+                break
+
+        raise osmo_errors.OSMOCredentialError(
+            f'Could not find {profile} credential for user {user}.')
 
     def get_all_data_creds(self, user: str) -> Dict[str, credentials.DecryptedDataCredential]:
         """ Fetch all data credentials for user. """
@@ -1251,13 +1276,10 @@ class PostgresConnector:
         # Add default bucket creds
         for bucket in self.get_dataset_configs().buckets.values():
             bucket_info = storage.construct_storage_backend(bucket.dataset_path)
-            if bucket_info.profile not in user_creds and bucket.default_credential:
-                user_creds[bucket_info.profile] = credentials.DecryptedDataCredential(
-                    region=bucket.region,
-                    access_key_id=bucket.default_credential.access_key_id,
-                    access_key=bucket.default_credential.get_access_key_value(),
-                    endpoint=bucket_info.profile
-                )
+            if bucket_info.profile not in user_creds:
+                cred = self._get_bucket_credential(bucket, bucket_info)
+                if cred:
+                    user_creds[bucket_info.profile] = cred
         return user_creds
 
     def get_generic_cred(self, user: str, cred_name: str) -> Any:

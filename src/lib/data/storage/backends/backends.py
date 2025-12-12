@@ -935,7 +935,10 @@ class AzureBlobStorageBackend(common.StorageBackend):
         try:
             client.execute_api(_validate_auth, azure.AzureErrorHandler())
         except client.OSMODataStorageClientError as err:
-            raise osmo_errors.OSMOCredentialError(f'Data auth validation error: {err}')
+            auth_method = 'connection string' if connection_string else 'DefaultAzureCredential'
+            raise osmo_errors.OSMOCredentialError(
+                f'Data auth validation error using {auth_method}: {err}'
+            )
 
     @override
     def region(
@@ -952,6 +955,17 @@ class AzureBlobStorageBackend(common.StorageBackend):
     @property
     def default_region(self) -> str:
         return constants.DEFAULT_AZURE_REGION
+
+    @override
+    @property
+    def supports_environment_auth(self) -> bool:
+        """
+        Azure Blob Storage supports environment-based authentication.
+
+        Returns:
+            bool: Always True for Azure Blob Storage.
+        """
+        return True
 
     @override
     def client_factory(

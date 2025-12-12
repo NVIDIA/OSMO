@@ -46,6 +46,15 @@ class BasicDataCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         default=None,
         description='The authentication secret for the data service')
 
+    def get_access_key_id_value(self) -> str | None:
+        """
+        Safely returns the access key ID value, or None if not set.
+
+        This supports workload identity authentication where credentials
+        are obtained from the environment rather than explicit keys.
+        """
+        return self.access_key_id if self.access_key_id else None
+
     def get_access_key_value(self) -> str | None:
         """
         Safely returns the access key secret value, or None if not set.

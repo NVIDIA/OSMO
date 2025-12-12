@@ -2603,6 +2603,14 @@ def fetch_creds(user: str, data_creds: Dict[str, credentials.DecryptedDataCreden
         if not disabled_data or backend_info.scheme not in disabled_data:
             raise osmo_errors.OSMOCredentialError(
                 f'Could not find {backend_info.profile} credential for user {user}.')
+        # For storage backends that support environment-based authentication,
+        # return credentials with None keys to allow the SDK to use its credential chain
+        if backend_info.supports_environment_auth:
+            return credentials.DecryptedDataCredential(
+                access_key_id=None,
+                access_key=None,
+                region=backend_info.default_region,
+            ).dict()
         return {}
 
     return data_creds[backend_info.profile].dict()
