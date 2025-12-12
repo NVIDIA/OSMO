@@ -553,16 +553,6 @@ bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
   --postgres-host=localhost --postgres-db=osmo_db --postgres-password=osmo
 ```
 
-### Default Roles
-
-The system supports these default roles (marked `immutable: true`):
-
-- **osmo-default**: Minimal access (version, health, login endpoints) - added to all users
-- **osmo-user**: Standard user access (workflows, tasks, buckets, etc.)
-- **osmo-admin**: Full access except agent/logger/router backend endpoints
-- **osmo-backend**: Backend agent access (limited)
-- **osmo-ctrl**: Workflow pod access (logger and router backend)
-
 ---
 
 **Document Version**: 1.0
