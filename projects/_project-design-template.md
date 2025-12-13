@@ -16,15 +16,11 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
----
-title: "Project Title"
-author: "@username"
-pic: "@username"
-related_issues:
-  - "#123"
----
-
 # \<Project Title\>
+
+**Author**: @username<br>
+**PIC**: @username<br>
+**Proposal Issue**: [#123](https://github.com/nvidia/osmo/issues/123)
 
 ## Overview
 

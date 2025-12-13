@@ -16,8 +16,8 @@
 
 name: Project proposal
 description: Propose a new project or significant change.
-title: "New Project: <short sentence describing proposal>"
-labels: ["project-proposal"]
+title: "Project: <short sentence describing proposal>"
+labels: ["project"]
 body:
   - type: markdown
     attributes:
