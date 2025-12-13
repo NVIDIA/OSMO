@@ -44,13 +44,16 @@ def update_backend_queues(current_backend: connectors.Backend,
     # If we are switching scheduler types, we need to delete all queues for the old scheduler type
     if prev_backend is not None and prev_backend.scheduler_settings.scheduler_type != \
             current_backend.scheduler_settings.scheduler_type:
-        kb_factory = kb_objects.get_k8s_object_factory(prev_backend)
-        list_spec = kb_factory.list_queues_spec(prev_backend)
-        if list_spec is not None:
-            job = backend_jobs.BackendSynchronizeQueues(
-                backend=prev_backend.name, k8s_resources=[], cleanup_spec=list_spec
-            )
-            job.send_job_to_queue()
+        try:
+            kb_factory = kb_objects.get_k8s_object_factory(prev_backend)
+            list_spec = kb_factory.list_queues_spec(prev_backend)
+            if list_spec is not None:
+                job = backend_jobs.BackendSynchronizeQueues(
+                    backend=prev_backend.name, k8s_resources=[], cleanup_spec=list_spec
+                )
+                job.send_job_to_queue()
+        except osmo_errors.OSMOServerError as e:
+            logging.warning('Failed to get previous backend %s: %s', prev_backend.name, e)
 
     # Lookup all pools for the backend
     postgres = connectors.PostgresConnector.get_instance()
