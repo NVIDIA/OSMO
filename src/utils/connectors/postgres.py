@@ -2132,30 +2132,20 @@ class BackendResource(pydantic.BaseModel):
 
 class BackendSchedulerType(enum.Enum):
     """ Defines the type of scheduler used by the backend """
-    DEFAULT = 'default'
-    SCHEDULER_PLUGINS = 'scheduler-plugins'
-    VOLCANO = 'volcano'
     KAI = 'kai'
 
 
 class BackendSchedulerSettings(pydantic.BaseModel):
     """Settings that control the how pods are scheduled in a backend"""
-    scheduler_type: BackendSchedulerType = BackendSchedulerType.DEFAULT
-    scheduler_name: str = 'default-scheduler'
-    coscheduling: bool = False
-    scheduler_timeout: int = 30
+    scheduler_type: BackendSchedulerType = BackendSchedulerType.KAI
+    scheduler_name: str = 'kai-scheduler'
 
-    @pydantic.validator('coscheduling')
-    @classmethod
-    def validate_coscheduling(cls, v, values):
-        if values.get('scheduler_type') == BackendSchedulerType.DEFAULT and v:
-            raise ValueError('Coscheduling cannot be True if scheduler_type is DEFAULT')
-        return v
 
 class BackendNodeConditions(pydantic.BaseModel):
     """ Settings for backend node conditions. """
     rules: Dict[str, str] | None = None
     prefix: str = 'osmo.nvidia.com/'
+
 
 class Backend(pydantic.BaseModel):
     """ Object storing backend info. """
