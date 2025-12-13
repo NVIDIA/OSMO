@@ -308,7 +308,7 @@ def _validate_source_path(
         user_credentials = client_configs.get_credentials(path_components.profile)
         path_components.data_auth(
             user_credentials.access_key_id,
-            user_credentials.access_key.get_secret_value(),
+            user_credentials.get_access_key_value(),
             user_credentials.region,
             storage.AccessType.READ,
         )

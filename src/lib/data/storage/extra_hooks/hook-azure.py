@@ -18,30 +18,47 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from PyInstaller.utils import hooks  # type: ignore
+from PyInstaller.utils.hooks import collect_all  # type: ignore
 
-# Collect entry points
-datas_set = set()
-hiddenimports_set = set()
+# Suppress warnings for modules that may not be installed in all environments
+warn_on_missing_hiddenimports = False
 
-data_files = (
-    'azure',
-    'azure.storage',
+# Initialize collections
+datas = []
+binaries = []
+hiddenimports = []
+
+# Use collect_all for comprehensive collection of azure packages and dependencies
+# This handles data files, binaries, and hidden imports in one call
+packages_to_collect = [
+    'azure.core',
+    'azure.identity',
+    'azure.storage.blob',
+    'msal',
+    'msal_extensions',
     'isodate',
-)
+]
 
-for data_file in data_files:
-    datas_set.update(hooks.collect_data_files(data_file, include_py_files=True))
+for package in packages_to_collect:
+    try:
+        pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(package)
+        datas.extend(pkg_datas)
+        binaries.extend(pkg_binaries)
+        hiddenimports.extend(pkg_hiddenimports)
+    except Exception:
+        # Package may not be installed; skip silently
+        pass
 
-hiddenimports_files = (
+# Explicit hidden imports for modules not auto-discovered by collect_all
+hiddenimports.extend([
+    # Cryptography - needed by azure SDK
     'cryptography.hazmat.primitives.ciphers.aead',
     'cryptography.hazmat.primitives.padding',
-    'wsgiref',
-)
+    # wsgiref stdlib - needed by azure.storage.blob._shared.policies
+    'wsgiref.handlers',
+])
 
-# Add hidden imports
-for hiddenimport_file in hiddenimports_files:
-    hiddenimports_set.update(hooks.collect_submodules(hiddenimport_file))
-
-datas = list(datas_set)
-hiddenimports = list(hiddenimports_set)
+# Deduplicate
+datas = list(set(datas))
+binaries = list(set(binaries))
+hiddenimports = list(set(hiddenimports))

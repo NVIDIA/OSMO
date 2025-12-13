@@ -51,6 +51,24 @@ global:
     ##
     k8sLogLevel: WARNING
 
+## Service account configuration for router pods
+##
+serviceAccount:
+  ## Create the ServiceAccounts defined by this chart. Set to false to bind
+  ## pre-provisioned workload identity ServiceAccounts
+  ##
+  create: true
+
+  ## ServiceAccount name to use when creating or for an already provisioned
+  ## ServiceAccount
+  ##
+  name: ""
+
+  ## Additional ServiceAccount annotations (e.g.
+  ## `azure.workload.identity/client-id`).
+  ##
+  annotations: {}
+
 ## Configuration for individual Osmo services
 ##
 services:
@@ -115,9 +133,11 @@ services:
     # - "--debug"
     # - "--config=/path/to/config"
 
-    ## Kubernetes service account name for the router service
+    ## Kubernetes service account name for the router service. Leave empty to
+    ## reuse `serviceAccount.name` (when provided); if both are empty the chart
+    ## falls back to the built-in `router` ServiceAccount name.
     ##
-    serviceAccountName: router
+    serviceAccountName: ""
 
     ## Host aliases for custom DNS resolution within the router pods
     ##

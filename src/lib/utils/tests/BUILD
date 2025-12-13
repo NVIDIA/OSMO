@@ -42,3 +42,21 @@ osmo_py_test(
         "//src/lib/utils:jinja_sandbox",
     ]
 )
+
+osmo_py_test(
+    name = "test_credentials",
+    srcs = ["test_credentials.py"],
+    deps = [
+        "//src/lib/utils:credentials",
+    ]
+)
+
+osmo_py_test(
+    name = "test_client_configs",
+    srcs = ["test_client_configs.py"],
+    deps = [
+        "//src/lib/utils:client_configs",
+        "//src/lib/utils:credentials",
+        "//src/lib/utils:osmo_errors",
+    ]
+)

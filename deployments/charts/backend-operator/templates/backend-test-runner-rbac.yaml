@@ -19,6 +19,7 @@
 
 # Backend Test Runner Service Account
 {{- if .Values.global.backendTestNamespace }}
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -26,7 +27,12 @@ metadata:
   namespace: {{ .Values.global.backendTestNamespace }}
   labels:
     app: {{ $name }}-test-runner
+  {{- if .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml .Values.serviceAccount.annotations | nindent 4 }}
+  {{- end }}
 ---
+{{- end }}
 # Role for Backend Test Runner
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1

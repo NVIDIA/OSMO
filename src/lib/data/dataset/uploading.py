@@ -147,7 +147,7 @@ def dataset_upload_remote_file_entry_generator(
     url_base = storage_backend.parse_uri_to_link(
         storage_backend.region(
             data_creds.access_key_id,
-            data_creds.access_key.get_secret_value(),
+            data_creds.get_access_key_value(),
         ),
     )
 
@@ -384,12 +384,12 @@ def upload(
     destination_creds = client_configs.get_credentials(destination.profile)
     destination_region = destination.region(
         destination_creds.access_key_id,
-        destination_creds.access_key.get_secret_value(),
+        destination_creds.get_access_key_value(),
     )
 
     client_factory = destination.client_factory(
         access_key_id=destination_creds.access_key_id,
-        access_key=destination_creds.access_key.get_secret_value(),
+        access_key=destination_creds.get_access_key_value(),
         region=destination_region,
         request_headers=request_headers,
     )

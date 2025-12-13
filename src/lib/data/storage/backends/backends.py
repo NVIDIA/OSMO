@@ -132,14 +132,19 @@ class Boto3Backend(common.StorageBackend):
     @override
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> s3.S3StorageClientFactory:
         """
         Returns a factory for creating storage clients.
         """
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for S3-compatible backends.'
+            )
+
         region = kwargs.get('region', None) or self.region(access_key_id, access_key)
 
         return s3.S3StorageClientFactory(  # pylint: disable=unexpected-keyword-arg
@@ -242,8 +247,8 @@ class SwiftBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         region: str | None = None,
         access_type: common.AccessType | None = None,
     ):
@@ -253,6 +258,11 @@ class SwiftBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for Swift backend.'
+            )
 
         if ':' in access_key_id:
             namespace = access_key_id.split(':')[1]
@@ -297,8 +307,8 @@ class SwiftBackend(Boto3Backend):
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -307,6 +317,11 @@ class SwiftBackend(Boto3Backend):
         """
         if self._region is not None:
             return self._region
+
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for Swift backend.'
+            )
 
         s3_client = s3.create_client(
             access_key_id=access_key_id,
@@ -407,8 +422,8 @@ class S3Backend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         region: str | None = None,
         access_type: common.AccessType | None = None,
     ):
@@ -417,6 +432,11 @@ class S3Backend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for S3 backend.'
+            )
 
         action = []
         if access_type == common.AccessType.READ:
@@ -475,8 +495,8 @@ class S3Backend(Boto3Backend):
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -485,6 +505,11 @@ class S3Backend(Boto3Backend):
         """
         if self._region is not None:
             return self._region
+
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for S3 backend.'
+            )
 
         s3_client = s3.create_client(
             access_key_id=access_key_id,
@@ -587,8 +612,8 @@ class GSBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         region: str | None = None,
         access_type: common.AccessType | None = None,
     ):
@@ -597,6 +622,11 @@ class GSBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for GS backend.'
+            )
 
         if region is None:
             region = self.region(access_key_id, access_key)
@@ -634,8 +664,8 @@ class GSBackend(Boto3Backend):
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
     ) -> str:
         # pylint: disable=unused-argument
         """
@@ -726,8 +756,8 @@ class TOSBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         region: str | None = None,
         access_type: common.AccessType | None = None,
     ):
@@ -737,6 +767,11 @@ class TOSBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if not access_key_id or not access_key:
+             raise osmo_errors.OSMOCredentialError(
+                'Access key ID and secret access key are required for TOS backend.'
+            )
 
         if region is None:
             # If region is not provided, we need to extract it from the netloc
@@ -773,8 +808,8 @@ class TOSBackend(Boto3Backend):
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
     ) -> str:
         # pylint: disable=unused-argument
         # netloc = tos-s3-<region>.<endpoint>
@@ -866,8 +901,8 @@ class AzureBlobStorageBackend(common.StorageBackend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         region: str | None = None,
         access_type: common.AccessType | None = None,
     ):
@@ -878,8 +913,13 @@ class AzureBlobStorageBackend(common.StorageBackend):
         if _skip_data_auth():
             return
 
+        connection_string = access_key.strip() if access_key else None
+
         def _validate_auth():
-            with azure.create_client(access_key) as service_client:
+            with azure.create_client(
+                connection_string=connection_string,
+                account_url=self.endpoint,
+            ) as service_client:
                 if self.container:
                     with service_client.get_container_client(self.container) as container_client:
                         container_client.get_container_properties()
@@ -895,13 +935,16 @@ class AzureBlobStorageBackend(common.StorageBackend):
         try:
             client.execute_api(_validate_auth, azure.AzureErrorHandler())
         except client.OSMODataStorageClientError as err:
-            raise osmo_errors.OSMOCredentialError(f'Data auth validation error: {err}')
+            auth_method = 'connection string' if connection_string else 'DefaultAzureCredential'
+            raise osmo_errors.OSMOCredentialError(
+                f'Data auth validation error using {auth_method}: {err}'
+            )
 
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
     ) -> str:
         # pylint: disable=unused-argument
         # Azure Blob Storage does not encode region in the URLs, we will simply
@@ -914,10 +957,21 @@ class AzureBlobStorageBackend(common.StorageBackend):
         return constants.DEFAULT_AZURE_REGION
 
     @override
+    @property
+    def supports_environment_auth(self) -> bool:
+        """
+        Azure Blob Storage supports environment-based authentication.
+
+        Returns:
+            bool: Always True for Azure Blob Storage.
+        """
+        return True
+
+    @override
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> azure.AzureBlobStorageClientFactory:
@@ -925,8 +979,11 @@ class AzureBlobStorageBackend(common.StorageBackend):
         """
         Returns a factory for creating storage clients.
         """
+        connection_string = access_key.strip() if access_key else None
+
         return azure.AzureBlobStorageClientFactory(  # pylint: disable=unexpected-keyword-arg
-            connection_string=access_key,
+            connection_string=connection_string,
+            account_url=self.endpoint,
         )
 
 

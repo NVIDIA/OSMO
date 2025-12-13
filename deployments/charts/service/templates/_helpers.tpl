@@ -70,10 +70,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Create the name of the service account to use
 */}}
 {{- define "osmo.serviceAccountName" -}}
+{{- $defaultName := include "osmo.fullname" . }}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "osmo.fullname" .) .Values.serviceAccount.name }}
+{{- default $defaultName .Values.serviceAccount.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- required "serviceAccount.name must be provided when serviceAccount.create is false" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
 
@@ -95,7 +96,7 @@ Service account name helper
 {{- if .serviceAccountName }}
 {{- .serviceAccountName }}
 {{- else }}
-{{- .Values.global.serviceAccountName }}
+{{- include "osmo.serviceAccountName" .root }}
 {{- end }}
 {{- end }}
 
@@ -105,6 +106,15 @@ Extra annotations helper
 {{- define "osmo.extra-annotations" -}}
 {{- if .extraPodAnnotations }}
 {{- toYaml .extraPodAnnotations }}
+{{- end }}
+{{- end }}
+
+{{/*
+Extra labels helper
+*/}}
+{{- define "osmo.extra-labels" -}}
+{{- if .extraPodLabels }}
+{{- toYaml .extraPodLabels }}
 {{- end }}
 {{- end }}
 

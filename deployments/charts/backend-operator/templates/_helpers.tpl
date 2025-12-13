@@ -73,6 +73,8 @@ Create a common service account name based on component
 {{- $name := or .root.Values.global.name .root.Release.Name -}}
 {{- if .serviceConfig.serviceAccount -}}
 {{- printf "%s-%s" $name .serviceConfig.serviceAccount | trunc 63 | trimSuffix "-" -}}
+{{- else if .root.Values.serviceAccount.name -}}
+{{- .root.Values.serviceAccount.name | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- printf "%s-%s" $name .component | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

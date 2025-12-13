@@ -14,6 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+{{- $routerServiceAccount := default (include "router.serviceAccountName" .) .Values.services.service.serviceAccountName }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -63,9 +65,11 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
-      serviceAccountName: {{ .Values.services.service.serviceAccountName | default "default" }}
+      {{- end }}
+      serviceAccountName: {{ $routerServiceAccount }}
       {{- with .Values.services.service.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}

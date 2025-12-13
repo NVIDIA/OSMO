@@ -70,9 +70,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Create the name of the service account to use
 */}}
 {{- define "router.serviceAccountName" -}}
+{{- $defaultName := "router" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "router.fullname" .) .Values.serviceAccount.name }}
+{{- default $defaultName .Values.serviceAccount.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- required "serviceAccount.name must be provided when serviceAccount.create is false" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
