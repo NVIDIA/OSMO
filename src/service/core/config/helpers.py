@@ -291,7 +291,11 @@ def update_backend(
         username: The username of the user updating the backend.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    old_backend = connectors.Backend.fetch_from_db(postgres, name)
+    try:
+        old_backend = connectors.Backend.fetch_from_db(postgres, name)
+    except pydantic.error_wrappers.ValidationError as e:
+        logging.warning('Failed to get previous backend %s: %s', name, e)
+        old_backend = None
     _update_backend_helper(postgres, configs_objects.BackendConfigWithName(
         **request.configs.dict(), name=name))
 

@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 
 import pydantic
 
-from src.lib.utils import common as common_utils, priority as wf_priority
+from src.lib.utils import common as common_utils, priority as wf_priority, osmo_errors
 from src.utils.job import common, backend_job_defs
 from src.utils import connectors
 
@@ -484,7 +484,7 @@ def get_k8s_object_factory(backend: connectors.Backend) -> K8sObjectFactory:
     if scheduler_type == connectors.BackendSchedulerType.KAI:
         return KaiK8sObjectFactory(backend)
     else:
-        raise ValueError(f'Unsupported scheduler type: {scheduler_type}')
+        raise osmo_errors.OSMOServerError(f'Unsupported scheduler type: {scheduler_type}')
 
 
 class FileMount(pydantic.BaseModel):

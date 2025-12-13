@@ -1074,6 +1074,13 @@ class PostgresConnector:
             ConfigHistoryType.BACKEND_TEST,
             ConfigHistoryType.ROLE,
         ]:
+            fetch_cmd = """
+                SELECT * FROM config_history WHERE config_type = %s;
+            """
+            data = self.execute_fetch_command(fetch_cmd, (config_type.value.lower(),))
+            if data:
+                continue
+
             if config_type == ConfigHistoryType.SERVICE:
                 data = self.get_service_configs().plaintext_dict(
                     exclude_unset=True, by_alias=True
@@ -2139,6 +2146,7 @@ class BackendNodeConditions(pydantic.BaseModel):
     """ Settings for backend node conditions. """
     rules: Dict[str, str] | None = None
     prefix: str = 'osmo.nvidia.com/'
+
 
 class Backend(pydantic.BaseModel):
     """ Object storing backend info. """
