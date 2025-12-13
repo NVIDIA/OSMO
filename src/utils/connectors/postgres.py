@@ -2139,6 +2139,7 @@ class BackendSchedulerSettings(pydantic.BaseModel):
     """Settings that control the how pods are scheduled in a backend"""
     scheduler_type: BackendSchedulerType = BackendSchedulerType.KAI
     scheduler_name: str = 'kai-scheduler'
+    scheduler_timeout: int = 30
 
 
 class BackendNodeConditions(pydantic.BaseModel):
