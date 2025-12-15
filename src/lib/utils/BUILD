@@ -97,6 +97,7 @@ osmo_py_library(
         requirement("pydantic"),
         ":osmo_errors",
         "//src/lib/data/storage/constants",
+        "//src/lib/data/storage/credentials",
     ],
 )
 

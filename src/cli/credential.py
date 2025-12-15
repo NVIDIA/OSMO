@@ -97,20 +97,25 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
                 print(f'File {value} cannot be found.')
                 sys.exit(1)
 
-    if args.type == 'GENERIC':
+    if args.type == 'DATA' and 'endpoint' not in cred_payload:
+        raise osmo_errors.OSMOUserError('Endpoint is required for DATA credentials.')
+
+    elif args.type == 'GENERIC':
         cred_payload = {'credential': cred_payload}
 
-    result = service_client.request(client.RequestMethod.POST,
-                                    f'api/credentials/{args.name}',
-                                    payload={args.type.lower() + '_credential': cred_payload})
+    result = service_client.request(
+        client.RequestMethod.POST,
+        f'api/credentials/{args.name}',
+        payload={args.type.lower() + '_credential': cred_payload},
+    )
+
     if args.format_type == 'json':
         print(json.dumps(result, indent=2))
     else:
         print(f'Set {args.type} credential {args.name}.')
 
     if args.type == 'DATA':
-        if 'endpoint' not in cred_payload:
-            raise osmo_errors.OSMOUserError('Endpoint is required for DATA credentials.')
+        # Save the data credential to the client config
         _save_config(credentials.DataCredential(**cred_payload))
 
 
@@ -206,15 +211,15 @@ def setup_parser(parser: argparse._SubParsersAction):
             'payload corresponding to each type of credential:\n'
             '\n'
             # pylint: disable=line-too-long
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| Credential Type | Mandatory keys            | Optional keys                         |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| REGISTRY        | auth                      | registry, username                    |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| DATA            | access_key_id, access_key | endpoint, region (default: us-east-1) |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| GENERIC         |                           |                                       |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| Credential Type | Mandatory keys                      | Optional keys               |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| REGISTRY        | auth                                | registry, username          |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| DATA            | access_key_id, access_key, endpoint | region (default: us-east-1) |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| GENERIC         |                                     |                             |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
             # pylint: enable=line-too-long
             '\n'
         ),

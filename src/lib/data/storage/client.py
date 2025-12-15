@@ -44,7 +44,6 @@ from .backends import common as backends_common
 from .core import executor, header
 from ...utils import (
     cache,
-    client_configs,
     logging as logging_utils,
     osmo_errors,
     paths,
@@ -256,10 +255,10 @@ class Client(pydantic.BaseModel):
                 raise osmo_errors.OSMOCredentialError(
                     'Credential endpoint must match the storage backend profile')
 
-        return (
-            self.data_credential_input or
-            client_configs.get_credentials(self.storage_backend.profile)
-        )
+            return self.data_credential_input
+
+        # Resolve the data credential from the storage backend
+        return self.storage_backend.resolve_data_credential()
 
     @functools.cached_property
     def storage_backend(self) -> backends_common.StorageBackend:
@@ -272,19 +271,6 @@ class Client(pydantic.BaseModel):
         return backends.construct_storage_backend(
             uri=self.storage_uri,
             cache_config=self.cache_config,
-        )
-
-    @functools.cached_property
-    def storage_auth(self) -> common.StorageAuth:
-        """
-        Storage backend authentication parameters.
-
-        :return: The storage authentication parameters
-        :rtype: common.StorageAuth
-        """
-        return common.StorageAuth(
-            user=self.data_credential.access_key_id,
-            key=self.data_credential.access_key.get_secret_value()
         )
 
     def _validate_remote_path(
@@ -475,9 +461,7 @@ class Client(pydantic.BaseModel):
             request_headers.append(header.UploadRequestHeaders(headers=extra_headers))
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=request_headers,
         )
 
@@ -581,9 +565,7 @@ class Client(pydantic.BaseModel):
             request_headers.append(header.UploadRequestHeaders(headers=extra_headers))
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=request_headers,
         )
 
@@ -715,9 +697,7 @@ class Client(pydantic.BaseModel):
             )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -865,9 +845,7 @@ class Client(pydantic.BaseModel):
             )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -956,9 +934,7 @@ class Client(pydantic.BaseModel):
         Downloads data using a list of DownloadWorkerInput objects.
         """
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1010,9 +986,7 @@ class Client(pydantic.BaseModel):
         )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1098,9 +1072,7 @@ class Client(pydantic.BaseModel):
         validated_remote_path = self._validate_remote_path(remote_path)
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1190,9 +1162,7 @@ class Client(pydantic.BaseModel):
         )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,

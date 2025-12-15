@@ -16,7 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import functools
 import os
 from typing import Optional
 
@@ -58,8 +57,7 @@ def get_cache_config() -> Optional[cache.CacheConfig]:
     return None
 
 
-@functools.lru_cache()
-def get_credentials(url: str) -> credentials.DataCredential:
+def get_credentials(url: str) -> credentials.StaticDataCredential:
     osmo_directory = get_client_config_dir()
     password_file = osmo_directory + '/config.yaml'
 
@@ -68,7 +66,7 @@ def get_credentials(url: str) -> credentials.DataCredential:
             configs = yaml.safe_load(file.read())
             if url in configs['auth']['data']:
                 data_cred_dict = configs['auth']['data'][url]
-                data_cred = credentials.DataCredential(
+                data_cred = credentials.StaticDataCredential(
                     access_key_id=data_cred_dict['access_key_id'],
                     access_key=data_cred_dict['access_key'],
                     endpoint=url,

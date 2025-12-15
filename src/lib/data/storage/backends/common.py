@@ -20,6 +20,7 @@ Shared definitions for storage backends modules.
 
 import abc
 import enum
+import logging
 import os
 import pathlib
 from urllib import parse
@@ -29,6 +30,10 @@ import pydantic
 
 from ..core import header, provider
 from ..credentials import credentials
+from ....utils import osmo_errors
+
+
+logger = logging.getLogger(__name__)
 
 
 class StorageBackendType(enum.Enum):
@@ -90,7 +95,12 @@ class StoragePath:
     )
 
 
-class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class StorageBackend(
+    abc.ABC,
+    pydantic.BaseModel,
+    extra=pydantic.Extra.forbid,
+    arbitrary_types_allowed=True,
+):
     """
     Represents information about a storage backend.
     """
@@ -236,5 +246,57 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     ) -> provider.StorageClientFactory:
         """
         Returns a factory for creating storage clients.
+        """
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def _credential_resolvers(cls) -> List['CredentialResolver']:
+        """
+        Returns the credential resolvers for this backend.
+
+        Each backend class defines its own static list of resolvers.
+        Override in subclasses to provide backend-specific resolvers.
+        """
+        pass
+
+    def resolve_data_credential(self) -> credentials.DataCredential:
+        """
+        Resolve the data credential for the storage backend.
+
+        Tries to resolve the credential using the registered resolvers (in order of priority).
+
+        Returns:
+            The resolved data credential.
+
+        Raises:
+            OSMOCredentialError: If no data credential could be resolved.
+        """
+        for resolver in self._credential_resolvers():
+            try:
+                data_credential = resolver.resolve(self)
+                if data_credential is not None:
+                    return data_credential
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error('Error resolving data credential: %s', e)
+
+        raise osmo_errors.OSMOCredentialError(
+            f'Could not resolve data credential for {self.profile}, configure data credentials '
+            'using "osmo credential set" or set environment variables',
+        )
+
+
+class CredentialResolver(abc.ABC):
+    """
+    Abstract base for credential resolution strategies.
+    """
+
+    @abc.abstractmethod
+    def resolve(self, backend: StorageBackend) -> credentials.DataCredential | None:
+        """
+        Attempt to resolve credentials for the given backend.
+
+        Returns:
+            DataCredential if successful, None if this resolver cannot provide credentials.
         """
         pass

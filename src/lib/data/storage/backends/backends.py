@@ -262,28 +262,28 @@ class SwiftBackend(Boto3Backend):
         match data_cred:
             case credentials.StaticDataCredential():
                 access_key_id = data_cred.access_key_id
+
+                if ':' in access_key_id:
+                    namespace = access_key_id.split(':')[1]
+                else:
+                    namespace = f'AUTH_{access_key_id}'
+
+                if namespace != self.namespace:
+                    raise osmo_errors.OSMOCredentialError(
+                        f'Data key validation error: access_key_id {access_key_id} is ' +
+                        f'not valid for the {self.namespace} namespace.')
+
             case credentials.WorkloadIdentityDataCredential():
                 raise NotImplementedError(
                     'Workload identity data credentials are not supported for Swift backend')
             case _ as unreachable:
                 assert_never(unreachable)
 
-        if ':' in access_key_id:
-            namespace = access_key_id.split(':')[1]
-        else:
-            namespace = f'AUTH_{access_key_id}'
-        if namespace != self.namespace:
-            raise osmo_errors.OSMOCredentialError(
-                f'Data key validation error: access_key_id {access_key_id} is ' +
-                f'not valid for the {self.namespace} namespace.')
-
-        if data_cred.region is None:
-            data_cred.region = self.region(data_cred)
-
         s3_client = s3.create_client(
             data_cred=data_cred,
             scheme=self.scheme,
             endpoint_url=self.auth_endpoint,
+            region=self.region(data_cred),
         )
 
         def _validate_auth():
@@ -319,9 +319,14 @@ class SwiftBackend(Boto3Backend):
         if self._region is not None:
             return self._region
 
-        if not isinstance(data_cred, credentials.StaticDataCredential):
-            raise osmo_errors.OSMOCredentialError(
-                'Static data credentials are required for Swift backend')
+        match data_cred:
+            case credentials.StaticDataCredential():
+                pass
+            case credentials.WorkloadIdentityDataCredential():
+                raise NotImplementedError(
+                    'Workload identity data credentials are not supported for Swift backend')
+            case _ as unreachable:
+                assert_never(unreachable)
 
         if data_cred.region is not None:
             return data_cred.region
@@ -330,6 +335,7 @@ class SwiftBackend(Boto3Backend):
             data_cred=data_cred,
             scheme=self.scheme,
             endpoint_url=self.auth_endpoint,
+            # No region, we need to get it from the bucket location
         )
 
         def _get_region() -> str:
@@ -394,6 +400,15 @@ class S3Backend(Boto3Backend):
         )
 
     @override
+    @classmethod
+    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
+        return [
+            # Resolve credentials from client config
+            # Resolve credentials from workload identity
+            # Resolve credentials from environment variables
+        ]
+
+    @override
     @property
     def auth_endpoint(self) -> str:
         return ''
@@ -449,9 +464,9 @@ class S3Backend(Boto3Backend):
                     region_name=self.region(data_cred),
                 )
             case credentials.WorkloadIdentityDataCredential():
-                # TODO: Implement workload identity data credential
-                raise NotImplementedError(
-                    'Workload identity data credentials are not supported yet')
+                session = boto3.Session(
+                    region_name=self.region(data_cred),
+                )
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -570,6 +585,15 @@ class GSBackend(Boto3Backend):
         )
 
     @override
+    @classmethod
+    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
+        return [
+            # Resolve credentials from client config
+            # Resolve credentials from workload identity
+            # Resolve credentials from environment variables
+        ]
+
+    @override
     @property
     def auth_endpoint(self) -> str:
         return f'https://{self.netloc}'
@@ -622,8 +646,9 @@ class GSBackend(Boto3Backend):
                     region=self.region(data_cred),
                 )
             case credentials.WorkloadIdentityDataCredential():
+                # TODO: Implement Google Cloud Storage DAL for keyless authentication
                 raise NotImplementedError(
-                    'Workload identity data credentials are not supported yet')
+                    'Workload identity data credentials are not supported for GS backend yet')
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -698,6 +723,14 @@ class TOSBackend(Boto3Backend):
             path='' if is_profile or len(split_path) != 3 else split_path[2].lstrip('/'),
             override_endpoint=override_endpoint,
         )
+
+    @override
+    @classmethod
+    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
+        return [
+            # Resolve credentials from client config
+            # Resolve credentials from environment variables
+        ]
 
     @override
     @property
@@ -824,6 +857,15 @@ class AzureBlobStorageBackend(common.StorageBackend):
             storage_account=url_details.netloc,
             override_endpoint=override_endpoint,
         )
+
+    @override
+    @classmethod
+    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
+        return [
+            # Resolve credentials from client config
+            # Resolve credentials from workload identity
+            # Resolve credentials from environment variables
+        ]
 
     @override
     @property

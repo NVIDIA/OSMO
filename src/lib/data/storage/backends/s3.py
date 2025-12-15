@@ -539,6 +539,7 @@ def create_client(
 
         match data_cred:
             case credentials.StaticDataCredential():
+                # Uses direct credentials (e.g. access key and secret key)
                 return session.client(
                     's3',
                     endpoint_url=endpoint_url,
@@ -548,8 +549,13 @@ def create_client(
                     config=config,
                 )
             case credentials.WorkloadIdentityDataCredential():
-                raise NotImplementedError(
-                    'Workload identity data credentials are not supported yet')
+                # Uses ambient credentials (e.g. Workload Identity)
+                return session.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    region_name=region,
+                    config=config,
+                )
             case _ as unreachable:
                 assert_never(unreachable)
 
