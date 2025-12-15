@@ -96,7 +96,7 @@ osmo_py_library(
     deps = [
         requirement("pydantic"),
         ":osmo_errors",
-        "//src/lib/data/constants",
+        "//src/lib/data/storage/constants",
     ],
 )
 
@@ -158,7 +158,7 @@ osmo_py_library(
     deps = [
         ":common",
         ":osmo_errors",
-        "//src/lib/data/constants",
+        "//src/lib/data/storage/constants",
     ],
 )
 

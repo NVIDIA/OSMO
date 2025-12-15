@@ -28,6 +28,7 @@ from typing import Any, List
 import pydantic
 
 from ..core import header, provider
+from ..credentials import credentials
 
 
 class StorageBackendType(enum.Enum):
@@ -184,9 +185,7 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential,
         access_type: AccessType | None = None,
     ):
         """
@@ -197,11 +196,10 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential,
     ) -> str:
         """
-        Infer the region of the bucket via provided credentials.
+        Infer the region of the bucket from the storage backend.
         """
         pass
 
@@ -232,8 +230,7 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> provider.StorageClientFactory:

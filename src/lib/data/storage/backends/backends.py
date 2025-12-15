@@ -32,8 +32,8 @@ import mypy_boto3_sts.client
 import pydantic
 
 from . import azure, s3, common
+from .. import constants, credentials
 from ..core import client, header
-from ... import constants
 from ....utils import cache, osmo_errors
 
 
@@ -132,25 +132,32 @@ class Boto3Backend(common.StorageBackend):
     @override
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> s3.S3StorageClientFactory:
         """
         Returns a factory for creating storage clients.
         """
-        region = kwargs.get('region', None) or self.region(access_key_id, access_key)
+        region = kwargs.get('region', None) or self.region(data_cred)
 
-        return s3.S3StorageClientFactory(  # pylint: disable=unexpected-keyword-arg
-            access_key_id=access_key_id,
-            access_key=access_key,
-            region=region,
-            scheme=self.scheme,
-            endpoint_url=self.auth_endpoint if self.auth_endpoint else None,
-            extra_headers=self._get_extra_headers(request_headers),
-            supports_batch_delete=self.supports_batch_delete,
-        )
+        match data_cred:
+            case credentials.StaticDataCredential():
+                return s3.S3StorageClientFactory(  # pylint: disable=unexpected-keyword-arg
+                    data_cred=data_cred,
+                    region=region,
+                    scheme=self.scheme,
+                    endpoint_url=self.auth_endpoint if self.auth_endpoint else None,
+                    extra_headers=self._get_extra_headers(request_headers),
+                    supports_batch_delete=self.supports_batch_delete,
+                )
+
+            case credentials.WorkloadIdentityDataCredential():
+                raise NotImplementedError(
+                    'Workload identity data credentials are not supported yet')
+
+            case _ as unreachable:
+                assert_never(unreachable)
 
 
 class SwiftBackend(Boto3Backend):
@@ -242,9 +249,7 @@ class SwiftBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential,
         access_type: common.AccessType | None = None,
     ):
         # pylint: disable=unused-argument
@@ -253,6 +258,15 @@ class SwiftBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        match data_cred:
+            case credentials.StaticDataCredential():
+                access_key_id = data_cred.access_key_id
+            case credentials.WorkloadIdentityDataCredential():
+                raise NotImplementedError(
+                    'Workload identity data credentials are not supported for Swift backend')
+            case _ as unreachable:
+                assert_never(unreachable)
 
         if ':' in access_key_id:
             namespace = access_key_id.split(':')[1]
@@ -263,15 +277,13 @@ class SwiftBackend(Boto3Backend):
                 f'Data key validation error: access_key_id {access_key_id} is ' +
                 f'not valid for the {self.namespace} namespace.')
 
-        if region is None:
-            region = self.region(access_key_id, access_key)
+        if data_cred.region is None:
+            data_cred.region = self.region(data_cred)
 
         s3_client = s3.create_client(
-            access_key_id=access_key_id,
-            access_key=access_key,
+            data_cred=data_cred,
             scheme=self.scheme,
             endpoint_url=self.auth_endpoint,
-            region=region,
         )
 
         def _validate_auth():
@@ -285,7 +297,7 @@ class SwiftBackend(Boto3Backend):
         except client.OSMODataStorageClientError as err:
             if err.message == 'AuthorizationHeaderMalformed':
                 raise osmo_errors.OSMOCredentialError(
-                    f'Data key validation error: region {region} is not valid: '
+                    f'Data key validation error: region {data_cred.region} is not valid: '
                     f'{err.__cause__}')
             if err.message == 'SignatureDoesNotMatch':
                 raise osmo_errors.OSMOCredentialError(
@@ -297,8 +309,7 @@ class SwiftBackend(Boto3Backend):
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -308,9 +319,15 @@ class SwiftBackend(Boto3Backend):
         if self._region is not None:
             return self._region
 
+        if not isinstance(data_cred, credentials.StaticDataCredential):
+            raise osmo_errors.OSMOCredentialError(
+                'Static data credentials are required for Swift backend')
+
+        if data_cred.region is not None:
+            return data_cred.region
+
         s3_client = s3.create_client(
-            access_key_id=access_key_id,
-            access_key=access_key,
+            data_cred=data_cred,
             scheme=self.scheme,
             endpoint_url=self.auth_endpoint,
         )
@@ -407,9 +424,7 @@ class S3Backend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential,
         access_type: common.AccessType | None = None,
     ):
         """
@@ -426,14 +441,19 @@ class S3Backend(Boto3Backend):
         elif access_type == common.AccessType.DELETE:
             action.append('s3:DeleteObject')
 
-        if region is None:
-            region = self.region(access_key_id, access_key)
-
-        session = boto3.Session(
-            aws_access_key_id=access_key_id,
-            aws_secret_access_key=access_key,
-            region_name=region,
-        )
+        match data_cred:
+            case credentials.StaticDataCredential():
+                session = boto3.Session(
+                    aws_access_key_id=data_cred.access_key_id,
+                    aws_secret_access_key=data_cred.access_key.get_secret_value(),
+                    region_name=self.region(data_cred),
+                )
+            case credentials.WorkloadIdentityDataCredential():
+                # TODO: Implement workload identity data credential
+                raise NotImplementedError(
+                    'Workload identity data credentials are not supported yet')
+            case _ as unreachable:
+                assert_never(unreachable)
 
         iam_client: mypy_boto3_iam.client.IAMClient = session.client('iam')
         sts_client: mypy_boto3_sts.client.STSClient = session.client('sts')
@@ -459,24 +479,19 @@ class S3Backend(Boto3Backend):
                 for result in results['EvaluationResults']:
                     if result['EvalDecision'] != 'allowed':
                         raise osmo_errors.OSMOCredentialError(
-                            f'Data key validation error: access_key_id {access_key_id} ' +
-                            f'has no {result["EvalActionName"]} access for s3://{path}')
+                            f'Data key validation error: no {result["EvalActionName"]} '
+                            f'access for s3://{path}')
 
         try:
             _ = client.execute_api(_validate_auth, s3.S3ErrorHandler())
         except client.OSMODataStorageClientError as err:
-            if err.message in ('SignatureDoesNotMatch', 'InvalidClientTokenId'):
-                raise osmo_errors.OSMOCredentialError(
-                    f'Data key validation error: access_key_id {access_key_id} is not valid: '
-                    f'{err.__cause__}')
             raise osmo_errors.OSMOCredentialError(
-                f'Data key validation error: {err.__cause__}')
+                f'Data key validation error: {err.message}: {err.__cause__}')
 
     @override
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -486,9 +501,11 @@ class S3Backend(Boto3Backend):
         if self._region is not None:
             return self._region
 
+        if data_cred.region is not None:
+            return data_cred.region
+
         s3_client = s3.create_client(
-            access_key_id=access_key_id,
-            access_key=access_key,
+            data_cred=data_cred,
             scheme=self.scheme,
         )
 
@@ -587,9 +604,7 @@ class GSBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential,
         access_type: common.AccessType | None = None,
     ):
         """
@@ -598,16 +613,19 @@ class GSBackend(Boto3Backend):
         if _skip_data_auth():
             return
 
-        if region is None:
-            region = self.region(access_key_id, access_key)
-
-        s3_client = s3.create_client(
-            access_key_id=access_key_id,
-            access_key=access_key,
-            scheme=self.scheme,
-            endpoint_url=self.auth_endpoint,
-            region=region,
-        )
+        match data_cred:
+            case credentials.StaticDataCredential():
+                s3_client = s3.create_client(
+                    data_cred=data_cred,
+                    scheme=self.scheme,
+                    endpoint_url=self.auth_endpoint,
+                    region=self.region(data_cred),
+                )
+            case credentials.WorkloadIdentityDataCredential():
+                raise NotImplementedError(
+                    'Workload identity data credentials are not supported yet')
+            case _ as unreachable:
+                assert_never(unreachable)
 
         # TODO: Have more detailed validation for different access types
         def _validate_auth():
@@ -619,29 +637,16 @@ class GSBackend(Boto3Backend):
         try:
             _ = client.execute_api(_validate_auth, s3.S3ErrorHandler())
         except client.OSMODataStorageClientError as err:
-            if err.message == 'AuthorizationHeaderMalformed':
-                raise osmo_errors.OSMOCredentialError(
-                    f'Data key validation error: region {region} is not valid: '
-                    f'{err.__cause__}')
-            if err.message == 'SignatureDoesNotMatch':
-                raise osmo_errors.OSMOCredentialError(
-                    f'Data key validation error: access_key_id {access_key_id} is not valid: '
-                    f'{err.__cause__}')
             raise osmo_errors.OSMOCredentialError(
-                f'Data key validation error: {err.__cause__}')
+                f'Data key validation error: {err.message}: {err.__cause__}')
 
     # TODO: Figure out how to correctly find region
     @override
-    def region(
-        self,
-        access_key_id: str,
-        access_key: str,
-    ) -> str:
-        # pylint: disable=unused-argument
+    def region(self, data_cred: credentials.DataCredential) -> str:
         """
         Infer the region of the bucket via provided credentials.
         """
-        return constants.DEFAULT_GS_REGION
+        return data_cred.region or constants.DEFAULT_GS_REGION
 
 
 class TOSBackend(Boto3Backend):
@@ -726,29 +731,28 @@ class TOSBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential,
         access_type: common.AccessType | None = None,
     ):
-        # pylint: disable=unused-argument
         """
         Validates if the data is valid for the backend
         """
         if _skip_data_auth():
             return
 
-        if region is None:
-            # If region is not provided, we need to extract it from the netloc
-            region = self.region('', '')
-
-        s3_client = s3.create_client(
-            access_key_id=access_key_id,
-            access_key=access_key,
-            scheme=self.scheme,
-            endpoint_url=self.auth_endpoint,
-            region=region,
-        )
+        match data_cred:
+            case credentials.StaticDataCredential():
+                s3_client = s3.create_client(
+                    data_cred=data_cred,
+                    scheme=self.scheme,
+                    endpoint_url=self.auth_endpoint,
+                    region=self.region(data_cred),
+                )
+            case credentials.WorkloadIdentityDataCredential():
+                raise NotImplementedError(
+                    'Workload identity data credentials are not supported for TOS backend')
+            case _ as unreachable:
+                assert_never(unreachable)
 
         def _validate_auth():
             if self.container:
@@ -759,24 +763,11 @@ class TOSBackend(Boto3Backend):
         try:
             client.execute_api(_validate_auth, s3.S3ErrorHandler())
         except client.OSMODataStorageClientError as err:
-            if err.message == 'AuthorizationHeaderMalformed':
-                raise osmo_errors.OSMOCredentialError(
-                    f'Data key validation error: region {region} is not valid: '
-                    f'{err.__cause__}')
-            if err.message == 'SignatureDoesNotMatch':
-                raise osmo_errors.OSMOCredentialError(
-                    f'Data key validation error: access_key_id {access_key_id} is not valid: '
-                    f'{err.__cause__}')
             raise osmo_errors.OSMOCredentialError(
-                f'Data key validation error: {err.__cause__}')
+                f'Data key validation error: {err.message}: {err.__cause__}')
 
     @override
-    def region(
-        self,
-        access_key_id: str,
-        access_key: str,
-    ) -> str:
-        # pylint: disable=unused-argument
+    def region(self, _: credentials.DataCredential) -> str:
         # netloc = tos-s3-<region>.<endpoint>
         return self.netloc[len('tos-s3-'):].split('.')[0]
 
@@ -866,9 +857,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
     @override
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential,
         access_type: common.AccessType | None = None,
     ):
         # pylint: disable=unused-argument
@@ -879,7 +868,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
             return
 
         def _validate_auth():
-            with azure.create_client(access_key) as service_client:
+            with azure.create_client(data_cred) as service_client:
                 if self.container:
                     with service_client.get_container_client(self.container) as container_client:
                         container_client.get_container_properties()
@@ -898,12 +887,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
             raise osmo_errors.OSMOCredentialError(f'Data auth validation error: {err}')
 
     @override
-    def region(
-        self,
-        access_key_id: str,
-        access_key: str,
-    ) -> str:
-        # pylint: disable=unused-argument
+    def region(self, _: credentials.DataCredential) -> str:
         # Azure Blob Storage does not encode region in the URLs, we will simply
         # use the default region to conform to the interface.
         return self.default_region
@@ -916,8 +900,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
     @override
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> azure.AzureBlobStorageClientFactory:
@@ -925,9 +908,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
         """
         Returns a factory for creating storage clients.
         """
-        return azure.AzureBlobStorageClientFactory(  # pylint: disable=unexpected-keyword-arg
-            connection_string=access_key,
-        )
+        return azure.AzureBlobStorageClientFactory(data_cred=data_cred)
 
 
 def construct_storage_backend(

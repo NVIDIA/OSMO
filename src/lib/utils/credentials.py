@@ -21,7 +21,7 @@ import re
 import pydantic
 
 from . import osmo_errors
-from ..data import constants
+from ..data.storage import constants
 
 
 CREDNAMEREGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'

@@ -30,7 +30,9 @@ import pydantic
 from . import (
     backends,
     common,
+    constants,
     copying,
+    credentials,
     deleting,
     downloading,
     streaming,
@@ -40,11 +42,9 @@ from . import (
 )
 from .backends import common as backends_common
 from .core import executor, header
-from .. import constants
 from ...utils import (
     cache,
     client_configs,
-    credentials,
     logging as logging_utils,
     osmo_errors,
     paths,
@@ -134,7 +134,8 @@ class Client(pydantic.BaseModel):
 
         .. important::
 
-            If data_credential is not provided, it will be resolved from the file system.
+            If data_credential is not provided, it will be resolved from the host system
+            (i.e. file system, environment variables, etc.).
 
         :param str | None storage_uri: The storage URI to use for the client.
         :param backends_common.StorageBackend | None storage_backend: The storage backend to use for

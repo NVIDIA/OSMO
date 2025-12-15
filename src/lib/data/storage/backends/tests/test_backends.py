@@ -23,6 +23,7 @@ from typing import cast
 from unittest import mock
 
 from src.lib.data.storage.backends import backends, s3
+from src.lib.data.storage.credentials import credentials
 from src.lib.data.storage.core import header
 
 
@@ -43,12 +44,17 @@ class TestBackends(unittest.TestCase):
             header.DownloadRequestHeaders(headers={'x-download-header': 'test-unsupported-header'}),
         ]
 
-        # Act
-        s3_client_factory = s3_backend.client_factory(
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket/test-key',
             access_key_id='test-access-key-id',
             access_key='test-access-key',
-            request_headers=request_headers,
             region='us-east-1',
+        )
+
+        # Act
+        s3_client_factory = s3_backend.client_factory(
+            data_cred=data_cred,
+            request_headers=request_headers,
         )
 
         # Assert
@@ -85,11 +91,16 @@ class TestBackends(unittest.TestCase):
             'before-call.s3.UploadPart': {'x-upload-header': 'test-upload-header'},
             'before-call.s3.CompleteMultipartUpload': {'x-upload-header': 'test-upload-header'},
         }
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket/test-key',
+            access_key_id='test-access-key-id',
+            access_key='test-access-key',
+            region='us-east-1',
+        )
 
         # Act
         s3.create_client(
-            access_key_id='test-access-key-id',
-            access_key='test-access-key',
+            data_cred=data_cred,
             scheme='s3',
             extra_headers=extra_headers
         )

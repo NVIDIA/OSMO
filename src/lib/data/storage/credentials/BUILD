@@ -23,7 +23,7 @@ osmo_py_library(
     name = "credentials",
     srcs = glob(["*.py"]),
     deps = [
-        "//src/lib/data/constants",
+        "//src/lib/data/storage/constants",
         "//src/lib/utils:osmo_errors",
         requirement("pydantic"),
     ],

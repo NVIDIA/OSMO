@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import abc
 import re
+from typing import Union
 
 import pydantic
 
@@ -25,7 +26,7 @@ from .. import constants
 from ....utils import osmo_errors
 
 
-class DataCredential(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbid):
+class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbid):
     """
     Base class for data credentials (i.e. credentials with endpoint and region).
     """
@@ -49,41 +50,29 @@ class DataCredential(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbid):
         return value.rstrip('/')
 
 
-class StaticDataCredential(DataCredential, abc.ABC, extra=pydantic.Extra.forbid):
+class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.forbid):
     """
-    Static data credentials (i.e. credentials with access_key_id and access_key).
+    Static data credentials (i.e. credentials with access_key_id and access_key) for a data backend.
     """
     access_key_id: str = pydantic.Field(
         ...,
-        description='The authentication key for the data service',
+        description='The authentication key for a data backend',
     )
 
-
-class EncryptedStaticDataCredential(StaticDataCredential, extra=pydantic.Extra.forbid):
-    """
-    Authentication information for a data service using static keys (encrypted).
-    """
     access_key: pydantic.SecretStr = pydantic.Field(
         ...,
-        description='The encrypted authentication secret for the data service',
+        description='The encrypted authentication secret for a data backend',
     )
 
 
-class DecryptedStaticDataCredential(StaticDataCredential, extra=pydantic.Extra.forbid):
+class WorkloadIdentityDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
     """
-    Authentication information for a data service using static keys (decrypted).
-    """
-    access_key: str = pydantic.Field(
-        ...,
-        description='The decrypted authentication secret for the data service',
-    )
-
-
-class EnvironmentDataCredential(DataCredential, extra=pydantic.Extra.forbid):
-    """
-    Authentication information for a data service using environment variables.
+    Authentication information for a data backend using workload identity.
 
     Intentionally left empty. This indicates that we should resolve the credentials
-    from the environment.
+    from the hosted cloud environment.
     """
     pass
+
+
+DataCredential = Union[StaticDataCredential, WorkloadIdentityDataCredential]
