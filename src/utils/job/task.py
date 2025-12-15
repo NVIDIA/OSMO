@@ -1715,11 +1715,10 @@ class TaskGroup(pydantic.BaseModel):
             update_cmd.add_field('start_time', update_time)
         else:
             update_cmd.add_condition('end_time IS NULL', [])
-            # Cancel cannot bypass scheduling unless it is force
+            # Cancel cannot bypass processing unless it is force
             if group_status.canceled() and not force_cancel:
                 update_cmd.add_condition(
-                    "status IN ('SUBMITTING', 'WAITING', 'PROCESSING', 'SCHEDULING', "
-                    "'INITIALIZING', 'RUNNING')",
+                    "status IN ('SUBMITTING', 'WAITING', 'SCHEDULING', 'INITIALIZING', 'RUNNING')",
                     [])
             else:
                 update_cmd.add_condition(
