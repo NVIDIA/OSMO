@@ -27,6 +27,7 @@ osmo_py_library(
         requirement("fastapi"),
         requirement("redis"),
         "//src/lib/utils:common",
+        "//src/lib/utils:logging",
         "//src/lib/utils:osmo_errors",
         "//src/lib/data/storage",
         "//src/service/core/auth",
