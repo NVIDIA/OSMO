@@ -259,12 +259,10 @@ class Manager(pydantic.BaseModel):
             location_result['path'],
             cache_config=self.cache_config,
         )
-        credentials = client_configs.get_credentials(path_components.profile)
+        credentials = path_components.resolve_data_credential()
         path_components.data_auth(
-            credentials.access_key_id,
-            credentials.access_key.get_secret_value(),
-            credentials.region,
-            storage.AccessType.WRITE,
+            data_cred=credentials,
+            access_type=storage.AccessType.WRITE,
         )
 
         # Parse and validate the input paths
@@ -398,23 +396,19 @@ class Manager(pydantic.BaseModel):
             location_result['path'],
             cache_config=self.cache_config,
         )
-        credentials = client_configs.get_credentials(path_components.profile)
+        credentials = path_components.resolve_data_credential()
 
         if remove_regex:
             # Validate delete access
             path_components.data_auth(
-                credentials.access_key_id,
-                credentials.access_key.get_secret_value(),
-                credentials.region,
-                storage.AccessType.DELETE,
+                data_cred=credentials,
+                access_type=storage.AccessType.DELETE,
             )
         if add_paths:
             # Validate write access
             path_components.data_auth(
-                credentials.access_key_id,
-                credentials.access_key.get_secret_value(),
-                credentials.region,
-                storage.AccessType.WRITE,
+                data_cred=credentials,
+                access_type=storage.AccessType.WRITE,
             )
 
         # If add_paths is provided, seperate paths and perform basic authentication
