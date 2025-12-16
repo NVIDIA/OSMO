@@ -88,6 +88,7 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
 
     # Construct device endpoint
     device_endpoint = args.device_endpoint
+    client_id: str | None = None
     if not device_endpoint:
         login_info = login.fetch_login_info(args.url)
         device_endpoint = login_info['device_endpoint']

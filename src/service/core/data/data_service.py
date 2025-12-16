@@ -975,21 +975,19 @@ def change_name_tag_label_metadata(
     postgres = connectors.PostgresConnector.get_instance()
     # Validate the Dataset/Collection exists
     dataset_info = get_dataset(postgres, bucket, name)
+    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+
     if dataset_info.is_collection:
         if set_tag or delete_tag or set_metadata or delete_metadata:
             raise osmo_errors.OSMOUserError('Collections do not support tag or metadata')
+        validation_path = bucket_config.dataset_path
     else:
         version_info = get_dataset_version(postgres, bucket, name, tag)
-    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+        validation_path = version_info.location
 
-    # Find if the user has access to a version vs access to the entire dataset
-    if bucket_config.check_key and (new_name or set_tag or delete_tag or delete_label or set_label):
-        validate_user_cred(postgres, username, version_info.location,
-                           storage.AccessType.WRITE)
-    if bucket_config.check_key and (set_metadata or delete_metadata):
-        validate_user_cred(postgres, username,
-                           version_info.location.rsplit('/', 1)[0],
-                           storage.AccessType.WRITE)
+    # Validate user has write access to the dataset path
+    if bucket_config.check_key:
+        validate_user_cred(postgres, username, validation_path, storage.AccessType.WRITE)
 
     if 'latest' in set_tag or 'latest' in delete_tag:
         raise osmo_errors.OSMOUserError('Cannot add or delete "latest" tag')

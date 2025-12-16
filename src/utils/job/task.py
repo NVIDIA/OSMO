@@ -1811,6 +1811,9 @@ class TaskGroup(pydantic.BaseModel):
                 UPDATE tasks SET output_upload_start_time =  %s, output_upload_end_time =  %s
                 WHERE workflow_id = %s AND name = %s AND retry_id = %s;
             '''
+        else:
+            raise osmo_errors.OSMOError(f'Invalid metrics type: {metrics_type}')
+
         database.execute_commit_command(
             update_cmd,
             (start_time, end_time, workflow_id, task_name, retry_id)

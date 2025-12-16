@@ -20,5 +20,5 @@
 # pip-compile ./requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
 # Linting
-pylint==2.15.3
+pylint==4.0.4
 pyyaml==6.0

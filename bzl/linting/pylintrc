@@ -147,6 +147,7 @@ disable=abstract-method,
         too-many-instance-attributes,
         too-many-locals,
         too-many-nested-blocks,
+        too-many-positional-arguments,
         too-many-public-methods,
         too-many-return-statements,
         too-many-statements,
@@ -440,6 +441,6 @@ valid-metaclass-classmethod-first-arg=mcs
 
 # Exceptions that will emit a warning when being caught. Defaults to
 # "Exception"
-overgeneral-exceptions=StandardError,
-                       Exception,
-                       BaseException
+overgeneral-exceptions=builtins.StandardError,
+                       builtins.Exception,
+                       builtins.BaseException

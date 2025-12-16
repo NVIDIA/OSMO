@@ -94,6 +94,7 @@ class WorkflowLogFilter(logging.Filter):
     """
 
     def __init__(self, workflow_uuid: str = ''):
+        super().__init__()
         self._workflow_uuid = workflow_uuid
 
     def filter(self, record):
