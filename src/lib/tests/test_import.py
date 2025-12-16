@@ -17,9 +17,12 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+# pyright: reportMissingImports=false
+
 import unittest
 
-import src.lib
+import osmo
+import osmo.data
 
 
 class ImportTestCase(unittest.TestCase):
@@ -28,7 +31,10 @@ class ImportTestCase(unittest.TestCase):
     """
 
     def test_import(self):
-        self.assertEqual(src.lib.__name__, 'src.lib')
+        self.assertEqual(osmo.__name__, 'osmo')
+
+    def test_data_import(self):
+        self.assertEqual(osmo.data.__name__, 'osmo.data')
 
 
 if __name__ == '__main__':
