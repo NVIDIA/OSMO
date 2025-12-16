@@ -665,15 +665,19 @@ def _submit_workflow(service_client: client.ServiceClient, args: argparse.Namesp
 def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.Namespace,
                            template_data: TemplateData, workflow_path: str,
                            params: Dict[str, Any]):
+    result = None
+
+    # Do a dry run if explicitly requested or if we need to expand templates
     if template_data.is_templated or args.dry:
         params['dry_run'] = True
         result = service_client.request(client.RequestMethod.POST, f'api/pool/{args.pool}/workflow',
                                         payload=template_data.to_dict(), params=params)
 
-    if args.dry:
-        print(f'{result["spec"]}')
-        return
-    else:
+        if args.dry:
+            print(f'{result["spec"]}')
+            return
+
+        # Not a dry run, so reset the flag for the actual submission
         params['dry_run'] = False
 
     if args.set_env:
@@ -682,6 +686,7 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
     if template_data.is_templated:
         # Copy the templated spec from 'file' to a new key
         template_data.uploaded_templated_spec = template_data.file
+        assert result is not None
         updated_workflow_dict = yaml.safe_load(result['spec'])
     else:
         updated_workflow_dict = yaml.safe_load(template_data.file)
@@ -1172,8 +1177,7 @@ def _upload_localpath_dataset_inputs(
 
             if 'version_id' in upload_results:
                 uploaded_version = upload_results['version_id']
-
-            if not uploaded_version:
+            else:
                 raise osmo_errors.OSMOSubmissionError(
                     'Failed to get version of localpath dataset upload!')
 

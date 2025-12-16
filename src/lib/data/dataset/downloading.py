@@ -94,7 +94,7 @@ def _dataset_download_worker_input_generator(
 
                 returned_entries = True
 
-                yield DatasetDownloadWorkerInput(  # pylint: disable=unexpected-keyword-arg
+                yield DatasetDownloadWorkerInput(  # pylint: disable=unexpected-keyword-arg, missing-kwoa
                     storage_profile=storage_backend.profile,
                     worker_input=downloading.DownloadWorkerInput(
                         container=storage_backend.container,

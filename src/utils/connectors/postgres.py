@@ -4106,6 +4106,12 @@ class AccessControlMiddleware:
         elif scope['type'] == 'http':
             request = fastapi.Request(scope, receive=receive, send=send)
             request_headers = request.headers
+        else:
+            response = fastapi.responses.PlainTextResponse(
+                content=f'Invalid scope type: {scope["type"]}',
+                status_code=400
+            )
+            return await response(scope, receive, send)
 
         response = await check_user_access(
             scope['path'], request_method, request_headers, self.method, self.domain_access_check)

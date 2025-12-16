@@ -847,8 +847,7 @@ def _print_manifest(
     header = ''
     file_count = 0
 
-    if regex:
-        regex_check = re.compile(regex)
+    regex_check: re.Pattern | None = re.compile(regex) if regex else None
 
     # Create Generator for all the json items
     objs_generator = ijson.items(file, 'item')
@@ -856,7 +855,7 @@ def _print_manifest(
         print('[')
     for obj, next_obj in itertools.pairwise(itertools.chain(objs_generator, [None])):
         path = obj['relative_path']
-        if regex and not regex_check.match(path):
+        if regex_check and not regex_check.match(path):
             continue
         if file_count >= count:
             break

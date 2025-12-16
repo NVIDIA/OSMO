@@ -24,6 +24,7 @@ import ssl
 import sys
 import time
 from typing import Dict, List, Optional
+from typing_extensions import assert_never
 from urllib.parse import urlparse
 
 import certifi
@@ -342,21 +343,54 @@ class ServiceClient():
         )
 
         # Call the request method
-        if method == RequestMethod.GET:
-            response = session.get(
-                url, params=params, json=payload, headers=headers, timeout=timeout, **extra_args)
-        elif method == RequestMethod.POST:
-            response = session.post(
-                url, params=params, json=payload, headers=headers, timeout=timeout, **extra_args)
-        elif method == RequestMethod.PUT:
-            response = session.put(url, params=params, json=payload, headers=headers,
-                                   timeout=timeout, **extra_args)
-        elif method == RequestMethod.DELETE:
-            response = session.delete(url, params=params, json=payload, headers=headers,
-                                      timeout=timeout, **extra_args)
-        elif method == RequestMethod.PATCH:
-            response = session.patch(url, params=params, json=payload, headers=headers,
-                                     timeout=timeout, **extra_args)
+        match method:
+            case RequestMethod.GET:
+                response = session.get(
+                    url,
+                    params=params,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout,
+                    **extra_args,
+                )
+            case RequestMethod.POST:
+                response = session.post(
+                    url,
+                    params=params,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout,
+                    **extra_args,
+                )
+            case RequestMethod.PUT:
+                response = session.put(
+                    url,
+                    params=params,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout,
+                    **extra_args,
+                )
+            case RequestMethod.DELETE:
+                response = session.delete(
+                    url,
+                    params=params,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout,
+                    **extra_args,
+                )
+            case RequestMethod.PATCH:
+                response = session.patch(
+                    url,
+                    params=params,
+                    json=payload,
+                    headers=headers,
+                    timeout=timeout,
+                    **extra_args,
+                )
+            case _ as unreachable:
+                assert_never(unreachable)
 
         resp = handle_response(response, self._login_manager.url, mode)
         return resp
