@@ -65,6 +65,7 @@ export const env = createEnv({
   shared: {
     NODE_ENV: z.enum(["development", "test", "production"]),
     NEXT_PUBLIC_OSMO_API_HOSTNAME: z.string().default(""),
+    NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED: z.boolean().optional().default(false),
     NEXT_PUBLIC_OSMO_AUTH_HOSTNAME: z.string().default(""),
     NEXT_PUBLIC_OSMO_ENV: z.enum(["mock", "local", "local-against-production", "production"]),
     NEXT_PUBLIC_OSMO_SSL_ENABLED: z.boolean().optional().default(true),
@@ -81,6 +82,7 @@ export const env = createEnv({
     DOCS_BASE_URL: process.env.DOCS_BASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_OSMO_API_HOSTNAME: process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME,
+    NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED: getBooleanEnvVar(process.env.NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED, false),
     NEXT_PUBLIC_OSMO_AUTH_HOSTNAME: process.env.NEXT_PUBLIC_OSMO_AUTH_HOSTNAME,
     NEXT_PUBLIC_OSMO_ENV: (() => {
       const nodeEnv = process.env.NODE_ENV || "development";

@@ -82,6 +82,10 @@ services:
     ##
     apiHostname: "osmo-service.osmo.svc.cluster.local:80"
 
+    ## Enable port-forwarding through Web UI
+    ##
+    portForwardEnabled: false
+
     ## Enable SSL/TLS encryption for nextjs server to connect to the osmo API server
     ##
     nextjsSslEnabled: false
