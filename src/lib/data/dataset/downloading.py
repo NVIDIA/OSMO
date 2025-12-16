@@ -94,15 +94,15 @@ def _dataset_download_worker_input_generator(
 
                 returned_entries = True
 
-                yield DatasetDownloadWorkerInput(  # pylint: disable=unexpected-keyword-arg,missing-kwoa
+                yield DatasetDownloadWorkerInput(  # pylint: disable=unexpected-keyword-arg, missing-kwoa
                     storage_profile=storage_backend.profile,
                     worker_input=downloading.DownloadWorkerInput(
-                        size=manifest_entry.size,
                         container=storage_backend.container,
                         source=storage_backend.path,
                         destination=output_path,
                         checksum=manifest_entry.etag,
                         resume=resume,
+                        size=manifest_entry.size,
                     ),
                 )
 

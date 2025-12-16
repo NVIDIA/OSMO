@@ -50,7 +50,13 @@ def validate_user_cred(postgres: connectors.PostgresConnector, user: str, locati
     Validates that the user has the specifc access type to a backend location
     """
     backend_info = storage.construct_storage_backend(location)
+
+    # TODO (fernandol): do we support workload identity credentials?
     user_cred = postgres.get_data_cred(user, backend_info.profile)
+    if not user_cred:
+        raise osmo_errors.OSMOCredentialError(
+            f'Could not find {backend_info.profile} credential for user {user}.')
+
     backend_info.data_auth(user_cred, access_type)
 
 
