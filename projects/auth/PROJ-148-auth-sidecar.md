@@ -16,18 +16,18 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
----
-title: "Authorization Sidecar (authz_sidecar)"
-author: "@RyaliNvidia"
-pic: "@RyaliNvidia"
-related_issues: []
----
-
 # Authorization Sidecar (authz_sidecar)
+
+**Author**: @RyaliNvidia<br>
+**PIC**: @RyaliNvidia<br>
+**Proposal Issue**: [#148](https://github.com/NVIDIA/OSMO/issues/148)
 
 ## Overview
 
-The Authorization Sidecar project implements a high-performance Golang gRPC service that provides centralized role-based access control (RBAC) for all OSMO services through Envoy's External Authorization API. This replaces the Python `AccessControlMiddleware` with a more efficient, scalable, and maintainable solution.
+The Authorization Sidecar project implements a high-performance Golang gRPC service that provides
+centralized role-based access control (RBAC) for all OSMO services through Envoy's External
+Authorization API. This replaces the Python `AccessControlMiddleware` with a more efficient,
+scalable, and maintainable solution.
 
 ### Motivation
 
@@ -555,7 +555,7 @@ bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-12-11
+**Document Version**: 1.0<br>
+**Last Updated**: 2025-12-11<br>
 **Status**: Implementation Complete, Testing in Progress
 
