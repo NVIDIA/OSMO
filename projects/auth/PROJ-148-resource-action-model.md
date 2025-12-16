@@ -663,7 +663,6 @@ The following documentation will need to be created or updated:
 |---|---|
 | Unit test coverage | >90% for action_registry.go and policy_evaluator.go |
 | Integration test pass rate | 100% |
-| Authorization latency (p99) | <5ms (cached) |
 | Migration accuracy | 100% of existing roles produce identical access decisions |
 
 ---
