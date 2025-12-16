@@ -181,7 +181,7 @@ async def run_tcp_with_sock(
                 await ctrl_ws.send(json.dumps(payload).encode())
             except (requests.exceptions.ConnectionError,
                     websockets.exceptions.ConnectionClosedError) as err:
-                logger.error(f'Error: control connection closed. Port {app_port}, err: {err}')
+                logger.error('Error: control connection closed. Port %d, err: %s', app_port, err)
                 close.set()
                 return
             try:
