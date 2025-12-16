@@ -18,7 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import pydantic
 
-from ..data.storage.credentials import *
+from ..data.storage import credentials
+
+StaticDataCredential = credentials.StaticDataCredential
 
 
 CREDNAMEREGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'

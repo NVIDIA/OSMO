@@ -51,10 +51,7 @@ def validate_user_cred(postgres: connectors.PostgresConnector, user: str, locati
     """
     backend_info = storage.construct_storage_backend(location)
     user_cred = postgres.get_data_cred(user, backend_info.profile)
-    backend_info.data_auth(user_cred.access_key_id,
-                           user_cred.access_key,
-                           user_cred.region,
-                           access_type)
+    backend_info.data_auth(user_cred, access_type)
 
 
 def get_dataset(postgres: connectors.PostgresConnector, bucket: str, name: str) -> Any:

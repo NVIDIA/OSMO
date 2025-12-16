@@ -31,7 +31,7 @@ from src.lib.utils import client, client_configs, common, credentials, osmo_erro
 CRED_TYPES = ['REGISTRY', 'DATA', 'GENERIC']
 
 
-def _save_config(data_cred: credentials.DataCredential):
+def _save_config(data_cred: credentials.StaticDataCredential):
     """
     Sets default config information
     """
@@ -46,7 +46,8 @@ def _save_config(data_cred: credentials.DataCredential):
     config['auth']['data'][data_cred.endpoint] = {
         'access_key_id': data_cred.access_key_id,
         'access_key': data_cred.access_key.get_secret_value(),
-        'region': data_cred.region}
+        'region': data_cred.region,
+    }
     with open(password_file, 'w', encoding='utf-8') as file:
         yaml.dump(config, file)
     os.chmod(password_file, stat.S_IREAD | stat.S_IWRITE)
@@ -116,7 +117,7 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
 
     if args.type == 'DATA':
         # Save the data credential to the client config
-        _save_config(credentials.DataCredential(**cred_payload))
+        _save_config(credentials.StaticDataCredential(**cred_payload))
 
 
 def _run_list_command(service_client: client.ServiceClient, args: argparse.Namespace):

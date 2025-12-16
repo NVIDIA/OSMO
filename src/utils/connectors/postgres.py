@@ -40,7 +40,8 @@ from jwcrypto.common import JWException  # type: ignore
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from src.lib.data import constants, storage
+from src.lib.data import storage
+from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
                            osmo_errors, role)
 from src.utils import auth, notify
@@ -306,7 +307,7 @@ class PostgresConnector:
                 # Pydantic cannot deep copy memoryview object, so cast it to bytes object
                 rows = [
                     pydantic.create_model(
-                        'DynamicModel', **{k: common.handle_memoryview(v) or \
+                        'DynamicModel', **{k: common.handle_memoryview(v) or
                                            (Any, common.handle_memoryview(v))
                                            for k, v in row.items()})()  # type: ignore
                     for row in rows]
@@ -1148,6 +1149,7 @@ class PostgresConnector:
                 # then insert into db
                 existing_role = role_objects[default_role_name]
                 # Flatten actions for comparison
+
                 def flatten_actions(policies):
                     return set(
                         (action.base, action.path, action.method)
@@ -1172,7 +1174,7 @@ class PostgresConnector:
                             for policy in default_role_object.policies:
                                 for action in getattr(policy, 'actions', []):
                                     if (action.base, action.path, action.method) == \
-                                        (base, path, method):
+                                            (base, path, method):
                                         # Add to the first policy of existing_role
                                         existing_role.policies[0].actions.append(action)
                                         break
@@ -1217,7 +1219,7 @@ class PostgresConnector:
             self.execute_commit_command(cmd, (new_encrypted,))
         return func
 
-    def get_data_cred(self, user: str, profile: str) -> credentials.DecryptedDataCredential:
+    def get_data_cred(self, user: str, profile: str) -> credentials.StaticDataCredential:
         """ Fetch data credentials by profile. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -1225,25 +1227,25 @@ class PostgresConnector:
             condition_args=[user, CredentialType.DATA.value, profile])
         row = self.execute_fetch_command(*select_data_cmd.get_args())
         if row:
-            return credentials.DecryptedDataCredential(**self.decrypt_credential(row[0]))
+            return credentials.StaticDataCredential(**self.decrypt_credential(row[0]))
         else:
             # Check default bucket creds
             for bucket in self.get_dataset_configs().buckets.values():
                 bucket_info = storage.construct_storage_backend(bucket.dataset_path)
                 if bucket_info.profile == profile:
                     if bucket.default_credential:
-                        return credentials.DecryptedDataCredential(
+                        return credentials.StaticDataCredential(
                             region=bucket.region,
                             access_key_id=bucket.default_credential.access_key_id,
-                            access_key=bucket.default_credential.access_key.get_secret_value(),
-                            endpoint=bucket_info.profile
+                            access_key=bucket.default_credential.access_key,
+                            endpoint=bucket_info.profile,
                         )
                     break
 
             raise osmo_errors.OSMOCredentialError(
                 f'Could not find {profile} credential for user {user}.')
 
-    def get_all_data_creds(self, user: str) -> Dict[str, credentials.DecryptedDataCredential]:
+    def get_all_data_creds(self, user: str) -> Dict[str, credentials.StaticDataCredential]:
         """ Fetch all data credentials for user. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -1251,18 +1253,19 @@ class PostgresConnector:
             condition_args=[user, CredentialType.DATA.value])
         rows = self.execute_fetch_command(*select_data_cmd.get_args())
 
-        user_creds = {cred.profile: credentials.DecryptedDataCredential(
-                          **self.decrypt_credential(cred))
-                      for cred in rows}
+        user_creds = {
+            cred.profile: credentials.StaticDataCredential(**self.decrypt_credential(cred))
+            for cred in rows
+        }
 
         # Add default bucket creds
         for bucket in self.get_dataset_configs().buckets.values():
             bucket_info = storage.construct_storage_backend(bucket.dataset_path)
             if bucket_info.profile not in user_creds and bucket.default_credential:
-                user_creds[bucket_info.profile] = credentials.DecryptedDataCredential(
+                user_creds[bucket_info.profile] = credentials.StaticDataCredential(
                     region=bucket.region,
                     access_key_id=bucket.default_credential.access_key_id,
-                    access_key=bucket.default_credential.access_key.get_secret_value(),
+                    access_key=bucket.default_credential.access_key,
                     endpoint=bucket_info.profile
                 )
         return user_creds
@@ -1384,7 +1387,7 @@ class PostgresConnector:
                 if user_row['match_count'] == 0:
                     error_str.append(f'{user_row["input_username"]} not found')
                 elif user_row['match_count'] > 1:
-                    error_str.append(f'{user_row["input_username"]} has multiple matches. ' + \
+                    error_str.append(f'{user_row["input_username"]} has multiple matches. ' +
                                      'Specify the full email address')
             if error_str:
                 raise osmo_errors.OSMOUserError(f'Invalid user(s): {", ".join(error_str)}')
@@ -1479,6 +1482,7 @@ class UserProfile(pydantic.BaseModel):
             pool=row.pool
         )
 
+
 class ExtraArgBaseModel(pydantic.BaseModel):
     """ BaseModel class which can be used to enable validation """
     class Config:
@@ -1507,7 +1511,7 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     memory: str | None = None
     gpu: int | None = None
     platform: str | None = None
-    nodesExcluded: List[str] = [] # pylint: disable=invalid-name
+    nodesExcluded: List[str] = []  # pylint: disable=invalid-name
 
     def update(self, other: 'ResourceSpec') -> 'ResourceSpec':
         """ Apply all fields from the other resource spec to this one """
@@ -1549,9 +1553,9 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
     def get_allocatable_tokens(self, default_variables: Dict,
                                task_cache_size: str | None = None) -> \
-        Dict[str, str | int | float | None]:
+            Dict[str, str | int | float | None]:
         """ Create a mapping for token substitution in pod templating. """
-        mapping : Dict[str,  str | int | float | None] = {}
+        mapping: Dict[str,  str | int | float | None] = {}
 
         def split_num_units(value: str | None) -> Tuple[str | None, str | None]:
             pattern = common.RESOURCE_REGEX
@@ -1595,7 +1599,7 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 # If default variable and mapping has the same key but mapping
                 # has value None, use default variable's value instead
                 if token_key not in final_tokens or \
-                    (token_key in final_tokens and token_val is not None):
+                        (token_key in final_tokens and token_val is not None):
                     final_tokens[token_key] = token_val
 
         # Set num and units after default variable calculation is done
@@ -1622,7 +1626,7 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                         raise osmo_errors.OSMOResourceError(
                             f'Cache size must be between 0-100 percent: {task_cache_size}')
                     cache_amount =\
-                        f'{math.floor(float(defined_storage_num) * (cache_percent/100))}'+\
+                        f'{math.floor(float(defined_storage_num) * (cache_percent/100))}' +\
                         f'{storage_unit}'
                 except ValueError as err:
                     raise osmo_errors.OSMOResourceError(
@@ -1636,10 +1640,10 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
         return final_tokens
 
-
     def __hash__(self):
         return hash((self.__class__.__name__, str(self.cpu),
                      self.storage, self.memory, str(self.gpu)))
+
 
 class ResourceLimitationsField(ExtraArgBaseModel):
     cpu: str
@@ -1657,15 +1661,15 @@ class ResourceLimitations(ExtraArgBaseModel):
 
     def format(self) -> Dict[str, Any]:
         return {
-                'requests': {
-                    'cpu': self.requests.cpu,
-                    'memory': self.requests.memory,
-                    'ephemeral-storage': self.requests.ephemeral_storage},
-                'limits': {
-                    'cpu': self.limits.cpu,
-                    'memory': self.limits.memory,
-                    'ephemeral-storage': self.limits.ephemeral_storage}
-            }
+            'requests': {
+                'cpu': self.requests.cpu,
+                'memory': self.requests.memory,
+                'ephemeral-storage': self.requests.ephemeral_storage},
+            'limits': {
+                'cpu': self.limits.cpu,
+                'memory': self.limits.memory,
+                'ephemeral-storage': self.limits.ephemeral_storage}
+        }
 
 
 class ResourceAssertion(pydantic.BaseModel):
@@ -1712,7 +1716,7 @@ class ResourceAssertion(pydantic.BaseModel):
             if processed_operand is None:
                 return None
             if re.fullmatch(common.RESOURCE_REGEX, processed_operand) \
-                and processed_operand.endswith(tuple(common.MEASUREMENTS)):
+                    and processed_operand.endswith(tuple(common.MEASUREMENTS)):
                 return int(common.convert_resource_value_str(
                     processed_operand, target='Ki'
                 ))
@@ -1732,8 +1736,8 @@ class ResourceAssertion(pydantic.BaseModel):
         )
 
         comparison_function = self.get_comparison_function(self.operator)
-        assert comparison_function(processed_left_operand, \
-            processed_right_operand), processed_assert_msg
+        assert comparison_function(processed_left_operand,
+                                   processed_right_operand), processed_assert_msg
 
 
 class BackendResourceConfig(pydantic.BaseModel):
@@ -1771,7 +1775,7 @@ class BackendResource(pydantic.BaseModel):
 
         # Convert disk/cpus/etc into readable values
         disk = str(int(common.convert_resource_value_str(
-        self.allocatable_fields['ephemeral-storage'], target='Gi')))
+            self.allocatable_fields['ephemeral-storage'], target='Gi')))
         num_cpus = self.allocatable_fields['cpu']
         cpu_mem = str(int(common.convert_resource_value_str(
             self.allocatable_fields['memory'], target='Gi')))
@@ -1805,7 +1809,6 @@ class BackendResource(pydantic.BaseModel):
 
         return exposed_fields
 
-
     @classmethod
     def convert_allocatable(cls, original_fields):
         updated_fields = {}
@@ -1814,7 +1817,6 @@ class BackendResource(pydantic.BaseModel):
                 updated_fields[resource_label.name] = \
                     original_fields[resource_label.kube_label]
         return updated_fields
-
 
     @classmethod
     def construct_updated_allocatables(
@@ -1832,7 +1834,7 @@ class BackendResource(pydantic.BaseModel):
         """
         if non_workflow_usage_fields is None:
             non_workflow_usage_fields = \
-                {allocatable.kube_label: '0' for allocatable \
+                {allocatable.kube_label: '0' for allocatable
                  in common.ALLOCATABLE_RESOURCES_LABELS}
 
         def check_osmo_data_resource(pod_template: Dict) -> ResourceLimitations:
@@ -1859,32 +1861,32 @@ class BackendResource(pydantic.BaseModel):
                     updated_allocatable_fields = copy.deepcopy(allocatable_fields)
                     if 'cpu' in updated_allocatable_fields:
                         updated_allocatable_fields['cpu'] = max(0,
-                            int(float(updated_allocatable_fields['cpu']) - \
-                            common.convert_cpu_unit(
-                                resource_limits.requests.cpu) - \
-                            common.convert_cpu_unit(
-                                non_workflow_usage_fields['cpu'])))
+                                                                int(float(updated_allocatable_fields['cpu']) -
+                                                                    common.convert_cpu_unit(
+                                                                    resource_limits.requests.cpu) -
+                                                                    common.convert_cpu_unit(
+                                                                    non_workflow_usage_fields['cpu'])))
                     if 'nvidia.com/gpu' in updated_allocatable_fields:
                         updated_allocatable_fields['nvidia.com/gpu'] = max(0,
-                            int(updated_allocatable_fields.get('nvidia.com/gpu', 0)) - \
-                            int(non_workflow_usage_fields.get('nvidia.com/gpu', 0)))
+                                                                           int(updated_allocatable_fields.get('nvidia.com/gpu', 0)) -
+                                                                           int(non_workflow_usage_fields.get('nvidia.com/gpu', 0)))
                     if 'ephemeral-storage' in updated_allocatable_fields:
                         # Kubernetes stores ephemeral storage in B
                         updated_allocatable_fields['ephemeral-storage'] = max(0,
-                            int(common.convert_resource_value_str(
-                                updated_allocatable_fields['ephemeral-storage'], 'B') - \
-                            common.convert_resource_value_str(
-                                resource_limits.requests.ephemeral_storage, 'B') - \
-                            common.convert_resource_value_str(
-                                non_workflow_usage_fields['ephemeral-storage'], 'B')))
+                                                                              int(common.convert_resource_value_str(
+                                                                                  updated_allocatable_fields['ephemeral-storage'], 'B') -
+                                                                                  common.convert_resource_value_str(
+                                                                                  resource_limits.requests.ephemeral_storage, 'B') -
+                                                                                  common.convert_resource_value_str(
+                                                                                  non_workflow_usage_fields['ephemeral-storage'], 'B')))
                     if 'memory' in updated_allocatable_fields:
                         # Kubernetes stores memory in Ki
                         memory_value = \
                             int(common.convert_resource_value_str(
-                                updated_allocatable_fields['memory'], 'Ki') - \
-                            common.convert_resource_value_str(
-                                resource_limits.requests.memory, 'Ki') - \
-                            common.convert_resource_value_str(
+                                updated_allocatable_fields['memory'], 'Ki') -
+                                common.convert_resource_value_str(
+                                resource_limits.requests.memory, 'Ki') -
+                                common.convert_resource_value_str(
                                 non_workflow_usage_fields['memory'], 'Ki'))
                         updated_allocatable_fields['memory'] = f'{max(memory_value, 0)}Ki'
                     if pool not in ctrl_usage:
@@ -1894,10 +1896,9 @@ class BackendResource(pydantic.BaseModel):
                             ctrl_usage[pool][platform] = updated_allocatable_fields
         return ctrl_usage
 
-
     @classmethod
     def construct_available_fields(cls, updated_allocatable_fields: Dict,
-                                    usage_fields: Dict) -> Dict[str, Dict]:
+                                   usage_fields: Dict) -> Dict[str, Dict]:
         available_fields = copy.deepcopy(updated_allocatable_fields)
         for pool, platforms in available_fields.items():
             for platform in platforms.keys():
@@ -1911,14 +1912,14 @@ class BackendResource(pydantic.BaseModel):
 
                         if kube_label == 'ephemeral-storage':
                             # Kubernetes stores ephemeral storage in B
-                            available = int(common.convert_resource_value_str(allocatable, 'B') - \
-                                common.convert_resource_value_str(usage, 'B'))
+                            available = int(common.convert_resource_value_str(allocatable, 'B') -
+                                            common.convert_resource_value_str(usage, 'B'))
                             platform_available_fields[kube_label] = max(available, 0)
                         elif kube_label == 'memory':
                             # Kubernetes stores memory in Ki
                             memory_value = \
-                                int(common.convert_resource_value_str(allocatable, 'Ki') - \
-                                common.convert_resource_value_str(usage, 'Ki'))
+                                int(common.convert_resource_value_str(allocatable, 'Ki') -
+                                    common.convert_resource_value_str(usage, 'Ki'))
                             max_memory_value = max(memory_value, 0)
                             platform_available_fields[kube_label] = f'{max_memory_value}Ki'
                         else:
@@ -1931,7 +1932,7 @@ class BackendResource(pydantic.BaseModel):
 
     @classmethod
     def _pool_platform_labels_to_dict(cls, pool_platform_labels: List[str]) -> Dict[str, List[str]]:
-        labels_dict : Dict[str, List[str]] = {}
+        labels_dict: Dict[str, List[str]] = {}
         for label in pool_platform_labels:
             if not label:
                 continue
@@ -1943,7 +1944,6 @@ class BackendResource(pydantic.BaseModel):
                 labels_dict[pool].append(platform)
         return labels_dict
 
-
     @classmethod
     def _create_config_fields(cls, pool_platform_labels: Dict[str, List[str]],
                               pool_config: Dict[str, 'Pool']):
@@ -1954,10 +1954,10 @@ class BackendResource(pydantic.BaseModel):
                     platform_config = pool_config[pool].platforms.get(platform, None)
                     if platform_config:
                         resource_config = BackendResourceConfig(
-                                host_network=platform_config.host_network_allowed,
-                                privileged=platform_config.privileged_allowed,
-                                default_mounts=platform_config.default_mounts,
-                                allowed_mounts=platform_config.allowed_mounts)
+                            host_network=platform_config.host_network_allowed,
+                            privileged=platform_config.privileged_allowed,
+                            default_mounts=platform_config.default_mounts,
+                            allowed_mounts=platform_config.allowed_mounts)
                         if pool not in config_fields:
                             config_fields[pool] = {platform: resource_config}
                         else:
@@ -1974,7 +1974,7 @@ class BackendResource(pydantic.BaseModel):
 
     @classmethod
     def convert_platform_allocatable_fields(
-        cls, updated_allocatable_fields: Dict[str, Dict]) -> Dict[str, Dict]:
+            cls, updated_allocatable_fields: Dict[str, Dict]) -> Dict[str, Dict]:
         """
         Run the convert_allocatable function on each updated allocatable fields
         based on pool/platform resource limits defined by osmo-ctrl.
@@ -2016,7 +2016,7 @@ class BackendResource(pydantic.BaseModel):
                      pools: List[str] | None = None,
                      platforms: List[str] | None = None,
                      resource_name: str | None = None) \
-        -> List['BackendResource']:
+            -> List['BackendResource']:
         pool_filter_clause = ''
         query_params: List[Tuple | str] = []
         # Need to update to filter based on backend
@@ -2242,17 +2242,18 @@ class Backend(pydantic.BaseModel):
                         grafana_url=backend_row.grafana_url,
                         tests=backend_row.tests,
                         scheduler_settings=BackendSchedulerSettings(
-                           **yaml.safe_load(backend_row.scheduler_settings)),
+                            **yaml.safe_load(backend_row.scheduler_settings)),
                         node_conditions=BackendNodeConditions(**backend_row.node_conditions),
                         last_heartbeat=backend_row.last_heartbeat,
                         created_date=backend_row.created_date,
                         router_address=backend_row.router_address,
                         online=common.heartbeat_online(backend_row.last_heartbeat))
-                        for backend_row in backend_rows]
+                for backend_row in backend_rows]
 
 
 class BackendConfigCache:
     """A cache for Backend config objects to prevent redundant fetching of backends"""
+
     def __init__(self):
         self._cache: Dict[str, Backend] = {}
 
@@ -2275,7 +2276,7 @@ def construct_path(endpoint: str, bucket: str, path: str):
 
 class LogConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.DataCredential | None = None
+    credential: credentials.StaticDataCredential | None = None
 
 
 class WorkflowInfo(ExtraArgBaseModel):
@@ -2292,11 +2293,11 @@ class WorkflowInfo(ExtraArgBaseModel):
 
 class DataConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.DataCredential | None = None
+    credential: credentials.StaticDataCredential | None = None
 
     base_url: str = ''
     # Timeout in mins for osmo-ctrl to retry connecting to the OSMO service until exiting the task
-    websocket_timeout: int = 1440 # 24hr
+    websocket_timeout: int = 1440  # 24hr
     # Timeout in mins for upload/download messages. If it fails to receive logs
     # in the timeout, it will retry the upload/download
     data_timeout: int = 10
@@ -2331,12 +2332,12 @@ class BucketConfig(ExtraArgBaseModel):
     # Default cred to use doesn't have one
     # Only applies to workflow operations, NOT user cli since we cannot forward the credential
     # to the user
-    default_credential: credentials.BasicDataCredential | None = None
+    default_credential: credentials.StaticDataCredential | None = None
 
     def valid_access(self, bucket_name: str, access_type: BucketModeAccess):
-        if not ((access_type == BucketModeAccess.READ and\
+        if not ((access_type == BucketModeAccess.READ and
                 self.mode in (BucketMode.READ_ONLY.value, BucketMode.READ_WRITE.value))
-            or (access_type == BucketModeAccess.WRITE and\
+                or (access_type == BucketModeAccess.WRITE and
                 self.mode == BucketMode.READ_WRITE.value)):
             raise osmo_errors.OSMOUsageError(f'Bucket {bucket_name} mode is {self.mode}. '
                                              f'Cannot be accessed by {access_type} api.')
@@ -2484,6 +2485,7 @@ class DynamicConfig(ExtraArgBaseModel):
     def plaintext_dict(self, *args, **kwargs):
         """Returns as a dictionary with all SecretStrs converted to str"""
         data = self.dict(*args, **kwargs)
+
         def _convert_secrets(node):
             # Recurse for dict and list
             if isinstance(node, dict):
@@ -2689,7 +2691,7 @@ class ResourceValidation(pydantic.BaseModel):
 
     @classmethod
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
-        -> Dict[str, List[ResourceAssertion]]:
+            -> Dict[str, List[ResourceAssertion]]:
         """ Fetches the list of resource validations from the resource validation table """
         list_of_names = ''
         fetch_input: Tuple = ()
@@ -2731,7 +2733,7 @@ class ResourceValidation(pydantic.BaseModel):
     def delete_from_db(cls, database: PostgresConnector, name: str):
         pools = cls.get_pools(database, name)
         if pools:
-            raise osmo_errors.OSMOUserError(f'Resource Validation {name} is used in pools ' +\
+            raise osmo_errors.OSMOUserError(f'Resource Validation {name} is used in pools ' +
                                             f'{", ".join([pool["name"] for pool in pools])}')
 
         delete_cmd = '''
@@ -2751,7 +2753,7 @@ class ResourceValidation(pydantic.BaseModel):
             '''
         database.execute_commit_command(
             insert_cmd,
-            (name,[json.dumps(validation.dict()) for validation in self.resource_validations]))
+            (name, [json.dumps(validation.dict()) for validation in self.resource_validations]))
 
         for pool_info in ResourceValidation.get_pools(database, name):
             Pool.update_resource_validations(database, pool_info['name'])
@@ -2763,7 +2765,7 @@ class PodTemplate(pydantic.BaseModel):
 
     @classmethod
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
-        -> Dict[str, Dict]:
+            -> Dict[str, Dict]:
         """ Fetches the list of pod templates from the pod template table """
         list_of_names = ''
         fetch_input: Tuple = ()
@@ -2810,16 +2812,15 @@ class PodTemplate(pydantic.BaseModel):
         '''
         return database.execute_fetch_command(fetch_cmd, (name,), True)
 
-
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
         pools = cls.get_pools(database, name)
         if pools:
-            raise osmo_errors.OSMOUserError(f'Pod template {name} is used in pools ' +\
+            raise osmo_errors.OSMOUserError(f'Pod template {name} is used in pools ' +
                                             f'{", ".join([pool["name"] for pool in pools])}')
         tests = cls.get_tests(database, name)
         if tests:
-            raise osmo_errors.OSMOUserError(f'Pod template {name} is used in tests ' +\
+            raise osmo_errors.OSMOUserError(f'Pod template {name} is used in tests ' +
                                             f'{", ".join([test["name"] for test in tests])}')
 
         delete_cmd = '''
@@ -2927,6 +2928,7 @@ class ActionPermissions(pydantic.BaseModel):
     class Config:
         use_enum_values = True
 
+
 class PoolResourceCountable(pydantic.BaseModel):
     """
     Resources like GPU or CPU that have a discrete number. For guarantee and maximum, a value of -1
@@ -2935,6 +2937,7 @@ class PoolResourceCountable(pydantic.BaseModel):
     guarantee: int = -1
     maximum: int = -1
     weight: int = 1
+
 
 class PoolResources(pydantic.BaseModel):
     """ Resources allocated to the pool, for schedulers that support this feature """
@@ -2957,6 +2960,7 @@ class PoolBase(pydantic.BaseModel):
     default_exit_actions: Dict[str, str] = {}
     action_permissions: ActionPermissions = ActionPermissions()
     resources: PoolResources = PoolResources()
+
 
 class PoolMinimal(PoolBase):
     platforms: Dict[str, PlatformMinimal] = {}
@@ -2996,7 +3000,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              json.dumps(pool_info.parsed_pod_template),
              name))
 
-
     @classmethod
     def update_resource_validations(cls, database: PostgresConnector, name: str):
         """ Update resource_validations """
@@ -3013,7 +3016,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
             (json.dumps(pool_info.platforms, default=common.pydantic_encoder),
              json.dumps(pool_info.parsed_resource_validations),
              name))
-
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Pool':
@@ -3074,7 +3076,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                            pools: List[str] | None = None,
                            all_pools: bool = True) -> Any:
         """ Fetches the list of pools from the pools table """
-        params : List[str | Tuple] = []
+        params: List[str | Tuple] = []
         conditions = []
 
         if not access_names:
@@ -3110,7 +3112,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 pool_row['status'] = PoolStatus.MAINTENANCE
             else:
                 if pool_row.get('last_heartbeat', None) and \
-                    common.heartbeat_online(pool_row['last_heartbeat']):
+                        common.heartbeat_online(pool_row['last_heartbeat']):
                     pool_row['status'] = PoolStatus.ONLINE
                 else:
                     pool_row['status'] = PoolStatus.OFFLINE
@@ -3338,10 +3340,10 @@ def fetch_minimal_pool_config(database: PostgresConnector,
 
 
 def fetch_editable_pool_config(database: PostgresConnector,
-                              backend: str | None = None,
-                              access_names: List[str] | None = None,
-                              pools: List[str] | None = None,
-                              all_pools: bool = True) -> EditablePoolConfig:
+                               backend: str | None = None,
+                               access_names: List[str] | None = None,
+                               pools: List[str] | None = None,
+                               all_pools: bool = True) -> EditablePoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
                                         access_names=access_names,
@@ -3354,9 +3356,9 @@ def fetch_editable_pool_config(database: PostgresConnector,
 def fetch_platform_config(name: str,
                           pool_type: PoolType,
                           database: PostgresConnector) \
-                          -> Dict[str, Platform] | \
-                             Dict[str, PlatformEditable] | \
-                             Dict[str, PlatformMinimal]:
+    -> Dict[str, Platform] | \
+    Dict[str, PlatformEditable] | \
+        Dict[str, PlatformMinimal]:
 
     platforms = Pool.fetch_from_db(database, name).platforms
     if pool_type == PoolType.VERBOSE:
@@ -3503,7 +3505,7 @@ class PostgresSelectCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
 
 def parse_username(
-    user_header: Optional[str] = \
+    user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)) -> str:
     """ Parses the username from the request. """
     postgres = PostgresConnector.get_instance()
@@ -3519,7 +3521,7 @@ def parse_username(
     else:
         if user_header is None:
             raise fastapi.HTTPException(status_code=400,
-                detail=f'Could not find header for user, {login.OSMO_USER_HEADER}')
+                                        detail=f'Could not find header for user, {login.OSMO_USER_HEADER}')
         user = user_header
     return user
 
@@ -3737,7 +3739,7 @@ class BackendTestBase(pydantic.BaseModel):
                 # Validate domain part (should be a valid DNS subdomain)
                 if not re.match(
                     r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$', domain
-                    ):
+                ):
                     raise osmo_errors.OSMOUserError(
                         f'Invalid domain "{domain}" in node condition "{condition}" at index {i}. '
                         'Domain must be a valid DNS subdomain '
@@ -3877,7 +3879,7 @@ class BackendTests(BackendTestBase):
         backends = cls.get_backends(database, name)
         if backends:
             raise osmo_errors.OSMOUserError(
-                f'Test {name} is used in Backends ' +\
+                f'Test {name} is used in Backends ' +
                 f'{", ".join([backend["name"] for backend in backends])}'
             )
         delete_cmd = 'DELETE FROM backend_tests WHERE name = %s;'
@@ -3910,7 +3912,7 @@ class Role(role.Role):
     """ Single Role Entry """
     @classmethod
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
-        -> List['Role']:
+            -> List['Role']:
         """ Fetches the list of pod templates from the pod template table """
         list_of_names = ''
         fetch_input: Tuple = ()
@@ -3962,8 +3964,8 @@ class Role(role.Role):
             True
         )
         # No result means that immutable was true and nothing was updated
-        if not force and (result and result[0].get('immutable') and \
-            result[0].get('policies', []) != [policy.to_dict() for policy in self.policies]):
+        if not force and (result and result[0].get('immutable') and
+                          result[0].get('policies', []) != [policy.to_dict() for policy in self.policies]):
             raise osmo_errors.OSMOUserError(f'Role {self.name} is immutable.')
 
     def has_access(self, path: str, method: str) -> bool:
@@ -4090,6 +4092,7 @@ DEFAULT_ROLES: Dict[str, Role] = {
 class AccessControlMiddleware:
     """Middleware for handling WebSocket connections in the router service."""
     # pylint: disable=redefined-outer-name
+
     def __init__(self, app: ASGIApp, method: str | None = None,
                  domain_access_check: Callable | None = None):
         self.app = app

@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import collections
 import datetime
 import math
-from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Set, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Set
 import yaml
 
 import pydantic
@@ -555,13 +555,12 @@ class CredentialProtocol(Protocol):
 
     def to_db_row(self, user: str, postgres: connectors.PostgresConnector) -> CredentialRecord:
         pass
-    
+
     def valid_cred(self, workflow_config: connectors.WorkflowConfig):
         pass
 
 
 class UserRegistryCredential(
-    CredentialProtocol,
     credentials.RegistryCredential,
     extra=pydantic.Extra.forbid,
 ):
@@ -591,7 +590,6 @@ class UserRegistryCredential(
 
 
 class UserDataCredential(
-    CredentialProtocol,
     data_credentials.DataCredentialBase,
     extra=pydantic.Extra.forbid,
 ):
@@ -644,7 +642,6 @@ class UserDataCredential(
 
 
 class UserCredential(
-    CredentialProtocol,
     pydantic.BaseModel,
     extra=pydantic.Extra.forbid,
 ):

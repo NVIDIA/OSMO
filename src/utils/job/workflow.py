@@ -646,15 +646,17 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 return
 
             data_cred = task.fetch_creds(user, user_creds, bucket_info.uri)
+            if not data_cred:
+                # TODO: check if we have workload identity configured for the pool
+                raise osmo_errors.OSMOCredentialError(
+                    f'Could not find {bucket_info.uri} credential for user {user}.')
 
             # Get if user has access to READ or WRITE
             if is_input and bucket_info.uri not in seen_uri_input:
-                bucket_info.data_auth(data_cred['access_key_id'], data_cred['access_key'],
-                                      data_cred['region'], storage.AccessType.READ)
+                bucket_info.data_auth(data_cred, storage.AccessType.READ)
                 seen_uri_input.add(bucket_info.uri)
             if not is_input and bucket_info.uri not in seen_uri_output:
-                bucket_info.data_auth(data_cred['access_key_id'], data_cred['access_key'],
-                                      data_cred['region'], storage.AccessType.WRITE)
+                bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
                 seen_uri_output.add(bucket_info.uri)
 
         for input_data_spec in group_task.inputs:

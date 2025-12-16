@@ -68,6 +68,18 @@ class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.for
         description='The encrypted authentication secret for a data backend',
     )
 
+    def to_decrypted_dict(self) -> dict[str, str]:
+        output = {
+            'access_key_id': self.access_key_id,
+            'access_key': self.access_key.get_secret_value(),
+            'endpoint': self.endpoint,
+        }
+
+        if self.region:
+            output['region'] = self.region
+
+        return output
+
 
 class WorkloadIdentityDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
     """
