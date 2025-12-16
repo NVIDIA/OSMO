@@ -24,7 +24,7 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/service/utils_go/postgres",
     visibility = ["//src/service:__subpackages__"],
     deps = [
-        "@com_github_lib_pq//:go_default_library",
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
 )
 

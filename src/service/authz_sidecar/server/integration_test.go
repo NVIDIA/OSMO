@@ -56,8 +56,7 @@ func (m *MockPostgresClient) AddRole(role *postgres.Role) {
 	m.roles[role.Name] = role
 }
 
-func (m *MockPostgresClient) Close() error {
-	return nil
+func (m *MockPostgresClient) Close() {
 }
 
 func (m *MockPostgresClient) Ping(ctx context.Context) error {

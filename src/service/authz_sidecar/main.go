@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -50,9 +51,9 @@ var (
 	postgresDB              = flag.String("postgres-db", "osmo", "PostgreSQL database name")
 	postgresUser            = flag.String("postgres-user", "postgres", "PostgreSQL user")
 	postgresPassword        = flag.String("postgres-password", "", "PostgreSQL password")
-	postgresMaxOpenConns    = flag.Int("postgres-max-open-conns", 10, "Max open connections")
-	postgresMaxIdleConns    = flag.Int("postgres-max-idle-conns", 5, "Max idle connections")
-	postgresConnMaxLifetime = flag.Duration("postgres-conn-max-lifetime", 5*time.Minute, "Connection max lifetime")
+	postgresMaxConns        = flag.Int("postgres-max-conns", 10, "Max connections in pool")
+	postgresMinConns        = flag.Int("postgres-min-conns", 5, "Min connections in pool")
+	postgresMaxConnLifetime = flag.Duration("postgres-max-conn-lifetime", 5*time.Minute, "Connection max lifetime")
 	postgresSSLMode         = flag.String("postgres-sslmode", "disable", "PostgreSQL SSL mode")
 
 	// Cache flags
@@ -77,13 +78,14 @@ func main() {
 		Database:        *postgresDB,
 		User:            *postgresUser,
 		Password:        *postgresPassword,
-		MaxOpenConns:    *postgresMaxOpenConns,
-		MaxIdleConns:    *postgresMaxIdleConns,
-		ConnMaxLifetime: *postgresConnMaxLifetime,
+		MaxConns:        int32(*postgresMaxConns),
+		MinConns:        int32(*postgresMinConns),
+		MaxConnLifetime: *postgresMaxConnLifetime,
 		SSLMode:         *postgresSSLMode,
 	}
 
-	pgClient, err := postgres.NewPostgresClient(pgConfig, logger)
+	ctx := context.Background()
+	pgClient, err := postgres.NewPostgresClient(ctx, pgConfig, logger)
 	if err != nil {
 		logger.Error("failed to create postgres client", slog.String("error", err.Error()))
 		os.Exit(1)

@@ -59,13 +59,14 @@ func TestPostgresIntegration_GetRoles(t *testing.T) {
 		Database:        postgresDB,
 		User:            postgresUser,
 		Password:        postgresPassword,
-		MaxOpenConns:    5,
-		MaxIdleConns:    2,
-		ConnMaxLifetime: 5 * time.Minute,
+		MaxConns:        5,
+		MinConns:        2,
+		MaxConnLifetime: 5 * time.Minute,
 		SSLMode:         "disable",
 	}
 
-	client, err := NewPostgresClient(config, logger)
+	ctx := context.Background()
+	client, err := NewPostgresClient(ctx, config, logger)
 	if err != nil {
 		t.Fatalf("Failed to create postgres client: %v\n"+
 			"Make sure PostgreSQL is running with:\n"+
@@ -76,10 +77,10 @@ func TestPostgresIntegration_GetRoles(t *testing.T) {
 	defer client.Close()
 
 	// Verify connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := client.Ping(ctx); err != nil {
+	if err := client.Ping(pingCtx); err != nil {
 		t.Fatalf("Failed to ping database: %v", err)
 	}
 
@@ -154,10 +155,10 @@ func TestPostgresIntegration_GetRoles(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			testCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 
-			roles, err := client.GetRoles(ctx, tc.roleNames)
+			roles, err := client.GetRoles(testCtx, tc.roleNames)
 			if err != nil {
 				t.Fatalf("GetRoles() failed: %v", err)
 			}
@@ -195,23 +196,24 @@ func TestPostgresIntegration_PolicyParsing(t *testing.T) {
 		Database:        postgresDB,
 		User:            postgresUser,
 		Password:        postgresPassword,
-		MaxOpenConns:    5,
-		MaxIdleConns:    2,
-		ConnMaxLifetime: 5 * time.Minute,
+		MaxConns:        5,
+		MinConns:        2,
+		MaxConnLifetime: 5 * time.Minute,
 		SSLMode:         "disable",
 	}
 
-	client, err := NewPostgresClient(config, logger)
+	ctx := context.Background()
+	client, err := NewPostgresClient(ctx, config, logger)
 	if err != nil {
 		t.Fatalf("Failed to create postgres client: %v", err)
 	}
 	defer client.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	// Fetch osmo-default role which should have well-defined policies
-	roles, err := client.GetRoles(ctx, []string{"osmo-default"})
+	roles, err := client.GetRoles(queryCtx, []string{"osmo-default"})
 	if err != nil {
 		t.Fatalf("GetRoles() failed: %v", err)
 	}
@@ -289,23 +291,24 @@ func TestPostgresIntegration_EmptyRoleNames(t *testing.T) {
 		Database:        postgresDB,
 		User:            postgresUser,
 		Password:        postgresPassword,
-		MaxOpenConns:    5,
-		MaxIdleConns:    2,
-		ConnMaxLifetime: 5 * time.Minute,
+		MaxConns:        5,
+		MinConns:        2,
+		MaxConnLifetime: 5 * time.Minute,
 		SSLMode:         "disable",
 	}
 
-	client, err := NewPostgresClient(config, logger)
+	ctx := context.Background()
+	client, err := NewPostgresClient(ctx, config, logger)
 	if err != nil {
 		t.Fatalf("Failed to create postgres client: %v", err)
 	}
 	defer client.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	// Test with empty role names
-	roles, err := client.GetRoles(ctx, []string{})
+	roles, err := client.GetRoles(queryCtx, []string{})
 	if err != nil {
 		t.Errorf("GetRoles() with empty slice should not error, got: %v", err)
 	}

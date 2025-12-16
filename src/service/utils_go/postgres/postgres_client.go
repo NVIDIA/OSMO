@@ -20,13 +20,12 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgresConfig holds PostgreSQL connection configuration
@@ -36,15 +35,15 @@ type PostgresConfig struct {
 	Database        string
 	User            string
 	Password        string
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
+	MaxConns        int32
+	MinConns        int32
+	MaxConnLifetime time.Duration
 	SSLMode         string
 }
 
 // PostgresClient handles PostgreSQL database operations
 type PostgresClient struct {
-	db     *sql.DB
+	pool   *pgxpool.Pool
 	logger *slog.Logger
 }
 
@@ -69,42 +68,48 @@ type Role struct {
 }
 
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
-func NewPostgresClient(config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
-	// Build connection string
-	connStr := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		config.Host,
-		config.Port,
+func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
+	// Build connection URL
+	connURL := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		config.User,
 		config.Password,
+		config.Host,
+		config.Port,
 		config.Database,
 		config.SSLMode,
 	)
 
-	// Open database connection
-	db, err := sql.Open("postgres", connStr)
+	// Parse config to get a pgxpool.Config
+	poolConfig, err := pgxpool.ParseConfig(connURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to parse connection config: %w", err)
 	}
 
-	// Configure connection pool
-	db.SetMaxOpenConns(config.MaxOpenConns)
-	db.SetMaxIdleConns(config.MaxIdleConns)
-	db.SetConnMaxLifetime(config.ConnMaxLifetime)
+	// Configure connection pool settings
+	poolConfig.MaxConns = config.MaxConns
+	poolConfig.MinConns = config.MinConns
+	poolConfig.MaxConnLifetime = config.MaxConnLifetime
+
+	// Create connection pool
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	}
 
 	// Ping to verify connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+	if err := pool.Ping(pingCtx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	logger.Info("postgres client connected successfully")
 
 	return &PostgresClient{
-		db:     db,
+		pool:   pool,
 		logger: logger,
 	}, nil
 }
@@ -117,20 +122,18 @@ func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*R
 
 	// Build query with ANY clause for array matching
 	// Convert JSONB[] to JSON array for easier parsing in Go
+	// pgx natively handles []string as PostgreSQL array
 	query := `SELECT name, description, array_to_json(policies)::text as policies, immutable
               FROM roles
               WHERE name = ANY($1)
               ORDER BY name`
-
-	// Convert roleNames to PostgreSQL array format
-	roleArray := fmt.Sprintf("{%s}", joinStrings(roleNames, ","))
 
 	c.logger.Debug("querying roles",
 		slog.String("query", query),
 		slog.Any("roles", roleNames),
 	)
 
-	rows, err := c.db.QueryContext(ctx, query, roleArray)
+	rows, err := c.pool.Query(ctx, query, roleNames)
 	if err != nil {
 		c.logger.Error("failed to query roles",
 			slog.String("error", err.Error()),
@@ -206,25 +209,13 @@ func (c *PostgresClient) GetRoles(ctx context.Context, roleNames []string) ([]*R
 	return roles, nil
 }
 
-// Close closes the database connection
-func (c *PostgresClient) Close() error {
+// Close closes the database connection pool
+func (c *PostgresClient) Close() {
 	c.logger.Info("closing postgres client")
-	return c.db.Close()
+	c.pool.Close()
 }
 
 // Ping verifies the database connection is still alive
 func (c *PostgresClient) Ping(ctx context.Context) error {
-	return c.db.PingContext(ctx)
-}
-
-// joinStrings joins strings with a separator for PostgreSQL array
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	result := `"` + strs[0] + `"`
-	for i := 1; i < len(strs); i++ {
-		result += sep + `"` + strs[i] + `"`
-	}
-	return result
+	return c.pool.Ping(ctx)
 }

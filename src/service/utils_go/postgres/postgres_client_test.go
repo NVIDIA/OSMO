@@ -20,48 +20,34 @@ package postgres
 
 import (
 	"testing"
+	"time"
 )
 
-func TestJoinStrings(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []string
-		sep      string
-		expected string
-	}{
-		{
-			name:     "single string",
-			input:    []string{"test"},
-			sep:      ",",
-			expected: `"test"`,
-		},
-		{
-			name:     "multiple strings",
-			input:    []string{"osmo-user", "osmo-default"},
-			sep:      ",",
-			expected: `"osmo-user","osmo-default"`,
-		},
-		{
-			name:     "three strings",
-			input:    []string{"role1", "role2", "role3"},
-			sep:      ",",
-			expected: `"role1","role2","role3"`,
-		},
-		{
-			name:     "empty slice",
-			input:    []string{},
-			sep:      ",",
-			expected: "",
-		},
+func TestPostgresConfig(t *testing.T) {
+	// Test creating a config struct
+	config := PostgresConfig{
+		Host:            "localhost",
+		Port:            5432,
+		Database:        "test_db",
+		User:            "test_user",
+		Password:        "test_pass",
+		MaxConns:        10,
+		MinConns:        2,
+		MaxConnLifetime: 5 * time.Minute,
+		SSLMode:         "disable",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := joinStrings(tt.input, tt.sep)
-			if got != tt.expected {
-				t.Errorf("joinStrings() = %q, want %q", got, tt.expected)
-			}
-		})
+	if config.Host != "localhost" {
+		t.Errorf("config.Host = %q, want %q", config.Host, "localhost")
+	}
+	if config.Port != 5432 {
+		t.Errorf("config.Port = %d, want %d", config.Port, 5432)
+	}
+	if config.MaxConns != 10 {
+		t.Errorf("config.MaxConns = %d, want %d", config.MaxConns, 10)
+	}
+	if config.MinConns != 2 {
+		t.Errorf("config.MinConns = %d, want %d", config.MinConns, 2)
 	}
 }
 
@@ -105,6 +91,43 @@ func TestRoleStructures(t *testing.T) {
 	}
 	if action.Method != "GET" {
 		t.Errorf("action.Method = %q, want %q", action.Method, "GET")
+	}
+}
+
+func TestRolePolicy_MultipleActions(t *testing.T) {
+	policy := RolePolicy{
+		Actions: []RoleAction{
+			{Base: "http", Path: "/api/v1/*", Method: "GET"},
+			{Base: "http", Path: "/api/v1/*", Method: "POST"},
+			{Base: "grpc", Path: "/service.Method", Method: "*"},
+		},
+	}
+
+	if len(policy.Actions) != 3 {
+		t.Errorf("len(policy.Actions) = %d, want 3", len(policy.Actions))
+	}
+
+	// Verify each action
+	expectedActions := []struct {
+		base   string
+		path   string
+		method string
+	}{
+		{"http", "/api/v1/*", "GET"},
+		{"http", "/api/v1/*", "POST"},
+		{"grpc", "/service.Method", "*"},
+	}
+
+	for i, expected := range expectedActions {
+		if policy.Actions[i].Base != expected.base {
+			t.Errorf("action[%d].Base = %q, want %q", i, policy.Actions[i].Base, expected.base)
+		}
+		if policy.Actions[i].Path != expected.path {
+			t.Errorf("action[%d].Path = %q, want %q", i, policy.Actions[i].Path, expected.path)
+		}
+		if policy.Actions[i].Method != expected.method {
+			t.Errorf("action[%d].Method = %q, want %q", i, policy.Actions[i].Method, expected.method)
+		}
 	}
 }
 

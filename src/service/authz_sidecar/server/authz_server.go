@@ -46,7 +46,7 @@ const (
 // PostgresClientInterface defines the interface for PostgreSQL operations
 type PostgresClientInterface interface {
 	GetRoles(ctx context.Context, roleNames []string) ([]*postgres.Role, error)
-	Close() error
+	Close()
 	Ping(ctx context.Context) error
 }
 
