@@ -177,9 +177,43 @@ class ErrorHandler(Protocol):
 
 class ResumableStream(Iterator[bytes], io.IOBase):
     """
-    A resumable stream that abstracts away retry logic and resumption so consumers
-    can safely iterate through the data without worrying about connection issues and/or
-    resource leaks.
+    A resumable byte stream with automatic retry and cleanup handling.
+
+    This abstract base class provides a resilient streaming interface for reading
+    data from remote storage. It automatically handles:
+
+    - **Retry logic**: Transparently retries failed requests due to transient errors
+    - **Resumption**: Resumes from the last read position after connection issues
+    - **Resource cleanup**: Guarantees cleanup even if the stream is not fully consumed
+
+    The stream can be used as both an iterator (yields byte chunks) and a file-like
+    object (supports ``read()``).
+
+    Example:
+        .. code-block:: python
+
+            # As an iterator
+            with client.get_object_stream("data/file.txt") as stream:
+                for chunk in stream:
+                    process(chunk)
+                print(f"Total bytes: {stream.size}")
+
+            # As a file-like object
+            with client.get_object_stream("data/file.txt") as stream:
+                content = stream.read()
+
+            # Line-by-line iteration
+            with client.get_object_stream("data/file.txt") as stream:
+                for line in stream.iter_lines():
+                    print(line.decode())
+                print(f"Total lines: {stream.lines}")
+
+    :ivar int size: Total bytes read from the stream.
+    :ivar int | None lines: Number of lines read (only set when using ``iter_lines()``).
+
+    Note:
+        This is an abstract base class. Use concrete implementations like
+        :py:class:`~osmo.data.storage.streaming.BytesStream` for actual streaming.
     """
 
     _context: APIContext
@@ -262,7 +296,14 @@ class ResumableStream(Iterator[bytes], io.IOBase):
 
     def iter_lines(self, keepends: bool = False) -> Iterator[bytes]:
         """
-        Iterates over the stream and yields lines as byte strings.
+        Iterate over the stream line by line.
+
+        Yields each line as a byte string. The ``lines`` property is updated
+        as lines are yielded.
+
+        :param bool keepends: If ``True``, line ending characters are preserved.
+                             Defaults to ``False``.
+        :yields: Each line as bytes.
         """
         if self._lines_read is None:
             self._lines_read = 0
