@@ -366,7 +366,7 @@ def _start_ui_service():
 
     ui_env = os.environ.copy()
     ui_env['NEXT_PUBLIC_OSMO_API_HOSTNAME'] = f'{host_ip}:8000'
-    ui_env['NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED'] = 'false'
+    ui_env['NEXT_PUBLIC_OSMO_SSL_ENABLED'] = 'false'
 
     process = run_command_with_logging(
         cmd=npm_dev_cmd,
