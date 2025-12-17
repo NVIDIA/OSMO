@@ -548,8 +548,8 @@ def create_client(
                     region_name=region,
                     config=config,
                 )
-            case credentials.WorkloadIdentityDataCredential():
-                # Uses ambient credentials (e.g. Workload Identity)
+            case credentials.DefaultDataCredential():
+                # Uses ambient credentials (e.g. Environment variables, Workload Identity, etc.)
                 return session.client(
                     's3',
                     endpoint_url=endpoint_url,

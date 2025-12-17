@@ -24,7 +24,9 @@ osmo_py_library(
     srcs = glob(["*.py"]),
     deps = [
         "//src/lib/data/storage/constants",
+        "//src/lib/utils:client_configs",
         "//src/lib/utils:osmo_errors",
         requirement("pydantic"),
+        requirement("pyyaml"),
     ],
 )

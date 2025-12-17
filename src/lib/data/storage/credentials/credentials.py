@@ -21,13 +21,15 @@ Credentials for the data module.
 """
 
 import abc
+import os
 import re
 from typing import Union
 
 import pydantic
+import yaml
 
 from .. import constants
-from ....utils import osmo_errors
+from ....utils import client_configs, osmo_errors
 
 
 class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbid):
@@ -81,17 +83,52 @@ class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.for
         return output
 
 
-class WorkloadIdentityDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
+class DefaultDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
     """
-    Authentication information for a data backend using workload identity.
+    Data credential that delegates resolution to the underlying SDK.
 
-    Intentionally left empty. This indicates that we should resolve the credentials
-    from the hosted cloud environment.
+    Uses the SDK's default credential chain (e.g., Azure's DefaultAzureCredential,
+    boto3's credential resolution) which may include environment variables, 
+    workload identity, instance metadata, and other provider-specific methods.
+
+    Intentionally left empty as all credential resolution is handled by the SDK.
     """
     pass
 
 
 DataCredential = Union[
     StaticDataCredential,
-    WorkloadIdentityDataCredential,
+    DefaultDataCredential,
 ]
+
+
+def get_static_data_credential_from_config(url: str) -> StaticDataCredential | None:
+    """
+    Get a matching static data credential from the config file.
+
+    Args:
+        url: The URL of the data service.
+    Returns:
+        The static data credential or None if not found.
+    """
+    config_dir = client_configs.get_client_config_dir(create=False)
+    config_file = os.path.join(config_dir, 'config.yaml')
+
+    if not os.path.exists(config_file):
+        return None
+
+    with open(config_file, 'r', encoding='utf-8') as file:
+        configs = yaml.safe_load(file.read())
+
+        if 'auth' in configs and 'data' in configs['auth'] and url in configs['auth']['data']:
+            data_cred_dict = configs['auth']['data'][url]
+            data_cred = StaticDataCredential(
+                access_key_id=data_cred_dict['access_key_id'],
+                access_key=pydantic.SecretStr(data_cred_dict['access_key']),
+                endpoint=url,
+                region=data_cred_dict['region'],
+            )
+
+            return data_cred
+
+    return None

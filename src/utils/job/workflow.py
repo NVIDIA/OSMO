@@ -646,18 +646,32 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 return
 
             data_cred = task.fetch_creds(user, user_creds, bucket_info.uri)
-            if not data_cred:
-                # TODO: check if we have workload identity configured for the pool
-                raise osmo_errors.OSMOCredentialError(
-                    f'Could not find {bucket_info.uri} credential for user {user}.')
 
-            # Get if user has access to READ or WRITE
-            if is_input and bucket_info.uri not in seen_uri_input:
-                bucket_info.data_auth(data_cred, storage.AccessType.READ)
-                seen_uri_input.add(bucket_info.uri)
-            if not is_input and bucket_info.uri not in seen_uri_output:
-                bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
-                seen_uri_output.add(bucket_info.uri)
+            has_access = True
+            if data_cred is not None:
+                # Check if user credentials have access to READ
+                try:
+                    if is_input and bucket_info.uri not in seen_uri_input:
+                        bucket_info.data_auth(data_cred, storage.AccessType.READ)
+                        seen_uri_input.add(bucket_info.uri)
+                except osmo_errors.OSMOCredentialError as err:
+                    has_access = False
+                
+                # Check if user credentials have access to WRITE
+                try:
+                    if not is_input and bucket_info.uri not in seen_uri_output:
+                        bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
+                        seen_uri_output.add(bucket_info.uri)
+                except osmo_errors.OSMOCredentialError as err:
+                    has_access = False
+            else:
+                # TODO: check pod template to see if we have workload identity configured for
+                #       the pool, if so, bypass the data validation
+                raise NotImplementedError('Workload identity credentials are not supported yet.')
+
+            if not has_access:
+                raise osmo_errors.OSMOCredentialError(
+                    f'Could not validate access to {bucket_info.uri} for user {user}.')
 
         for input_data_spec in group_task.inputs:
             _validate_input_output(input_data_spec, True)

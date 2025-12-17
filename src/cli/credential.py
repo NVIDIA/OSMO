@@ -26,7 +26,7 @@ import yaml
 
 import shtab
 
-from src.lib.utils import client, client_configs, common, credentials, osmo_errors
+from src.lib.utils import client, client_configs, credentials, common, osmo_errors
 
 CRED_TYPES = ['REGISTRY', 'DATA', 'GENERIC']
 
@@ -138,11 +138,11 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
         for cred in result['credentials']:
             cred['local'] = 'N/A'
             if cred.get('cred_type', '') == 'DATA':
-                try:
-                    client_configs.get_credentials(cred.get('profile', ''))
-                    cred['local'] = 'Yes'
-                except osmo_errors.OSMOError:
-                    cred['local'] = 'No'
+                data_cred = credentials.get_static_data_credential_from_config(
+                    url=cred.get('profile', ''),
+                )
+                cred['local'] = 'Yes' if data_cred else 'No'
+
             table.add_row([cred.get(column, '-') for column in columns])
         print(f'{table.draw()}\n')
 

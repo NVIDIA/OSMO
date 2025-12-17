@@ -221,11 +221,9 @@ def migrate(
     # Resolve the region for the destination storage backend.
     # This is necessary for generating a valid regional HTTP URL for uploaded objects
     # for certain storage backends (e.g. AWS S3).
-    destination_cred = destination_backend.resolve_data_credential()
-    destination_region = destination_backend.region(data_cred=destination_cred)
+    destination_region = destination_backend.region()
 
     client_factory = destination_backend.client_factory(
-        data_cred=destination_cred,
         region=destination_region,
     )
 

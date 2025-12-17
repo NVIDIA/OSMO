@@ -132,7 +132,7 @@ class Boto3Backend(common.StorageBackend):
     @override
     def client_factory(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> s3.S3StorageClientFactory:
@@ -140,6 +140,9 @@ class Boto3Backend(common.StorageBackend):
         Returns a factory for creating storage clients.
         """
         region = kwargs.get('region', None) or self.region(data_cred)
+
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -152,9 +155,9 @@ class Boto3Backend(common.StorageBackend):
                     supports_batch_delete=self.supports_batch_delete,
                 )
 
-            case credentials.WorkloadIdentityDataCredential():
+            case credentials.DefaultDataCredential():
                 raise NotImplementedError(
-                    'Workload identity data credentials are not supported yet')
+                    'Default data credentials are not supported yet')
 
             case _ as unreachable:
                 assert_never(unreachable)
@@ -249,7 +252,7 @@ class SwiftBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         access_type: common.AccessType | None = None,
     ):
         # pylint: disable=unused-argument
@@ -258,6 +261,9 @@ class SwiftBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -273,9 +279,9 @@ class SwiftBackend(Boto3Backend):
                         f'Data key validation error: access_key_id {access_key_id} is ' +
                         f'not valid for the {self.namespace} namespace.')
 
-            case credentials.WorkloadIdentityDataCredential():
+            case credentials.DefaultDataCredential():
                 raise NotImplementedError(
-                    'Workload identity data credentials are not supported for Swift backend')
+                    'Default data credentials are not supported for Swift backend')
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -309,7 +315,7 @@ class SwiftBackend(Boto3Backend):
     @override
     def region(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -319,12 +325,15 @@ class SwiftBackend(Boto3Backend):
         if self._region is not None:
             return self._region
 
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
+
         match data_cred:
             case credentials.StaticDataCredential():
                 pass
-            case credentials.WorkloadIdentityDataCredential():
+            case credentials.DefaultDataCredential():
                 raise NotImplementedError(
-                    'Workload identity data credentials are not supported for Swift backend')
+                    'Default data credentials are not supported for Swift backend')
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -400,15 +409,6 @@ class S3Backend(Boto3Backend):
         )
 
     @override
-    @classmethod
-    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
-        return [
-            # Resolve credentials from client config
-            # Resolve credentials from workload identity
-            # Resolve credentials from environment variables
-        ]
-
-    @override
     @property
     def auth_endpoint(self) -> str:
         return ''
@@ -439,7 +439,7 @@ class S3Backend(Boto3Backend):
     @override
     def data_auth(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         access_type: common.AccessType | None = None,
     ):
         """
@@ -456,6 +456,9 @@ class S3Backend(Boto3Backend):
         elif access_type == common.AccessType.DELETE:
             action.append('s3:DeleteObject')
 
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
+
         match data_cred:
             case credentials.StaticDataCredential():
                 session = boto3.Session(
@@ -463,7 +466,7 @@ class S3Backend(Boto3Backend):
                     aws_secret_access_key=data_cred.access_key.get_secret_value(),
                     region_name=self.region(data_cred),
                 )
-            case credentials.WorkloadIdentityDataCredential():
+            case credentials.DefaultDataCredential():
                 session = boto3.Session(
                     region_name=self.region(data_cred),
                 )
@@ -506,7 +509,7 @@ class S3Backend(Boto3Backend):
     @override
     def region(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -515,6 +518,9 @@ class S3Backend(Boto3Backend):
         """
         if self._region is not None:
             return self._region
+
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
 
         if data_cred.region is not None:
             return data_cred.region
@@ -585,15 +591,6 @@ class GSBackend(Boto3Backend):
         )
 
     @override
-    @classmethod
-    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
-        return [
-            # Resolve credentials from client config
-            # Resolve credentials from workload identity
-            # Resolve credentials from environment variables
-        ]
-
-    @override
     @property
     def auth_endpoint(self) -> str:
         return f'https://{self.netloc}'
@@ -628,7 +625,7 @@ class GSBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         access_type: common.AccessType | None = None,
     ):
         """
@@ -636,6 +633,9 @@ class GSBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -645,10 +645,10 @@ class GSBackend(Boto3Backend):
                     endpoint_url=self.auth_endpoint,
                     region=self.region(data_cred),
                 )
-            case credentials.WorkloadIdentityDataCredential():
+            case credentials.DefaultDataCredential():
                 # TODO: Implement Google Cloud Storage DAL for keyless authentication
                 raise NotImplementedError(
-                    'Workload identity data credentials are not supported for GS backend yet')
+                    'Default data credentials are not supported for GS backend yet')
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -667,10 +667,16 @@ class GSBackend(Boto3Backend):
 
     # TODO: Figure out how to correctly find region
     @override
-    def region(self, data_cred: credentials.DataCredential) -> str:
+    def region(
+        self,
+        data_cred: credentials.DataCredential | None = None,
+    ) -> str:
         """
         Infer the region of the bucket via provided credentials.
         """
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
+
         return data_cred.region or constants.DEFAULT_GS_REGION
 
 
@@ -725,14 +731,6 @@ class TOSBackend(Boto3Backend):
         )
 
     @override
-    @classmethod
-    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
-        return [
-            # Resolve credentials from client config
-            # Resolve credentials from environment variables
-        ]
-
-    @override
     @property
     def auth_endpoint(self) -> str:
         return f'https://{self.netloc}'
@@ -764,7 +762,7 @@ class TOSBackend(Boto3Backend):
     @override
     def data_auth(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         access_type: common.AccessType | None = None,
     ):
         """
@@ -772,6 +770,9 @@ class TOSBackend(Boto3Backend):
         """
         if _skip_data_auth():
             return
+
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -781,9 +782,9 @@ class TOSBackend(Boto3Backend):
                     endpoint_url=self.auth_endpoint,
                     region=self.region(data_cred),
                 )
-            case credentials.WorkloadIdentityDataCredential():
+            case credentials.DefaultDataCredential():
                 raise NotImplementedError(
-                    'Workload identity data credentials are not supported for TOS backend')
+                    'Default data credentials are not supported for TOS backend')
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -800,7 +801,7 @@ class TOSBackend(Boto3Backend):
                 f'Data key validation error: {err.message}: {err.__cause__}')
 
     @override
-    def region(self, _: credentials.DataCredential) -> str:
+    def region(self, _: credentials.DataCredential | None = None) -> str:
         # netloc = tos-s3-<region>.<endpoint>
         return self.netloc[len('tos-s3-'):].split('.')[0]
 
@@ -859,15 +860,6 @@ class AzureBlobStorageBackend(common.StorageBackend):
         )
 
     @override
-    @classmethod
-    def _credential_resolvers(cls) -> List[common.CredentialResolver]:
-        return [
-            # Resolve credentials from client config
-            # Resolve credentials from workload identity
-            # Resolve credentials from environment variables
-        ]
-
-    @override
     @property
     def auth_endpoint(self) -> str:
         return f'https://{self.storage_account}.{self.netloc}'
@@ -899,7 +891,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
     @override
     def data_auth(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         access_type: common.AccessType | None = None,
     ):
         # pylint: disable=unused-argument
@@ -908,6 +900,9 @@ class AzureBlobStorageBackend(common.StorageBackend):
         """
         if _skip_data_auth():
             return
+
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
 
         def _validate_auth():
             with azure.create_client(data_cred) as service_client:
@@ -929,7 +924,10 @@ class AzureBlobStorageBackend(common.StorageBackend):
             raise osmo_errors.OSMOCredentialError(f'Data auth validation error: {err}')
 
     @override
-    def region(self, _: credentials.DataCredential) -> str:
+    def region(
+        self,
+        _: credentials.DataCredential | None = None,
+    ) -> str:
         # Azure Blob Storage does not encode region in the URLs, we will simply
         # use the default region to conform to the interface.
         return self.default_region
@@ -942,7 +940,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
     @override
     def client_factory(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> azure.AzureBlobStorageClientFactory:
@@ -950,6 +948,9 @@ class AzureBlobStorageBackend(common.StorageBackend):
         """
         Returns a factory for creating storage clients.
         """
+        if data_cred is None:
+            data_cred = self.resolve_data_credential()
+
         return azure.AzureBlobStorageClientFactory(data_cred=data_cred)
 
 

@@ -306,9 +306,7 @@ def _validate_source_path(
     if re.fullmatch(constants.STORAGE_BACKEND_REGEX, source_path):
         # Remote path logic
         path_components = storage.construct_storage_backend(source_path)
-        path_credential = path_components.resolve_data_credential()
         path_components.data_auth(
-            data_cred=path_credential,
             access_type=storage.AccessType.READ,
         )
 

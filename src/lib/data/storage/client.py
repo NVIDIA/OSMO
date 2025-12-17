@@ -239,22 +239,39 @@ class Client(pydantic.BaseModel):
         description='Headers to apply to all requests of this client.',
     )
 
+    @pydantic.root_validator(skip_on_failure=True)
+    @classmethod
+    def validate_data_credential_endpoint(cls, values):
+        """
+        Validates that the data credential endpoint matches the storage backend profile.
+        """
+        data_credential_input = values.get('data_credential_input')
+        if data_credential_input is not None:
+            storage_uri = values.get('storage_uri')
+            cache_config = values.get('cache_config')
+
+            # Construct backends to validate profiles match
+            data_cred_backend = backends.construct_storage_backend(
+                uri=data_credential_input.endpoint,
+                cache_config=cache_config,
+            )
+            storage_backend = backends.construct_storage_backend(
+                uri=storage_uri,
+                cache_config=cache_config,
+            )
+
+            if data_cred_backend.profile != storage_backend.profile:
+                raise osmo_errors.OSMOCredentialError(
+                    'Credential endpoint must match the storage backend profile')
+
+        return values
+
     @functools.cached_property
     def data_credential(self) -> credentials.DataCredential:
         """
         Resolves the data credential.
         """
-        # Validate data credential input if provided.
         if self.data_credential_input is not None:
-            # Validate that the data credential endpoint matches the storage backend profile.
-            data_cred_backend = backends.construct_storage_backend(
-                uri=self.data_credential_input.endpoint,
-                cache_config=self.cache_config,
-            )
-            if data_cred_backend.profile != self.storage_backend.profile:
-                raise osmo_errors.OSMOCredentialError(
-                    'Credential endpoint must match the storage backend profile')
-
             return self.data_credential_input
 
         # Resolve the data credential from the storage backend
@@ -1233,7 +1250,8 @@ class SingleObjectClient(pydantic.BaseModel):
             Either storage_uri or storage_backend must be provided, not both.
 
         .. important::
-            If data_credential is not provided, it will be resolved from the file system.
+            If data_credential is not provided, it will be resolved from the host system
+            (i.e. file system, environment variables, etc.).
 
         :param str | None storage_uri: The object URI to use for the client.
         :param backends_common.StorageBackend | None storage_backend: The object storage backend to

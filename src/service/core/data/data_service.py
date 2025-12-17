@@ -51,7 +51,7 @@ def validate_user_cred(postgres: connectors.PostgresConnector, user: str, locati
     """
     backend_info = storage.construct_storage_backend(location)
 
-    # TODO (fernandol): do we support workload identity credentials?
+    # TODO: do we support workload identity credentials here?
     user_cred = postgres.get_data_cred(user, backend_info.profile)
     if not user_cred:
         raise osmo_errors.OSMOCredentialError(

@@ -72,8 +72,6 @@ osmo_py_library(
         requirement("pyyaml"),
         ":cache",
         ":common",
-        ":credentials",
-        ":osmo_errors",
     ],
 )
 

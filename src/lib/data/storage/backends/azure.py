@@ -280,9 +280,9 @@ def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClie
             return blob.BlobServiceClient.from_connection_string(
                 conn_str=data_cred.access_key.get_secret_value(),
             )
-        case credentials.WorkloadIdentityDataCredential():
+        case credentials.DefaultDataCredential():
             raise NotImplementedError(
-                'Workload identity data credentials are not supported yet')
+                'Default data credentials are not supported yet')
         case _ as unreachable:
             assert_never(unreachable)
 

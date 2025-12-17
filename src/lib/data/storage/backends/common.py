@@ -195,21 +195,36 @@ class StorageBackend(
     @abc.abstractmethod
     def data_auth(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         access_type: AccessType | None = None,
     ):
         """
-        Validates if the access id and key can perform action
+        Validates if the access id and key can perform action.
+
+        If no data credential is provided, it will be resolved via resolve_data_credential().
+
+        Args:
+            data_cred: The data credential to use for the validation.
+            access_type: The access type to validate.
         """
         pass
 
     @abc.abstractmethod
     def region(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
     ) -> str:
         """
         Infer the region of the bucket from the storage backend.
+
+        Some backends may not require a data credential to infer the region.
+        If no data credential is provided, it will be resolved via resolve_data_credential().
+
+        Args:
+            data_cred: The data credential to use for the region inference.
+
+        Returns:
+            The region of the bucket.
         """
         pass
 
@@ -240,23 +255,22 @@ class StorageBackend(
     @abc.abstractmethod
     def client_factory(
         self,
-        data_cred: credentials.DataCredential,
+        data_cred: credentials.DataCredential | None = None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> provider.StorageClientFactory:
         """
         Returns a factory for creating storage clients.
-        """
-        pass
 
-    @classmethod
-    @abc.abstractmethod
-    def _credential_resolvers(cls) -> List['CredentialResolver']:
-        """
-        Returns the credential resolvers for this backend.
+        If no data credential is provided, it will be resolved via resolve_data_credential().
 
-        Each backend class defines its own static list of resolvers.
-        Override in subclasses to provide backend-specific resolvers.
+        Args:
+            data_cred: The data credential to use for the client factory.
+            request_headers: The request headers to use for the client factory.
+            **kwargs: Additional keyword arguments to pass to the client factory.
+
+        Returns:
+            A factory for creating storage clients.
         """
         pass
 
@@ -264,39 +278,17 @@ class StorageBackend(
         """
         Resolve the data credential for the storage backend.
 
-        Tries to resolve the credential using the registered resolvers (in order of priority).
+        Subclasses should override this method to provide custom credential resolution logic.
 
         Returns:
             The resolved data credential.
 
         Raises:
-            OSMOCredentialError: If no data credential could be resolved.
+            OSMOCredentialError: If the data credential is not found.
         """
-        for resolver in self._credential_resolvers():
-            try:
-                data_credential = resolver.resolve(self)
-                if data_credential is not None:
-                    return data_credential
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error('Error resolving data credential: %s', e)
+        data_cred = credentials.get_static_data_credential_from_config(self.profile)
+        if data_cred is None:
+            raise osmo_errors.OSMOCredentialError(
+                f'Data credential not found for {self.profile}')
 
-        raise osmo_errors.OSMOCredentialError(
-            f'Could not resolve data credential for {self.profile}, configure data credentials '
-            'using "osmo credential set" or set environment variables',
-        )
-
-
-class CredentialResolver(abc.ABC):
-    """
-    Abstract base for credential resolution strategies.
-    """
-
-    @abc.abstractmethod
-    def resolve(self, backend: StorageBackend) -> credentials.DataCredential | None:
-        """
-        Attempt to resolve credentials for the given backend.
-
-        Returns:
-            DataCredential if successful, None if this resolver cannot provide credentials.
-        """
-        pass
+        return data_cred
