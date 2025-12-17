@@ -1074,6 +1074,13 @@ class PostgresConnector:
             ConfigHistoryType.BACKEND_TEST,
             ConfigHistoryType.ROLE,
         ]:
+            fetch_cmd = """
+                SELECT * FROM config_history WHERE config_type = %s;
+            """
+            data = self.execute_fetch_command(fetch_cmd, (config_type.value.lower(),))
+            if data:
+                continue
+
             if config_type == ConfigHistoryType.SERVICE:
                 data = self.get_service_configs().plaintext_dict(
                     exclude_unset=True, by_alias=True
@@ -2139,6 +2146,7 @@ class BackendNodeConditions(pydantic.BaseModel):
     """ Settings for backend node conditions. """
     rules: Dict[str, str] | None = None
     prefix: str = 'osmo.nvidia.com/'
+
 
 class Backend(pydantic.BaseModel):
     """ Object storing backend info. """
@@ -4024,7 +4032,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     role.RoleAction(base='http', path='/api/plugins/configs', method='*'),
                     # Tailing slash is to exclude path /api/router/webserver/*/backend/*
                     role.RoleAction(base='http', path='/api/router/webserver/*/', method='*'),
-                    role.RoleAction(base='http', path='/api/router/webserver_enabled', method='*'),
                     role.RoleAction(base='http', path='/api/router/*/*/client/*', method='*'),
                 ]
             )
@@ -4098,6 +4105,12 @@ class AccessControlMiddleware:
         elif scope['type'] == 'http':
             request = fastapi.Request(scope, receive=receive, send=send)
             request_headers = request.headers
+        else:
+            response = fastapi.responses.PlainTextResponse(
+                content=f'Invalid scope type: {scope["type"]}',
+                status_code=400
+            )
+            return await response(scope, receive, send)
 
         response = await check_user_access(
             scope['path'], request_method, request_headers, self.method, self.domain_access_check)

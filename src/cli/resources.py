@@ -139,7 +139,6 @@ def _cluster_resources(service_client: client.ServiceClient, args: argparse.Name
     def check_exposed_fields(resource: Dict):
         if 'exposed_fields' not in resource:
             print('Resource response from server is malformed.')
-            return
 
     keys = ['Node', 'Pool', 'Platform', 'Type']
     allocatable_keys = \
