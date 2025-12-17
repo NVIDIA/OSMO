@@ -656,7 +656,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                         seen_uri_input.add(bucket_info.uri)
                 except osmo_errors.OSMOCredentialError as err:
                     has_access = False
-                
+
                 # Check if user credentials have access to WRITE
                 try:
                     if not is_input and bucket_info.uri not in seen_uri_output:
