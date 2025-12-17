@@ -53,12 +53,7 @@ export const PageError = ({
           name={icon}
           className={`${size === "lg" ? "text-6xl!" : "text-4xl!"}`}
         />
-        <p
-          aria-label={title}
-          className={`p-0 font-bold ${size === "lg" ? "text-2xl" : "text-xl"}`}
-        >
-          {title}
-        </p>
+        <p className={`p-0 font-bold ${size === "lg" ? "text-2xl" : "text-xl"}`}>{title}</p>
         <p>{errorMessage ?? "Unknown error occurred"}</p>
         {children}
       </div>
