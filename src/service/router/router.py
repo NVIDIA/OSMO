@@ -49,10 +49,6 @@ class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.Sta
         command_line='timeout',
         default=60,
         description='Timeout for router connections.')
-    webserver_enabled: bool = pydantic.Field(
-        command_line='webserver_enabled',
-        default=False,
-        description='Whether webserver is enabled during deployment.')
     webserver_initial_timeout: int = pydantic.Field(
         command_line='webserver_initial_timeout',
         default=60 * 60,  # 1 hour in seconds
@@ -136,12 +132,6 @@ def get_version():
 @app.get('/api/router/webserver/{key}')
 def is_session_alive(key: str) -> bool:
     return key.lower() in webservers
-
-
-# Endpoint for UI to determine whether to show the port forwarding button
-@app.get('/api/router/webserver_enabled')
-def is_webserver_enabled() -> bool:
-    return RouterServiceConfig.load().webserver_enabled
 
 
 @app.websocket('/api/router/exec/{name}/backend/{key}')

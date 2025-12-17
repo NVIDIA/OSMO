@@ -96,7 +96,7 @@ async def update_barrier(database, redis_client, workflow_id: str, group_name: s
     if count <= 0:
         count = task.TaskGroup.fetch_active_group_size(database, workflow_id, group_name)
 
-    logging.info('Add member %s from barrier %s', task_name, key)
+    logging.info('Add member %s to barrier %s', task_name, key)
     await redis_client.sadd(key, task_name)
     await redis_client.expire(key, total_timeout, nx=True)
     barrier_set = await redis_client.smembers(key)
