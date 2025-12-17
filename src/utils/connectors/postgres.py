@@ -4032,7 +4032,6 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     role.RoleAction(base='http', path='/api/plugins/configs', method='*'),
                     # Tailing slash is to exclude path /api/router/webserver/*/backend/*
                     role.RoleAction(base='http', path='/api/router/webserver/*/', method='*'),
-                    role.RoleAction(base='http', path='/api/router/webserver_enabled', method='*'),
                     role.RoleAction(base='http', path='/api/router/*/*/client/*', method='*'),
                 ]
             )
