@@ -24,7 +24,7 @@ export const getMapFromStatusArray = (statusArray: string[]) => {
 export const getTaskStatusArray = (
   statusFilterType?: StatusFilterType,
   statusMap?: Map<TaskStatusType, boolean>,
-): string[] => {
+): TaskStatusType[] => {
   if (statusFilterType === StatusFilterType.ALL) {
     return [...TaskStatusValues];
   }

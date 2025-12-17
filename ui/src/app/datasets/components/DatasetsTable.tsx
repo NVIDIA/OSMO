@@ -207,7 +207,7 @@ const DatasetsTable: React.FC<{
       selectedBuckets.size === 1 ? Array.from(selectedBuckets)[0] : undefined,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getSelectedRowModel().rows]);
+  }, [table.getSelectedRowModel().rows, onRowSelectionChange]);
 
   return (
     <TableBase

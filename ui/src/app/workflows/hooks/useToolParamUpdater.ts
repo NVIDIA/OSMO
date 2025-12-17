@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -235,15 +235,16 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     setPoolFilter(urlParams.get(PARAM_KEYS.pools) ?? "");
 
     const statusFilterTypeParam = urlParams.get(PARAM_KEYS.statusType);
-    setStatusFilterType(statusFilterTypeParam as StatusFilterType ?? defaults.statusFilterType as StatusFilterType);
+    const statusFilterTypeValue = statusFilterTypeParam as StatusFilterType ?? defaults.statusFilterType as StatusFilterType;
+    setStatusFilterType(statusFilterTypeValue);
     setStatusFilter(urlParams.get(PARAM_KEYS.status) ?? undefined);
 
-    if (statusFilterType !== StatusFilterType.ALL) {
+    if (statusFilterTypeValue !== StatusFilterType.ALL) {
       filterCount++;
     }
 
     setFilterCount(filterCount);
-  }, [urlParams, username, defaults, statusFilterType]);
+  }, [urlParams, username, defaults]);
 
   useEffect(() => {
     setDateRangeDates(getDateFromValues(dateRange, dateAfterFilter, dateBeforeFilter));
@@ -259,7 +260,7 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     }
   }, [isSelectAllUsersChecked, userFilter, username]);
 
-  const updateUrl = (props: ToolParamUpdaterProps): void => {
+  const updateUrl = useCallback((props: ToolParamUpdaterProps): void => {
     const {
       tool,
       task,
@@ -434,9 +435,36 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       newParams.delete(PARAM_KEYS.last_n_lines);
       handleChangeSidebarData(urlType, `?${newParams.toString()}`);
     }
-  };
+  }, [handleChangeSidebarData, pathname, router, urlType]);
 
-  return { updateUrl, tool, fullLog, lines, view, nameFilter, nodes, isSelectAllNodesChecked, podIp, filterCount, userFilter, poolFilter, statusFilterType, statusFilter, userType, isSelectAllPoolsChecked, priority, dateRange, dateAfterFilter, dateBeforeFilter, selectedWorkflowName, selectedTaskName, retryId, dateRangeDates, showTask, showWF };
+  return {
+    updateUrl,
+    tool,
+    fullLog,
+    lines,
+    view,
+    nameFilter,
+    nodes,
+    isSelectAllNodesChecked,
+    podIp,
+    filterCount,
+    userFilter,
+    poolFilter,
+    statusFilterType,
+    statusFilter,
+    userType,
+    isSelectAllPoolsChecked,
+    priority,
+    dateRange,
+    dateAfterFilter,
+    dateBeforeFilter,
+    selectedWorkflowName,
+    selectedTaskName,
+    retryId,
+    dateRangeDates,
+    showTask,
+    showWF,
+  };
 };
 
 export default useToolParamUpdater;

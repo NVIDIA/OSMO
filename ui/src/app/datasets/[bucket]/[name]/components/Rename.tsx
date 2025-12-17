@@ -43,6 +43,9 @@ export const Rename = ({
 
   const handleRename = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (loading || mutation.isPending) {
+      return;
+    }
     setLoading(true);
     setError(undefined);
     setShowSuccess(false);
@@ -89,7 +92,7 @@ export const Rename = ({
         </div>
         <div className="flex flex-col">
           <InlineBanner status={error ? "error" : showSuccess ? "success" : "none"}>
-            {(error ?? showSuccess) ? "Collection renamed successfully" : ""}
+            {error ? error : showSuccess ? "Collection renamed successfully" : ""}
           </InlineBanner>
           <div className="modal-footer">
             {!showSuccess && (
@@ -104,9 +107,9 @@ export const Rename = ({
             <button
               className="btn btn-primary h-8"
               type="submit"
-              aria-disabled={loading}
+              aria-disabled={loading || mutation.isPending}
             >
-              {loading ? (
+              {loading || mutation.isPending ? (
                 <Spinner
                   className="border-black"
                   size="button"

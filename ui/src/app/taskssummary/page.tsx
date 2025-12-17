@@ -31,6 +31,7 @@ import { StatusFilterType } from "~/components/StatusFilter";
 import { TASK_PINNED_KEY, UrlTypes } from "~/components/StoreProvider";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
+import { type TaskStatusType } from "~/models";
 import { type TaskSummaryListItem } from "~/models/tasks-model";
 import { api } from "~/trpc/react";
 
@@ -101,7 +102,9 @@ export default function TasksSummary() {
       all_pools: isSelectAllPoolsChecked,
       pools: isSelectAllPoolsChecked ? [] : poolFilter ? poolFilter.split(",") : [],
       statuses:
-        statusFilterType === StatusFilterType.CUSTOM ? statusFilter?.split(",") : getTaskStatusArray(statusFilterType),
+        statusFilterType === StatusFilterType.CUSTOM
+          ? (statusFilter?.split(",") as TaskStatusType[])
+          : getTaskStatusArray(statusFilterType),
       priority: priority,
       started_after: dateRangeDates?.fromDate?.toISOString(),
       started_before: dateRangeDates?.toDate?.toISOString(),
@@ -286,7 +289,7 @@ export default function TasksSummary() {
           icon="memory"
           text="Total Resources"
           aria-expanded={showTotalResources}
-          aria-haspopup="true"
+          aria-haspopup="dialog"
           aria-controls="total-resources"
         />
         <FilterButton

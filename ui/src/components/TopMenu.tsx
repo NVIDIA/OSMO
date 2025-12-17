@@ -185,7 +185,7 @@ export const TopMenu = ({ onItemClick }: { onItemClick: () => void }) => {
             }
           }}
           aria-expanded={openCLI}
-          aria-haspopup="true"
+          aria-haspopup="dialog"
           aria-controls="cli"
         />
       </li>,

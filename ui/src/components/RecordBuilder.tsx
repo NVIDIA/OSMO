@@ -85,13 +85,15 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
   };
 
   const addField = (fieldKey: string, fieldValue: unknown) => {
-    if (fieldKey && fieldValue) {
-      setFlattenedData({ ...flattenedData, [fieldKey]: fieldValue });
-      delete deletedFields[fieldKey];
-      setNewFieldKey("");
-      setNewFieldValue("");
-      setLastActionText(`Added ${newFieldKey}: ${newFieldValue}`);
+    if (!fieldKey || !fieldValue || !fieldKey?.trim() || !String(fieldValue)?.trim()) {
+      return;
     }
+
+    setFlattenedData({ ...flattenedData, [fieldKey]: fieldValue });
+    delete deletedFields[fieldKey];
+    setNewFieldKey("");
+    setNewFieldValue("");
+    setLastActionText(`Added ${fieldKey}: ${fieldValue as string}`);
   };
 
   const handleAddField = (e: React.FormEvent<HTMLFormElement>) => {

@@ -101,7 +101,7 @@ export default function PoolPlatform({ pool, platform }: { pool: string; platfor
           onClick={() => setShowActions(true)}
           aria-controls="pool-actions"
           aria-expanded={showActions}
-          aria-haspopup="true"
+          aria-haspopup="menu"
         />
       </PageHeader>
       <div className="flex flex-col gap-global xs:gap-0 xs:grid xs:grid-cols-[1fr_2fr] xs:h-full w-full relative xs:overflow-x-auto">

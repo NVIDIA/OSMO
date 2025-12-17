@@ -127,7 +127,7 @@ export const ToolsModal = ({ tool, workflow, selectedTask, fullLog, lines, verbo
     ) : null;
     // ExecTerminal is not in the dependency array because it is a lazy import - adding it causes a re-render loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedTask?.name, workflow?.name, entryCommand]);
+  }, [tool, selectedTask, workflow?.name, entryCommand]);
 
   const logUrl = useMemo(() => {
     if (!workflow) {

@@ -19,6 +19,7 @@ import { type InputHTMLAttributes } from "react";
 import { OutlinedIcon } from "./Icon";
 import { Colors, Tag, TagSizes } from "./Tag";
 import { TextInput } from "./TextInput";
+import { useSafeTimeout } from "../hooks/useSafeTimeout";
 
 interface MultiselectProps {
   id: string;
@@ -39,6 +40,7 @@ export const Multiselect: React.FC<MultiselectProps & Omit<InputHTMLAttributes<H
   const [searchValue, setSearchValue] = useState<string>("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [lastActionText, setLastActionText] = useState<string>("");
+  const { setSafeTimeout } = useSafeTimeout();
 
   const selectedOptions = useMemo(() => {
     return Array.from(filter.entries())
@@ -85,7 +87,7 @@ export const Multiselect: React.FC<MultiselectProps & Omit<InputHTMLAttributes<H
                   setFilter(new Map(filter.set(o.value, false)));
                   searchInputRef.current?.focus();
                   setLastActionText(`Removed ${o.label}`);
-                  setTimeout(() => {
+                  setSafeTimeout(() => {
                     setLastActionText("");
                   }, 3000);
                 }}
@@ -131,7 +133,7 @@ export const Multiselect: React.FC<MultiselectProps & Omit<InputHTMLAttributes<H
                   setFilter(new Map(filter.set(o.value, true)));
                   searchInputRef.current?.focus();
                   setLastActionText(`Added ${o.label}`);
-                  setTimeout(() => {
+                  setSafeTimeout(() => {
                     setLastActionText("");
                   }, 3000);
                 }}

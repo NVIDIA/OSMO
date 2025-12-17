@@ -31,7 +31,7 @@ import { StatusFilterType } from "~/components/StatusFilter";
 import { UrlTypes, WORKFLOW_PINNED_KEY } from "~/components/StoreProvider";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { type Task, type WorkflowListItem } from "~/models";
+import { type WorkflowStatusType, type Task, type WorkflowListItem } from "~/models";
 import { api } from "~/trpc/react";
 
 import { getWorkflowStatusArray } from "./components/StatusFilter";
@@ -206,7 +206,7 @@ export default function Workflows() {
       submitted_before: dateRangeDates?.toDate?.toISOString(),
       statuses:
         statusFilterType === StatusFilterType.CUSTOM
-          ? statusFilter?.split(",")
+          ? (statusFilter?.split(",") as WorkflowStatusType[])
           : getWorkflowStatusArray(statusFilterType),
       name: nameFilter,
       priority: priority,
@@ -246,6 +246,7 @@ export default function Workflows() {
       <PageHeader>
         <Link
           className="btn"
+          aria-label="Submit Workflow"
           href="/workflows/submit"
         >
           <FilledIcon name="send" />

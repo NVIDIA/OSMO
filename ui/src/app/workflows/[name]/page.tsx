@@ -108,8 +108,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
         updateUrl({ task: task.name, retry_id: task.retry_id });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localView, selectedTaskName, retryId, selectedWorkflow.data]);
+  }, [localView, selectedTaskName, retryId, selectedWorkflow.data, updateUrl]);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {

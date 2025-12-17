@@ -303,7 +303,7 @@ export const ResourcesTable = ({
 
     setAggregates(newAggregates);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getFilteredRowModel().flatRows]);
+  }, [table.getFilteredRowModel().flatRows, setAggregates]);
 
   return (
     <TableBase

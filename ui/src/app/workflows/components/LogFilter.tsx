@@ -151,7 +151,7 @@ const LogFilter = ({
           }
         }}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-controls="log-filter"
       >
         Lines

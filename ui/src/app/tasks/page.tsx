@@ -33,6 +33,7 @@ import { TASK_PINNED_KEY, UrlTypes } from "~/components/StoreProvider";
 import { Colors, Tag } from "~/components/Tag";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
+import { type TaskStatusType } from "~/models";
 import { type TaskListItem } from "~/models/tasks-model";
 import { api } from "~/trpc/react";
 import { formatForWrapping } from "~/utils/string";
@@ -105,7 +106,9 @@ export default function Tasks() {
       all_pools: isSelectAllPoolsChecked,
       pools: isSelectAllPoolsChecked ? [] : poolFilter ? poolFilter.split(",") : [],
       statuses:
-        statusFilterType === StatusFilterType.CUSTOM ? statusFilter?.split(",") : getTaskStatusArray(statusFilterType),
+        statusFilterType === StatusFilterType.CUSTOM
+          ? (statusFilter?.split(",") as TaskStatusType[])
+          : getTaskStatusArray(statusFilterType),
       priority: priority,
       started_after: dateRangeDates?.fromDate?.toISOString(),
       started_before: dateRangeDates?.toDate?.toISOString(),
@@ -325,7 +328,7 @@ export default function Tasks() {
             setShowTotalResources(!showTotalResources);
           }}
           aria-expanded={showTotalResources}
-          aria-haspopup="true"
+          aria-haspopup="dialog"
           aria-controls="total-resources"
         />
         <FilterButton

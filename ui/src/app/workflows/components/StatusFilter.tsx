@@ -24,7 +24,7 @@ export const getMapFromStatusArray = (statusArray: string[]) => {
 export const getWorkflowStatusArray = (
   statusFilterType?: StatusFilterType,
   statusMap?: Map<WorkflowStatusType, boolean>,
-): string[] => {
+): WorkflowStatusType[] => {
   if (statusFilterType === StatusFilterType.ALL) {
     return [...WorkflowStatusValues];
   }

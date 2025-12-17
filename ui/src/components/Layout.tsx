@@ -123,13 +123,14 @@ export const Layout = ({ children }: PropsWithChildren) => {
                 <button
                   className="btn btn-secondary"
                   aria-expanded={mainMenuOpen}
-                  aria-haspopup="true"
+                  aria-haspopup="menu"
                   aria-controls="main-menu"
                   onClick={() => {
                     if (!mainMenuOpen && mainMenuCanOpen) {
                       setMainMenuOpen(true);
                     }
                   }}
+                  aria-label="Main menu"
                 >
                   <OutlinedIcon name="menu" />
                 </button>
