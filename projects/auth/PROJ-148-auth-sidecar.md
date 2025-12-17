@@ -76,19 +76,13 @@ Currently, authorization is implemented as Python ASGI middleware (`AccessContro
 
 ### High-Level Architecture
 
-```
-┌─────────┐       ┌──────────────┐      ┌───────────────┐       ┌──────────────┐
-│ Client  │─────▶│ Envoy Proxy  │─────▶│ authz_sidecar │─────▶│  PostgreSQL  │
-└─────────┘       │   (Port 80)  │      │  (Port 50052) │       │ (roles table)│
-                  └──────────────┘      └───────────────┘       └──────────────┘
-                         │                      │
-                         │ ◀───────────────────┘
-                         │   ALLOW / DENY
-                         ▼
-                  ┌──────────────┐
-                  │    Service   │
-                  │  (Port 5000) │
-                  └──────────────┘
+```mermaid
+flowchart LR
+    Client --> Envoy["Envoy Proxy<br/>(Port 80)"]
+    Envoy --> AuthzSidecar["authz_sidecar<br/>(Port 50052)"]
+    AuthzSidecar --> PostgreSQL["PostgreSQL<br/>(roles table)"]
+    AuthzSidecar -->|ALLOW / DENY| Envoy
+    Envoy --> Service["Service<br/>(Port 5000)"]
 ```
 
 ### Key Components
