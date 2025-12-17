@@ -78,8 +78,6 @@ spec:
         args:
         - --hostname
         - {{ .Values.services.service.hostname }}
-        - --webserver_enabled
-        - {{ .Values.services.service.webserverEnabled | quote }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
         - --postgres_port

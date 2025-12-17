@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 import { OutlinedIcon } from "~/components/Icon";
 import { type Task } from "~/models";
-import { api } from "~/trpc/react";
+import { useRuntimeEnv } from "~/runtime-env";
 
 import { ToolType, type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
@@ -34,11 +34,7 @@ export default function TaskActions({
   className?: string;
   updateUrl: (params: ToolParamUpdaterProps) => void;
 }) {
-  const { data: webServerEnabled } = api.router.enabled.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-  });
-
+  const runtimeEnv = useRuntimeEnv();
   return (
     <div
       className={`dag-actions body-footer ${className}`}
@@ -105,7 +101,7 @@ export default function TaskActions({
               <OutlinedIcon name="keyboard_alt" />
               Shell
             </button>
-            {webServerEnabled && (
+            {runtimeEnv.PORT_FORWARD_ENABLED && (
               <button
                 className="btn btn-action"
                 onClick={() => updateUrl({ tool: ToolType.PortForwarding })}
