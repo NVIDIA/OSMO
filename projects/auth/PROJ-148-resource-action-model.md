@@ -176,7 +176,6 @@ const (
     ActionWorkflowUpdate  = "workflow:Update"
     ActionWorkflowDelete  = "workflow:Delete"
     ActionWorkflowCancel  = "workflow:Cancel"
-    ActionWorkflowClone   = "workflow:Clone"
     ActionWorkflowList    = "workflow:List"
     ActionWorkflowExecute = "workflow:Execute"
 
@@ -691,9 +690,6 @@ var ActionRegistry = map[string][]EndpointPattern{
     "workflow:Cancel": {
         {Path: "/api/workflow/*/cancel", Methods: []string{"POST"}},
     },
-    "workflow:Clone": {
-        {Path: "/api/workflow/*/clone", Methods: []string{"POST"}},
-    },
 
     // ==================== TASK ====================
     "task:Read": {
@@ -872,9 +868,3 @@ var ActionRegistry = map[string][]EndpointPattern{
 6. **Test in development** — Validate all existing access patterns
 7. **Roll out to staging** — Enable feature flag and monitor
 8. **Document** — User-facing documentation for new policy format
-
----
-
-**Document Version**: 1.0<br>
-**Last Updated**: 2025-12-16<br>
-**Status**: Design Proposal

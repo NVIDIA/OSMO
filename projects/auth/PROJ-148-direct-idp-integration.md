@@ -645,7 +645,7 @@ POST /api/users/{username}/roles
 }
 ```
 
-**Response (201 Created):**
+**Response:**
 ```json
 {
   "username": "user@example.com",
@@ -669,7 +669,7 @@ Remove a role assignment from a user.
 DELETE /api/users/{username}/roles/{role_name}
 ```
 
-**Response (204 No Content):** Success
+**Response:** Success
 
 **Errors:**
 - `403 Forbidden`: Caller doesn't have permission to remove roles
@@ -722,7 +722,7 @@ POST /api/roles/{role_name}/users
 }
 ```
 
-**Response (200 OK):**
+**Response:**
 ```json
 {
   "role_name": "osmo-ml-team",
@@ -898,7 +898,7 @@ Add the new role management actions to the action registry:
 },
 ```
 
-### CLI Commands
+### CLI Commands [WIP]
 
 The OSMO CLI provides commands for managing user roles:
 
@@ -1075,40 +1075,7 @@ def get_users_with_role(self, role_name: str) -> List[UserRoleInfo]:
 
 ### Database Migration
 
-Create a migration to add the `user_roles` table:
-
-**File**: `external/src/service/core/migrations/versions/xxx_add_user_roles_table.py`
-
-```python
-"""Add user_roles table for direct IDP integration
-
-Revision ID: xxx
-Create Date: 2025-12-16
-"""
-from alembic import op
-import sqlalchemy as sa
-
-revision = 'xxx'
-down_revision = 'previous_revision'
-
-def upgrade():
-    op.create_table(
-        'user_roles',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('username', sa.String(255), nullable=False),
-        sa.Column('role_name', sa.String(255), nullable=False),
-        sa.Column('assigned_by', sa.String(255), nullable=False),
-        sa.Column('assigned_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['role_name'], ['roles.name'], ondelete='CASCADE'),
-        sa.UniqueConstraint('username', 'role_name', name='uq_user_roles')
-    )
-    op.create_index('idx_user_roles_username', 'user_roles', ['username'])
-    op.create_index('idx_user_roles_role_name', 'user_roles', ['role_name'])
-
-def downgrade():
-    op.drop_table('user_roles')
-```
+WIP
 
 ---
 
@@ -1156,10 +1123,7 @@ curl -s "<jwks_uri>" | jq '.keys[0].kid'
 After logging in, inspect your token:
 
 ```bash
-# Get token from the OSMO CLI or browser cookie
-osmo auth token --decode
-
-# Or decode manually
+# Decode manually
 echo "<token>" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
 ```
 
@@ -1189,17 +1153,7 @@ curl -H "Authorization: Bearer <token>" \
 ```bash
 # Check user roles via API
 curl -H "Authorization: Bearer <token>" \
-  "https://<your-domain>/api/users/me/roles"
-```
-
-### Step 7: Test Envoy Health
-
-```bash
-# Check Envoy is running in the pod
-kubectl exec -it <pod-name> -c envoy -- curl localhost:8001/ready
-
-# Check Envoy clusters
-kubectl exec -it <pod-name> -c envoy -- curl localhost:8001/clusters | grep oauth
+  "https://<your-domain>/api/users/<user>/roles"
 ```
 
 ---
@@ -1227,42 +1181,6 @@ jwt:
     user_claim: preferred_username
     cluster: oauth
 ```
-
-3. Both authentication methods work simultaneously
-
-### Phase 2: Migrate Users
-
-1. Export user-role assignments from Keycloak:
-```bash
-# Using Keycloak Admin CLI
-kcadm.sh get users -r osmo --fields username,groups
-```
-
-2. Import into OSMO database:
-```bash
-# Use the role management API
-for user in $(cat keycloak-users.json | jq -r '.[].username'); do
-  for role in $(cat keycloak-users.json | jq -r ".[] | select(.username==\"$user\") | .groups[]"); do
-    curl -X POST "https://<your-domain>/api/users/${user}/roles" \
-      -H "Content-Type: application/json" \
-      -d "{\"role_name\": \"${role}\"}"
-  done
-done
-```
-
-### Phase 3: Switch OAuth2 Filter
-
-1. Update `oauth2Filter` configuration to point to direct IDP
-2. Verify browser login works with new IDP
-3. Monitor for authentication failures
-
-### Phase 4: Disable Keycloak
-
-1. Remove Keycloak JWT provider from configuration
-2. Scale down Keycloak deployment
-3. Remove Keycloak Helm release
-
----
 
 ## Troubleshooting
 
@@ -1388,10 +1306,3 @@ done
 | Microsoft | `preferred_username`, `unique_name`, `email`, `upn` |
 | Google | `email`, `name`, `sub` |
 | Cognito | `email`, `cognito:username`, `sub` |
-
----
-
-**Document Version**: 1.0<br>
-**Last Updated**: 2025-12-16<br>
-**Status**: Design Proposal
-
