@@ -24,7 +24,9 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Overview
 
-This document describes how to configure Envoy to authenticate users directly with external identity providers (Microsoft Entra ID, Google, and Amazon Cognito) without using Keycloak as an intermediary. It also covers the new Role Management APIs for assigning and removing users from roles.
+This document describes how to configure Envoy to authenticate users directly with external
+identity providers (Microsoft Entra ID, Google, and Amazon Cognito) without using Keycloak as
+an intermediary. It also covers the new Role Management APIs for assigning and removing users from roles.
 
 ### Motivation
 
