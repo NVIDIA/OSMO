@@ -142,7 +142,7 @@ class Boto3Backend(common.StorageBackend):
         region = kwargs.get('region', None) or self.region(data_cred)
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -263,7 +263,7 @@ class SwiftBackend(Boto3Backend):
             return
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -326,7 +326,7 @@ class SwiftBackend(Boto3Backend):
             return self._region
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -457,7 +457,7 @@ class S3Backend(Boto3Backend):
             action.append('s3:DeleteObject')
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -520,7 +520,7 @@ class S3Backend(Boto3Backend):
             return self._region
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         if data_cred.region is not None:
             return data_cred.region
@@ -635,7 +635,7 @@ class GSBackend(Boto3Backend):
             return
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -675,7 +675,7 @@ class GSBackend(Boto3Backend):
         Infer the region of the bucket via provided credentials.
         """
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         return data_cred.region or constants.DEFAULT_GS_REGION
 
@@ -772,7 +772,7 @@ class TOSBackend(Boto3Backend):
             return
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -902,7 +902,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
             return
 
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         def _validate_auth():
             with azure.create_client(data_cred) as service_client:
@@ -949,7 +949,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
         Returns a factory for creating storage clients.
         """
         if data_cred is None:
-            data_cred = self.resolve_data_credential()
+            data_cred = self.resolved_data_credential
 
         return azure.AzureBlobStorageClientFactory(data_cred=data_cred)
 

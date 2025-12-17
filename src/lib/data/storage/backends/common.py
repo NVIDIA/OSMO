@@ -20,6 +20,7 @@ Shared definitions for storage backends modules.
 
 import abc
 import enum
+import functools
 import logging
 import os
 import pathlib
@@ -201,7 +202,7 @@ class StorageBackend(
         """
         Validates if the access id and key can perform action.
 
-        If no data credential is provided, it will be resolved via resolve_data_credential().
+        If no data credential is provided, it will be resolved via resolved_data_credential.
 
         Args:
             data_cred: The data credential to use for the validation.
@@ -218,7 +219,7 @@ class StorageBackend(
         Infer the region of the bucket from the storage backend.
 
         Some backends may not require a data credential to infer the region.
-        If no data credential is provided, it will be resolved via resolve_data_credential().
+        If no data credential is provided, it will be resolved via resolved_data_credential.
 
         Args:
             data_cred: The data credential to use for the region inference.
@@ -262,7 +263,7 @@ class StorageBackend(
         """
         Returns a factory for creating storage clients.
 
-        If no data credential is provided, it will be resolved via resolve_data_credential().
+        If no data credential is provided, it will be resolved via resolved_data_credential.
 
         Args:
             data_cred: The data credential to use for the client factory.
@@ -274,7 +275,8 @@ class StorageBackend(
         """
         pass
 
-    def resolve_data_credential(self) -> credentials.DataCredential:
+    @functools.cached_property
+    def resolved_data_credential(self) -> credentials.DataCredential:
         """
         Resolve the data credential for the storage backend.
 

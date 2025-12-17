@@ -275,7 +275,7 @@ class Client(pydantic.BaseModel):
             return self.data_credential_input
 
         # Resolve the data credential from the storage backend
-        return self.storage_backend.resolve_data_credential()
+        return self.storage_backend.resolved_data_credential
 
     @functools.cached_property
     def storage_backend(self) -> backends_common.StorageBackend:
