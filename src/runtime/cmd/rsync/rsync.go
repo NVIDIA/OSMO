@@ -29,7 +29,7 @@ import (
 
 	"github.com/conduitio/bwlimit"
 	"github.com/gokrazy/rsync/rsyncd"
-	"go.corp.nvidia.com/osmo/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
 )
 
 // Parses the path allow list and returns a list of modules.

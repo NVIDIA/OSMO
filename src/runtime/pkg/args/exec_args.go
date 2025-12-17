@@ -22,7 +22,7 @@ import (
 	"flag"
 	"time"
 
-	"go.corp.nvidia.com/osmo/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
 )
 
 // Parse and process command line arguments
