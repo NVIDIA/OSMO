@@ -552,10 +552,3 @@ bazel build //src/service/authz_sidecar:authz_sidecar_image
 bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
   --postgres-host=localhost --postgres-db=osmo_db --postgres-password=osmo
 ```
-
----
-
-**Document Version**: 1.0<br>
-**Last Updated**: 2025-12-11<br>
-**Status**: Implementation Complete, Testing in Progress
-
