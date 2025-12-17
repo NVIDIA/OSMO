@@ -183,11 +183,11 @@ bazel_dep(name = "gazelle", version = "0.42.0", repo_name = "bazel_gazelle")
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(
-    go_mod = "//src/runtime:go.mod",
+    go_mod = "//src:go.mod",
 )
 
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
-go_deps.from_file(go_mod = "//src/runtime:go.mod")
+go_deps.from_file(go_mod = "//src:go.mod")
 
 # Additional dependencies for building rsync for CLI distribution
 go_deps.module(
