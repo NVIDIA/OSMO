@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"go.corp.nvidia.com/osmo/pkg/osmo_errors"
+	"go.corp.nvidia.com/osmo/runtime/pkg/osmo_errors"
 )
 
 type IOType string

@@ -30,8 +30,8 @@ import (
 	"syscall"
 	"time"
 
-	"go.corp.nvidia.com/osmo/pkg/common"
-	"go.corp.nvidia.com/osmo/pkg/messages"
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/messages"
 )
 
 type RsyncStatus struct {

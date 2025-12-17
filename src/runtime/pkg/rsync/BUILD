@@ -19,7 +19,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 go_library(
     name = "rsync",
     srcs = ["rsync.go"],
-    importpath = "go.corp.nvidia.com/osmo/pkg/rsync",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/rsync",
     deps = [
         "//src/runtime/pkg/common:common",
         "//src/runtime/pkg/messages:messages",

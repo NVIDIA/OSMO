@@ -19,7 +19,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "messages",
     srcs = ["messages.go"],
-    importpath = "go.corp.nvidia.com/osmo/pkg/messages",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/messages",
     visibility = ["//visibility:public"],
     deps = [
         "//src/runtime/pkg/osmo_errors:osmo_errors",

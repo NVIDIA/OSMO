@@ -20,7 +20,7 @@ go_library(
     name = "exec_args",
     srcs = ["exec_args.go",
             "objects.go"],
-    importpath = "go.corp.nvidia.com/osmo/pkg/args",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/args",
     visibility = ["//visibility:public"],
     deps = [
         "//src/runtime/pkg/common:common",
@@ -31,7 +31,7 @@ go_library(
     name = "ctrl_args",
     srcs = ["ctrl_args.go",
             "objects.go"],
-    importpath = "go.corp.nvidia.com/osmo/pkg/args",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/args",
     visibility = ["//visibility:public"],
     deps = [
         "//src/runtime/pkg/common:common",

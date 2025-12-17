@@ -19,7 +19,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "common",
     srcs = ["common.go"],
-    importpath = "go.corp.nvidia.com/osmo/pkg/common",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/common",
     visibility = ["//visibility:public"],
     deps = [
         "//src/runtime/pkg/osmo_errors:osmo_errors",

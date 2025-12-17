@@ -19,7 +19,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "metrics",
     srcs = ["metrics.go"],
-    importpath = "go.corp.nvidia.com/osmo/pkg/metrics",
+    importpath = "go.corp.nvidia.com/osmo/runtime/pkg/metrics",
     visibility = ["//visibility:public"],
     deps = [
         "//src/runtime/pkg/osmo_errors:osmo_errors",

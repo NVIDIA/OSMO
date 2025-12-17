@@ -28,9 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"go.corp.nvidia.com/osmo/pkg/common"
-	"go.corp.nvidia.com/osmo/pkg/metrics"
-	"go.corp.nvidia.com/osmo/pkg/osmo_errors"
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/metrics"
+	"go.corp.nvidia.com/osmo/runtime/pkg/osmo_errors"
 )
 
 type DataCredential struct {

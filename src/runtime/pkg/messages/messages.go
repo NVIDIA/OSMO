@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"go.corp.nvidia.com/osmo/pkg/osmo_errors"
+	"go.corp.nvidia.com/osmo/runtime/pkg/osmo_errors"
 )
 
 type RequestType string

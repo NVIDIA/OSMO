@@ -22,7 +22,7 @@ import (
 	"net/url"
 	"time"
 
-	"go.corp.nvidia.com/osmo/pkg/common"
+	"go.corp.nvidia.com/osmo/runtime/pkg/common"
 )
 
 type ExecArgs struct {
