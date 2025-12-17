@@ -82,19 +82,18 @@ Using Keycloak as an identity broker introduces several issues that complicate t
 ### Architecture Comparison
 
 **Before (with Keycloak):**
-```
-┌─────────┐       ┌──────────┐      ┌───────────┐       ┌───────────┐
-│ Browser │─────▶│  Envoy   │─────▶│ Keycloak  │─────▶│    IDP    │
-└─────────┘       │ (OAuth2) │      │ (Broker)  │       │(MS/GG/AMZ)│
-                  └──────────┘      └───────────┘       └───────────┘
+```mermaid
+flowchart LR
+    Browser --> Envoy["Envoy<br/>(OAuth2)"]
+    Envoy --> Keycloak["Keycloak<br/>(Broker)"]
+    Keycloak --> IDP["IDP<br/>(MS/GG/AMZ)"]
 ```
 
 **After (Direct IDP):**
-```
-┌─────────┐       ┌──────────┐      ┌───────────┐
-│ Browser │─────▶│  Envoy   │─────▶│    IDP    │
-└─────────┘       │ (OAuth2) │      │(MS/GG/AMZ)│
-                  └──────────┘      └───────────┘
+```mermaid
+flowchart LR
+    Browser --> Envoy["Envoy<br/>(OAuth2)"]
+    Envoy --> IDP["IDP<br/>(MS/GG/AMZ)"]
 ```
 
 ---
