@@ -101,6 +101,7 @@ class StorageBackend(
     pydantic.BaseModel,
     extra=pydantic.Extra.forbid,
     arbitrary_types_allowed=True,
+    keep_untouched=(functools.cached_property,),  # Don't serialize cached properties
 ):
     """
     Represents information about a storage backend.
