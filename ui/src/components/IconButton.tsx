@@ -13,14 +13,22 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { type PropsWithChildren } from "react";
+import { FilledIcon } from "./Icon";
 
-import { env } from "~/env.mjs";
-
-export const metadata = {
-  title: `${env.NEXT_PUBLIC_APP_NAME} Workflows`,
+export const IconButton = ({
+  icon,
+  text,
+  alwaysShowText = false,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon: string; text: string; alwaysShowText?: boolean }) => {
+  return (
+    <button
+      {...props}
+      aria-label={text}
+    >
+      <FilledIcon name={icon} />
+      {text && <span className={`${alwaysShowText ? "block" : "hidden lg:block"}`}>{text}</span>}
+      {props.children}
+    </button>
+  );
 };
-
-export default function WorkflowsLayout({ children }: PropsWithChildren) {
-  return children;
-}

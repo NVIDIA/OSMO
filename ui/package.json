@@ -19,7 +19,7 @@
     "@swc/helpers": "^0.5.1",
     "@t3-oss/env-nextjs": "^0.7.0",
     "@tailwindcss/postcss": "^4.1.4",
-    "@tanstack/react-query": "^4.32.6",
+    "@tanstack/react-query": "4.32.x",
     "@tanstack/react-table": "^8.10.7",
     "@tanstack/table-core": "8.10.7",
     "@tisoap/react-flow-smart-edge": "^3.0.0",

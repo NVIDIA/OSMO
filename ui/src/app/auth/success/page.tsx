@@ -31,7 +31,7 @@ export default function LoginSuccessCallback() {
 
   if (!idToken || !refreshToken || !redirectTo) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center">
+      <div className="flex h-full w-full items-center justify-center">
         <PageError
           title="Auth callback failed"
           errorMessage="Missing id_token, refresh_token, or redirect_to search params"

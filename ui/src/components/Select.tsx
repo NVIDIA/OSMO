@@ -24,7 +24,7 @@ export const Select = ({
   onChange,
   slotLeft,
   className,
-  containerClassName,
+  containerClassName = "",
   required = false,
   ...props
 }: Omit<HTMLAttributes<HTMLSelectElement>, "id"> & {

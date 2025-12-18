@@ -16,5 +16,5 @@
 import { type PropsWithChildren } from "react";
 
 export const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
-  return <div className={`flex flex-col gap-3 p-3 ${className}`}>{children}</div>;
+  return <div className={`flex flex-col ${className}`}>{children}</div>;
 };

@@ -15,10 +15,12 @@
 //SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type ChangeEvent } from "react";
 
+import { getTaskStatusArray, StatusFilter } from "~/app/tasks/components/StatusFilter";
+import { getMapFromStatusArray } from "~/app/tasks/components/StatusFilter";
 import { OutlinedIcon } from "~/components/Icon";
 import { InlineBanner } from "~/components/InlineBanner";
 import { MultiselectWithAll } from "~/components/MultiselectWithAll";
-import { StatusFilter } from "~/components/StatusFilter";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { TextInput } from "~/components/TextInput";
 import { type TaskStatusType, TaskStatusValues } from "~/models";
 
@@ -28,8 +30,8 @@ export interface TasksFiltersDataProps {
   name: string;
   nodes: string;
   allNodes: boolean;
-  allStatuses: boolean;
-  statuses: string;
+  statusFilterType?: StatusFilterType;
+  statuses?: string;
   pod_ip: string;
 }
 
@@ -41,7 +43,7 @@ interface TasksFiltersProps extends TasksFiltersDataProps {
 
 export const TasksFilter = ({
   name,
-  allStatuses,
+  statusFilterType,
   statuses,
   nodes,
   allNodes,
@@ -50,21 +52,13 @@ export const TasksFilter = ({
   updateUrl,
   validateFilters,
 }: TasksFiltersProps) => {
-  const [localAllStatuses, setLocalAllStatuses] = useState(allStatuses);
   const [localStatusMap, setLocalStatusMap] = useState<Map<TaskStatusType, boolean>>(new Map());
+  const [localStatusFilterType, setLocalStatusFilterType] = useState<StatusFilterType | undefined>(statusFilterType);
   const [taskNameFilter, setTaskNameFilter] = useState<string>(name);
   const [localNodes, setLocalNodes] = useState<Map<string, boolean>>(new Map());
   const [localAllNodes, setLocalAllNodes] = useState<boolean>(allNodes);
   const [podIpFilter, setPodIpFilter] = useState<string>(pod_ip);
   const [errors, setErrors] = useState<string[]>([]);
-
-  useEffect(() => {
-    const statusArray = statuses.split(",");
-
-    setLocalStatusMap(
-      new Map(TaskStatusValues.map((value) => [value, allStatuses || statusArray.includes(value.toString())])),
-    );
-  }, [name, statuses, allStatuses]);
 
   useEffect(() => {
     const filters = new Map<string, boolean>(availableNodes.map((node) => [node, false]));
@@ -80,12 +74,21 @@ export const TasksFilter = ({
     setLocalNodes(filters);
   }, [availableNodes, nodes]);
 
+  useEffect(() => {
+    setLocalStatusFilterType(statusFilterType);
+
+    if (statusFilterType === StatusFilterType.CUSTOM) {
+      const statusArray = statuses?.split(",") ?? [];
+      setLocalStatusMap(getMapFromStatusArray(statusArray));
+    } else {
+      setLocalStatusMap(getMapFromStatusArray(getTaskStatusArray(statusFilterType)));
+    }
+  }, [statuses, statusFilterType]);
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const statuses = Array.from(localStatusMap.entries())
-      .filter(([_, enabled]) => enabled)
-      .map(([status]) => status);
+    const statuses = getTaskStatusArray(localStatusFilterType, localStatusMap);
 
     const nodes = Array.from(localNodes.entries())
       .filter(([_, enabled]) => enabled)
@@ -95,8 +98,8 @@ export const TasksFilter = ({
       name: taskNameFilter,
       nodes: nodes.join(","),
       allNodes: localAllNodes,
-      allStatuses: localAllStatuses,
-      statuses: statuses.join(","),
+      statusFilterType: localStatusFilterType,
+      statuses: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : undefined,
       pod_ip: podIpFilter,
     });
 
@@ -110,15 +113,31 @@ export const TasksFilter = ({
       filterName: taskNameFilter.length > 0 ? taskNameFilter : null,
       allNodes: localAllNodes,
       nodes: nodes.length > 0 ? nodes.join(",") : undefined,
-      allStatuses: localAllStatuses,
-      status: localAllStatuses ? undefined : statuses.join(","),
+      statusFilterType: localStatusFilterType,
+      status: localStatusFilterType === StatusFilterType.CUSTOM ? statuses.join(",") : null,
       pod_ip: podIpFilter.length > 0 ? podIpFilter : null,
+    });
+  };
+
+  const handleReset = () => {
+    setTaskNameFilter("");
+    setLocalNodes(new Map());
+    setLocalAllNodes(true);
+    setPodIpFilter("");
+    setLocalStatusMap(new Map(TaskStatusValues.map((value) => [value, true])));
+    setLocalStatusFilterType(StatusFilterType.ALL);
+    setErrors([]);
+    updateUrl({
+      filterName: null,
+      nodes: undefined,
+      status: undefined,
+      pod_ip: undefined,
     });
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-global">
         <TextInput
           id="taskSearch"
           label="Task Name"
@@ -134,7 +153,7 @@ export const TasksFilter = ({
           slotLeft={<OutlinedIcon name="search" />}
           autoComplete="off"
         />
-        <div className="px-3">
+        <div className="px-global">
           <MultiselectWithAll
             id="nodes"
             label="All Nodes"
@@ -161,46 +180,33 @@ export const TasksFilter = ({
           slotLeft={<OutlinedIcon name="search" />}
           autoComplete="off"
         />
-        <div className="p-3">
+        <div className="p-global">
           <StatusFilter
             statusMap={localStatusMap}
             setStatusMap={(statusMap) => {
               setLocalStatusMap(statusMap);
             }}
-            allStatuses={localAllStatuses}
-            setAllStatuses={(allStatuses) => {
-              setLocalAllStatuses(allStatuses);
-            }}
+            statusFilterType={localStatusFilterType}
+            setStatusFilterType={setLocalStatusFilterType}
           />
         </div>
-        {errors.length > 0 && (
-          <InlineBanner status="error">
-            <div className="flex flex-col gap-2">
-              {errors.map((error, index) => (
-                <div key={index}>{error}</div>
-              ))}
-            </div>
-          </InlineBanner>
-        )}
       </div>
-      <div className="flex flex-row gap-3 justify-between body-footer p-3 sticky bottom-0">
+      <InlineBanner status={errors.length > 0 ? "error" : "none"}>
+        {errors.length > 0 ? (
+          <div className="flex flex-col">
+            {errors.map((error, index) => (
+              <div key={index}>{error}</div>
+            ))}
+          </div>
+        ) : (
+          ""
+        )}
+      </InlineBanner>
+      <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
         <button
           type="button"
           className="btn"
-          onClick={() => {
-            setTaskNameFilter("");
-            setLocalNodes(new Map());
-            setLocalAllNodes(true);
-            setPodIpFilter("");
-            setLocalStatusMap(new Map(TaskStatusValues.map((value) => [value, true])));
-            setLocalAllStatuses(true);
-            updateUrl({
-              filterName: null,
-              nodes: undefined,
-              status: undefined,
-              pod_ip: undefined,
-            });
-          }}
+          onClick={handleReset}
         >
           <OutlinedIcon name="undo" />
           Reset

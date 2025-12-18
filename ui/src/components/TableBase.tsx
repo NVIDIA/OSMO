@@ -18,41 +18,30 @@
 import { useEffect, useRef, useState } from "react";
 
 import { type ColumnDef, flexRender, type Table } from "@tanstack/react-table";
-import { useWindowSize } from "usehooks-ts";
 
 import { CheckboxWithLabel } from "./Checkbox";
+import FullPageModal from "./FullPageModal";
 import { OutlinedIcon } from "./Icon";
-import { SlideOut } from "./SlideOut";
+import { Spinner } from "./Spinner";
 
 export function TableBase<TData, TValue>({
   columns,
   table,
+  isLoading,
   children,
-  paddingOffset = 2,
   className,
-  visible = true,
 }: {
   columns: ColumnDef<TData, TValue>[];
   table: Table<TData>;
+  isLoading?: boolean;
   children?: React.ReactNode;
-  paddingOffset?: number;
   className?: string;
   visible?: boolean;
 }) {
-  const outerContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLTableSectionElement>(null);
   const headerRef = useRef<HTMLTableSectionElement>(null);
-  const windowSize = useWindowSize();
-  const [scrollerHeight, setScrollerHeight] = useState(0);
   const pagination = table.getState().pagination;
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (containerRef?.current) {
-      const top = containerRef.current.getBoundingClientRect().top;
-      setScrollerHeight(windowSize.height - top - paddingOffset);
-    }
-  }, [windowSize.height, paddingOffset, visible]);
 
   useEffect(() => {
     if (containerRef?.current) {
@@ -61,16 +50,15 @@ export function TableBase<TData, TValue>({
   }, [pagination.pageSize, table, pagination.pageIndex]);
 
   return (
-    <div
-      ref={outerContainerRef}
-      className="relative"
-    >
+    <div className={`relative h-full w-full overflow-auto ${className}`}>
       <div
         ref={containerRef}
-        style={{ height: scrollerHeight }}
-        className={`relative overflow-auto flex h-full justify-between flex-col ${className}`}
+        className={`relative flex h-full justify-between flex-col`}
       >
-        <table className="border-separate border-spacing-y-0">
+        <table
+          className="border-separate border-spacing-y-0 h-full items-baseline"
+          aria-rowcount={table.getRowModel().rows.length}
+        >
           <thead
             className="body-header sticky top-0 z-20"
             ref={headerRef}
@@ -89,7 +77,7 @@ export function TableBase<TData, TValue>({
                             : "none"
                       }
                     >
-                      <div className="flex flex-row gap-3 justify-between">
+                      <div className="flex flex-row gap-global justify-between">
                         {header.column.getCanSort() ? (
                           <button
                             className="btn btn-action gap-0"
@@ -135,45 +123,63 @@ export function TableBase<TData, TValue>({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                  ))}
-                </tr>
-              ))
-            ) : (
+            {table.getRowModel().rows.map((row) => (
+              <tr
+                key={row.id}
+                data-state={row.getIsSelected() && "selected"}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                ))}
+              </tr>
+            ))}
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="h-full"
+                aria-live="polite"
+              >
+                {isLoading ? (
+                  <div className="h-full flex items-center justify-center">
+                    <Spinner
+                      size="large"
+                      description="Loading..."
+                    />
+                  </div>
+                ) : table.getFilteredRowModel().rows.length > 0 ? (
+                  <p className="sr-only">{`${table.getFilteredRowModel().rows.length} results found`}</p>
+                ) : (
+                  <p className="text-center">No results found</p>
+                )}
+              </td>
+            </tr>
+          </tbody>
+          {children && (
+            <tfoot className="body-footer sticky bottom-0 z-20 px-0">
               <tr>
-                <td colSpan={columns.length}>
-                  <p aria-live="polite">No results.</p>
+                <td
+                  colSpan={columns.length}
+                  className="p-0"
+                >
+                  <div className="max-w-[calc(100vw-2px)]">{children}</div>
                 </td>
               </tr>
-            )}
-          </tbody>
+            </tfoot>
+          )}
         </table>
-        {children && <div className="body-footer sticky bottom-0 z-20">{children}</div>}
       </div>
-      <SlideOut
-        id="table-column-selector"
+      <FullPageModal
         open={open}
         onClose={() => setOpen(false)}
-        top={headerRef.current?.offsetHeight ?? 0}
-        containerRef={outerContainerRef}
-        heightOffset={12}
-        aria-label="Show/Hide Columns"
-        className="border-t-0 shadow-lg mr-4"
-        bodyClassName="body-header"
-        dimBackground={false}
+        headerChildren={<h2 id="show-hide-columns-header">Show/Hide Columns</h2>}
+        size="none"
+        aria-labelledby="show-hide-columns-header"
       >
         <CheckboxWithLabel
           checked={table.getIsAllColumnsVisible()}
           onChange={(event) => table.toggleAllColumnsVisible(Boolean(event.target.checked))}
           label="Toggle All"
-          containerClassName="px-3 py-2 mb-2 border-b border-gray-200"
+          containerClassName="px-global py-2 mb-2 border-b border-gray-200"
         />
         {table
           .getAllColumns()
@@ -184,10 +190,10 @@ export function TableBase<TData, TValue>({
               checked={column.getIsVisible()}
               onChange={(event) => column.toggleVisibility(Boolean(event.target.checked))}
               label={column.id}
-              containerClassName="px-3 pb-1"
+              containerClassName="px-global pb-1"
             />
           ))}
-      </SlideOut>
+      </FullPageModal>
     </div>
   );
 }
