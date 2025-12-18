@@ -22,7 +22,7 @@ import enum
 import logging
 from typing import AsyncGenerator, Dict, Optional
 
-import aiofiles
+import aiofiles  # type: ignore
 import kombu  # type: ignore
 import pydantic
 import redis.asyncio  # type: ignore

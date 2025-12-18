@@ -20,8 +20,8 @@ import os
 import time
 import uuid
 
-import aiofiles
-import aiofiles.os
+import aiofiles  # type: ignore
+import aiofiles.os  # type: ignore
 
 
 class ProgressWriter:
