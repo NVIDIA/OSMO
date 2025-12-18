@@ -103,7 +103,7 @@ flowchart LR
 1. [Prerequisites](#prerequisites)
 2. [Microsoft Entra ID (Azure AD)](#microsoft-entra-id-azure-ad)
 3. [Google OAuth2](#google-oauth2)
-4. [Amazon Cognito](#amazon-cognito)
+4. [AWS IAM Identity Center (AWS SSO)](#aws-iam-identity-center-aws-sso)
 5. [Envoy Configuration](#envoy-configuration)
 6. [Role Management APIs](#role-management-apis)
 7. [Verification Steps](#verification-steps)
@@ -122,8 +122,8 @@ Throughout this guide, replace these placeholders:
 | `<tenant-id>` | Microsoft tenant ID | `12345678-1234-1234-1234-123456789abc` |
 | `<client-id>` | OAuth2 client/application ID | `abcd1234-...` |
 | `<client-secret>` | OAuth2 client secret | `xxx...` |
-| `<user-pool-id>` | Amazon Cognito user pool ID | `us-west-2_abc123` |
-| `<cognito-domain>` | Cognito hosted UI domain | `myapp.auth.us-west-2.amazoncognito.com` |
+| `<instance-id>` | AWS Identity Center instance ID | `ssoins-abc123def456` |
+| `<region>` | AWS region | `us-east-1`, `us-west-2` |
 
 ---
 
@@ -316,57 +316,84 @@ sidecars:
 
 ---
 
-## Amazon Cognito
+## AWS IAM Identity Center (AWS SSO)
 
-### Step 1: Create a User Pool
+AWS IAM Identity Center (formerly AWS SSO) is AWS's centralized identity management service. It differs from Amazon Cognito in that it's designed as an enterprise identity broker that integrates with your corporate identity provider (Microsoft Entra ID, Okta, Google Workspace, etc.) rather than a standalone user directory.
 
-1. Go to [Amazon Cognito Console](https://console.aws.amazon.com/cognito)
-2. Click **Create user pool**
-3. Configure sign-in experience:
-   - **Cognito user pool sign-in options**: Email (recommended)
-   - Enable **Federated identity providers** if you want to use external IDPs
-4. Configure security requirements as needed
-5. Configure message delivery (email for verification)
-6. Name your user pool (e.g., `osmo-users`)
-7. Click **Create user pool**
-8. Note the **User pool ID** (format: `<region>_<id>`)
+### Key Differences from Cognito
 
-### Step 2: Create an App Client
+| Aspect | Amazon Cognito | AWS IAM Identity Center |
+|--------|---------------|-------------------------|
+| Primary Use Case | Customer-facing apps, mobile apps | Enterprise workforce access |
+| User Directory | Managed user pool | Federated from corporate IdP |
+| OIDC Support | Native | Customer managed applications |
+| Typical Users | End customers | Employees, contractors |
 
-1. In your user pool, go to **App integration** tab
-2. Scroll to **App clients and analytics**
-3. Click **Create app client**
-4. Configure:
-   - **App type**: **Confidential client**
-   - **App client name**: `OSMO Service`
-   - **Client secret**: Generate a client secret
-5. Under **Hosted UI settings**:
-   - **Allowed callback URLs**: `https://<your-domain>/api/auth/getAToken`
-   - **Allowed sign-out URLs**: `https://<your-domain>/logout`
-   - **Identity providers**: Select your providers
-   - **OAuth 2.0 grant types**: Authorization code grant
-   - **OpenID Connect scopes**: `openid`, `email`, `profile`
-6. Click **Create app client**
-7. Note the **Client ID** and **Client secret**
+### Step 1: Enable AWS IAM Identity Center
 
-### Step 3: Configure Hosted UI Domain
+1. Go to [AWS IAM Identity Center Console](https://console.aws.amazon.com/singlesignon)
+2. Click **Enable** if not already enabled
+3. Choose your **Identity source**:
+   - **Identity Center directory**: Create and manage users directly in AWS
+   - **Active Directory**: Connect to on-premises or AWS Managed Microsoft AD
+   - **External identity provider**: Federate with Okta, Microsoft Entra ID, Google Workspace, etc.
+4. Note your **Identity Center instance ARN** (format: `arn:aws:sso:::instance/ssoins-<instance-id>`)
+5. Note your **Access Portal URL** (format: `https://<instance-id>.awsapps.com/start`)
 
-1. In **App integration** → **Domain**
-2. Create either:
-   - **Cognito domain**: `<your-prefix>.auth.<region>.amazoncognito.com`
-   - **Custom domain**: Your own domain (requires certificate)
-3. Note the domain URL
+### Step 2: Configure External Identity Provider (If Using Federation)
 
-### Step 4: Gather Endpoint URLs
+If federating with an external IdP:
+
+1. Go to **Settings** → **Identity source** → **Actions** → **Change identity source**
+2. Select **External identity provider**
+3. Download the **IAM Identity Center SAML metadata** file
+4. In your external IdP (e.g., Okta, Microsoft Entra ID):
+   - Create a new SAML 2.0 application
+   - Upload the IAM Identity Center metadata
+   - Configure attribute mappings:
+     - `email` → user email
+     - `firstName` → given name
+     - `lastName` → family name
+5. Download the IdP metadata and upload it to IAM Identity Center
+6. Optionally, enable **Automatic provisioning (SCIM)** for user/group sync
+
+### Step 3: Create a Customer Managed Application
+
+1. In IAM Identity Center, go to **Applications** → **Customer managed**
+2. Click **Add application**
+3. Select **I have an application I want to set up** → **OAuth 2.0**
+4. Configure the application:
+   - **Display name**: `OSMO Service`
+   - **Description**: OSMO workflow orchestration platform
+   - **Application URL**: `https://<your-domain>`
+5. Under **OAuth 2.0 configuration**:
+   - **Redirect URIs**: `https://<your-domain>/api/auth/getAToken`
+   - **Grant types**: Authorization code
+   - **Scopes**: `openid`, `email`, `profile`
+6. Click **Submit**
+7. Note the **Application ARN** and **Client ID**
+8. Generate and save the **Client secret**
+
+### Step 4: Assign Users and Groups
+
+1. In your application settings, go to **Assigned users and groups**
+2. Click **Assign users and groups**
+3. Select the users or groups who should have access to OSMO
+4. Click **Assign**
+
+### Step 5: Gather Endpoint URLs
 
 | Endpoint | URL |
 |----------|-----|
-| Token Endpoint | `https://<cognito-domain>/oauth2/token` |
-| Authorization Endpoint | `https://<cognito-domain>/oauth2/authorize` |
-| JWKS URI | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/jwks.json` |
-| Issuer | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>` |
+| Token Endpoint | `https://oidc.<region>.amazonaws.com/token` |
+| Authorization Endpoint | `https://<instance-id>.awsapps.com/start/authorize` |
+| JWKS URI | `https://oidc.<region>.amazonaws.com/keys` |
+| Issuer | `https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>` |
+| OpenID Configuration | `https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>/.well-known/openid-configuration` |
 
-### Amazon Cognito Values Configuration
+> **Note**: Replace `<region>` with your AWS region (e.g., `us-east-1`) and `<instance-id>` with your Identity Center instance ID.
+
+### AWS IAM Identity Center Values Configuration
 
 ```yaml
 sidecars:
@@ -379,8 +406,8 @@ sidecars:
     # OAuth2 filter for browser-based authentication
     oauth2Filter:
       enabled: true
-      tokenEndpoint: https://<cognito-domain>/oauth2/token
-      authEndpoint: https://<cognito-domain>/oauth2/authorize
+      tokenEndpoint: https://oidc.<region>.amazonaws.com/token
+      authEndpoint: https://<instance-id>.awsapps.com/start/authorize
       clientId: <client-id>
       redirectPath: api/auth/getAToken
       logoutPath: logout
@@ -393,18 +420,30 @@ sidecars:
     jwt:
       user_header: x-osmo-user
       providers:
-      - issuer: https://cognito-idp.<region>.amazonaws.com/<user-pool-id>
+      - issuer: https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>
         audience: <client-id>
-        jwks_uri: https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/jwks.json
+        jwks_uri: https://oidc.<region>.amazonaws.com/keys
         user_claim: email
         cluster: oauth
 ```
 
-### Important Notes for Amazon Cognito
+### Important Notes for AWS IAM Identity Center
 
-1. **User Claim**: Cognito uses `email` or `cognito:username` as user identifiers
-2. **Custom Attributes**: You can add custom attributes for roles in Cognito
-3. **Groups**: Cognito supports groups that can be included in tokens via `cognito:groups` claim
+1. **User Claim**: Identity Center uses `email` or `sub` as user identifiers
+2. **Federation**: Most enterprises use Identity Center as a broker to their corporate IdP (Okta, Microsoft Entra ID, etc.)
+3. **Access Portal**: Users can access `https://<instance-id>.awsapps.com/start` to see all assigned applications
+4. **Groups**: Groups synced from your corporate IdP are available for RBAC
+5. **SCIM Provisioning**: Enable automatic user/group provisioning from your corporate IdP for seamless user lifecycle management
+6. **Region-Specific**: Unlike Cognito, Identity Center endpoints are region-specific
+
+### Migrating from Cognito to Identity Center
+
+If you're migrating from Amazon Cognito:
+
+1. **User Migration**: Export Cognito users and import them to your corporate IdP or Identity Center directory
+2. **Update Envoy Configuration**: Replace Cognito endpoints with Identity Center endpoints
+3. **Update Redirect URIs**: Ensure the new Identity Center application has the correct callback URLs
+4. **Test Federation**: Verify that users from your corporate IdP can authenticate successfully
 
 ---
 
@@ -507,8 +546,8 @@ clusters:
               address: login.microsoftonline.com
               # For Google:
               # address: oauth2.googleapis.com
-              # For Cognito:
-              # address: <cognito-domain>
+              # For AWS Identity Center:
+              # address: oidc.<region>.amazonaws.com
               port_value: 443
   transport_socket:
     name: envoy.transport_sockets.tls
@@ -832,8 +871,8 @@ curl -s "https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-c
 # Test Google
 curl -s "https://accounts.google.com/.well-known/openid-configuration" | jq .
 
-# Test Amazon Cognito
-curl -s "https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration" | jq .
+# Test AWS IAM Identity Center
+curl -s "https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>/.well-known/openid-configuration" | jq .
 ```
 
 **Expected Output**: JSON document with `authorization_endpoint`, `token_endpoint`, `jwks_uri`, etc.
@@ -922,6 +961,13 @@ jwt:
     cluster: oauth
 ```
 
+## Future IDPs
+
+We plan on supporting these other IDPs in the future, but might be beyond the scope of the inital feature.
+
+* Okta
+* auth0
+
 ## Troubleshooting
 
 ### Authentication Fails with "Invalid Token"
@@ -985,7 +1031,7 @@ jwt:
 2. **Verify user_claim configuration**:
    - Microsoft: `preferred_username` or `unique_name`
    - Google: `email`
-   - Cognito: `email` or `cognito:username`
+   - AWS Identity Center: `email` or `sub`
 
 3. **Check database for role assignments**:
    ```sql
@@ -1037,7 +1083,7 @@ jwt:
 |----------|---------------|---------------|----------|--------|
 | Microsoft | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize` | `https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys` | `https://login.microsoftonline.com/<tenant>/v2.0` |
 | Google | `https://oauth2.googleapis.com/token` | `https://accounts.google.com/o/oauth2/v2/auth` | `https://www.googleapis.com/oauth2/v3/certs` | `https://accounts.google.com` |
-| Cognito | `https://<domain>/oauth2/token` | `https://<domain>/oauth2/authorize` | `https://cognito-idp.<region>.amazonaws.com/<pool-id>/.well-known/jwks.json` | `https://cognito-idp.<region>.amazonaws.com/<pool-id>` |
+| AWS Identity Center | `https://oidc.<region>.amazonaws.com/token` | `https://<instance-id>.awsapps.com/start/authorize` | `https://oidc.<region>.amazonaws.com/keys` | `https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>` |
 
 ### User Claim Mapping
 
@@ -1045,4 +1091,4 @@ jwt:
 |----------|--------------|
 | Microsoft | `preferred_username`, `unique_name`, `email`, `upn` |
 | Google | `email`, `name`, `sub` |
-| Cognito | `email`, `cognito:username`, `sub` |
+| AWS Identity Center | `email`, `sub`, `name` |
