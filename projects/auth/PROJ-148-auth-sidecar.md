@@ -239,7 +239,10 @@ sidecars:
 #### Alternative 1: Keep Python Middleware
 
 * **Pros**: No migration needed, well-tested
-* **Cons**: Performance overhead + code is intermingled with the service logic + rate limiting is applied before access is verified
+* **Cons**:
+  * Need to write a separate logic for both Python and Go services
+  * Middleware has to be behind rate-limiting which can cause performance issues for users
+  * Services that don't require postgres will need to have postgres for the Middleware
 * **Why not chosen**: Based on the cons
 
 #### Alternative 2: Centralized Authorization Service
