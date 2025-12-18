@@ -1226,7 +1226,10 @@ class PostgresConnector:
             condition_args=[user, CredentialType.DATA.value, profile])
         row = self.execute_fetch_command(*select_data_cmd.get_args())
         if row:
-            return credentials.StaticDataCredential(**self.decrypt_credential(row[0]))
+            return credentials.StaticDataCredential(
+                endpoint=profile,
+                **self.decrypt_credential(row[0]),
+            )
         else:
             # Check default bucket creds
             for bucket in self.get_dataset_configs().buckets.values():
@@ -1252,7 +1255,10 @@ class PostgresConnector:
         rows = self.execute_fetch_command(*select_data_cmd.get_args())
 
         user_creds = {
-            cred.profile: credentials.StaticDataCredential(**self.decrypt_credential(cred))
+            cred.profile: credentials.StaticDataCredential(
+                endpoint=cred.profile,
+                **self.decrypt_credential(cred),
+            )
             for cred in rows
         }
 
