@@ -34,7 +34,7 @@ scalable, and maintainable solution.
 - **Centralized Logic**: OSMO is slowing converting microservices to Go. By introducing a sidecar, OSMO wouldn't need an auto mechanism for both the Python + Go services
 - **Scalability**: Rate-limiting is now be applied with authorized users. Currently, users can be rate-limited by non-authorized users which causes heavy APIs where we have lower rate limiting thresholds can be severly impacted.
 - **Performance**: Go is **2-3x faster** at low load and **8-10x faster** at high load (Performance numbers are detailed in a section below)
-- **Maintainability**: Separates authorization logic from application code; single service to update policies
+- **Maintainability**: Separates authorization logic from application code. Many services like logger and router do not need to access to postgres, but currently, postgres information needs to be injected into the container due to the Middleware.
 
 ### Problem
 
