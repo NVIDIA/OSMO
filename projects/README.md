@@ -20,15 +20,14 @@ SPDX-License-Identifier: Apache-2.0
 
 This directory contains the **projects process** for proposing, designing, and implementing significant changes to this repository. The process is lightweight, async-first, and uses GitHub Issues and Pull Requests.
 
-```
-          ┌──────────────────────────────────────────┐
-          │                                          ▼
-┌─────────┴────────┐   ┌───────────────────┐   ┌──────────┐   ┌────────────────┐   ┌─────────┐
-│ Proposal (Issue) │──▶│ Design (Markdown) │──▶│ Accepted │──▶│ In Development │──▶│ Shipped │
-└─────────┬────────┘   └───────────────────┘   └──────────┘   └────────────────┘   └─────────┘
-          │            ┌──────────┐
-          └───────────▶│ Rejected │
-                       └──────────┘
+```mermaid
+graph LR
+    A["Proposal (Issue)"] --> B["Design (Markdown)"]
+    B --> C[Accepted]
+    C --> D["In Development"]
+    D --> E[Shipped]
+    A --> F[Rejected]
+    A --> C
 ```
 
 ## Overview
