@@ -1688,6 +1688,10 @@ class UploadApp(FrontendJob):
                 error='Workflow app credential is not set',
             )
 
+        storage_client = storage.Client.create(
+            data_credential=workflow_config.workflow_app.credential,
+        )
+
         # Fetch app from database
         app_info = app.AppVersion.fetch_from_db_with_uuid(
             context.postgres, self.app_uuid, self.app_version)
@@ -1695,7 +1699,7 @@ class UploadApp(FrontendJob):
         with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8') as temp_file:
             temp_file.write(self.app_content)
             temp_file.flush()
-            context.storage_client.upload_objects(
+            storage_client.upload_objects(
                 source=temp_file.name,
                 destination_prefix=f'{self.app_uuid}/{self.app_version}',
                 destination_name=common.WORKFLOW_APP_FILE_NAME,
@@ -1745,12 +1749,16 @@ class DeleteApp(FrontendJob):
                 error='Workflow app credential is not set',
             )
 
+        storage_client = storage.Client.create(
+            data_credential=workflow_config.workflow_app.credential,
+        )
+
         # Fetch app from database
         for app_version in self.app_versions:
             app_info = app.AppVersion.fetch_from_db_with_uuid(
                 context.postgres, self.app_uuid, app_version)
 
-            context.storage_client.delete_objects(
+            storage_client.delete_objects(
                 prefix=os.path.join(self.app_uuid, str(app_version)),
             )
 
