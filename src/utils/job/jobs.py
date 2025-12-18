@@ -1390,6 +1390,8 @@ class CleanupWorkflow(WorkflowJob):
                     destination_name=file_name,
                 )
 
+                await progress_writer.report_progress_async()
+
         semaphore = asyncio.Semaphore(10)
 
         async def migrate_logs_concurrently(redis_url: str, redis_key: str, file_name: str):
