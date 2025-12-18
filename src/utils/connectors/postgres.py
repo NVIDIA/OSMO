@@ -1077,7 +1077,9 @@ class PostgresConnector:
             fetch_cmd = """
                 SELECT 1 FROM config_history WHERE config_type = %s LIMIT 1;
             """
-            data = self.execute_fetch_command(fetch_cmd, (config_type.value.lower(),))
+            data = self.execute_fetch_command(fetch_cmd,
+                                              (config_type.value.lower(),),
+                                              return_raw=True)
             if data:
                 continue
 
