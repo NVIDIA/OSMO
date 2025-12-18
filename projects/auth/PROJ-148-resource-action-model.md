@@ -159,7 +159,7 @@ The action registry is defined in code (not database) for several reasons:
 │                                                                             │
 │  system              Health, Version            (public)                    │
 │                                                                             │
-│  internal            Operator, Logger, Router   (backend only)              │
+│  internal            Operator, Logger, Router   backend / workflow          │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -218,12 +218,13 @@ const (
 <resource-type>/<identifier>
 
 Examples:
-  workflow/*           - All workflows
-  workflow/abc123      - Specific workflow
-  pool/default         - Default pool
-  pool/production/*    - Production pool and children
-  bucket/pool/default/* - Buckets in default pool
-  *                    - All resources
+  workflow/*             - All workflows
+  workflow/abc123        - Specific workflow
+  pool/default           - Default pool
+  pool/production/*      - Production pool and children
+  bucket/data-generation - Bucket for storing data generation datasets
+  backend/gb200-testing  - Backend called gb200-testing
+  *                      - All resources
 ```
 
 ---
