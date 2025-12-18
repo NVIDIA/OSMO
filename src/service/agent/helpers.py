@@ -582,7 +582,6 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
             ack_message: backend_messages.MessageBody | None = None
             try:
                 message_json = await message_queue.get()
-                start_time = time.time()
                 message = backend_messages.MessageBody(**message_json)
                 # Create acknowledgment using new MessageBody format
                 ack_body = backend_messages.AckBody(uuid=message.uuid)
@@ -629,7 +628,11 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     logging.error('Ignoring invalid backend listener message type %s',
                         message.type.value)
 
-                processing_time = time.time() - start_time
+                if ack_message:
+                    await websocket.send_text(ack_message.json())
+                    ack_message = None
+
+                processing_time = (common.current_time() - message.timestamp).total_seconds()
                 metric_creator.send_counter(
                     name='osmo_backend_event_processing_time', value=processing_time,
                     unit='seconds',

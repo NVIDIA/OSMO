@@ -74,6 +74,7 @@ class MessageBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     type: MessageType
     body: Dict | LoggingBody
     uuid: str = pydantic.Field(default_factory=common.generate_unique_id)
+    timestamp: datetime.datetime = pydantic.Field(default_factory=common.current_time)
 
 
 class InitBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
