@@ -17,7 +17,6 @@
 load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
 load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
-load("@osmo_mypy_deps//:requirements.bzl", type_requirement = "requirement")
 
 osmo_py_library(
     name = "progress_check_lib",
@@ -28,7 +27,6 @@ osmo_py_library(
     deps = [
         requirement("pydantic"),
         requirement("aiofiles"),
-        type_requirement("types-aiofiles"),
         "//src/utils:static_config",
     ],
     visibility = ["//visibility:public"],
