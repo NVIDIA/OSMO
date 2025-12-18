@@ -587,7 +587,7 @@ CREATE TABLE user_roles (
     username VARCHAR(255) NOT NULL,
     role_name VARCHAR(255) NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
     assigned_by VARCHAR(255) NOT NULL,
-    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(username, role_name)
 );
