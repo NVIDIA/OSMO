@@ -1075,7 +1075,7 @@ class PostgresConnector:
             ConfigHistoryType.ROLE,
         ]:
             fetch_cmd = """
-                SELECT * FROM config_history WHERE config_type = %s;
+                SELECT 1 FROM config_history WHERE config_type = %s LIMIT 1;
             """
             data = self.execute_fetch_command(fetch_cmd, (config_type.value.lower(),))
             if data:
