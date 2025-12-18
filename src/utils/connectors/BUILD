@@ -11,6 +11,7 @@ osmo_py_library(
         requirement("psycopg2-binary"),
         requirement("pydantic"),
         requirement("redis"),
+        requirement("aiofiles"),
         requirement("pyyaml"),
         "//src/lib/data/constants",
         "//src/lib/data/storage",

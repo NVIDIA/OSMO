@@ -31,6 +31,7 @@ import kombu.transport.virtual  # type: ignore
 import opentelemetry.metrics as otelmetrics
 import pydantic
 
+from src.lib.data import storage
 from src.lib.utils import common, osmo_errors
 import src.lib.utils.logging
 from src.utils.job import jobs, jobs_base
@@ -66,9 +67,20 @@ class Worker(kombu.mixins.ConsumerMixin):
     def __init__(self, config: WorkerConfig, connection: kombu.connection.Connection):
         self.config = config
         self.connection = connection
+        postgres_connector = connectors.PostgresConnector(self.config)
+        workflow_config = postgres_connector.get_workflow_configs()
+        if workflow_config.workflow_log.credential is None:
+            raise osmo_errors.OSMOServerError('Workflow log credential is not set')
+        # start_time = time.time()
+        # self.storage_client = storage.Client.create(
+        #     data_credential=workflow_config.workflow_log.credential,
+        # )
+        # end_time = time.time()
+        # logging.info('Storage client created in %s seconds', end_time - start_time)
         self.context = jobs.JobExecutionContext(
-            postgres=connectors.PostgresConnector(self.config),
-            redis=self.config)
+            postgres=postgres_connector,
+            redis=self.config,
+        )
         self.redis_client = connectors.RedisConnector.get_instance().client
         self._worker_metrics = metrics.MetricCreator.get_meter_instance()
         self._progress_writer = progress.ProgressWriter(config.progress_file)
