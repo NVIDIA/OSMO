@@ -43,7 +43,7 @@ export const Rename = ({
 
   const handleRename = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (loading || mutation.isPending) {
+    if (loading || mutation.isLoading) {
       return;
     }
     setLoading(true);
@@ -107,9 +107,9 @@ export const Rename = ({
             <button
               className="btn btn-primary h-8"
               type="submit"
-              aria-disabled={loading || mutation.isPending}
+              aria-disabled={loading || mutation.isLoading}
             >
-              {loading || mutation.isPending ? (
+              {loading || mutation.isLoading ? (
                 <Spinner
                   className="border-black"
                   size="button"

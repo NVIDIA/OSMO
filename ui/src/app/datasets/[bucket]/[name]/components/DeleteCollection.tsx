@@ -39,7 +39,7 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
   const { sidebarData } = useStore();
 
   const handleDelete = async () => {
-    if (loading || mutation.isPending) {
+    if (loading || mutation.isLoading) {
       return;
     }
     setLoading(true);
@@ -84,9 +84,9 @@ export const DeleteCollection = ({ dataset }: { dataset: DataInfoResponse<Datase
         <button
           className="btn btn-primary h-8"
           onClick={handleDelete}
-          aria-disabled={loading || mutation.isPending}
+          aria-disabled={loading || mutation.isLoading}
         >
-          {loading || mutation.isPending ? (
+          {loading || mutation.isLoading ? (
             <Spinner
               className="border-black"
               size="button"
