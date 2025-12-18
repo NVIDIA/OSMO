@@ -785,8 +785,14 @@ var ActionRegistry = map[string][]EndpointPattern{
         {Path: "/api/auth/access_token/user", Methods: []string{"*"}},
         {Path: "/api/auth/access_token/user/*", Methods: []string{"*"}},
     },
+    "auth:ServiceToken": {
+        {Path: "/api/auth/access_token", Methods: []string{"*"}},
+        {Path: "/api/auth/access_token/service", Methods: []string{"*"}},
+        {Path: "/api/auth/access_token/service/*", Methods: []string{"*"}},
+    },
 
     // ==================== ROUTER ====================
+    // This one is still WIP to see if it is needed or can be merged
     "router:Client": {
         {Path: "/api/router/webserver/*/", Methods: []string{"*"}},
         {Path: "/api/router/webserver_enabled", Methods: []string{"*"}},
