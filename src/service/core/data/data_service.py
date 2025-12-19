@@ -340,10 +340,8 @@ def upload_finish(bucket: objects.DatasetPattern,
                   checksum: str,
                   size: int,
                   labels: Dict[str, Any],
-                  update_dataset_size: int,
-                  user_header: str):
+                  update_dataset_size: int):
     postgres = connectors.PostgresConnector.get_instance()
-    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
 
     dataset_info = get_dataset(postgres, bucket=bucket, name=name)
 
@@ -527,7 +525,6 @@ def _download_datasets(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     tag: objects.DatasetTagPattern,
-    user_header: str,
     *,
     migrate: bool = False,
 ):
@@ -609,7 +606,6 @@ def download(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     tag: objects.DatasetTagPattern | None = fastapi.Query(default=None),
-    username: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.DataDownloadResponse:
     """ This api returns the dataset download response. """
     if not tag:
@@ -620,7 +616,7 @@ def download(
     # Make sure the bucket exists
     bucket_info = dataset_configs.get_bucket_config(bucket)
     bucket_info.valid_access(bucket, connectors.BucketModeAccess.READ)
-    return _download_datasets(postgres, bucket, name, tag, username)
+    return _download_datasets(postgres, bucket, name, tag)
 
 
 @router.post('/{bucket}/dataset/{name}/migrate', include_in_schema=False)
@@ -628,7 +624,6 @@ def migrate_dataset(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     tag: objects.DatasetTagPattern | None = fastapi.Query(default=None),
-    username: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.DataDownloadResponse:
     """ This api migrates the dataset to a manifest based dataset. """
     if not tag:
@@ -639,7 +634,7 @@ def migrate_dataset(
     # Make sure the bucket exists
     bucket_info = dataset_configs.get_bucket_config(bucket)
     bucket_info.valid_access(bucket, connectors.BucketModeAccess.READ)
-    return _download_datasets(postgres, bucket, name, tag, username, migrate=True)
+    return _download_datasets(postgres, bucket, name, tag, migrate=True)
 
 
 def clean_dataset(postgres: connectors.PostgresConnector,
@@ -664,8 +659,7 @@ def delete_dataset(bucket: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern | None = None,
                    all_flag: bool = False,
                    # Delete the dataset from database
-                   finish: bool = False,
-                   username: str = fastapi.Depends(connectors.parse_username)):
+                   finish: bool = False):
     """ This api deletes a Dataset. """
     postgres = connectors.PostgresConnector.get_instance()
     if all_flag:
@@ -927,8 +921,7 @@ def change_name_tag_label_metadata(
     set_label: Dict = fastapi.Body(default = {}),
     delete_label: List[str] = fastapi.Query(default = []),
     set_metadata: Dict = fastapi.Body(default = {}),
-    delete_metadata: List[str] = fastapi.Query(default = []),
-    username: str = fastapi.Depends(connectors.parse_username)) -> objects.DataAttributeResponse:
+    delete_metadata: List[str] = fastapi.Query(default = [])) -> objects.DataAttributeResponse:
     """
     This api can rename a dataset/collection or set/remove tags/labels/metadata.
     If tag is not given, latest tag is selected
@@ -941,7 +934,7 @@ def change_name_tag_label_metadata(
     dataset_info = get_dataset(postgres, bucket, name)
 
     if dataset_info.is_collection and (set_tag or delete_tag or set_metadata or delete_metadata):
-        raise osmo_errors.OSMOUserError('Collections do not support tag or metadata')        
+        raise osmo_errors.OSMOUserError('Collections do not support tag or metadata')
 
     if 'latest' in set_tag or 'latest' in delete_tag:
         raise osmo_errors.OSMOUserError('Cannot add or delete "latest" tag')

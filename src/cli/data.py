@@ -26,9 +26,9 @@ from typing import IO, Iterable
 
 import shtab
 
+from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import client, client_configs, osmo_errors, validation
-from src.lib.data import storage
 
 
 HELP_TEXT = """
@@ -209,21 +209,21 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
                 storage_backend.data_auth()
 
         # Auth check passed
-        print(json.dumps({"status": "pass"}))
+        print(json.dumps({'status': 'pass'}))
         sys.exit(0)
 
     except osmo_errors.OSMOCredentialError as err:
         # Auth check failed (credentials issue)
-        print(json.dumps({"status": "fail", "error": str(err)}))
+        print(json.dumps({'status': 'fail', 'error': str(err)}))
         sys.exit(0)
 
     except osmo_errors.OSMOError as err:
         # Execution error (service issue, network problem, etc.)
-        print(json.dumps({"status": "error", "error": str(err)}))
+        print(json.dumps({'status': 'error', 'error': str(err)}))
         sys.exit(1)
 
     except Exception as err:  # pylint: disable=broad-except
-        print(json.dumps({"status": "error", "error": f"Unexpected error: {str(err)}"}))
+        print(json.dumps({'status': 'error', 'error': f'Unexpected error: {str(err)}'}))
         sys.exit(1)
 
 
