@@ -31,9 +31,11 @@ var exitCode ExitCode
 
 const (
 	// Data Failures
-	DOWNLOAD_FAILED_CODE ExitCode = 10 // Failures regarding download calls
-	MOUNT_FAILED_CODE    ExitCode = 11 // Failures regarding mount calls
-	UPLOAD_FAILED_CODE   ExitCode = 12 // Failures regarding upload calls
+	DOWNLOAD_FAILED_CODE        ExitCode = 10 // Failures regarding download calls
+	MOUNT_FAILED_CODE           ExitCode = 11 // Failures regarding mount calls
+	UPLOAD_FAILED_CODE          ExitCode = 12 // Failures regarding upload calls
+	DATA_AUTH_CHECK_FAILED_CODE ExitCode = 13 // Failures regarding data auth
+	DATA_UNAUTHORIZED_CODE      ExitCode = 14 // Failures regarding data unauthorized
 
 	// Connection Failures
 	TOKEN_INVALID_CODE            ExitCode = 20 // Failures regarding token
