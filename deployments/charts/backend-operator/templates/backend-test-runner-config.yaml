@@ -61,7 +61,11 @@ data:
     metadata:
       name: "{{ "{{" }} resource_name {{ "}}" }}"
       labels:
+<<<<<<< HEAD
         {{ .Values.global.nodeConditionPrefix }}{{ .Values.backendTestRunner.labels.component }}: backend-test-foo-bar
+=======
+        {{ .Values.global.nodeConditionPrefix }}component: backend-test
+>>>>>>> origin/main
         {{ .Values.global.nodeConditionPrefix }}backend: "{{ "{{" }} backend_name {{ "}}" }}"
         {{ .Values.global.nodeConditionPrefix }}test: "{{ "{{" }} test_name {{ "}}" }}"
         {{- range $key, $value := .Values.backendTestRunner.labels }}
