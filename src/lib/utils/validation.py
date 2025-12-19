@@ -68,6 +68,13 @@ def is_storage_path(path: str):
         raise argparse.ArgumentTypeError(f'Invalid storage path: {path}')
 
 
+def is_storage_credential_path(path: str):
+    if re.fullmatch(constants.STORAGE_CREDENTIAL_REGEX, path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f'Invalid storage credential path: {path}')
+
+
 def valid_path(path):
     path = os.path.abspath(path)
     if os.path.isdir(path) or os.path.isfile(path):

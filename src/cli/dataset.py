@@ -24,6 +24,7 @@ import hashlib
 import logging
 import os
 import re
+import sys
 import textwrap
 from typing import Any, Dict, List
 import yaml
@@ -38,6 +39,7 @@ from src.lib.data import (
 )
 from src.lib.utils import (
     client,
+    client_configs,
     common,
     osmo_errors,
     validation,
@@ -954,6 +956,57 @@ def _run_migrate_command(service_client: client.ServiceClient, args: argparse.Na
     dataset_manager.migrate()
 
 
+def _run_check_command(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Check the access to a dataset for various operations
+    Args:
+        args: Parsed command line arguments.
+    """
+    dataset = common.DatasetStructure(args.name)
+
+    if not dataset.bucket:
+        dataset.bucket = dataset_lib.get_user_bucket(service_client)
+
+    try:
+        location_result = service_client.request(
+            client.RequestMethod.GET,
+            dataset_lib.common.construct_location_api_path(dataset),
+        )
+
+        storage_backend = storage_lib.construct_storage_backend(
+            location_result['path'],
+            cache_config=client_configs.get_cache_config(),
+        )
+
+        match args.access_type:
+            case storage_lib.AccessType.WRITE.name:
+                storage_backend.data_auth(access_type=storage_lib.AccessType.WRITE)
+            case storage_lib.AccessType.DELETE.name:
+                storage_backend.data_auth(access_type=storage_lib.AccessType.DELETE)
+            case storage_lib.AccessType.READ.name:
+                storage_backend.data_auth(access_type=storage_lib.AccessType.READ)
+            case _:
+                storage_backend.data_auth()
+
+        # Auth check passed
+        print(json.dumps({"status": "pass"}))
+        sys.exit(0)
+
+    except osmo_errors.OSMOCredentialError as err:
+        # Auth check failed (credentials issue)
+        print(json.dumps({"status": "fail", "error": str(err)}))
+        sys.exit(0)
+
+    except osmo_errors.OSMOError as err:
+        # Execution error (service issue, network problem, etc.)
+        print(json.dumps({"status": "error", "error": str(err)}))
+        sys.exit(1)
+
+    except Exception as err:  # pylint: disable=broad-except
+        print(json.dumps({"status": "error", "error": f"Unexpected error: {str(err)}"}))
+        sys.exit(1)
+
+
 def setup_parser(parser: argparse._SubParsersAction):
     """
     Dataset parser setup and run command based on parsing
@@ -1381,3 +1434,17 @@ def setup_parser(parser: argparse._SubParsersAction):
     migrate_parser.add_argument('--benchmark-out', '-b',
                                 help='Path to folder where benchmark data will be written to.')
     migrate_parser.set_defaults(func=_run_migrate_command)
+
+    # Handle 'check' command (add after migrate_parser in setup_parser function)
+    check_parser = subparsers.add_parser(
+        'check',
+        help='Check access permissions for dataset operations',
+        description='Check access permissions for dataset operations',
+    )
+    check_parser.add_argument('name',
+                              help='Dataset name. Specify bucket and tag/version with ' +
+                              '[bucket/]DS[:tag/version].')
+    check_parser.add_argument('--access-type', '-a',
+                              choices=storage_lib.AccessType.__members__.keys(),
+                              help='Access type to check access to the dataset.')
+    check_parser.set_defaults(func=_run_check_command)
