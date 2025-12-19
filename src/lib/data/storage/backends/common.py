@@ -282,8 +282,6 @@ class StorageBackend(
         """
         Resolve the data credential for the storage backend.
 
-        Subclasses should override this method to provide custom credential resolution logic.
-
         Returns:
             The resolved data credential.
 
@@ -291,8 +289,15 @@ class StorageBackend(
             OSMOCredentialError: If the data credential is not found.
         """
         data_cred = credentials.get_static_data_credential_from_config(self.profile)
-        if data_cred is None:
-            raise osmo_errors.OSMOCredentialError(
-                f'Data credential not found for {self.profile}')
 
-        return data_cred
+        if data_cred is not None:
+            return data_cred
+
+        if self.supports_environment_auth:
+            return credentials.DefaultDataCredential(
+                endpoint=self.profile,
+                region=None,
+            )
+
+        raise osmo_errors.OSMOCredentialError(
+            f'Data credential not found for {self.profile}')

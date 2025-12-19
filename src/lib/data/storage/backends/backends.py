@@ -375,6 +375,12 @@ class S3Backend(Boto3Backend):
         description='Whether the backend supports batch delete.',
     )
 
+    supports_environment_auth: Literal[True] = pydantic.Field(
+        default=True,
+        const=True,
+        description='Whether the backend supports environment authentication.',
+    )
+
     # Cache the region to avoid re-computing it
     _region: str | None = pydantic.PrivateAttr(default=None)
 
@@ -825,6 +831,12 @@ class AzureBlobStorageBackend(common.StorageBackend):
     storage_account: str = pydantic.Field(
         ...,
         description='The storage account of the Azure Blob Storage backend.',
+    )
+
+    supports_environment_auth: Literal[True] = pydantic.Field(
+        default=True,
+        const=True,
+        description='Whether the backend supports environment authentication.',
     )
 
     @override
