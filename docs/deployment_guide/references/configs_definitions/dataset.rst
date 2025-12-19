@@ -62,10 +62,6 @@ Bucket
      - String
      - The cloud storage region where the bucket is located.
      - ``us-east-1``
-   * - ``check_key``
-     - Boolean
-     - Whether to validate access keys before allowing access to the bucket.
-     - ``False``
    * - ``description``
      - String
      - Human-readable description of the bucket and its intended use.
