@@ -177,10 +177,6 @@ export default function Datasets() {
       createdBefore,
     }: DatasetsFilterDataProps): string[] => {
       const errors: string[] = [];
-
-      if (selectedUsers.length === 0 && userType !== UserFilterType.ALL) {
-        errors.push("Please select at least one user");
-      }
       if (selectedBuckets.length === 0) {
         errors.push("Please select at least one bucket");
       }
