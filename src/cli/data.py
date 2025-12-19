@@ -343,6 +343,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                               type=validation.is_storage_credential_path,
                               help='URI where access will be checked to.')
     check_parser.add_argument('--access-type', '-a',
-                              choices=storage.AccessType.__members__.keys(),
+                              choices=list(storage.AccessType.__members__.keys()),
                               help='Access type to check access to the backend URI.')
     check_parser.set_defaults(func=_run_check_command)
