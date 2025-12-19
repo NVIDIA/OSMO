@@ -654,7 +654,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                     if is_input and bucket_info.uri not in seen_uri_input:
                         bucket_info.data_auth(data_cred, storage.AccessType.READ)
                         seen_uri_input.add(bucket_info.uri)
-                
+
                     # Check if user credentials have access to WRITE
                     if not is_input and bucket_info.uri not in seen_uri_output:
                         bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
