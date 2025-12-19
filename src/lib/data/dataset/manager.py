@@ -262,7 +262,7 @@ class Manager(pydantic.BaseModel):
         credentials = client_configs.get_credentials(path_components.profile)
         path_components.data_auth(
             credentials.access_key_id,
-            credentials.access_key.get_secret_value(),
+            credentials.get_access_key_value(),
             credentials.region,
             storage.AccessType.WRITE,
         )
@@ -404,7 +404,7 @@ class Manager(pydantic.BaseModel):
             # Validate delete access
             path_components.data_auth(
                 credentials.access_key_id,
-                credentials.access_key.get_secret_value(),
+                credentials.get_access_key_value(),
                 credentials.region,
                 storage.AccessType.DELETE,
             )
@@ -412,7 +412,7 @@ class Manager(pydantic.BaseModel):
             # Validate write access
             path_components.data_auth(
                 credentials.access_key_id,
-                credentials.access_key.get_secret_value(),
+                credentials.get_access_key_value(),
                 credentials.region,
                 storage.AccessType.WRITE,
             )

@@ -48,15 +48,18 @@ S = TypeVar('S', bound='TransferSummary')
 class StorageAuth:
     """
     A class for storing Data Storage Authentication Details.
+
+    Both user and key are optional to support workload identity authentication
+    where credentials are obtained from the environment rather than explicit keys.
     """
 
-    user: str = pydantic.Field(
-        ...,
+    user: str | None = pydantic.Field(
+        default=None,
         description='The user of the storage authentication.',
     )
 
-    key: str = pydantic.Field(
-        ...,
+    key: str | None = pydantic.Field(
+        default=None,
         description='The key of the storage authentication.',
     )
 

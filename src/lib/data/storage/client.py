@@ -283,7 +283,7 @@ class Client(pydantic.BaseModel):
         """
         return common.StorageAuth(
             user=self.data_credential.access_key_id,
-            key=self.data_credential.access_key.get_secret_value()
+            key=self.data_credential.get_access_key_value(),
         )
 
     def _validate_remote_path(

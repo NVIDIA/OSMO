@@ -27,6 +27,7 @@ from typing import Any, Callable, Generator, Iterator, List, Tuple, Type
 from typing_extensions import assert_never, override
 
 from azure.core import exceptions
+from azure.identity import DefaultAzureCredential
 from azure.storage import blob
 
 from ..core import client, provider
@@ -271,12 +272,35 @@ class AzureBlobStorageResumableStream(client.ResumableStream):
 
 
 def create_client(
-    connection_string: str,
+    connection_string: str | None = None,
+    *,
+    account_url: str | None = None,
 ) -> blob.BlobServiceClient:
     """
-    Creates a new Azure Blob Storage client.
+    Creates a new Azure Blob Storage client using the provided credential mode.
+
+    Args:
+        connection_string: The Azure storage connection string. When provided, takes precedence.
+        account_url: The storage account blob service URL used for token credentials.
+
+    Returns:
+        An initialized `BlobServiceClient` configured with the requested credential strategy.
+
+    Raises:
+        client.OSMODataStorageClientError: If no valid credential configuration is supplied.
     """
-    return blob.BlobServiceClient.from_connection_string(conn_str=connection_string)
+    if connection_string:
+        return blob.BlobServiceClient.from_connection_string(conn_str=connection_string)
+
+    if account_url:
+        return blob.BlobServiceClient(
+            account_url=account_url,
+            credential=DefaultAzureCredential(),
+        )
+
+    raise client.OSMODataStorageClientError(
+        'Azure Blob credential configuration requires either a connection string or token credentials.',
+    )
 
 
 class AzureBlobStorageClient(client.StorageClient):
@@ -306,7 +330,7 @@ class AzureBlobStorageClient(client.StorageClient):
             pass
         finally:
             super().close()
-
+ 
     @override
     def get_object_info(
         self,
@@ -713,16 +737,23 @@ class AzureBlobStorageClient(client.StorageClient):
 
             This is necessary to authorize the copy operation.
             """
-            assert hasattr(source_blob_client.credential, 'account_key')
+            key_start_time = common.current_time().replace(tzinfo=datetime.timezone.utc)
+            key_expiry_time = key_start_time + _get_copy_sas_expiry_time()
+
+            delegation_key = self._azure_client.get_user_delegation_key(
+                key_start_time=key_start_time,
+                key_expiry_time=key_expiry_time,
+            )
 
             sas_token = blob.generate_blob_sas(
                 account_name=source_blob_client.account_name,
                 container_name=source_blob_client.container_name,
                 blob_name=source_blob_client.blob_name,
-                account_key=source_blob_client.credential.account_key,
                 permission=blob.BlobSasPermissions(read=True),
-                expiry=common.current_time() + _get_copy_sas_expiry_time(),
+                expiry=key_expiry_time,
+                user_delegation_key=delegation_key,
             )
+
             return f'{source_blob_client.url}?{sas_token}'
 
         def _call_api() -> client.CopyResponse:
@@ -822,10 +853,14 @@ class AzureBlobStorageClientFactory(provider.StorageClientFactory):
     Factory for the AzureBlobStorageClient.
     """
 
-    connection_string: str
+    connection_string: str | None = None
+    account_url: str | None = None
 
     @override
     def create(self) -> AzureBlobStorageClient:
         return AzureBlobStorageClient(
-            lambda: create_client(self.connection_string),
+            lambda: create_client(
+                self.connection_string,
+                account_url=self.account_url,
+            ),
         )

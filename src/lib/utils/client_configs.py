@@ -23,6 +23,7 @@ from typing import Optional
 import yaml
 
 from . import cache, common, credentials, osmo_errors
+from ..data import constants
 
 
 def get_client_config_dir() -> str:
@@ -60,25 +61,35 @@ def get_cache_config() -> Optional[cache.CacheConfig]:
 
 @functools.lru_cache()
 def get_credentials(url: str) -> credentials.DataCredential:
+    """
+    Get credentials for a storage profile.
+
+    For storage backends that support environment-based authentication (e.g.,
+    Azure DefaultAzureCredential, AWS IAM roles), the config may contain entries
+    with None access keys. This allows the SDK to use its credential chain
+    (CLI credentials, managed identity, workload identity, etc.).
+    """
     osmo_directory = get_client_config_dir()
     password_file = osmo_directory + '/config.yaml'
 
     if os.path.isfile(password_file):
         with open(password_file, 'r', encoding='utf-8') as file:
             configs = yaml.safe_load(file.read())
-            if url in configs['auth']['data']:
-                data_cred_dict = configs['auth']['data'][url]
-                data_cred = credentials.DataCredential(
-                    access_key_id=data_cred_dict['access_key_id'],
-                    access_key=data_cred_dict['access_key'],
-                    endpoint=url,
-                    region=data_cred_dict['region'],
-                )
-                return data_cred
-    raise osmo_errors.OSMOError(f'Credential not set for {url}. Please set credentials using: \n' +
-                                'osmo credential set my_cred --type DATA ' +
-                                '--payload access_key_id=your_s3_username access_key=your_s3_key' +
-                                ' endpoint=your_endpoint region=endpoint_region')
+            if configs and 'auth' in configs and 'data' in configs['auth']:
+                if url in configs['auth']['data']:
+                    data_cred_dict = configs['auth']['data'][url]
+                    return credentials.DataCredential(
+                        access_key_id=data_cred_dict.get('access_key_id'),
+                        access_key=data_cred_dict.get('access_key'),
+                        endpoint=url,
+                        region=data_cred_dict.get('region', constants.DEFAULT_BOTO3_REGION),
+                    )
+
+    raise osmo_errors.OSMOError(
+        f'Credential not set for {url}. Please set credentials using:\n'
+        'osmo credential set my_cred --type DATA '
+        '--payload access_key_id=<your_key_id> access_key=<your_access_key>'
+        ' endpoint=<your_endpoint> region=<endpoint_region>')
 
 
 def get_client_state_dir() -> str:

@@ -134,7 +134,7 @@ class MuxStorageClientProvider(provider.StorageClientProvider):
         )
         client_factory = storage_backend.client_factory(
             access_key_id=data_cred.access_key_id,
-            access_key=data_cred.access_key.get_secret_value(),
+            access_key=data_cred.get_access_key_value(),
             region=data_cred.region,
             request_headers=self._client_factory.request_headers,
             **self._client_factory.kwargs,

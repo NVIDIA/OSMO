@@ -18,12 +18,18 @@
 {{$name := or .Values.global.name .Release.Name }}
 
 # Backend Listener Service Account
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   namespace: {{ .Values.global.agentNamespace }}
   name: {{ include "backend-operator.listener.serviceAccountName" . }}
+  {{- if .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml .Values.serviceAccount.annotations | nindent 4 }}
+  {{- end }}
 ---
+{{- end }}
 # Role for Backend Listener (Namespace-scoped events)
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1

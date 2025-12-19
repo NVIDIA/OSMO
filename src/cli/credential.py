@@ -45,7 +45,7 @@ def _save_config(data_cred: credentials.DataCredential):
 
     config['auth']['data'][data_cred.endpoint] = {
         'access_key_id': data_cred.access_key_id,
-        'access_key': data_cred.access_key.get_secret_value(),
+        'access_key': data_cred.get_access_key_value(),
         'region': data_cred.region}
     with open(password_file, 'w', encoding='utf-8') as file:
         yaml.dump(config, file)
@@ -211,7 +211,8 @@ def setup_parser(parser: argparse._SubParsersAction):
             '+-----------------+---------------------------+---------------------------------------+\n'
             '| REGISTRY        | auth                      | registry, username                    |\n'
             '+-----------------+---------------------------+---------------------------------------+\n'
-            '| DATA            | access_key_id, access_key | endpoint, region (default: us-east-1) |\n'
+            '| DATA            | endpoint                  | access_key_id, access_key,            |\n'
+            '|                 |                           | region (default: us-east-1)           |\n'
             '+-----------------+---------------------------+---------------------------------------+\n'
             '| GENERIC         |                           |                                       |\n'
             '+-----------------+---------------------------+---------------------------------------+\n'

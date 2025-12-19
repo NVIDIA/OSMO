@@ -184,8 +184,8 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         region: str | None = None,
         access_type: AccessType | None = None,
     ):
@@ -197,8 +197,8 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
     ) -> str:
         """
         Infer the region of the bucket via provided credentials.
@@ -232,8 +232,8 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        access_key_id: str | None,
+        access_key: str | None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> provider.StorageClientFactory:
@@ -241,3 +241,17 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
         Returns a factory for creating storage clients.
         """
         pass
+
+    @property
+    def supports_environment_auth(self) -> bool:
+        """
+        Returns whether this storage backend supports environment-based authentication.
+
+        When True, the backend can authenticate without explicit access keys,
+        using credentials from the runtime environment (e.g., managed identities,
+        service account tokens, or credential chains).
+
+        Returns:
+            bool: True if environment-based auth is supported, False otherwise.
+        """
+        return False

@@ -224,12 +224,12 @@ def migrate(
     destination_creds = client_configs.get_credentials(destination_backend.profile)
     destination_region = destination_backend.region(
         destination_creds.access_key_id,
-        destination_creds.access_key.get_secret_value(),
+        destination_creds.get_access_key_value(),
     )
 
     client_factory = destination_backend.client_factory(
         access_key_id=destination_creds.access_key_id,
-        access_key=destination_creds.access_key.get_secret_value(),
+        access_key=destination_creds.get_access_key_value(),
         region=destination_region,
     )
 

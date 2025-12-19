@@ -28,6 +28,7 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.delayedJobMonitor.serviceName }}
+        {{- include "osmo.extra-labels" .Values.services.delayedJobMonitor | nindent 8 }}
       annotations:
       {{- include "osmo.extra-annotations" .Values.services.delayedJobMonitor | nindent 8 }}
       {{- if .Values.sidecars.otel.enabled }}
@@ -43,9 +44,11 @@ spec:
         {{- end}}
       tolerations:
       {{ toYaml .Values.services.delayedJobMonitor.tolerations | nindent 8 }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
-      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.delayedJobMonitor.serviceAccountName "Values" .Values) }}
+      {{- end }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.delayedJobMonitor.serviceAccountName "root" .) }}
       {{- with .Values.services.delayedJobMonitor.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}

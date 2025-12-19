@@ -18,12 +18,18 @@
 {{$name := or .Values.global.name .Release.Name }}
 
 # Backend Worker Service Account
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   namespace: {{ .Values.global.agentNamespace }}
   name: {{ include "backend-operator.worker.serviceAccountName" . }}
+  {{- if .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml .Values.serviceAccount.annotations | nindent 4 }}
+  {{- end }}
 ---
+{{- end }}
 # ClusterRole for Backend Worker (Cluster-scoped resources)
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1

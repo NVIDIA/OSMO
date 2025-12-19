@@ -574,17 +574,21 @@ class UserRegistryCredential(credentials.RegistryCredential, extra=pydantic.Extr
 
 
 class UserDataCredential(credentials.DataCredential, extra=pydantic.Extra.forbid):
-    """ Authentication information for a data service. """
-    access_key: str = pydantic.Field(
-        description='The authentication secret for the data service')  # type: ignore
+    """
+    Authentication information for a data service.
+
+    When access_key_id and access_key are None, the storage backend will use
+    environment-based authentication (e.g., Azure DefaultAzureCredential,
+    AWS IAM roles, managed identity, workload identity).
+    """
 
     @staticmethod
     def type() -> connectors.CredentialType:
         return connectors.CredentialType.DATA
 
     def to_db_row(self, user: str, postgres: connectors.PostgresConnector) -> CredentialRecord:
-        payload = {'access_key_id': self.access_key_id,
-                   'access_key': self.access_key,
+        payload = {'access_key_id': self.get_access_key_id_value(),
+                   'access_key': self.get_access_key_value(),
                    'region': self.region}
         payload = postgres.encrypt_dict(payload, user)
         return CredentialRecord(self.type().value,
@@ -595,7 +599,7 @@ class UserDataCredential(credentials.DataCredential, extra=pydantic.Extra.forbid
         storage_info = storage.construct_storage_backend(self.endpoint, True)
         if storage_info.scheme in workflow_config.credential_config.disable_data_validation:
             return
-        storage_info.data_auth(self.access_key_id, self.access_key, self.region)
+        storage_info.data_auth(self.get_access_key_id_value(), self.get_access_key_value(), self.region)
 
 
 class UserCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):

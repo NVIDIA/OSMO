@@ -39,10 +39,30 @@ class RegistryCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
 class BasicDataCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     """ Authentication information for a data service without endpoint and region info. """
-    access_key_id: str = pydantic.Field(
+    access_key_id: str | None = pydantic.Field(
+        default=None,
         description='The authentication key for the data service')
-    access_key: pydantic.SecretStr = pydantic.Field(
+    access_key: pydantic.SecretStr | None = pydantic.Field(
+        default=None,
         description='The authentication secret for the data service')
+
+    def get_access_key_id_value(self) -> str | None:
+        """
+        Safely returns the access key ID value, or None if not set.
+
+        This supports workload identity authentication where credentials
+        are obtained from the environment rather than explicit keys.
+        """
+        return self.access_key_id if self.access_key_id else None
+
+    def get_access_key_value(self) -> str | None:
+        """
+        Safely returns the access key secret value, or None if not set.
+
+        This supports workload identity authentication where credentials
+        are obtained from the environment rather than explicit keys.
+        """
+        return self.access_key.get_secret_value() if self.access_key else None
 
 
 class DataCredential(BasicDataCredential, extra=pydantic.Extra.forbid):
@@ -76,8 +96,8 @@ class DecryptedDataCredential(BasicDataCredential, extra=pydantic.Extra.ignore):
     Basic data cred with access_key decrypted.
     """
 
-    access_key: str = pydantic.Field(  # type: ignore[assignment]
-        ...,
+    access_key: str | None = pydantic.Field(  # type: ignore[assignment]
+        default=None,
         description='The authentication secret for the data service',
     )
 
@@ -89,5 +109,6 @@ class DecryptedDataCredential(BasicDataCredential, extra=pydantic.Extra.ignore):
 
 def decrypt(base_cred: DataCredential) -> DecryptedDataCredential:
     cred_dict = base_cred.dict()
-    cred_dict['access_key'] = cred_dict['access_key'].get_secret_value()
+    if cred_dict.get('access_key'):
+        cred_dict['access_key'] = cred_dict['access_key'].get_secret_value()
     return DecryptedDataCredential(**cred_dict)

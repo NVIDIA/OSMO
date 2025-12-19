@@ -219,6 +219,24 @@ global:
         value: 50
         description: "Schedule last. Preemptible."
 
+## Service account configuration shared by backend listener and worker pods
+##
+serviceAccount:
+  ## Create the ServiceAccounts defined by this chart. Set to false to bind
+  ## pre-provisioned workload identity ServiceAccounts
+  ##
+  create: true
+
+  ## ServiceAccount name to use when creating or for an already provisioned
+  ## ServiceAccount
+  ##
+  name: ""
+
+  ## Extra annotations applied to ServiceAccounts (e.g.
+  ## `azure.workload.identity/client-id`)
+  ##
+  annotations: {}
+
 ## Configuration for individual backend operators
 ##
 services:
@@ -246,9 +264,10 @@ services:
     ##
     initContainers: []
 
-    ## Kubernetes service account name for the backend listener
+    ## Kubernetes service account name for the backend listener. Leave empty to
+    ## use the chart default (`backend-listener`).
     ##
-    serviceAccount: backend-listener
+    serviceAccount: ""
 
     ## Maximum number of unacknowledged websocket messages
     ##
@@ -356,9 +375,10 @@ services:
     ##
     initContainers: []
 
-    ## Kubernetes service account name for the backend worker
+    ## Kubernetes service account name for the backend worker. Leave empty to
+    ## use the chart default (`backend-worker`).
     ##
-    serviceAccount: backend-worker
+    serviceAccount: ""
 
     ## How often to write progress during task processing loops
     ##
@@ -616,9 +636,10 @@ backendTestRunner:
       ##
       readOnlyRootFilesystem: true
 
-    ## Kubernetes service account name for test runner pods
+    ## Kubernetes service account name for test runner pods. Leave empty to use
+    ## the chart default (`test-runner`).
     ##
-    serviceAccount: test-runner
+    serviceAccount: ""
 
     ## Whether to automount service account token
     ##
