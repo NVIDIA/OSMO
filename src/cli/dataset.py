@@ -40,6 +40,7 @@ from src.lib.data import (
 from src.lib.utils import (
     client,
     client_configs,
+    credentials,
     common,
     osmo_errors,
     validation,
@@ -978,15 +979,31 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
             cache_config=client_configs.get_cache_config(),
         )
 
+        data_cred = credentials.get_static_data_credential_from_config(
+            location_result['path'],
+            args.config_file,
+        )
+
         match args.access_type:
             case storage_lib.AccessType.WRITE.name:
-                storage_backend.data_auth(access_type=storage_lib.AccessType.WRITE)
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                    access_type=storage_lib.AccessType.WRITE,
+                )
             case storage_lib.AccessType.DELETE.name:
-                storage_backend.data_auth(access_type=storage_lib.AccessType.DELETE)
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                    access_type=storage_lib.AccessType.DELETE,
+                )
             case storage_lib.AccessType.READ.name:
-                storage_backend.data_auth(access_type=storage_lib.AccessType.READ)
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                    access_type=storage_lib.AccessType.READ,
+                )
             case _:
-                storage_backend.data_auth()
+                storage_backend.data_auth(
+                    data_cred=data_cred,
+                )
 
         # Auth check passed
         print(json.dumps({'status': 'pass'}))
@@ -1447,4 +1464,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     check_parser.add_argument('--access-type', '-a',
                               choices=list(storage_lib.AccessType.__members__.keys()),
                               help='Access type to check access to the dataset.')
+    check_parser.add_argument('--config-file', '-c',
+                              type=validation.valid_file_path,
+                              help='Path to the config file to use for the access check.')
     check_parser.set_defaults(func=_run_check_command)
