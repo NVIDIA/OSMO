@@ -1445,6 +1445,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                               help='Dataset name. Specify bucket and tag/version with ' +
                               '[bucket/]DS[:tag/version].')
     check_parser.add_argument('--access-type', '-a',
-                              choices=storage_lib.AccessType.__members__.keys(),
+                              choices=list(storage_lib.AccessType.__members__.keys()),
                               help='Access type to check access to the dataset.')
     check_parser.set_defaults(func=_run_check_command)
