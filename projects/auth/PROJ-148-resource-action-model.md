@@ -140,7 +140,7 @@ The action registry is defined in code (not database) for several reasons:
 │  task                Read, Update, Cancel,      pool / user                 │
 │                      Exec, PortForward, Rsync                               │
 │                                                                             │
-│  bucket              Create, Read, Write,       pool                        │
+│  bucket              Create, Read, Write,       bucket                      │
 │                      Delete, List                                           │
 │                                                                             │
 │  credentials         Create, Read, Update,      (global)                    │
