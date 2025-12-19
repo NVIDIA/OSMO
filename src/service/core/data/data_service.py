@@ -44,6 +44,7 @@ def create_uuid() -> str:
     return base64.urlsafe_b64encode(unique_id.bytes).decode('utf-8')[:-2]
 
 
+# TODO: add this to client side for dataset validation (to handle workload identity credentials)
 def validate_user_cred(postgres: connectors.PostgresConnector, user: str, location: str,
                        access_type: storage.AccessType):
     """
@@ -51,7 +52,6 @@ def validate_user_cred(postgres: connectors.PostgresConnector, user: str, locati
     """
     backend_info = storage.construct_storage_backend(location)
 
-    # TODO: do we support workload identity credentials here?
     user_cred = postgres.get_data_cred(user, backend_info.profile)
     if not user_cred:
         raise osmo_errors.OSMOCredentialError(

@@ -114,6 +114,7 @@ class StorageBackend(
     path: str
 
     override_endpoint: str | None = None
+    supports_environment_auth: bool = False
 
     @classmethod
     @abc.abstractmethod

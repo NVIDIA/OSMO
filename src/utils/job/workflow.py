@@ -665,9 +665,8 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 except osmo_errors.OSMOCredentialError as err:
                     has_access = False
             else:
-                # TODO: check pod template to see if we have workload identity configured for
-                #       the pool, if so, bypass the data validation
-                raise NotImplementedError('Workload identity credentials are not supported yet.')
+                # If no data credential, check if the backend supports environment authentication
+                has_access = bucket_info.supports_environment_auth
 
             if not has_access:
                 raise osmo_errors.OSMOCredentialError(
