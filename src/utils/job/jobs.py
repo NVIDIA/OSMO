@@ -1387,9 +1387,8 @@ class CleanupWorkflow(WorkflowJob):
                 await progress_writer.report_progress_async()
 
                 await temp_file.flush()
-                # mypy struggles to type `asyncio.to_thread()` when passing an overloaded method
-                # directly (Client.upload_objects is overloaded for `str` vs `List[str]` source).
-                # Wrap the call in a concrete no-arg function to avoid overload inference issues.
+
+                # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
                 def _upload_logs() -> storage.UploadSummary:
                     return storage_client.upload_objects(
                         source=str(temp_file.name),
