@@ -647,29 +647,22 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
             data_cred = task.fetch_creds(user, user_creds, bucket_info.uri)
 
-            has_access = True
-            if data_cred is not None:
-                try:
-                    # Check if user credentials have access to READ
-                    if is_input and bucket_info.uri not in seen_uri_input:
-                        bucket_info.data_auth(data_cred, storage.AccessType.READ)
-                        seen_uri_input.add(bucket_info.uri)
-
-                    # Check if user credentials have access to WRITE
-                    if not is_input and bucket_info.uri not in seen_uri_output:
-                        bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
-                        seen_uri_output.add(bucket_info.uri)
-
-                except osmo_errors.OSMOCredentialError as err:
-                    has_access = False
+            if data_cred is None:
+                # User does not have any credentials, check if the backend
+                # supports environment authentication
+                if not bucket_info.supports_environment_auth:
+                    raise osmo_errors.OSMOCredentialError(
+                        f'Could not validate access to {bucket_info.uri} for user {user}.')
             else:
-                # If user does not have any credentials,
-                # check if the backend supports environment authentication
-                has_access = bucket_info.supports_environment_auth
+                # Check if user credentials have access to READ
+                if is_input and bucket_info.uri not in seen_uri_input:
+                    bucket_info.data_auth(data_cred, storage.AccessType.READ)
+                    seen_uri_input.add(bucket_info.uri)
 
-            if not has_access:
-                raise osmo_errors.OSMOCredentialError(
-                    f'Could not validate access to {bucket_info.uri} for user {user}.')
+                # Check if user credentials have access to WRITE
+                if not is_input and bucket_info.uri not in seen_uri_output:
+                    bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
+                    seen_uri_output.add(bucket_info.uri)
 
         for input_data_spec in group_task.inputs:
             _validate_input_output(input_data_spec, True)
