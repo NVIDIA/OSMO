@@ -1465,6 +1465,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                               choices=list(storage_lib.AccessType.__members__.keys()),
                               help='Access type to check access to the dataset.')
     check_parser.add_argument('--config-file', '-c',
-                              type=validation.valid_file_path,
+                              type=validation.valid_path,
                               help='Path to the config file to use for the access check.')
     check_parser.set_defaults(func=_run_check_command)
