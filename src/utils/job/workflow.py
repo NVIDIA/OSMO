@@ -649,23 +649,24 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
             has_access = True
             if data_cred is not None:
-                # Check if user credentials have access to READ
                 try:
+                    # Check if user credentials have access to READ
                     if is_input and bucket_info.uri not in seen_uri_input:
                         bucket_info.data_auth(data_cred, storage.AccessType.READ)
                         seen_uri_input.add(bucket_info.uri)
-                except osmo_errors.OSMOCredentialError as err:
-                    has_access = False
-
-                # Check if user credentials have access to WRITE
-                try:
+                
+                    # Check if user credentials have access to WRITE
                     if not is_input and bucket_info.uri not in seen_uri_output:
                         bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
                         seen_uri_output.add(bucket_info.uri)
+
                 except osmo_errors.OSMOCredentialError as err:
-                    has_access = False
+                    # If user's existing credentials do not have access,
+                    # check if the backend supports environment authentication
+                    has_access = bucket_info.supports_environment_auth
             else:
-                # If no data credential, check if the backend supports environment authentication
+                # If user does not have any credentials,
+                # check if the backend supports environment authentication
                 has_access = bucket_info.supports_environment_auth
 
             if not has_access:
