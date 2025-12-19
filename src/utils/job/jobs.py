@@ -1361,6 +1361,11 @@ class CleanupWorkflow(WorkflowJob):
 
         # Create a storage client to upload logs to S3
         workflow_config = context.postgres.get_workflow_configs()
+        if workflow_config.workflow_log.credential is None:
+            return JobResult(
+                success=False,
+                error='Workflow log credential is not set',
+            )
         storage_client = storage.Client.create(
             data_credential=workflow_config.workflow_log.credential,
             executor_params=storage.ExecutorParameters(
@@ -1371,24 +1376,28 @@ class CleanupWorkflow(WorkflowJob):
 
         async def migrate_logs(redis_url: str, redis_key: str, file_name: str):
             ''' Uploads logs to S3 and deletes them from Redis. Returns the S3 file path. '''
-            nonlocal last_timestamp
 
             async with aiofiles.tempfile.NamedTemporaryFile(mode='w+') as temp_file:
                 await connectors.write_redis_log_to_disk(
                     redis_url,
                     redis_key,
-                    temp_file.name,
+                    str(temp_file.name),
                 )
 
                 await progress_writer.report_progress_async()
 
                 await temp_file.flush()
-                await asyncio.to_thread(
-                    storage_client.upload_objects,
-                    source=temp_file.name,
-                    destination_prefix=self.workflow_id,
-                    destination_name=file_name,
-                )
+                # mypy struggles to type `asyncio.to_thread()` when passing an overloaded method
+                # directly (Client.upload_objects is overloaded for `str` vs `List[str]` source).
+                # Wrap the call in a concrete no-arg function to avoid overload inference issues.
+                def _upload_logs() -> storage.UploadSummary:
+                    return storage_client.upload_objects(
+                        source=str(temp_file.name),
+                        destination_prefix=self.workflow_id,
+                        destination_name=file_name,
+                    )
+
+                await asyncio.to_thread(_upload_logs)
 
                 await progress_writer.report_progress_async()
 
