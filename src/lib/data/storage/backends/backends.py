@@ -144,23 +144,14 @@ class Boto3Backend(common.StorageBackend):
         if data_cred is None:
             data_cred = self.resolved_data_credential
 
-        match data_cred:
-            case credentials.StaticDataCredential():
-                return s3.S3StorageClientFactory(  # pylint: disable=unexpected-keyword-arg
-                    data_cred=data_cred,
-                    region=region,
-                    scheme=self.scheme,
-                    endpoint_url=self.auth_endpoint if self.auth_endpoint else None,
-                    extra_headers=self._get_extra_headers(request_headers),
-                    supports_batch_delete=self.supports_batch_delete,
-                )
-
-            case credentials.DefaultDataCredential():
-                raise NotImplementedError(
-                    'Default data credentials are not supported yet')
-
-            case _ as unreachable:
-                assert_never(unreachable)
+        return s3.S3StorageClientFactory(  # pylint: disable=unexpected-keyword-arg
+            data_cred=data_cred,
+            region=region,
+            scheme=self.scheme,
+            endpoint_url=self.auth_endpoint if self.auth_endpoint else None,
+            extra_headers=self._get_extra_headers(request_headers),
+            supports_batch_delete=self.supports_batch_delete,
+        )
 
 
 class SwiftBackend(Boto3Backend):
