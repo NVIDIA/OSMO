@@ -1395,7 +1395,12 @@ func main() {
 	}()
 
 	// Validate data auth access before starting downloads/uploads
-	if err := data.ValidateInputsOutputsAccess(cmdArgs.Inputs, cmdArgs.Outputs, osmoChan); err != nil {
+	if err := data.ValidateInputsOutputsAccess(
+		cmdArgs.Inputs,
+		cmdArgs.Outputs,
+		cmdArgs.UserConfig,
+		osmoChan,
+	); err != nil {
 		osmo_errors.SetExitCode(osmo_errors.DATA_UNAUTHORIZED_CODE)
 		stopPutLogs <- true
 		stopSendLogs <- true

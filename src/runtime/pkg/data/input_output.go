@@ -882,7 +882,7 @@ func ParseInputOutput(value string) InputOutput {
 
 // ValidateDataAuth validates access permissions for a single input/output operation
 // Retries on execution failures (service down, rate limit) but fails fast on auth failures
-func ValidateDataAuth(value string, osmoChan chan string) error {
+func ValidateDataAuth(value string, userConfig string, osmoChan chan string) error {
 	inputOutput := ParseInputOutput(value)
 
 	var commandArgs []string
@@ -892,24 +892,24 @@ func ValidateDataAuth(value string, osmoChan chan string) error {
 	// Check type and build appropriate command with correct access type
 	switch v := inputOutput.(type) {
 	case DatasetInput:
-		commandArgs = []string{"osmo", "dataset", "check", v.Dataset, "--access-type", "READ"}
-		osmoChan <- fmt.Sprintf("Validating READ access for dataset: %s", logInfo)
+		commandArgs = []string{"osmo", "dataset", "check", v.Dataset, "--access-type", "READ", "--config-file", userConfig}
+		osmoChan <- fmt.Sprintf("Validating READ access for dataset input: %s", logInfo)
 
 	case *DatasetOutput:
-		commandArgs = []string{"osmo", "dataset", "check", v.Dataset, "--access-type", "WRITE"}
-		osmoChan <- fmt.Sprintf("Validating WRITE access for dataset: %s", logInfo)
+		commandArgs = []string{"osmo", "dataset", "check", v.Dataset, "--access-type", "WRITE", "--config-file", userConfig}
+		osmoChan <- fmt.Sprintf("Validating WRITE access for dataset output: %s", logInfo)
 
 	case *UpdateDatasetOutput:
-		commandArgs = []string{"osmo", "dataset", "check", v.Dataset, "--access-type", "WRITE"}
-		osmoChan <- fmt.Sprintf("Validating WRITE access for dataset: %s", logInfo)
+		commandArgs = []string{"osmo", "dataset", "check", v.Dataset, "--access-type", "WRITE", "--config-file", userConfig}
+		osmoChan <- fmt.Sprintf("Validating WRITE access for dataset update: %s", logInfo)
 
 	case UrlInput:
-		commandArgs = []string{"osmo", "data", "check", urlIdentifier, "--access-type", "READ"}
-		osmoChan <- fmt.Sprintf("Validating READ access for URI: %s", logInfo)
+		commandArgs = []string{"osmo", "data", "check", urlIdentifier, "--access-type", "READ", "--config-file", userConfig}
+		osmoChan <- fmt.Sprintf("Validating READ access for URI input: %s", logInfo)
 
 	case *UrlOutput:
-		commandArgs = []string{"osmo", "data", "check", urlIdentifier, "--access-type", "WRITE"}
-		osmoChan <- fmt.Sprintf("Validating WRITE access for URI: %s", logInfo)
+		commandArgs = []string{"osmo", "data", "check", urlIdentifier, "--access-type", "WRITE", "--config-file", userConfig}
+		osmoChan <- fmt.Sprintf("Validating WRITE access for URI output: %s", logInfo)
 
 	default:
 		// All other types (TaskInput, TaskOutput, KpiOutput) are ignored
@@ -957,7 +957,12 @@ func ValidateDataAuth(value string, osmoChan chan string) error {
 // ValidateInputsOutputsAccess validates read access for all inputs and write access for all outputs
 // Only validates: UrlInput, DatasetInput (READ) and UrlOutput, DatasetOutput, UpdateDatasetOutput (WRITE)
 // All other types (TaskInput, TaskOutput, KpiOutput) are ignored
-func ValidateInputsOutputsAccess(inputs common.ArrayFlags, outputs common.ArrayFlags, osmoChan chan string) error {
+func ValidateInputsOutputsAccess(
+	inputs common.ArrayFlags,
+	outputs common.ArrayFlags,
+	userConfig string,
+	osmoChan chan string,
+) error {
 	osmoChan <- "Validating data access permissions..."
 
 	allItems := make([]string, 0, len(inputs)+len(outputs))
@@ -966,7 +971,7 @@ func ValidateInputsOutputsAccess(inputs common.ArrayFlags, outputs common.ArrayF
 
 	// Validate all items - ValidateDataAuth will parse and determine if validation is needed
 	for _, value := range allItems {
-		if err := ValidateDataAuth(value, osmoChan); err != nil {
+		if err := ValidateDataAuth(value, userConfig, osmoChan); err != nil {
 			return err
 		}
 	}
