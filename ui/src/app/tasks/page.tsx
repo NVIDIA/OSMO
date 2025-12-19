@@ -154,8 +154,6 @@ export default function Tasks() {
 
   const validateFilters = useCallback(
     ({
-      selectedUsers,
-      userType,
       isSelectAllPoolsChecked,
       selectedPools,
       dateRange,

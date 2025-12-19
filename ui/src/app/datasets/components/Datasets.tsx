@@ -168,14 +168,7 @@ export default function Datasets() {
   }, [isSelectAllUsersChecked, userFilter, username]);
 
   const validateFilters = useCallback(
-    ({
-      userType,
-      selectedUsers,
-      selectedBuckets,
-      dateRange,
-      createdAfter,
-      createdBefore,
-    }: DatasetsFilterDataProps): string[] => {
+    ({ selectedBuckets, dateRange, createdAfter, createdBefore }: DatasetsFilterDataProps): string[] => {
       const errors: string[] = [];
       if (selectedBuckets.length === 0) {
         errors.push("Please select at least one bucket");
