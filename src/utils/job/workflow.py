@@ -661,9 +661,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                         seen_uri_output.add(bucket_info.uri)
 
                 except osmo_errors.OSMOCredentialError as err:
-                    # If user's existing credentials do not have access,
-                    # check if the backend supports environment authentication
-                    has_access = bucket_info.supports_environment_auth
+                    has_access = False
             else:
                 # If user does not have any credentials,
                 # check if the backend supports environment authentication

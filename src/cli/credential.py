@@ -98,8 +98,12 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
                 print(f'File {value} cannot be found.')
                 sys.exit(1)
 
-    if args.type == 'DATA' and 'endpoint' not in cred_payload:
-        raise osmo_errors.OSMOUserError('Endpoint is required for DATA credentials.')
+    if args.type == 'DATA':
+        # Validate that the data credential is valid
+        try:
+            credentials.StaticDataCredential(**cred_payload)
+        except Exception as err:  # pylint: disable=broad-except
+            raise osmo_errors.OSMOUserError(f'Invalid DATA credential: {str(err)}')
 
     elif args.type == 'GENERIC':
         cred_payload = {'credential': cred_payload}
