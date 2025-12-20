@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Check, Copy } from "lucide-react";
+import { isLocalDev, getApiBaseUrl, COPY_FEEDBACK_DURATION_MS } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 interface AuthClaims {
   email?: string;
@@ -61,15 +63,6 @@ function isTokenExpired(claims: AuthClaims | null): boolean {
 }
 
 /**
- * Detect if we're running in local development mode.
- */
-function isLocalDev(): boolean {
-  if (typeof window === "undefined") return false;
-  const hostname = window.location.hostname;
-  return hostname === "localhost" || hostname === "127.0.0.1";
-}
-
-/**
  * Refresh access token using refresh token.
  * Returns new id_token on success, null on failure.
  */
@@ -94,19 +87,9 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
 
     return data.id_token || null;
   } catch (error) {
-    console.error("Failed to refresh token:", error);
+    logError("Failed to refresh token:", error);
     return null;
   }
-}
-
-/**
- * Get the production URL.
- */
-function getProductionUrl(): string {
-  const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "fernandol-dev.osmo.nvidia.com";
-  const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-  const scheme = sslEnabled ? "https" : "http";
-  return `${scheme}://${apiHostname}`;
 }
 
 // Storage keys
@@ -130,7 +113,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const copyCommand = async () => {
     await navigator.clipboard.writeText(tokenCommand);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
   };
 
   const claims = useMemo(() => getClaims(idToken), [idToken]);
@@ -196,7 +179,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           }
         }
       } catch (error) {
-        console.error("Failed to check auth:", error);
+        logError("Failed to check auth:", error);
       } finally {
         setIsLoading(false);
       }
@@ -341,7 +324,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   // If auth is enabled but user is not authenticated AND hasn't skipped, show login prompt
   if (authEnabled && !isAuthenticated && !isSkipped) {
-    const productionUrl = getProductionUrl();
+    const productionUrl = getApiBaseUrl();
 
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-6 bg-zinc-950">
@@ -501,7 +484,7 @@ export async function refreshToken(): Promise<string | null> {
 
     return data.id_token || null;
   } catch (error) {
-    console.error("Failed to refresh token:", error);
+    logError("Failed to refresh token:", error);
     return null;
   }
 }
