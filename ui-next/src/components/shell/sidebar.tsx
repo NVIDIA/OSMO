@@ -2,18 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Workflow,
-  Layers,
-  Server,
-  User,
-  ChevronLeft,
-  ChevronRight,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
+import { useNavigation } from "@/lib/use-navigation";
+import type { NavItem } from "@/lib/navigation";
 import { NvidiaLogo } from "@/components/nvidia-logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,29 +16,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Workflows", href: "/workflows", icon: Workflow },
-  { name: "Pools", href: "/pools", icon: Layers },
-  { name: "Resources", href: "/resources", icon: Server },
-];
-
-const bottomNavigation = [
-  { name: "Profile", href: "/profile", icon: User },
-];
-
 interface NavItemProps {
-  name: string;
-  href: string;
-  icon: LucideIcon;
+  item: NavItem;
   isActive: boolean;
   collapsed: boolean;
 }
 
-function NavItem({ name, href, icon: Icon, isActive, collapsed }: NavItemProps) {
+function NavItem({ item, isActive, collapsed }: NavItemProps) {
+  const Icon = item.icon;
+
   const linkContent = (
     <Link
-      href={href}
+      href={item.href}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
         isActive
@@ -60,7 +42,7 @@ function NavItem({ name, href, icon: Icon, isActive, collapsed }: NavItemProps) 
           collapsed ? "opacity-0" : "opacity-100"
         )}
       >
-        {name}
+        {item.name}
       </span>
     </Link>
   );
@@ -69,7 +51,7 @@ function NavItem({ name, href, icon: Icon, isActive, collapsed }: NavItemProps) 
     return (
       <Tooltip>
         <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-        <TooltipContent side="right">{name}</TooltipContent>
+        <TooltipContent side="right">{item.name}</TooltipContent>
       </Tooltip>
     );
   }
@@ -80,6 +62,12 @@ function NavItem({ name, href, icon: Icon, isActive, collapsed }: NavItemProps) 
 export function Sidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
+  
+  // Get navigation from hook (server-driven when wired up)
+  const { sections, bottomItems, isLoading } = useNavigation();
+
+  const isItemActive = (href: string) =>
+    pathname === href || (href !== "/" && pathname.startsWith(href));
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -108,42 +96,54 @@ export function Sidebar() {
             </Link>
           </div>
 
-          {/* Main navigation */}
-          <nav className="flex-1 space-y-1 p-2">
-            {navigation.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/" && pathname.startsWith(item.href));
-
-              return (
-                <NavItem
-                  key={item.name}
-                  name={item.name}
-                  href={item.href}
-                  icon={item.icon}
-                  isActive={isActive}
-                  collapsed={collapsed}
-                />
-              );
-            })}
+          {/* Main navigation - rendered by section */}
+          <nav className="flex-1 overflow-y-auto p-2">
+            {isLoading ? (
+              // Skeleton loader
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-9 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800"
+                  />
+                ))}
+              </div>
+            ) : (
+              sections.map((section, sectionIndex) => (
+                <div key={section.label ?? sectionIndex} className="space-y-1">
+                  {/* Section separator for labeled sections */}
+                  {section.label && sectionIndex > 0 && (
+                    <div className="my-2 border-t border-zinc-200 dark:border-zinc-800" />
+                  )}
+                  {/* Section label (only shown when expanded and has label) */}
+                  {section.label && !collapsed && (
+                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      {section.label}
+                    </div>
+                  )}
+                  {section.items.map((item) => (
+                    <NavItem
+                      key={item.href}
+                      item={item}
+                      isActive={isItemActive(item.href)}
+                      collapsed={collapsed}
+                    />
+                  ))}
+                </div>
+              ))
+            )}
           </nav>
 
           {/* Bottom section */}
           <div className="border-t border-zinc-200 p-2 dark:border-zinc-800">
-            {bottomNavigation.map((item) => {
-              const isActive = pathname === item.href;
-
-              return (
-                <NavItem
-                  key={item.name}
-                  name={item.name}
-                  href={item.href}
-                  icon={item.icon}
-                  isActive={isActive}
-                  collapsed={collapsed}
-                />
-              );
-            })}
+            {bottomItems.map((item) => (
+              <NavItem
+                key={item.href}
+                item={item}
+                isActive={isItemActive(item.href)}
+                collapsed={collapsed}
+              />
+            ))}
           </div>
         </aside>
 
