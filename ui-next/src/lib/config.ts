@@ -100,3 +100,8 @@ export const QUERY_STALE_TIME_MS = 60 * 1000; // 1 minute
  * Maximum retry delay for React Query.
  */
 export const QUERY_MAX_RETRY_DELAY_MS = 5000;
+
+/**
+ * Refresh token this many seconds before it expires (lazy refresh in fetcher).
+ */
+export const TOKEN_REFRESH_THRESHOLD_SECONDS = 60;
