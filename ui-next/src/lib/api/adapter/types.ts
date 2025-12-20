@@ -1,9 +1,9 @@
 /**
  * Ideal types that the UI expects from the backend.
- * 
+ *
  * These represent what a "perfect" backend API would return.
  * The adapter layer transforms actual backend responses into these types.
- * 
+ *
  * When backend is fixed, these can be replaced with generated types directly.
  */
 
@@ -30,6 +30,18 @@ export interface Quota {
 }
 
 /**
+ * Platform configuration within a pool.
+ * Contains task configuration settings.
+ */
+export interface PlatformConfig {
+  description?: string;
+  hostNetworkAllowed: boolean;
+  privilegedAllowed: boolean;
+  allowedMounts: string[];
+  defaultMounts: string[];
+}
+
+/**
  * A pool with all the information the UI needs to display it.
  */
 export interface Pool {
@@ -38,6 +50,8 @@ export interface Pool {
   status: PoolStatus;
   quota: Quota;
   platforms: string[];
+  /** Platform configurations keyed by platform name */
+  platformConfigs: Record<string, PlatformConfig>;
   backend: string;
 }
 
@@ -66,6 +80,25 @@ export interface ResourceCapacity {
 }
 
 /**
+ * Pool membership for a node (which pools/platforms a node belongs to).
+ */
+export interface PoolMembership {
+  pool: string;
+  platform: string;
+}
+
+/**
+ * Task configuration from the platform.
+ * This comes from the pool's platform configuration.
+ */
+export interface TaskConfig {
+  hostNetworkAllowed: boolean;
+  privilegedAllowed: boolean;
+  allowedMounts: string[];
+  defaultMounts: string[];
+}
+
+/**
  * A node/resource entry with all relevant information.
  */
 export interface Node {
@@ -79,6 +112,8 @@ export interface Node {
   memory: ResourceCapacity;
   storage: ResourceCapacity;
   conditions: string[];
+  /** All pools/platforms this node is a member of */
+  poolMemberships: PoolMembership[];
 }
 
 /**
