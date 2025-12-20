@@ -29,7 +29,7 @@ export type {
 // Pool Detail
 export { usePoolDetail } from "./use-pool-detail";
 export type {
+  ActiveFilter,
   UsePoolDetailOptions,
   UsePoolDetailReturn,
 } from "./use-pool-detail";
-
