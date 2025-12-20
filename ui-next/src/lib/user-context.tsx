@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { getAuthToken } from "@/lib/auth/auth-provider";
+import { getApiBaseUrl } from "@/lib/config";
 
 export interface User {
   id: string;
@@ -26,17 +27,14 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "fernandol-dev.osmo.nvidia.com";
-const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-const scheme = sslEnabled ? "https" : "http";
-
 /**
  * Fetch user info from the backend.
  */
 async function fetchUser(): Promise<User> {
   const authToken = getAuthToken();
+  const apiUrl = getApiBaseUrl();
   
-  const response = await fetch(`${scheme}://${apiHostname}/api/auth/me`, {
+  const response = await fetch(`${apiUrl}/api/auth/me`, {
     credentials: "include",
     headers: authToken ? { "x-osmo-auth": authToken } : {},
   });
