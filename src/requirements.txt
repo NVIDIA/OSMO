@@ -105,3 +105,6 @@ watchdog==6.0.0
 # Azure Blob Storage
 azure-storage-blob==12.26.0
 azure-identity==1.23.1
+
+# Async
+aiofiles==25.1.0

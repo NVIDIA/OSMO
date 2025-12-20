@@ -199,6 +199,10 @@ tomli==2.0.1 \
     --hash=sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc \
     --hash=sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f
     # via mypy
+types-aiofiles==25.1.0.20251011 \
+    --hash=sha256:1c2b8ab260cb3cd40c15f9d10efdc05a6e1e6b02899304d80dfa0410e028d3ff \
+    --hash=sha256:8ff8de7f9d42739d8f0dadcceeb781ce27cd8d8c4152d4a7c52f6b20edb8149c
+    # via -r ./requirements.txt
 types-awscrt==0.26.1 \
     --hash=sha256:176d320a26990efc057d4bf71396e05be027c142252ac48cc0d87aaea0704280 \
     --hash=sha256:aca96f889b3745c0e74f42f08f277fed3bf6e9baa2cf9b06a36f78d77720e504

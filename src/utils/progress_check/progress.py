@@ -20,6 +20,9 @@ import os
 import time
 import uuid
 
+import aiofiles  # type: ignore
+import aiofiles.os  # type: ignore
+
 
 class ProgressWriter:
     '''Reports progress by writing the current time to a given progress file'''
@@ -36,6 +39,13 @@ class ProgressWriter:
         # Atomically replace the current file with the temp file
         os.replace(src=temp_file, dst=self._filename)
 
+    async def report_progress_async(self):
+        temp_file = f'{self._filename}-{uuid.uuid4()}.tmp'
+        # Write the current time to a temporary file
+        async with aiofiles.open(temp_file, mode='w', encoding='utf-8') as file:
+            await file.write(str(time.time()))
+        # Atomically replace the current file with the temp file
+        await aiofiles.os.replace(temp_file, self._filename)
 
 class ProgressReader:
     '''

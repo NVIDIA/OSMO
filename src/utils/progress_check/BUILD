@@ -26,6 +26,7 @@ osmo_py_library(
     ],
     deps = [
         requirement("pydantic"),
+        requirement("aiofiles"),
         "//src/utils:static_config",
     ],
     visibility = ["//visibility:public"],

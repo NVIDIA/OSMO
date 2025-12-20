@@ -1041,7 +1041,7 @@ View history in JSON format with pagination::
 View history for a specific configuration type::
 
     osmo config history SERVICE
-    
+
 View history for a specific time range::
 
     osmo config history --created-after "2025-05-18" --created-before "2025-05-25"
