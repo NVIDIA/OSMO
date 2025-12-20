@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
+import { NvidiaLogo } from "@/components/nvidia-logo";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -95,17 +96,15 @@ export function Sidebar() {
           {/* Logo */}
           <div className="flex h-14 shrink-0 items-center border-b border-zinc-200 px-3 dark:border-zinc-800">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 font-bold text-white">
-                O
-              </div>
-            <span
-              className={cn(
-                "whitespace-nowrap text-lg font-semibold tracking-tight transition-opacity duration-200",
-                collapsed ? "opacity-0" : "opacity-100"
-              )}
-            >
-              OSMO
-            </span>
+              <NvidiaLogo width={28} height={20} className="shrink-0" />
+              <span
+                className={cn(
+                  "whitespace-nowrap text-lg font-semibold tracking-tight transition-opacity duration-200",
+                  collapsed ? "opacity-0" : "opacity-100"
+                )}
+              >
+                OSMO
+              </span>
             </Link>
           </div>
 
