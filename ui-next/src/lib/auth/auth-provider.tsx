@@ -146,6 +146,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const isAuthenticated = Boolean(idToken) && (!isTokenExpired(claims) || hasRefreshToken);
   const username = claims?.email ?? claims?.preferred_username ?? "";
 
+
   // Check auth status on mount
   useEffect(() => {
     async function checkAuth() {

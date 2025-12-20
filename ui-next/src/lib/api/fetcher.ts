@@ -32,6 +32,51 @@ export class ApiError extends Error {
 
 // Track if we're already attempting a refresh to prevent infinite loops
 let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Check if token expires within the given threshold (in seconds).
+ */
+function isTokenExpiringSoon(token: string, thresholdSeconds = 60): boolean {
+  try {
+    const parts = token.split(".");
+    if (!parts[1]) return true;
+    const claims = JSON.parse(atob(parts[1]));
+    if (!claims.exp) return true;
+    const expiresIn = claims.exp * 1000 - Date.now();
+    return expiresIn < thresholdSeconds * 1000;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Ensure we have a valid token, refreshing if needed.
+ * Uses a shared promise to prevent concurrent refresh attempts.
+ */
+async function ensureValidToken(): Promise<string> {
+  let token = getAuthToken();
+  
+  // If token is missing or expiring soon, try to refresh
+  if (!token || isTokenExpiringSoon(token, 60)) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = refreshToken();
+    }
+    
+    if (refreshPromise) {
+      const newToken = await refreshPromise;
+      isRefreshing = false;
+      refreshPromise = null;
+      
+      if (newToken) {
+        token = newToken;
+      }
+    }
+  }
+  
+  return token;
+}
 
 export const customFetch = async <T>(
   config: RequestConfig,
@@ -58,8 +103,8 @@ export const customFetch = async <T>(
     }
   }
 
-  // Get auth token if available
-  const authToken = getAuthToken();
+  // Get auth token, refreshing if needed
+  const authToken = await ensureValidToken();
 
   let response: Response;
 
