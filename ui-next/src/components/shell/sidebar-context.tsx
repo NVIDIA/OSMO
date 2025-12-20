@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 interface SidebarContextType {
   collapsed: boolean;
@@ -12,16 +12,15 @@ const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 const STORAGE_KEY = "osmo-sidebar-collapsed";
 
-export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsedState] = useState(false);
+// Get initial state from localStorage (only runs on client)
+function getInitialCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  const stored = localStorage.getItem(STORAGE_KEY);
+  return stored === "true";
+}
 
-  // Load from localStorage on mount (client-side only)
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      setCollapsedState(stored === "true");
-    }
-  }, []);
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsedState] = useState(getInitialCollapsed);
 
   const setCollapsed = (value: boolean) => {
     setCollapsedState(value);
