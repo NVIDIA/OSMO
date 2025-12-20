@@ -21,8 +21,6 @@ import type {
   PoolResourceUsage,
   ResourcesResponse,
   ResourcesEntry,
-  PoolStatus as GeneratedPoolStatus,
-  BackendResourceType,
 } from "../generated";
 
 import type {
@@ -98,7 +96,7 @@ function transformPool(backendPool: PoolResourceUsage): Pool {
     status: (backendPool.status ?? "ONLINE") as PoolStatus,
     quota: transformQuota(backendPool.resource_usage),
     platforms: Object.keys(backendPool.platforms ?? {}),
-    backend: backendPool.backend,
+    backend: backendPool.backend ?? "",
   };
 }
 
@@ -178,11 +176,11 @@ function transformNode(
   platform: string
 ): Node {
   return {
-    hostname: resource.hostname,
+    hostname: resource.hostname ?? "",
     nodeName,
     platform,
-    resourceType: resource.resource_type as ResourceType,
-    backend: resource.backend,
+    resourceType: (resource.resource_type ?? "SHARED") as ResourceType,
+    backend: resource.backend ?? "",
     gpu: extractCapacity(resource, "gpu"),
     cpu: extractCapacity(resource, "cpu"),
     memory: extractCapacity(resource, "memory"),
