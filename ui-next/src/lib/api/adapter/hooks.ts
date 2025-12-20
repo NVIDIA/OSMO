@@ -22,11 +22,7 @@ import {
   transformVersionResponse,
 } from "./transforms";
 
-import type {
-  Pool,
-  PoolResourcesResponse,
-  Version,
-} from "./types";
+import type { PoolResourcesResponse } from "./types";
 
 // =============================================================================
 // Pool Hooks
