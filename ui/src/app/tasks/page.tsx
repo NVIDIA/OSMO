@@ -154,8 +154,6 @@ export default function Tasks() {
 
   const validateFilters = useCallback(
     ({
-      selectedUsers,
-      userType,
       isSelectAllPoolsChecked,
       selectedPools,
       dateRange,
@@ -167,9 +165,6 @@ export default function Tasks() {
       isSelectAllNodesChecked,
     }: TasksFiltersDataProps): string[] => {
       const errors: string[] = [];
-      if (selectedUsers.length === 0 && userType !== UserFilterType.ALL) {
-        errors.push("Please select at least one user");
-      }
       if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
         errors.push("Please select at least one pool");
       }
