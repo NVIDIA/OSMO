@@ -29,9 +29,6 @@ import {
 } from "./token-storage";
 import { LocalDevLogin } from "./auth-local-dev";
 
-export { parseJwtClaims as getClaims, isTokenExpired } from "./token-utils";
-export type { AuthClaims } from "./token-utils";
-
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
