@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Workflow,
   Layers,
-  Server,
   User,
   Settings,
   Shield,
@@ -34,7 +33,6 @@ const userNav: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
-  { name: "Resources", href: "/resources", icon: Server },
 ];
 
 /** Bottom navigation - always visible */
