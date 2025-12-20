@@ -3,25 +3,16 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { NodePanel } from "../../components/node-panel";
-
-export interface NodeRow {
-  name: string;
-  platform: string;
-  resourceType: string;
-  gpu: { used: number; total: number };
-  cpu: { used: number; total: number };
-  memory: { used: number; total: number };
-  storage: { used: number; total: number };
-}
+import type { Node } from "@/lib/api/adapter";
 
 interface NodeTableProps {
-  nodes: NodeRow[];
+  nodes: Node[];
   isLoading?: boolean;
   poolName: string;
 }
 
 export function NodeTable({ nodes, isLoading, poolName }: NodeTableProps) {
-  const [selectedNode, setSelectedNode] = useState<NodeRow | null>(null);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
   if (isLoading) {
     return (
@@ -67,20 +58,20 @@ export function NodeTable({ nodes, isLoading, poolName }: NodeTableProps) {
         <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {nodes.map((node, idx) => (
             <button
-              key={`${node.name}-${node.platform}-${idx}`}
+              key={`${node.nodeName}-${node.platform}-${idx}`}
               onClick={() => setSelectedNode(node)}
               className="grid w-full grid-cols-[1fr_120px_80px_80px_80px_80px] gap-4 px-4 py-3 text-left text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
             >
               <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                {node.name}
+                {node.nodeName}
               </div>
               <div className="text-zinc-500 dark:text-zinc-400">
                 {node.platform}
               </div>
-              <ResourceCell {...node.gpu} />
-              <ResourceCell {...node.cpu} />
-              <ResourceCell {...node.memory} unit="Gi" />
-              <ResourceCell {...node.storage} unit="Gi" />
+              <ResourceCell used={node.gpu.used} total={node.gpu.total} />
+              <ResourceCell used={node.cpu.used} total={node.cpu.total} />
+              <ResourceCell used={node.memory.used} total={node.memory.total} unit="Gi" />
+              <ResourceCell used={node.storage.used} total={node.storage.total} unit="Gi" />
             </button>
           ))}
         </div>

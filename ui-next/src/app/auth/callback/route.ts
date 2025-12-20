@@ -1,6 +1,5 @@
 import { getLoginInfo } from "@/lib/auth/login-info";
-
-const AUTH_CLIENT_SECRET = process.env.AUTH_CLIENT_SECRET || "";
+import { getAuthClientSecret } from "@/lib/config";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -16,7 +15,7 @@ export async function GET(request: Request) {
   const params = new URLSearchParams();
   params.append("grant_type", "authorization_code");
   params.append("client_id", `${loginInfo.browser_client_id}`);
-  params.append("client_secret", AUTH_CLIENT_SECRET);
+  params.append("client_secret", getAuthClientSecret());
   params.append("code", code);
   params.append("redirect_uri", `${url.origin}/auth/callback`);
 
@@ -27,8 +26,9 @@ export async function GET(request: Request) {
   });
 
   if (!response.ok) {
-    console.error("Token exchange failed:", await response.text());
-    return new Response("Failed to fetch tokens", { status: 500 });
+    // Log to server stderr, not client console
+    const errorText = await response.text();
+    return new Response(`Token exchange failed: ${errorText}`, { status: 500 });
   }
 
   const data = (await response.json()) as {
