@@ -2,62 +2,42 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import type { Pool, PoolStatus } from "@/lib/api/adapter";
-import { PoolStatus as PoolStatusValue } from "@/lib/constants/ui";
+import type { Pool } from "@/lib/api/adapter";
+import { PoolStatus } from "@/lib/constants/ui";
 
 interface PoolRowProps {
   pool: Pool;
   isDefault?: boolean;
 }
 
-const statusConfig: Record<PoolStatus, { icon: string; label: string; className: string }> = {
-  [PoolStatusValue.ONLINE]: {
-    icon: "🟢",
-    label: "",
-    className: "",
-  },
-  [PoolStatusValue.OFFLINE]: {
-    icon: "🔴",
-    label: "Offline",
-    className: "opacity-50",
-  },
-  [PoolStatusValue.MAINTENANCE]: {
-    icon: "🟡",
-    label: "Maintenance",
-    className: "opacity-70",
-  },
-};
-
 export function PoolRow({ pool, isDefault }: PoolRowProps) {
-  const status = statusConfig[pool.status];
   const available = pool.quota.limit - pool.quota.used;
   const quotaPercent = pool.quota.limit > 0 ? (pool.quota.used / pool.quota.limit) * 100 : 0;
-  const isAvailable = pool.status === PoolStatusValue.ONLINE;
+  const isAvailable = pool.status === PoolStatus.ONLINE;
 
   return (
     <Link
       href={`/pools/${pool.name}`}
       className={cn(
         "flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900",
-        status.className,
+        !isAvailable && "opacity-60",
         isDefault && "bg-zinc-50 dark:bg-zinc-900/50"
       )}
     >
-      {/* Left: Status + Name + Meta */}
+      {/* Left: Name + Description */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm">{status.icon}</span>
           <span className="font-medium text-zinc-900 dark:text-zinc-100">
             {pool.name}
           </span>
-          {status.label && (
-            <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-              {status.label}
+          {isDefault && (
+            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+              Default
             </span>
           )}
         </div>
         <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-          {pool.description || `${pool.platforms.length} platforms`}
+          {pool.description || `${pool.platforms.length} platform${pool.platforms.length !== 1 ? "s" : ""}`}
         </div>
       </div>
 
