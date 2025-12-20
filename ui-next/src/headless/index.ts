@@ -18,11 +18,18 @@
  * ```
  */
 
-// Pools
+// Pools List
 export { usePoolsList } from "./use-pools-list";
 export type {
   PoolGroup,
   UsePoolsListOptions,
   UsePoolsListReturn,
 } from "./use-pools-list";
+
+// Pool Detail
+export { usePoolDetail } from "./use-pool-detail";
+export type {
+  UsePoolDetailOptions,
+  UsePoolDetailReturn,
+} from "./use-pool-detail";
 
