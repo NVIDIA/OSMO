@@ -512,11 +512,9 @@ def upload_dataset(bucket: objects.DatasetPattern,
     if not name:
         raise osmo_errors.OSMOUserError('Name is required.')
     if not finish:
-        return upload_start(bucket, name, tag, description, metadata, resume,
-                            username)
+        return upload_start(bucket, name, tag, description, metadata, resume, username)
 
-    upload_finish(bucket, name, tag, version_id, checksum, size, labels, update_dataset_size,
-                  username)
+    upload_finish(bucket, name, tag, version_id, checksum, size, labels, update_dataset_size)
     return objects.DataUploadResponse(version_id=version_id)
 
 
