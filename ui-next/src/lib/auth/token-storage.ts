@@ -6,10 +6,11 @@
  */
 
 import { isLocalDev } from "@/lib/config";
+import { StorageKeys } from "@/lib/constants/storage";
 import { getAuthBackend } from "./auth-backend";
 
-const ID_TOKEN_KEY = "IdToken";
-const REFRESH_TOKEN_KEY = "RefreshToken";
+const ID_TOKEN_KEY = StorageKeys.ID_TOKEN;
+const REFRESH_TOKEN_KEY = StorageKeys.REFRESH_TOKEN;
 
 /**
  * Get the stored IdToken.
@@ -19,7 +20,7 @@ export function getStoredIdToken(): string {
 
   return isLocalDev()
     ? localStorage.getItem(ID_TOKEN_KEY) ?? ""
-    : getCookieValue(ID_TOKEN_KEY) || getCookieValue("BearerToken") || "";
+    : getCookieValue(ID_TOKEN_KEY) || getCookieValue(StorageKeys.BEARER_TOKEN) || "";
 }
 
 /**
