@@ -15,10 +15,28 @@ const nextConfig: NextConfig = {
 
   // Proxy API requests to the backend (avoids CORS issues)
   async rewrites() {
+    return {
+      // Run before filesystem (pages/public files) and dynamic routes
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${API_URL}/api/:path*`,
+        },
+      ],
+    };
+  },
+
+  // Handle CORS for preflight requests during development
+  async headers() {
     return [
       {
         source: "/api/:path*",
-        destination: `${API_URL}/api/:path*`,
+        headers: [
+          { key: "Access-Control-Allow-Credentials", value: "true" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT,OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-osmo-auth" },
+        ],
       },
     ];
   },

@@ -79,19 +79,14 @@ export function UserProvider({ children }: UserProviderProps) {
     // Extract user from token claims - no network call needed
     // This avoids CORS issues in local dev and is faster
     const tokenUser = getUserFromToken(idToken);
-    setUser(tokenUser);
-    setIsLoading(false);
-
-    // Note: If we need additional user data not in the token,
-    // we could optionally call the backend here via the adapter layer
-  }, [isAuthenticated, idToken]);
-
-  // Log warning if we have a token but couldn't extract user
-  useEffect(() => {
-    if (isAuthenticated && idToken && !user) {
+    
+    if (!tokenUser) {
       logWarn("Could not extract user info from token");
     }
-  }, [isAuthenticated, idToken, user]);
+    
+    setUser(tokenUser);
+    setIsLoading(false);
+  }, [isAuthenticated, idToken]);
 
   return (
     <UserContext.Provider value={{ user, isLoading }}>
