@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { getApiBaseUrl, COPY_FEEDBACK_DURATION_MS } from "@/lib/config";
+import { StorageKeys } from "@/lib/constants/storage";
 import { storeTokens, refreshStoredToken } from "./token-storage";
 import { parseJwtClaims, isTokenExpired } from "./token-utils";
 
@@ -33,7 +34,8 @@ function parseCookieString(cookieStr: string): {
   }
 
   // Check if this looks like a cookie string
-  if (!str.includes('IdToken=') && !str.includes('BearerToken=') && !str.includes('RefreshToken=')) {
+  const { ID_TOKEN, BEARER_TOKEN, REFRESH_TOKEN } = StorageKeys;
+  if (!str.includes(`${ID_TOKEN}=`) && !str.includes(`${BEARER_TOKEN}=`) && !str.includes(`${REFRESH_TOKEN}=`)) {
     // Might be a raw JWT
     if (str.split('.').length === 3) {
       return { idToken: str };
@@ -46,8 +48,8 @@ function parseCookieString(cookieStr: string): {
     return match?.[1]?.trim();
   };
 
-  const idToken = parseCookieValue('IdToken') || parseCookieValue('BearerToken');
-  const refreshToken = parseCookieValue('RefreshToken');
+  const idToken = parseCookieValue(ID_TOKEN) || parseCookieValue(BEARER_TOKEN);
+  const refreshToken = parseCookieValue(REFRESH_TOKEN);
 
   if (!idToken) {
     return { error: "Could not find IdToken or BearerToken in cookie string" };

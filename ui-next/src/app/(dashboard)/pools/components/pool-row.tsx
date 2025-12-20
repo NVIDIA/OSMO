@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { Pool, PoolStatus } from "@/lib/api/adapter";
+import { PoolStatus as PoolStatusValue } from "@/lib/constants/ui";
 
 interface PoolRowProps {
   pool: Pool;
@@ -10,19 +11,19 @@ interface PoolRowProps {
 }
 
 const statusConfig: Record<PoolStatus, { icon: string; label: string; className: string }> = {
-  ONLINE: {
+  [PoolStatusValue.ONLINE]: {
     icon: "🟢",
     label: "",
     className: "",
   },
-  OFFLINE: {
+  [PoolStatusValue.OFFLINE]: {
     icon: "🔴",
-    label: "OFFLINE",
+    label: "Offline",
     className: "opacity-50",
   },
-  MAINTENANCE: {
+  [PoolStatusValue.MAINTENANCE]: {
     icon: "🟡",
-    label: "MAINTENANCE",
+    label: "Maintenance",
     className: "opacity-70",
   },
 };
@@ -31,7 +32,7 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
   const status = statusConfig[pool.status];
   const available = pool.quota.limit - pool.quota.used;
   const quotaPercent = pool.quota.limit > 0 ? (pool.quota.used / pool.quota.limit) * 100 : 0;
-  const isAvailable = pool.status === "ONLINE";
+  const isAvailable = pool.status === PoolStatusValue.ONLINE;
 
   return (
     <Link
