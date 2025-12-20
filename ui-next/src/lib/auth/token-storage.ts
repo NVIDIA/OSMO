@@ -78,6 +78,9 @@ export function clearStoredTokens(): void {
 /**
  * Refresh the token using the auth backend.
  * Returns new id_token on success, null on failure.
+ * 
+ * Only clears tokens if the refresh token is definitively invalid
+ * (not on network errors which might be temporary).
  */
 export async function refreshStoredToken(): Promise<string | null> {
   const refreshToken = getStoredRefreshToken();
@@ -87,7 +90,11 @@ export async function refreshStoredToken(): Promise<string | null> {
   const result = await backend.refreshToken(refreshToken);
 
   if (!result.success) {
-    clearStoredTokens();
+    // Only clear tokens if this is a definitive auth failure
+    // (token invalid/expired), not a network error
+    if (result.isAuthError) {
+      clearStoredTokens();
+    }
     return null;
   }
 

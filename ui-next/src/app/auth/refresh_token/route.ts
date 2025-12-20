@@ -4,20 +4,32 @@ import { getAuthClientSecret } from "@/lib/config";
 export async function GET(request: Request) {
   const loginInfo = await getLoginInfo();
   const refreshToken = request.headers.get("x-refresh-token") ?? "";
+  const clientSecret = getAuthClientSecret();
 
   if (!refreshToken) {
-    return new Response(
-      JSON.stringify({ isFailure: true, error: "No refresh token provided" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
+    return Response.json(
+      { isFailure: true, error: "No refresh token provided" },
+      { status: 400 }
     );
   }
 
+  if (!loginInfo.token_endpoint) {
+    return Response.json(
+      { isFailure: true, error: "Token endpoint not configured" },
+      { status: 500 }
+    );
+  }
+
+  // Build params - client_secret is optional for public clients
   const params = new URLSearchParams({
     client_id: loginInfo.browser_client_id,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_secret: getAuthClientSecret(),
   });
+  
+  if (clientSecret) {
+    params.append("client_secret", clientSecret);
+  }
 
   try {
     const response = await fetch(loginInfo.token_endpoint, {
@@ -28,21 +40,31 @@ export async function GET(request: Request) {
 
     const data = await response.json();
 
-    return new Response(
-      JSON.stringify({
-        isFailure: response.status !== 200,
-        id_token: data.id_token,
-        refresh_token: data.refresh_token,
-      }),
-      { headers: { "Content-Type": "application/json" } }
-    );
+    if (response.status !== 200) {
+      // Return the actual error from the auth server
+      return Response.json(
+        {
+          isFailure: true,
+          error: data.error_description || data.error || `Auth server returned ${response.status}`,
+          authError: data.error, // e.g., "invalid_grant" for expired refresh token
+        },
+        { status: response.status }
+      );
+    }
+
+    return Response.json({
+      isFailure: false,
+      id_token: data.id_token,
+      refresh_token: data.refresh_token,
+    });
   } catch (error) {
-    return new Response(
-      JSON.stringify({
+    // Network error reaching auth server
+    return Response.json(
+      {
         isFailure: true,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+        error: `Failed to reach auth server: ${error instanceof Error ? error.message : "Unknown error"}`,
+      },
+      { status: 502 }
     );
   }
 }
