@@ -21,3 +21,4 @@ export function PlatformChips({ platforms }: PlatformChipsProps) {
     </div>
   );
 }
+
