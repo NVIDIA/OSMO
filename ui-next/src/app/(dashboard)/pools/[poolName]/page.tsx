@@ -6,9 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { NodeTable } from "./components/node-table";
-import { QuotaBar } from "./components/quota-bar";
-import { PlatformChips } from "./components/platform-chips";
+import { NodeTable, QuotaBar, PlatformChips } from "@/components/features/pools";
 import { usePool, usePoolResources, type PoolStatus } from "@/lib/api/adapter";
 import { PoolStatusDisplay, DefaultPoolStatusDisplay } from "@/lib/constants/ui";
 
