@@ -20,16 +20,13 @@ export async function GET(request: Request) {
     );
   }
 
-  // Build params - client_secret is optional for public clients
+  // Build params - client_secret is required for confidential clients
   const params = new URLSearchParams({
     client_id: loginInfo.browser_client_id,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
+    client_secret: clientSecret,
   });
-  
-  if (clientSecret) {
-    params.append("client_secret", clientSecret);
-  }
 
   try {
     const response = await fetch(loginInfo.token_endpoint, {
