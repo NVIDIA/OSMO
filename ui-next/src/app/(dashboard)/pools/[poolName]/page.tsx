@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Server } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NodeSection, QuotaBar, PlatformChips } from "@/components/features/pools";
+import { NodeTable, QuotaBar, FilterBar } from "@/components/features/pools";
 import { usePoolDetail } from "@/headless";
 import { PoolStatusDisplay, DefaultPoolStatusDisplay } from "@/lib/constants/ui";
+import { heading } from "@/lib/styles";
 
 export default function PoolDetailPage() {
   const params = useParams();
@@ -15,16 +16,23 @@ export default function PoolDetailPage() {
   const {
     pool,
     platforms,
+    resourceTypes,
     platformConfigs,
     filteredNodes,
     nodeCount,
+    filteredNodeCount,
     search,
     setSearch,
     clearSearch,
     selectedPlatforms,
     togglePlatform,
     clearPlatformFilter,
-    hasActiveFilter,
+    selectedResourceTypes,
+    toggleResourceType,
+    clearResourceTypeFilter,
+    activeFilters,
+    removeFilter,
+    clearAllFilters,
     isLoading,
   } = usePoolDetail({ poolName });
 
@@ -78,28 +86,39 @@ export default function PoolDetailPage() {
         />
       )}
 
-      {/* Platform filter chips */}
-      {platforms.length > 0 && (
-        <PlatformChips
+      {/* Nodes section with unified filter bar */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Server className="h-4 w-4 text-zinc-400" />
+          <h2 className={heading.section}>Nodes</h2>
+        </div>
+
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          onClearSearch={clearSearch}
           platforms={platforms}
           selectedPlatforms={selectedPlatforms}
-          onToggle={togglePlatform}
-          onClearFilter={clearPlatformFilter}
+          onTogglePlatform={togglePlatform}
+          onClearPlatformFilter={clearPlatformFilter}
+          resourceTypes={resourceTypes}
+          selectedResourceTypes={selectedResourceTypes}
+          onToggleResourceType={toggleResourceType}
+          onClearResourceTypeFilter={clearResourceTypeFilter}
+          activeFilters={activeFilters}
+          onRemoveFilter={removeFilter}
+          onClearAllFilters={clearAllFilters}
+          totalCount={nodeCount}
+          filteredCount={filteredNodeCount}
         />
-      )}
 
-      {/* Nodes section */}
-      <NodeSection
-        nodes={filteredNodes}
-        totalCount={nodeCount}
-        poolName={poolName}
-        platformConfigs={platformConfigs}
-        isLoading={isLoading}
-        search={search}
-        onSearchChange={setSearch}
-        onClearSearch={clearSearch}
-        hasActiveFilter={hasActiveFilter}
-      />
+        <NodeTable
+          nodes={filteredNodes}
+          isLoading={isLoading}
+          poolName={poolName}
+          platformConfigs={platformConfigs}
+        />
+      </section>
     </div>
   );
 }
