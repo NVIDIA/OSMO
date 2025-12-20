@@ -2331,8 +2331,6 @@ class BucketConfig(ExtraArgBaseModel):
     """
     dataset_path: constants.StorageBackendPattern
     region: str = constants.DEFAULT_BOTO3_REGION
-    # Whether to verify if the user has a valid pbss key when doing data operations on this bucket
-    check_key: bool = False
     description: str = ''
     # Mode for read-only or read-write or write-only
     mode: str = BucketMode.READ_WRITE.value

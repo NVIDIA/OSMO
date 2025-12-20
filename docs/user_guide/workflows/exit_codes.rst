@@ -71,6 +71,10 @@ user exit codes.
           - Mount operation failed.
         * - 2012
           - Upload operation failed.
+        * - 2013
+          - Data authorization check failed.
+        * - 2014
+          - Data access is unauthorized.
         * - 2020
           - Invalid authentication token for connecting to the service.
         * - 2021
