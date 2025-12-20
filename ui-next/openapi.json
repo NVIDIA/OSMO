@@ -10130,12 +10130,12 @@
             "title": "Service Auth",
             "default": {
               "keys": {
-                "7d6e94e6-fac1-4571-935b-2a37f931e280": {
-                  "public_key": "{\"e\":\"AQAB\",\"kid\":\"7d6e94e6-fac1-4571-935b-2a37f931e280\",\"kty\":\"RSA\",\"n\":\"lErXrG-YLUfcvFlWi2hhuKAzFDlb0iTk5Hm9iyruK_RtIdJL2rG_lvYoPH-2jTsLdqjXcaTCsbAE1pHvaOYTqqEWNboT65aVucMBOzAPmkfpVqu9OPUT7kDQKtVcPoF-4HqQPub1JdjfOnrTAH2KszfcaP_qjlcNJLmPKCkN3TQlTkFk7eNidM0iAPz3ooNZEIGLUzeYD9osO4f9kHuYGFi1Tf52POyyTN0PBOdSmfZi6CQp-u5-bXo7CMkFxlkJXZB9-6TyLyBs4BU4WVS2EEL-0chuiObNGiC4kCMZj9CnB0Lrs_R_PR_FNm8pQ0v8hMRcD6NKYkaaJA5TN4fvBFYC8idH9WGDc5hxIAWvId_Ts659Y6dUoOTdJJ6__OrHbdkEUVr_aMlnNfLxgeSrGI9Xzub0XY7BqlGqcG5wOfvbtO69ypPOJLiF1K7V3hz0_IskfWcbvPTaKvynaYJ0xC_Eb3JX1L3JtR1EC2zdL0z8hlK5LSlzyEo_Y9WsmVC3ywyP0HipOo12m7xt-969dAVaedbp4UdnTdW08P7EFYzw1O3RHmaBKzzLtv8ZpllKCNZrXdwB8zzTF9vCvk8WSm0e9GbUp1DRFGzeaO10zf5xol_WNc6qrvMJgmdIDpk6La8kc60s3f7sUOZ1kndKXeZnKGQ9eu_Zt-aKgU3lp-M\"}",
+                "1933b458-d338-4cdf-b4b5-864903f34c55": {
+                  "public_key": "{\"e\":\"AQAB\",\"kid\":\"1933b458-d338-4cdf-b4b5-864903f34c55\",\"kty\":\"RSA\",\"n\":\"mRYhshgBKm3ugPnFn-3V7h96jSLkdWXPX_0h3VgAuMKyHN3BJ8ADi5cV0fcENQ09op0srHy3_73zaEbezbmixLWpmdKaa2BbDK0sWYUGEbvG0S6Gdr6svwsKCT9XtdgLlFO5L5rT7JG8AgBKYm5zSCIiV4AvdIVLPZfSqAwNxIrtJhCXwmrdp9xmdaJERPpMaLMAKnpY1A4iKG4DrUjKImA89teAJ6zT1WyxM-8wiuB20nHxYYAZ2IG7A0Ui_gdDtg_3w69fpukfJRjdY6zlVBWv1FHV8laYfR16-SPY7JXQ6MO3oaBcpZtRFB9TG4n-4dphmpfqJd1YNXA9V6UE8qWlTcL9K8mFxHWDmMehDJi38xg5PDOmgkqdEEsXug_rnpuWureLwMLC_QMZpbKCiFpo3m0UjmCCOoOmtrA_JrJLn-LEXKxRi2ObVu92U5kdt2RAwldNI7N2Hlc1TH_GyxlA1WEe8myOMuY31XkhVD_PDxsukxkrSJdo_NgP8-EIZDBVPaKPw9ku5c9S-vkUpcYXxnNneb9kB3CN4zwWAoOXDktIIyYwIkrjp8R_Y7TWODH6uQj92cC_L107tus2cA3WI3RuiUu5lZ3C25m4iqakU3syn3RmgpGfq9C4FpSTd3I3ogTVz8VN7ZCQ2J4YVIviwfsR-WWws1am_55X3IE\"}",
                   "private_key": "**********"
                 }
               },
-              "active_key": "7d6e94e6-fac1-4571-935b-2a37f931e280",
+              "active_key": "1933b458-d338-4cdf-b4b5-864903f34c55",
               "issuer": "osmo",
               "audience": "osmo",
               "user_roles": [
