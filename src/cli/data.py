@@ -198,7 +198,7 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
     )
 
     data_cred = credentials.get_static_data_credential_from_config(
-        args.remote_uri,
+        storage_backend.profile,
         args.config_file,
     )
 
