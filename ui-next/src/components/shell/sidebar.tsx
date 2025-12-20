@@ -22,14 +22,15 @@ interface NavItemProps {
   collapsed: boolean;
 }
 
-function NavItem({ item, isActive, collapsed }: NavItemProps) {
+function NavItemLink({ item, isActive, collapsed }: NavItemProps) {
   const Icon = item.icon;
 
-  const linkContent = (
+  return (
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ease-out",
+        collapsed ? "justify-center px-2" : "gap-3 px-3",
         isActive
           ? "bg-zinc-200 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
           : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
@@ -38,31 +39,35 @@ function NavItem({ item, isActive, collapsed }: NavItemProps) {
       <Icon className="h-4 w-4 shrink-0" />
       <span
         className={cn(
-          "whitespace-nowrap transition-opacity duration-200",
-          collapsed ? "opacity-0" : "opacity-100"
+          "transition-all duration-200 ease-out overflow-hidden whitespace-nowrap",
+          collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
         )}
       >
         {item.name}
       </span>
     </Link>
   );
+}
 
+function NavItem({ item, isActive, collapsed }: NavItemProps) {
   if (collapsed) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+        <TooltipTrigger asChild>
+          <NavItemLink item={item} isActive={isActive} collapsed={collapsed} />
+        </TooltipTrigger>
         <TooltipContent side="right">{item.name}</TooltipContent>
       </Tooltip>
     );
   }
 
-  return linkContent;
+  return <NavItemLink item={item} isActive={isActive} collapsed={collapsed} />;
 }
 
 export function Sidebar() {
   const pathname = usePathname();
   const { collapsed, toggle } = useSidebar();
-  
+
   // Get navigation from hook (server-driven when wired up)
   const { sections, bottomItems, isLoading } = useNavigation();
 
@@ -77,18 +82,29 @@ export function Sidebar() {
         <aside
           id="sidebar-nav"
           className={cn(
-            "flex h-full flex-col overflow-hidden border-r border-zinc-200 bg-zinc-50 transition-all duration-200 ease-in-out dark:border-zinc-800 dark:bg-zinc-950",
-            collapsed ? "w-14" : "w-48"
+            "flex h-full flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950",
+            collapsed ? "w-[52px]" : "w-48"
           )}
         >
           {/* Logo */}
-          <div className="flex h-14 shrink-0 items-center border-b border-zinc-200 px-3 dark:border-zinc-800">
-            <Link href="/" className="flex items-center gap-2">
+          <div
+            className={cn(
+              "flex h-14 shrink-0 items-center border-b border-zinc-200 transition-all duration-200 ease-out dark:border-zinc-800",
+              collapsed ? "justify-center px-2" : "px-3"
+            )}
+          >
+            <Link
+              href="/"
+              className={cn(
+                "flex items-center transition-all duration-200 ease-out",
+                collapsed ? "justify-center" : "gap-2"
+              )}
+            >
               <NvidiaLogo width={28} height={20} className="shrink-0" />
               <span
                 className={cn(
-                  "whitespace-nowrap text-lg font-semibold tracking-tight transition-opacity duration-200",
-                  collapsed ? "opacity-0" : "opacity-100"
+                  "text-lg font-semibold tracking-tight transition-all duration-200 ease-out overflow-hidden whitespace-nowrap",
+                  collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
                 )}
               >
                 OSMO
@@ -97,14 +113,17 @@ export function Sidebar() {
           </div>
 
           {/* Main navigation - rendered by section */}
-          <nav className="flex-1 overflow-y-auto p-2">
+          <nav className="flex-1 space-y-1 p-2">
             {isLoading ? (
               // Skeleton loader
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
-                    className="h-9 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800"
+                    className={cn(
+                      "h-9 animate-pulse rounded-lg bg-zinc-200 transition-all duration-200 ease-out dark:bg-zinc-800",
+                      collapsed ? "w-9 mx-auto" : ""
+                    )}
                   />
                 ))}
               </div>
@@ -116,8 +135,13 @@ export function Sidebar() {
                     <div className="my-2 border-t border-zinc-200 dark:border-zinc-800" />
                   )}
                   {/* Section label (only shown when expanded and has label) */}
-                  {section.label && !collapsed && (
-                    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  {section.label && (
+                    <div
+                      className={cn(
+                        "px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-all duration-200 ease-out overflow-hidden whitespace-nowrap dark:text-zinc-400",
+                        collapsed ? "h-0 py-0 opacity-0" : "h-auto opacity-100"
+                      )}
+                    >
                       {section.label}
                     </div>
                   )}
