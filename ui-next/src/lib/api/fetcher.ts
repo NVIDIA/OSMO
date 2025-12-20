@@ -5,6 +5,7 @@
 
 import { getAuthToken, refreshToken, isTokenExpiringSoon } from "@/lib/auth";
 import { TOKEN_REFRESH_THRESHOLD_SECONDS } from "@/lib/config";
+import { Headers as AuthHeaders } from "@/lib/constants/headers";
 
 interface RequestConfig {
   url: string;
@@ -96,7 +97,7 @@ export const customFetch = async <T>(
       method,
       headers: {
         "Content-Type": "application/json",
-        ...(authToken ? { "x-osmo-auth": authToken } : {}),
+        ...(authToken ? { [AuthHeaders.AUTH]: authToken } : {}),
         ...headers,
       },
       body: data ? JSON.stringify(data) : undefined,
@@ -124,7 +125,7 @@ export const customFetch = async <T>(
           method,
           headers: {
             "Content-Type": "application/json",
-            "x-osmo-auth": newToken,
+            [AuthHeaders.AUTH]: newToken,
             ...headers,
           },
           body: data ? JSON.stringify(data) : undefined,

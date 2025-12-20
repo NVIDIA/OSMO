@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/lib/auth/auth-provider";
-import { getApiBaseUrl } from "@/lib/config";
-import { logError } from "@/lib/logger";
+import { hasAdminRole } from "@/lib/constants/roles";
+import { logWarn } from "@/lib/logger";
 
 export interface User {
   id: string;
@@ -34,6 +34,31 @@ function getInitials(name: string): string {
     .join("");
 }
 
+/**
+ * Extract user info from JWT claims when backend call fails.
+ */
+function getUserFromToken(idToken: string): User | null {
+  try {
+    const parts = idToken.split(".");
+    if (!parts[1]) return null;
+    const claims = JSON.parse(atob(parts[1]));
+    
+    const email = claims.email || claims.preferred_username || "";
+    const name = claims.name || claims.given_name || email.split("@")[0] || "User";
+    const roles = claims.roles || [];
+    
+    return {
+      id: claims.sub || "",
+      name,
+      email,
+      isAdmin: hasAdminRole(roles),
+      initials: getInitials(name || email || "U"),
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface UserProviderProps {
   children: ReactNode;
 }
@@ -44,56 +69,29 @@ export function UserProvider({ children }: UserProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Don't fetch user if not authenticated
-    if (!isAuthenticated) {
+    // If not authenticated, no user
+    if (!isAuthenticated || !idToken) {
       setUser(null);
       setIsLoading(false);
       return;
     }
 
-    let cancelled = false;
+    // Extract user from token claims - no network call needed
+    // This avoids CORS issues in local dev and is faster
+    const tokenUser = getUserFromToken(idToken);
+    setUser(tokenUser);
+    setIsLoading(false);
 
-    async function loadUser() {
-      try {
-        const apiUrl = getApiBaseUrl();
-        const response = await fetch(`${apiUrl}/api/auth/me`, {
-          credentials: "include",
-          headers: idToken ? { "x-osmo-auth": idToken } : {},
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch user: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!cancelled) {
-          setUser({
-            id: data.id || data.user_id || "",
-            name: data.name || data.username || data.email?.split("@")[0] || "User",
-            email: data.email || "",
-            isAdmin: data.is_admin ?? data.isAdmin ?? false,
-            initials: getInitials(data.name || data.email || "U"),
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          logError("Failed to load user:", err);
-          setUser(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadUser();
-
-    return () => {
-      cancelled = true;
-    };
+    // Note: If we need additional user data not in the token,
+    // we could optionally call the backend here via the adapter layer
   }, [isAuthenticated, idToken]);
+
+  // Log warning if we have a token but couldn't extract user
+  useEffect(() => {
+    if (isAuthenticated && idToken && !user) {
+      logWarn("Could not extract user info from token");
+    }
+  }, [isAuthenticated, idToken, user]);
 
   return (
     <UserContext.Provider value={{ user, isLoading }}>

@@ -10,12 +10,7 @@ import { NodeTable } from "./components/node-table";
 import { QuotaBar } from "./components/quota-bar";
 import { PlatformChips } from "./components/platform-chips";
 import { usePool, usePoolResources, type PoolStatus } from "@/lib/api/adapter";
-
-const statusConfig: Record<PoolStatus, { icon: string; label: string; className: string }> = {
-  ONLINE: { icon: "🟢", label: "ONLINE", className: "text-emerald-600" },
-  OFFLINE: { icon: "🔴", label: "OFFLINE", className: "text-red-600" },
-  MAINTENANCE: { icon: "🟡", label: "MAINTENANCE", className: "text-amber-600" },
-};
+import { PoolStatusDisplay, DefaultPoolStatusDisplay } from "@/lib/constants/ui";
 
 export default function PoolDetailPage() {
   const params = useParams();
@@ -36,7 +31,7 @@ export default function PoolDetailPage() {
     );
   }, [nodes, search]);
 
-  const status = statusConfig[pool?.status ?? "ONLINE"];
+  const status = pool?.status ? (PoolStatusDisplay[pool.status] ?? DefaultPoolStatusDisplay) : DefaultPoolStatusDisplay;
   const isLoading = poolLoading || resourcesLoading;
 
   return (
