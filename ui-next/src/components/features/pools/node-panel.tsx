@@ -12,7 +12,7 @@ import { X, Check, Ban, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useResourceInfo, type Node, type PlatformConfig } from "@/lib/api/adapter";
+import { useNodeDetail, type Node, type PlatformConfig } from "@/lib/api/adapter";
 
 interface NodePanelProps {
   node: Node | null;
@@ -22,16 +22,10 @@ interface NodePanelProps {
 }
 
 export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePanelProps) {
-  // Fetch full resource info to get all pool memberships
-  const { poolMemberships, isLoading: membershipsLoading } = useResourceInfo(node?.nodeName ?? null);
+  // All business logic is encapsulated in the adapter hook
+  const { pools, showPoolMembership, taskConfig, isLoadingMemberships } = useNodeDetail(node, platformConfigs);
 
   if (!node) return null;
-
-  // Get task config for the current pool/platform
-  const taskConfig = platformConfigs[node.platform];
-
-  // Use fetched memberships if available, fallback to node's partial data
-  const displayMemberships = poolMemberships.length > 0 ? poolMemberships : node.poolMemberships;
 
   return (
     <>
@@ -46,7 +40,21 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
-            <h2 className="text-lg font-semibold">{node.nodeName}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">{node.nodeName}</h2>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-xs font-medium",
+                  node.resourceType === "RESERVED"
+                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                    : node.resourceType === "SHARED"
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                )}
+              >
+                {node.resourceType}
+              </span>
+            </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {node.platform} · {poolName}
             </p>
@@ -58,57 +66,35 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
 
         {/* Content */}
         <div className="space-y-6 p-6">
-          {/* Pool Memberships */}
-          <section>
-            <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Pool Memberships
-            </h3>
-            {membershipsLoading ? (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          {/* Pool Membership - only shown for SHARED resources */}
+          {showPoolMembership && (
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Pool Membership
+              </h3>
+              {isLoadingMemberships ? (
                 <div className="flex items-center gap-2 text-sm text-zinc-500">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
                   Loading...
                 </div>
-              </div>
-            ) : displayMemberships.length > 0 ? (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                      <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">
-                        Pool
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">
-                        Platform
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {displayMemberships.map((membership, idx) => (
-                      <tr key={idx}>
-                        <td className="px-3 py-2">
-                          <Link
-                            href={`/pools/${membership.pool}`}
-                            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {membership.pool}
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                          {membership.platform}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-                No pool memberships found
-              </div>
-            )}
-          </section>
+              ) : pools.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {pools.map((pool) => (
+                    <Link
+                      key={pool}
+                      href={`/pools/${pool}`}
+                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {pool}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500">No pools found</p>
+              )}
+            </section>
+          )}
 
           {/* Resource Capacity */}
           <section>
@@ -180,23 +166,6 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
             </div>
           </section>
 
-          {/* Resource type badge */}
-          <section>
-            <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Resource Type
-            </h3>
-            <span
-              className={cn(
-                "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                node.resourceType === "RESERVED"
-                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-              )}
-            >
-              {node.resourceType}
-            </span>
-          </section>
-
           {/* Conditions if any */}
           {node.conditions.length > 0 && (
             <section>
@@ -261,15 +230,17 @@ function ResourceBar({
 }
 
 function BooleanIndicator({ value }: { value: boolean }) {
-  return value ? (
-    <span className="flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-      <Check className="h-4 w-4" />
-      Yes
-    </span>
-  ) : (
-    <span className="flex items-center gap-1 text-sm font-medium text-zinc-400">
-      <Ban className="h-4 w-4" />
-      No
+  return (
+    <span
+      className={cn(
+        "inline-flex w-14 items-center justify-end gap-1.5 text-sm font-medium",
+        value
+          ? "text-emerald-600 dark:text-emerald-400"
+          : "text-zinc-400"
+      )}
+    >
+      {value ? <Check className="h-4 w-4 shrink-0" /> : <Ban className="h-4 w-4 shrink-0" />}
+      <span className="w-6">{value ? "Yes" : "No"}</span>
     </span>
   );
 }
