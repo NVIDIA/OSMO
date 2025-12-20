@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { card, skeleton, progressTrack, getProgressColor, text } from "@/lib/styles";
 
 interface QuotaBarProps {
   used: number;
@@ -12,20 +13,18 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-        <div className="mt-3 h-3 w-full animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-800" />
-        <div className="mt-2 h-3 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+      <div className={cn(card.base, "p-4")}>
+        <div className={cn(skeleton.base, skeleton.md, "w-24")} />
+        <div className={cn(skeleton.base, "mt-3 h-3 w-full rounded-full")} />
+        <div className={cn(skeleton.base, skeleton.sm, "mt-2 w-48")} />
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className={cn(card.base, "p-4")}>
       <div className="flex items-baseline justify-between">
-        <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-          GPU Quota
-        </span>
+        <span className={text.muted}>GPU Quota</span>
         <span className="text-lg font-semibold tabular-nums">
           {used} <span className="text-zinc-400">/</span> {limit}
           <span className="ml-1 text-sm font-normal text-zinc-500">GPUs</span>
@@ -33,22 +32,18 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
       </div>
 
       {/* Progress bar */}
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+      <div className={cn("mt-3 h-3", progressTrack)}>
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
-            percent > 90
-              ? "bg-red-500"
-              : percent > 70
-                ? "bg-amber-500"
-                : "bg-emerald-500"
+            getProgressColor(percent)
           )}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
 
       {/* Availability message */}
-      <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+      <p className={cn("mt-2", text.muted)}>
         {free > 0 ? (
           <>
             <span className="font-medium text-emerald-600 dark:text-emerald-400">
@@ -65,4 +60,3 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
     </div>
   );
 }
-
