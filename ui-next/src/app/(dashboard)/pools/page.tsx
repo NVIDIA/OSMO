@@ -5,39 +5,13 @@ import { Search, AlertCircle, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PoolRow, PoolRowSkeleton } from "./components/pool-row";
-import { useGetPoolQuotasApiPoolQuotaGet, type PoolResponse } from "@/lib/api/generated";
+import { usePools } from "@/lib/api/adapter";
 import { useAuth } from "@/lib/auth/auth-provider";
 
 export default function PoolsPage() {
   const [search, setSearch] = useState("");
   const { isAuthenticated, login } = useAuth();
-  
-  // Note: API returns PoolResponse but OpenAPI spec incorrectly types it as string
-  const { data: rawData, isLoading, error } = useGetPoolQuotasApiPoolQuotaGet({
-    all_pools: true,
-  });
-  const data = rawData as unknown as PoolResponse | undefined;
-
-  // Process pool data from API response
-  const pools = useMemo(() => {
-    if (!data?.node_sets) return [];
-    
-    return data.node_sets.flatMap((nodeSet) =>
-      (nodeSet.pools ?? []).map((pool) => {
-        const usage = pool.resource_usage;
-        return {
-          name: pool.name ?? "",
-          description: pool.description ?? "",
-          status: pool.status as "online" | "offline" | "maintenance",
-          quotaUsed: parseFloat(usage?.quota_used ?? "0") || 0,
-          quotaLimit: parseFloat(usage?.quota_limit ?? "0") || 0,
-          totalFree: parseFloat(usage?.total_free ?? "0") || 0,
-          platformCount: 0, // TODO: Get from API
-          nodeCount: 0, // TODO: Get from API
-        };
-      })
-    );
-  }, [data]);
+  const { pools, isLoading, error } = usePools();
 
   // Filter pools by search
   const filteredPools = useMemo(() => {

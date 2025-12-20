@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/preserve-manual-memoization */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -10,113 +9,21 @@ import { Input } from "@/components/ui/input";
 import { NodeTable } from "./components/node-table";
 import { QuotaBar } from "./components/quota-bar";
 import { PlatformChips } from "./components/platform-chips";
-import {
-  useGetPoolQuotasApiPoolQuotaGet,
-  useGetResourcesApiResourcesGet,
-  type PoolResponse,
-  type ResourcesResponse,
-  type ResourcesEntry,
-} from "@/lib/api/generated";
+import { usePool, usePoolResources, type PoolStatus } from "@/lib/api/adapter";
 
-const statusConfig: Record<string, { icon: string; label: string; className: string }> = {
-  online: { icon: "🟢", label: "ONLINE", className: "text-emerald-600" },
-  active: { icon: "🟢", label: "ACTIVE", className: "text-emerald-600" },
-  offline: { icon: "🔴", label: "OFFLINE", className: "text-red-600" },
-  maintenance: { icon: "🟡", label: "MAINTENANCE", className: "text-amber-600" },
-  unknown: { icon: "⚪", label: "UNKNOWN", className: "text-zinc-500" },
+const statusConfig: Record<PoolStatus, { icon: string; label: string; className: string }> = {
+  ONLINE: { icon: "🟢", label: "ONLINE", className: "text-emerald-600" },
+  OFFLINE: { icon: "🔴", label: "OFFLINE", className: "text-red-600" },
+  MAINTENANCE: { icon: "🟡", label: "MAINTENANCE", className: "text-amber-600" },
 };
-
-const defaultStatus = statusConfig.unknown;
-
-interface NodeData {
-  name: string;
-  platform: string;
-  resourceType: string;
-  gpu: { used: number; total: number };
-  cpu: { used: number; total: number };
-  memory: { used: number; total: number };
-  storage: { used: number; total: number };
-}
 
 export default function PoolDetailPage() {
   const params = useParams();
   const poolName = params.poolName as string;
   const [search, setSearch] = useState("");
 
-  // Fetch pool quota data
-  // Note: API returns PoolResponse but OpenAPI spec incorrectly types it as string
-  const { data: rawPoolData, isLoading: poolLoading } = useGetPoolQuotasApiPoolQuotaGet({
-    pools: [poolName],
-    all_pools: false,
-  });
-  const poolData = rawPoolData as unknown as PoolResponse | undefined;
-
-  // Fetch resources for this pool
-  // Note: API returns ResourcesResponse but OpenAPI spec incorrectly types it as string
-  const { data: rawResourceData, isLoading: resourcesLoading } = useGetResourcesApiResourcesGet({
-    pools: [poolName],
-    all_pools: false,
-  });
-  const resourceData = rawResourceData as unknown as ResourcesResponse | undefined;
-
-  // Extract pool info
-  const pool = useMemo(() => {
-    if (!poolData?.node_sets) return null;
-    for (const nodeSet of poolData.node_sets) {
-      const found = nodeSet.pools?.find((p) => p.name === poolName);
-      if (found) {
-        const usage = found.resource_usage;
-        return {
-          name: found.name ?? "",
-          description: found.description ?? "",
-          status: String(found.status ?? "unknown").toLowerCase(),
-          quotaUsed: parseFloat(usage?.quota_used ?? "0") || 0,
-          quotaLimit: parseFloat(usage?.quota_limit ?? "0") || 0,
-          quotaFree: parseFloat(usage?.quota_free ?? "0") || 0,
-          totalCapacity: parseFloat(usage?.total_capacity ?? "0") || 0,
-          totalUsage: parseFloat(usage?.total_usage ?? "0") || 0,
-          totalFree: parseFloat(usage?.total_free ?? "0") || 0,
-        };
-      }
-    }
-    return null;
-  }, [poolData, poolName]);
-
-  // Process nodes from resources
-  const { nodes, platforms } = useMemo((): { nodes: NodeData[]; platforms: string[] } => {
-    if (!resourceData?.resources) return { nodes: [], platforms: [] };
-
-    const platformSet = new Set<string>();
-    const nodeList: NodeData[] = resourceData.resources.flatMap((resource) => {
-      const exposedFields = resource.exposed_fields ?? {};
-      const nodeName = String(exposedFields.node ?? "");
-      const poolPlatforms = (exposedFields["pool/platform"] ?? []) as string[];
-
-      // Filter to only this pool's platforms
-      const relevantPlatforms = poolPlatforms
-        .filter((pp) => pp.startsWith(`${poolName}/`))
-        .map((pp) => pp.split("/")[1] ?? "");
-
-      relevantPlatforms.forEach((p) => platformSet.add(p));
-
-      if (relevantPlatforms.length === 0) return [];
-
-      return relevantPlatforms.map((platform) => ({
-        name: nodeName,
-        platform,
-        resourceType: resource.resource_type ?? "SHARED",
-        gpu: extractResource(resource, poolName, platform, "gpu"),
-        cpu: extractResource(resource, poolName, platform, "cpu"),
-        memory: extractResource(resource, poolName, platform, "memory"),
-        storage: extractResource(resource, poolName, platform, "storage"),
-      }));
-    });
-
-    return {
-      nodes: nodeList,
-      platforms: Array.from(platformSet).sort(),
-    };
-  }, [resourceData, poolName]);
+  const { pool, isLoading: poolLoading } = usePool(poolName);
+  const { nodes, platforms, isLoading: resourcesLoading } = usePoolResources(poolName);
 
   // Filter nodes by search
   const filteredNodes = useMemo(() => {
@@ -124,12 +31,12 @@ export default function PoolDetailPage() {
     const query = search.toLowerCase();
     return nodes.filter(
       (node) =>
-        node.name.toLowerCase().includes(query) ||
+        node.nodeName.toLowerCase().includes(query) ||
         node.platform.toLowerCase().includes(query)
     );
   }, [nodes, search]);
 
-  const status = statusConfig[pool?.status ?? "unknown"] ?? defaultStatus;
+  const status = statusConfig[pool?.status ?? "ONLINE"];
   const isLoading = poolLoading || resourcesLoading;
 
   return (
@@ -166,9 +73,9 @@ export default function PoolDetailPage() {
       {/* Quota bar */}
       {pool && (
         <QuotaBar
-          used={pool.quotaUsed}
-          limit={pool.quotaLimit}
-          free={pool.quotaFree}
+          used={pool.quota.used}
+          limit={pool.quota.limit}
+          free={pool.quota.free}
           isLoading={isLoading}
         />
       )}
@@ -208,18 +115,4 @@ export default function PoolDetailPage() {
       </div>
     </div>
   );
-}
-
-// Helper to extract resource usage from the API response
-function extractResource(
-  resource: ResourcesEntry,
-  _pool: string,
-  _platform: string,
-  key: string
-): { used: number; total: number } {
-  // Get allocatable from allocatable_fields
-  const allocatable = (resource.allocatable_fields as Record<string, number>)?.[key] ?? 0;
-  // Get used from usage_fields
-  const used = (resource.usage_fields as Record<string, number>)?.[key] ?? 0;
-  return { used: Math.floor(used), total: Math.floor(allocatable) };
 }
