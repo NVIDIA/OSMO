@@ -1,6 +1,6 @@
 /**
  * Authentication Module
- *
+ * 
  * ┌─────────────────────────────────────────────────────────────────┐
  * │                      auth-provider.tsx                          │
  * │              AuthProvider, useAuth, public API                  │
@@ -15,18 +15,15 @@
  * │     token-utils.ts    │           token-storage.ts             │
  * │   JWT parsing/validation │     Token persistence              │
  * └───────────────────────┴────────────────────────────────────────┘
- *
- * To integrate a different identity provider:
- * 1. Implement the AuthBackend interface
- * 2. Call setAuthBackend() with your implementation
  */
 
-// Main exports
+// Provider and hooks
 export { AuthProvider, useAuth, getAuthToken, refreshToken } from "./auth-provider";
 
 // Backend abstraction
 export { getAuthBackend, setAuthBackend } from "./auth-backend";
 export type { AuthBackend, AuthConfig, TokenRefreshResult } from "./auth-backend";
 
-// Types
+// Token utilities (for use by fetcher, etc.)
+export { parseJwtClaims, isTokenExpired, isTokenExpiringSoon } from "./token-utils";
 export type { AuthClaims } from "./token-utils";
