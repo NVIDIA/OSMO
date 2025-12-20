@@ -22,6 +22,8 @@ export interface TokenRefreshResult {
   idToken?: string;
   refreshToken?: string;
   error?: string;
+  /** True if the error is a definitive auth failure (token invalid/expired) */
+  isAuthError?: boolean;
 }
 
 /**
@@ -82,7 +84,14 @@ class DefaultAuthBackend implements AuthBackend {
       const data = await res.json();
 
       if (data.isFailure) {
-        return { success: false, error: data.error || "Token refresh failed" };
+        // 4xx errors indicate the refresh token is invalid (auth error)
+        // 5xx errors or network issues are temporary
+        const isAuthError = res.status >= 400 && res.status < 500;
+        return {
+          success: false,
+          error: data.error || "Token refresh failed",
+          isAuthError,
+        };
       }
 
       return {
@@ -91,10 +100,12 @@ class DefaultAuthBackend implements AuthBackend {
         refreshToken: data.refresh_token,
       };
     } catch (error) {
-      logError("Failed to refresh token:", error);
+      // Network errors are not auth errors - don't clear tokens
+      logError("Failed to refresh token (network):", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
+        isAuthError: false,
       };
     }
   }
