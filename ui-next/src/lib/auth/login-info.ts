@@ -2,6 +2,9 @@
  * Login info from the backend auth endpoint.
  */
 
+import { getApiHostname, getAuthHostname, isSslEnabled, isBuildPhase } from "@/lib/config";
+import { logWarn } from "@/lib/logger";
+
 export interface LoginInfo {
   auth_enabled: boolean;
   device_endpoint: string;
@@ -12,12 +15,11 @@ export interface LoginInfo {
   logout_endpoint: string;
 }
 
-const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "fernandol-dev.osmo.nvidia.com";
-const authHostname = process.env.NEXT_PUBLIC_OSMO_AUTH_HOSTNAME || "auth-staging.osmo.nvidia.com";
-const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-const scheme = sslEnabled ? "https" : "http";
-
 export async function getLoginInfo(): Promise<LoginInfo> {
+  const scheme = isSslEnabled() ? "https" : "http";
+  const authHostname = getAuthHostname();
+  const apiHostname = getApiHostname();
+
   // Default login info (fallback if backend doesn't respond)
   let loginInfo: LoginInfo = {
     auth_enabled: true,
@@ -30,12 +32,7 @@ export async function getLoginInfo(): Promise<LoginInfo> {
   };
 
   // Avoid network calls during static generation
-  const isStaticGeneration =
-    typeof window === "undefined" &&
-    (process.env.NEXT_PHASE === "phase-production-build" ||
-      process.env.NEXT_PHASE === "phase-export");
-
-  if (isStaticGeneration) {
+  if (isBuildPhase()) {
     return loginInfo;
   }
 
@@ -46,11 +43,8 @@ export async function getLoginInfo(): Promise<LoginInfo> {
     loginInfo = (await res.json()) as LoginInfo;
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
   } catch (error) {
-    console.warn(
-      `Host does not support /api/auth/login: ${(error as Error).message}`
-    );
+    logWarn(`Host does not support /api/auth/login: ${(error as Error).message}`);
   }
 
   return loginInfo;
 }
-

@@ -1,18 +1,9 @@
 "use client";
 
-import { useGetVersionApiVersionGet } from "@/lib/api/generated";
-
-// Version type - not in OpenAPI spec so we define it locally
-interface Version {
-  major: string;
-  minor: string;
-  revision: string;
-  hash?: string;
-}
+import { useVersion } from "@/lib/api/adapter";
 
 export default function DashboardPage() {
-  const { data, isLoading: versionLoading } = useGetVersionApiVersionGet();
-  const version = data as Version | undefined;
+  const { version, isLoading: versionLoading } = useVersion();
 
   return (
     <div className="space-y-6">

@@ -3,10 +3,10 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { NodeRow } from "../[poolName]/components/node-table";
+import type { Node } from "@/lib/api/adapter";
 
 interface NodePanelProps {
-  node: NodeRow | null;
+  node: Node | null;
   poolName: string;
   onClose: () => void;
 }
@@ -27,7 +27,7 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
-            <h2 className="text-lg font-semibold">{node.name}</h2>
+            <h2 className="text-lg font-semibold">{node.nodeName}</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {node.platform} · {poolName}
             </p>
@@ -45,14 +45,14 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
               Resource Capacity
             </h3>
             <div className="space-y-3">
-              <ResourceBar label="GPU" {...node.gpu} />
-              <ResourceBar label="CPU" {...node.cpu} />
-              <ResourceBar label="Memory" {...node.memory} unit="Gi" />
-              <ResourceBar label="Storage" {...node.storage} unit="Gi" />
+              <ResourceBar label="GPU" used={node.gpu.used} total={node.gpu.total} />
+              <ResourceBar label="CPU" used={node.cpu.used} total={node.cpu.total} />
+              <ResourceBar label="Memory" used={node.memory.used} total={node.memory.total} unit="Gi" />
+              <ResourceBar label="Storage" used={node.storage.used} total={node.storage.total} unit="Gi" />
             </div>
           </section>
 
-          {/* Configuration - placeholder for now */}
+          {/* Configuration */}
           <section>
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
               Configuration
@@ -60,19 +60,19 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center justify-between py-1">
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Privileged Mode
+                  Backend
                 </span>
-                <span className="text-sm font-medium">—</span>
+                <span className="text-sm font-medium">{node.backend}</span>
               </div>
               <div className="flex items-center justify-between py-1">
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Host Network
+                  Hostname
                 </span>
-                <span className="text-sm font-medium">—</span>
+                <span className="text-sm font-medium">{node.hostname}</span>
               </div>
             </div>
             <p className="mt-2 text-xs text-zinc-400">
-              Run `osmo resource info {node.name}` for full configuration
+              Run `osmo resource info {node.nodeName}` for full configuration
             </p>
           </section>
 
@@ -92,6 +92,25 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
               {node.resourceType}
             </span>
           </section>
+
+          {/* Conditions if any */}
+          {node.conditions.length > 0 && (
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Conditions
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {node.conditions.map((condition, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex rounded bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  >
+                    {condition}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </>
