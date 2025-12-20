@@ -7,8 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getAuthToken } from "@/lib/auth/auth-provider";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { getApiBaseUrl } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 export interface User {
   id: string;
@@ -21,38 +22,9 @@ export interface User {
 interface UserContextType {
   user: User | null;
   isLoading: boolean;
-  isAuthenticated: boolean;
-  error: Error | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
-
-/**
- * Fetch user info from the backend.
- */
-async function fetchUser(): Promise<User> {
-  const authToken = getAuthToken();
-  const apiUrl = getApiBaseUrl();
-  
-  const response = await fetch(`${apiUrl}/api/auth/me`, {
-    credentials: "include",
-    headers: authToken ? { "x-osmo-auth": authToken } : {},
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch user: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  return {
-    id: data.id || data.user_id || "",
-    name: data.name || data.username || data.email?.split("@")[0] || "User",
-    email: data.email || "",
-    isAdmin: data.is_admin ?? data.isAdmin ?? false,
-    initials: getInitials(data.name || data.email || "U"),
-  };
-}
 
 function getInitials(name: string): string {
   return name
@@ -67,27 +39,47 @@ interface UserProviderProps {
 }
 
 export function UserProvider({ children }: UserProviderProps) {
+  const { isAuthenticated, idToken } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    // Don't fetch user if not authenticated
+    if (!isAuthenticated) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadUser() {
       try {
-        const userData = await fetchUser();
+        const apiUrl = getApiBaseUrl();
+        const response = await fetch(`${apiUrl}/api/auth/me`, {
+          credentials: "include",
+          headers: idToken ? { "x-osmo-auth": idToken } : {},
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch user: ${response.status}`);
+        }
+
+        const data = await response.json();
+
         if (!cancelled) {
-          setUser(userData);
-          setError(null);
+          setUser({
+            id: data.id || data.user_id || "",
+            name: data.name || data.username || data.email?.split("@")[0] || "User",
+            email: data.email || "",
+            isAdmin: data.is_admin ?? data.isAdmin ?? false,
+            initials: getInitials(data.name || data.email || "U"),
+          });
         }
       } catch (err) {
         if (!cancelled) {
-          // Don't set error for auth failures - just no user
+          logError("Failed to load user:", err);
           setUser(null);
-          if (err instanceof Error && !err.message.includes("401")) {
-            setError(err);
-          }
         }
       } finally {
         if (!cancelled) {
@@ -101,12 +93,10 @@ export function UserProvider({ children }: UserProviderProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const isAuthenticated = user !== null && error === null;
+  }, [isAuthenticated, idToken]);
 
   return (
-    <UserContext.Provider value={{ user, isLoading, isAuthenticated, error }}>
+    <UserContext.Provider value={{ user, isLoading }}>
       {children}
     </UserContext.Provider>
   );
@@ -121,7 +111,7 @@ export function useUser() {
 }
 
 /**
- * Hook to check if current user is admin.
+ * Check if current user is admin.
  */
 export function useIsAdmin(): boolean {
   const { user } = useUser();

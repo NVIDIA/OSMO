@@ -3,21 +3,20 @@
  * Handles authentication, token refresh, and error responses.
  */
 
-import { getAuthToken, refreshToken } from "@/lib/auth/auth-provider";
+import { getAuthToken, refreshToken, isTokenExpiringSoon } from "@/lib/auth";
 import { TOKEN_REFRESH_THRESHOLD_SECONDS } from "@/lib/config";
 
-type RequestConfig = {
+interface RequestConfig {
   url: string;
   method: string;
   headers?: HeadersInit;
   data?: unknown;
   params?: Record<string, unknown>;
   signal?: AbortSignal;
-};
+}
 
 /**
- * Custom error class for API errors.
- * Includes a flag to indicate if the error is retryable.
+ * API error with retry information.
  */
 export class ApiError extends Error {
   status?: number;
@@ -31,35 +30,18 @@ export class ApiError extends Error {
   }
 }
 
-// Track if we're already attempting a refresh to prevent infinite loops
+// Prevent concurrent refresh attempts
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 
 /**
- * Check if token expires within the given threshold (in seconds).
- */
-function isTokenExpiringSoon(token: string, thresholdSeconds = TOKEN_REFRESH_THRESHOLD_SECONDS): boolean {
-  try {
-    const parts = token.split(".");
-    if (!parts[1]) return true;
-    const claims = JSON.parse(atob(parts[1]));
-    if (!claims.exp) return true;
-    const expiresIn = claims.exp * 1000 - Date.now();
-    return expiresIn < thresholdSeconds * 1000;
-  } catch {
-    return true;
-  }
-}
-
-/**
  * Ensure we have a valid token, refreshing if needed.
- * Uses a shared promise to prevent concurrent refresh attempts.
  */
 async function ensureValidToken(): Promise<string> {
   let token = getAuthToken();
   
   // If token is missing or expiring soon, try to refresh
-  if (!token || isTokenExpiringSoon(token)) {
+  if (!token || isTokenExpiringSoon(token, TOKEN_REFRESH_THRESHOLD_SECONDS)) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = refreshToken();
