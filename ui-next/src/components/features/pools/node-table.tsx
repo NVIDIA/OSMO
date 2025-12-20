@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { cn, formatNumber } from "@/lib/utils";
 import { NodePanel } from "./node-panel";
-import type { Node } from "@/lib/api/adapter";
+import type { Node, PlatformConfig } from "@/lib/api/adapter";
 
 interface NodeTableProps {
   nodes: Node[];
   isLoading?: boolean;
   poolName: string;
+  platformConfigs: Record<string, PlatformConfig>;
 }
 
-export function NodeTable({ nodes, isLoading, poolName }: NodeTableProps) {
+export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeTableProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
   if (isLoading) {
@@ -104,6 +105,7 @@ export function NodeTable({ nodes, isLoading, poolName }: NodeTableProps) {
       <NodePanel
         node={selectedNode}
         poolName={poolName}
+        platformConfigs={platformConfigs}
         onClose={() => setSelectedNode(null)}
       />
     </>
@@ -144,4 +146,3 @@ function ResourceCell({
     </span>
   );
 }
-

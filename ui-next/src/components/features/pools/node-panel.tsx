@@ -1,18 +1,37 @@
 "use client";
 
-import { X } from "lucide-react";
+// Copyright (c) 2024-2025, NVIDIA CORPORATION. All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
+import { X, Check, Ban, FolderOpen } from "lucide-react";
+import Link from "next/link";
 import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { Node } from "@/lib/api/adapter";
+import { useResourceInfo, type Node, type PlatformConfig } from "@/lib/api/adapter";
 
 interface NodePanelProps {
   node: Node | null;
   poolName: string;
+  platformConfigs: Record<string, PlatformConfig>;
   onClose: () => void;
 }
 
-export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
+export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePanelProps) {
+  // Fetch full resource info to get all pool memberships
+  const { poolMemberships, isLoading: membershipsLoading } = useResourceInfo(node?.nodeName ?? null);
+
   if (!node) return null;
+
+  // Get task config for the current pool/platform
+  const taskConfig = platformConfigs[node.platform];
+
+  // Use fetched memberships if available, fallback to node's partial data
+  const displayMemberships = poolMemberships.length > 0 ? poolMemberships : node.poolMemberships;
 
   return (
     <>
@@ -39,6 +58,58 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
 
         {/* Content */}
         <div className="space-y-6 p-6">
+          {/* Pool Memberships */}
+          <section>
+            <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              Pool Memberships
+            </h3>
+            {membershipsLoading ? (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="flex items-center gap-2 text-sm text-zinc-500">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
+                  Loading...
+                </div>
+              </div>
+            ) : displayMemberships.length > 0 ? (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                      <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">
+                        Pool
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-400">
+                        Platform
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    {displayMemberships.map((membership, idx) => (
+                      <tr key={idx}>
+                        <td className="px-3 py-2">
+                          <Link
+                            href={`/pools/${membership.pool}`}
+                            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {membership.pool}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
+                          {membership.platform}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+                No pool memberships found
+              </div>
+            )}
+          </section>
+
           {/* Resource Capacity */}
           <section>
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -52,10 +123,46 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
             </div>
           </section>
 
+          {/* Task Configurations */}
+          {taskConfig && (
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Task Configurations
+              </h3>
+              <div className="space-y-3">
+                {/* Boolean flags */}
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                      Host Network Allowed
+                    </span>
+                    <BooleanIndicator value={taskConfig.hostNetworkAllowed} />
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                      Privileged Mode Allowed
+                    </span>
+                    <BooleanIndicator value={taskConfig.privilegedAllowed} />
+                  </div>
+                </div>
+
+                {/* Default Mounts */}
+                {taskConfig.defaultMounts.length > 0 && (
+                  <MountsList title="Default Mounts" mounts={taskConfig.defaultMounts} />
+                )}
+
+                {/* Allowed Mounts */}
+                {taskConfig.allowedMounts.length > 0 && (
+                  <MountsList title="Allowed Mounts" mounts={taskConfig.allowedMounts} />
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Configuration */}
           <section>
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Configuration
+              Node Info
             </h3>
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center justify-between py-1">
@@ -71,9 +178,6 @@ export function NodePanel({ node, poolName, onClose }: NodePanelProps) {
                 <span className="text-sm font-medium">{node.hostname}</span>
               </div>
             </div>
-            <p className="mt-2 text-xs text-zinc-400">
-              Run `osmo resource info {node.nodeName}` for full configuration
-            </p>
           </section>
 
           {/* Resource type badge */}
@@ -156,3 +260,37 @@ function ResourceBar({
   );
 }
 
+function BooleanIndicator({ value }: { value: boolean }) {
+  return value ? (
+    <span className="flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+      <Check className="h-4 w-4" />
+      Yes
+    </span>
+  ) : (
+    <span className="flex items-center gap-1 text-sm font-medium text-zinc-400">
+      <Ban className="h-4 w-4" />
+      No
+    </span>
+  );
+}
+
+function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-zinc-400">
+        <FolderOpen className="h-3.5 w-3.5" />
+        {title}
+      </div>
+      <div className="space-y-1">
+        {mounts.map((mount, idx) => (
+          <div
+            key={idx}
+            className="rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            {mount}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

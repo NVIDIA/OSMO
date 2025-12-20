@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { usePool, usePoolResources, type Node } from "@/lib/api/adapter";
+import { usePool, usePoolResources, type Node, type PlatformConfig } from "@/lib/api/adapter";
 import type { HTTPValidationError } from "@/lib/api/generated";
 
 // =============================================================================
@@ -21,7 +21,8 @@ export interface UsePoolDetailReturn {
   // Pool data
   pool: ReturnType<typeof usePool>["pool"];
   platforms: string[];
-  
+  platformConfigs: Record<string, PlatformConfig>;
+
   // Node data
   allNodes: Node[];
   filteredNodes: Node[];
@@ -63,7 +64,7 @@ export function usePoolDetail({
     error: poolError,
     refetch: refetchPool,
   } = usePool(poolName);
-  
+
   const {
     nodes,
     platforms,
@@ -139,6 +140,7 @@ export function usePoolDetail({
     // Pool data
     pool,
     platforms,
+    platformConfigs: pool?.platformConfigs ?? {},
 
     // Node data
     allNodes: nodes,
@@ -167,4 +169,3 @@ export function usePoolDetail({
     refetch,
   };
 }
-

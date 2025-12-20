@@ -15,6 +15,7 @@ export default function PoolDetailPage() {
   const {
     pool,
     platforms,
+    platformConfigs,
     filteredNodes,
     nodeCount,
     search,
@@ -92,6 +93,7 @@ export default function PoolDetailPage() {
         nodes={filteredNodes}
         totalCount={nodeCount}
         poolName={poolName}
+        platformConfigs={platformConfigs}
         isLoading={isLoading}
         search={search}
         onSearchChange={setSearch}
