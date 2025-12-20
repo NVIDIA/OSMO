@@ -33,5 +33,5 @@ export {
   usePool,
   usePoolResources,
   useVersion,
-  useResourceInfo,
+  useNodeDetail,
 } from "./hooks";
