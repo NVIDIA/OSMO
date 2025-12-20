@@ -3,8 +3,7 @@
 import {
   createContext,
   useContext,
-  useEffect,
-  useState,
+  useMemo,
   type ReactNode,
 } from "react";
 import { useAuth } from "@/lib/auth/auth-provider";
@@ -35,18 +34,19 @@ function getInitials(name: string): string {
 }
 
 /**
- * Extract user info from JWT claims when backend call fails.
+ * Extract user info from JWT claims.
  */
 function getUserFromToken(idToken: string): User | null {
   try {
     const parts = idToken.split(".");
     if (!parts[1]) return null;
     const claims = JSON.parse(atob(parts[1]));
-    
+
     const email = claims.email || claims.preferred_username || "";
-    const name = claims.name || claims.given_name || email.split("@")[0] || "User";
+    const name =
+      claims.name || claims.given_name || email.split("@")[0] || "User";
     const roles = claims.roles || [];
-    
+
     return {
       id: claims.sub || "",
       name,
@@ -64,29 +64,25 @@ interface UserProviderProps {
 }
 
 export function UserProvider({ children }: UserProviderProps) {
-  const { isAuthenticated, idToken } = useAuth();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { isAuthenticated, idToken, isLoading: authLoading } = useAuth();
 
-  useEffect(() => {
-    // If not authenticated, no user
+  // Derive user from token - no effect needed, just computation
+  const user = useMemo(() => {
     if (!isAuthenticated || !idToken) {
-      setUser(null);
-      setIsLoading(false);
-      return;
+      return null;
     }
 
-    // Extract user from token claims - no network call needed
-    // This avoids CORS issues in local dev and is faster
     const tokenUser = getUserFromToken(idToken);
-    
-    if (!tokenUser) {
+
+    if (!tokenUser && idToken) {
       logWarn("Could not extract user info from token");
     }
-    
-    setUser(tokenUser);
-    setIsLoading(false);
+
+    return tokenUser;
   }, [isAuthenticated, idToken]);
+
+  // Loading when auth is loading
+  const isLoading = authLoading;
 
   return (
     <UserContext.Provider value={{ user, isLoading }}>
