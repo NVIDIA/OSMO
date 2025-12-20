@@ -4,6 +4,7 @@
  */
 
 import { getAuthToken, refreshToken } from "@/lib/auth/auth-provider";
+import { TOKEN_REFRESH_THRESHOLD_SECONDS } from "@/lib/config";
 
 type RequestConfig = {
   url: string;
@@ -37,7 +38,7 @@ let refreshPromise: Promise<string | null> | null = null;
 /**
  * Check if token expires within the given threshold (in seconds).
  */
-function isTokenExpiringSoon(token: string, thresholdSeconds = 60): boolean {
+function isTokenExpiringSoon(token: string, thresholdSeconds = TOKEN_REFRESH_THRESHOLD_SECONDS): boolean {
   try {
     const parts = token.split(".");
     if (!parts[1]) return true;
@@ -58,7 +59,7 @@ async function ensureValidToken(): Promise<string> {
   let token = getAuthToken();
   
   // If token is missing or expiring soon, try to refresh
-  if (!token || isTokenExpiringSoon(token, 60)) {
+  if (!token || isTokenExpiringSoon(token)) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = refreshToken();
