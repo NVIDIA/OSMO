@@ -4,12 +4,13 @@ import { Server, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NodeTable } from "./node-table";
 import { heading, clearButton } from "@/lib/styles";
-import type { Node } from "@/lib/api/adapter";
+import type { Node, PlatformConfig } from "@/lib/api/adapter";
 
 interface NodeSectionProps {
   nodes: Node[];
   totalCount: number;
   poolName: string;
+  platformConfigs: Record<string, PlatformConfig>;
   isLoading?: boolean;
   search: string;
   onSearchChange: (query: string) => void;
@@ -21,6 +22,7 @@ export function NodeSection({
   nodes,
   totalCount,
   poolName,
+  platformConfigs,
   isLoading,
   search,
   onSearchChange,
@@ -65,7 +67,7 @@ export function NodeSection({
         </div>
       </div>
 
-      <NodeTable nodes={nodes} isLoading={isLoading} poolName={poolName} />
+      <NodeTable nodes={nodes} isLoading={isLoading} poolName={poolName} platformConfigs={platformConfigs} />
     </div>
   );
 }
