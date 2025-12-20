@@ -4,13 +4,14 @@ import { Search, AlertCircle, LogIn, ChevronDown, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { card, section, heading, alert, clearButton } from "@/lib/styles";
 import { PoolRow, PoolRowSkeleton } from "@/components/features/pools";
 import { usePoolsList } from "@/headless";
 import { useAuth } from "@/lib/auth/auth-provider";
 
 export default function PoolsPage() {
   const { isAuthenticated, login } = useAuth();
-  
+
   const {
     groupedPools,
     defaultPool,
@@ -35,7 +36,7 @@ export default function PoolsPage() {
             Compute pools and GPU quota allocation
           </p>
         </div>
-        
+
         {/* Search */}
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -48,7 +49,7 @@ export default function PoolsPage() {
           {hasSearch && (
             <button
               onClick={clearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+              className={`absolute right-2 top-1/2 -translate-y-1/2 ${clearButton}`}
               aria-label="Clear search"
             >
               <X className="h-4 w-4" />
@@ -60,10 +61,8 @@ export default function PoolsPage() {
       {/* Default pool (pinned) */}
       {defaultPool && (
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            ⭐ Your Default Pool
-          </h2>
-          <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <h2 className={cn(heading.section, "mb-2")}>⭐ Your Default Pool</h2>
+          <div className={card.base}>
             <PoolRow pool={defaultPool} isDefault />
           </div>
         </section>
@@ -71,15 +70,15 @@ export default function PoolsPage() {
 
       {/* Error message */}
       {error && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className={cn(alert.warning.container, "flex items-start gap-3")}>
+          <AlertCircle
+            className={cn("mt-0.5 h-5 w-5 shrink-0", alert.warning.icon)}
+          />
           <div className="flex-1">
-            <p className="font-medium text-amber-800 dark:text-amber-200">
-              Unable to fetch pools
-            </p>
+            <p className={alert.warning.title}>Unable to fetch pools</p>
             {!isAuthenticated ? (
               <div className="mt-2 flex items-center gap-3">
-                <p className="text-sm text-amber-700 dark:text-amber-300">
+                <p className={alert.warning.body}>
                   You need to log in to view pools.
                 </p>
                 <Button
@@ -93,8 +92,9 @@ export default function PoolsPage() {
                 </Button>
               </div>
             ) : (
-              <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                There was an error fetching pool data. Please try refreshing the page.
+              <p className={cn("mt-1", alert.warning.body)}>
+                There was an error fetching pool data. Please try refreshing the
+                page.
               </p>
             )}
           </div>
@@ -105,8 +105,8 @@ export default function PoolsPage() {
       {isLoading && (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            <div key={i} className={card.base}>
+              <div className={section.list}>
                 <PoolRowSkeleton />
                 <PoolRowSkeleton />
               </div>
@@ -119,9 +119,12 @@ export default function PoolsPage() {
       {!isLoading && !error && (
         <div className="space-y-4">
           {groupedPools.map((group) => {
-            const isCollapsed = isSectionCollapsed(group.status, group.pools.length);
+            const isCollapsed = isSectionCollapsed(
+              group.status,
+              group.pools.length
+            );
             const hasResults = group.pools.length > 0;
-            
+
             return (
               <section key={group.status}>
                 {/* Collapsible header */}
@@ -136,19 +139,15 @@ export default function PoolsPage() {
                     )}
                   />
                   <span className="text-sm">{group.icon}</span>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    {group.label}
-                  </span>
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                    ({group.pools.length})
-                  </span>
+                  <span className={heading.section}>{group.label}</span>
+                  <span className={heading.meta}>({group.pools.length})</span>
                 </button>
 
                 {/* Collapsible content */}
                 {!isCollapsed && (
-                  <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className={card.base}>
                     {hasResults ? (
-                      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                      <div className={section.list}>
                         {group.pools.map((pool) => (
                           <PoolRow key={pool.name} pool={pool} />
                         ))}
@@ -166,7 +165,7 @@ export default function PoolsPage() {
 
           {/* No results at all */}
           {filteredCount === 0 && hasSearch && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
+            <div className={cn(card.base, "p-8 text-center")}>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 No pools match &ldquo;{search}&rdquo;
               </p>
