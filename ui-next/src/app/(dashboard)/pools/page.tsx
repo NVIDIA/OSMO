@@ -1,19 +1,36 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, AlertCircle, LogIn } from "lucide-react";
+import { Search, AlertCircle, LogIn, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PoolRow, PoolRowSkeleton } from "./components/pool-row";
-import { usePools } from "@/lib/api/adapter";
+import { usePools, type Pool, type PoolStatus } from "@/lib/api/adapter";
 import { useAuth } from "@/lib/auth/auth-provider";
+import { PoolStatus as PoolStatusEnum, PoolStatusDisplay, DefaultPoolStatusDisplay } from "@/lib/constants/ui";
+
+interface StatusGroup {
+  status: PoolStatus;
+  pools: Pool[];
+  icon: string;
+  label: string;
+}
+
+// Order of status groups
+const STATUS_ORDER: PoolStatus[] = [
+  PoolStatusEnum.ONLINE,
+  PoolStatusEnum.MAINTENANCE,
+  PoolStatusEnum.OFFLINE,
+];
 
 export default function PoolsPage() {
   const [search, setSearch] = useState("");
+  const [manuallyToggled, setManuallyToggled] = useState<Set<PoolStatus>>(new Set());
   const { isAuthenticated, login } = useAuth();
   const { pools, isLoading, error } = usePools();
 
-  // Filter pools by search
+  // Filter pools by search (across all categories)
   const filteredPools = useMemo(() => {
     if (!search.trim()) return pools;
     const query = search.toLowerCase();
@@ -24,10 +41,52 @@ export default function PoolsPage() {
     );
   }, [pools, search]);
 
+  // Group pools by status
+  const groupedPools = useMemo(() => {
+    const groups: StatusGroup[] = [];
+    
+    for (const status of STATUS_ORDER) {
+      const statusPools = filteredPools.filter((p) => p.status === status);
+      if (statusPools.length > 0 || !search) {
+        const display = PoolStatusDisplay[status] ?? DefaultPoolStatusDisplay;
+        groups.push({
+          status,
+          pools: statusPools,
+          icon: display.icon,
+          label: display.label,
+        });
+      }
+    }
+    
+    return groups;
+  }, [filteredPools, search]);
+
+  // Track which sections user has manually toggled
+  const toggleSection = (status: PoolStatus) => {
+    setManuallyToggled((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  };
+
+  // Check if section should be collapsed
+  // Empty sections are collapsed by default, but user can toggle them
+  const isSectionCollapsed = (status: PoolStatus, poolCount: number) => {
+    const wasManuallyToggled = manuallyToggled.has(status);
+    const isEmptyByDefault = poolCount === 0;
+    
+    // XOR logic: default state flipped if manually toggled
+    return wasManuallyToggled ? !isEmptyByDefault : isEmptyByDefault;
+  };
+
   // TODO: Get default pool from user profile
-  const defaultPoolName = ""; // Will come from user context
+  const defaultPoolName = "";
   const defaultPool = pools.find((p) => p.name === defaultPoolName);
-  const otherPools = filteredPools.filter((p) => p.name !== defaultPoolName);
 
   return (
     <div className="space-y-6">
@@ -58,7 +117,9 @@ export default function PoolsPage() {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
             ⭐ Your Default Pool
           </h2>
-          <PoolRow pool={defaultPool} isDefault />
+          <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+            <PoolRow pool={defaultPool} isDefault />
+          </div>
         </section>
       )}
 
@@ -94,39 +155,83 @@ export default function PoolsPage() {
         </div>
       )}
 
-      {/* All pools */}
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            {defaultPool ? "All Pools" : "Pools"} ({filteredPools.length})
-          </h2>
+      {/* Loading skeleton */}
+      {isLoading && (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <PoolRowSkeleton />
+                <PoolRowSkeleton />
+              </div>
+            </div>
+          ))}
         </div>
-        
-        <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-          {isLoading ? (
-            // Skeleton loader
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <PoolRowSkeleton key={i} />
-              ))}
-            </div>
-          ) : otherPools.length === 0 && !error ? (
-            <div className="p-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              {search ? "No pools match your search" : "No pools available"}
-            </div>
-          ) : error ? (
-            <div className="p-8 text-center text-sm text-zinc-400 dark:text-zinc-600">
-              —
-            </div>
-          ) : (
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {otherPools.map((pool) => (
-                <PoolRow key={pool.name} pool={pool} />
-              ))}
+      )}
+
+      {/* Pools grouped by status */}
+      {!isLoading && !error && (
+        <div className="space-y-4">
+          {groupedPools.map((group) => {
+            const isCollapsed = isSectionCollapsed(group.status, group.pools.length);
+            const hasResults = group.pools.length > 0;
+            
+            return (
+              <section key={group.status}>
+                {/* Collapsible header */}
+                <button
+                  onClick={() => toggleSection(group.status)}
+                  className="mb-2 flex w-full items-center gap-2 text-left"
+                >
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-zinc-400 transition-transform",
+                      isCollapsed && "-rotate-90"
+                    )}
+                  />
+                  <span className="text-sm">{group.icon}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    {group.label}
+                  </span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    ({group.pools.length})
+                  </span>
+                </button>
+
+                {/* Collapsible content */}
+                {!isCollapsed && (
+                  <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+                    {hasResults ? (
+                      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        {group.pools.map((pool) => (
+                          <PoolRow
+                            key={pool.name}
+                            pool={pool}
+                            isDefault={pool.name === defaultPoolName}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
+                        {search ? "No matches" : "No pools"}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+
+          {/* No results at all */}
+          {filteredPools.length === 0 && search && (
+            <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No pools match &ldquo;{search}&rdquo;
+              </p>
             </div>
           )}
         </div>
-      </section>
+      )}
     </div>
   );
 }
