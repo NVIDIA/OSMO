@@ -200,6 +200,44 @@ When `concise=true` is passed to `/api/resources`, response structure changes:
 
 ---
 
+### 9. No Single-Resource Endpoint with Full Details
+
+**Priority:** Medium  
+**Status:** Active workaround in `hooks.ts` (`useResourceInfo`)
+
+To display full resource details (including all pool memberships and task configs), the UI currently needs:
+1. Query `/api/resources?pools=X` for resource capacity (filtered to one pool)
+2. Query `/api/resources?all_pools=true` to get ALL pool memberships (expensive)
+3. Query `/api/pool_quota?pools=X` to get platform task configurations
+
+**Ideal behavior:** A single endpoint `GET /api/resources/{name}` that returns:
+```typescript
+interface ResourceDetail {
+  hostname: string;
+  nodeName: string;
+  resourceType: "SHARED" | "RESERVED" | "UNUSED";
+  poolMemberships: Array<{ pool: string; platform: string }>;
+  capacity: { gpu, cpu, memory, storage };
+  usage: { gpu, cpu, memory, storage };
+  taskConfig: {  // from current pool's platform config
+    hostNetworkAllowed: boolean;
+    privilegedAllowed: boolean;
+    allowedMounts: string[];
+    defaultMounts: string[];
+  };
+  conditions: string[];
+}
+```
+
+**Current workaround:** 
+- `useResourceInfo()` queries all resources with `all_pools=true` and filters client-side
+- Only fetched for SHARED resources (RESERVED belong to single pool)
+- Result cached for 5 minutes to reduce API calls
+
+**Fix:** Add `GET /api/resources/{name}` endpoint returning complete resource info.
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -212,6 +250,7 @@ When `concise=true` is passed to `/api/resources`, response structure changes:
 | #6 Unit conversion | Medium | transforms.ts | Remove conversion |
 | #7 Filtered pool_platform_labels | Medium | hooks.ts | Remove all_pools query |
 | #8 Concise changes structure | Low | N/A | N/A |
+| #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
 
 ---
 
