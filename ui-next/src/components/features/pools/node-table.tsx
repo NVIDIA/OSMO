@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn, formatNumber } from "@/lib/utils";
-import { NodePanel } from "../../components/node-panel";
+import { NodePanel } from "./node-panel";
 import type { Node } from "@/lib/api/adapter";
 
 interface NodeTableProps {
@@ -75,7 +75,7 @@ export function NodeTable({ nodes, isLoading, poolName }: NodeTableProps) {
                 className="cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
               >
                 <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                  <span className="block truncate max-w-[200px]" title={node.nodeName}>
+                  <span className="block max-w-[200px] truncate" title={node.nodeName}>
                     {node.nodeName}
                   </span>
                 </td>
@@ -144,3 +144,4 @@ function ResourceCell({
     </span>
   );
 }
+
