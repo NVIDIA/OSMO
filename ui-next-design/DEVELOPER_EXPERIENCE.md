@@ -134,6 +134,25 @@ pnpm type-check
 
 ## Troubleshooting
 
+**CORS / Authentication errors:**
+
+When running locally against a remote backend, you may see CORS errors because:
+1. The backend requires authentication
+2. Auth cookies from `fernandol-dev.osmo.nvidia.com` aren't shared with `localhost:3000`
+
+**Solution:**
+1. Open `https://fernandol-dev.osmo.nvidia.com` in your browser
+2. Log in through the OAuth flow
+3. Keep that tab open (maintains session)
+4. In another tab, use `http://localhost:3000`
+
+Alternatively, run the backend locally:
+```bash
+pnpm dev:local   # Points to localhost:8000
+```
+
+---
+
 **API client out of sync:**
 ```bash
 pnpm generate-api

@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { getAuthToken } from "@/lib/auth/auth-provider";
 
 export interface User {
   id: string;
@@ -25,16 +26,19 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "fernandol-dev.osmo.nvidia.com";
+const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
+const scheme = sslEnabled ? "https" : "http";
+
 /**
  * Fetch user info from the backend.
- * 
- * This calls the FastAPI backend to get the current user's info,
- * including whether they have admin permissions.
  */
 async function fetchUser(): Promise<User> {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-  const response = await fetch(`${backendUrl}/api/v1/auth/me`, {
-    credentials: "include", // Include cookies for auth
+  const authToken = getAuthToken();
+  
+  const response = await fetch(`${scheme}://${apiHostname}/api/auth/me`, {
+    credentials: "include",
+    headers: authToken ? { "x-osmo-auth": authToken } : {},
   });
 
   if (!response.ok) {
@@ -43,8 +47,6 @@ async function fetchUser(): Promise<User> {
 
   const data = await response.json();
   
-  // Map backend response to our User type
-  // Adjust field names based on actual backend response
   return {
     id: data.id || data.user_id || "",
     name: data.name || data.username || data.email?.split("@")[0] || "User",
@@ -83,8 +85,11 @@ export function UserProvider({ children }: UserProviderProps) {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err : new Error("Unknown error"));
+          // Don't set error for auth failures - just no user
           setUser(null);
+          if (err instanceof Error && !err.message.includes("401")) {
+            setError(err);
+          }
         }
       } finally {
         if (!cancelled) {
