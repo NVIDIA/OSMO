@@ -15,3 +15,15 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+
+load("//bzl:py.bzl", "osmo_py_binary")
+
+# Export OpenAPI spec from FastAPI app
+# Usage: bazel run //src/service:export_openapi > ui-next/openapi.json
+osmo_py_binary(
+    name = "export_openapi",
+    main = "export_openapi.py",
+    srcs = ["export_openapi.py"],
+    deps = ["//src/service/core:service_lib"],
+    visibility = ["//visibility:public"],
+)
