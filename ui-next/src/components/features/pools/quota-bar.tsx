@@ -65,3 +65,4 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
     </div>
   );
 }
+
