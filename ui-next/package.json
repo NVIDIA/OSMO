@@ -10,8 +10,7 @@
     "lint": "eslint",
     "lint:a11y": "eslint --plugin jsx-a11y src/",
     "type-check": "tsc --noEmit",
-    "generate-api": "orval",
-    "generate-api:remote": "curl https://$NEXT_PUBLIC_OSMO_API_HOSTNAME/api/openapi.json -o openapi.json && orval"
+    "generate-api": "cd .. && bazel run //src/service:export_openapi > ui-next/openapi.json && cd ui-next && orval"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
