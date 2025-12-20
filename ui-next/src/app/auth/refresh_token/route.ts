@@ -1,6 +1,5 @@
 import { getLoginInfo } from "@/lib/auth/login-info";
-
-const AUTH_CLIENT_SECRET = process.env.AUTH_CLIENT_SECRET || "";
+import { getAuthClientSecret } from "@/lib/config";
 
 export async function GET(request: Request) {
   const loginInfo = await getLoginInfo();
@@ -17,7 +16,7 @@ export async function GET(request: Request) {
     client_id: loginInfo.browser_client_id,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_secret: AUTH_CLIENT_SECRET,
+    client_secret: getAuthClientSecret(),
   });
 
   try {

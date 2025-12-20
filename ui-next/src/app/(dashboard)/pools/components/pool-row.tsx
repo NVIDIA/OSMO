@@ -2,35 +2,25 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-
-export interface Pool {
-  name: string;
-  description: string;
-  status: "online" | "offline" | "maintenance";
-  quotaUsed: number;
-  quotaLimit: number;
-  totalFree: number;
-  platformCount: number;
-  nodeCount: number;
-}
+import type { Pool, PoolStatus } from "@/lib/api/adapter";
 
 interface PoolRowProps {
   pool: Pool;
   isDefault?: boolean;
 }
 
-const statusConfig = {
-  online: {
+const statusConfig: Record<PoolStatus, { icon: string; label: string; className: string }> = {
+  ONLINE: {
     icon: "🟢",
     label: "",
     className: "",
   },
-  offline: {
+  OFFLINE: {
     icon: "🔴",
     label: "OFFLINE",
     className: "opacity-50",
   },
-  maintenance: {
+  MAINTENANCE: {
     icon: "🟡",
     label: "MAINTENANCE",
     className: "opacity-70",
@@ -38,10 +28,10 @@ const statusConfig = {
 };
 
 export function PoolRow({ pool, isDefault }: PoolRowProps) {
-  const status = statusConfig[pool.status] || statusConfig.online;
-  const available = pool.quotaLimit - pool.quotaUsed;
-  const quotaPercent = pool.quotaLimit > 0 ? (pool.quotaUsed / pool.quotaLimit) * 100 : 0;
-  const isAvailable = pool.status === "online";
+  const status = statusConfig[pool.status];
+  const available = pool.quota.limit - pool.quota.used;
+  const quotaPercent = pool.quota.limit > 0 ? (pool.quota.used / pool.quota.limit) * 100 : 0;
+  const isAvailable = pool.status === "ONLINE";
 
   return (
     <Link
@@ -66,7 +56,7 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
           )}
         </div>
         <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-          {pool.description || `${pool.platformCount} platforms · ${pool.nodeCount} nodes`}
+          {pool.description || `${pool.platforms.length} platforms`}
         </div>
       </div>
 
@@ -79,7 +69,7 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-500 dark:text-zinc-400">GPU</span>
                 <span className="font-medium tabular-nums">
-                  {pool.quotaUsed}/{pool.quotaLimit}
+                  {pool.quota.used}/{pool.quota.limit}
                 </span>
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
