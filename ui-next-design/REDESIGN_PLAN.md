@@ -621,33 +621,33 @@ AUTH_CLIENT_SECRET="<your-client-secret>"
 
 | Task | Status |
 |------|--------|
-| Initialize Next.js 16 + pnpm | Pending |
-| Configure Tailwind CSS 4 | Pending |
-| Add shadcn/ui with base components | Pending |
-| Set up environment switching | Pending |
-| Create .cursorrules | Pending |
-| Set up orval + generate API client | Pending |
-| Configure QueryClient with error handling | Pending |
-| Set up eslint-plugin-jsx-a11y for accessibility linting | Pending |
+| Initialize Next.js 16 + pnpm | ✅ Done |
+| Configure Tailwind CSS 4 | ✅ Done |
+| Add shadcn/ui with base components | ✅ Done |
+| Set up environment switching | ✅ Done |
+| Create .cursorrules | ✅ Done |
+| Set up orval + generate API client | ✅ Done |
+| Configure QueryClient with error handling | ✅ Done |
+| Set up eslint-plugin-jsx-a11y for accessibility linting | ✅ Done |
 | Create Dockerfile | Pending |
 
 ### Phase 2: Core Shell (2-3 days)
 
 | Task | Status |
 |------|--------|
-| Layout system (header, sidebar, main) | Pending |
-| Navigation and routing | Pending |
-| Authentication flow | Pending |
-| Theme system (light/dark) | Pending |
+| Layout system (header, sidebar, main) | ✅ Done |
+| Navigation and routing | ✅ Done |
+| Authentication flow | ✅ Done |
+| Theme system (light/dark) | ✅ Done |
 | Error boundaries and loading states | Pending |
 
 ### Phase 3: Feature Migration (iterative)
 
 | Feature | Status |
 |---------|--------|
-| Workflows (list, detail, submit) | Pending |
+| Workflows (list, detail, submit) | In Progress |
 | Datasets (browse, preview) | Pending |
-| Resources/Pools | Pending |
+| Resources/Pools | ✅ Done |
 | Tasks | Pending |
 | Profile/Settings | Pending |
 
