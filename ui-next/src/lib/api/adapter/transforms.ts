@@ -66,6 +66,31 @@ function getFieldValue(
 }
 
 // =============================================================================
+// WORKAROUND: Unit conversion for memory/storage
+// Issue: backend_todo.md#6-memory-and-storage-values-need-conversion
+// Ideal: Backend returns values in GiB consistently
+// =============================================================================
+
+const KIB_PER_GIB = 1024 * 1024; // Memory is in KiB
+const BYTES_PER_GIB = 1024 * 1024 * 1024; // Storage is in bytes
+
+/**
+ * Convert KiB to GiB (memory is stored in KiB in Kubernetes).
+ */
+function kibToGiB(kib: number): number {
+  if (kib === 0) return 0;
+  return Math.round(kib / KIB_PER_GIB);
+}
+
+/**
+ * Convert bytes to GiB (storage is stored in bytes).
+ */
+function bytesToGiB(bytes: number): number {
+  if (bytes === 0) return 0;
+  return Math.round(bytes / BYTES_PER_GIB);
+}
+
+// =============================================================================
 // Pool Transforms
 // =============================================================================
 
@@ -148,23 +173,38 @@ export function transformPoolDetail(
 // Resource/Node Transforms
 // =============================================================================
 
+type UnitConversion = "none" | "kibToGiB" | "bytesToGiB";
+
 /**
  * Extract resource capacity from backend ResourcesEntry.
  * 
  * WORKAROUND: allocatable_fields and usage_fields are untyped dictionaries.
  * Issue: backend_todo.md#5-resource-fields-use-untyped-dictionaries
+ * 
+ * WORKAROUND: Memory is in KiB, storage is in bytes.
+ * Issue: backend_todo.md#6-memory-and-storage-values-need-conversion
+ * We convert to GiB here so UI can display consistently.
  */
 function extractCapacity(
   resource: ResourcesEntry,
-  key: string
+  key: string,
+  conversion: UnitConversion = "none"
 ): ResourceCapacity {
   const allocatable = resource.allocatable_fields as Record<string, unknown> | undefined;
   const usage = resource.usage_fields as Record<string, unknown> | undefined;
   
-  return {
-    total: getFieldValue(allocatable, key),
-    used: getFieldValue(usage, key),
-  };
+  let total = getFieldValue(allocatable, key);
+  let used = getFieldValue(usage, key);
+  
+  if (conversion === "kibToGiB") {
+    total = kibToGiB(total);
+    used = kibToGiB(used);
+  } else if (conversion === "bytesToGiB") {
+    total = bytesToGiB(total);
+    used = bytesToGiB(used);
+  }
+  
+  return { total, used };
 }
 
 /**
@@ -183,8 +223,8 @@ function transformNode(
     backend: resource.backend ?? "",
     gpu: extractCapacity(resource, "gpu"),
     cpu: extractCapacity(resource, "cpu"),
-    memory: extractCapacity(resource, "memory"),
-    storage: extractCapacity(resource, "storage"),
+    memory: extractCapacity(resource, "memory", "kibToGiB"),   // Memory is in KiB
+    storage: extractCapacity(resource, "storage", "bytesToGiB"), // Storage is in bytes
     conditions: resource.conditions ?? [],
   };
 }

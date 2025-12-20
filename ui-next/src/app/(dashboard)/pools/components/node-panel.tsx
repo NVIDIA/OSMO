@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { Node } from "@/lib/api/adapter";
 
@@ -135,7 +135,7 @@ function ResourceBar({
       <div className="mb-1 flex items-center justify-between text-sm">
         <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
         <span className="font-medium tabular-nums">
-          {used}/{total}
+          {formatNumber(used)}/{formatNumber(total)}
           {unit && <span className="ml-0.5 text-xs text-zinc-400">{unit}</span>}
         </span>
       </div>

@@ -157,6 +157,43 @@ function getFieldValue(
 
 ---
 
+### 6. Memory and Storage Values Need Unit Conversion
+
+**Priority:** Medium  
+**Impact:** Adapter has to convert different units to GiB for display
+
+The `allocatable_fields` and `usage_fields` dictionaries return values in different units:
+- **Memory**: KiB (Kubernetes stores memory in Ki)
+- **Storage**: Bytes (Kubernetes stores ephemeral-storage in B)
+
+**Example:**
+```json
+{
+  "allocatable_fields": {
+    "gpu": 8,
+    "cpu": 128,
+    "memory": 1073741824,    // 1 TiB in KiB (1024 GiB)
+    "storage": 2199023255552  // 2 TiB in bytes
+  }
+}
+```
+
+**Location in adapter:**
+```typescript
+// transforms.ts
+const KIB_PER_GIB = 1024 * 1024;     // Memory is in KiB
+const BYTES_PER_GIB = 1024 ** 3;     // Storage is in bytes
+
+memory: extractCapacity(resource, "memory", "kibToGiB"),
+storage: extractCapacity(resource, "storage", "bytesToGiB"),
+```
+
+**Fix options:**
+1. Return values in GiB consistently (simpler, UI-friendly)
+2. Or include unit metadata in the response (more flexible)
+
+---
+
 ## Summary
 
 | Issue | Priority | Adapter Workaround | When Fixed |
@@ -166,6 +203,7 @@ function getFieldValue(
 | #3 Auth in schema | Low | N/A | N/A |
 | #4 Version unknown | Low | Manual type definition | Use generated type |
 | #5 Untyped dictionaries | Medium | getFieldValue() | Access fields directly |
+| #6 Bytes for memory/storage | Medium | bytesToGiB() | Remove conversion |
 
 ---
 
