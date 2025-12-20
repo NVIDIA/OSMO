@@ -1,0 +1,150 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Sync Feature Branches
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every Monday at 9am PT (5pm UTC)
+    - cron: '0 17 * * 1'
+
+jobs:
+  sync-feature-branches:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all branches and history
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Find and sync feature branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          
+          echo "🔍 Finding feature branches..."
+          
+          # Get all remote feature branches
+          feature_branches=$(git branch -r | grep 'origin/feature/' | sed 's|origin/||' | grep -v HEAD || true)
+          
+          if [ -z "$feature_branches" ]; then
+            echo "ℹ️  No feature branches found matching pattern 'feature/*'"
+            exit 0
+          fi
+          
+          echo "Found feature branches:"
+          echo "$feature_branches"
+          echo ""
+          
+          # Process each feature branch
+          for branch in $feature_branches; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📋 Processing branch: $branch"
+            
+            # Check if main has commits not in the feature branch
+            git fetch origin main
+            git fetch origin "$branch"
+            
+            commits_behind=$(git rev-list --count origin/$branch..origin/main)
+            
+            if [ "$commits_behind" -eq 0 ]; then
+              echo "✅ Branch $branch is already up to date with main"
+              continue
+            fi
+            
+            echo "📊 Branch $branch is $commits_behind commit(s) behind main"
+            
+            # Extract issue number from branch name (format: feature/PROJ-NNN-short-slug)
+            # If no PROJ-NNN pattern is found, use "Issue - None"
+            issue_number=$(echo "$branch" | grep -oE 'PROJ-[0-9]+' || echo "")
+            if [ -z "$issue_number" ]; then
+              issue_ref="Issue - None"
+            else
+              issue_ref="Issue #$issue_number"
+            fi
+            
+            # Create a temporary branch for the merge
+            temp_branch="sync/$branch/$(date +%Y%m%d-%H%M)"
+            
+            echo "🌿 Creating temporary branch: $temp_branch"
+            git checkout -b "$temp_branch" "origin/$branch"
+            
+            # Attempt to merge main
+            echo "🔀 Merging main into $temp_branch..."
+            if git merge origin/main --no-commit --no-ff; then
+              echo "✅ Merge successful (no conflicts)"
+            else
+              echo "⚠️  Merge has conflicts - will create PR for manual resolution"
+              git add -A
+              git commit -m "Merge main into $branch"
+            fi
+            
+            # Push the temporary branch
+            echo "⬆️  Pushing $temp_branch to remote..."
+            git push origin "$temp_branch"
+            
+            # Create PR
+            echo "📝 Creating pull request..."
+            
+            gh pr create \
+              --base "$branch" \
+              --head "$temp_branch" \
+              --title "Sync main into $branch" \
+              --body "$(cat <<EOF
+          ## Description
+          
+          This automated PR merges the latest changes from \`main\` into \`$branch\`.
+          
+          **What to do:**
+          Review the changes and merge this PR to keep your feature branch up to date with main. If there are merge conflicts, resolve them before merging.
+          
+          **Branch Info:**
+          - **Target**: \`$branch\`
+          - **Source**: \`main\`
+          - **Commits behind**: $commits_behind
+          
+          $issue_ref
+          
+          ## Checklist
+          - [ ] I am familiar with the [Contributing Guidelines](https://github.com/NVIDIA/OSMO/blob/main/CONTRIBUTING.md).
+          - [ ] New or existing tests cover these changes.
+          - [ ] The documentation is up to date with these changes.
+          
+          ---
+          *This PR was automatically created by the [Sync Feature Branches workflow](.github/workflows/sync-feature-branches.yaml) as part of the [Projects Process](../projects/README.md#stage-in-development).*
+          EOF
+            )"
+            
+            echo "✅ Created PR to sync main into $branch"
+            
+            # Switch back to main for next iteration
+            git checkout main
+            
+          done
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✨ Sync process complete!"
