@@ -200,7 +200,7 @@ function extractPoolMemberships(
  * Hook for resource detail panel.
  * 
  * Encapsulates all business logic for displaying resource details:
- * - Fetches full pool memberships (only for SHARED resources)
+ * - Fetches full pool memberships for all resources
  * - Computes unique pool names for display
  * - Extracts task config from platform configs
  * 
@@ -209,17 +209,16 @@ function extractPoolMemberships(
  */
 export function useResourceDetail(
   resource: Resource | null,
-  platformConfigs: Record<string, PlatformConfig>
+  platformConfigs: Record<string, PlatformConfig>,
+  /** Pool context - used to determine primary pool for display */
+  contextPool?: string
 ) {
-  // Business logic: Only SHARED resources can belong to multiple pools
-  // RESERVED resources belong to a single pool (shown in header), no need to display
-  const isShared = resource?.resourceType === BackendResourceType.SHARED;
-  
+  // Always fetch pool memberships for consistent UI across all entry points
   const query = useGetResourcesApiResourcesGet(
     { all_pools: true },
     {
       query: {
-        enabled: isShared && !!resource?.name,
+        enabled: !!resource?.name,
         staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
       },
     }
@@ -229,23 +228,35 @@ export function useResourceDetail(
     if (!resource) {
       return {
         pools: [] as string[],
-        showPoolMembership: false,
+        primaryPool: null as string | null,
         taskConfig: null as TaskConfig | null,
       };
     }
 
-    // Only show pool membership for SHARED resources
-    let pools: string[] = [];
-    if (isShared) {
-      let memberships = resource.poolMemberships;
-      if (query.data) {
-        const fetched = extractPoolMemberships(query.data, resource.name);
-        if (fetched.length > 0) {
-          memberships = fetched;
-        }
+    // Get pool memberships - prefer fetched data over resource's initial data
+    let memberships = resource.poolMemberships;
+    if (query.data) {
+      const fetched = extractPoolMemberships(query.data, resource.name);
+      if (fetched.length > 0) {
+        memberships = fetched;
       }
-      pools = [...new Set(memberships.map((m) => m.pool))];
     }
+    
+    // Get unique pool names, sorted alphabetically
+    const sortedPools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    // Primary pool: only set if we have a valid context pool (came from a pool page)
+    // No highlight when coming from Resources page (no context)
+    const primaryPool = contextPool && sortedPools.includes(contextPool)
+      ? contextPool
+      : null;
+
+    // Reorder pools: context pool first (if provided), then the rest alphabetically
+    const pools = primaryPool
+      ? [primaryPool, ...sortedPools.filter((p) => p !== primaryPool)]
+      : sortedPools;
 
     // Get task config for current platform
     const platformConfig = platformConfigs[resource.platform];
@@ -258,13 +269,13 @@ export function useResourceDetail(
         }
       : null;
 
-    return { pools, showPoolMembership: isShared, taskConfig };
-  }, [resource, query.data, isShared, platformConfigs]);
+    return { pools, primaryPool, taskConfig };
+  }, [resource, query.data, platformConfigs, contextPool]);
 
   return {
     pools: result.pools,
-    showPoolMembership: result.showPoolMembership,
+    primaryPool: result.primaryPool,
     taskConfig: result.taskConfig,
-    isLoadingMemberships: isShared && query.isLoading,
+    isLoadingPools: query.isLoading,
   };
 }

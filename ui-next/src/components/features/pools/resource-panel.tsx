@@ -8,11 +8,11 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { X, Check, Ban, FolderOpen } from "lucide-react";
-import Link from "next/link";
+import { X, Check, Ban, FolderOpen, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CapacityBar } from "@/components/shared/capacity-bar";
+import { ResponsivePoolChips } from "@/components/shared/responsive-pool-chips";
 import { useResourceDetail, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 
@@ -47,7 +47,11 @@ export function ResourcePanel({
   onClose,
 }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
-  const { pools, showPoolMembership, taskConfig, isLoadingMemberships } = useResourceDetail(resource, platformConfigs);
+  const { pools, primaryPool, taskConfig, isLoadingPools } = useResourceDetail(
+    resource,
+    platformConfigs,
+    poolName // Pass context pool to determine primary
+  );
 
   if (!resource) return null;
 
@@ -65,10 +69,10 @@ export function ResourcePanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="resource-panel-title"
-        className="fixed bottom-0 right-0 top-0 z-50 w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
       >
         {/* Header */}
-        <div className="sticky top-0 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
             <div className="flex items-center gap-2">
               <h2 id="resource-panel-title" className="text-lg font-semibold">{resource.name}</h2>
@@ -83,7 +87,6 @@ export function ResourcePanel({
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {resource.platform}
-              {poolName && <> · {poolName}</>}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close resource panel">
@@ -91,38 +94,8 @@ export function ResourcePanel({
           </Button>
         </div>
 
-        {/* Content */}
-        <div className="space-y-6 p-6">
-          {/* Pool Membership - only shown when resource belongs to multiple pools */}
-          {showPoolMembership && (
-            <section>
-              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Pool Membership
-              </h3>
-              {isLoadingMemberships ? (
-                <div className="flex items-center gap-2 text-sm text-zinc-500">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
-                  Loading...
-                </div>
-              ) : pools.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {pools.map((pool) => (
-                    <Link
-                      key={pool}
-                      href={`/pools/${pool}`}
-                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-700"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {pool}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-zinc-500">No pools found</p>
-              )}
-            </section>
-          )}
-
+        {/* Scrollable Content */}
+        <div className="flex-1 space-y-6 overflow-y-auto p-6">
           {/* Resource Capacity */}
           <section>
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -212,6 +185,21 @@ export function ResourcePanel({
             </section>
           )}
         </div>
+
+        {/* Pool Membership Footer */}
+        {(pools.length > 0 || isLoadingPools) && (
+          <div className="shrink-0 border-t border-zinc-200 bg-zinc-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-start gap-2">
+              <Layers className="mt-1 h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+              <ResponsivePoolChips
+                pools={pools}
+                primaryPool={primaryPool}
+                isLoading={isLoadingPools}
+                className="flex-1"
+              />
+            </div>
+          </div>
+        )}
       </aside>
     </>
   );
