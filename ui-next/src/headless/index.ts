@@ -35,6 +35,6 @@ export type {
   UsePoolDetailReturn,
 } from "./use-pool-detail";
 
-// Resources Fleet
-export { useResourcesFleet } from "./use-resources-fleet";
-export type { UseResourcesFleetReturn } from "./use-resources-fleet";
+// All Resources (cross-pool view)
+export { useAllResources } from "./use-all-resources";
+export type { UseAllResourcesReturn } from "./use-all-resources";

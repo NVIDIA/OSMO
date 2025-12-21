@@ -9,7 +9,7 @@
  */
 
 /**
- * Headless hook for the Resources Fleet page behavior.
+ * Headless hook for the Resources page behavior.
  *
  * Provides logic for viewing all resources across pools,
  * with filtering by pool, platform, search, and resource type.
@@ -17,7 +17,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import {
-  useAllResources,
+  useAllResources as useAllResourcesQuery,
   type Resource,
   type ResourceType,
 } from "@/lib/api/adapter";
@@ -43,7 +43,7 @@ export interface ActiveFilter {
  */
 export type ResourceDisplayMode = "free" | "used";
 
-export interface UseResourcesFleetReturn {
+export interface UseAllResourcesReturn {
   // Resource data
   allResources: Resource[];
   filteredResources: Resource[];
@@ -102,7 +102,7 @@ function isResourceType(value: string): value is ResourceType {
   return ALL_RESOURCE_TYPES.includes(value as ResourceType);
 }
 
-export function useResourcesFleet(): UseResourcesFleetReturn {
+export function useAllResources(): UseAllResourcesReturn {
   // Fetch data
   const {
     resources,
@@ -111,7 +111,7 @@ export function useResourcesFleet(): UseResourcesFleetReturn {
     isLoading,
     error,
     refetch,
-  } = useAllResources();
+  } = useAllResourcesQuery();
 
   // Local state
   const [search, setSearch] = useState("");

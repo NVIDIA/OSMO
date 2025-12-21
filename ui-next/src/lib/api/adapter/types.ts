@@ -127,9 +127,9 @@ export interface PoolResourcesResponse {
 }
 
 /**
- * Response from the resources endpoint for fleet-wide queries (all pools).
+ * Response from the resources endpoint when querying all pools.
  */
-export interface FleetResourcesResponse {
+export interface AllResourcesResponse {
   resources: Resource[];
   pools: string[];
   platforms: string[];
