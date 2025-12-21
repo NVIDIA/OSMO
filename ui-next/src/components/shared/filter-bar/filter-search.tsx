@@ -57,20 +57,23 @@ export function FilterSearch({
 
   return (
     <div className={cn("relative flex-1 min-w-[200px] max-w-xs", className)}>
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
       <Input
+        type="search"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="h-9 pl-9 pr-8 text-sm"
+        aria-label={placeholder}
       />
       {hasValue && (
         <button
+          type="button"
           onClick={handleClear}
           className={cn("absolute right-2 top-1/2 -translate-y-1/2", clearButton)}
           aria-label="Clear search"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
     </div>
