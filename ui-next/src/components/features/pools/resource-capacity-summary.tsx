@@ -59,7 +59,7 @@ const CAPACITY_ICONS: Record<keyof typeof CapacityMetrics, LucideIcon> = {
  *
  * Designed for reuse in:
  * - Pool detail page (filtered resources)
- * - Resources fleet page (all resources or filtered subset)
+ * - Resources page (all resources or filtered subset)
  *
  * @example
  * ```tsx

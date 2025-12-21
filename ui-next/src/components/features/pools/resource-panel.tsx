@@ -14,13 +14,14 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CapacityBar } from "@/components/shared/capacity-bar";
 import { useResourceDetail, type Resource, type PlatformConfig } from "@/lib/api/adapter";
+import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 
 interface ResourcePanelProps {
   /** Resource to display, or null to hide panel */
   resource: Resource | null;
   /**
    * Pool context for displaying pool-specific information.
-   * If omitted, panel shows resource in "fleet" context.
+   * If omitted, panel shows resource across all pools.
    */
   poolName?: string;
   /**
@@ -36,10 +37,8 @@ interface ResourcePanelProps {
  * Slide-in panel showing detailed resource information.
  *
  * Can be used in two contexts:
- * 1. Pool context: Shows pool-specific task configurations
- * 2. Fleet context: Shows resource across all pools (omit poolName)
- *
- * Reusable for both pool detail page and future resources fleet page.
+ * 1. Pool context: Shows pool-specific task configurations (provide poolName)
+ * 2. Cross-pool context: Shows resource across all pools (omit poolName)
  */
 export function ResourcePanel({
   resource,
@@ -70,14 +69,10 @@ export function ResourcePanel({
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-xs font-medium",
-                  resource.resourceType === "RESERVED"
-                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                    : resource.resourceType === "SHARED"
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  getResourceAllocationTypeDisplay(resource.resourceType).className
                 )}
               >
-                {resource.resourceType}
+                {getResourceAllocationTypeDisplay(resource.resourceType).label}
               </span>
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -92,7 +87,7 @@ export function ResourcePanel({
 
         {/* Content */}
         <div className="space-y-6 p-6">
-          {/* Pool Membership - only shown for SHARED resources */}
+          {/* Pool Membership - only shown when resource belongs to multiple pools */}
           {showPoolMembership && (
             <section>
               <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -254,4 +249,4 @@ function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
 }
 
 // NOTE: CapacityBar has been moved to @/components/shared/capacity-bar for reuse
-// across pool detail, resource detail, and fleet views.
+// across pool detail and resource detail views.
