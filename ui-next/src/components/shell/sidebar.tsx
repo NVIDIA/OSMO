@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
@@ -70,11 +70,11 @@ export function Sidebar() {
   const { sections, isLoading } = useNavigation();
 
   // Track if we've done initial load - only show skeleton on first render
-  const hasLoadedRef = useRef(false);
-  if (!isLoading && !hasLoadedRef.current) {
-    hasLoadedRef.current = true;
+  const [hasLoaded, setHasLoaded] = useState(false);
+  if (!isLoading && !hasLoaded) {
+    setHasLoaded(true);
   }
-  const showSkeleton = isLoading && !hasLoadedRef.current;
+  const showSkeleton = isLoading && !hasLoaded;
 
   const isItemActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href));
