@@ -44,6 +44,15 @@ export const DefaultPoolStatusDisplay = {
 } as const;
 
 /**
+ * Helper to get pool status display configuration.
+ * Handles undefined status and unknown values gracefully.
+ */
+export function getPoolStatusDisplay(status?: (typeof PoolStatus)[keyof typeof PoolStatus]) {
+  if (!status) return DefaultPoolStatusDisplay;
+  return PoolStatusDisplay[status] ?? DefaultPoolStatusDisplay;
+}
+
+/**
  * UI-friendly resource type names.
  * Maps to platform names from the backend.
  */

@@ -10,4 +10,6 @@ export { NodePanel } from "./node-panel";
 export { NodeTable } from "./node-table";
 export { QuotaBar } from "./quota-bar";
 export { PlatformChips } from "./platform-chips";
-export { FilterBar } from "./filter-bar";
+
+// Note: FilterBar has been moved to @/components/shared/filter-bar
+// for reusability across different pages (pools, workflows, etc.)
