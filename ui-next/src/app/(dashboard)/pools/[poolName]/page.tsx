@@ -30,7 +30,6 @@ export default function PoolDetailPage() {
     clearPlatformFilter,
     selectedResourceTypes,
     toggleResourceType,
-    clearResourceTypeFilter,
     displayMode,
     setDisplayMode,
     activeFilters,
