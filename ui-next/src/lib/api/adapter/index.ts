@@ -20,7 +20,7 @@ export type {
   PlatformConfig,
   Resource,
   PoolResourcesResponse,
-  FleetResourcesResponse,
+  AllResourcesResponse,
   ResourceType,
   ResourceCapacity,
   PoolMembership,
