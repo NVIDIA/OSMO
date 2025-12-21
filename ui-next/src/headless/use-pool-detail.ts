@@ -5,7 +5,7 @@
  * filtering nodes by search and platform, etc.
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   usePool,
   usePoolResources,
@@ -26,9 +26,10 @@ export interface UsePoolDetailOptions {
 
 /**
  * Represents an active filter that can be displayed and removed.
+ * Uses string type for compatibility with FilterBar component.
  */
 export interface ActiveFilter {
-  type: "search" | "platform" | "resourceType";
+  type: string;
   value: string;
   label: string;
 }
@@ -124,17 +125,19 @@ export function usePoolDetail({
   >(new Set());
 
   // Resource display mode (persisted to localStorage)
-  // Initialize with default, then sync from localStorage after mount to avoid hydration mismatch
-  const [displayMode, setDisplayModeState] =
-    useState<ResourceDisplayMode>("free");
-
-  // Sync with localStorage after mount (avoids SSR hydration mismatch)
-  useEffect(() => {
-    const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
-    if (stored === "free" || stored === "used") {
-      setDisplayModeState(stored);
+  // Use lazy initializer to read from localStorage (client-side only)
+  const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(
+    () => {
+      // Only access localStorage on client side
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
+        if (stored === "free" || stored === "used") {
+          return stored;
+        }
+      }
+      return "free";
     }
-  }, []);
+  );
 
   const setDisplayMode = useCallback((mode: ResourceDisplayMode) => {
     setDisplayModeState(mode);
@@ -182,7 +185,11 @@ export function usePoolDetail({
   const togglePlatform = useCallback((platform: string) => {
     setSelectedPlatforms((prev) => {
       const next = new Set(prev);
-      next.has(platform) ? next.delete(platform) : next.add(platform);
+      if (next.has(platform)) {
+        next.delete(platform);
+      } else {
+        next.add(platform);
+      }
       return next;
     });
   }, []);
@@ -254,15 +261,17 @@ export function usePoolDetail({
           return next;
         });
         break;
-      case "resourceType":
-        if (isResourceType(filter.value)) {
+      case "resourceType": {
+        const resourceType = filter.value;
+        if (isResourceType(resourceType)) {
           setSelectedResourceTypes((prev) => {
             const next = new Set(prev);
-            next.delete(filter.value);
+            next.delete(resourceType);
             return next;
           });
         }
         break;
+      }
     }
   }, []);
 
