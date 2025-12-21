@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Server } from "lucide-react";
+import { ArrowLeft, Server, Cpu, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NodeTable, QuotaBar, FilterBar } from "@/components/features/pools";
+import { NodeTable, QuotaBar } from "@/components/features/pools";
+import { FilterBar } from "@/components/shared/filter-bar";
 import { usePoolDetail } from "@/headless";
-import { PoolStatusDisplay, DefaultPoolStatusDisplay } from "@/lib/constants/ui";
+import { getPoolStatusDisplay } from "@/lib/constants/ui";
 import { heading } from "@/lib/styles";
 
 export default function PoolDetailPage() {
@@ -30,17 +31,15 @@ export default function PoolDetailPage() {
     selectedResourceTypes,
     toggleResourceType,
     clearResourceTypeFilter,
-    resourceDisplayMode,
-    setResourceDisplayMode,
+    displayMode,
+    setDisplayMode,
     activeFilters,
     removeFilter,
     clearAllFilters,
     isLoading,
   } = usePoolDetail({ poolName });
 
-  const status = pool?.status
-    ? (PoolStatusDisplay[pool.status] ?? DefaultPoolStatusDisplay)
-    : DefaultPoolStatusDisplay;
+  const status = getPoolStatusDisplay(pool?.status);
 
   return (
     <div className="space-y-6">
@@ -103,30 +102,59 @@ export default function PoolDetailPage() {
         </div>
 
         <FilterBar
-          search={search}
-          onSearchChange={setSearch}
-          onClearSearch={clearSearch}
-          platforms={platforms}
-          selectedPlatforms={selectedPlatforms}
-          onTogglePlatform={togglePlatform}
-          onClearPlatformFilter={clearPlatformFilter}
-          resourceTypes={resourceTypes}
-          selectedResourceTypes={selectedResourceTypes}
-          onToggleResourceType={toggleResourceType}
-          onClearResourceTypeFilter={clearResourceTypeFilter}
-          resourceDisplayMode={resourceDisplayMode}
-          onResourceDisplayModeChange={setResourceDisplayMode}
           activeFilters={activeFilters}
           onRemoveFilter={removeFilter}
-          onClearAllFilters={clearAllFilters}
-        />
+          onClearAll={clearAllFilters}
+        >
+          <FilterBar.Search
+            value={search}
+            onChange={setSearch}
+            onClear={clearSearch}
+            placeholder="Search nodes..."
+          />
+
+          {platforms.length > 0 && (
+            <FilterBar.MultiSelect
+              icon={Cpu}
+              label="Platform"
+              options={platforms}
+              selected={selectedPlatforms}
+              onToggle={togglePlatform}
+              onClear={clearPlatformFilter}
+              searchable
+              searchPlaceholder="Search platforms..."
+            />
+          )}
+
+          {resourceTypes.length > 0 && (
+            <FilterBar.SingleSelect
+              icon={Box}
+              label="Type"
+              options={resourceTypes}
+              value={[...selectedResourceTypes][0]}
+              onChange={toggleResourceType}
+            />
+          )}
+
+          <FilterBar.Actions>
+            <FilterBar.Toggle
+              label="View by"
+              options={[
+                { value: "free" as const, label: "Free" },
+                { value: "used" as const, label: "Used" },
+              ]}
+              value={displayMode}
+              onChange={setDisplayMode}
+            />
+          </FilterBar.Actions>
+        </FilterBar>
 
         <NodeTable
           nodes={filteredNodes}
           isLoading={isLoading}
           poolName={poolName}
           platformConfigs={platformConfigs}
-          displayMode={resourceDisplayMode}
+          displayMode={displayMode}
         />
       </section>
     </div>
