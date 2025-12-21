@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
-import { cn, formatNumber } from "@/lib/utils";
+import { cn, formatCompact } from "@/lib/utils";
 import { NodePanel } from "./node-panel";
 import type { Node, PlatformConfig } from "@/lib/api/adapter";
+import type { ResourceDisplayMode } from "@/headless";
 
 // =============================================================================
 // Types
@@ -23,15 +24,21 @@ interface NodeTableProps {
   isLoading?: boolean;
   poolName: string;
   platformConfigs: Record<string, PlatformConfig>;
+  displayMode?: ResourceDisplayMode;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeTableProps) {
+export function NodeTable({ nodes, isLoading, poolName, platformConfigs, displayMode = "free" }: NodeTableProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
+
+  // Reset sort when display mode changes
+  useEffect(() => {
+    setSort({ column: null, direction: "asc" });
+  }, [displayMode]);
 
   // Handle column header click
   const handleSort = (column: SortColumn) => {
@@ -48,7 +55,9 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeT
     });
   };
 
-  // Sort nodes (resource columns sort by total capacity)
+  // Sort nodes
+  // In "free" mode: resource columns sort by free value (total - used)
+  // In "used" mode: resource columns sort by used value
   const sortedNodes = useMemo(() => {
     if (!sort.column) return nodes;
 
@@ -62,23 +71,31 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeT
           cmp = a.platform.localeCompare(b.platform);
           break;
         case "gpu":
-          cmp = a.gpu.total - b.gpu.total;
+          cmp = displayMode === "free"
+            ? (a.gpu.total - a.gpu.used) - (b.gpu.total - b.gpu.used)
+            : a.gpu.used - b.gpu.used;
           break;
         case "cpu":
-          cmp = a.cpu.total - b.cpu.total;
+          cmp = displayMode === "free"
+            ? (a.cpu.total - a.cpu.used) - (b.cpu.total - b.cpu.used)
+            : a.cpu.used - b.cpu.used;
           break;
         case "memory":
-          cmp = a.memory.total - b.memory.total;
+          cmp = displayMode === "free"
+            ? (a.memory.total - a.memory.used) - (b.memory.total - b.memory.used)
+            : a.memory.used - b.memory.used;
           break;
         case "storage":
-          cmp = a.storage.total - b.storage.total;
+          cmp = displayMode === "free"
+            ? (a.storage.total - a.storage.used) - (b.storage.total - b.storage.used)
+            : a.storage.used - b.storage.used;
           break;
       }
       return sort.direction === "asc" ? cmp : -cmp;
     });
 
     return sorted;
-  }, [nodes, sort]);
+  }, [nodes, sort, displayMode]);
 
   if (isLoading) {
     return (
@@ -171,16 +188,16 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeT
                   {node.platform}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.gpu.used} total={node.gpu.total} />
+                  <ResourceCell used={node.gpu.used} total={node.gpu.total} mode={displayMode} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.cpu.used} total={node.cpu.total} />
+                  <ResourceCell used={node.cpu.used} total={node.cpu.total} mode={displayMode} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.memory.used} total={node.memory.total} unit="Gi" />
+                  <ResourceCell used={node.memory.used} total={node.memory.total} unit="Gi" mode={displayMode} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.storage.used} total={node.storage.total} unit="Gi" />
+                  <ResourceCell used={node.storage.used} total={node.storage.total} unit="Gi" mode={displayMode} />
                 </td>
               </tr>
             ))}
@@ -249,33 +266,34 @@ function ResourceCell({
   used,
   total,
   unit = "",
+  mode = "free",
 }: {
   used: number;
   total: number;
   unit?: string;
+  mode?: ResourceDisplayMode;
 }) {
   if (total === 0) {
     return <span className="text-zinc-400 dark:text-zinc-600">—</span>;
   }
 
-  const percent = (used / total) * 100;
+  const free = total - used;
 
-  return (
-    <span className="inline-flex items-baseline gap-0.5">
-      <span
-        className={cn(
-          "tabular-nums",
-          percent > 90
-            ? "text-red-600 dark:text-red-400"
-            : percent > 70
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-zinc-900 dark:text-zinc-100"
-        )}
-      >
-        {formatNumber(used)}
+  if (mode === "free") {
+    // Free mode: just show the free amount
+    return (
+      <span className="tabular-nums text-zinc-900 dark:text-zinc-100">
+        {formatCompact(free)}{unit && ` ${unit}`}
       </span>
-      <span className="text-zinc-400">/{formatNumber(total)}</span>
-      {unit && <span className="text-xs text-zinc-400">{unit}</span>}
+    );
+  }
+
+  // Used mode: show fraction
+  return (
+    <span className="tabular-nums">
+      <span className="text-zinc-900 dark:text-zinc-100">{formatCompact(used)}</span>
+      <span className="text-zinc-400 dark:text-zinc-500">/{formatCompact(total)}</span>
+      {unit && <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-0.5">{unit}</span>}
     </span>
   );
 }

@@ -30,6 +30,8 @@ export default function PoolDetailPage() {
     selectedResourceTypes,
     toggleResourceType,
     clearResourceTypeFilter,
+    resourceDisplayMode,
+    setResourceDisplayMode,
     activeFilters,
     removeFilter,
     clearAllFilters,
@@ -91,6 +93,13 @@ export default function PoolDetailPage() {
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-zinc-400" />
           <h2 className={heading.section}>Nodes</h2>
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            {filteredNodeCount !== nodeCount ? (
+              <>({filteredNodeCount} of {nodeCount})</>
+            ) : (
+              <>({nodeCount})</>
+            )}
+          </span>
         </div>
 
         <FilterBar
@@ -105,11 +114,11 @@ export default function PoolDetailPage() {
           selectedResourceTypes={selectedResourceTypes}
           onToggleResourceType={toggleResourceType}
           onClearResourceTypeFilter={clearResourceTypeFilter}
+          resourceDisplayMode={resourceDisplayMode}
+          onResourceDisplayModeChange={setResourceDisplayMode}
           activeFilters={activeFilters}
           onRemoveFilter={removeFilter}
           onClearAllFilters={clearAllFilters}
-          totalCount={nodeCount}
-          filteredCount={filteredNodeCount}
         />
 
         <NodeTable
@@ -117,6 +126,7 @@ export default function PoolDetailPage() {
           isLoading={isLoading}
           poolName={poolName}
           platformConfigs={platformConfigs}
+          displayMode={resourceDisplayMode}
         />
       </section>
     </div>

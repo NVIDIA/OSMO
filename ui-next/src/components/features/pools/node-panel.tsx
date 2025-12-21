@@ -10,7 +10,7 @@
 
 import { X, Check, Ban, FolderOpen } from "lucide-react";
 import Link from "next/link";
-import { cn, formatNumber } from "@/lib/utils";
+import { cn, formatCompact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNodeDetail, type Node, type PlatformConfig } from "@/lib/api/adapter";
 
@@ -31,7 +31,7 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+        className="fixed inset-0 z-40 min-h-screen bg-black/20 backdrop-blur-sm"
         onClick={onClose}
       />
 
@@ -201,29 +201,40 @@ function ResourceBar({
   total: number;
   unit?: string;
 }) {
+  const free = total - used;
   const percent = total > 0 ? (used / total) * 100 : 0;
+
+  const barColor =
+    percent > 90
+      ? "bg-red-500"
+      : percent > 70
+        ? "bg-amber-500"
+        : "bg-emerald-500";
 
   return (
     <div>
+      {/* Header: Label + Used/Total */}
       <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
-        <span className="font-medium tabular-nums">
-          {formatNumber(used)}/{formatNumber(total)}
-          {unit && <span className="ml-0.5 text-xs text-zinc-400">{unit}</span>}
-        </span>
+        <div>
+          <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
+          <span className="ml-2 tabular-nums text-zinc-900 dark:text-zinc-100">
+            {formatCompact(used)}/{formatCompact(total)}
+          </span>
+          {unit && <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-0.5">{unit}</span>}
+        </div>
       </div>
+
+      {/* Bar */}
       <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
         <div
-          className={cn(
-            "h-full rounded-full transition-all",
-            percent > 90
-              ? "bg-red-500"
-              : percent > 70
-                ? "bg-amber-500"
-                : "bg-emerald-500"
-          )}
+          className={cn("h-full rounded-full transition-all", barColor)}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
+      </div>
+
+      {/* Free label on right */}
+      <div className="mt-1 flex justify-end text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+        {formatCompact(free)}{unit && ` ${unit}`} free
       </div>
     </div>
   );

@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Workflow,
   Layers,
-  User,
   Settings,
   Shield,
   Key,
@@ -35,10 +34,8 @@ const userNav: NavItem[] = [
   { name: "Pools", href: "/pools", icon: Layers },
 ];
 
-/** Bottom navigation - always visible */
-const bottomNav: NavItem[] = [
-  { name: "Profile", href: "/profile", icon: User },
-];
+/** Bottom navigation - empty now (profile is in top-right header) */
+const bottomNav: NavItem[] = [];
 
 /** Admin-facing navigation - conditionally included */
 const adminSection: NavSection = {
