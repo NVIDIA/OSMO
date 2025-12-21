@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Server, Cpu, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ResourceTable, QuotaBar } from "@/components/features/pools";
+import { ResourceTable, ResourceCapacitySummary, QuotaBar } from "@/components/features/pools";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { usePoolDetail } from "@/headless";
 import { getPoolStatusDisplay } from "@/lib/constants/ui";
@@ -147,6 +147,13 @@ export default function PoolDetailPage() {
             />
           </FilterBar.Actions>
         </FilterBar>
+
+        {/* Capacity summary boxes */}
+        <ResourceCapacitySummary
+          resources={filteredResources}
+          displayMode={displayMode}
+          isLoading={isLoading}
+        />
 
         <ResourceTable
           resources={filteredResources}
