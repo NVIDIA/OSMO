@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
 import { NodePanel } from "./node-panel";
@@ -35,10 +35,12 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
 
-  // Reset sort when display mode changes
-  useEffect(() => {
+  // Reset sort when display mode changes (React pattern for resetting state on prop change)
+  const [prevDisplayMode, setPrevDisplayMode] = useState(displayMode);
+  if (prevDisplayMode !== displayMode) {
+    setPrevDisplayMode(displayMode);
     setSort({ column: null, direction: "asc" });
-  }, [displayMode]);
+  }
 
   // Handle column header click
   const handleSort = (column: SortColumn) => {
