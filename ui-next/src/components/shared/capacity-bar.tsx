@@ -37,7 +37,7 @@ export interface CapacityBarProps {
 /**
  * Reusable capacity/usage bar component.
  *
- * Used across pool detail, resource detail, and fleet views to show
+ * Used across pool detail and resource views to show
  * resource utilization (GPU, CPU, Memory, Storage).
  *
  * @example
