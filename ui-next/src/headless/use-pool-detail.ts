@@ -32,6 +32,11 @@ export interface ActiveFilter {
   label: string;
 }
 
+/**
+ * Display mode for resource values: show "free" or "used" amounts.
+ */
+export type ResourceDisplayMode = "free" | "used";
+
 export interface UsePoolDetailReturn {
   // Pool data
   pool: ReturnType<typeof usePool>["pool"];
@@ -58,6 +63,10 @@ export interface UsePoolDetailReturn {
   selectedResourceTypes: Set<ResourceType>;
   toggleResourceType: (type: ResourceType) => void;
   clearResourceTypeFilter: () => void;
+
+  // Resource display mode (free vs used)
+  resourceDisplayMode: ResourceDisplayMode;
+  setResourceDisplayMode: (mode: ResourceDisplayMode) => void;
 
   // Active filters (for chips display)
   activeFilters: ActiveFilter[];
@@ -107,6 +116,25 @@ export function usePoolDetail({
   const [selectedResourceTypes, setSelectedResourceTypes] = useState<
     Set<ResourceType>
   >(new Set());
+
+  // Resource display mode (persisted to localStorage)
+  const [resourceDisplayMode, setResourceDisplayModeState] =
+    useState<ResourceDisplayMode>(() => {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("resourceDisplayMode");
+        if (stored === "free" || stored === "used") {
+          return stored;
+        }
+      }
+      return "free"; // Default to "free"
+    });
+
+  const setResourceDisplayMode = useCallback((mode: ResourceDisplayMode) => {
+    setResourceDisplayModeState(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("resourceDisplayMode", mode);
+    }
+  }, []);
 
   // Derive resource types from all nodes (not filtered)
   const resourceTypes = useMemo(() => {
@@ -277,6 +305,10 @@ export function usePoolDetail({
     selectedResourceTypes,
     toggleResourceType,
     clearResourceTypeFilter,
+
+    // Resource display mode
+    resourceDisplayMode,
+    setResourceDisplayMode,
 
     // Active filters
     activeFilters,

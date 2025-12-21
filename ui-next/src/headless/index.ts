@@ -30,6 +30,7 @@ export type {
 export { usePoolDetail } from "./use-pool-detail";
 export type {
   ActiveFilter,
+  ResourceDisplayMode,
   UsePoolDetailOptions,
   UsePoolDetailReturn,
 } from "./use-pool-detail";
