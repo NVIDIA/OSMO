@@ -117,14 +117,13 @@ export function usePoolsList(
     );
   }, [pools, search]);
 
-  // Group by status
+  // Group by status - only show categories that have pools
   const groupedPools = useMemo((): PoolGroup[] => {
     const groups: PoolGroup[] = [];
 
     for (const status of STATUS_ORDER) {
       const statusPools = filteredPools.filter((p) => p.status === status);
-      // Show group if it has pools, or if no search is active (show empty groups)
-      if (statusPools.length > 0 || !search) {
+      if (statusPools.length > 0) {
         const display = PoolStatusDisplay[status] ?? DefaultPoolStatusDisplay;
         groups.push({
           status,
@@ -136,7 +135,7 @@ export function usePoolsList(
     }
 
     return groups;
-  }, [filteredPools, search]);
+  }, [filteredPools]);
 
   // Default pool
   const defaultPool = useMemo(() => {
