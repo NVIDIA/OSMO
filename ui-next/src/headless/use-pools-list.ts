@@ -13,8 +13,7 @@ import { usePools, type Pool, type PoolStatus } from "@/lib/api/adapter";
 import type { HTTPValidationError } from "@/lib/api/generated";
 import {
   PoolStatus as PoolStatusEnum,
-  PoolStatusDisplay,
-  DefaultPoolStatusDisplay,
+  getPoolStatusDisplay,
 } from "@/lib/constants/ui";
 
 // =============================================================================
@@ -124,7 +123,7 @@ export function usePoolsList(
     for (const status of STATUS_ORDER) {
       const statusPools = filteredPools.filter((p) => p.status === status);
       if (statusPools.length > 0) {
-        const display = PoolStatusDisplay[status] ?? DefaultPoolStatusDisplay;
+        const display = getPoolStatusDisplay(status);
         groups.push({
           status,
           pools: statusPools,
