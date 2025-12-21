@@ -67,7 +67,7 @@ export function FilterSingleSelect<T extends string>({
   if (options.length <= 1) {
     return (
       <Button variant="outline" size="sm" disabled className={cn("gap-1.5", className)}>
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {options.length === 1 ? getLabel(options[0]) : label}
       </Button>
     );
@@ -79,20 +79,24 @@ export function FilterSingleSelect<T extends string>({
         <Button
           variant="outline"
           size="sm"
+          aria-label={hasSelection ? `${label}: ${getLabel(value!)} selected` : `Filter by ${label}`}
           className={cn(
             "gap-1.5",
             hasSelection && "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/5",
             className
           )}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
           {label}
           {hasSelection && (
-            <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--nvidia-green)] px-1 text-[10px] font-semibold text-white">
+            <span
+              className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--nvidia-green)] px-1 text-[10px] font-semibold text-white"
+              aria-hidden="true"
+            >
               1
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+          <ChevronDown className="h-3.5 w-3.5 opacity-50" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44">

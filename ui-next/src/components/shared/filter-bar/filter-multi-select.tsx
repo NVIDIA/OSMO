@@ -87,7 +87,7 @@ export function FilterMultiSelect<T extends string>({
   if (options.length <= 1) {
     return (
       <Button variant="outline" size="sm" disabled className={cn("gap-1.5", className)}>
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {options.length === 1 ? getLabel(options[0]) : label}
       </Button>
     );
@@ -99,20 +99,24 @@ export function FilterMultiSelect<T extends string>({
         <Button
           variant="outline"
           size="sm"
+          aria-label={hasSelection ? `${label}: ${selected.size} selected` : `Filter by ${label}`}
           className={cn(
             "gap-1.5",
             hasSelection && "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/5",
             className
           )}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
           {label}
           {hasSelection && (
-            <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--nvidia-green)] px-1 text-[10px] font-semibold text-white">
+            <span
+              className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--nvidia-green)] px-1 text-[10px] font-semibold text-white"
+              aria-hidden="true"
+            >
               {selected.size}
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+          <ChevronDown className="h-3.5 w-3.5 opacity-50" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
@@ -121,10 +125,11 @@ export function FilterMultiSelect<T extends string>({
           <>
             <div className="px-2 pb-2">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
                 <input
-                  type="text"
+                  type="search"
                   placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-8 w-full rounded-md border border-zinc-200 bg-transparent pl-7 pr-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-400 dark:border-zinc-700 dark:focus:border-zinc-500"
