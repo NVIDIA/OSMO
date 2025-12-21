@@ -176,8 +176,17 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
             {sortedNodes.map((node, idx) => (
               <tr
                 key={`${node.nodeName}-${node.platform}-${idx}`}
+                tabIndex={0}
+                role="button"
+                aria-label={`View details for node ${node.nodeName}`}
                 onClick={() => setSelectedNode(node)}
-                className="cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedNode(node);
+                  }
+                }}
+                className="cursor-pointer transition-colors hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#76b900] dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
               >
                 <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
                   <span className="block max-w-[200px] truncate" title={node.nodeName}>
