@@ -9,12 +9,9 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { usePools, type Pool, type PoolStatus } from "@/lib/api/adapter";
-import type { HTTPValidationError } from "@/lib/api/generated";
-import {
-  PoolStatus as PoolStatusEnum,
-  getPoolStatusDisplay,
-} from "@/lib/constants/ui";
+import { usePools, type Pool } from "@/lib/api/adapter";
+import { PoolStatus, type PoolStatus as PoolStatusType, type HTTPValidationError } from "@/lib/api/generated";
+import { getPoolStatusDisplay } from "@/lib/constants/ui";
 
 // =============================================================================
 // Types
@@ -22,7 +19,7 @@ import {
 
 export interface PoolGroup {
   /** Pool status for this group */
-  status: PoolStatus;
+  status: PoolStatusType;
   /** Pools in this group */
   pools: Pool[];
   /** Display icon (emoji) */
@@ -63,9 +60,9 @@ export interface UsePoolsListReturn {
 
   // Collapse behavior
   /** Toggle a section's collapsed state */
-  toggleSection: (status: PoolStatus) => void;
+  toggleSection: (status: PoolStatusType) => void;
   /** Check if a section is collapsed */
-  isSectionCollapsed: (status: PoolStatus, poolCount: number) => boolean;
+  isSectionCollapsed: (status: PoolStatusType, poolCount: number) => boolean;
 
   // Query state
   /** Loading state */
@@ -81,10 +78,10 @@ export interface UsePoolsListReturn {
 // =============================================================================
 
 /** Order in which status groups are displayed */
-const STATUS_ORDER: PoolStatus[] = [
-  PoolStatusEnum.ONLINE,
-  PoolStatusEnum.MAINTENANCE,
-  PoolStatusEnum.OFFLINE,
+const STATUS_ORDER: PoolStatusType[] = [
+  PoolStatus.ONLINE,
+  PoolStatus.MAINTENANCE,
+  PoolStatus.OFFLINE,
 ];
 
 // =============================================================================
@@ -101,7 +98,7 @@ export function usePoolsList(
 
   // Local state
   const [search, setSearch] = useState("");
-  const [manuallyToggled, setManuallyToggled] = useState<Set<PoolStatus>>(
+  const [manuallyToggled, setManuallyToggled] = useState<Set<PoolStatusType>>(
     new Set()
   );
 
@@ -143,7 +140,7 @@ export function usePoolsList(
   }, [pools, defaultPoolName]);
 
   // Toggle section collapse
-  const toggleSection = useCallback((status: PoolStatus) => {
+  const toggleSection = useCallback((status: PoolStatusType) => {
     setManuallyToggled((prev) => {
       const next = new Set(prev);
       if (next.has(status)) {
@@ -158,7 +155,7 @@ export function usePoolsList(
   // Check if section is collapsed
   // Empty sections are collapsed by default, but user can toggle them
   const isSectionCollapsed = useCallback(
-    (status: PoolStatus, poolCount: number): boolean => {
+    (status: PoolStatusType, poolCount: number): boolean => {
       const wasManuallyToggled = manuallyToggled.has(status);
       const isEmptyByDefault = poolCount === 0;
 

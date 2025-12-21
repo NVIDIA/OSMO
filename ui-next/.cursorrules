@@ -1,5 +1,13 @@
 # OSMO UI Development Rules
 
+## Core Principles
+
+1. **Minimize indirection** - Avoid unnecessary abstraction layers
+2. **Use generated code directly** - Import enums/types from `generated.ts`, don't re-export
+3. **Reduce complexity** - Collapse nesting and unnecessary wrappers
+4. **Transparency over magic** - Explicit imports over hidden re-exports
+5. **DRY but not over-abstracted** - Reuse code, but don't create layers for one use case
+
 ## Architecture
 
 ### Layer Pattern (Top to Bottom)
@@ -11,9 +19,18 @@ Page → Headless Hook → Adapter Hook → Generated API
 
 - **Pages** (`src/app/`): Compose hooks + components, minimal logic
 - **Headless hooks** (`src/headless/`): Business logic, filtering, state - NO UI
-- **Adapter hooks** (`src/lib/api/adapter/`): Clean types, transform backend quirks
+- **Adapter hooks** (`src/lib/api/adapter/`): Transform backend quirks to clean types
 - **Generated API** (`src/lib/api/generated.ts`): Auto-generated, don't edit
 - **Themed components** (`src/components/features/`): Presentation only
+
+### What Goes Where
+
+| Need | Where |
+|------|-------|
+| Enums (PoolStatus, BackendResourceType) | Import from `@/lib/api/generated` |
+| Transformed types (Pool, Resource) | Import from `@/lib/api/adapter` |
+| Hooks for fetching | Import from `@/lib/api/adapter` |
+| UI display config (colors, labels) | `@/lib/constants/ui.ts` |
 
 ### Component Organization
 - `src/components/ui/` - shadcn/ui primitives (Button, Input, Dialog)
@@ -21,21 +38,47 @@ Page → Headless Hook → Adapter Hook → Generated API
 - `src/components/features/` - Feature-specific themed components
 - `src/headless/` - Business logic hooks (no UI)
 
-## API Usage
+## API & Types
 
-**DO:**
+**Import enums directly from generated:**
 ```typescript
-import { usePools, usePoolResources } from "@/lib/api/adapter";
+import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
 ```
 
-**DON'T:**
+**Import types and hooks from adapter:**
 ```typescript
+import { usePools, type Pool, type Resource } from "@/lib/api/adapter";
+```
+
+**DON'T re-export generated types** - it creates indirection and hides the source.
+
+**DON'T import raw generated hooks** - use adapter hooks that handle transforms:
+```typescript
+// BAD
 import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
+
+// GOOD
+import { usePools } from "@/lib/api/adapter";
 ```
 
-- Always use adapter hooks - they provide clean types
-- Backend quirks are isolated in `src/lib/api/adapter/`
-- See `adapter/backend_todo.md` for known issues
+### Backend Adapter
+
+The adapter layer (`src/lib/api/adapter/`) transforms backend responses that UI cannot use directly. **If backend does something correctly, use it directly from generated.ts.**
+
+**Transform only what needs transforming:**
+- Strings that should be numbers → parse
+- Missing fields → provide defaults
+- Untyped dictionaries → extract typed values
+- Unit conversions (KiB→GiB) → convert
+
+**Use directly from generated.ts:**
+- Enums (PoolStatus, BackendResourceType) - values are correct
+- Error types - shape is correct
+
+The adapter should NOT:
+- Hide things that are already correct
+- Add business logic (that belongs in headless hooks)
+- Create unnecessary type aliases or re-exports
 
 ## Tech Stack
 - Next.js 16+ (App Router, Turbopack)
@@ -58,7 +101,18 @@ Organize magic strings/numbers in `src/lib/constants/`:
 - `roles.ts` - User roles and role checking
 - `storage.ts` - localStorage/cookie keys
 - `headers.ts` - Custom HTTP headers
-- `ui.ts` - Display configs (status colors, labels)
+- `ui.ts` - Display configs (colors, labels, icons)
+- `config.ts` - Runtime config, timing constants
+
+**Use generated enum values, not magic strings:**
+```typescript
+// BAD
+if (resource.resourceType === "SHARED") ...
+
+// GOOD
+import { BackendResourceType } from "@/lib/api/generated";
+if (resource.resourceType === BackendResourceType.SHARED) ...
+```
 
 ## Patterns
 
@@ -66,7 +120,8 @@ Organize magic strings/numbers in `src/lib/constants/`:
 - `'use client'` only when needed (interactivity, hooks)
 - Composition over inheritance
 - All components must be accessible (ARIA)
-- Props down, events up - no prop drilling through context
+- Props down, events up - explicit props, no prop drilling through context
+- **Explicit props over inferred behavior** - UI components should receive `showX` props rather than inferring from data absence
 
 ## Adding Features
 
@@ -75,6 +130,7 @@ Organize magic strings/numbers in `src/lib/constants/`:
 3. Create themed components in `src/components/features/feature/`
 4. Export from index.ts files
 5. Use adapter hooks for API data
+6. Import enums from generated.ts
 
 ## Auth
 
