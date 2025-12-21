@@ -37,15 +37,16 @@ interface ResourceTableProps {
   resources: Resource[];
   /** Show loading skeleton */
   isLoading?: boolean;
+  /** Show the Pools column (for cross-pool views) */
+  showPoolsColumn?: boolean;
   /**
-   * Pool context for the table.
-   * - If provided, ResourcePanel shows pool-specific configuration
-   * - If omitted, table works in "fleet" mode showing resources across pools
+   * Pool context for ResourcePanel display.
+   * When provided, ResourcePanel shows pool-specific task configurations.
    */
   poolName?: string;
   /**
    * Platform configurations for task config display in ResourcePanel.
-   * Optional - only needed when poolName is provided.
+   * Only used when poolName is provided.
    */
   platformConfigs?: Record<string, PlatformConfig>;
   /** Display mode: "free" shows available capacity, "used" shows utilization */
@@ -64,6 +65,7 @@ interface ResourceTableProps {
 export function ResourceTable({
   resources,
   isLoading,
+  showPoolsColumn = false,
   poolName,
   platformConfigs = {},
   displayMode = "free",
@@ -102,9 +104,6 @@ export function ResourceTable({
       return { column, direction: "asc" };
     });
   };
-
-  // Fleet mode: show pools column when no specific pool context
-  const isFleetMode = !poolName;
 
   // Sort resources
   // In "free" mode: resource columns sort by free value (total - used)
@@ -194,7 +193,7 @@ export function ResourceTable({
                 sort={sort}
                 onSort={handleSort}
               />
-              {isFleetMode && (
+              {showPoolsColumn && (
                 <SortableHeader
                   label="Pools"
                   column="pools"
@@ -259,7 +258,7 @@ export function ResourceTable({
                     {resource.name}
                   </span>
                 </td>
-                {isFleetMode && (
+                {showPoolsColumn && (
                   <td className="whitespace-nowrap px-4 py-3 text-zinc-500 dark:text-zinc-400">
                     <PoolsCell memberships={resource.poolMemberships} />
                   </td>

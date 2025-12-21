@@ -31,7 +31,7 @@ import type {
   PlatformConfig,
   Resource,
   PoolResourcesResponse,
-  FleetResourcesResponse,
+  AllResourcesResponse,
   ResourceType,
   ResourceCapacity,
   PoolMembership,
@@ -349,7 +349,7 @@ export function transformVersionResponse(rawResponse: unknown): Version | null {
 }
 
 /**
- * Transform backend ResourcesResponse to fleet-wide resources.
+ * Transform backend ResourcesResponse to cross-pool resources.
  *
  * Unlike pool-specific transform, this returns resources for ALL pools,
  * with one entry per resource (not per pool-platform combination).
@@ -357,9 +357,9 @@ export function transformVersionResponse(rawResponse: unknown): Version | null {
  * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
  * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
  */
-export function transformFleetResourcesResponse(
+export function transformAllResourcesResponse(
   rawResponse: unknown
-): FleetResourcesResponse {
+): AllResourcesResponse {
   // Cast to actual type (backend returns this, but OpenAPI types it wrong)
   const response = rawResponse as ResourcesResponse | undefined;
 

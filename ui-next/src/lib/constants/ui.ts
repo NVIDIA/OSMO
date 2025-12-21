@@ -99,3 +99,37 @@ export const CapacityMetrics = {
 } as const;
 
 export type CapacityMetricKey = keyof typeof CapacityMetrics;
+
+// =============================================================================
+// Resource Allocation Type Display
+// =============================================================================
+
+/**
+ * Display configuration for resource allocation types.
+ * Used for consistent styling of resource type badges across the UI.
+ */
+export const ResourceAllocationTypeDisplay = {
+  RESERVED: {
+    label: "Reserved",
+    className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  },
+  SHARED: {
+    label: "Shared",
+    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  },
+  UNUSED: {
+    label: "Unused",
+    className: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+  },
+} as const;
+
+/**
+ * Helper to get resource allocation type display configuration.
+ * Handles unknown values gracefully.
+ */
+export function getResourceAllocationTypeDisplay(type: string) {
+  return (
+    ResourceAllocationTypeDisplay[type as keyof typeof ResourceAllocationTypeDisplay] ??
+    ResourceAllocationTypeDisplay.UNUSED
+  );
+}

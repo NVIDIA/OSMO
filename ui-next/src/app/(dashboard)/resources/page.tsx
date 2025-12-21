@@ -12,7 +12,7 @@ import { Server, Cpu, Box, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ResourceTable, ResourceCapacitySummary } from "@/components/features/pools";
 import { FilterBar } from "@/components/shared/filter-bar";
-import { useResourcesFleet } from "@/headless";
+import { useAllResources } from "@/headless";
 import { heading } from "@/lib/styles";
 
 export default function ResourcesPage() {
@@ -40,7 +40,7 @@ export default function ResourcesPage() {
     removeFilter,
     clearAllFilters,
     isLoading,
-  } = useResourcesFleet();
+  } = useAllResources();
 
   return (
     <div className="space-y-6">
@@ -48,7 +48,7 @@ export default function ResourcesPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Fleet-wide resource view across all pools
+          View and filter resources across all pools
         </p>
       </div>
 
@@ -134,10 +134,10 @@ export default function ResourcesPage() {
           isLoading={isLoading}
         />
 
-        {/* Resource table - fleet mode (no poolName, no platformConfigs) */}
         <ResourceTable
           resources={filteredResources}
           isLoading={isLoading}
+          showPoolsColumn
           displayMode={displayMode}
         />
       </section>
