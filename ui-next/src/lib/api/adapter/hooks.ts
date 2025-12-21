@@ -19,10 +19,11 @@ import {
   transformPoolsResponse,
   transformPoolDetail,
   transformResourcesResponse,
+  transformFleetResourcesResponse,
   transformVersionResponse,
 } from "./transforms";
 
-import type { PoolResourcesResponse } from "./types";
+import type { PoolResourcesResponse, FleetResourcesResponse } from "./types";
 
 // =============================================================================
 // Pool Hooks
@@ -92,6 +93,30 @@ export function usePoolResources(poolName: string) {
 
   return {
     resources: result.resources,
+    platforms: result.platforms,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Fetch all resources across all pools (fleet view).
+ * Returns ideal Resource[] with proper capacity types.
+ */
+export function useAllResources() {
+  const query = useGetResourcesApiResourcesGet({
+    all_pools: true,
+  });
+
+  const result = useMemo((): FleetResourcesResponse => {
+    if (!query.data) return { resources: [], pools: [], platforms: [] };
+    return transformFleetResourcesResponse(query.data);
+  }, [query.data]);
+
+  return {
+    resources: result.resources,
+    pools: result.pools,
     platforms: result.platforms,
     isLoading: query.isLoading,
     error: query.error,
