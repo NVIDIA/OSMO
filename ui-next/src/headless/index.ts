@@ -34,3 +34,7 @@ export type {
   UsePoolDetailOptions,
   UsePoolDetailReturn,
 } from "./use-pool-detail";
+
+// Resources Fleet
+export { useResourcesFleet } from "./use-resources-fleet";
+export type { UseResourcesFleetReturn } from "./use-resources-fleet";
