@@ -1,21 +1,15 @@
 /**
- * Ideal types that the UI expects from the backend.
+ * Transformed types - the shape of data after backend quirks are fixed.
  *
- * These represent what a "perfect" backend API would return.
- * The adapter layer transforms actual backend responses into these types.
- *
- * When backend is fixed, these can be replaced with generated types directly.
+ * These interfaces define what transforms.ts produces.
+ * For enums that backend returns correctly, import from generated.ts directly.
  */
+
+import type { PoolStatus, BackendResourceType } from "../generated";
 
 // =============================================================================
 // Pool Types
 // =============================================================================
-
-/**
- * Status of a pool.
- * Uses uppercase to match backend enum values.
- */
-export type PoolStatus = "ONLINE" | "OFFLINE" | "MAINTENANCE";
 
 /**
  * Quota/usage information with proper numeric types.
@@ -47,7 +41,7 @@ export interface PlatformConfig {
 export interface Pool {
   name: string;
   description: string;
-  status: PoolStatus;
+  status: PoolStatus;  // From generated.ts
   quota: Quota;
   platforms: string[];
   /** Platform configurations keyed by platform name */
@@ -65,11 +59,6 @@ export interface PoolsResponse {
 // =============================================================================
 // Resource Types
 // =============================================================================
-
-/**
- * Type of resource allocation.
- */
-export type ResourceType = "RESERVED" | "SHARED" | "UNUSED";
 
 /**
  * Resource capacity for a specific resource type (gpu, cpu, etc).
@@ -107,7 +96,7 @@ export interface Resource {
   /** Resource name (corresponds to Kubernetes node name) */
   name: string;
   platform: string;
-  resourceType: ResourceType;
+  resourceType: BackendResourceType;  // From generated.ts
   backend: string;
   gpu: ResourceCapacity;
   cpu: ResourceCapacity;
