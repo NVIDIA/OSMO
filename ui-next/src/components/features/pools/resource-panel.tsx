@@ -57,15 +57,21 @@ export function ResourcePanel({
       <div
         className="fixed inset-0 z-40 min-h-screen bg-black/20 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Panel */}
-      <div className="fixed bottom-0 right-0 top-0 z-50 w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+      {/* Panel - WCAG 2.1 compliant slide-out */}
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resource-panel-title"
+        className="fixed bottom-0 right-0 top-0 z-50 w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+      >
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">{resource.name}</h2>
+              <h2 id="resource-panel-title" className="text-lg font-semibold">{resource.name}</h2>
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-xs font-medium",
@@ -80,8 +86,8 @@ export function ResourcePanel({
               {poolName && <> · {poolName}</>}
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close resource panel">
+            <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
 
@@ -206,7 +212,7 @@ export function ResourcePanel({
             </section>
           )}
         </div>
-      </div>
+      </aside>
     </>
   );
 }

@@ -91,8 +91,13 @@ export function CapacityBar({
         </div>
       </div>
 
-      {/* Bar */}
+      {/* Bar - WCAG 2.1 accessible progressbar */}
       <div
+        role="progressbar"
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-label={`${label}: ${formatCompact(used)} of ${formatCompact(total)}${unit ? ` ${unit}` : ""} used`}
         className={cn(
           barHeight,
           "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"

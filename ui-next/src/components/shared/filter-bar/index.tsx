@@ -111,21 +111,29 @@ export function FilterBar({
           {children}
         </div>
 
-        {/* Active filter chips */}
+        {/* Active filter chips - WCAG 2.1 accessible */}
         {hasFilters && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Filter className="h-3.5 w-3.5 text-zinc-400" />
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="region"
+            aria-label="Active filters"
+          >
+            <Filter className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
             {activeFilters.map((filter) => (
               <button
                 key={`${filter.type}-${filter.value}`}
                 onClick={() => onRemoveFilter(filter)}
+                aria-label={`Remove filter: ${getFilterLabel(filter)}`}
                 className={cn(
                   "group flex items-center gap-1.5 rounded-full border py-0.5 pl-2.5 pr-1.5 text-xs transition-colors",
                   chip.selected
                 )}
               >
                 <span>{getFilterLabel(filter)}</span>
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-black/10 transition-colors group-hover:bg-black/20 dark:bg-white/10 dark:group-hover:bg-white/20">
+                <span
+                  className="flex h-4 w-4 items-center justify-center rounded-full bg-black/10 transition-colors group-hover:bg-black/20 dark:bg-white/10 dark:group-hover:bg-white/20"
+                  aria-hidden="true"
+                >
                   <X className="h-2.5 w-2.5" />
                 </span>
               </button>
@@ -133,6 +141,7 @@ export function FilterBar({
             {activeFilters.length > 1 && (
               <button
                 onClick={onClearAll}
+                aria-label={`Clear all ${activeFilters.length} filters`}
                 className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               >
                 Clear all
