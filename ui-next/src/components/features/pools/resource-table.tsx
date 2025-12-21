@@ -1,5 +1,13 @@
 "use client";
 
+// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
 import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
@@ -20,19 +28,52 @@ interface SortState {
 }
 
 interface ResourceTableProps {
+  /** Array of resources to display */
   resources: Resource[];
+  /** Show loading skeleton */
   isLoading?: boolean;
-  poolName: string;
-  platformConfigs: Record<string, PlatformConfig>;
+  /**
+   * Pool context for the table.
+   * - If provided, ResourcePanel shows pool-specific configuration
+   * - If omitted, table works in "fleet" mode showing resources across pools
+   */
+  poolName?: string;
+  /**
+   * Platform configurations for task config display in ResourcePanel.
+   * Optional - only needed when poolName is provided.
+   */
+  platformConfigs?: Record<string, PlatformConfig>;
+  /** Display mode: "free" shows available capacity, "used" shows utilization */
   displayMode?: ResourceDisplayMode;
+  /**
+   * Custom click handler for row selection.
+   * If not provided, opens ResourcePanel.
+   */
+  onResourceClick?: (resource: Resource) => void;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function ResourceTable({ resources, isLoading, poolName, platformConfigs, displayMode = "free" }: ResourceTableProps) {
+export function ResourceTable({
+  resources,
+  isLoading,
+  poolName,
+  platformConfigs = {},
+  displayMode = "free",
+  onResourceClick,
+}: ResourceTableProps) {
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+
+  // Handle row click - use custom handler or default to panel
+  const handleResourceClick = (resource: Resource) => {
+    if (onResourceClick) {
+      onResourceClick(resource);
+    } else {
+      setSelectedResource(resource);
+    }
+  };
   const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
 
   // Reset sort when display mode changes (React pattern for resetting state on prop change)
@@ -181,11 +222,11 @@ export function ResourceTable({ resources, isLoading, poolName, platformConfigs,
                 tabIndex={0}
                 role="button"
                 aria-label={`View details for resource ${resource.name}`}
-                onClick={() => setSelectedResource(resource)}
+                onClick={() => handleResourceClick(resource)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelectedResource(resource);
+                    handleResourceClick(resource);
                   }
                 }}
                 className="cursor-pointer transition-colors hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#76b900] dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
@@ -216,13 +257,15 @@ export function ResourceTable({ resources, isLoading, poolName, platformConfigs,
         </table>
       </div>
 
-      {/* Resource detail panel */}
-      <ResourcePanel
-        resource={selectedResource}
-        poolName={poolName}
-        platformConfigs={platformConfigs}
-        onClose={() => setSelectedResource(null)}
-      />
+      {/* Resource detail panel - only render when not using custom handler */}
+      {!onResourceClick && (
+        <ResourcePanel
+          resource={selectedResource}
+          poolName={poolName}
+          platformConfigs={platformConfigs}
+          onClose={() => setSelectedResource(null)}
+        />
+      )}
     </>
   );
 }
