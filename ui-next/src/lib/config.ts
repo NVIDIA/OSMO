@@ -97,6 +97,11 @@ export const COPY_FEEDBACK_DURATION_MS = 2000;
 export const QUERY_STALE_TIME_MS = 60 * 1000; // 1 minute
 
 /**
+ * Stale time for expensive queries (e.g., all resources across pools).
+ */
+export const QUERY_STALE_TIME_EXPENSIVE_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
  * Maximum retry delay for React Query.
  */
 export const QUERY_MAX_RETRY_DELAY_MS = 5000;

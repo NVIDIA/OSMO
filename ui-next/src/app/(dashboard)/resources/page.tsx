@@ -9,7 +9,6 @@
 "use client";
 
 import { Server, Cpu, Box, Layers } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { ResourceTable, ResourceCapacitySummary } from "@/components/features/pools";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { useAllResources } from "@/headless";
