@@ -10,7 +10,9 @@
 
 import { useMemo } from "react";
 import { Cpu, HardDrive, MemoryStick, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
+import { CapacityMetrics } from "@/lib/constants";
 import type { Resource } from "@/lib/api/adapter";
 import type { ResourceDisplayMode } from "@/headless";
 
@@ -19,8 +21,11 @@ import type { ResourceDisplayMode } from "@/headless";
 // =============================================================================
 
 interface ResourceCapacitySummaryProps {
+  /** Array of resources to aggregate */
   resources: Resource[];
+  /** Display mode: "free" shows available, "used" shows utilization */
   displayMode?: ResourceDisplayMode;
+  /** Show loading skeleton */
   isLoading?: boolean;
 }
 
@@ -32,9 +37,38 @@ interface CapacityTotals {
 }
 
 // =============================================================================
+// Icon mapping for capacity metrics
+// =============================================================================
+
+const CAPACITY_ICONS: Record<keyof typeof CapacityMetrics, LucideIcon> = {
+  GPU: Zap,
+  CPU: Cpu,
+  MEMORY: MemoryStick,
+  STORAGE: HardDrive,
+};
+
+// =============================================================================
 // Component
 // =============================================================================
 
+/**
+ * Summary cards showing aggregated resource capacity.
+ *
+ * Displays total GPU, CPU, Memory, and Storage across a set of resources.
+ * Respects displayMode to show either free or used capacity.
+ *
+ * Designed for reuse in:
+ * - Pool detail page (filtered resources)
+ * - Resources fleet page (all resources or filtered subset)
+ *
+ * @example
+ * ```tsx
+ * <ResourceCapacitySummary
+ *   resources={filteredResources}
+ *   displayMode="free"
+ * />
+ * ```
+ */
 export function ResourceCapacitySummary({
   resources,
   displayMode = "free",
@@ -58,12 +92,13 @@ export function ResourceCapacitySummary({
     );
   }, [resources]);
 
-  // Shared card styles - equal width, fill container, wrap when narrow
-  const cardClass = "min-w-[140px] flex-1 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950";
+  // Grid layout: 1 col (mobile) → 2 col (sm) → 4 col (lg)
+  const gridClass = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3";
+  const cardClass = "rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950";
 
   if (isLoading) {
     return (
-      <div className="flex flex-wrap gap-3">
+      <div className={gridClass}>
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className={cardClass}>
             <div className="flex items-center gap-2 mb-1">
@@ -78,41 +113,25 @@ export function ResourceCapacitySummary({
   }
 
   return (
-    <div className="flex flex-wrap gap-3">
-      <CapacityCard
-        icon={Zap}
-        label="GPU"
-        used={totals.gpu.used}
-        total={totals.gpu.total}
-        displayMode={displayMode}
-        colorClass="text-purple-500"
-      />
-      <CapacityCard
-        icon={Cpu}
-        label="CPU"
-        used={totals.cpu.used}
-        total={totals.cpu.total}
-        displayMode={displayMode}
-        colorClass="text-blue-500"
-      />
-      <CapacityCard
-        icon={MemoryStick}
-        label="Memory"
-        used={totals.memory.used}
-        total={totals.memory.total}
-        unit="Gi"
-        displayMode={displayMode}
-        colorClass="text-emerald-500"
-      />
-      <CapacityCard
-        icon={HardDrive}
-        label="Storage"
-        used={totals.storage.used}
-        total={totals.storage.total}
-        unit="Gi"
-        displayMode={displayMode}
-        colorClass="text-amber-500"
-      />
+    <div className={gridClass}>
+      {(Object.keys(CapacityMetrics) as Array<keyof typeof CapacityMetrics>).map((key) => {
+        const metric = CapacityMetrics[key];
+        const Icon = CAPACITY_ICONS[key];
+        const capacityKey = metric.key as keyof typeof totals;
+        
+        return (
+          <CapacityCard
+            key={key}
+            icon={Icon}
+            label={metric.label}
+            used={totals[capacityKey].used}
+            total={totals[capacityKey].total}
+            unit={metric.unit}
+            displayMode={displayMode}
+            colorClass={metric.colorClass}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -147,7 +166,7 @@ function CapacityCard({
   const primaryLabel = displayMode === "free" ? "free" : "used";
 
   return (
-    <div className="min-w-[140px] flex-1 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
       {/* Header */}
       <div className="flex items-center gap-2 mb-1">
         <Icon className={cn("h-4 w-4", colorClass)} />
