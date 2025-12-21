@@ -53,7 +53,14 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
                   {pool.quota.used}/{pool.quota.limit}
                 </span>
               </div>
-              <div className={cn("mt-1 h-1.5", progressTrack)}>
+              <div
+                role="progressbar"
+                aria-valuenow={pool.quota.used}
+                aria-valuemin={0}
+                aria-valuemax={pool.quota.limit}
+                aria-label={`GPU quota: ${pool.quota.used} of ${pool.quota.limit} used`}
+                className={cn("mt-1 h-1.5", progressTrack)}
+              >
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",

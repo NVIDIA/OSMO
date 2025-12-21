@@ -165,11 +165,20 @@ function CapacityCard({
   const primaryValue = displayMode === "free" ? free : used;
   const primaryLabel = displayMode === "free" ? "free" : "used";
 
+  // Build accessible label
+  const accessibleLabel = total > 0
+    ? `${label}: ${formatCompact(primaryValue)}${unit ? ` ${unit}` : ""} ${primaryLabel} of ${formatCompact(total)}`
+    : `${label}: No capacity`;
+
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
+    <div
+      className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+      role="group"
+      aria-label={accessibleLabel}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 mb-1">
-        <Icon className={cn("h-4 w-4", colorClass)} />
+        <Icon className={cn("h-4 w-4", colorClass)} aria-hidden="true" />
         <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           {label}
         </span>
