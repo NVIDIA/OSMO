@@ -8,6 +8,7 @@
 
 "use client";
 
+import { useState } from "react";
 import { Search, X, ChevronDown, Filter, Cpu, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
@@ -59,6 +62,112 @@ interface FilterBarProps {
 // =============================================================================
 // Components
 // =============================================================================
+
+/**
+ * Platform dropdown with mini-search for long lists.
+ */
+function PlatformDropdown({
+  platforms,
+  selectedPlatforms,
+  onTogglePlatform,
+  onClearPlatformFilter,
+  hasPlatformFilter,
+}: {
+  platforms: string[];
+  selectedPlatforms: Set<string>;
+  onTogglePlatform: (platform: string) => void;
+  onClearPlatformFilter: () => void;
+  hasPlatformFilter: boolean;
+}) {
+  const [platformSearch, setPlatformSearch] = useState("");
+
+  const filteredPlatforms = platforms.filter((p) =>
+    p.toLowerCase().includes(platformSearch.toLowerCase())
+  );
+
+  return (
+    <DropdownMenu onOpenChange={(open) => !open && setPlatformSearch("")}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "gap-1.5",
+            hasPlatformFilter && "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/5"
+          )}
+        >
+          <Cpu className="h-3.5 w-3.5" />
+          Platform
+          {hasPlatformFilter && (
+            <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--nvidia-green)] px-1 text-[10px] font-semibold text-white">
+              {selectedPlatforms.size}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        {platforms.length === 1 ? (
+          // Single platform: show as informational
+          <DropdownMenuItem disabled className="opacity-100">
+            {platforms[0]}
+          </DropdownMenuItem>
+        ) : (
+          <>
+            {/* Mini search */}
+            <div className="px-2 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Search platforms..."
+                  value={platformSearch}
+                  onChange={(e) => setPlatformSearch(e.target.value)}
+                  className="h-8 w-full rounded-md border border-zinc-200 bg-transparent pl-7 pr-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-400 dark:border-zinc-700 dark:focus:border-zinc-500"
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+            <DropdownMenuSeparator className="my-1" />
+
+            {/* Platform list */}
+            <div className="max-h-48 overflow-y-auto">
+              {filteredPlatforms.length === 0 ? (
+                <div className="px-2 py-4 text-center text-sm text-zinc-500">
+                  No platforms found
+                </div>
+              ) : (
+                filteredPlatforms.map((platform) => (
+                  <DropdownMenuCheckboxItem
+                    key={platform}
+                    checked={selectedPlatforms.has(platform)}
+                    onCheckedChange={() => onTogglePlatform(platform)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {platform}
+                  </DropdownMenuCheckboxItem>
+                ))
+              )}
+            </div>
+
+            {/* Clear selection */}
+            {hasPlatformFilter && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={onClearPlatformFilter}
+                  className="text-zinc-500 dark:text-zinc-400"
+                >
+                  Clear selection
+                </DropdownMenuItem>
+              </>
+            )}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /**
  * Unified filter bar with search, dropdowns, and active filter chips.
@@ -119,53 +228,17 @@ export function FilterBar({
 
         {/* Platform dropdown */}
         {platforms.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={cn(
-                  "gap-1.5",
-                  hasPlatformFilter && "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/5"
-                )}
-              >
-                <Cpu className="h-3.5 w-3.5" />
-                Platform
-                {hasPlatformFilter && (
-                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--nvidia-green)] px-1 text-[10px] font-semibold text-white">
-                    {selectedPlatforms.size}
-                  </span>
-                )}
-                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              {platforms.map((platform) => (
-                <DropdownMenuCheckboxItem
-                  key={platform}
-                  checked={selectedPlatforms.has(platform)}
-                  onCheckedChange={() => onTogglePlatform(platform)}
-                >
-                  {platform}
-                </DropdownMenuCheckboxItem>
-              ))}
-              {hasPlatformFilter && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={onClearPlatformFilter}
-                    className="text-zinc-500 dark:text-zinc-400"
-                  >
-                    Clear selection
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <PlatformDropdown
+            platforms={platforms}
+            selectedPlatforms={selectedPlatforms}
+            onTogglePlatform={onTogglePlatform}
+            onClearPlatformFilter={onClearPlatformFilter}
+            hasPlatformFilter={hasPlatformFilter}
+          />
         )}
 
-        {/* Resource Type dropdown */}
-        {resourceTypes.length > 1 && (
+        {/* Resource Type dropdown (single-select) */}
+        {resourceTypes.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -187,25 +260,23 @@ export function FilterBar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44">
-              {resourceTypes.map((type) => (
-                <DropdownMenuCheckboxItem
-                  key={type}
-                  checked={selectedResourceTypes.has(type)}
-                  onCheckedChange={() => onToggleResourceType(type)}
+              {resourceTypes.length === 1 ? (
+                // Single type: show as informational, no filtering needed
+                <DropdownMenuItem disabled className="opacity-100">
+                  {resourceTypes[0]}
+                </DropdownMenuItem>
+              ) : (
+                // Multiple types: show as single-select radio items
+                <DropdownMenuRadioGroup
+                  value={[...selectedResourceTypes][0] ?? ""}
+                  onValueChange={(value) => onToggleResourceType(value as ResourceType)}
                 >
-                  {type}
-                </DropdownMenuCheckboxItem>
-              ))}
-              {hasResourceTypeFilter && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={onClearResourceTypeFilter}
-                    className="text-zinc-500 dark:text-zinc-400"
-                  >
-                    Clear selection
-                  </DropdownMenuItem>
-                </>
+                  {resourceTypes.map((type) => (
+                    <DropdownMenuRadioItem key={type} value={type}>
+                      {type}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -272,5 +343,3 @@ function getFilterLabel(filter: ActiveFilter): string {
       return filter.label;
   }
 }
-
-
