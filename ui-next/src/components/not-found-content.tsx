@@ -25,28 +25,24 @@ export function NotFoundContent() {
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center text-center">
-        {/* OSMO acronym as 404 message */}
-        <div className="mb-2 flex items-baseline gap-1">
-          <span className="text-4xl font-black text-[#76b900] sm:text-5xl">O</span>
-          <span className="text-4xl font-black text-zinc-300 dark:text-zinc-700 sm:text-5xl">ur</span>
-          <span className="ml-3 text-4xl font-black text-[#76b900] sm:text-5xl">S</span>
-          <span className="text-4xl font-black text-zinc-300 dark:text-zinc-700 sm:text-5xl">erver</span>
-        </div>
-        <div className="mb-6 flex items-baseline gap-1">
-          <span className="text-4xl font-black text-[#76b900] sm:text-5xl">M</span>
-          <span className="text-4xl font-black text-zinc-300 dark:text-zinc-700 sm:text-5xl">issed</span>
-          <span className="ml-3 text-4xl font-black text-[#76b900] sm:text-5xl">O</span>
-          <span className="text-4xl font-black text-zinc-300 dark:text-zinc-700 sm:text-5xl">ne...</span>
-        </div>
+        {/* 404 - prominent */}
+        <h1 className="text-6xl font-black text-[#76b900] sm:text-7xl">
+          404
+        </h1>
 
-        {/* 404 badge */}
-        <div className="mb-5 rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-          Error 404
-        </div>
+        {/* OSMO acronym subtitle */}
+        <p className="mb-6 mt-2 text-2xl text-zinc-400 dark:text-zinc-500 sm:text-3xl">
+          <span className="font-bold text-[#76b900]">O</span>ur{" "}
+          <span className="font-bold text-[#76b900]">S</span>erver{" "}
+          <span className="font-bold text-[#76b900]">M</span>issed{" "}
+          <span className="font-bold text-[#76b900]">O</span>ne...
+        </p>
 
         {/* Message */}
-        <p className="mb-6 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
+        <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+          The page you&apos;re looking for doesn&apos;t exist
+          <br />
+          or has been moved.
         </p>
 
         {/* Actions */}
