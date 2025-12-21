@@ -1,9 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { NodePanel } from "./node-panel";
 import type { Node, PlatformConfig } from "@/lib/api/adapter";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+type SortColumn = "node" | "platform" | "gpu" | "cpu" | "memory" | "storage";
+type SortDirection = "asc" | "desc";
+
+interface SortState {
+  column: SortColumn | null;
+  direction: SortDirection;
+}
 
 interface NodeTableProps {
   nodes: Node[];
@@ -12,8 +25,60 @@ interface NodeTableProps {
   platformConfigs: Record<string, PlatformConfig>;
 }
 
+// =============================================================================
+// Component
+// =============================================================================
+
 export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeTableProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
+
+  // Handle column header click
+  const handleSort = (column: SortColumn) => {
+    setSort((prev) => {
+      if (prev.column === column) {
+        // Same column: toggle direction, or clear if already desc
+        if (prev.direction === "asc") {
+          return { column, direction: "desc" };
+        }
+        return { column: null, direction: "asc" };
+      }
+      // New column: start with ascending
+      return { column, direction: "asc" };
+    });
+  };
+
+  // Sort nodes (resource columns sort by total capacity)
+  const sortedNodes = useMemo(() => {
+    if (!sort.column) return nodes;
+
+    const sorted = [...nodes].sort((a, b) => {
+      let cmp = 0;
+      switch (sort.column) {
+        case "node":
+          cmp = a.nodeName.localeCompare(b.nodeName);
+          break;
+        case "platform":
+          cmp = a.platform.localeCompare(b.platform);
+          break;
+        case "gpu":
+          cmp = a.gpu.total - b.gpu.total;
+          break;
+        case "cpu":
+          cmp = a.cpu.total - b.cpu.total;
+          break;
+        case "memory":
+          cmp = a.memory.total - b.memory.total;
+          break;
+        case "storage":
+          cmp = a.storage.total - b.storage.total;
+          break;
+      }
+      return sort.direction === "asc" ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [nodes, sort]);
 
   if (isLoading) {
     return (
@@ -48,28 +113,50 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeT
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
-              <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Node
-              </th>
-              <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Platform
-              </th>
-              <th className="whitespace-nowrap px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                GPU
-              </th>
-              <th className="whitespace-nowrap px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                CPU
-              </th>
-              <th className="whitespace-nowrap px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Memory
-              </th>
-              <th className="whitespace-nowrap px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Storage
-              </th>
+              <SortableHeader
+                label="Node"
+                column="node"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="Platform"
+                column="platform"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label="GPU"
+                column="gpu"
+                sort={sort}
+                onSort={handleSort}
+                align="right"
+              />
+              <SortableHeader
+                label="CPU"
+                column="cpu"
+                sort={sort}
+                onSort={handleSort}
+                align="right"
+              />
+              <SortableHeader
+                label="Memory"
+                column="memory"
+                sort={sort}
+                onSort={handleSort}
+                align="right"
+              />
+              <SortableHeader
+                label="Storage"
+                column="storage"
+                sort={sort}
+                onSort={handleSort}
+                align="right"
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {nodes.map((node, idx) => (
+            {sortedNodes.map((node, idx) => (
               <tr
                 key={`${node.nodeName}-${node.platform}-${idx}`}
                 onClick={() => setSelectedNode(node)}
@@ -109,6 +196,52 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs }: NodeT
         onClose={() => setSelectedNode(null)}
       />
     </>
+  );
+}
+
+function SortableHeader({
+  label,
+  column,
+  sort,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  column: SortColumn;
+  sort: SortState;
+  onSort: (column: SortColumn) => void;
+  align?: "left" | "right";
+}) {
+  const isActive = sort.column === column;
+
+  return (
+    <th
+      className={cn(
+        "whitespace-nowrap px-4 py-2 text-xs font-medium uppercase tracking-wider",
+        align === "right" ? "text-right" : "text-left"
+      )}
+    >
+      <button
+        onClick={() => onSort(column)}
+        className={cn(
+          "inline-flex items-center gap-1 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100",
+          isActive
+            ? "text-zinc-900 dark:text-zinc-100"
+            : "text-zinc-500 dark:text-zinc-400"
+        )}
+      >
+        {label}
+        {isActive ? (
+          sort.direction === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )
+        ) : (
+          <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+        )}
+      </button>
+    </th>
   );
 }
 
