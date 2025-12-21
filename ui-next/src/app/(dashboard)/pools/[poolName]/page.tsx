@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Server, Cpu, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NodeTable, QuotaBar } from "@/components/features/pools";
+import { ResourceTable, QuotaBar } from "@/components/features/pools";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { usePoolDetail } from "@/headless";
 import { getPoolStatusDisplay } from "@/lib/constants/ui";
@@ -19,9 +19,9 @@ export default function PoolDetailPage() {
     platforms,
     resourceTypes,
     platformConfigs,
-    filteredNodes,
-    nodeCount,
-    filteredNodeCount,
+    filteredResources,
+    resourceCount,
+    filteredResourceCount,
     search,
     setSearch,
     clearSearch,
@@ -86,16 +86,16 @@ export default function PoolDetailPage() {
         />
       )}
 
-      {/* Nodes section with unified filter bar */}
+      {/* Resources section with unified filter bar */}
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-zinc-400" />
-          <h2 className={heading.section}>Nodes</h2>
+          <h2 className={heading.section}>Resources</h2>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {filteredNodeCount !== nodeCount ? (
-              <>({filteredNodeCount} of {nodeCount})</>
+            {filteredResourceCount !== resourceCount ? (
+              <>({filteredResourceCount} of {resourceCount})</>
             ) : (
-              <>({nodeCount})</>
+              <>({resourceCount})</>
             )}
           </span>
         </div>
@@ -109,7 +109,7 @@ export default function PoolDetailPage() {
             value={search}
             onChange={setSearch}
             onClear={clearSearch}
-            placeholder="Search nodes..."
+            placeholder="Search resources..."
           />
 
           {platforms.length > 0 && (
@@ -148,8 +148,8 @@ export default function PoolDetailPage() {
           </FilterBar.Actions>
         </FilterBar>
 
-        <NodeTable
-          nodes={filteredNodes}
+        <ResourceTable
+          resources={filteredResources}
           isLoading={isLoading}
           poolName={poolName}
           platformConfigs={platformConfigs}

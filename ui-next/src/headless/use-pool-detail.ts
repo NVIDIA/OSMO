@@ -2,14 +2,14 @@
  * Headless hook for pool detail page behavior.
  *
  * Provides logic for viewing a single pool's details,
- * filtering nodes by search and platform, etc.
+ * filtering resources by search and platform, etc.
  */
 
 import { useState, useMemo, useCallback } from "react";
 import {
   usePool,
   usePoolResources,
-  type Node,
+  type Resource,
   type PlatformConfig,
   type ResourceType,
 } from "@/lib/api/adapter";
@@ -46,11 +46,11 @@ export interface UsePoolDetailReturn {
   resourceTypes: ResourceType[];
   platformConfigs: Record<string, PlatformConfig>;
 
-  // Node data
-  allNodes: Node[];
-  filteredNodes: Node[];
-  nodeCount: number;
-  filteredNodeCount: number;
+  // Resource data
+  allResources: Resource[];
+  filteredResources: Resource[];
+  resourceCount: number;
+  filteredResourceCount: number;
 
   // Unified filter state
   search: string;
@@ -108,7 +108,7 @@ export function usePoolDetail({
   } = usePool(poolName);
 
   const {
-    nodes,
+    resources,
     platforms,
     isLoading: resourcesLoading,
     error: resourcesError,
@@ -144,26 +144,26 @@ export function usePoolDetail({
     localStorage.setItem(StorageKeys.RESOURCE_DISPLAY_MODE, mode);
   }, []);
 
-  // Derive resource types from all nodes (not filtered)
+  // Derive resource types from all resources (not filtered)
   const resourceTypes = useMemo(() => {
     const types = new Set<ResourceType>();
-    nodes.forEach((node) => types.add(node.resourceType));
+    resources.forEach((resource) => types.add(resource.resourceType));
     return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
-  }, [nodes]);
+  }, [resources]);
 
-  // Filter nodes by search, platform, AND resource type
-  const filteredNodes = useMemo(() => {
-    let result = nodes;
+  // Filter resources by search, platform, AND resource type
+  const filteredResources = useMemo(() => {
+    let result = resources;
 
     // Filter by platform
     if (selectedPlatforms.size > 0) {
-      result = result.filter((node) => selectedPlatforms.has(node.platform));
+      result = result.filter((resource) => selectedPlatforms.has(resource.platform));
     }
 
     // Filter by resource type
     if (selectedResourceTypes.size > 0) {
-      result = result.filter((node) =>
-        selectedResourceTypes.has(node.resourceType)
+      result = result.filter((resource) =>
+        selectedResourceTypes.has(resource.resourceType)
       );
     }
 
@@ -171,15 +171,15 @@ export function usePoolDetail({
     if (search.trim()) {
       const query = search.toLowerCase();
       result = result.filter(
-        (node) =>
-          node.nodeName.toLowerCase().includes(query) ||
-          node.platform.toLowerCase().includes(query) ||
-          node.resourceType.toLowerCase().includes(query)
+        (resource) =>
+          resource.name.toLowerCase().includes(query) ||
+          resource.platform.toLowerCase().includes(query) ||
+          resource.resourceType.toLowerCase().includes(query)
       );
     }
 
     return result;
-  }, [nodes, search, selectedPlatforms, selectedResourceTypes]);
+  }, [resources, search, selectedPlatforms, selectedResourceTypes]);
 
   // Platform filter handlers
   const togglePlatform = useCallback((platform: string) => {
@@ -300,11 +300,11 @@ export function usePoolDetail({
     resourceTypes,
     platformConfigs: pool?.platformConfigs ?? {},
 
-    // Node data
-    allNodes: nodes,
-    filteredNodes,
-    nodeCount: nodes.length,
-    filteredNodeCount: filteredNodes.length,
+    // Resource data
+    allResources: resources,
+    filteredResources,
+    resourceCount: resources.length,
+    filteredResourceCount: filteredResources.length,
 
     // Search behavior
     search,

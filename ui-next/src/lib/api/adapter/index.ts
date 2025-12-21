@@ -7,7 +7,7 @@
  * Usage:
  * ```typescript
  * import { usePools, usePool, usePoolResources, useVersion } from "@/lib/api/adapter";
- * import type { Pool, Node, Version } from "@/lib/api/adapter";
+ * import type { Pool, Resource, Version } from "@/lib/api/adapter";
  * ```
  */
 
@@ -18,7 +18,7 @@ export type {
   PoolStatus,
   Quota,
   PlatformConfig,
-  Node,
+  Resource,
   PoolResourcesResponse,
   ResourceType,
   ResourceCapacity,
@@ -33,5 +33,5 @@ export {
   usePool,
   usePoolResources,
   useVersion,
-  useNodeDetail,
+  useResourceDetail,
 } from "./hooks";
