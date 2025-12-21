@@ -1,25 +1,17 @@
 /**
  * UI Display Constants
  *
- * Constants for UI rendering that depend on generated API types.
- * Import from here or from the main constants index.
+ * Configuration for UI rendering (display labels, styles, etc.).
+ * Import enums directly from @/lib/api/generated.
  */
 
-import { PoolStatus } from "@/lib/api/generated";
+import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
 
-// Re-export generated enums for convenience
-export {
-  PoolStatus,
-  type PoolStatus as PoolStatusType,
-  BackendResourceType,
-  type BackendResourceType as BackendResourceTypeType,
-  WorkflowStatus,
-  type WorkflowStatus as WorkflowStatusType,
-  WorkflowPriority,
-  type WorkflowPriority as WorkflowPriorityType,
-  TaskGroupStatus,
-  type TaskGroupStatus as TaskGroupStatusType,
-} from "@/lib/api/generated";
+/**
+ * All possible resource allocation types as an array.
+ * Use this instead of hardcoding ["SHARED", "RESERVED", "UNUSED"].
+ */
+export const ALL_RESOURCE_TYPES = Object.values(BackendResourceType) as BackendResourceType[];
 
 /**
  * Status display configuration for pools.
