@@ -12,6 +12,11 @@ import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
 import { ResourcePanel } from "./resource-panel";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Resource, PlatformConfig } from "@/lib/api/adapter";
 import type { ResourceDisplayMode } from "@/headless";
 
@@ -19,7 +24,7 @@ import type { ResourceDisplayMode } from "@/headless";
 // Types
 // =============================================================================
 
-type SortColumn = "resource" | "platform" | "gpu" | "cpu" | "memory" | "storage";
+type SortColumn = "resource" | "pools" | "platform" | "gpu" | "cpu" | "memory" | "storage";
 type SortDirection = "asc" | "desc";
 
 interface SortState {
@@ -98,6 +103,9 @@ export function ResourceTable({
     });
   };
 
+  // Fleet mode: show pools column when no specific pool context
+  const isFleetMode = !poolName;
+
   // Sort resources
   // In "free" mode: resource columns sort by free value (total - used)
   // In "used" mode: resource columns sort by used value
@@ -110,6 +118,13 @@ export function ResourceTable({
         case "resource":
           cmp = a.name.localeCompare(b.name);
           break;
+        case "pools": {
+          // Sort by first pool name (alphabetically)
+          const aFirstPool = a.poolMemberships[0]?.pool ?? "";
+          const bFirstPool = b.poolMemberships[0]?.pool ?? "";
+          cmp = aFirstPool.localeCompare(bFirstPool);
+          break;
+        }
         case "platform":
           cmp = a.platform.localeCompare(b.platform);
           break;
@@ -179,6 +194,14 @@ export function ResourceTable({
                 sort={sort}
                 onSort={handleSort}
               />
+              {isFleetMode && (
+                <SortableHeader
+                  label="Pools"
+                  column="pools"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+              )}
               <SortableHeader
                 label="Platform"
                 column="platform"
@@ -236,6 +259,11 @@ export function ResourceTable({
                     {resource.name}
                   </span>
                 </td>
+                {isFleetMode && (
+                  <td className="whitespace-nowrap px-4 py-3 text-zinc-500 dark:text-zinc-400">
+                    <PoolsCell memberships={resource.poolMemberships} />
+                  </td>
+                )}
                 <td className="whitespace-nowrap px-4 py-3 text-zinc-500 dark:text-zinc-400">
                   {resource.platform}
                 </td>
@@ -350,4 +378,58 @@ function CapacityCell({
       {unit && <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-0.5">{unit}</span>}
     </span>
   );
+}
+
+/**
+ * Pool cell showing 1 full pool name + "+N" for additional pools.
+ * Never truncates pool names - uses +N instead for clean display.
+ */
+function PoolsCell({
+  memberships,
+}: {
+  memberships: Resource["poolMemberships"];
+}) {
+  // Get unique pool names, sorted alphabetically
+  const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) =>
+    a.localeCompare(b)
+  );
+
+  if (pools.length === 0) {
+    return <span className="text-zinc-400 dark:text-zinc-600">—</span>;
+  }
+
+  // Always show exactly 1 full pool name, +N for the rest
+  const firstPool = pools[0];
+  const additionalCount = pools.length - 1;
+  const fullText = pools.join(", ");
+
+  const content = (
+    <span className="inline-flex items-center gap-1.5">
+      <span>{firstPool}</span>
+      {additionalCount > 0 && (
+        <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          +{additionalCount}
+        </span>
+      )}
+    </span>
+  );
+
+  // Show tooltip with full list when there are multiple pools
+  if (additionalCount > 0) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="text-left focus:outline-none">
+            {content}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={4}>
+          {fullText}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  // Single pool - no tooltip needed
+  return content;
 }
