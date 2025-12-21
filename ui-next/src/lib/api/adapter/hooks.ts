@@ -72,12 +72,12 @@ export function usePool(poolName: string) {
 }
 
 // =============================================================================
-// Resource/Node Hooks
+// Resource Hooks
 // =============================================================================
 
 /**
- * Fetch resources/nodes for a specific pool.
- * Returns ideal Node[] with proper capacity types.
+ * Fetch resources for a specific pool.
+ * Returns ideal Resource[] with proper capacity types.
  */
 export function usePoolResources(poolName: string) {
   const query = useGetResourcesApiResourcesGet({
@@ -86,12 +86,12 @@ export function usePoolResources(poolName: string) {
   });
 
   const result = useMemo((): PoolResourcesResponse => {
-    if (!query.data) return { nodes: [], platforms: [] };
+    if (!query.data) return { resources: [], platforms: [] };
     return transformResourcesResponse(query.data, poolName);
   }, [query.data, poolName]);
 
   return {
-    nodes: result.nodes,
+    resources: result.resources,
     platforms: result.platforms,
     isLoading: query.isLoading,
     error: query.error,
@@ -123,10 +123,10 @@ export function useVersion() {
 }
 
 // =============================================================================
-// Node Detail Hook
+// Resource Detail Hook
 // =============================================================================
 
-import type { PoolMembership, Node, PlatformConfig, TaskConfig } from "./types";
+import type { PoolMembership, Resource, PlatformConfig, TaskConfig } from "./types";
 import type { ResourcesResponse } from "../generated";
 
 /**
@@ -142,22 +142,22 @@ function extractPoolMemberships(
   data: unknown,
   resourceName: string
 ): PoolMembership[] {
-  let resources: ResourcesResponse["resources"] = [];
+  let backendResources: ResourcesResponse["resources"] = [];
   try {
     const parsed = typeof data === "string" ? JSON.parse(data) : data;
-    resources = (parsed as ResourcesResponse)?.resources ?? [];
+    backendResources = (parsed as ResourcesResponse)?.resources ?? [];
   } catch {
     return [];
   }
 
-  const resource = resources.find((r) => {
-    const nodeField = (r.exposed_fields as Record<string, unknown>)?.node;
-    return r.hostname === resourceName || nodeField === resourceName;
+  const backendResource = backendResources.find((r) => {
+    const nameField = (r.exposed_fields as Record<string, unknown>)?.node;
+    return r.hostname === resourceName || nameField === resourceName;
   });
 
-  if (!resource) return [];
+  if (!backendResource) return [];
 
-  const poolPlatformLabels = resource.pool_platform_labels ?? {};
+  const poolPlatformLabels = backendResource.pool_platform_labels ?? {};
   const memberships: PoolMembership[] = [];
 
   for (const [pool, platforms] of Object.entries(poolPlatformLabels)) {
@@ -170,9 +170,9 @@ function extractPoolMemberships(
 }
 
 /**
- * Hook for node detail panel.
+ * Hook for resource detail panel.
  * 
- * Encapsulates all business logic for displaying node details:
+ * Encapsulates all business logic for displaying resource details:
  * - Fetches full pool memberships (only for SHARED resources)
  * - Computes unique pool names for display
  * - Extracts task config from platform configs
@@ -180,26 +180,26 @@ function extractPoolMemberships(
  * IDEAL: Backend provides single `/api/resources/{name}` endpoint with all data.
  * Issue: BACKEND_TODOS.md#9
  */
-export function useNodeDetail(
-  node: Node | null,
+export function useResourceDetail(
+  resource: Resource | null,
   platformConfigs: Record<string, PlatformConfig>
 ) {
   // Business logic: Only SHARED resources can belong to multiple pools
   // RESERVED resources belong to a single pool (shown in header), no need to display
-  const isShared = node?.resourceType === "SHARED";
+  const isShared = resource?.resourceType === "SHARED";
   
   const query = useGetResourcesApiResourcesGet(
     { all_pools: true },
     {
       query: {
-        enabled: isShared && !!node?.nodeName,
+        enabled: isShared && !!resource?.name,
         staleTime: 5 * 60 * 1000, // Cache 5 minutes (expensive query)
       },
     }
   );
 
   const result = useMemo(() => {
-    if (!node) {
+    if (!resource) {
       return {
         pools: [] as string[],
         showPoolMembership: false,
@@ -210,9 +210,9 @@ export function useNodeDetail(
     // Only show pool membership for SHARED resources
     let pools: string[] = [];
     if (isShared) {
-      let memberships = node.poolMemberships;
+      let memberships = resource.poolMemberships;
       if (query.data) {
-        const fetched = extractPoolMemberships(query.data, node.nodeName);
+        const fetched = extractPoolMemberships(query.data, resource.name);
         if (fetched.length > 0) {
           memberships = fetched;
         }
@@ -221,7 +221,7 @@ export function useNodeDetail(
     }
 
     // Get task config for current platform
-    const platformConfig = platformConfigs[node.platform];
+    const platformConfig = platformConfigs[resource.platform];
     const taskConfig: TaskConfig | null = platformConfig
       ? {
           hostNetworkAllowed: platformConfig.hostNetworkAllowed,
@@ -232,7 +232,7 @@ export function useNodeDetail(
       : null;
 
     return { pools, showPoolMembership: isShared, taskConfig };
-  }, [node, query.data, isShared, platformConfigs]);
+  }, [resource, query.data, isShared, platformConfigs]);
 
   return {
     pools: result.pools,
