@@ -66,3 +66,36 @@ export const ResourceTypes = {
 } as const;
 
 export type ResourceType = (typeof ResourceTypes)[keyof typeof ResourceTypes];
+
+// =============================================================================
+// Resource Display Modes
+// =============================================================================
+
+/**
+ * Display mode for resource capacity values.
+ *
+ * - "free": Show available capacity (total - used)
+ * - "used": Show used capacity with total as reference
+ *
+ * This mode affects how capacity cells are rendered in tables
+ * and summary components.
+ */
+export const ResourceDisplayModes = {
+  FREE: "free",
+  USED: "used",
+} as const;
+
+export type ResourceDisplayMode = (typeof ResourceDisplayModes)[keyof typeof ResourceDisplayModes];
+
+/**
+ * Configuration for capacity metric types.
+ * Used for consistent labeling and formatting across the UI.
+ */
+export const CapacityMetrics = {
+  GPU: { key: "gpu", label: "GPU", unit: "", colorClass: "text-purple-500" },
+  CPU: { key: "cpu", label: "CPU", unit: "", colorClass: "text-blue-500" },
+  MEMORY: { key: "memory", label: "Memory", unit: "Gi", colorClass: "text-emerald-500" },
+  STORAGE: { key: "storage", label: "Storage", unit: "Gi", colorClass: "text-amber-500" },
+} as const;
+
+export type CapacityMetricKey = keyof typeof CapacityMetrics;
