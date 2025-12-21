@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Workflow,
   Layers,
+  Server,
   Settings,
   Shield,
   Key,
@@ -32,6 +33,7 @@ const userNav: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
+  { name: "Resources", href: "/resources", icon: Server },
 ];
 
 /** Bottom navigation - empty now (profile is in top-right header) */

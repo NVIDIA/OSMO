@@ -20,6 +20,7 @@ export type {
   PlatformConfig,
   Resource,
   PoolResourcesResponse,
+  FleetResourcesResponse,
   ResourceType,
   ResourceCapacity,
   PoolMembership,
@@ -32,6 +33,7 @@ export {
   usePools,
   usePool,
   usePoolResources,
+  useAllResources,
   useVersion,
   useResourceDetail,
 } from "./hooks";

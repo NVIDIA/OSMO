@@ -126,6 +126,15 @@ export interface PoolResourcesResponse {
   platforms: string[];
 }
 
+/**
+ * Response from the resources endpoint for fleet-wide queries (all pools).
+ */
+export interface FleetResourcesResponse {
+  resources: Resource[];
+  pools: string[];
+  platforms: string[];
+}
+
 // =============================================================================
 // Version Types
 // =============================================================================
