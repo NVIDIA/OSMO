@@ -63,7 +63,7 @@ export interface PoolsResponse {
 }
 
 // =============================================================================
-// Resource/Node Types
+// Resource Types
 // =============================================================================
 
 /**
@@ -80,7 +80,7 @@ export interface ResourceCapacity {
 }
 
 /**
- * Pool membership for a node (which pools/platforms a node belongs to).
+ * Pool membership for a resource (which pools/platforms a resource belongs to).
  */
 export interface PoolMembership {
   pool: string;
@@ -99,11 +99,13 @@ export interface TaskConfig {
 }
 
 /**
- * A node/resource entry with all relevant information.
+ * A resource entry with all relevant information.
+ * Represents a compute resource (machine) that can run workflows.
  */
-export interface Node {
+export interface Resource {
   hostname: string;
-  nodeName: string;
+  /** Resource name (corresponds to Kubernetes node name) */
+  name: string;
   platform: string;
   resourceType: ResourceType;
   backend: string;
@@ -112,7 +114,7 @@ export interface Node {
   memory: ResourceCapacity;
   storage: ResourceCapacity;
   conditions: string[];
-  /** All pools/platforms this node is a member of */
+  /** All pools/platforms this resource is a member of */
   poolMemberships: PoolMembership[];
 }
 
@@ -120,7 +122,7 @@ export interface Node {
  * Response from the resources endpoint for a specific pool.
  */
 export interface PoolResourcesResponse {
-  nodes: Node[];
+  resources: Resource[];
   platforms: string[];
 }
 

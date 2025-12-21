@@ -12,20 +12,20 @@ import { X, Check, Ban, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { cn, formatCompact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useNodeDetail, type Node, type PlatformConfig } from "@/lib/api/adapter";
+import { useResourceDetail, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 
-interface NodePanelProps {
-  node: Node | null;
+interface ResourcePanelProps {
+  resource: Resource | null;
   poolName: string;
   platformConfigs: Record<string, PlatformConfig>;
   onClose: () => void;
 }
 
-export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePanelProps) {
+export function ResourcePanel({ resource, poolName, platformConfigs, onClose }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
-  const { pools, showPoolMembership, taskConfig, isLoadingMemberships } = useNodeDetail(node, platformConfigs);
+  const { pools, showPoolMembership, taskConfig, isLoadingMemberships } = useResourceDetail(resource, platformConfigs);
 
-  if (!node) return null;
+  if (!resource) return null;
 
   return (
     <>
@@ -41,22 +41,22 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">{node.nodeName}</h2>
+              <h2 className="text-lg font-semibold">{resource.name}</h2>
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-xs font-medium",
-                  node.resourceType === "RESERVED"
+                  resource.resourceType === "RESERVED"
                     ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                    : node.resourceType === "SHARED"
+                    : resource.resourceType === "SHARED"
                       ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                       : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
                 )}
               >
-                {node.resourceType}
+                {resource.resourceType}
               </span>
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {node.platform} · {poolName}
+              {resource.platform} · {poolName}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -99,13 +99,13 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
           {/* Resource Capacity */}
           <section>
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Resource Capacity
+              Capacity
             </h3>
             <div className="space-y-3">
-              <ResourceBar label="GPU" used={node.gpu.used} total={node.gpu.total} />
-              <ResourceBar label="CPU" used={node.cpu.used} total={node.cpu.total} />
-              <ResourceBar label="Memory" used={node.memory.used} total={node.memory.total} unit="Gi" />
-              <ResourceBar label="Storage" used={node.storage.used} total={node.storage.total} unit="Gi" />
+              <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
+              <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
+              <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} unit="Gi" />
+              <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} unit="Gi" />
             </div>
           </section>
 
@@ -148,32 +148,32 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
           {/* Configuration */}
           <section>
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Node Info
+              Resource Info
             </h3>
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center justify-between py-1">
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
                   Backend
                 </span>
-                <span className="text-sm font-medium">{node.backend}</span>
+                <span className="text-sm font-medium">{resource.backend}</span>
               </div>
               <div className="flex items-center justify-between py-1">
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
                   Hostname
                 </span>
-                <span className="text-sm font-medium">{node.hostname}</span>
+                <span className="text-sm font-medium">{resource.hostname}</span>
               </div>
             </div>
           </section>
 
           {/* Conditions if any */}
-          {node.conditions.length > 0 && (
+          {resource.conditions.length > 0 && (
             <section>
               <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
                 Conditions
               </h3>
               <div className="flex flex-wrap gap-2">
-                {node.conditions.map((condition, idx) => (
+                {resource.conditions.map((condition, idx) => (
                   <span
                     key={idx}
                     className="inline-flex rounded bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
@@ -190,7 +190,7 @@ export function NodePanel({ node, poolName, platformConfigs, onClose }: NodePane
   );
 }
 
-function ResourceBar({
+function CapacityBar({
   label,
   used,
   total,

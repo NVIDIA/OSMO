@@ -11,7 +11,7 @@ All workarounds are quarantined in this **Backend Adapter Layer** (`src/lib/api/
 ┌─────────────────────────────────────────────────────────────────┐
 │                        UI COMPONENTS                            │
 │  (Clean code - no workarounds, uses ideal types)                │
-│  import { usePools, usePool, Node, Pool } from "@/lib/api/adapter"
+│  import { usePools, usePool, Resource, Pool } from "@/lib/api/adapter"
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -173,7 +173,7 @@ storage: extractCapacity(resource, "storage", "bytesToGiB"),
 When querying `/api/resources` with specific pools, `pool_platform_labels` only contains memberships for queried pools, not ALL pools the resource belongs to.
 
 **Example:**
-- Node belongs to: `isaac-hil`, `isaac-nightly`
+- Resource belongs to: `isaac-hil`, `isaac-nightly`
 - Query with `pools=isaac-hil` returns: `{"isaac-hil": ["x86-l20"]}`
 - Query with `all_pools=true` returns: `{"isaac-hil": ["x86-l20"], "isaac-nightly": ["x86-l20"]}`
 
@@ -214,7 +214,7 @@ To display full resource details (including all pool memberships and task config
 ```typescript
 interface ResourceDetail {
   hostname: string;
-  nodeName: string;
+  name: string;  // Resource name
   resourceType: "SHARED" | "RESERVED" | "UNUSED";
   poolMemberships: Array<{ pool: string; platform: string }>;
   capacity: { gpu, cpu, memory, storage };

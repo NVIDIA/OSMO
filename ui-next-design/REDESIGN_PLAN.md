@@ -755,6 +755,8 @@ See **[INFORMATION_ARCHITECTURE.md](./INFORMATION_ARCHITECTURE.md)** for complet
 
 - [Information Architecture](./INFORMATION_ARCHITECTURE.md) - Complete catalog of backend entities, actions, and user personas
 - [Developer Experience](./DEVELOPER_EXPERIENCE.md) - Day-to-day workflow, handling API changes, CI integration
+- [Resources Cross-Pool UX](./RESOURCES_CROSS_POOL_UX.md) - Design exploration for cross-pool resource experiences
+- [Resources Interaction Flows](./RESOURCES_INTERACTION_FLOWS.md) - Detailed user flows and wireframes for resources
 
 ---
 
