@@ -31,6 +31,7 @@ import type {
   PlatformConfig,
   Resource,
   PoolResourcesResponse,
+  FleetResourcesResponse,
   ResourceType,
   ResourceCapacity,
   PoolMembership,
@@ -344,5 +345,63 @@ export function transformVersionResponse(rawResponse: unknown): Version | null {
     minor: String(response.minor ?? "0"),
     revision: String(response.revision ?? "0"),
     hash: response.hash ? String(response.hash) : undefined,
+  };
+}
+
+/**
+ * Transform backend ResourcesResponse to fleet-wide resources.
+ *
+ * Unlike pool-specific transform, this returns resources for ALL pools,
+ * with one entry per resource (not per pool-platform combination).
+ *
+ * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
+ * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
+ */
+export function transformFleetResourcesResponse(
+  rawResponse: unknown
+): FleetResourcesResponse {
+  // Cast to actual type (backend returns this, but OpenAPI types it wrong)
+  const response = rawResponse as ResourcesResponse | undefined;
+
+  if (!response?.resources) {
+    return { resources: [], pools: [], platforms: [] };
+  }
+
+  const poolSet = new Set<string>();
+  const platformSet = new Set<string>();
+  const resources: Resource[] = [];
+
+  for (const backendResource of response.resources) {
+    const exposedFields = backendResource.exposed_fields ?? {};
+    const resourceName = String(exposedFields.node ?? backendResource.hostname ?? "");
+    const poolPlatforms = (exposedFields["pool/platform"] ?? []) as string[];
+
+    // Extract all pools and platforms from pool/platform list
+    const memberships: PoolMembership[] = [];
+    let primaryPlatform = "";
+
+    for (const pp of poolPlatforms) {
+      const [pool, platform] = pp.split("/");
+      if (pool && platform) {
+        poolSet.add(pool);
+        platformSet.add(platform);
+        memberships.push({ pool, platform });
+        if (!primaryPlatform) primaryPlatform = platform;
+      }
+    }
+
+    // Skip resources with no pool memberships
+    if (memberships.length === 0) continue;
+
+    // Create one resource entry (using first platform as primary)
+    const resource = transformResource(backendResource, resourceName, primaryPlatform);
+    resource.poolMemberships = memberships;
+    resources.push(resource);
+  }
+
+  return {
+    resources,
+    pools: Array.from(poolSet).sort(),
+    platforms: Array.from(platformSet).sort(),
   };
 }
