@@ -10,18 +10,43 @@
 
 import { X, Check, Ban, FolderOpen } from "lucide-react";
 import Link from "next/link";
-import { cn, formatCompact } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { CapacityBar } from "@/components/shared/capacity-bar";
 import { useResourceDetail, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 
 interface ResourcePanelProps {
+  /** Resource to display, or null to hide panel */
   resource: Resource | null;
-  poolName: string;
-  platformConfigs: Record<string, PlatformConfig>;
+  /**
+   * Pool context for displaying pool-specific information.
+   * If omitted, panel shows resource in "fleet" context.
+   */
+  poolName?: string;
+  /**
+   * Platform configurations for task config display.
+   * Only used when poolName is provided.
+   */
+  platformConfigs?: Record<string, PlatformConfig>;
+  /** Callback when panel is closed */
   onClose: () => void;
 }
 
-export function ResourcePanel({ resource, poolName, platformConfigs, onClose }: ResourcePanelProps) {
+/**
+ * Slide-in panel showing detailed resource information.
+ *
+ * Can be used in two contexts:
+ * 1. Pool context: Shows pool-specific task configurations
+ * 2. Fleet context: Shows resource across all pools (omit poolName)
+ *
+ * Reusable for both pool detail page and future resources fleet page.
+ */
+export function ResourcePanel({
+  resource,
+  poolName,
+  platformConfigs = {},
+  onClose,
+}: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
   const { pools, showPoolMembership, taskConfig, isLoadingMemberships } = useResourceDetail(resource, platformConfigs);
 
@@ -56,7 +81,8 @@ export function ResourcePanel({ resource, poolName, platformConfigs, onClose }: 
               </span>
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {resource.platform} · {poolName}
+              {resource.platform}
+              {poolName && <> · {poolName}</>}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -101,7 +127,7 @@ export function ResourcePanel({ resource, poolName, platformConfigs, onClose }: 
             <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
               Capacity
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
               <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
               <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} unit="Gi" />
@@ -190,56 +216,6 @@ export function ResourcePanel({ resource, poolName, platformConfigs, onClose }: 
   );
 }
 
-function CapacityBar({
-  label,
-  used,
-  total,
-  unit = "",
-}: {
-  label: string;
-  used: number;
-  total: number;
-  unit?: string;
-}) {
-  const free = total - used;
-  const percent = total > 0 ? (used / total) * 100 : 0;
-
-  const barColor =
-    percent > 90
-      ? "bg-red-500"
-      : percent > 70
-        ? "bg-amber-500"
-        : "bg-emerald-500";
-
-  return (
-    <div>
-      {/* Header: Label + Used/Total */}
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <div>
-          <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
-          <span className="ml-2 tabular-nums text-zinc-900 dark:text-zinc-100">
-            {formatCompact(used)}/{formatCompact(total)}
-          </span>
-          {unit && <span className="text-zinc-400 dark:text-zinc-500 text-xs ml-0.5">{unit}</span>}
-        </div>
-      </div>
-
-      {/* Bar */}
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-        <div
-          className={cn("h-full rounded-full transition-all", barColor)}
-          style={{ width: `${Math.min(percent, 100)}%` }}
-        />
-      </div>
-
-      {/* Free label on right */}
-      <div className="mt-1 flex justify-end text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
-        {formatCompact(free)}{unit && ` ${unit}`} free
-      </div>
-    </div>
-  );
-}
-
 function BooleanIndicator({ value }: { value: boolean }) {
   return (
     <span
@@ -276,3 +252,6 @@ function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
     </div>
   );
 }
+
+// NOTE: CapacityBar has been moved to @/components/shared/capacity-bar for reuse
+// across pool detail, resource detail, and fleet views.
