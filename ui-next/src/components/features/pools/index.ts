@@ -6,8 +6,8 @@
  */
 
 export { PoolRow, PoolRowSkeleton } from "./pool-row";
-export { NodePanel } from "./node-panel";
-export { NodeTable } from "./node-table";
+export { ResourcePanel } from "./resource-panel";
+export { ResourceTable } from "./resource-table";
 export { QuotaBar } from "./quota-bar";
 export { PlatformChips } from "./platform-chips";
 

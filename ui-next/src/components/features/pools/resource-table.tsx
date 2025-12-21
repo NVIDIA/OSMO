@@ -3,15 +3,15 @@
 import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
-import { NodePanel } from "./node-panel";
-import type { Node, PlatformConfig } from "@/lib/api/adapter";
+import { ResourcePanel } from "./resource-panel";
+import type { Resource, PlatformConfig } from "@/lib/api/adapter";
 import type { ResourceDisplayMode } from "@/headless";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type SortColumn = "node" | "platform" | "gpu" | "cpu" | "memory" | "storage";
+type SortColumn = "resource" | "platform" | "gpu" | "cpu" | "memory" | "storage";
 type SortDirection = "asc" | "desc";
 
 interface SortState {
@@ -19,8 +19,8 @@ interface SortState {
   direction: SortDirection;
 }
 
-interface NodeTableProps {
-  nodes: Node[];
+interface ResourceTableProps {
+  resources: Resource[];
   isLoading?: boolean;
   poolName: string;
   platformConfigs: Record<string, PlatformConfig>;
@@ -31,8 +31,8 @@ interface NodeTableProps {
 // Component
 // =============================================================================
 
-export function NodeTable({ nodes, isLoading, poolName, platformConfigs, displayMode = "free" }: NodeTableProps) {
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+export function ResourceTable({ resources, isLoading, poolName, platformConfigs, displayMode = "free" }: ResourceTableProps) {
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
 
   // Reset sort when display mode changes (React pattern for resetting state on prop change)
@@ -57,17 +57,17 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
     });
   };
 
-  // Sort nodes
+  // Sort resources
   // In "free" mode: resource columns sort by free value (total - used)
   // In "used" mode: resource columns sort by used value
-  const sortedNodes = useMemo(() => {
-    if (!sort.column) return nodes;
+  const sortedResources = useMemo(() => {
+    if (!sort.column) return resources;
 
-    const sorted = [...nodes].sort((a, b) => {
+    const sorted = [...resources].sort((a, b) => {
       let cmp = 0;
       switch (sort.column) {
-        case "node":
-          cmp = a.nodeName.localeCompare(b.nodeName);
+        case "resource":
+          cmp = a.name.localeCompare(b.name);
           break;
         case "platform":
           cmp = a.platform.localeCompare(b.platform);
@@ -97,7 +97,7 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
     });
 
     return sorted;
-  }, [nodes, sort, displayMode]);
+  }, [resources, sort, displayMode]);
 
   if (isLoading) {
     return (
@@ -116,11 +116,11 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
     );
   }
 
-  if (nodes.length === 0) {
+  if (resources.length === 0) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          No nodes found
+          No resources found
         </p>
       </div>
     );
@@ -133,8 +133,8 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <SortableHeader
-                label="Node"
-                column="node"
+                label="Resource"
+                column="resource"
                 sort={sort}
                 onSort={handleSort}
               />
@@ -175,40 +175,40 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {sortedNodes.map((node, idx) => (
+            {sortedResources.map((resource, idx) => (
               <tr
-                key={`${node.nodeName}-${node.platform}-${idx}`}
+                key={`${resource.name}-${resource.platform}-${idx}`}
                 tabIndex={0}
                 role="button"
-                aria-label={`View details for node ${node.nodeName}`}
-                onClick={() => setSelectedNode(node)}
+                aria-label={`View details for resource ${resource.name}`}
+                onClick={() => setSelectedResource(resource)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelectedNode(node);
+                    setSelectedResource(resource);
                   }
                 }}
                 className="cursor-pointer transition-colors hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#76b900] dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
               >
                 <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                  <span className="block max-w-[200px] truncate" title={node.nodeName}>
-                    {node.nodeName}
+                  <span className="block max-w-[200px] truncate" title={resource.name}>
+                    {resource.name}
                   </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-zinc-500 dark:text-zinc-400">
-                  {node.platform}
+                  {resource.platform}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.gpu.used} total={node.gpu.total} mode={displayMode} />
+                  <CapacityCell used={resource.gpu.used} total={resource.gpu.total} mode={displayMode} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.cpu.used} total={node.cpu.total} mode={displayMode} />
+                  <CapacityCell used={resource.cpu.used} total={resource.cpu.total} mode={displayMode} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.memory.used} total={node.memory.total} unit="Gi" mode={displayMode} />
+                  <CapacityCell used={resource.memory.used} total={resource.memory.total} unit="Gi" mode={displayMode} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <ResourceCell used={node.storage.used} total={node.storage.total} unit="Gi" mode={displayMode} />
+                  <CapacityCell used={resource.storage.used} total={resource.storage.total} unit="Gi" mode={displayMode} />
                 </td>
               </tr>
             ))}
@@ -216,12 +216,12 @@ export function NodeTable({ nodes, isLoading, poolName, platformConfigs, display
         </table>
       </div>
 
-      {/* Node detail panel */}
-      <NodePanel
-        node={selectedNode}
+      {/* Resource detail panel */}
+      <ResourcePanel
+        resource={selectedResource}
         poolName={poolName}
         platformConfigs={platformConfigs}
-        onClose={() => setSelectedNode(null)}
+        onClose={() => setSelectedResource(null)}
       />
     </>
   );
@@ -273,7 +273,7 @@ function SortableHeader({
   );
 }
 
-function ResourceCell({
+function CapacityCell({
   used,
   total,
   unit = "",
