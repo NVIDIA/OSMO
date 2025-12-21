@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Auto-generated API client
     "src/lib/api/generated.ts",
+    // E2E tests (Playwright, not React)
+    "e2e/**",
   ]),
 ]);
 
