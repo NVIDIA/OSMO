@@ -31,8 +31,15 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         </span>
       </div>
 
-      {/* Progress bar */}
-      <div className={cn("mt-3 h-3", progressTrack)}>
+      {/* Progress bar - WCAG 2.1 accessible progressbar */}
+      <div
+        role="progressbar"
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
+        className={cn("mt-3 h-3", progressTrack)}
+      >
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
