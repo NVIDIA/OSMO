@@ -210,3 +210,49 @@ For custom components, add to `src/components/features/`.
 | Forms | React Hook Form + Zod |
 | Icons | Lucide React |
 | API Codegen | orval (from OpenAPI) |
+
+---
+
+## Licenses
+
+All dependencies use **permissive licenses** compatible with commercial use.
+
+### Production Dependencies
+
+| License | Count | Key Packages |
+|---------|-------|--------------|
+| MIT | 21 | React, Next.js, Radix UI, TanStack Query/Table, zod, react-hook-form |
+| Apache-2.0 | 1 | class-variance-authority |
+| ISC | 1 | lucide-react |
+
+### Dev Dependencies
+
+| License | Count |
+|---------|-------|
+| MIT | 11 |
+| Apache-2.0 | 1 |
+
+### No Restrictive Licenses
+
+- ❌ No GPL (any version)
+- ❌ No LGPL
+- ❌ No AGPL
+- ❌ No copyleft licenses
+
+### shadcn/ui Components
+
+Components copied from [shadcn/ui](https://ui.shadcn.com/) are MIT licensed. Once copied into your project, they are yours to modify freely.
+
+### Verify Licenses
+
+Run the license checker to verify all dependencies:
+
+```bash
+# Check production deps
+npx license-checker --production --summary
+
+# Verify no restricted licenses
+npx license-checker --production --onlyAllow "MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC0-1.0;UNLICENSED"
+```
+
+The `UNLICENSED` entry is this project itself (marked `private: true` in package.json).
