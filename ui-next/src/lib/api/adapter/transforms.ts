@@ -16,23 +16,23 @@
  * When backend is fixed, these transforms can be simplified or removed.
  */
 
-import type {
-  PoolResponse,
-  PoolResourceUsage,
-  ResourcesResponse,
-  ResourcesEntry,
+import {
+  PoolStatus,
+  BackendResourceType,
+  type PoolResponse,
+  type PoolResourceUsage,
+  type ResourcesResponse,
+  type ResourcesEntry,
 } from "../generated";
 
 import type {
   Pool,
   PoolsResponse,
-  PoolStatus,
   Quota,
   PlatformConfig,
   Resource,
   PoolResourcesResponse,
   AllResourcesResponse,
-  ResourceType,
   ResourceCapacity,
   PoolMembership,
   Version,
@@ -151,7 +151,7 @@ function transformPool(backendPool: PoolResourceUsage): Pool {
   return {
     name: backendPool.name ?? "",
     description: backendPool.description ?? "",
-    status: (backendPool.status ?? "ONLINE") as PoolStatus,
+    status: backendPool.status ?? PoolStatus.ONLINE,
     quota: transformQuota(backendPool.resource_usage),
     platforms: Object.keys(backendPool.platforms ?? {}),
     platformConfigs,
@@ -272,7 +272,7 @@ function transformResource(
     hostname: backendResource.hostname ?? "",
     name: resourceName,
     platform,
-    resourceType: (backendResource.resource_type ?? "SHARED") as ResourceType,
+    resourceType: backendResource.resource_type ?? BackendResourceType.SHARED,
     backend: backendResource.backend ?? "",
     gpu: extractCapacity(backendResource, "gpu"),
     cpu: extractCapacity(backendResource, "cpu"),

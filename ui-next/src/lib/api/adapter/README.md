@@ -1,34 +1,42 @@
 # Backend Adapter Layer
 
-This module acts as an **anti-corruption layer** between the UI and the current backend API.
+This module transforms backend responses that the UI cannot use directly.
 
-## Purpose
+## Philosophy
 
-The UI is written assuming a "perfect" backend with ideal types and APIs. This adapter layer:
+**Transform only what needs transforming.**
 
-1. **Defines ideal types** (`types.ts`) - What the UI wants
-2. **Transforms data** (`transforms.ts`) - Converts backend responses to ideal types
-3. **Exposes clean hooks** (`hooks.ts`) - Ready-to-use hooks for UI components
+- If backend returns something correctly → use it directly from `generated.ts`
+- If backend returns something broken → transform it here
 
-## Why This Exists
+The adapter decouples UI from backend quirks, allowing UI development with a "perfect" backend in mind. But it should NOT hide things that are already correct.
 
-The backend API has some quirks (documented in `backend_todo.md`):
-- Response types incorrectly typed as `string` in OpenAPI
-- Numeric values returned as strings
-- Untyped dictionary fields
-- Missing response models
+## What Gets Transformed (adapter)
 
-Rather than spreading workarounds throughout the UI, they're quarantined here.
+| Issue | Transform |
+|-------|-----------|
+| Numeric values as strings | Parse to numbers |
+| Missing fields | Provide defaults |
+| Untyped dictionaries | Extract typed values |
+| Unit conversions (KiB→GiB) | Convert units |
+| Response typed as `unknown` | Cast to actual type |
 
-## How to Use
+## What Gets Used Directly (generated.ts)
 
-**In UI components:**
+| Thing | Why Direct |
+|-------|------------|
+| `PoolStatus` enum | Values are correct |
+| `BackendResourceType` enum | Values are correct |
+| Error types (`HTTPValidationError`) | Shape is correct |
+
+## Usage
+
 ```typescript
-// ✅ Use adapter hooks - clean, ideal types
-import { usePools, usePoolDetail } from "@/lib/api/adapter/hooks";
+// Enums - use directly from generated
+import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
 
-// ❌ Don't use generated hooks directly
-import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
+// Transformed types and hooks - use from adapter
+import { usePools, type Pool, type Resource } from "@/lib/api/adapter";
 ```
 
 ## When Backend is Fixed
@@ -36,14 +44,14 @@ import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
 As backend fixes are applied:
 
 1. Run `pnpm generate-api` to update generated types
-2. Remove the corresponding transform/shim from this adapter
-3. Eventually, this entire directory can be deleted when backend is "perfect"
+2. Remove the corresponding transform from `transforms.ts`
+3. Eventually, this directory shrinks as backend improves
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `types.ts` | Ideal types the UI expects |
-| `transforms.ts` | Functions to convert backend → ideal types |
+| `types.ts` | Transformed type shapes (post-transform) |
+| `transforms.ts` | Functions to convert backend → clean types |
 | `hooks.ts` | React Query hooks with automatic transformation |
-| `README.md` | This file |
+| `BACKEND_TODOS.md` | Documents backend issues and workarounds |
