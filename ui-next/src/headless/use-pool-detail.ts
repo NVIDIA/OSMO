@@ -5,7 +5,7 @@
  * filtering nodes by search and platform, etc.
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   usePool,
   usePoolResources,
@@ -14,6 +14,7 @@ import {
   type ResourceType,
 } from "@/lib/api/adapter";
 import type { HTTPValidationError } from "@/lib/api/generated";
+import { StorageKeys } from "@/lib/constants/storage";
 
 // =============================================================================
 // Types
@@ -65,8 +66,8 @@ export interface UsePoolDetailReturn {
   clearResourceTypeFilter: () => void;
 
   // Resource display mode (free vs used)
-  resourceDisplayMode: ResourceDisplayMode;
-  setResourceDisplayMode: (mode: ResourceDisplayMode) => void;
+  displayMode: ResourceDisplayMode;
+  setDisplayMode: (mode: ResourceDisplayMode) => void;
 
   // Active filters (for chips display)
   activeFilters: ActiveFilter[];
@@ -88,6 +89,11 @@ export interface UsePoolDetailReturn {
 
 /** All possible resource types for filtering */
 const ALL_RESOURCE_TYPES: ResourceType[] = ["SHARED", "RESERVED", "UNUSED"];
+
+/** Type guard for ResourceType */
+function isResourceType(value: string): value is ResourceType {
+  return ALL_RESOURCE_TYPES.includes(value as ResourceType);
+}
 
 export function usePoolDetail({
   poolName,
@@ -118,22 +124,21 @@ export function usePoolDetail({
   >(new Set());
 
   // Resource display mode (persisted to localStorage)
-  const [resourceDisplayMode, setResourceDisplayModeState] =
-    useState<ResourceDisplayMode>(() => {
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem("resourceDisplayMode");
-        if (stored === "free" || stored === "used") {
-          return stored;
-        }
-      }
-      return "free"; // Default to "free"
-    });
+  // Initialize with default, then sync from localStorage after mount to avoid hydration mismatch
+  const [displayMode, setDisplayModeState] =
+    useState<ResourceDisplayMode>("free");
 
-  const setResourceDisplayMode = useCallback((mode: ResourceDisplayMode) => {
-    setResourceDisplayModeState(mode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("resourceDisplayMode", mode);
+  // Sync with localStorage after mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
+    if (stored === "free" || stored === "used") {
+      setDisplayModeState(stored);
     }
+  }, []);
+
+  const setDisplayMode = useCallback((mode: ResourceDisplayMode) => {
+    setDisplayModeState(mode);
+    localStorage.setItem(StorageKeys.RESOURCE_DISPLAY_MODE, mode);
   }, []);
 
   // Derive resource types from all nodes (not filtered)
@@ -250,11 +255,13 @@ export function usePoolDetail({
         });
         break;
       case "resourceType":
-        setSelectedResourceTypes((prev) => {
-          const next = new Set(prev);
-          next.delete(filter.value as ResourceType);
-          return next;
-        });
+        if (isResourceType(filter.value)) {
+          setSelectedResourceTypes((prev) => {
+            const next = new Set(prev);
+            next.delete(filter.value);
+            return next;
+          });
+        }
         break;
     }
   }, []);
@@ -307,8 +314,8 @@ export function usePoolDetail({
     clearResourceTypeFilter,
 
     // Resource display mode
-    resourceDisplayMode,
-    setResourceDisplayMode,
+    displayMode,
+    setDisplayMode,
 
     // Active filters
     activeFilters,
