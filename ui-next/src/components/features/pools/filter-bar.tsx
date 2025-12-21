@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { clearButton, chip } from "@/lib/styles";
-import type { ActiveFilter } from "@/headless";
+import type { ActiveFilter, ResourceDisplayMode } from "@/headless";
 import type { ResourceType } from "@/lib/api/adapter";
 
 // =============================================================================
@@ -49,14 +49,14 @@ interface FilterBarProps {
   onToggleResourceType: (type: ResourceType) => void;
   onClearResourceTypeFilter: () => void;
 
+  // Resource display mode
+  resourceDisplayMode: ResourceDisplayMode;
+  onResourceDisplayModeChange: (mode: ResourceDisplayMode) => void;
+
   // Active filters
   activeFilters: ActiveFilter[];
   onRemoveFilter: (filter: ActiveFilter) => void;
   onClearAllFilters: () => void;
-
-  // Counts
-  totalCount: number;
-  filteredCount: number;
 }
 
 // =============================================================================
@@ -190,24 +190,23 @@ export function FilterBar({
   selectedResourceTypes,
   onToggleResourceType,
   onClearResourceTypeFilter,
+  resourceDisplayMode,
+  onResourceDisplayModeChange,
   activeFilters,
   onRemoveFilter,
   onClearAllFilters,
-  totalCount,
-  filteredCount,
 }: FilterBarProps) {
   const hasSearch = search.length > 0;
   const hasFilters = activeFilters.length > 0;
   const hasPlatformFilter = selectedPlatforms.size > 0;
   const hasResourceTypeFilter = selectedResourceTypes.size > 0;
-  const showingFiltered = hasFilters && filteredCount !== totalCount;
 
   return (
     <div className="space-y-3">
       {/* Filter controls row */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {/* Search input */}
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Search nodes..."
@@ -282,15 +281,33 @@ export function FilterBar({
           </DropdownMenu>
         )}
 
-        {/* Results count */}
-        <div className="ml-auto text-sm text-zinc-500 dark:text-zinc-400">
-          {showingFiltered ? (
-            <span>
-              {filteredCount} of {totalCount} nodes
-            </span>
-          ) : (
-            <span>{totalCount} nodes</span>
-          )}
+        {/* View by toggle (right side) */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">View by:</span>
+          <div className="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+            <button
+              onClick={() => onResourceDisplayModeChange("free")}
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
+                resourceDisplayMode === "free"
+                  ? "bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              )}
+            >
+              Free
+            </button>
+            <button
+              onClick={() => onResourceDisplayModeChange("used")}
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
+                resourceDisplayMode === "used"
+                  ? "bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              )}
+            >
+              Used
+            </button>
+          </div>
         </div>
       </div>
 

@@ -79,11 +79,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  
+
   /* Brand colors */
   --nvidia-green: #76b900;
   --nvidia-green-light: #9ed439;
-  
+
   /* Semantic status colors */
   --status-success: oklch(0.7 0.15 145);
   --status-warning: oklch(0.75 0.15 75);
@@ -122,7 +122,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  
+
   /* Brand colors - same in dark mode */
   --nvidia-green: #76b900;
   --nvidia-green-light: #9ed439;
@@ -131,6 +131,10 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    @apply h-full;
   }
   body {
     @apply bg-background text-foreground;
