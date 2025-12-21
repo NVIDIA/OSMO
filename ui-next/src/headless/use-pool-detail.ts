@@ -108,11 +108,10 @@ export function usePoolDetail({
     Set<ResourceType>
   >(new Set());
 
-  // Derive available resource types from nodes
+  // Derive resource types from all nodes (not filtered)
   const resourceTypes = useMemo(() => {
     const types = new Set<ResourceType>();
     nodes.forEach((node) => types.add(node.resourceType));
-    // Return in consistent order
     return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
   }, [nodes]);
 
@@ -132,7 +131,7 @@ export function usePoolDetail({
       );
     }
 
-    // Filter by search (matches node name, platform, resource type)
+    // Filter by search
     if (search.trim()) {
       const query = search.toLowerCase();
       result = result.filter(
@@ -159,12 +158,15 @@ export function usePoolDetail({
     setSelectedPlatforms(new Set());
   }, []);
 
-  // Resource type filter handlers
+  // Resource type filter handlers (single-select: selecting same type deselects)
   const toggleResourceType = useCallback((type: ResourceType) => {
     setSelectedResourceTypes((prev) => {
-      const next = new Set(prev);
-      next.has(type) ? next.delete(type) : next.add(type);
-      return next;
+      // If already selected, deselect (clear)
+      if (prev.has(type)) {
+        return new Set();
+      }
+      // Otherwise, select only this one
+      return new Set([type]);
     });
   }, []);
 
