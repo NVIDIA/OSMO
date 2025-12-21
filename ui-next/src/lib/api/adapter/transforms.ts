@@ -29,7 +29,7 @@ import type {
   PoolStatus,
   Quota,
   PlatformConfig,
-  Node,
+  Resource,
   PoolResourcesResponse,
   ResourceType,
   ResourceCapacity,
@@ -203,7 +203,7 @@ export function transformPoolDetail(
 }
 
 // =============================================================================
-// Resource/Node Transforms
+// Resource Transforms
 // =============================================================================
 
 type UnitConversion = "none" | "kibToGiB" | "bytesToGiB";
@@ -243,11 +243,11 @@ function extractCapacity(
 /**
  * Parse pool memberships from pool_platform_labels.
  * Note: This only contains memberships for the queried pool(s).
- * For full memberships, use useResourceInfo hook which calls the single resource endpoint.
+ * For full memberships, use useResourceDetail hook which calls the single resource endpoint.
  * Format: { "pool-name": ["platform1", "platform2"], ... }
  */
-function parsePoolMemberships(resource: ResourcesEntry): PoolMembership[] {
-  const poolPlatformLabels = resource.pool_platform_labels ?? {};
+function parsePoolMemberships(backendResource: ResourcesEntry): PoolMembership[] {
+  const poolPlatformLabels = backendResource.pool_platform_labels ?? {};
   const memberships: PoolMembership[] = [];
 
   for (const [pool, platforms] of Object.entries(poolPlatformLabels)) {
@@ -260,25 +260,25 @@ function parsePoolMemberships(resource: ResourcesEntry): PoolMembership[] {
 }
 
 /**
- * Transform backend ResourcesEntry to ideal Node type.
+ * Transform backend ResourcesEntry to ideal Resource type.
  */
-function transformNode(
-  resource: ResourcesEntry,
-  nodeName: string,
+function transformResource(
+  backendResource: ResourcesEntry,
+  resourceName: string,
   platform: string
-): Node {
+): Resource {
   return {
-    hostname: resource.hostname ?? "",
-    nodeName,
+    hostname: backendResource.hostname ?? "",
+    name: resourceName,
     platform,
-    resourceType: (resource.resource_type ?? "SHARED") as ResourceType,
-    backend: resource.backend ?? "",
-    gpu: extractCapacity(resource, "gpu"),
-    cpu: extractCapacity(resource, "cpu"),
-    memory: extractCapacity(resource, "memory", "kibToGiB"),   // Memory is in KiB
-    storage: extractCapacity(resource, "storage", "bytesToGiB"), // Storage is in bytes
-    conditions: resource.conditions ?? [],
-    poolMemberships: parsePoolMemberships(resource),
+    resourceType: (backendResource.resource_type ?? "SHARED") as ResourceType,
+    backend: backendResource.backend ?? "",
+    gpu: extractCapacity(backendResource, "gpu"),
+    cpu: extractCapacity(backendResource, "cpu"),
+    memory: extractCapacity(backendResource, "memory", "kibToGiB"),   // Memory is in KiB
+    storage: extractCapacity(backendResource, "storage", "bytesToGiB"), // Storage is in bytes
+    conditions: backendResource.conditions ?? [],
+    poolMemberships: parsePoolMemberships(backendResource),
   };
 }
 
@@ -296,15 +296,15 @@ export function transformResourcesResponse(
   const response = rawResponse as ResourcesResponse | undefined;
 
   if (!response?.resources) {
-    return { nodes: [], platforms: [] };
+    return { resources: [], platforms: [] };
   }
 
   const platformSet = new Set<string>();
-  const nodes: Node[] = [];
+  const resources: Resource[] = [];
 
-  for (const resource of response.resources) {
-    const exposedFields = resource.exposed_fields ?? {};
-    const nodeName = String(exposedFields.node ?? resource.hostname ?? "");
+  for (const backendResource of response.resources) {
+    const exposedFields = backendResource.exposed_fields ?? {};
+    const resourceName = String(exposedFields.node ?? backendResource.hostname ?? "");
     const poolPlatforms = (exposedFields["pool/platform"] ?? []) as string[];
 
     // Filter to only this pool's platforms
@@ -314,12 +314,12 @@ export function transformResourcesResponse(
 
     for (const platform of relevantPlatforms) {
       platformSet.add(platform);
-      nodes.push(transformNode(resource, nodeName, platform));
+      resources.push(transformResource(backendResource, resourceName, platform));
     }
   }
 
   return {
-    nodes,
+    resources,
     platforms: Array.from(platformSet).sort(),
   };
 }
