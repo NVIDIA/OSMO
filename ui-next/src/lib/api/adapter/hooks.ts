@@ -14,6 +14,8 @@ import {
   useGetResourcesApiResourcesGet,
   useGetVersionApiVersionGet,
 } from "../generated";
+import { QUERY_STALE_TIME_EXPENSIVE_MS } from "@/lib/config";
+import { BackendResourceType } from "../generated";
 
 import {
   transformPoolsResponse,
@@ -211,14 +213,14 @@ export function useResourceDetail(
 ) {
   // Business logic: Only SHARED resources can belong to multiple pools
   // RESERVED resources belong to a single pool (shown in header), no need to display
-  const isShared = resource?.resourceType === "SHARED";
+  const isShared = resource?.resourceType === BackendResourceType.SHARED;
   
   const query = useGetResourcesApiResourcesGet(
     { all_pools: true },
     {
       query: {
         enabled: isShared && !!resource?.name,
-        staleTime: 5 * 60 * 1000, // Cache 5 minutes (expensive query)
+        staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
       },
     }
   );

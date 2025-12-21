@@ -4,7 +4,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { card, skeleton, progressTrack, getProgressColor, badge } from "@/lib/styles";
 import type { Pool } from "@/lib/api/adapter";
-import { PoolStatus } from "@/lib/constants/ui";
+import { PoolStatus } from "@/lib/api/generated";
 
 interface PoolRowProps {
   pool: Pool;

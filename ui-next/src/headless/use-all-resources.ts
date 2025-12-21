@@ -19,10 +19,10 @@ import { useState, useMemo, useCallback } from "react";
 import {
   useAllResources as useAllResourcesQuery,
   type Resource,
-  type ResourceType,
 } from "@/lib/api/adapter";
-import type { HTTPValidationError } from "@/lib/api/generated";
+import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
+import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
 
 // =============================================================================
 // Types
@@ -53,7 +53,7 @@ export interface UseAllResourcesReturn {
   // Available filter options
   pools: string[];
   platforms: string[];
-  resourceTypes: ResourceType[];
+  resourceTypes: BackendResourceType[];
 
   // Unified filter state
   search: string;
@@ -69,8 +69,8 @@ export interface UseAllResourcesReturn {
   togglePlatform: (platform: string) => void;
   clearPlatformFilter: () => void;
 
-  selectedResourceTypes: Set<ResourceType>;
-  toggleResourceType: (type: ResourceType) => void;
+  selectedResourceTypes: Set<BackendResourceType>;
+  toggleResourceType: (type: BackendResourceType) => void;
   clearResourceTypeFilter: () => void;
 
   // Resource display mode (free vs used)
@@ -94,12 +94,9 @@ export interface UseAllResourcesReturn {
 // Hook
 // =============================================================================
 
-/** All possible resource types for filtering */
-const ALL_RESOURCE_TYPES: ResourceType[] = ["SHARED", "RESERVED", "UNUSED"];
-
-/** Type guard for ResourceType */
-function isResourceType(value: string): value is ResourceType {
-  return ALL_RESOURCE_TYPES.includes(value as ResourceType);
+/** Type guard for BackendResourceType */
+function isBackendResourceType(value: string): value is BackendResourceType {
+  return (ALL_RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
 export function useAllResources(): UseAllResourcesReturn {
@@ -117,7 +114,7 @@ export function useAllResources(): UseAllResourcesReturn {
   const [search, setSearch] = useState("");
   const [selectedPools, setSelectedPools] = useState<Set<string>>(new Set());
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
-  const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<ResourceType>>(new Set());
+  const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<BackendResourceType>>(new Set());
 
   // Resource display mode (persisted to localStorage)
   const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(() => {
@@ -137,7 +134,7 @@ export function useAllResources(): UseAllResourcesReturn {
 
   // Derive resource types from all resources
   const resourceTypes = useMemo(() => {
-    const types = new Set<ResourceType>();
+    const types = new Set<BackendResourceType>();
     resources.forEach((resource) => types.add(resource.resourceType));
     return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
   }, [resources]);
@@ -215,7 +212,7 @@ export function useAllResources(): UseAllResourcesReturn {
   }, []);
 
   // Resource type filter handlers (single-select: selecting same type deselects)
-  const toggleResourceType = useCallback((type: ResourceType) => {
+  const toggleResourceType = useCallback((type: BackendResourceType) => {
     setSelectedResourceTypes((prev) => {
       if (prev.has(type)) {
         return new Set();
@@ -292,7 +289,7 @@ export function useAllResources(): UseAllResourcesReturn {
         break;
       case "resourceType": {
         const resourceType = filter.value;
-        if (isResourceType(resourceType)) {
+        if (isBackendResourceType(resourceType)) {
           setSelectedResourceTypes((prev) => {
             const next = new Set(prev);
             next.delete(resourceType);

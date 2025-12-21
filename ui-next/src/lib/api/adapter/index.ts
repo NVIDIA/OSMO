@@ -1,27 +1,28 @@
 /**
  * Backend Adapter Layer
  *
- * This module provides clean, ideal types and hooks for the UI.
- * All backend workarounds are contained in transforms.ts.
+ * Transforms backend responses that UI cannot use directly.
+ * Things backend does correctly are used directly from generated.ts.
  *
  * Usage:
  * ```typescript
- * import { usePools, usePool, usePoolResources, useVersion } from "@/lib/api/adapter";
- * import type { Pool, Resource, Version } from "@/lib/api/adapter";
+ * // Transformed types and hooks
+ * import { usePools, type Pool, type Resource } from "@/lib/api/adapter";
+ *
+ * // Correct backend types - use directly
+ * import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
  * ```
  */
 
-// Ideal types
+// Transformed types (shapes after backend transforms)
 export type {
   Pool,
   PoolsResponse,
-  PoolStatus,
   Quota,
   PlatformConfig,
   Resource,
   PoolResourcesResponse,
   AllResourcesResponse,
-  ResourceType,
   ResourceCapacity,
   PoolMembership,
   TaskConfig,
