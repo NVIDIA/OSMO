@@ -1,14 +1,14 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
 import { useNavigation } from "@/lib/use-navigation";
-import type { NavItem } from "@/lib/navigation";
+import type { NavItem as NavItemType } from "@/lib/navigation";
 import { NvidiaLogo } from "@/components/nvidia-logo";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -17,15 +17,15 @@ import {
 } from "@/components/ui/tooltip";
 
 interface NavItemProps {
-  item: NavItem;
+  item: NavItemType;
   isActive: boolean;
   collapsed: boolean;
 }
 
-function NavItemLink({ item, isActive, collapsed }: NavItemProps) {
+function NavItem({ item, isActive, collapsed }: NavItemProps) {
   const Icon = item.icon;
 
-  return (
+  const linkContent = (
     <Link
       href={item.href}
       className={cn(
@@ -47,21 +47,19 @@ function NavItemLink({ item, isActive, collapsed }: NavItemProps) {
       </span>
     </Link>
   );
-}
 
-function NavItem({ item, isActive, collapsed }: NavItemProps) {
   if (collapsed) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <NavItemLink item={item} isActive={isActive} collapsed={collapsed} />
+          <span className="block">{linkContent}</span>
         </TooltipTrigger>
         <TooltipContent side="right">{item.name}</TooltipContent>
       </Tooltip>
     );
   }
 
-  return <NavItemLink item={item} isActive={isActive} collapsed={collapsed} />;
+  return linkContent;
 }
 
 export function Sidebar() {
@@ -69,23 +67,28 @@ export function Sidebar() {
   const { collapsed, toggle } = useSidebar();
 
   // Get navigation from hook (server-driven when wired up)
-  const { sections, bottomItems, isLoading } = useNavigation();
+  const { sections, isLoading } = useNavigation();
+
+  // Track if we've done initial load - only show skeleton on first render
+  const hasLoadedRef = useRef(false);
+  if (!isLoading && !hasLoadedRef.current) {
+    hasLoadedRef.current = true;
+  }
+  const showSkeleton = isLoading && !hasLoadedRef.current;
 
   const isItemActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href));
 
   return (
     <TooltipProvider delayDuration={0}>
-      {/* Wrapper for sidebar + toggle button */}
-      <div className="group relative flex h-full">
-        {/* Sidebar */}
-        <aside
-          id="sidebar-nav"
-          className={cn(
-            "flex h-full flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950",
-            collapsed ? "w-[52px]" : "w-48"
-          )}
-        >
+      {/* Sidebar */}
+      <aside
+        id="sidebar-nav"
+        className={cn(
+          "flex h-full flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950",
+          collapsed ? "w-[52px]" : "w-48"
+        )}
+      >
           {/* Logo */}
           <div
             className={cn(
@@ -114,8 +117,8 @@ export function Sidebar() {
 
           {/* Main navigation - rendered by section */}
           <nav className="flex-1 space-y-1 p-2">
-            {isLoading ? (
-              // Skeleton loader
+            {showSkeleton ? (
+              // Skeleton loader - only on initial load
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div
@@ -158,43 +161,41 @@ export function Sidebar() {
             )}
           </nav>
 
-          {/* Bottom section */}
+          {/* Bottom section - collapse toggle */}
           <div className="border-t border-zinc-200 p-2 dark:border-zinc-800">
-            {bottomItems.map((item) => (
-              <NavItem
-                key={item.href}
-                item={item}
-                isActive={isItemActive(item.href)}
-                collapsed={collapsed}
-              />
-            ))}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggle}
+                  aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  aria-expanded={!collapsed}
+                  aria-controls="sidebar-nav"
+                  className={cn(
+                    "flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ease-out text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100",
+                    collapsed ? "justify-center px-2" : "gap-3 px-3"
+                  )}
+                >
+                  {collapsed ? (
+                    <ArrowRightFromLine className="h-4 w-4 shrink-0" />
+                  ) : (
+                    <ArrowLeftToLine className="h-4 w-4 shrink-0" />
+                  )}
+                  <span
+                    className={cn(
+                      "transition-all duration-200 ease-out overflow-hidden whitespace-nowrap",
+                      collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+                    )}
+                  >
+                    Collapse
+                  </span>
+                </button>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right">Expand sidebar</TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </aside>
-
-        {/* Collapse/expand button - outside aside, won't be clipped */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={toggle}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-expanded={!collapsed}
-              aria-controls="sidebar-nav"
-              className="absolute -right-3 top-1/2 z-10 h-6 w-6 -translate-y-1/2 rounded-full border border-zinc-300 bg-white opacity-0 shadow-sm transition-opacity hover:bg-zinc-100 focus:opacity-100 group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-            >
-              {collapsed ? (
-                <ChevronRight className="h-3 w-3" />
-              ) : (
-                <ChevronLeft className="h-3 w-3" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            {collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          </TooltipContent>
-        </Tooltip>
-      </div>
     </TooltipProvider>
   );
 }
