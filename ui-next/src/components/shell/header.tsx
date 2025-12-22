@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
 import { useUser } from "@/lib/user-context";
+import { useVersion } from "@/lib/api/adapter";
 
 export function Header() {
   const { isAuthenticated, isSkipped, login, logout } = useAuth();
   const { user, isLoading } = useUser();
+  const { version } = useVersion();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -73,6 +75,17 @@ export function Header() {
               <DropdownMenuItem asChild>
                 <Link href="/profile">Profile Settings</Link>
               </DropdownMenuItem>
+              {version && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      OSMO {version.major}.{version.minor}.{version.revision}
+                      {version.hash && ` (${version.hash.slice(0, 7)})`}
+                    </p>
+                  </div>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 dark:text-red-400"
