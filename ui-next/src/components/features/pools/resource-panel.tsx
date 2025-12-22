@@ -8,7 +8,7 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, Check, Ban, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -258,7 +258,8 @@ function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
 
   // Update indicator position when selected pool changes
-  const updateIndicator = useCallback(() => {
+  // Using a ref to avoid re-attaching resize listener on every selectedPool change
+  const updateIndicator = () => {
     if (!tabsRef.current || !selectedPool) return;
 
     const container = tabsRef.current;
@@ -270,18 +271,23 @@ function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
         width: activeTab.offsetWidth,
       });
     }
-  }, [selectedPool]);
+  };
 
+  // Store the update function in a ref so resize handler always has latest version
+  const updateIndicatorRef = useRef(updateIndicator);
+  updateIndicatorRef.current = updateIndicator;
+
+  // Update indicator when selectedPool changes
   useEffect(() => {
     updateIndicator();
-  }, [updateIndicator]);
+  }, [selectedPool]);
 
-  // Also update on resize
+  // Attach resize listener once - uses ref to avoid re-attaching on state changes
   useEffect(() => {
-    const handleResize = () => updateIndicator();
+    const handleResize = () => updateIndicatorRef.current();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [updateIndicator]);
+  }, []);
 
   return (
     <div className="relative border-b border-zinc-200 dark:border-zinc-700" ref={tabsRef}>

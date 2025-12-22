@@ -31,31 +31,33 @@ export class ApiError extends Error {
   }
 }
 
-// Prevent concurrent refresh attempts
-let isRefreshing = false;
+// Shared refresh promise - all concurrent callers await the same promise
 let refreshPromise: Promise<string | null> | null = null;
 
 /**
  * Ensure we have a valid token, refreshing if needed.
+ * 
+ * Uses a shared promise pattern to prevent race conditions:
+ * - Multiple concurrent requests share the same refresh promise
+ * - The promise is reset only after refresh completes (success or failure)
+ * - No flags needed - the promise itself acts as the mutex
  */
 async function ensureValidToken(): Promise<string> {
   let token = getAuthToken();
   
   // If token is missing or expiring soon, try to refresh
   if (!token || isTokenExpiringSoon(token, TOKEN_REFRESH_THRESHOLD_SECONDS)) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      refreshPromise = refreshToken();
+    // Only create promise once - all concurrent callers share it
+    if (!refreshPromise) {
+      refreshPromise = refreshToken().finally(() => {
+        // Reset after complete (success or failure) so future calls can refresh again
+        refreshPromise = null;
+      });
     }
     
-    if (refreshPromise) {
-      const newToken = await refreshPromise;
-      isRefreshing = false;
-      refreshPromise = null;
-      
-      if (newToken) {
-        token = newToken;
-      }
+    const newToken = await refreshPromise;
+    if (newToken) {
+      token = newToken;
     }
   }
   
@@ -111,34 +113,36 @@ export const customFetch = async <T>(
     throw new ApiError(`Network error: ${message}`, 0, false);
   }
 
-  // Handle auth errors - try to refresh token once
+  // Handle auth errors - try to refresh token once using shared promise pattern
   if (response.status === 401 || response.status === 403) {
-    // Only attempt refresh if we're not already refreshing
-    if (!isRefreshing) {
-      isRefreshing = true;
-      const newToken = await refreshToken();
-      isRefreshing = false;
+    // Use the same shared promise pattern to prevent concurrent refresh attempts
+    if (!refreshPromise) {
+      refreshPromise = refreshToken().finally(() => {
+        refreshPromise = null;
+      });
+    }
 
-      if (newToken) {
-        // Retry the request with the new token
-        const retryResponse = await fetch(fullUrl, {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-            [AuthHeaders.AUTH]: newToken,
-            ...headers,
-          },
-          body: data ? JSON.stringify(data) : undefined,
-          signal,
-          credentials: "include",
-          ...options,
-        });
+    const newToken = await refreshPromise;
 
-        if (retryResponse.ok) {
-          const text = await retryResponse.text();
-          if (!text) return {} as T;
-          return JSON.parse(text);
-        }
+    if (newToken) {
+      // Retry the request with the new token
+      const retryResponse = await fetch(fullUrl, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          [AuthHeaders.AUTH]: newToken,
+          ...headers,
+        },
+        body: data ? JSON.stringify(data) : undefined,
+        signal,
+        credentials: "include",
+        ...options,
+      });
+
+      if (retryResponse.ok) {
+        const text = await retryResponse.text();
+        if (!text) return {} as T;
+        return JSON.parse(text);
       }
     }
 

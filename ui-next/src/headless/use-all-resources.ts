@@ -23,25 +23,11 @@ import {
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
+import type { ActiveFilter, AllResourcesFilterType, ResourceDisplayMode } from "./types";
 
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Represents an active filter that can be displayed and removed.
- * Uses string type for compatibility with FilterBar component.
- */
-export interface ActiveFilter {
-  type: string;
-  value: string;
-  label: string;
-}
-
-/**
- * Display mode for resource values: show "free" or "used" amounts.
- */
-export type ResourceDisplayMode = "free" | "used";
 
 export interface UseAllResourcesReturn {
   // Resource data
@@ -78,8 +64,8 @@ export interface UseAllResourcesReturn {
   setDisplayMode: (mode: ResourceDisplayMode) => void;
 
   // Active filters (for chips display)
-  activeFilters: ActiveFilter[];
-  removeFilter: (filter: ActiveFilter) => void;
+  activeFilters: ActiveFilter<AllResourcesFilterType>[];
+  removeFilter: (filter: ActiveFilter<AllResourcesFilterType>) => void;
   clearAllFilters: () => void;
   hasActiveFilter: boolean;
   filterCount: number;
@@ -229,8 +215,8 @@ export function useAllResources(): UseAllResourcesReturn {
   const clearSearch = useCallback(() => setSearch(""), []);
 
   // Build active filters for chips display
-  const activeFilters = useMemo<ActiveFilter[]>(() => {
-    const filters: ActiveFilter[] = [];
+  const activeFilters = useMemo<ActiveFilter<AllResourcesFilterType>[]>(() => {
+    const filters: ActiveFilter<AllResourcesFilterType>[] = [];
 
     if (search.trim()) {
       filters.push({
@@ -268,7 +254,7 @@ export function useAllResources(): UseAllResourcesReturn {
   }, [search, selectedPools, selectedPlatforms, selectedResourceTypes]);
 
   // Remove a specific filter
-  const removeFilter = useCallback((filter: ActiveFilter) => {
+  const removeFilter = useCallback((filter: ActiveFilter<AllResourcesFilterType>) => {
     switch (filter.type) {
       case "search":
         setSearch("");
