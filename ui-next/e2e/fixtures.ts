@@ -28,10 +28,19 @@ import {
 // Types for test scenario data
 // =============================================================================
 
+export interface ApiErrorScenario {
+  status: number;
+  detail: string;
+}
+
 export interface TestScenarioData {
   pools?: PoolResponse;
   resources?: ResourcesResponse;
   version?: { major: number; minor: number; revision: number; hash?: string };
+  /** Force pools API to return an error */
+  poolsError?: ApiErrorScenario;
+  /** Force resources API to return an error */
+  resourcesError?: ApiErrorScenario;
 }
 
 export interface AuthScenarioData {
@@ -102,7 +111,14 @@ export const test = base.extend<{
 
     // Always mock pools
     await page.route("**/api/pool_quota*", async (route) => {
-      if (scenarioState.auth.apiError) {
+      // Check for explicit pool error scenario
+      if (scenarioState.data.poolsError) {
+        await route.fulfill({
+          status: scenarioState.data.poolsError.status,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: scenarioState.data.poolsError.detail }),
+        });
+      } else if (scenarioState.auth.apiError) {
         const status = scenarioState.auth.apiError === "forbidden" ? 403 : 401;
         const body = scenarioState.auth.apiError === "forbidden" ? mockApiForbidden : mockApiUnauthorized;
         await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -117,7 +133,14 @@ export const test = base.extend<{
 
     // Always mock resources
     await page.route("**/api/resources*", async (route) => {
-      if (scenarioState.auth.apiError) {
+      // Check for explicit resources error scenario
+      if (scenarioState.data.resourcesError) {
+        await route.fulfill({
+          status: scenarioState.data.resourcesError.status,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: scenarioState.data.resourcesError.detail }),
+        });
+      } else if (scenarioState.auth.apiError) {
         const status = scenarioState.auth.apiError === "forbidden" ? 403 : 401;
         const body = scenarioState.auth.apiError === "forbidden" ? mockApiForbidden : mockApiUnauthorized;
         await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
