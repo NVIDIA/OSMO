@@ -8,12 +8,12 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { X, Check, Ban, FolderOpen, Layers } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { X, Check, Ban, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CapacityBar } from "@/components/shared/capacity-bar";
-import { ResponsivePoolChips } from "@/components/shared/responsive-pool-chips";
-import { useResourceDetail, type Resource, type PlatformConfig } from "@/lib/api/adapter";
+import { useResourceDetail, type Resource, type PlatformConfig, type TaskConfig } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 
 interface ResourcePanelProps {
@@ -25,8 +25,8 @@ interface ResourcePanelProps {
    */
   poolName?: string;
   /**
-   * Platform configurations for task config display.
-   * Only used when poolName is provided.
+   * @deprecated Platform configurations are now fetched automatically.
+   * This prop is kept for backward compatibility but is no longer used.
    */
   platformConfigs?: Record<string, PlatformConfig>;
   /** Callback when panel is closed */
@@ -36,9 +36,8 @@ interface ResourcePanelProps {
 /**
  * Slide-in panel showing detailed resource information.
  *
- * Can be used in two contexts:
- * 1. Pool context: Shows pool-specific task configurations (provide poolName)
- * 2. Cross-pool context: Shows resource across all pools (omit poolName)
+ * Shows pool-agnostic info (capacity, resource info, conditions) at the top,
+ * and pool-specific task configurations in a tabbed interface below.
  */
 export function ResourcePanel({
   resource,
@@ -47,11 +46,22 @@ export function ResourcePanel({
   onClose,
 }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
-  const { pools, primaryPool, taskConfig, isLoadingPools } = useResourceDetail(
+  const { pools, initialPool, taskConfigByPool, isLoadingPools } = useResourceDetail(
     resource,
     platformConfigs,
-    poolName // Pass context pool to determine primary
+    poolName // Pass context pool to determine initial selection
   );
+
+  // Track selected pool tab
+  const [selectedPool, setSelectedPool] = useState<string | null>(null);
+
+  // Reset selected pool when resource changes or initial pool changes
+  useEffect(() => {
+    setSelectedPool(initialPool);
+  }, [initialPool, resource?.name]);
+
+  // Get task config for selected pool
+  const taskConfig = selectedPool ? taskConfigByPool[selectedPool] ?? null : null;
 
   if (!resource) return null;
 
@@ -95,128 +105,246 @@ export function ResourcePanel({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
-          {/* Resource Capacity */}
-          <section>
-            <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Capacity
-            </h3>
-            <div className="space-y-4">
-              <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
-              <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
-              <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} unit="Gi" />
-              <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} unit="Gi" />
-            </div>
-          </section>
-
-          {/* Task Configurations */}
-          {taskConfig && (
+        <div className="flex-1 overflow-y-auto">
+          {/* Pool-Agnostic Section */}
+          <div className="space-y-6 border-b border-zinc-200 p-6 dark:border-zinc-800">
+            {/* Resource Capacity */}
             <section>
               <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Task Configurations
+                Capacity
               </h3>
-              <div className="space-y-3">
-                {/* Boolean flags */}
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                      Host Network Allowed
+              <div className="space-y-4">
+                <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
+                <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
+                <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} unit="Gi" />
+                <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} unit="Gi" />
+              </div>
+            </section>
+
+            {/* Resource Info */}
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Resource Info
+              </h3>
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Backend
+                  </span>
+                  <span className="text-sm font-medium">{resource.backend}</span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Hostname
+                  </span>
+                  <span className="text-sm font-medium">{resource.hostname}</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Conditions if any */}
+            {resource.conditions.length > 0 && (
+              <section>
+                <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  Conditions
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {resource.conditions.map((condition, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex rounded bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    >
+                      {condition}
                     </span>
-                    <BooleanIndicator value={taskConfig.hostNetworkAllowed} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Pool-Specific Section */}
+          <div className="p-6">
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Pool Configuration
+              </h3>
+              
+              {isLoadingPools ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="h-16 rounded bg-zinc-200 dark:bg-zinc-800" />
+                </div>
+              ) : pools.length === 0 ? (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  This resource is not a member of any pool.
+                </p>
+              ) : pools.length === 1 ? (
+                // Single pool - flat styling
+                <div>
+                  <div className="mb-4 border-b border-zinc-200 pb-2 dark:border-zinc-700">
+                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                      {pools[0]}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                      Privileged Mode Allowed
-                    </span>
-                    <BooleanIndicator value={taskConfig.privilegedAllowed} />
+                  {taskConfig ? (
+                    <TaskConfigContent config={taskConfig} />
+                  ) : (
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      No configuration available for this platform.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                // Multiple pools - tabs with flat content
+                <div>
+                  <PoolTabs
+                    pools={pools}
+                    selectedPool={selectedPool}
+                    onSelectPool={setSelectedPool}
+                  />
+                  <div className="pt-4">
+                    {taskConfig ? (
+                      <TaskConfigContent config={taskConfig} />
+                    ) : (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        No configuration available for this platform in {selectedPool}.
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                {/* Default Mounts */}
-                {taskConfig.defaultMounts.length > 0 && (
-                  <MountsList title="Default Mounts" mounts={taskConfig.defaultMounts} />
-                )}
-
-                {/* Allowed Mounts */}
-                {taskConfig.allowedMounts.length > 0 && (
-                  <MountsList title="Allowed Mounts" mounts={taskConfig.allowedMounts} />
-                )}
-              </div>
+              )}
             </section>
-          )}
-
-          {/* Configuration */}
-          <section>
-            <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Resource Info
-            </h3>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="flex items-center justify-between py-1">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Backend
-                </span>
-                <span className="text-sm font-medium">{resource.backend}</span>
-              </div>
-              <div className="flex items-center justify-between py-1">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Hostname
-                </span>
-                <span className="text-sm font-medium">{resource.hostname}</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Conditions if any */}
-          {resource.conditions.length > 0 && (
-            <section>
-              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Conditions
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {resource.conditions.map((condition, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex rounded bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                  >
-                    {condition}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* Pool Membership Footer */}
-        {(pools.length > 0 || isLoadingPools) && (
-          <div className="shrink-0 border-t border-zinc-200 bg-zinc-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-start gap-2">
-              <Layers className="mt-1 h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
-              <ResponsivePoolChips
-                pools={pools}
-                primaryPool={primaryPool}
-                isLoading={isLoadingPools}
-                className="flex-1"
-              />
-            </div>
           </div>
-        )}
+        </div>
       </aside>
     </>
   );
 }
 
+// =============================================================================
+// Pool Tabs Component
+// =============================================================================
+
+interface PoolTabsProps {
+  pools: string[];
+  selectedPool: string | null;
+  onSelectPool: (pool: string) => void;
+}
+
+function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+
+  // Update indicator position when selected pool changes
+  const updateIndicator = useCallback(() => {
+    if (!tabsRef.current || !selectedPool) return;
+    
+    const container = tabsRef.current;
+    const activeTab = container.querySelector(`[data-pool="${selectedPool}"]`) as HTMLButtonElement;
+    
+    if (activeTab) {
+      setIndicatorStyle({
+        left: activeTab.offsetLeft,
+        width: activeTab.offsetWidth,
+      });
+    }
+  }, [selectedPool]);
+
+  useEffect(() => {
+    updateIndicator();
+  }, [updateIndicator]);
+
+  // Also update on resize
+  useEffect(() => {
+    const handleResize = () => updateIndicator();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [updateIndicator]);
+
+  return (
+    <div className="relative border-b border-zinc-200 dark:border-zinc-700" ref={tabsRef}>
+      <div className="flex">
+        {pools.map((pool) => (
+          <button
+            key={pool}
+            data-pool={pool}
+            onClick={() => onSelectPool(pool)}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors",
+              pool === selectedPool
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+            )}
+          >
+            {pool}
+          </button>
+        ))}
+      </div>
+      {/* Sliding indicator */}
+      <div
+        className="absolute bottom-0 h-0.5 bg-emerald-500 transition-all duration-200 ease-out"
+        style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+      />
+    </div>
+  );
+}
+
+// =============================================================================
+// Task Config Content Component
+// =============================================================================
+
+interface TaskConfigContentProps {
+  config: TaskConfig;
+}
+
+function TaskConfigContent({ config }: TaskConfigContentProps) {
+  return (
+    <div className="space-y-3">
+      {/* Boolean flags */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between py-1">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            Host Network Allowed
+          </span>
+          <BooleanIndicator value={config.hostNetworkAllowed} />
+        </div>
+        <div className="flex items-center justify-between py-1">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            Privileged Mode Allowed
+          </span>
+          <BooleanIndicator value={config.privilegedAllowed} />
+        </div>
+      </div>
+
+      {/* Default Mounts */}
+      {config.defaultMounts.length > 0 && (
+        <MountsList title="Default Mounts" mounts={config.defaultMounts} />
+      )}
+
+      {/* Allowed Mounts */}
+      {config.allowedMounts.length > 0 && (
+        <MountsList title="Allowed Mounts" mounts={config.allowedMounts} />
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Helper Components
+// =============================================================================
+
 function BooleanIndicator({ value }: { value: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex w-14 items-center justify-end gap-1.5 text-sm font-medium",
+        "inline-flex items-center gap-1 text-sm",
         value
           ? "text-emerald-600 dark:text-emerald-400"
-          : "text-zinc-400"
+          : "text-zinc-400 dark:text-zinc-500"
       )}
     >
-      {value ? <Check className="h-4 w-4 shrink-0" /> : <Ban className="h-4 w-4 shrink-0" />}
-      <span className="w-6">{value ? "Yes" : "No"}</span>
+      {value ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+      {value ? "Yes" : "No"}
     </span>
   );
 }
@@ -228,19 +356,16 @@ function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
         <FolderOpen className="h-3.5 w-3.5" />
         {title}
       </div>
-      <div className="space-y-1">
+      <div className="flex flex-wrap gap-1.5">
         {mounts.map((mount, idx) => (
-          <div
+          <span
             key={idx}
-            className="rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 font-mono text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
           >
             {mount}
-          </div>
+          </span>
         ))}
       </div>
     </div>
   );
 }
-
-// NOTE: CapacityBar has been moved to @/components/shared/capacity-bar for reuse
-// across pool detail and resource detail views.
