@@ -45,6 +45,9 @@ export function ResponsivePoolChips({
   const [isExpanded, setIsExpanded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(pools.length);
   const [hasMeasured, setHasMeasured] = useState(false);
+  
+  // Key for triggering recalculation when pools change
+  const poolsKey = pools.join(",");
 
   // Calculate how many chips fit in collapsed mode
   const calculateVisibleChips = useCallback(() => {
@@ -93,11 +96,10 @@ export function ResponsivePoolChips({
 
   // Recalculate on mount, resize, and pool changes
   useLayoutEffect(() => {
-    // Reset measurement state when pools change
-    setHasMeasured(false);
-    
     // Calculate after a frame to ensure DOM is ready
+    // Reset measurement state and recalculate (async setState is allowed)
     requestAnimationFrame(() => {
+      setHasMeasured(false);
       calculateVisibleChips();
     });
 
@@ -111,7 +113,7 @@ export function ResponsivePoolChips({
 
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [calculateVisibleChips, isExpanded, pools]);
+  }, [calculateVisibleChips, isExpanded, poolsKey]);
 
   // Recalculate when collapsing
   useLayoutEffect(() => {

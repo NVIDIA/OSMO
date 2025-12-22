@@ -13,7 +13,7 @@ import { X, Check, Ban, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CapacityBar } from "@/components/shared/capacity-bar";
-import { useResourceDetail, type Resource, type PlatformConfig, type TaskConfig } from "@/lib/api/adapter";
+import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 
 interface ResourcePanelProps {
@@ -24,11 +24,6 @@ interface ResourcePanelProps {
    * If omitted, panel shows resource across all pools.
    */
   poolName?: string;
-  /**
-   * @deprecated Platform configurations are now fetched automatically.
-   * This prop is kept for backward compatibility but is no longer used.
-   */
-  platformConfigs?: Record<string, PlatformConfig>;
   /** Callback when panel is closed */
   onClose: () => void;
 }
@@ -42,28 +37,55 @@ interface ResourcePanelProps {
 export function ResourcePanel({
   resource,
   poolName,
-  platformConfigs = {},
   onClose,
 }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
   const { pools, initialPool, taskConfigByPool, isLoadingPools } = useResourceDetail(
     resource,
-    platformConfigs,
     poolName // Pass context pool to determine initial selection
   );
 
-  // Track selected pool tab
-  const [selectedPool, setSelectedPool] = useState<string | null>(null);
+  if (!resource) return null;
 
-  // Reset selected pool when resource changes or initial pool changes
-  useEffect(() => {
-    setSelectedPool(initialPool);
-  }, [initialPool, resource?.name]);
+  return (
+    <ResourcePanelContent
+      key={resource.name} // Reset state when resource changes
+      resource={resource}
+      pools={pools}
+      initialPool={initialPool}
+      taskConfigByPool={taskConfigByPool}
+      isLoadingPools={isLoadingPools}
+      onClose={onClose}
+    />
+  );
+}
+
+// =============================================================================
+// Panel Content - separated to enable key-based state reset
+// =============================================================================
+
+interface ResourcePanelContentProps {
+  resource: Resource;
+  pools: string[];
+  initialPool: string | null;
+  taskConfigByPool: Record<string, TaskConfig | null>;
+  isLoadingPools: boolean;
+  onClose: () => void;
+}
+
+function ResourcePanelContent({
+  resource,
+  pools,
+  initialPool,
+  taskConfigByPool,
+  isLoadingPools,
+  onClose,
+}: ResourcePanelContentProps) {
+  // Track selected pool tab - initialized from initialPool
+  const [selectedPool, setSelectedPool] = useState<string | null>(initialPool);
 
   // Get task config for selected pool
   const taskConfig = selectedPool ? taskConfigByPool[selectedPool] ?? null : null;
-
-  if (!resource) return null;
 
   return (
     <>
@@ -168,7 +190,7 @@ export function ResourcePanel({
               <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
                 Pool Configuration
               </h3>
-              
+
               {isLoadingPools ? (
                 <div className="animate-pulse space-y-3">
                   <div className="h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-800" />
@@ -238,10 +260,10 @@ function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
   // Update indicator position when selected pool changes
   const updateIndicator = useCallback(() => {
     if (!tabsRef.current || !selectedPool) return;
-    
+
     const container = tabsRef.current;
     const activeTab = container.querySelector(`[data-pool="${selectedPool}"]`) as HTMLButtonElement;
-    
+
     if (activeTab) {
       setIndicatorStyle({
         left: activeTab.offsetLeft,
