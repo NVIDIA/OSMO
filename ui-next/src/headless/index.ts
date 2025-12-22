@@ -18,6 +18,15 @@
  * ```
  */
 
+// Shared types
+export type {
+  FilterType,
+  PoolDetailFilterType,
+  AllResourcesFilterType,
+  ActiveFilter,
+  ResourceDisplayMode,
+} from "./types";
+
 // Pools List
 export { usePoolsList } from "./use-pools-list";
 export type {
@@ -29,8 +38,6 @@ export type {
 // Pool Detail
 export { usePoolDetail } from "./use-pool-detail";
 export type {
-  ActiveFilter,
-  ResourceDisplayMode,
   UsePoolDetailOptions,
   UsePoolDetailReturn,
 } from "./use-pool-detail";
