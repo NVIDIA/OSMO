@@ -1,10 +1,6 @@
 "use client";
 
-import { useVersion } from "@/lib/api/adapter";
-
 export default function DashboardPage() {
-  const { version, isLoading: versionLoading } = useVersion();
-
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -29,20 +25,6 @@ export default function DashboardPage() {
         <div className="text-sm text-zinc-500 dark:text-zinc-400">
           No workflows to display
         </div>
-      </div>
-
-      {/* Connection status */}
-      <div className="text-xs text-zinc-400">
-        {versionLoading ? (
-          "Connecting to OSMO..."
-        ) : version ? (
-          <>
-            Connected to OSMO {version.major}.{version.minor}.{version.revision}
-            {version.hash && ` (${version.hash.slice(0, 7)})`}
-          </>
-        ) : (
-          "Not connected"
-        )}
       </div>
     </div>
   );
