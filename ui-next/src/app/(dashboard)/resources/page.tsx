@@ -10,7 +10,7 @@
 
 import { Server, Cpu, Box, Layers } from "lucide-react";
 import { ResourceTable, ResourceCapacitySummary } from "@/components/features/pools";
-import { FilterBar } from "@/components/shared/filter-bar";
+import { FilterBar, ApiError } from "@/components/shared";
 import { useAllResources } from "@/headless";
 import { heading } from "@/lib/styles";
 
@@ -39,6 +39,8 @@ export default function ResourcesPage() {
     removeFilter,
     clearAllFilters,
     isLoading,
+    error,
+    refetch,
   } = useAllResources();
 
   return (
@@ -126,19 +128,32 @@ export default function ResourcesPage() {
           </FilterBar.Actions>
         </FilterBar>
 
-        {/* Capacity summary boxes */}
-        <ResourceCapacitySummary
-          resources={filteredResources}
-          displayMode={displayMode}
-          isLoading={isLoading}
-        />
+        {/* API Error */}
+        {error && (
+          <ApiError
+            error={error}
+            onRetry={refetch}
+            title="Unable to load resources"
+          />
+        )}
 
-        <ResourceTable
-          resources={filteredResources}
-          isLoading={isLoading}
-          showPoolsColumn
-          displayMode={displayMode}
-        />
+        {/* Capacity summary boxes */}
+        {!error && (
+          <ResourceCapacitySummary
+            resources={filteredResources}
+            displayMode={displayMode}
+            isLoading={isLoading}
+          />
+        )}
+
+        {!error && (
+          <ResourceTable
+            resources={filteredResources}
+            isLoading={isLoading}
+            showPoolsColumn
+            displayMode={displayMode}
+          />
+        )}
       </section>
     </div>
   );

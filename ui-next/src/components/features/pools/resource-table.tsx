@@ -8,7 +8,7 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
 import { ResourcePanel } from "./resource-panel";
@@ -77,12 +77,10 @@ export function ResourceTable({
   };
   const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
 
-  // Reset sort when display mode changes (React pattern for resetting state on prop change)
-  const [prevDisplayMode, setPrevDisplayMode] = useState(displayMode);
-  if (prevDisplayMode !== displayMode) {
-    setPrevDisplayMode(displayMode);
+  // Reset sort when display mode changes
+  useEffect(() => {
     setSort({ column: null, direction: "asc" });
-  }
+  }, [displayMode]);
 
   // Handle column header click
   const handleSort = (column: SortColumn) => {
