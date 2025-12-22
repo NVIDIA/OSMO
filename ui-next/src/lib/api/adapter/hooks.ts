@@ -157,11 +157,11 @@ import type { ResourcesResponse } from "../generated";
 
 /**
  * Extract pool memberships from a ResourcesResponse for a specific resource.
- * 
+ *
  * WORKAROUND: When querying /api/resources with specific pools, the response's
  * `pool_platform_labels` only contains memberships for those pools. To get ALL
  * memberships for a resource, we must query with `all_pools=true`.
- * 
+ *
  * Issue: BACKEND_TODOS.md#7
  */
 function extractPoolMemberships(
@@ -197,13 +197,13 @@ function extractPoolMemberships(
 
 /**
  * Hook for resource detail panel.
- * 
+ *
  * Encapsulates all business logic for displaying resource details:
  * - Fetches full pool memberships for all resources
  * - Fetches all pools to get platform configs
  * - Computes unique pool names for display
  * - Extracts task config for each pool the resource belongs to
- * 
+ *
  * IDEAL: Backend provides single `/api/resources/{name}` endpoint with all data.
  * Issue: BACKEND_TODOS.md#9
  */
@@ -254,7 +254,7 @@ export function useResourceDetail(
         memberships = fetched;
       }
     }
-    
+
     // Get unique pool names, always sorted alphabetically
     const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) =>
       a.localeCompare(b)
@@ -267,11 +267,11 @@ export function useResourceDetail(
 
     // Build task config for each pool
     const taskConfigByPool: Record<string, TaskConfig> = {};
-    
+
     if (poolsQuery.data) {
       const allPools = transformPoolsResponse(poolsQuery.data).pools;
       const poolsMap = new Map(allPools.map((p: Pool) => [p.name, p]));
-      
+
       for (const poolName of pools) {
         const pool = poolsMap.get(poolName);
         if (pool) {
@@ -302,6 +302,13 @@ export function useResourceDetail(
     initialPool: result.initialPool,
     taskConfigByPool: result.taskConfigByPool,
     isLoadingPools: resourcesQuery.isLoading || poolsQuery.isLoading,
+    // Error from either query
+    error: resourcesQuery.error || poolsQuery.error,
+    // Refetch both queries
+    refetch: () => {
+      resourcesQuery.refetch();
+      poolsQuery.refetch();
+    },
     // Legacy support
     primaryPool: result.primaryPool,
     taskConfig: result.taskConfig,

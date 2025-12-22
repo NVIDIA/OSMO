@@ -10,194 +10,164 @@
  * Error Handling E2E Tests
  *
  * Tests for error UI across different scenarios:
- * 1. Render errors (caught by Next.js error.tsx)
- * 2. API errors (caught by React Query, shown inline)
+ * 1. API errors (caught by React Query, shown inline via <ApiError />)
+ * 2. Render errors (caught by Next.js error.tsx boundaries)
  *
  * Run with Playwright UI to preview error states:
  *   pnpm test:e2e --ui
  */
 
-import { test as base, expect } from "@playwright/test";
-
-// Use base test without fixtures to have full control over route mocking
-const test = base;
+import { test, expect } from "../fixtures";
+import { createPoolResponse, createResourcesResponse, PoolStatus } from "../mocks/factories";
 
 // =============================================================================
 // API Errors - Inline error display via <ApiError />
+// Uses fixtures with poolsError/resourcesError scenarios
 // =============================================================================
 
 test.describe("API Errors (Inline)", () => {
-  test("pools page shows inline error when API returns 500", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
-    // Mock pools to return 500 error
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({
-          detail: "Internal server error: database connection failed",
-        }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
-      });
+  test("pools page shows inline error when API fails", async ({ page, withData }) => {
+    // Configure pools API to return error (4xx = not retryable, fails fast)
+    await withData({
+      poolsError: { status: 400, detail: "Bad request: invalid pool query" },
     });
 
     await page.goto("/pools");
+    await page.waitForLoadState("networkidle");
 
-    // Should show the error alert (pools page has custom error handling)
-    await expect(page.getByText("Unable to fetch pools")).toBeVisible();
+    // Should show inline API error component
+    await expect(page.getByTestId("api-error")).toBeVisible({ timeout: 10000 });
   });
 
-  test("resources page shows inline error when API fails", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
-    // Mock pools (needed for resources page)
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ node_sets: [] }),
-      });
-    });
-
-    // Mock resources to return error
-    await page.route("**/api/resources*", async (route) => {
-      await route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          detail: "Service temporarily unavailable",
-        }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
-      });
+  test("resources page shows inline error when API fails", async ({ page, withData }) => {
+    // Configure resources API to return error
+    await withData({
+      resourcesError: { status: 400, detail: "Bad request: invalid resource query" },
     });
 
     await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
 
     // Should show inline API error
-    await expect(page.getByText("Unable to load resources")).toBeVisible();
+    await expect(page.getByTestId("api-error")).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 
-  test("pool detail page shows inline error when API fails", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
-    // Mock pool_quota to return error for specific pool
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({
-          detail: "Pool not found",
-        }),
-      });
-    });
-
-    // Mock resources to also fail
-    await page.route("**/api/resources*", async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({
-          detail: "Pool not found",
-        }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
-      });
+  test("pool detail page shows inline error when API fails", async ({ page, withData }) => {
+    // Configure both APIs to return errors (pool detail needs both)
+    await withData({
+      poolsError: { status: 404, detail: "Pool not found" },
+      resourcesError: { status: 404, detail: "Pool not found" },
     });
 
     await page.goto("/pools/test-pool");
+    await page.waitForLoadState("networkidle");
 
     // Should show inline API error
-    await expect(page.getByText("Unable to load pool data")).toBeVisible();
+    await expect(page.getByTestId("api-error")).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 
-  test("retry button is clickable", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
+  test("resource panel shows inline error when detail fetch fails", async ({ page }) => {
+    // This test needs manual routing with call counting:
+    // - First calls succeed (page loads, resource table shows)
+    // - Later calls fail (panel detail fetch fails)
+    let poolQuotaCallCount = 0;
+    let resourcesCallCount = 0;
 
-    // Mock pools
+    // Clear fixture routes first to avoid conflicts
+    await page.unroute("**/api/pool_quota*");
+    await page.unroute("**/api/resources*");
+
+    // Create properly structured mock data using factories
+    const mockPoolData = createPoolResponse([
+      {
+        name: "test-pool",
+        description: "Test pool for error testing",
+        status: PoolStatus.ONLINE,
+        platforms: { "dgx-a100": { description: "DGX A100" } },
+      },
+    ]);
+
+    const mockResourceData = createResourcesResponse([
+      {
+        hostname: "gpu-node-1.cluster.local",
+        exposed_fields: {
+          node: "gpu-node-1",
+          "pool/platform": ["test-pool/dgx-a100"],
+        },
+        pool_platform_labels: { "test-pool": ["dgx-a100"] },
+      },
+    ]);
+
+    // Override pool_quota route - first call succeeds, subsequent fail
     await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ node_sets: [] }),
-      });
+      poolQuotaCallCount++;
+      if (poolQuotaCallCount === 1) {
+        // First call succeeds (page load with pools=test-pool)
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockPoolData),
+        });
+      } else {
+        // Second call fails (panel with all_pools=true)
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "Failed to fetch pool configs" }),
+        });
+      }
     });
 
-    // Mock resources to always fail
+    // Override resources route - first call succeeds, subsequent fail
     await page.route("**/api/resources*", async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({ detail: "Permanent failure" }),
-      });
+      resourcesCallCount++;
+      if (resourcesCallCount === 1) {
+        // First call succeeds (page load with pools=test-pool)
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockResourceData),
+        });
+      } else {
+        // Second call fails (panel with all_pools=true)
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "Failed to fetch resource details" }),
+        });
+      }
     });
 
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
-      });
+    // Go to pool detail page (has resource table)
+    await page.goto("/pools/test-pool");
+    await page.waitForLoadState("networkidle");
+
+    // Wait for resource table to load and show the resource
+    // The transform extracts the node name from exposed_fields.node
+    const resourceRow = page.getByText("gpu-node-1");
+    await expect(resourceRow).toBeVisible({ timeout: 15000 });
+
+    // Click on the resource to open the panel
+    await resourceRow.click();
+
+    // Panel should open and show error for the detail fetch
+    await expect(page.getByTestId("api-error")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  });
+
+  test("retry button is clickable", async ({ page, withData }) => {
+    // Configure resources API to always fail
+    await withData({
+      resourcesError: { status: 400, detail: "Permanent failure" },
     });
 
     await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
 
-    // Wait for error UI to appear (React Query may retry a few times first)
-    await expect(page.getByText("Unable to load resources")).toBeVisible({ timeout: 15000 });
+    // Wait for error UI to appear
+    await expect(page.getByTestId("api-error")).toBeVisible({ timeout: 10000 });
 
     // Verify retry button exists and is clickable
     const retryButton = page.getByRole("button", { name: "Retry" });
@@ -208,35 +178,19 @@ test.describe("API Errors (Inline)", () => {
 
 // =============================================================================
 // Render Errors - Caught by error.tsx boundaries
+// These use manual page.route to return malformed data that crashes transforms
 // =============================================================================
 
 test.describe("Render Errors (error.tsx)", () => {
   test("dashboard error: shows error UI when pools API returns malformed data", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
-    // Return malformed data that will cause transform to crash
+    // Override pool_quota to return malformed data that will cause transform to crash
+    // (page.route added after fixtures takes precedence)
     await page.route("**/api/pool_quota*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         // node_sets should be an array, this will cause .flatMap() to fail
         body: JSON.stringify({ node_sets: "this should be an array" }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
       });
     });
 
@@ -251,30 +205,12 @@ test.describe("Render Errors (error.tsx)", () => {
     // Grant clipboard permissions
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
     // Return malformed data
     await page.route("**/api/pool_quota*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
       });
     });
 
@@ -289,39 +225,21 @@ test.describe("Render Errors (error.tsx)", () => {
     await stackTraceToggle.click();
 
     // Now click copy button
-    const copyButton = page.getByRole("button", { name: /copy/i });
+    const copyButton = page.getByTestId("copy-error-button");
     await expect(copyButton).toBeVisible();
     await copyButton.click();
 
-    // Should show "Copied" feedback
-    await expect(page.getByText("Copied")).toBeVisible();
+    // Should show copied feedback
+    await expect(page.getByTestId("copy-success")).toBeVisible();
   });
 
   test("pools error shows 'View all pools' navigation", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
     // Return malformed data
     await page.route("**/api/pool_quota*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
       });
     });
 
@@ -338,30 +256,12 @@ test.describe("Render Errors (error.tsx)", () => {
 
 test.describe("Error Recovery", () => {
   test("pools error 'View all pools' navigates correctly", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
     // Return malformed data
     await page.route("**/api/pool_quota*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
       });
     });
 
@@ -378,30 +278,12 @@ test.describe("Error Recovery", () => {
   });
 
   test("'Try again' button is clickable on error boundary", async ({ page }) => {
-    // Mock auth as disabled
-    await page.route("**/auth/login_info*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ auth_enabled: false }),
-      });
-    });
-
     // Return malformed data to trigger error boundary
     await page.route("**/api/pool_quota*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
-
-    // Mock version
-    await page.route("**/api/version*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ major: 1, minor: 0, revision: 0 }),
       });
     });
 

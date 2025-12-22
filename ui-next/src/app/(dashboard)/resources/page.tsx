@@ -129,13 +129,13 @@ export default function ResourcesPage() {
         </FilterBar>
 
         {/* API Error */}
-        {error && (
-          <ApiError
-            error={error}
-            onRetry={refetch}
-            title="Unable to load resources"
-          />
-        )}
+        <ApiError
+          error={error}
+          onRetry={refetch}
+          title="Unable to load resources"
+          authAware
+          loginMessage="You need to log in to view resources."
+        />
 
         {/* Capacity summary boxes */}
         {!error && (
