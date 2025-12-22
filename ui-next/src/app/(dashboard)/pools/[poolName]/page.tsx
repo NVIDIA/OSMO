@@ -18,7 +18,6 @@ export default function PoolDetailPage() {
     pool,
     platforms,
     resourceTypes,
-    platformConfigs,
     filteredResources,
     resourceCount,
     filteredResourceCount,
@@ -159,7 +158,6 @@ export default function PoolDetailPage() {
           resources={filteredResources}
           isLoading={isLoading}
           poolName={poolName}
-          platformConfigs={platformConfigs}
           displayMode={displayMode}
         />
       </section>
