@@ -126,16 +126,12 @@ class MuxStorageClientProvider(provider.StorageClientProvider):
 
         # Pre-init factory outside of the lock
         # May be redundantly computed by multiple threads and that is okay.
-        data_cred = client_configs.get_credentials(storage_profile)
         storage_backend = backends.construct_storage_backend(
             uri=storage_profile,
             profile=True,
             cache_config=self._cache_config,
         )
         client_factory = storage_backend.client_factory(
-            access_key_id=data_cred.access_key_id,
-            access_key=data_cred.access_key.get_secret_value(),
-            region=data_cred.region,
             request_headers=self._client_factory.request_headers,
             **self._client_factory.kwargs,
         )

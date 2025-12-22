@@ -26,12 +26,12 @@ import yaml
 
 import shtab
 
-from src.lib.utils import client, client_configs, common, credentials, osmo_errors
+from src.lib.utils import client, client_configs, credentials, common, osmo_errors
 
 CRED_TYPES = ['REGISTRY', 'DATA', 'GENERIC']
 
 
-def _save_config(data_cred: credentials.DataCredential):
+def _save_config(data_cred: credentials.StaticDataCredential):
     """
     Sets default config information
     """
@@ -46,7 +46,8 @@ def _save_config(data_cred: credentials.DataCredential):
     config['auth']['data'][data_cred.endpoint] = {
         'access_key_id': data_cred.access_key_id,
         'access_key': data_cred.access_key.get_secret_value(),
-        'region': data_cred.region}
+        'region': data_cred.region,
+    }
     with open(password_file, 'w', encoding='utf-8') as file:
         yaml.dump(config, file)
     os.chmod(password_file, stat.S_IREAD | stat.S_IWRITE)
@@ -97,21 +98,30 @@ def _run_set_command(service_client: client.ServiceClient, args: argparse.Namesp
                 print(f'File {value} cannot be found.')
                 sys.exit(1)
 
-    if args.type == 'GENERIC':
+    if args.type == 'DATA':
+        # Validate that the data credential is valid
+        try:
+            credentials.StaticDataCredential(**cred_payload)
+        except Exception as err:  # pylint: disable=broad-except
+            raise osmo_errors.OSMOUserError(f'Invalid DATA credential: {str(err)}')
+
+    elif args.type == 'GENERIC':
         cred_payload = {'credential': cred_payload}
 
-    result = service_client.request(client.RequestMethod.POST,
-                                    f'api/credentials/{args.name}',
-                                    payload={args.type.lower() + '_credential': cred_payload})
+    result = service_client.request(
+        client.RequestMethod.POST,
+        f'api/credentials/{args.name}',
+        payload={args.type.lower() + '_credential': cred_payload},
+    )
+
     if args.format_type == 'json':
         print(json.dumps(result, indent=2))
     else:
         print(f'Set {args.type} credential {args.name}.')
 
     if args.type == 'DATA':
-        if 'endpoint' not in cred_payload:
-            raise osmo_errors.OSMOUserError('Endpoint is required for DATA credentials.')
-        _save_config(credentials.DataCredential(**cred_payload))
+        # Save the data credential to the client config
+        _save_config(credentials.StaticDataCredential(**cred_payload))
 
 
 def _run_list_command(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -132,11 +142,11 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
         for cred in result['credentials']:
             cred['local'] = 'N/A'
             if cred.get('cred_type', '') == 'DATA':
-                try:
-                    client_configs.get_credentials(cred.get('profile', ''))
-                    cred['local'] = 'Yes'
-                except osmo_errors.OSMOError:
-                    cred['local'] = 'No'
+                data_cred = credentials.get_static_data_credential_from_config(
+                    url=cred.get('profile', ''),
+                )
+                cred['local'] = 'Yes' if data_cred else 'No'
+
             table.add_row([cred.get(column, '-') for column in columns])
         print(f'{table.draw()}\n')
 
@@ -206,15 +216,15 @@ def setup_parser(parser: argparse._SubParsersAction):
             'payload corresponding to each type of credential:\n'
             '\n'
             # pylint: disable=line-too-long
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| Credential Type | Mandatory keys            | Optional keys                         |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| REGISTRY        | auth                      | registry, username                    |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| DATA            | access_key_id, access_key | endpoint, region (default: us-east-1) |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
-            '| GENERIC         |                           |                                       |\n'
-            '+-----------------+---------------------------+---------------------------------------+\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| Credential Type | Mandatory keys                      | Optional keys               |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| REGISTRY        | auth                                | registry, username          |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| DATA            | access_key_id, access_key, endpoint | region (default: us-east-1) |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
+            '| GENERIC         |                                     |                             |\n'
+            '+-----------------+-------------------------------------+-----------------------------+\n'
             # pylint: enable=line-too-long
             '\n'
         ),

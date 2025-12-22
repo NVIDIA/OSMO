@@ -31,7 +31,7 @@ from . import common
 from .. import storage
 from ..storage import common as storage_common, uploading
 from ..storage.core import client, executor, progress, provider
-from ...utils import cache, client_configs, common as utils_common, osmo_errors
+from ...utils import cache, common as utils_common, osmo_errors
 
 
 ##########################
@@ -143,12 +143,9 @@ def dataset_upload_remote_file_entry_generator(
     )
 
     # Create the base to be used for objects' HTTP URLs.
-    data_creds = storage_client.data_credential
+    data_cred = storage_client.data_credential
     url_base = storage_backend.parse_uri_to_link(
-        storage_backend.region(
-            data_creds.access_key_id,
-            data_creds.access_key.get_secret_value(),
-        ),
+        region=storage_backend.region(data_cred),
     )
 
     # Iterate over the objects in the remote path.
@@ -381,17 +378,11 @@ def upload(
     # Resolve the region for the destination storage backend.
     # This is necessary for generating a valid regional HTTP URL for uploaded objects
     # for certain storage backends (e.g. AWS S3).
-    destination_creds = client_configs.get_credentials(destination.profile)
-    destination_region = destination.region(
-        destination_creds.access_key_id,
-        destination_creds.access_key.get_secret_value(),
-    )
+    destination_region = destination.region()
 
     client_factory = destination.client_factory(
-        access_key_id=destination_creds.access_key_id,
-        access_key=destination_creds.access_key.get_secret_value(),
-        region=destination_region,
         request_headers=request_headers,
+        region=destination_region,
     )
 
     manifest_cache = diskcache.Index()

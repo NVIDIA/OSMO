@@ -16,16 +16,15 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import functools
 import os
 from typing import Optional
 
 import yaml
 
-from . import cache, common, credentials, osmo_errors
+from . import cache, common
 
 
-def get_client_config_dir() -> str:
+def get_client_config_dir(create: bool = True) -> str:
     """ Get path of directory where config files should be stored """
     override_dir = os.getenv(common.OSMO_CONFIG_OVERRIDE)
     xdg_config = os.getenv('XDG_CONFIG_HOME')
@@ -42,12 +41,14 @@ def get_client_config_dir() -> str:
     else:
         config_dir = os.path.expanduser('~/.config/osmo')
 
-    os.makedirs(config_dir, exist_ok=True)
+    if create:
+        os.makedirs(config_dir, exist_ok=True)
+
     return config_dir
 
 
 def get_cache_config() -> Optional[cache.CacheConfig]:
-    osmo_directory = get_client_config_dir()
+    osmo_directory = get_client_config_dir(create=False)
     password_file = osmo_directory + '/config.yaml'
 
     if os.path.isfile(password_file):
@@ -56,29 +57,6 @@ def get_cache_config() -> Optional[cache.CacheConfig]:
             if 'cache' in configs:
                 return cache.CacheConfig(**configs['cache'])
     return None
-
-
-@functools.lru_cache()
-def get_credentials(url: str) -> credentials.DataCredential:
-    osmo_directory = get_client_config_dir()
-    password_file = osmo_directory + '/config.yaml'
-
-    if os.path.isfile(password_file):
-        with open(password_file, 'r', encoding='utf-8') as file:
-            configs = yaml.safe_load(file.read())
-            if url in configs['auth']['data']:
-                data_cred_dict = configs['auth']['data'][url]
-                data_cred = credentials.DataCredential(
-                    access_key_id=data_cred_dict['access_key_id'],
-                    access_key=data_cred_dict['access_key'],
-                    endpoint=url,
-                    region=data_cred_dict['region'],
-                )
-                return data_cred
-    raise osmo_errors.OSMOError(f'Credential not set for {url}. Please set credentials using: \n' +
-                                'osmo credential set my_cred --type DATA ' +
-                                '--payload access_key_id=your_s3_username access_key=your_s3_key' +
-                                ' endpoint=your_endpoint region=endpoint_region')
 
 
 def get_client_state_dir() -> str:

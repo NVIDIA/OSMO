@@ -29,7 +29,7 @@ import ijson
 from . import common, uploading
 from .. import storage
 from ..storage.core import executor
-from ...utils import cache, client_configs, osmo_errors
+from ...utils import cache, osmo_errors
 
 
 #################################
@@ -224,17 +224,11 @@ def update(
     # Resolve the region for the destination storage backend.
     # This is necessary for generating a valid regional HTTP URL for uploaded objects
     # for certain storage backends (e.g. AWS S3).
-    destination_creds = client_configs.get_credentials(destination.profile)
-    destination_region = destination.region(
-        destination_creds.access_key_id,
-        destination_creds.access_key.get_secret_value(),
-    )
+    destination_region = destination.region()
 
     client_factory = destination.client_factory(
-        access_key_id=destination_creds.access_key_id,
-        access_key=destination_creds.access_key.get_secret_value(),
-        region=destination_region,
         request_headers=request_headers,
+        region=destination_region,
     )
 
     manifest_cache = diskcache.Index()

@@ -19,12 +19,13 @@ SPDX-License-Identifier: Apache-2.0
 import collections
 import datetime
 import math
-from typing import Any, Dict, List, NamedTuple, Optional, Set
+from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Set
 import yaml
 
 import pydantic
 
 from src.lib.data import storage
+from src.lib.data.storage.credentials import credentials as data_credentials
 from src.lib.utils import credentials, common, osmo_errors, priority as wf_priority
 import src.lib.utils.logging
 from src.utils.job import app, common as task_common, jobs, kb_objects, task, workflow
@@ -546,7 +547,23 @@ class CredentialRecord(NamedTuple):
     payload: str
 
 
-class UserRegistryCredential(credentials.RegistryCredential, extra=pydantic.Extra.forbid):
+class CredentialProtocol(Protocol):
+    """ Protocol for credentials. """
+    @staticmethod
+    def type() -> connectors.CredentialType:
+        pass
+
+    def to_db_row(self, user: str, postgres: connectors.PostgresConnector) -> CredentialRecord:
+        pass
+
+    def valid_cred(self, workflow_config: connectors.WorkflowConfig):
+        pass
+
+
+class UserRegistryCredential(
+    credentials.RegistryCredential,
+    extra=pydantic.Extra.forbid,
+):
     """ Authentication information for a Docker registry. """
     auth: str = pydantic.Field(
         description='The authentication token for the Docker registry')  # type: ignore
@@ -572,33 +589,62 @@ class UserRegistryCredential(credentials.RegistryCredential, extra=pydantic.Extr
             raise osmo_errors.OSMOCredentialError('Registry authentication failed.')
 
 
-
-class UserDataCredential(credentials.DataCredential, extra=pydantic.Extra.forbid):
+class UserDataCredential(
+    data_credentials.DataCredentialBase,
+    extra=pydantic.Extra.forbid,
+):
     """ Authentication information for a data service. """
+
+    access_key_id: str = pydantic.Field(
+        ...,
+        description='The authentication key for a data backend',
+    )
+
     access_key: str = pydantic.Field(
-        description='The authentication secret for the data service')  # type: ignore
+        ...,
+        description='The authentication secret for a data backend',
+    )
 
     @staticmethod
     def type() -> connectors.CredentialType:
         return connectors.CredentialType.DATA
 
     def to_db_row(self, user: str, postgres: connectors.PostgresConnector) -> CredentialRecord:
-        payload = {'access_key_id': self.access_key_id,
-                   'access_key': self.access_key,
-                   'region': self.region}
+        payload = {
+            'access_key_id': self.access_key_id,
+            'access_key': self.access_key,
+        }
+
+        if self.region:
+            payload['region'] = self.region
+
         payload = postgres.encrypt_dict(payload, user)
-        return CredentialRecord(self.type().value,
-                                self.endpoint,
-                                connectors.PostgresConnector.encode_hstore(payload))
+
+        return CredentialRecord(
+            self.type().value,
+            self.endpoint,
+            connectors.PostgresConnector.encode_hstore(payload),
+        )
 
     def valid_cred(self, workflow_config: connectors.WorkflowConfig):
         storage_info = storage.construct_storage_backend(self.endpoint, True)
         if storage_info.scheme in workflow_config.credential_config.disable_data_validation:
             return
-        storage_info.data_auth(self.access_key_id, self.access_key, self.region)
+
+        data_cred = data_credentials.StaticDataCredential(
+            endpoint=self.endpoint,
+            access_key_id=self.access_key_id,
+            access_key=pydantic.SecretStr(self.access_key),
+            region=self.region,
+        )
+
+        storage_info.data_auth(data_cred)
 
 
-class UserCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class UserCredential(
+    pydantic.BaseModel,
+    extra=pydantic.Extra.forbid,
+):
     """ Generic authentication information. """
     credential: Dict[str, str] = pydantic.Field(
         description='The credential dictionary that contains authentication information'
@@ -658,6 +704,17 @@ class CredentialOptions(pydantic.BaseModel):
             raise osmo_errors.OSMOUserError(
                 f'Exactly one of the following must be set {cls.__fields__.keys()}')
         return values
+
+    def get_credential(self) -> CredentialProtocol:
+        if self.registry_credential is not None:
+            return self.registry_credential
+        elif self.data_credential is not None:
+            return self.data_credential
+        elif self.generic_credential is not None:
+            return self.generic_credential
+        else:
+            raise osmo_errors.OSMOUserError(
+                f'Exactly one of the following must be set: {self.__fields__.keys()}')
 
 
 class CredentialGetResponse(pydantic.BaseModel):
