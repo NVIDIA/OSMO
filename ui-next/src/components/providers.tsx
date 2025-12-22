@@ -1,6 +1,8 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// React Query Devtools available via Chrome extension:
+// https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
