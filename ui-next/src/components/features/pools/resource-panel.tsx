@@ -274,37 +274,27 @@ function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
 
-  // Update indicator position when selected pool changes
-  // Using a ref to avoid re-attaching resize listener on every selectedPool change
-  const updateIndicator = () => {
-    if (!tabsRef.current || !selectedPool) return;
-
-    const container = tabsRef.current;
-    const activeTab = container.querySelector(`[data-pool="${selectedPool}"]`) as HTMLButtonElement;
-
-    if (activeTab) {
-      setIndicatorStyle({
-        left: activeTab.offsetLeft,
-        width: activeTab.offsetWidth,
-      });
-    }
-  };
-
-  // Store the update function in a ref so resize handler always has latest version
-  const updateIndicatorRef = useRef(updateIndicator);
-  updateIndicatorRef.current = updateIndicator;
-
-  // Update indicator when selectedPool changes
+  // Update indicator position when selected pool changes or on resize
   useEffect(() => {
+    const updateIndicator = () => {
+      if (!tabsRef.current || !selectedPool) return;
+
+      const container = tabsRef.current;
+      const activeTab = container.querySelector(`[data-pool="${selectedPool}"]`) as HTMLButtonElement;
+
+      if (activeTab) {
+        setIndicatorStyle({
+          left: activeTab.offsetLeft,
+          width: activeTab.offsetWidth,
+        });
+      }
+    };
+
     updateIndicator();
-  }, [selectedPool]);
 
-  // Attach resize listener once - uses ref to avoid re-attaching on state changes
-  useEffect(() => {
-    const handleResize = () => updateIndicatorRef.current();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    window.addEventListener("resize", updateIndicator);
+    return () => window.removeEventListener("resize", updateIndicator);
+  }, [selectedPool]);
 
   return (
     <div className="relative border-b border-zinc-200 dark:border-zinc-700" ref={tabsRef}>
