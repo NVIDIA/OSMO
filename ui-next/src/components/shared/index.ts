@@ -20,8 +20,8 @@ export { FilterBar } from "./filter-bar";
 // Capacity/usage visualization
 export { CapacityBar, type CapacityBarProps } from "./capacity-bar";
 
-// API error display
-export { ApiError } from "./api-error";
+// API error display (supports authAware prop for login prompts)
+export { ApiError, type ApiErrorProps } from "./api-error";
 
 // Error details (message + collapsible stack)
 export { ErrorDetails } from "./error-details";

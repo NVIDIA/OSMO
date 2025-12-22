@@ -33,6 +33,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSkipped: boolean;
+  /** Whether authentication is enabled for this deployment */
+  authEnabled: boolean;
   username: string;
   idToken: string;
   login: () => void;
@@ -221,6 +223,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         isAuthenticated,
         isLoading,
         isSkipped,
+        authEnabled,
         username,
         idToken,
         login,

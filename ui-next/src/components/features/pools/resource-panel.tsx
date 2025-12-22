@@ -13,6 +13,7 @@ import { X, Check, Ban, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CapacityBar } from "@/components/shared/capacity-bar";
+import { ApiError, type ApiErrorProps } from "@/components/shared";
 import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 
@@ -40,7 +41,7 @@ export function ResourcePanel({
   onClose,
 }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
-  const { pools, initialPool, taskConfigByPool, isLoadingPools } = useResourceDetail(
+  const { pools, initialPool, taskConfigByPool, isLoadingPools, error, refetch } = useResourceDetail(
     resource,
     poolName // Pass context pool to determine initial selection
   );
@@ -55,6 +56,8 @@ export function ResourcePanel({
       initialPool={initialPool}
       taskConfigByPool={taskConfigByPool}
       isLoadingPools={isLoadingPools}
+      error={error}
+      refetch={refetch}
       onClose={onClose}
     />
   );
@@ -70,6 +73,9 @@ interface ResourcePanelContentProps {
   initialPool: string | null;
   taskConfigByPool: Record<string, TaskConfig | null>;
   isLoadingPools: boolean;
+  /** Error from API queries - passed to ApiError component */
+  error: ApiErrorProps["error"];
+  refetch: () => void;
   onClose: () => void;
 }
 
@@ -79,6 +85,8 @@ function ResourcePanelContent({
   initialPool,
   taskConfigByPool,
   isLoadingPools,
+  error,
+  refetch,
   onClose,
 }: ResourcePanelContentProps) {
   // Track selected pool tab - initialized from initialPool
@@ -191,7 +199,16 @@ function ResourcePanelContent({
                 Pool Configuration
               </h3>
 
-              {isLoadingPools ? (
+              {/* Error loading pool data - shown in context where data would appear */}
+              {error ? (
+                <ApiError
+                  error={error}
+                  onRetry={refetch}
+                  title="Failed to load pool details"
+                  authAware
+                  loginMessage="You need to log in to view resource details."
+                />
+              ) : isLoadingPools ? (
                 <div className="animate-pulse space-y-3">
                   <div className="h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-800" />
                   <div className="h-16 rounded bg-zinc-200 dark:bg-zinc-800" />

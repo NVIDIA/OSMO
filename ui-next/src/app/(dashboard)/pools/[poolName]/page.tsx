@@ -82,13 +82,13 @@ export default function PoolDetailPage() {
       )}
 
       {/* API Error */}
-      {error && (
-        <ApiError
-          error={error}
-          onRetry={refetch}
-          title="Unable to load pool data"
-        />
-      )}
+      <ApiError
+        error={error}
+        onRetry={refetch}
+        title="Unable to load pool data"
+        authAware
+        loginMessage="You need to log in to view pool details."
+      />
 
       {/* Quota bar */}
       {!error && pool && (
