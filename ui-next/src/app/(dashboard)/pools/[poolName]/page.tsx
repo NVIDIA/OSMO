@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Server, Cpu, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ResourceTable, ResourceCapacitySummary, QuotaBar } from "@/components/features/pools";
-import { FilterBar } from "@/components/shared/filter-bar";
+import { FilterBar, ApiError } from "@/components/shared";
 import { usePoolDetail } from "@/headless";
 import { getPoolStatusDisplay } from "@/lib/constants/ui";
 import { heading } from "@/lib/styles";
@@ -35,7 +35,13 @@ export default function PoolDetailPage() {
     removeFilter,
     clearAllFilters,
     isLoading,
+    poolError,
+    resourcesError,
+    refetch,
   } = usePoolDetail({ poolName });
+
+  // Combine errors - show pool error first, then resources error
+  const error = poolError || resourcesError;
 
   const status = getPoolStatusDisplay(pool?.status);
 
@@ -75,8 +81,17 @@ export default function PoolDetailPage() {
         </p>
       )}
 
+      {/* API Error */}
+      {error && (
+        <ApiError
+          error={error}
+          onRetry={refetch}
+          title="Unable to load pool data"
+        />
+      )}
+
       {/* Quota bar */}
-      {pool && (
+      {!error && pool && (
         <QuotaBar
           used={pool.quota.used}
           limit={pool.quota.limit}
@@ -86,7 +101,7 @@ export default function PoolDetailPage() {
       )}
 
       {/* Resources section with unified filter bar */}
-      <section className="space-y-4">
+      {!error && <section className="space-y-4">
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-zinc-400" />
           <h2 className={heading.section}>Resources</h2>
@@ -160,7 +175,7 @@ export default function PoolDetailPage() {
           poolName={poolName}
           displayMode={displayMode}
         />
-      </section>
+      </section>}
     </div>
   );
 }

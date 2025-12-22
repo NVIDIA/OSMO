@@ -376,6 +376,26 @@ For custom components, add to `src/components/features/`.
 
 ---
 
+## Debugging
+
+### React Query Devtools
+
+Inspect cached queries, trigger refetches, and debug stale times using the **Chrome extension**:
+
+1. Install: [React Query Devtools Extension](https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh)
+2. Open Chrome DevTools (`F12` or `Cmd+Option+I`)
+3. Find the "React Query" tab
+
+**Features:**
+- View all cached queries and their status (fresh, stale, fetching)
+- Inspect cached data as expandable JSON
+- Manually invalidate, refetch, or remove queries
+- See fetch counts and timing
+
+This is preferred over the in-app floating devtools to avoid UI conflicts.
+
+---
+
 ## Troubleshooting
 
 | Issue | Fix |

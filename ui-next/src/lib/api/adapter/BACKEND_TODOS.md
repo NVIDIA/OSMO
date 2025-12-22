@@ -238,6 +238,49 @@ interface ResourceDetail {
 
 ---
 
+### 10. Pool Detail Requires Two API Calls
+
+**Priority:** Low  
+**Status:** Optimization opportunity
+
+Currently, viewing a pool's detail page requires two separate API calls:
+1. `GET /api/pool_quota?pools=X` - Pool metadata, quota, and platform configs
+2. `GET /api/resources?pools=X` - Resources in the pool
+
+**Current workaround:**
+```typescript
+// use-pool-detail.ts
+export function usePoolDetail({ poolName }) {
+  const { pool } = usePool(poolName);           // API Call 1
+  const { resources } = usePoolResources(poolName); // API Call 2
+}
+```
+
+**Ideal behavior:** Single endpoint `GET /api/pools/{name}` returning:
+```json
+{
+  "pool": {
+    "name": "pool-alpha",
+    "description": "...",
+    "status": "ONLINE",
+    "quota": { "used": 10, "limit": 100, ... },
+    "platforms": { "dgx": { ... } }
+  },
+  "resources": [
+    { "hostname": "node-001", "gpu": { "total": 8, "used": 4 }, ... }
+  ]
+}
+```
+
+**Benefits:**
+- Reduces latency for pool detail pages (1 round-trip instead of 2)
+- Atomic response - no risk of pool/resources mismatch during concurrent updates
+- Simpler client-side code
+
+**Fix:** Add `GET /api/pools/{name}` endpoint that returns combined pool + resources data.
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -251,6 +294,7 @@ interface ResourceDetail {
 | #7 Filtered pool_platform_labels | Medium | hooks.ts | Remove all_pools query |
 | #8 Concise changes structure | Low | N/A | N/A |
 | #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
+| #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
 
 ---
 

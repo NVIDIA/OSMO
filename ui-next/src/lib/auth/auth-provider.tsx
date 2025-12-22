@@ -119,8 +119,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const login = async () => {
+    // Read pathname fresh to avoid stale closure issues
+    // (user may have navigated before clicking login)
+    const currentPath = typeof window !== "undefined" 
+      ? window.location.pathname 
+      : pathname;
+    
     if (typeof window !== "undefined") {
-      sessionStorage.setItem(RETURN_URL_KEY, pathname);
+      sessionStorage.setItem(RETURN_URL_KEY, currentPath);
       sessionStorage.removeItem(AUTH_SKIPPED_KEY);
     }
 
@@ -129,7 +135,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setIsSkipped(false);
     } else {
       const backend = getAuthBackend();
-      const loginUrl = await backend.getLoginUrl(pathname);
+      const loginUrl = await backend.getLoginUrl(currentPath);
       if (loginUrl) {
         window.location.href = loginUrl;
       }
