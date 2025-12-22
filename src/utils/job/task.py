@@ -33,7 +33,8 @@ import pydantic
 import urllib3  # type: ignore
 import yaml
 
-from src.lib.data import constants, storage
+from src.lib.data import storage
+from src.lib.data.storage import constants
 from src.lib.utils import (cache, common, credentials, jinja_sandbox, osmo_errors,
                         priority as wf_priority)
 from src.utils.job import common as task_common, kb_objects
@@ -88,8 +89,10 @@ def create_login_dict(user: str,
 
 
 
-def create_config_dict(data_info: Dict[str, credentials.DecryptedDataCredential],
-                       cache_config: Optional[cache.CacheConfig] = None) -> Dict:
+def create_config_dict(
+    data_info: dict[str, credentials.StaticDataCredential],
+    cache_config: cache.CacheConfig | None = None,
+) -> dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
     url:
@@ -98,11 +101,16 @@ def create_config_dict(data_info: Dict[str, credentials.DecryptedDataCredential]
     '''
     data = {
         'auth': {
-            'data': {data_key: data_value.dict() for data_key, data_value in data_info.items()}
+            'data': {
+                data_key: data_value.to_decrypted_dict()
+                for data_key, data_value in data_info.items()
+            }
         }
     }
+
     if cache_config:
         data['cache'] = cache_config.dict()
+
     return data
 
 
@@ -2132,7 +2140,7 @@ class TaskGroup(pydantic.BaseModel):
         service_config: connectors.ServiceConfig | None = None,
         dataset_config: connectors.DatasetConfig | None = None,
         pool_info: connectors.Pool | None = None,
-        data_endpoints: Dict[str, credentials.DecryptedDataCredential] | None = None,
+        data_endpoints: Dict[str, credentials.StaticDataCredential] | None = None,
         skip_refresh_token: bool = False,
     ) -> Tuple[Dict, Dict[str, kb_objects.FileMount]]:
         """
@@ -2173,8 +2181,6 @@ class TaskGroup(pydantic.BaseModel):
 
         input_urls: List[str] = []
         input_datasets: List[str] = []
-
-        service_creds = credentials.decrypt(workflow_config.workflow_data.credential)
 
         disabled_data = workflow_config.credential_config.disable_data_validation
         # TODO: Make extra_args a dumped json to be parsed by osmo-ctrl
@@ -2309,7 +2315,9 @@ class TaskGroup(pydantic.BaseModel):
 
         service_profile = storage.construct_storage_backend(
             workflow_config.workflow_data.credential.endpoint).profile
-        service_config_yaml = create_config_dict({service_profile: service_creds})
+        service_config_yaml = create_config_dict({
+            service_profile: workflow_config.workflow_data.credential,
+        })
 
         # User CLI login config
         login_file = File(path='/login',
@@ -2597,14 +2605,18 @@ def decode_hstore(tasks: str) -> Set[str]:
     return {tp[0] for tp in re.findall(f'"({task_common.NAMEREGEX})"=>"NULL"', tasks)}
 
 
-def fetch_creds(user: str, data_creds: Dict[str, credentials.DecryptedDataCredential], path: str,
-                disabled_data: Optional[List[str]] = None) -> Dict:
+def fetch_creds(
+    user: str,
+    data_creds: dict[str, credentials.StaticDataCredential],
+    path: str,
+    disabled_data: list[str] | None = None,
+) -> credentials.StaticDataCredential | None:
     backend_info = storage.construct_storage_backend(path)
 
     if backend_info.profile not in data_creds:
         if not disabled_data or backend_info.scheme not in disabled_data:
             raise osmo_errors.OSMOCredentialError(
                 f'Could not find {backend_info.profile} credential for user {user}.')
-        return {}
+        return None
 
-    return data_creds[backend_info.profile].dict()
+    return data_creds[backend_info.profile]
