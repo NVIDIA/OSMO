@@ -153,7 +153,7 @@ export function useVersion() {
 // Resource Detail Hook
 // =============================================================================
 
-import type { PoolMembership, Resource, PlatformConfig, TaskConfig } from "./types";
+import type { PoolMembership, Resource, PlatformConfig, TaskConfig, Pool } from "./types";
 import type { ResourcesResponse } from "../generated";
 
 /**
@@ -201,20 +201,33 @@ function extractPoolMemberships(
  * 
  * Encapsulates all business logic for displaying resource details:
  * - Fetches full pool memberships for all resources
+ * - Fetches all pools to get platform configs
  * - Computes unique pool names for display
- * - Extracts task config from platform configs
+ * - Extracts task config for each pool the resource belongs to
  * 
  * IDEAL: Backend provides single `/api/resources/{name}` endpoint with all data.
  * Issue: BACKEND_TODOS.md#9
  */
 export function useResourceDetail(
   resource: Resource | null,
-  platformConfigs: Record<string, PlatformConfig>,
-  /** Pool context - used to determine primary pool for display */
+  /** @deprecated - no longer used, platform configs are fetched from pools */
+  _platformConfigs: Record<string, PlatformConfig> = {},
+  /** Pool context - used to determine initial selected pool */
   contextPool?: string
 ) {
-  // Always fetch pool memberships for consistent UI across all entry points
-  const query = useGetResourcesApiResourcesGet(
+  // Fetch pool memberships for consistent UI across all entry points
+  const resourcesQuery = useGetResourcesApiResourcesGet(
+    { all_pools: true },
+    {
+      query: {
+        enabled: !!resource?.name,
+        staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
+      },
+    }
+  );
+
+  // Fetch all pools to get platform configs for task configuration display
+  const poolsQuery = useGetPoolQuotasApiPoolQuotaGet(
     { all_pools: true },
     {
       query: {
@@ -228,6 +241,9 @@ export function useResourceDetail(
     if (!resource) {
       return {
         pools: [] as string[],
+        initialPool: null as string | null,
+        taskConfigByPool: {} as Record<string, TaskConfig>,
+        // Legacy support
         primaryPool: null as string | null,
         taskConfig: null as TaskConfig | null,
       };
@@ -235,47 +251,62 @@ export function useResourceDetail(
 
     // Get pool memberships - prefer fetched data over resource's initial data
     let memberships = resource.poolMemberships;
-    if (query.data) {
-      const fetched = extractPoolMemberships(query.data, resource.name);
+    if (resourcesQuery.data) {
+      const fetched = extractPoolMemberships(resourcesQuery.data, resource.name);
       if (fetched.length > 0) {
         memberships = fetched;
       }
     }
     
-    // Get unique pool names, sorted alphabetically
-    const sortedPools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) =>
+    // Get unique pool names, always sorted alphabetically
+    const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) =>
       a.localeCompare(b)
     );
 
-    // Primary pool: only set if we have a valid context pool (came from a pool page)
-    // No highlight when coming from Resources page (no context)
-    const primaryPool = contextPool && sortedPools.includes(contextPool)
+    // Initial pool: if context pool exists and is valid, use it; otherwise first alphabetically
+    const initialPool = contextPool && pools.includes(contextPool)
+      ? contextPool
+      : pools[0] ?? null;
+
+    // Build task config for each pool
+    const taskConfigByPool: Record<string, TaskConfig> = {};
+    
+    if (poolsQuery.data) {
+      const allPools = transformPoolsResponse(poolsQuery.data).pools;
+      const poolsMap = new Map(allPools.map((p: Pool) => [p.name, p]));
+      
+      for (const poolName of pools) {
+        const pool = poolsMap.get(poolName);
+        if (pool) {
+          const platformConfig = pool.platformConfigs[resource.platform];
+          if (platformConfig) {
+            taskConfigByPool[poolName] = {
+              hostNetworkAllowed: platformConfig.hostNetworkAllowed,
+              privilegedAllowed: platformConfig.privilegedAllowed,
+              allowedMounts: platformConfig.allowedMounts,
+              defaultMounts: platformConfig.defaultMounts,
+            };
+          }
+        }
+      }
+    }
+
+    // Legacy support: primaryPool and taskConfig for backward compatibility
+    const primaryPool = contextPool && pools.includes(contextPool)
       ? contextPool
       : null;
+    const taskConfig = initialPool ? taskConfigByPool[initialPool] ?? null : null;
 
-    // Reorder pools: context pool first (if provided), then the rest alphabetically
-    const pools = primaryPool
-      ? [primaryPool, ...sortedPools.filter((p) => p !== primaryPool)]
-      : sortedPools;
-
-    // Get task config for current platform
-    const platformConfig = platformConfigs[resource.platform];
-    const taskConfig: TaskConfig | null = platformConfig
-      ? {
-          hostNetworkAllowed: platformConfig.hostNetworkAllowed,
-          privilegedAllowed: platformConfig.privilegedAllowed,
-          allowedMounts: platformConfig.allowedMounts,
-          defaultMounts: platformConfig.defaultMounts,
-        }
-      : null;
-
-    return { pools, primaryPool, taskConfig };
-  }, [resource, query.data, platformConfigs, contextPool]);
+    return { pools, initialPool, taskConfigByPool, primaryPool, taskConfig };
+  }, [resource, resourcesQuery.data, poolsQuery.data, contextPool]);
 
   return {
     pools: result.pools,
+    initialPool: result.initialPool,
+    taskConfigByPool: result.taskConfigByPool,
+    isLoadingPools: resourcesQuery.isLoading || poolsQuery.isLoading,
+    // Legacy support
     primaryPool: result.primaryPool,
     taskConfig: result.taskConfig,
-    isLoadingPools: query.isLoading,
   };
 }
