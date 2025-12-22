@@ -19,3 +19,9 @@ export { FilterBar } from "./filter-bar";
 
 // Capacity/usage visualization
 export { CapacityBar, type CapacityBarProps } from "./capacity-bar";
+
+// API error display
+export { ApiError } from "./api-error";
+
+// Error details (message + collapsible stack)
+export { ErrorDetails } from "./error-details";

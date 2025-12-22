@@ -3,6 +3,9 @@
  *
  * Provides logic for viewing a single pool's details,
  * filtering resources by search and platform, etc.
+ *
+ * NOTE: This hook makes 2 API calls (pool + resources).
+ * See BACKEND_TODOS.md#10 for the optimization opportunity.
  */
 
 import { useState, useMemo, useCallback } from "react";
@@ -15,6 +18,7 @@ import {
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
+import type { ActiveFilter, PoolDetailFilterType, ResourceDisplayMode } from "./types";
 
 // =============================================================================
 // Types
@@ -23,21 +27,6 @@ import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
 export interface UsePoolDetailOptions {
   poolName: string;
 }
-
-/**
- * Represents an active filter that can be displayed and removed.
- * Uses string type for compatibility with FilterBar component.
- */
-export interface ActiveFilter {
-  type: string;
-  value: string;
-  label: string;
-}
-
-/**
- * Display mode for resource values: show "free" or "used" amounts.
- */
-export type ResourceDisplayMode = "free" | "used";
 
 export interface UsePoolDetailReturn {
   // Pool data
@@ -71,8 +60,8 @@ export interface UsePoolDetailReturn {
   setDisplayMode: (mode: ResourceDisplayMode) => void;
 
   // Active filters (for chips display)
-  activeFilters: ActiveFilter[];
-  removeFilter: (filter: ActiveFilter) => void;
+  activeFilters: ActiveFilter<PoolDetailFilterType>[];
+  removeFilter: (filter: ActiveFilter<PoolDetailFilterType>) => void;
   clearAllFilters: () => void;
   hasActiveFilter: boolean;
   filterCount: number;
@@ -215,8 +204,8 @@ export function usePoolDetail({
   const clearSearch = useCallback(() => setSearch(""), []);
 
   // Build active filters for chips display
-  const activeFilters = useMemo<ActiveFilter[]>(() => {
-    const filters: ActiveFilter[] = [];
+  const activeFilters = useMemo<ActiveFilter<PoolDetailFilterType>[]>(() => {
+    const filters: ActiveFilter<PoolDetailFilterType>[] = [];
 
     if (search.trim()) {
       filters.push({
@@ -246,7 +235,7 @@ export function usePoolDetail({
   }, [search, selectedPlatforms, selectedResourceTypes]);
 
   // Remove a specific filter
-  const removeFilter = useCallback((filter: ActiveFilter) => {
+  const removeFilter = useCallback((filter: ActiveFilter<PoolDetailFilterType>) => {
     switch (filter.type) {
       case "search":
         setSearch("");
