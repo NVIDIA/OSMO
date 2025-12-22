@@ -17,7 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Resource, PlatformConfig } from "@/lib/api/adapter";
+import type { Resource } from "@/lib/api/adapter";
 import type { ResourceDisplayMode } from "@/headless";
 
 // =============================================================================
@@ -44,11 +44,6 @@ interface ResourceTableProps {
    * When provided, ResourcePanel shows pool-specific task configurations.
    */
   poolName?: string;
-  /**
-   * Platform configurations for task config display in ResourcePanel.
-   * Only used when poolName is provided.
-   */
-  platformConfigs?: Record<string, PlatformConfig>;
   /** Display mode: "free" shows available capacity, "used" shows utilization */
   displayMode?: ResourceDisplayMode;
   /**
@@ -67,7 +62,6 @@ export function ResourceTable({
   isLoading,
   showPoolsColumn = false,
   poolName,
-  platformConfigs = {},
   displayMode = "free",
   onResourceClick,
 }: ResourceTableProps) {
@@ -289,7 +283,6 @@ export function ResourceTable({
         <ResourcePanel
           resource={selectedResource}
           poolName={poolName}
-          platformConfigs={platformConfigs}
           onClose={() => setSelectedResource(null)}
         />
       )}

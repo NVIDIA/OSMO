@@ -15,7 +15,6 @@ import {
   useGetVersionApiVersionGet,
 } from "../generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS } from "@/lib/config";
-import { BackendResourceType } from "../generated";
 
 import {
   transformPoolsResponse,
@@ -153,7 +152,7 @@ export function useVersion() {
 // Resource Detail Hook
 // =============================================================================
 
-import type { PoolMembership, Resource, PlatformConfig, TaskConfig, Pool } from "./types";
+import type { PoolMembership, Resource, TaskConfig, Pool } from "./types";
 import type { ResourcesResponse } from "../generated";
 
 /**
@@ -210,8 +209,6 @@ function extractPoolMemberships(
  */
 export function useResourceDetail(
   resource: Resource | null,
-  /** @deprecated - no longer used, platform configs are fetched from pools */
-  _platformConfigs: Record<string, PlatformConfig> = {},
   /** Pool context - used to determine initial selected pool */
   contextPool?: string
 ) {
