@@ -28,20 +28,20 @@ export { FilterActions } from "./filter-actions";
  * Generic active filter representation.
  * Each filter type can define its own shape, but must have these fields.
  */
-export interface ActiveFilter {
+export interface ActiveFilter<T extends string = string> {
   /** Unique key for this filter (e.g., "platform", "status") */
-  type: string;
+  type: T;
   /** The filter value */
   value: string;
   /** Human-readable label for the chip */
   label: string;
 }
 
-interface FilterBarContextValue {
+interface FilterBarContextValue<T extends string = string> {
   /** Currently active filters */
-  activeFilters: ActiveFilter[];
+  activeFilters: ActiveFilter<T>[];
   /** Remove a specific filter */
-  onRemoveFilter: (filter: ActiveFilter) => void;
+  onRemoveFilter: (filter: ActiveFilter<T>) => void;
   /** Clear all filters */
   onClearAll: () => void;
 }
@@ -60,11 +60,11 @@ export function useFilterBarContext() {
 // FilterBar Container
 // =============================================================================
 
-interface FilterBarProps {
+interface FilterBarProps<T extends string = string> {
   /** Active filters to display as removable chips */
-  activeFilters: ActiveFilter[];
+  activeFilters: ActiveFilter<T>[];
   /** Callback when a filter chip is removed */
-  onRemoveFilter: (filter: ActiveFilter) => void;
+  onRemoveFilter: (filter: ActiveFilter<T>) => void;
   /** Callback to clear all filters */
   onClearAll: () => void;
   /** Filter components (Search, MultiSelect, etc.) */
@@ -94,17 +94,24 @@ interface FilterBarProps {
  * </FilterBar>
  * ```
  */
-export function FilterBar({
+export function FilterBar<T extends string = string>({
   activeFilters,
   onRemoveFilter,
   onClearAll,
   children,
   className,
-}: FilterBarProps) {
+}: FilterBarProps<T>) {
   const hasFilters = activeFilters.length > 0;
 
+  // Cast to base type for context (React Context doesn't support generics)
+  const contextValue = {
+    activeFilters: activeFilters as ActiveFilter[],
+    onRemoveFilter: onRemoveFilter as (filter: ActiveFilter) => void,
+    onClearAll,
+  };
+
   return (
-    <FilterBarContext.Provider value={{ activeFilters, onRemoveFilter, onClearAll }}>
+    <FilterBarContext.Provider value={contextValue}>
       <div className={cn("space-y-3", className)}>
         {/* Filter controls row */}
         <div className="flex flex-wrap items-center gap-3">
