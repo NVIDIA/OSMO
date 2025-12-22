@@ -226,7 +226,7 @@ const TaskDetails = ({
                 Events <FilledIcon name="open_in_new" />
               </a>
               <iframe
-                className="w-full"
+                className="w-full border-1 border-border"
                 src={task.events}
                 title="Events"
               />
