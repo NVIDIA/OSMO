@@ -21,7 +21,7 @@ interface ErrorDetailsProps {
 
 /**
  * Displays error message with collapsible stack trace.
- * 
+ *
  * Reusable component for consistent error detail display across
  * error.tsx files and inline error components.
  */
@@ -80,14 +80,15 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
             </button>
             <button
               onClick={copyToClipboard}
+              data-testid="copy-error-button"
               className="flex items-center gap-1 text-xs text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
               title="Copy error details"
             >
               {copied ? (
-                <>
-                  <Check className="h-3 w-3 text-green-500" />
+                <span data-testid="copy-success">
+                  <Check className="h-3 w-3 text-green-500 inline mr-1" />
                   <span className="text-green-500">Copied</span>
-                </>
+                </span>
               ) : (
                 <>
                   <Copy className="h-3 w-3" />
