@@ -8,7 +8,7 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
 import { ResourcePanel } from "./resource-panel";
@@ -75,26 +75,37 @@ export function ResourceTable({
       setSelectedResource(resource);
     }
   };
-  const [sort, setSort] = useState<SortState>({ column: null, direction: "asc" });
+  // Sort state includes displayMode to auto-reset when it changes
+  const [sortState, setSortState] = useState<{ displayMode: string; sort: SortState }>({
+    displayMode,
+    sort: { column: null, direction: "asc" },
+  });
 
-  // Reset sort when display mode changes
-  useEffect(() => {
-    setSort({ column: null, direction: "asc" });
-  }, [displayMode]);
+  // Derive current sort, resetting if displayMode changed
+  const sort = useMemo<SortState>(() => 
+    sortState.displayMode === displayMode
+      ? sortState.sort
+      : { column: null, direction: "asc" },
+    [sortState, displayMode]
+  );
+
+  const setSort = (newSort: SortState) => {
+    setSortState({ displayMode, sort: newSort });
+  };
 
   // Handle column header click
   const handleSort = (column: SortColumn) => {
-    setSort((prev) => {
-      if (prev.column === column) {
-        // Same column: toggle direction, or clear if already desc
-        if (prev.direction === "asc") {
-          return { column, direction: "desc" };
-        }
-        return { column: null, direction: "asc" };
+    if (sort.column === column) {
+      // Same column: toggle direction, or clear if already desc
+      if (sort.direction === "asc") {
+        setSort({ column, direction: "desc" });
+      } else {
+        setSort({ column: null, direction: "asc" });
       }
+    } else {
       // New column: start with ascending
-      return { column, direction: "asc" };
-    });
+      setSort({ column, direction: "asc" });
+    }
   };
 
   // Sort resources
