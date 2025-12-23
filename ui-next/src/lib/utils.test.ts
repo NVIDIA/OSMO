@@ -7,7 +7,7 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import { describe, it, expect } from "vitest";
-import { cn, formatNumber, formatCompact } from "./utils";
+import { cn, formatNumber, formatCompact, formatBytes, formatBytesPair } from "./utils";
 
 // =============================================================================
 // cn (class name utility)
@@ -88,14 +88,14 @@ describe("formatCompact", () => {
   it("formats thousands with K suffix", () => {
     expect(formatCompact(1000)).toBe("1.0K");
     expect(formatCompact(1500)).toBe("1.5K");
-    expect(formatCompact(24221)).toBe("24.2K");
-    expect(formatCompact(999999)).toBe("1000.0K");
+    expect(formatCompact(24221)).toBe("24K"); // >= 10 rounds, no decimal
+    expect(formatCompact(999999)).toBe("1,000K"); // Comma for large K values
   });
 
   it("formats millions with M suffix", () => {
     expect(formatCompact(1000000)).toBe("1.0M");
     expect(formatCompact(1234567)).toBe("1.2M");
-    expect(formatCompact(50000000)).toBe("50.0M");
+    expect(formatCompact(50000000)).toBe("50M"); // >= 10 rounds, no decimal
   });
 
   it("formats billions with G suffix", () => {
@@ -106,7 +106,140 @@ describe("formatCompact", () => {
   it("handles boundary values", () => {
     expect(formatCompact(999)).toBe("999");
     expect(formatCompact(1000)).toBe("1.0K");
-    expect(formatCompact(999999)).toBe("1000.0K");
+    expect(formatCompact(999999)).toBe("1,000K");
     expect(formatCompact(1000000)).toBe("1.0M");
+  });
+
+  it("adds commas for large compact values", () => {
+    expect(formatCompact(10000000)).toBe("10M"); // 10M, no comma needed
+    expect(formatCompact(100000000)).toBe("100M");
+    expect(formatCompact(1000000000)).toBe("1.0G");
+    expect(formatCompact(15000000000)).toBe("15G");
+  });
+});
+
+// =============================================================================
+// formatBytes (binary units for memory/storage)
+// =============================================================================
+
+describe("formatBytes", () => {
+  it("returns 0 Gi for zero", () => {
+    const result = formatBytes(0);
+    expect(result.display).toBe("0 Gi");
+  });
+
+  it("formats GiB values (1-1023 GiB)", () => {
+    expect(formatBytes(1).display).toBe("1 Gi");
+    expect(formatBytes(64).display).toBe("64 Gi");
+    expect(formatBytes(512).display).toBe("512 Gi");
+    expect(formatBytes(1023).display).toBe("1,023 Gi"); // Comma for 4 digits
+  });
+
+  it("formats TiB values (>= 1024 GiB)", () => {
+    expect(formatBytes(1024).display).toBe("1 Ti");
+    expect(formatBytes(2048).display).toBe("2 Ti");
+    expect(formatBytes(1536).display).toBe("1.5 Ti");
+    expect(formatBytes(10240).display).toBe("10 Ti");
+  });
+
+  it("formats MiB values (< 1 GiB)", () => {
+    expect(formatBytes(0.5).display).toBe("512 Mi");
+    expect(formatBytes(0.25).display).toBe("256 Mi");
+    expect(formatBytes(0.001953125).display).toBe("2 Mi"); // 2 MiB
+  });
+
+  it("formats KiB values (very small)", () => {
+    const tiny = 1 / 1024 / 1024; // 1 KiB in GiB
+    expect(formatBytes(tiny).display).toBe("1 Ki");
+  });
+
+  it("removes trailing .0 for whole numbers", () => {
+    expect(formatBytes(64).value).toBe("64");
+    expect(formatBytes(1024).value).toBe("1");
+    expect(formatBytes(2048).value).toBe("2");
+  });
+
+  it("keeps one decimal for non-whole numbers", () => {
+    expect(formatBytes(1.5).value).toBe("1.5");
+    expect(formatBytes(1536).value).toBe("1.5"); // 1.5 Ti
+  });
+
+  it("returns correct unit separately", () => {
+    expect(formatBytes(64).unit).toBe("Gi");
+    expect(formatBytes(1024).unit).toBe("Ti");
+    expect(formatBytes(0.5).unit).toBe("Mi");
+  });
+
+  it("adds commas for large values", () => {
+    expect(formatBytes(13578).display).toBe("13 Ti"); // 13.26 rounds to 13
+    expect(formatBytes(1023).value).toBe("1,023"); // 1023 with comma
+  });
+});
+
+// =============================================================================
+// formatBytesPair (consistent units for used/total display)
+// =============================================================================
+
+describe("formatBytesPair", () => {
+  it("uses same unit when both values are in same range", () => {
+    const result = formatBytesPair(64, 256);
+    expect(result.used).toBe("64");
+    expect(result.total).toBe("256");
+    expect(result.unit).toBe("Gi");
+  });
+
+  it("uses more granular unit when values span ranges", () => {
+    // 5 Gi used, 2048 Gi (2 Ti) total → both should be in Gi
+    const result = formatBytesPair(5, 2048);
+    expect(result.used).toBe("5");
+    expect(result.total).toBe("2,048"); // Comma for 4 digits
+    expect(result.unit).toBe("Gi");
+  });
+
+  it("uses Ti when both are large", () => {
+    // 1024 Gi (1 Ti) used, 4096 Gi (4 Ti) total
+    const result = formatBytesPair(1024, 4096);
+    expect(result.used).toBe("1");
+    expect(result.total).toBe("4");
+    expect(result.unit).toBe("Ti");
+  });
+
+  it("uses Mi when used is small", () => {
+    // 512 Mi (0.5 Gi) used, 64 Gi total → both in Mi
+    const result = formatBytesPair(0.5, 64);
+    expect(result.used).toBe("512");
+    expect(result.total).toBe("65,536"); // 64 * 1024 with comma
+    expect(result.unit).toBe("Mi");
+  });
+
+  it("calculates free correctly in chosen unit", () => {
+    // 64 Gi used, 256 Gi total → 192 Gi free
+    const result = formatBytesPair(64, 256);
+    expect(result.freeDisplay).toBe("192 Gi");
+  });
+
+  it("handles zero used - adopts total's unit", () => {
+    // 0 is unitless, so adopt total's unit (Ti)
+    const result = formatBytesPair(0, 1024);
+    expect(result.used).toBe("0");
+    expect(result.total).toBe("1");
+    expect(result.unit).toBe("Ti");
+    expect(result.freeDisplay).toBe("1 Ti");
+  });
+
+  it("handles equal used and total", () => {
+    const result = formatBytesPair(64, 64);
+    expect(result.used).toBe("64");
+    expect(result.total).toBe("64");
+    expect(result.freeDisplay).toBe("0 Gi");
+  });
+
+  it("adds commas for large values", () => {
+    // Large values should have commas
+    const result = formatBytesPair(100, 13578);
+    expect(result.used).toBe("100");
+    expect(result.total).toBe("13,578"); // Comma for 5 digits
+    expect(result.unit).toBe("Gi");
+    expect(result.freeDisplay).toBe("13,478 Gi");
   });
 });

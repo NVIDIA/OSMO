@@ -9,7 +9,7 @@
 "use client";
 
 import { memo } from "react";
-import { cn, formatCompact } from "@/lib/utils";
+import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
 import { getProgressColor } from "@/lib/styles";
 
 // =============================================================================
@@ -23,8 +23,8 @@ export interface CapacityBarProps {
   used: number;
   /** Total capacity */
   total: number;
-  /** Optional unit suffix (e.g., "Gi", "cores") */
-  unit?: string;
+  /** If true, values are in GiB and will be formatted with appropriate binary unit (Ki, Mi, Gi, Ti) */
+  isBytes?: boolean;
   /** Size variant */
   size?: "sm" | "md";
   /** Whether to show the "free" indicator below the bar */
@@ -53,11 +53,10 @@ export const CapacityBar = memo(function CapacityBar({
   label,
   used,
   total,
-  unit = "",
+  isBytes = false,
   size = "md",
   showFree = true,
 }: CapacityBarProps) {
-  const free = total - used;
   const percent = total > 0 ? (used / total) * 100 : 0;
   const barColor = getProgressColor(percent);
 
@@ -77,6 +76,29 @@ export const CapacityBar = memo(function CapacityBar({
     );
   }
 
+  // Format values - for bytes, use consistent units for used/total
+  let usedStr: string;
+  let totalStr: string;
+  let unit: string;
+  let freeDisplay: string;
+  let ariaLabel: string;
+
+  if (isBytes) {
+    const pair = formatBytesPair(used, total);
+    usedStr = pair.used;
+    totalStr = pair.total;
+    unit = pair.unit;
+    freeDisplay = pair.freeDisplay;
+    ariaLabel = `${label}: ${pair.used} ${pair.unit} of ${pair.total} ${pair.unit} used`;
+  } else {
+    const free = total - used;
+    usedStr = formatCompact(used);
+    totalStr = formatCompact(total);
+    unit = "";
+    freeDisplay = formatCompact(free);
+    ariaLabel = `${label}: ${usedStr} of ${totalStr} used`;
+  }
+
   return (
     <div>
       {/* Header: Label + Used/Total */}
@@ -84,7 +106,7 @@ export const CapacityBar = memo(function CapacityBar({
         <div>
           <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
           <span className="ml-2 tabular-nums text-zinc-900 dark:text-zinc-100">
-            {formatCompact(used)}/{formatCompact(total)}
+            {usedStr}/{totalStr}
           </span>
           {unit && (
             <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">
@@ -100,7 +122,7 @@ export const CapacityBar = memo(function CapacityBar({
         aria-valuenow={used}
         aria-valuemin={0}
         aria-valuemax={total}
-        aria-label={`${label}: ${formatCompact(used)} of ${formatCompact(total)}${unit ? ` ${unit}` : ""} used`}
+        aria-label={ariaLabel}
         className={cn(
           barHeight,
           "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
@@ -121,8 +143,7 @@ export const CapacityBar = memo(function CapacityBar({
       {/* Free label */}
       {showFree && (
         <div className="mt-1 flex justify-end text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
-          {formatCompact(free)}
-          {unit && ` ${unit}`} free
+          {freeDisplay} free
         </div>
       )}
     </div>
