@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect, useMemo, memo } from "react";
+import { useState, useRef, useEffect, useMemo, memo, isValidElement, cloneElement } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Filter,
@@ -102,7 +102,10 @@ export function VirtualizedResourceTable({
   const [isPinned, setIsPinned] = useState(false);
   const [pinnedState, setPinnedState] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // Auto-collapse state machine: expanded/fullSummary → expanded/compactSummary → collapsed
   const [autoCollapsed, setAutoCollapsed] = useState(false);
+  const [autoCompactSummary, setAutoCompactSummary] = useState(false);
 
   // Sort state - includes displayMode to auto-reset when it changes
   const [sortState, setSortState] = useState<{ displayMode: string; sort: SortState }>({
@@ -115,6 +118,8 @@ export function VirtualizedResourceTable({
   const headerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const filterContentRef = useRef<HTMLDivElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
 
   const gridColumns = showPoolsColumn ? TABLE_GRID_COLUMNS_WITH_POOLS : TABLE_GRID_COLUMNS_NO_POOLS;
 
@@ -226,69 +231,103 @@ export function VirtualizedResourceTable({
     return () => scroll.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Auto-collapse when controls panel > threshold of container height
-  // Uses hysteresis to prevent thrashing: collapse at threshold, expand at threshold - 10%
-  // Only observes container size changes, not filter content (which changes when we collapse)
+  // Deterministic auto-collapse: state is a pure function of dimensions
+  // Given the same container dimensions, always produces the same layout
+  //
+  // State bands (based on controls panel height / container height ratio):
+  //   ratio <= compactThreshold:     expanded + full summary
+  //   compactThreshold < ratio <= collapseThreshold: expanded + compact summary
+  //   ratio > collapseThreshold:     collapsed + compact summary
+  //
+  // To ensure determinism, we measure the filter bar and estimate summary heights
+  // rather than measuring the current layout (which varies by state)
   useEffect(() => {
     const container = containerRef.current;
-    const filterEl = filterContentRef.current;
+    const filterBar = filterBarRef.current;
+    const summary = summaryRef.current;
     const tableHeader = headerRef.current;
-    if (!container || !filterEl || !tableHeader) return;
+    if (!container || !tableHeader) return;
 
     let debounceTimer: ReturnType<typeof setTimeout>;
     let isFirstMeasure = true;
-    let lastContainerWidth = container.clientWidth;
 
-    const measure = () => {
-      // Skip auto-collapse on first measurement (initial page load)
-      if (isFirstMeasure) {
-        isFirstMeasure = false;
-        return;
-      }
+    // Estimated heights for summary in each mode
+    // These are approximate but consistent - actual CSS handles the details
+    const FULL_SUMMARY_HEIGHT = 88; // 4-col grid with padding
+    const COMPACT_SUMMARY_HEIGHT = 48; // inline 4-col compact
 
+    const evaluateState = () => {
       const containerH = container.clientHeight;
-      const controlsPanelH = HEADER_HEIGHT + filterEl.scrollHeight + tableHeader.clientHeight;
-      if (containerH > 0 && controlsPanelH > 0) {
-        const ratio = controlsPanelH / containerH;
-        // Hysteresis: collapse at threshold, but require 10% less to re-expand
-        // This prevents oscillation when content is near the boundary
-        setAutoCollapsed((wasCollapsed) => {
-          if (wasCollapsed) {
-            // To expand, ratio must be below (threshold - hysteresis)
-            return ratio > (collapseThreshold - 0.1);
-          } else {
-            // To collapse, ratio must exceed threshold
-            return ratio > collapseThreshold;
-          }
-        });
+      if (containerH <= 0) return;
+
+      // Measure filter bar height (excludes summary)
+      const filterBarH = filterBar?.scrollHeight ?? 0;
+      const tableHeaderH = tableHeader.clientHeight;
+      const paddingAndBorders = 32; // p-4 top/bottom + border
+
+      // Calculate what the ratio WOULD BE in each state
+      const baseHeight = HEADER_HEIGHT + filterBarH + tableHeaderH + paddingAndBorders;
+      const fullRatio = (baseHeight + FULL_SUMMARY_HEIGHT) / containerH;
+      const compactRatio = (baseHeight + COMPACT_SUMMARY_HEIGHT) / containerH;
+
+      // Thresholds - compact band is 10% below collapse threshold
+      const compactThreshold = collapseThreshold - 0.1;
+
+      // Determine state deterministically based on what WOULD fit
+      let newCollapsed: boolean;
+      let newCompact: boolean;
+
+      if (fullRatio <= compactThreshold) {
+        // Full summary fits comfortably
+        newCollapsed = false;
+        newCompact = false;
+      } else if (compactRatio <= collapseThreshold) {
+        // Compact summary fits
+        newCollapsed = false;
+        newCompact = true;
+      } else {
+        // Nothing fits - collapse
+        newCollapsed = true;
+        newCompact = true;
       }
+
+      // Update state only if changed
+      if (newCollapsed !== autoCollapsed) setAutoCollapsed(newCollapsed);
+      if (newCompact !== autoCompactSummary) setAutoCompactSummary(newCompact);
     };
 
-    const debouncedMeasure = () => {
+    const debouncedEvaluate = () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(measure, 150); // Debounce to let layout settle
+      debounceTimer = setTimeout(() => {
+        if (!isFirstMeasure) {
+          evaluateState();
+        }
+      }, 100); // Short debounce - just to batch rapid resize events
     };
 
-    // Only observe container - not filterEl to avoid feedback loops
-    // Filter content changes are a result of our own collapse action
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        // Only trigger on width changes (viewport resize), not height changes
-        // Height changes are often caused by our own collapse/expand
-        const newWidth = entry.contentRect.width;
-        if (newWidth !== lastContainerWidth) {
-          lastContainerWidth = newWidth;
-          debouncedMeasure();
-        }
-      }
+    // Observe container size changes
+    const observer = new ResizeObserver(() => {
+      debouncedEvaluate();
     });
     observer.observe(container);
 
+    // Also observe filter bar for content changes (e.g., filter chips added/removed)
+    if (filterBar) {
+      observer.observe(filterBar);
+    }
+
+    // Initial evaluation after first paint (skip auto-collapse during SSR/hydration)
+    const initialTimer = setTimeout(() => {
+      isFirstMeasure = false;
+      evaluateState();
+    }, 100);
+
     return () => {
       clearTimeout(debounceTimer);
+      clearTimeout(initialTimer);
       observer.disconnect();
     };
-  }, [collapseThreshold]);
+  }, [collapseThreshold, autoCollapsed, autoCompactSummary]);
 
   // Effective collapsed: pinned state takes precedence
   const effectiveCollapsed = isPinned ? pinnedState : autoCollapsed;
@@ -415,8 +454,16 @@ export function VirtualizedResourceTable({
                 id="filter-content"
                 className="relative z-20 space-y-4 border-b border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800/50 dark:bg-zinc-900/30"
               >
-                {filterContent}
-                {summaryContent}
+                {/* Filter bar - wrapped for measurement */}
+                <div ref={filterBarRef}>
+                  {filterContent}
+                </div>
+                {/* Summary - wrapped for measurement, with forceCompact prop injected */}
+                <div ref={summaryRef}>
+                  {summaryContent && isValidElement(summaryContent)
+                    ? cloneElement(summaryContent, { forceCompact: autoCompactSummary || effectiveCollapsed } as Record<string, unknown>)
+                    : summaryContent}
+                </div>
               </div>
             </div>
           </div>
