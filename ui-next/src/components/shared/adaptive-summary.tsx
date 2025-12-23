@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
@@ -42,8 +42,9 @@ interface AdaptiveSummaryProps {
  *   - ≥800px: Shows metric labels (GPU, CPU, etc.)
  *
  * Uses GPU-accelerated CSS transitions for smooth layout changes.
+ * Memoized to prevent unnecessary re-renders when props haven't changed.
  */
-export function AdaptiveSummary({
+export const AdaptiveSummary = memo(function AdaptiveSummary({
   resources,
   displayMode = "free",
   isLoading = false,
@@ -163,4 +164,4 @@ export function AdaptiveSummary({
       </div>
     </div>
   );
-}
+});

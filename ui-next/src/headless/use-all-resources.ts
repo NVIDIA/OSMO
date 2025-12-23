@@ -13,9 +13,14 @@
  *
  * Provides logic for viewing all resources across pools,
  * with filtering by pool, platform, search, and resource type.
+ *
+ * Performance optimizations:
+ * - useDeferredValue for non-blocking filter updates
+ * - useCallback for stable function references
+ * - useMemo for expensive computations
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useDeferredValue, useTransition } from "react";
 import {
   useAllResources as useAllResourcesQuery,
   type Resource,
@@ -97,10 +102,23 @@ export function useAllResources(): UseAllResourcesReturn {
   } = useAllResourcesQuery();
 
   // Local state
-  const [search, setSearch] = useState("");
+  const [search, setSearchState] = useState("");
   const [selectedPools, setSelectedPools] = useState<Set<string>>(new Set());
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<BackendResourceType>>(new Set());
+
+  // Deferred search for non-blocking updates during typing
+  const deferredSearch = useDeferredValue(search);
+
+  // Transition for filter updates - keeps UI responsive
+  const [, startFilterTransition] = useTransition();
+
+  // Wrapped setSearch to use deferred updates
+  const setSearch = useCallback((value: string) => {
+    startFilterTransition(() => {
+      setSearchState(value);
+    });
+  }, []);
 
   // Resource display mode (persisted to localStorage)
   const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(() => {
@@ -126,6 +144,7 @@ export function useAllResources(): UseAllResourcesReturn {
   }, [resources]);
 
   // Filter resources by pool, platform, search, AND resource type
+  // Uses deferredSearch for non-blocking search updates
   const filteredResources = useMemo(() => {
     let result = resources;
 
@@ -148,9 +167,9 @@ export function useAllResources(): UseAllResourcesReturn {
       );
     }
 
-    // Filter by search
-    if (search.trim()) {
-      const query = search.toLowerCase();
+    // Filter by search (using deferred value for smooth typing)
+    if (deferredSearch.trim()) {
+      const query = deferredSearch.toLowerCase();
       result = result.filter(
         (resource) =>
           resource.name.toLowerCase().includes(query) ||
@@ -161,7 +180,7 @@ export function useAllResources(): UseAllResourcesReturn {
     }
 
     return result;
-  }, [resources, search, selectedPools, selectedPlatforms, selectedResourceTypes]);
+  }, [resources, deferredSearch, selectedPools, selectedPlatforms, selectedResourceTypes]);
 
   // Pool filter handlers
   const togglePool = useCallback((pool: string) => {
@@ -212,7 +231,7 @@ export function useAllResources(): UseAllResourcesReturn {
   }, []);
 
   // Search handlers
-  const clearSearch = useCallback(() => setSearch(""), []);
+  const clearSearch = useCallback(() => setSearchState(""), []);
 
   // Build active filters for chips display
   const activeFilters = useMemo<ActiveFilter<AllResourcesFilterType>[]>(() => {
@@ -257,7 +276,7 @@ export function useAllResources(): UseAllResourcesReturn {
   const removeFilter = useCallback((filter: ActiveFilter<AllResourcesFilterType>) => {
     switch (filter.type) {
       case "search":
-        setSearch("");
+        setSearchState("");
         break;
       case "pool":
         setSelectedPools((prev) => {
@@ -289,7 +308,7 @@ export function useAllResources(): UseAllResourcesReturn {
 
   // Clear all filters
   const clearAllFilters = useCallback(() => {
-    setSearch("");
+    setSearchState("");
     setSelectedPools(new Set());
     setSelectedPlatforms(new Set());
     setSelectedResourceTypes(new Set());
