@@ -120,6 +120,8 @@ export function VirtualizedResourceTable({
   const filterContentRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  // Ref to track the last clicked row for focus restoration
+  const lastClickedRowRef = useRef<HTMLElement | null>(null);
 
   const gridColumns = showPoolsColumn ? TABLE_GRID_COLUMNS_WITH_POOLS : TABLE_GRID_COLUMNS_NO_POOLS;
 
@@ -199,8 +201,12 @@ export function VirtualizedResourceTable({
     return sorted;
   }, [resources, sort, displayMode]);
 
-  // Handle row click
-  const handleRowClick = (resource: Resource) => {
+  // Handle row click with focus tracking
+  const handleRowClick = (resource: Resource, rowElement?: HTMLElement) => {
+    // Track the clicked element for focus restoration
+    if (rowElement) {
+      lastClickedRowRef.current = rowElement;
+    }
     if (onResourceClick) {
       onResourceClick(resource);
     } else {
@@ -490,7 +496,7 @@ export function VirtualizedResourceTable({
         </div>
 
         {/* Table Content - virtualized with horizontal + vertical scroll */}
-        <div ref={scrollRef} className="flex-1 overflow-auto" role="table" aria-label="Resources">
+        <div ref={scrollRef} className="flex-1 overflow-auto focus:outline-none" role="table" aria-label="Resources" tabIndex={-1}>
           <div style={{ minWidth: TABLE_MIN_WIDTH }}>
             <TableContent
               resources={sortedResources}
@@ -512,6 +518,8 @@ export function VirtualizedResourceTable({
           resource={selectedResource}
           poolName={poolName}
           onClose={() => setSelectedResource(null)}
+          restoreFocusRef={lastClickedRowRef}
+          fallbackFocusRef={scrollRef}
         />
       )}
     </>
@@ -599,7 +607,7 @@ const TableContent = memo(function TableContent({
   scrollRef: React.RefObject<HTMLDivElement | null>;
   rowHeight: number;
   gridColumns: string;
-  onRowClick: (resource: Resource) => void;
+  onRowClick: (resource: Resource, rowElement?: HTMLElement) => void;
 }) {
   "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
   // eslint-disable-next-line react-hooks/incompatible-library -- intentionally opted out above
@@ -677,11 +685,11 @@ const TableContent = memo(function TableContent({
             key={virtualRow.key}
             role="row"
             tabIndex={0}
-            onClick={() => onRowClick(resource)}
+            onClick={(e) => onRowClick(resource, e.currentTarget)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onRowClick(resource);
+                onRowClick(resource, e.currentTarget);
               }
             }}
             style={{
