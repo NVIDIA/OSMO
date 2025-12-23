@@ -7,8 +7,7 @@
 
 export { PoolRow, PoolRowSkeleton } from "./pool-row";
 export { ResourcePanel } from "./resource-panel";
-export { ResourceTable } from "./resource-table";
-export { ResourceCapacitySummary } from "./resource-capacity-summary";
+export { VirtualizedResourceTable } from "./virtualized-resource-table";
 export { QuotaBar } from "./quota-bar";
 export { PlatformChips } from "./platform-chips";
 

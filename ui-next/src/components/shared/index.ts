@@ -25,3 +25,9 @@ export { ApiError, type ApiErrorProps } from "./api-error";
 
 // Error details (message + collapsible stack)
 export { ErrorDetails } from "./error-details";
+
+// Adaptive summary cards (CSS container query responsive)
+export { AdaptiveSummary } from "./adaptive-summary";
+
+// Data table container with collapsible controls panel
+export { DataTableContainer } from "./data-table-container";
