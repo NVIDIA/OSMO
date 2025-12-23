@@ -21,6 +21,8 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  Minimize2,
+  Maximize2,
 } from "lucide-react";
 import { cn, formatCompact } from "@/lib/utils";
 import {
@@ -47,6 +49,8 @@ interface SortState {
 interface VirtualizedResourceTableProps {
   /** Array of resources to display */
   resources: Resource[];
+  /** Total count of resources before filtering (for "X of Y" display) */
+  totalCount?: number;
   /** Show loading skeleton */
   isLoading?: boolean;
   /** Show the Pools column (for cross-pool views) */
@@ -82,6 +86,7 @@ const HEADER_HEIGHT = 41; // pixels
 
 export function VirtualizedResourceTable({
   resources,
+  totalCount,
   isLoading = false,
   showPoolsColumn = false,
   poolName,
@@ -222,19 +227,20 @@ export function VirtualizedResourceTable({
   }, []);
 
   // Auto-collapse when controls panel > threshold of container height
-  // Skip initial render to avoid collapsing before user sees the page
+  // Uses hysteresis to prevent thrashing: collapse at threshold, expand at threshold - 10%
+  // Only observes container size changes, not filter content (which changes when we collapse)
   useEffect(() => {
     const container = containerRef.current;
     const filterEl = filterContentRef.current;
     const tableHeader = headerRef.current;
     if (!container || !filterEl || !tableHeader) return;
 
-    let rafId: number;
+    let debounceTimer: ReturnType<typeof setTimeout>;
     let isFirstMeasure = true;
+    let lastContainerWidth = container.clientWidth;
 
     const measure = () => {
       // Skip auto-collapse on first measurement (initial page load)
-      // Only auto-collapse on subsequent resize events
       if (isFirstMeasure) {
         isFirstMeasure = false;
         return;
@@ -243,21 +249,43 @@ export function VirtualizedResourceTable({
       const containerH = container.clientHeight;
       const controlsPanelH = HEADER_HEIGHT + filterEl.scrollHeight + tableHeader.clientHeight;
       if (containerH > 0 && controlsPanelH > 0) {
-        setAutoCollapsed(controlsPanelH > containerH * collapseThreshold);
+        const ratio = controlsPanelH / containerH;
+        // Hysteresis: collapse at threshold, but require 10% less to re-expand
+        // This prevents oscillation when content is near the boundary
+        setAutoCollapsed((wasCollapsed) => {
+          if (wasCollapsed) {
+            // To expand, ratio must be below (threshold - hysteresis)
+            return ratio > (collapseThreshold - 0.1);
+          } else {
+            // To collapse, ratio must exceed threshold
+            return ratio > collapseThreshold;
+          }
+        });
       }
     };
 
-    rafId = requestAnimationFrame(measure);
+    const debouncedMeasure = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(measure, 150); // Debounce to let layout settle
+    };
 
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(measure);
+    // Only observe container - not filterEl to avoid feedback loops
+    // Filter content changes are a result of our own collapse action
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // Only trigger on width changes (viewport resize), not height changes
+        // Height changes are often caused by our own collapse/expand
+        const newWidth = entry.contentRect.width;
+        if (newWidth !== lastContainerWidth) {
+          lastContainerWidth = newWidth;
+          debouncedMeasure();
+        }
+      }
     });
     observer.observe(container);
-    observer.observe(filterEl);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      clearTimeout(debounceTimer);
       observer.disconnect();
     };
   }, [collapseThreshold]);
@@ -295,27 +323,35 @@ export function VirtualizedResourceTable({
         {hasControlsPanel && (
           <div className="shrink-0 border-b border-zinc-100 bg-zinc-50/50 dark:border-zinc-800/50 dark:bg-zinc-900/30">
             <div className="flex items-center">
+              {/* Clickable expand/collapse section */}
               <button
                 onClick={handleToggle}
                 aria-expanded={!effectiveCollapsed}
                 aria-controls="filter-content"
-                className="flex flex-1 items-center justify-between px-4 py-2 text-left transition-colors hover:bg-zinc-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--nvidia-green)] dark:hover:bg-zinc-900/50"
+                className="flex flex-1 items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--nvidia-green)] dark:hover:bg-zinc-800/50"
               >
-                <div className="flex items-center gap-2">
-                  <Filter className="h-3.5 w-3.5 text-zinc-400" />
-                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    Filters & Summary
+                <Filter className="h-3.5 w-3.5 text-zinc-400" />
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Filters & Summary
+                </span>
+                {filterCount > 0 && (
+                  <span className="rounded-full bg-[var(--nvidia-green)] px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    {filterCount}
                   </span>
-                  {filterCount > 0 && (
-                    <span className="rounded-full bg-[var(--nvidia-green)] px-1.5 py-0.5 text-[10px] font-medium text-white">
-                      {filterCount}
-                    </span>
+                )}
+                <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                  {totalCount !== undefined && totalCount !== resources.length
+                    ? `${resources.length} of ${totalCount}`
+                    : `${resources.length}`}
+                </span>
+                <span className="ml-auto text-zinc-400">
+                  {effectiveCollapsed ? (
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Minimize2 className="h-3.5 w-3.5" />
                   )}
-                  <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                    {effectiveCollapsed ? "click to expand" : "click to collapse"}
-                  </span>
-                </div>
+                </span>
               </button>
 
               {/* Pin/Unpin button */}

@@ -28,7 +28,6 @@ export default function PoolDetailPage() {
     resourceTypes,
     filteredResources,
     resourceCount,
-    filteredResourceCount,
     search,
     setSearch,
     clearSearch,
@@ -119,20 +118,12 @@ export default function PoolDetailPage() {
           <div className="shrink-0 flex items-center gap-2">
             <Server className="h-4 w-4 text-zinc-400" />
             <h2 className={heading.section}>Resources</h2>
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              {filteredResourceCount !== resourceCount ? (
-                <>
-                  ({filteredResourceCount} of {resourceCount})
-                </>
-              ) : (
-                <>({resourceCount})</>
-              )}
-            </span>
           </div>
 
           <div className="min-h-0 flex-1">
             <VirtualizedResourceTable
               resources={filteredResources}
+              totalCount={resourceCount}
               isLoading={isLoading}
               poolName={poolName}
               displayMode={displayMode}
