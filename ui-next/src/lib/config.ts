@@ -1,6 +1,6 @@
 /**
  * Centralized configuration for the OSMO UI.
- * 
+ *
  * All environment variables and runtime config should be accessed through this module.
  * This ensures consistent defaults and makes configuration discoverable.
  */
@@ -33,26 +33,37 @@ export function isBuildPhase(): boolean {
 // =============================================================================
 
 /**
- * Get the API hostname.
- * Falls back to staging environment if not configured.
+ * Get the configured API hostname.
+ * Set NEXT_PUBLIC_OSMO_API_HOSTNAME in .env.local
  */
 export function getApiHostname(): string {
-  return process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "staging.osmo.nvidia.com";
+  return process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
 }
 
 /**
  * Get the auth hostname.
- * Falls back to staging auth if not configured.
+ * Set NEXT_PUBLIC_OSMO_AUTH_HOSTNAME in .env.local
  */
 export function getAuthHostname(): string {
-  return process.env.NEXT_PUBLIC_OSMO_AUTH_HOSTNAME || "auth-staging.osmo.nvidia.com";
+  return process.env.NEXT_PUBLIC_OSMO_AUTH_HOSTNAME || "localhost:8081";
 }
 
 /**
  * Check if SSL is enabled.
+ *
+ * Defaults to false for localhost (no SSL certs typically available),
+ * true for all other hostnames.
  */
 export function isSslEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
+  const explicit = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED;
+  if (explicit !== undefined) {
+    return explicit !== "false";
+  }
+
+  // Default: disable SSL for localhost, enable for everything else
+  const hostname = getApiHostname();
+  const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
+  return !isLocalhost;
 }
 
 /**
@@ -77,6 +88,8 @@ export function getAuthBaseUrl(): string {
 
 /**
  * Auth client secret (server-side only).
+ *
+ * Configure AUTH_CLIENT_SECRET in .env.local
  */
 export function getAuthClientSecret(): string {
   return process.env.AUTH_CLIENT_SECRET || "";

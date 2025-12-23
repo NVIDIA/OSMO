@@ -17,11 +17,12 @@ export interface LoginInfo {
 
 export async function getLoginInfo(): Promise<LoginInfo> {
   const scheme = isSslEnabled() ? "https" : "http";
-  const authHostname = getAuthHostname();
   const apiHostname = getApiHostname();
+  const authHostname = getAuthHostname();
+  const backendUrl = `${scheme}://${apiHostname}`;
 
   // Default login info (fallback if backend doesn't respond)
-  let loginInfo: LoginInfo = {
+  const defaultLoginInfo: LoginInfo = {
     auth_enabled: true,
     device_endpoint: "",
     device_client_id: "",
@@ -33,18 +34,18 @@ export async function getLoginInfo(): Promise<LoginInfo> {
 
   // Avoid network calls during static generation
   if (isBuildPhase()) {
-    return loginInfo;
+    return defaultLoginInfo;
   }
 
   try {
-    const res = await fetch(`${scheme}://${apiHostname}/api/auth/login`, {
+    const res = await fetch(`${backendUrl}/api/auth/login`, {
       cache: "no-store",
     });
-    loginInfo = (await res.json()) as LoginInfo;
+    const loginInfo = (await res.json()) as LoginInfo;
     loginInfo.auth_enabled = Boolean(loginInfo.device_endpoint);
+    return loginInfo;
   } catch (error) {
     logWarn(`Host does not support /api/auth/login: ${(error as Error).message}`);
+    return defaultLoginInfo;
   }
-
-  return loginInfo;
 }
