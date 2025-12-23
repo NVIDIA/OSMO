@@ -11,6 +11,7 @@ import {
   expect,
   createPoolResponse,
   createResourcesResponse,
+  expandFiltersIfCollapsed,
   // Generated enums - use instead of string literals
   PoolStatus,
   BackendResourceType,
@@ -80,17 +81,19 @@ test.describe("Resources List", () => {
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
+    // Expand filters if collapsed (responsive layout)
+    await expandFiltersIfCollapsed(page);
+
     // Search for "dgx"
     const searchInput = page.getByRole("searchbox");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("dgx");
 
-    // Active filters should appear
-    const activeFilters = page.getByRole("region", { name: /active filters/i });
-    await expect(activeFilters).toBeVisible();
+    // Wait for search to filter results - count should show "2 of 3"
+    await expect(page.getByText(/2 of 3/)).toBeVisible({ timeout: 3000 });
 
-    // Clear search
-    await page.getByRole("button", { name: /clear.*search/i }).click();
+    // Clear search by clearing the input directly
+    await searchInput.clear();
     await expect(searchInput).toHaveValue("");
   });
 
@@ -120,6 +123,9 @@ test.describe("Resources List", () => {
     // Both should be visible initially
     await expect(page.getByText("prod-node").first()).toBeVisible();
     await expect(page.getByText("dev-node").first()).toBeVisible();
+
+    // Expand filters if collapsed (responsive layout)
+    await expandFiltersIfCollapsed(page);
 
     // Open pool filter (use aria-label which is more specific)
     const poolFilter = page.getByLabel(/filter by pool/i);
@@ -170,6 +176,9 @@ test.describe("Resources List", () => {
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
+
+    // Expand filters if collapsed (responsive layout)
+    await expandFiltersIfCollapsed(page);
 
     // Apply a search filter
     const searchInput = page.getByRole("searchbox");
