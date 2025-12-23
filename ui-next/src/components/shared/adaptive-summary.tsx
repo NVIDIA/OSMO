@@ -12,7 +12,7 @@
 
 import { useMemo, memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
 import type { ResourceDisplayMode } from "@/headless";
 
@@ -63,18 +63,41 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
     );
   }, [resources]);
 
-  const format = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-  const getValue = (m: { used: number; total: number }) => (displayMode === "free" ? m.total - m.used : m.used);
-
   if (isLoading) {
     return <div className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />;
   }
 
+  // Format helper for each metric type
+  const formatMetric = (
+    m: { used: number; total: number },
+    isBytes: boolean
+  ): { freeValue: string; usedValue: string; totalValue: string; unit: string } => {
+    if (isBytes) {
+      const free = m.total - m.used;
+      const freeFormatted = formatBytes(free);
+      const pair = formatBytesPair(m.used, m.total);
+      return {
+        freeValue: freeFormatted.value,
+        usedValue: pair.used,
+        totalValue: pair.total,
+        unit: displayMode === "free" ? freeFormatted.unit : pair.unit,
+      };
+    }
+    // Non-bytes: use compact formatting
+    const free = m.total - m.used;
+    return {
+      freeValue: formatCompact(free),
+      usedValue: formatCompact(m.used),
+      totalValue: formatCompact(m.total),
+      unit: "",
+    };
+  };
+
   const metrics = [
-    { Icon: Zap, label: "GPU", value: totals.gpu, color: "text-amber-500" },
-    { Icon: Cpu, label: "CPU", value: totals.cpu, color: "text-blue-500" },
-    { Icon: MemoryStick, label: "Memory", value: totals.memory, unit: "GB", color: "text-purple-500" },
-    { Icon: HardDrive, label: "Storage", value: totals.storage, unit: "GB", color: "text-emerald-500" },
+    { Icon: Zap, label: "GPU", value: totals.gpu, isBytes: false, color: "text-amber-500" },
+    { Icon: Cpu, label: "CPU", value: totals.cpu, isBytes: false, color: "text-blue-500" },
+    { Icon: MemoryStick, label: "Memory", value: totals.memory, isBytes: true, color: "text-purple-500" },
+    { Icon: HardDrive, label: "Storage", value: totals.storage, isBytes: true, color: "text-emerald-500" },
   ];
 
   return (
@@ -90,77 +113,82 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
             : "grid-cols-2 @[500px]:gap-3 @[500px]:grid-cols-4" // Responsive
         )}
       >
-        {metrics.map((item, i) => (
-          <div
-            key={i}
-            className={cn(
-              "group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200",
-              forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3"
-            )}
-          >
-            {/* Compact mode: single row with icon + value */}
-            {/* Wide mode: stacked with header row */}
+        {metrics.map((item, i) => {
+          const formatted = formatMetric(item.value, item.isBytes);
+          const displayValue = displayMode === "free" ? formatted.freeValue : formatted.usedValue;
+          
+          return (
             <div
+              key={i}
               className={cn(
-                "flex items-center gap-2 transition-all duration-200",
-                !forceCompact && "@[500px]:flex-col @[500px]:items-start @[500px]:gap-0"
+                "group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200",
+                forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3"
               )}
             >
-              {/* Icon + Label */}
-              <div className={cn("flex items-center gap-2", !forceCompact && "@[500px]:mb-1")}>
-                <item.Icon className={cn("h-4 w-4 shrink-0", item.color)} />
-                {/* In compact mode, show label at wider widths; in full mode, show at @[500px] */}
-                {forceCompact ? (
-                  <span className="hidden @[800px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    {item.label}
-                  </span>
-                ) : (
-                  <span className="hidden @[500px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    {item.label}
-                  </span>
+              {/* Compact mode: single row with icon + value */}
+              {/* Wide mode: stacked with header row */}
+              <div
+                className={cn(
+                  "flex items-center gap-2 transition-all duration-200",
+                  !forceCompact && "@[500px]:flex-col @[500px]:items-start @[500px]:gap-0"
                 )}
-              </div>
-
-              {/* Value with progressive detail based on available space */}
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <span
-                  className={cn(
-                    "font-semibold tabular-nums text-zinc-900 dark:text-zinc-100",
-                    forceCompact ? "text-sm @[700px]:text-base" : "text-xl"
+              >
+                {/* Icon + Label */}
+                <div className={cn("flex items-center gap-2", !forceCompact && "@[500px]:mb-1")}>
+                  <item.Icon className={cn("h-4 w-4 shrink-0", item.color)} />
+                  {/* In compact mode, show label at wider widths; in full mode, show at @[500px] */}
+                  {forceCompact ? (
+                    <span className="hidden @[800px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      {item.label}
+                    </span>
+                  ) : (
+                    <span className="hidden @[500px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      {item.label}
+                    </span>
                   )}
-                >
-                  {format(getValue(item.value))}
-                </span>
-                {/* Denominator: always show in full mode, show at @[600px] in compact */}
-                {displayMode === "used" && (
+                </div>
+
+                {/* Value with progressive detail based on available space */}
+                <div className="flex items-baseline gap-1 flex-wrap">
                   <span
                     className={cn(
-                      "text-sm text-zinc-400 dark:text-zinc-500",
-                      forceCompact && "hidden @[600px]:inline"
+                      "font-semibold tabular-nums text-zinc-900 dark:text-zinc-100",
+                      forceCompact ? "text-sm @[700px]:text-base" : "text-xl"
                     )}
                   >
-                    / {format(item.value.total)}
+                    {displayValue}
                   </span>
-                )}
-                {/* Unit */}
-                {item.unit && (
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-0.5">
-                    {item.unit}
-                  </span>
-                )}
-                {/* "free"/"used" label: always show in full mode, show at @[700px] in compact */}
-                <span
-                  className={cn(
-                    "text-xs text-zinc-400 dark:text-zinc-500 ml-1",
-                    forceCompact && "hidden @[700px]:inline"
+                  {/* Denominator: always show in full mode, show at @[600px] in compact */}
+                  {displayMode === "used" && (
+                    <span
+                      className={cn(
+                        "text-sm text-zinc-400 dark:text-zinc-500",
+                        forceCompact && "hidden @[600px]:inline"
+                      )}
+                    >
+                      / {formatted.totalValue}
+                    </span>
                   )}
-                >
-                  {displayMode === "free" ? "free" : "used"}
-                </span>
+                  {/* Unit */}
+                  {formatted.unit && (
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-0.5">
+                      {formatted.unit}
+                    </span>
+                  )}
+                  {/* "free"/"used" label: always show in full mode, show at @[700px] in compact */}
+                  <span
+                    className={cn(
+                      "text-xs text-zinc-400 dark:text-zinc-500 ml-1",
+                      forceCompact && "hidden @[700px]:inline"
+                    )}
+                  >
+                    {displayMode === "free" ? "free" : "used"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
