@@ -11,7 +11,7 @@ export function Shell({ children }: ShellProps) {
       {/* Skip to main content link - WCAG 2.1 bypass block */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:bg-[#76b900] focus:px-4 focus:py-2 focus:text-black focus:outline-none"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:bg-[var(--nvidia-green)] focus:px-4 focus:py-2 focus:text-black focus:outline-none"
       >
         Skip to main content
       </a>

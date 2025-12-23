@@ -1,10 +1,10 @@
 /**
  * Local Development Authentication
- * 
+ *
  * Provides an alternative login flow for local development where
  * OAuth redirects are not available. Users manually transfer their
  * session by pasting their cookie string from the production UI.
- * 
+ *
  * This module is only active when isLocalDev() returns true.
  */
 
@@ -125,7 +125,7 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
           href={productionUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block w-full rounded-lg bg-zinc-900 px-4 py-3 text-sm text-[#76b900] hover:bg-zinc-800 transition-colors break-all"
+          className="block w-full rounded-lg bg-zinc-900 px-4 py-3 text-sm text-[var(--nvidia-green)] hover:bg-zinc-800 transition-colors break-all"
         >
           {productionUrl} ↗
         </a>
@@ -141,7 +141,7 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
             title="Copy to clipboard"
           >
             {copied ? (
-              <Check className="h-4 w-4 text-[#76b900]" />
+              <Check className="h-4 w-4 text-[var(--nvidia-green)]" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
@@ -159,7 +159,7 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
             setParseError("");
           }}
           placeholder="Paste cookie string here..."
-          className="w-full px-4 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 text-sm font-mono placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#76b900] focus:border-transparent"
+          className="w-full px-4 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 text-sm font-mono placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[var(--nvidia-green)] focus:border-transparent"
         />
         {parseError && (
           <p className="text-xs text-red-400 mt-1">{parseError}</p>
@@ -170,7 +170,7 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
         <button
           onClick={handleLogin}
           disabled={!tokenInputValue.trim()}
-          className="rounded-lg bg-[#76b900] px-6 py-2.5 text-sm font-medium text-black hover:bg-[#8bd400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-lg bg-[var(--nvidia-green)] px-6 py-2.5 text-sm font-medium text-black hover:bg-[var(--nvidia-green-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Log In
         </button>

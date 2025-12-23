@@ -82,7 +82,10 @@
 
   /* Brand colors */
   --nvidia-green: #76b900;
+  --nvidia-green-dark: #5a8c00;
   --nvidia-green-light: #9ed439;
+  --nvidia-green-bg: #f3f9e8;
+  --nvidia-green-bg-dark: #1a2e0a;
 
   /* Semantic status colors */
   --status-success: oklch(0.7 0.15 145);
@@ -125,7 +128,10 @@
 
   /* Brand colors - same in dark mode */
   --nvidia-green: #76b900;
+  --nvidia-green-dark: #5a8c00;
   --nvidia-green-light: #9ed439;
+  --nvidia-green-bg: #f3f9e8;
+  --nvidia-green-bg-dark: #1a2e0a;
 }
 
 @layer base {
