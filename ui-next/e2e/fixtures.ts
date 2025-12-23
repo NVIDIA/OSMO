@@ -6,7 +6,7 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { test as base, type Page } from "@playwright/test";
+import { test as base, expect as baseExpect, type Page } from "@playwright/test";
 import type { PoolResponse, ResourcesResponse } from "@/lib/api/generated";
 
 // Default data for when tests don't specify their own
@@ -246,6 +246,42 @@ export const test = base.extend<{
     await use(setAuth);
   },
 });
+
+// =============================================================================
+// Helper to expand filters if collapsed (for responsive layouts)
+// =============================================================================
+
+/**
+ * Expands the filters panel if it's collapsed due to responsive auto-collapse.
+ * Call this before interacting with filter controls.
+ * 
+ * This function clicks the expand button and waits for the panel to expand,
+ * which also pins the filters to prevent auto-collapse during the test.
+ */
+export async function expandFiltersIfCollapsed(page: Page) {
+  // Look for the collapsed state by checking aria-expanded attribute
+  const filterToggle = page.getByRole("button", { name: /Filters & Summary/i }).first();
+  
+  // Wait for the button to be visible
+  try {
+    await filterToggle.waitFor({ state: "visible", timeout: 3000 });
+  } catch {
+    // No filter toggle found - page may not have collapsible filters
+    return;
+  }
+  
+  // Check if filters are collapsed (aria-expanded="false")
+  const isExpanded = await filterToggle.getAttribute("aria-expanded");
+  
+  if (isExpanded === "false") {
+    // Click to expand and pin
+    await filterToggle.click();
+    // Wait for animation to complete
+    await page.waitForTimeout(300);
+    // Verify expansion happened
+    await baseExpect(filterToggle).toHaveAttribute("aria-expanded", "true", { timeout: 3000 });
+  }
+}
 
 // =============================================================================
 // Helper to complete OAuth login

@@ -11,6 +11,7 @@ import {
   expect,
   createPoolResponse,
   createResourcesResponse,
+  expandFiltersIfCollapsed,
   // Generated enums - use instead of string literals
   PoolStatus,
   BackendResourceType,
@@ -210,6 +211,9 @@ test.describe("Pool Detail", () => {
     // Both should be visible initially
     await expect(page.getByText("dgx-node").first()).toBeVisible();
     await expect(page.getByText("cpu-node").first()).toBeVisible();
+
+    // Expand filters if collapsed (responsive layout)
+    await expandFiltersIfCollapsed(page);
 
     // Filter by platform if filter exists
     const platformFilter = page.getByLabel(/filter by platform/i);
