@@ -8,11 +8,10 @@
 
 "use client";
 
-import { Server, Cpu, Box, Layers } from "lucide-react";
+import { Cpu, Box, Layers } from "lucide-react";
 import { VirtualizedResourceTable } from "@/components/features/pools";
 import { FilterBar, ApiError, AdaptiveSummary } from "@/components/shared";
 import { useAllResources } from "@/headless";
-import { heading } from "@/lib/styles";
 
 export default function ResourcesPage() {
   const {
@@ -21,7 +20,6 @@ export default function ResourcesPage() {
     resourceTypes,
     filteredResources,
     resourceCount,
-    filteredResourceCount,
     search,
     setSearch,
     clearSearch,
@@ -56,20 +54,6 @@ export default function ResourcesPage() {
 
       {/* Resources section with integrated filter bar */}
       <section className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="flex shrink-0 items-center gap-2">
-          <Server className="h-4 w-4 text-zinc-400" />
-          <h2 className={heading.section}>All Resources</h2>
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {filteredResourceCount !== resourceCount ? (
-              <>
-                ({filteredResourceCount} of {resourceCount})
-              </>
-            ) : (
-              <>({resourceCount})</>
-            )}
-          </span>
-        </div>
-
         {/* API Error - shown outside table container */}
         {error && (
           <ApiError
@@ -86,6 +70,7 @@ export default function ResourcesPage() {
           <div className="min-h-0 flex-1">
             <VirtualizedResourceTable
               resources={filteredResources}
+              totalCount={resourceCount}
               isLoading={isLoading}
               showPoolsColumn
               displayMode={displayMode}
