@@ -8,10 +8,9 @@
 
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { clearButton } from "@/lib/styles";
 
 interface FilterSearchProps {
   /** Current search value */
@@ -45,13 +44,13 @@ export function FilterSearch({
   placeholder = "Search...",
   className,
 }: FilterSearchProps) {
-  const hasValue = value.length > 0;
-
-  const handleClear = () => {
-    if (onClear) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    // When native X clears input, call onClear if provided
+    if (newValue === "" && value !== "" && onClear) {
       onClear();
     } else {
-      onChange("");
+      onChange(newValue);
     }
   };
 
@@ -62,20 +61,10 @@ export function FilterSearch({
         type="search"
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 pl-9 pr-8 text-sm"
+        onChange={handleChange}
+        className="h-9 pl-9 pr-3 text-sm"
         aria-label={placeholder}
       />
-      {hasValue && (
-        <button
-          type="button"
-          onClick={handleClear}
-          className={cn("absolute right-2 top-1/2 -translate-y-1/2", clearButton)}
-          aria-label="Clear search"
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      )}
     </div>
   );
 }
