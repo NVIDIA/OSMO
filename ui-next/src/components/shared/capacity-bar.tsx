@@ -1,5 +1,3 @@
-"use client";
-
 // Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -8,6 +6,9 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
+"use client";
+
+import { memo } from "react";
 import { cn, formatCompact } from "@/lib/utils";
 import { getProgressColor } from "@/lib/styles";
 
@@ -40,13 +41,15 @@ export interface CapacityBarProps {
  * Used across pool detail and resource views to show
  * resource utilization (GPU, CPU, Memory, Storage).
  *
+ * Memoized to prevent unnecessary re-renders when values haven't changed.
+ *
  * @example
  * ```tsx
  * <CapacityBar label="GPU" used={6} total={8} />
  * <CapacityBar label="Memory" used={256} total={512} unit="Gi" />
  * ```
  */
-export function CapacityBar({
+export const CapacityBar = memo(function CapacityBar({
   label,
   used,
   total,
@@ -102,10 +105,16 @@ export function CapacityBar({
           barHeight,
           "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
         )}
+        style={{ contain: "layout paint" }}
       >
         <div
-          className={cn("h-full rounded-full transition-all", barColor)}
-          style={{ width: `${Math.min(percent, 100)}%` }}
+          className={cn("h-full rounded-full transition-[width] duration-300 ease-out", barColor)}
+          style={{
+            width: `${Math.min(percent, 100)}%`,
+            // GPU acceleration for smooth width transitions
+            transform: "translateZ(0)",
+            willChange: "width",
+          }}
         />
       </div>
 
@@ -118,4 +127,4 @@ export function CapacityBar({
       )}
     </div>
   );
-}
+});

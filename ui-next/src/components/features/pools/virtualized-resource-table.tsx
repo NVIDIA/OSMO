@@ -10,7 +10,17 @@
 
 "use client";
 
-import { useState, useRef, useEffect, useMemo, memo, isValidElement, cloneElement } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  memo,
+  useCallback,
+  isValidElement,
+  cloneElement,
+  startTransition,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Filter,
@@ -134,22 +144,33 @@ export function VirtualizedResourceTable({
     [sortState, displayMode]
   );
 
-  const setSort = (newSort: SortState) => {
-    setSortState({ displayMode, sort: newSort });
-  };
-
-  // Handle column header click
-  const handleSort = (column: SortColumn) => {
-    if (sort.column === column) {
-      if (sort.direction === "asc") {
-        setSort({ column, direction: "desc" });
-      } else {
-        setSort({ column: null, direction: "asc" });
-      }
+  const setSort = useCallback((newSortOrUpdater: SortState | ((prev: SortState) => SortState)) => {
+    if (typeof newSortOrUpdater === "function") {
+      setSortState((prevState) => ({
+        displayMode,
+        sort: newSortOrUpdater(prevState.displayMode === displayMode ? prevState.sort : { column: null, direction: "asc" }),
+      }));
     } else {
-      setSort({ column, direction: "asc" });
+      setSortState({ displayMode, sort: newSortOrUpdater });
     }
-  };
+  }, [displayMode]);
+
+  // Handle column header click - wrapped in startTransition for non-blocking updates
+  const handleSort = useCallback((column: SortColumn) => {
+    startTransition(() => {
+      setSort((prev) => {
+        if (prev.column === column) {
+          if (prev.direction === "asc") {
+            return { column, direction: "desc" };
+          } else {
+            return { column: null, direction: "asc" };
+          }
+        } else {
+          return { column, direction: "asc" };
+        }
+      });
+    });
+  }, [setSort]);
 
   // Sort resources
   const sortedResources = useMemo(() => {
@@ -201,8 +222,8 @@ export function VirtualizedResourceTable({
     return sorted;
   }, [resources, sort, displayMode]);
 
-  // Handle row click with focus tracking
-  const handleRowClick = (resource: Resource, rowElement?: HTMLElement) => {
+  // Handle row click with focus tracking - memoized to prevent re-renders
+  const handleRowClick = useCallback((resource: Resource, rowElement?: HTMLElement) => {
     // Track the clicked element for focus restoration
     if (rowElement) {
       lastClickedRowRef.current = rowElement;
@@ -212,7 +233,7 @@ export function VirtualizedResourceTable({
     } else {
       setSelectedResource(resource);
     }
-  };
+  }, [onResourceClick]);
 
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
@@ -361,7 +382,12 @@ export function VirtualizedResourceTable({
       <div
         ref={containerRef}
         className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-        style={{ contain: "strict" }}
+        style={{
+          contain: "strict",
+          // GPU acceleration for smoother scrolling
+          transform: "translateZ(0)",
+          willChange: "contents",
+        }}
       >
         {/* Controls Panel Header */}
         {hasControlsPanel && (
@@ -495,8 +521,19 @@ export function VirtualizedResourceTable({
         </div>
 
         {/* Table Content - virtualized with horizontal + vertical scroll */}
-        <div ref={scrollRef} className="flex-1 overflow-auto focus:outline-none" role="table" aria-label="Resources" tabIndex={-1}>
-          <div style={{ minWidth: TABLE_MIN_WIDTH }}>
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-auto focus:outline-none scroll-optimized"
+          role="table"
+          aria-label="Resources"
+          tabIndex={-1}
+          style={{
+            // Optimized scrolling
+            overscrollBehavior: "contain",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <div style={{ minWidth: TABLE_MIN_WIDTH, contain: "layout" }}>
             <TableContent
               resources={sortedResources}
               isLoading={isLoading}
@@ -529,7 +566,10 @@ export function VirtualizedResourceTable({
 // Sub-components
 // =============================================================================
 
-function TableHeaderRow({
+/**
+ * Memoized table header - only re-renders when sort state or layout changes.
+ */
+const TableHeaderRow = memo(function TableHeaderRow({
   compact,
   showPoolsColumn,
   sort,
@@ -542,15 +582,16 @@ function TableHeaderRow({
   onSort: (column: SortColumn) => void;
   gridColumns: string;
 }) {
-  const columns: { label: string; column: SortColumn; align: "left" | "right" }[] = [
-    { label: "Resource", column: "resource", align: "left" },
+  // Memoize columns array to prevent recreation on each render
+  const columns = useMemo(() => [
+    { label: "Resource", column: "resource" as SortColumn, align: "left" as const },
     ...(showPoolsColumn ? [{ label: "Pools", column: "pools" as SortColumn, align: "left" as const }] : []),
-    { label: "Platform", column: "platform", align: "left" },
-    { label: "GPU", column: "gpu", align: "right" },
-    { label: "CPU", column: "cpu", align: "right" },
-    { label: "Memory", column: "memory", align: "right" },
-    { label: "Storage", column: "storage", align: "right" },
-  ];
+    { label: "Platform", column: "platform" as SortColumn, align: "left" as const },
+    { label: "GPU", column: "gpu" as SortColumn, align: "right" as const },
+    { label: "CPU", column: "cpu" as SortColumn, align: "right" as const },
+    { label: "Memory", column: "memory" as SortColumn, align: "right" as const },
+    { label: "Storage", column: "storage" as SortColumn, align: "right" as const },
+  ], [showPoolsColumn]);
 
   return (
     <div
@@ -559,7 +600,7 @@ function TableHeaderRow({
         "text-[var(--nvidia-green)] dark:text-[var(--nvidia-green-light)]",
         compact ? "py-1.5" : "py-2.5"
       )}
-      style={{ gridTemplateColumns: gridColumns }}
+      style={{ gridTemplateColumns: gridColumns, contain: "layout style" }}
     >
       {columns.map((col) => {
         const isActive = sort.column === col.column;
@@ -568,7 +609,7 @@ function TableHeaderRow({
             key={col.column}
             onClick={() => onSort(col.column)}
             className={cn(
-              "flex items-center gap-1 px-4 transition-colors hover:text-[var(--nvidia-green-dark)] dark:hover:text-white",
+              "flex items-center gap-1 px-4 transition-colors hover:text-[var(--nvidia-green-dark)] dark:hover:text-white focus-optimized",
               col.align === "right" && "justify-end"
             )}
           >
@@ -587,7 +628,7 @@ function TableHeaderRow({
       })}
     </div>
   );
-}
+});
 
 const TableContent = memo(function TableContent({
   resources,
@@ -624,35 +665,35 @@ const TableContent = memo(function TableContent({
 
   if (isLoading) {
     return (
-      <div>
+      <div style={{ contain: "content" }}>
         {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
             className="grid gap-0 border-b border-zinc-100 py-3 dark:border-zinc-800/50"
-            style={{ gridTemplateColumns: gridColumns }}
+            style={{ gridTemplateColumns: gridColumns, contain: "layout style" }}
           >
             <div className="px-4">
-              <div className="h-4 w-40 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-4 w-40 skeleton-shimmer rounded" />
             </div>
             {showPoolsColumn && (
               <div className="px-4">
-                <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="h-4 w-16 skeleton-shimmer rounded" />
               </div>
             )}
             <div className="px-4">
-              <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-4 w-16 skeleton-shimmer rounded" />
             </div>
             <div className="px-4">
-              <div className="h-4 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-4 w-8 skeleton-shimmer rounded" />
             </div>
             <div className="px-4">
-              <div className="h-4 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-4 w-8 skeleton-shimmer rounded" />
             </div>
             <div className="px-4">
-              <div className="h-4 w-12 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-4 w-12 skeleton-shimmer rounded" />
             </div>
             <div className="px-4">
-              <div className="h-4 w-12 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-4 w-12 skeleton-shimmer rounded" />
             </div>
           </div>
         ))}
@@ -675,6 +716,8 @@ const TableContent = memo(function TableContent({
         height: rowVirtualizer.getTotalSize(),
         position: "relative",
         contain: "strict",
+        // Isolate paint operations
+        isolation: "isolate",
       }}
     >
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -691,18 +734,16 @@ const TableContent = memo(function TableContent({
                 onRowClick(resource, e.currentTarget);
               }
             }}
+            className="virtual-item"
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
               height: virtualRow.size,
-              transform: `translateY(${virtualRow.start}px)`,
+              // GPU-accelerated transform instead of top positioning
+              transform: `translate3d(0, ${virtualRow.start}px, 0)`,
             }}
           >
             <div
-              className="grid h-full cursor-pointer items-center gap-0 border-b border-zinc-100 text-sm transition-colors hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--nvidia-green)] dark:border-zinc-800/50 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
-              style={{ gridTemplateColumns: gridColumns }}
+              className="grid h-full cursor-pointer items-center gap-0 border-b border-zinc-100 text-sm transition-[background-color] duration-150 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--nvidia-green)] dark:border-zinc-800/50 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
+              style={{ gridTemplateColumns: gridColumns, contain: "layout style" }}
             >
               <div className="truncate px-4 font-medium text-zinc-900 dark:text-zinc-100">
                 {resource.name}
@@ -750,7 +791,11 @@ const TableContent = memo(function TableContent({
   );
 });
 
-function CapacityCell({
+/**
+ * Memoized capacity cell - prevents re-renders when values haven't changed.
+ * Uses shallow comparison for props.
+ */
+const CapacityCell = memo(function CapacityCell({
   used,
   total,
   unit = "",
@@ -783,4 +828,4 @@ function CapacityCell({
       {unit && <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{unit}</span>}
     </span>
   );
-}
+});
