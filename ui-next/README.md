@@ -1,6 +1,6 @@
 # OSMO UI (Next.js)
 
-Modern React-based UI for OSMO resource management.
+Modern React-based UI for OSMO resource management. Built for **blazing-fast performance** with GPU-accelerated rendering, virtualization, and minimal reflow.
 
 ## Quick Start
 
@@ -25,11 +25,16 @@ pnpm start                  # Run production build
 
 ### Code Quality
 ```bash
-pnpm lint                   # ESLint
+pnpm lint                   # ESLint (includes React Compiler checks)
 pnpm lint:a11y              # Accessibility linting
 pnpm type-check             # TypeScript check
 pnpm format                 # Prettier format
 pnpm format:check           # Check formatting
+```
+
+### Full Verification (Before Commit)
+```bash
+pnpm type-check && pnpm lint && pnpm test && pnpm build
 ```
 
 ### Testing
@@ -291,11 +296,13 @@ cd ui-next && pnpm exec orval
 src/
 ├── app/                    # Next.js pages (routing)
 │   ├── (dashboard)/        # Authenticated pages
-│   └── auth/               # Auth API routes
+│   ├── auth/               # Auth API routes
+│   └── globals.css         # Global styles + performance utilities
 ├── components/
 │   ├── ui/                 # shadcn/ui primitives (Button, Input, etc.)
 │   ├── shell/              # Layout (Header, Sidebar)
-│   └── features/           # Feature-specific themed components
+│   ├── features/           # Feature-specific themed components
+│   └── providers.tsx       # React Query + Theme + Auth providers
 ├── headless/               # Business logic hooks (usePoolsList, usePoolDetail)
 └── lib/
     ├── api/
@@ -304,6 +311,7 @@ src/
     │   └── fetcher.ts      # Auth-aware fetch wrapper
     ├── auth/               # Authentication logic
     ├── constants/          # Roles, headers, storage keys
+    ├── performance.ts      # Performance optimization hooks
     └── styles.ts           # Shared Tailwind patterns
 ```
 
@@ -549,11 +557,74 @@ test("handles 403 forbidden", async ({ page, withAuth }) => {
 | UI | React 19, Tailwind CSS 4 |
 | Components | shadcn/ui (New York style) + Radix |
 | State | TanStack Query 5 |
+| Virtualization | TanStack Virtual |
 | Forms | React Hook Form + Zod |
 | Icons | Lucide React |
 | API Codegen | orval (from OpenAPI) |
 | Unit Testing | Vitest |
 | E2E Testing | Playwright (with route mocking) |
+
+---
+
+## Performance Optimizations
+
+This UI is optimized for **blazing-fast rendering** with minimal layout reflow.
+
+### Build-Time Optimizations
+
+| Optimization | Purpose |
+|--------------|---------|
+| `optimizeCss` | Extracts and inlines critical CSS |
+| `optimizePackageImports` | Tree-shakes lucide-react and Radix icons |
+| Console stripping | Removes `console.log` in production |
+| Font preloading | `display: swap` prevents FOIT |
+
+### Runtime Optimizations
+
+| Technique | Where Used |
+|-----------|------------|
+| **Virtualization** | Resource tables (TanStack Virtual) |
+| **CSS Containment** | `contain: strict` on containers |
+| **GPU Transforms** | `translate3d()` for positioning |
+| **Deferred Values** | `useDeferredValue` for search filters |
+| **Transitions** | `startTransition` for non-blocking updates |
+| **Memoization** | `React.memo()` on expensive components |
+| **Structural Sharing** | React Query only updates changed refs |
+
+### CSS Utility Classes
+
+Available in `globals.css` for performance-critical components:
+
+```css
+.gpu-layer          /* Force GPU compositing */
+.contain-strict     /* Full CSS containment */
+.scroll-optimized   /* Optimized scrolling */
+.virtual-item       /* For virtualized list items */
+.skeleton-shimmer   /* GPU-accelerated loading animation */
+```
+
+### Performance Hooks
+
+Available in `@/lib/performance.ts`:
+
+```typescript
+import {
+  useDebounce,           // Debounce values
+  useDebouncedCallback,  // Debounce functions  
+  useInView,             // Lazy load when visible
+  useScrollPosition,     // RAF-throttled scroll tracking
+  usePrefersReducedMotion, // Respect a11y preferences
+} from "@/lib/performance";
+```
+
+### React Query Configuration
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `staleTime` | 1 min | Data freshness window |
+| `gcTime` | 5 min | Cache retention for unused queries |
+| `structuralSharing` | `true` | Only update refs if data changed |
+| `refetchOnWindowFocus` | `"always"` | Fresh data when user returns |
 
 ---
 
