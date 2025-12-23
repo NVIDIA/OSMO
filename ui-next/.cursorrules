@@ -7,6 +7,7 @@
 3. **Reduce complexity** - Collapse nesting and unnecessary wrappers
 4. **Transparency over magic** - Explicit imports over hidden re-exports
 5. **DRY but not over-abstracted** - Reuse code, but don't create layers for one use case
+6. **Performance first** - Minimize reflow, use GPU acceleration, optimize renders
 
 ## Architecture
 
@@ -86,7 +87,113 @@ The adapter should NOT:
 - Tailwind CSS 4 with CSS variables
 - shadcn/ui + Radix for components
 - TanStack Query 5 for server state
+- TanStack Virtual for virtualization
 - orval for API codegen
+
+## Performance Optimization
+
+### CSS Performance (No Layout Thrashing)
+
+**Use GPU-accelerated properties only:**
+```css
+/* ✅ Good: GPU-accelerated, no reflow */
+transform: translateY(100px);
+opacity: 0.5;
+
+/* ❌ Bad: Triggers layout/reflow */
+top: 100px;
+height: 200px;
+margin-top: 20px;
+```
+
+**Use CSS containment for isolation:**
+```tsx
+// Isolate layout calculations from rest of page
+<div style={{ contain: "strict" }}>
+  <ExpensiveComponent />
+</div>
+```
+
+**Available utility classes (from globals.css):**
+- `.gpu-layer` - Force GPU compositing
+- `.contain-strict` - Full CSS containment
+- `.contain-layout` / `.contain-paint` - Partial containment
+- `.content-auto` - Lazy render off-screen content
+- `.scroll-optimized` - Optimized scrolling container
+- `.virtual-item` - For virtualized list items
+- `.skeleton-shimmer` - GPU-accelerated loading skeleton
+- `.focus-optimized` - Focus ring only for keyboard nav
+
+### React Performance
+
+**Use `useDeferredValue` for expensive filters:**
+```typescript
+const [search, setSearch] = useState("");
+const deferredSearch = useDeferredValue(search);
+
+// Filter uses deferred value - keeps input responsive
+const filtered = useMemo(() => 
+  items.filter(i => i.name.includes(deferredSearch)),
+  [items, deferredSearch]
+);
+```
+
+**Use `startTransition` for non-blocking updates:**
+```typescript
+const handleSort = useCallback((column: SortColumn) => {
+  startTransition(() => {
+    setSort({ column, direction: "asc" });
+  });
+}, []);
+```
+
+**Memoize components that receive object/array props:**
+```typescript
+// ✅ Good: Memoized to prevent re-renders
+const TableRow = memo(function TableRow({ data }: Props) {
+  return <div>{data.name}</div>;
+});
+```
+
+**Use `useCallback` for stable function refs:**
+```typescript
+// ✅ Good: Stable reference for child components
+const handleClick = useCallback((id: string) => {
+  setSelected(id);
+}, []);
+```
+
+### Virtualization
+
+**All large lists MUST be virtualized:**
+```typescript
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+// Use transform for positioning (GPU-accelerated)
+style={{
+  transform: `translate3d(0, ${virtualRow.start}px, 0)`,
+}}
+```
+
+### Loading States
+
+**Match skeleton dimensions to actual content:**
+```tsx
+// ✅ Good: Same dimensions as real content (prevents CLS)
+<div className="h-8 w-48 skeleton-shimmer rounded" />
+
+// ❌ Bad: Generic spinner (causes layout shift)
+<Spinner />
+```
+
+### Performance Utilities
+
+Use hooks from `@/lib/performance.ts`:
+- `useDebounce(value, delay)` - Debounce values
+- `useDebouncedCallback(fn, delay)` - Debounce functions
+- `useInView(options)` - Lazy load when visible
+- `useScrollPosition(ref)` - RAF-throttled scroll tracking
+- `usePrefersReducedMotion()` - Respect a11y preferences
 
 ## Styling
 
@@ -122,6 +229,10 @@ if (resource.resourceType === BackendResourceType.SHARED) ...
 - All components must be accessible (ARIA)
 - Props down, events up - explicit props, no prop drilling through context
 - **Explicit props over inferred behavior** - UI components should receive `showX` props rather than inferring from data absence
+- **Memoize expensive components** - Use `React.memo()` for components that receive object/array props
+- **Virtualize long lists** - Always use `@tanstack/react-virtual` for lists > 50 items
+- **GPU-accelerated animations** - Only animate `transform` and `opacity`
+- **CSS containment** - Use `contain: strict` on containers with complex children
 
 ## Adding Features
 
