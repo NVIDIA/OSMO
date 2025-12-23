@@ -123,10 +123,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const login = async () => {
     // Read pathname fresh to avoid stale closure issues
     // (user may have navigated before clicking login)
-    const currentPath = typeof window !== "undefined" 
-      ? window.location.pathname 
+    const currentPath = typeof window !== "undefined"
+      ? window.location.pathname
       : pathname;
-    
+
     if (typeof window !== "undefined") {
       sessionStorage.setItem(RETURN_URL_KEY, currentPath);
       sessionStorage.removeItem(AUTH_SKIPPED_KEY);
@@ -201,7 +201,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={login}
-              className="rounded-lg bg-[#76b900] px-6 py-2.5 text-sm font-medium text-black hover:bg-[#8bd400] transition-colors"
+              className="rounded-lg bg-[var(--nvidia-green)] px-6 py-2.5 text-sm font-medium text-black hover:bg-[var(--nvidia-green-light)] transition-colors"
             >
               Log in with SSO
             </button>

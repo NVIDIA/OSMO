@@ -427,7 +427,7 @@ export function VirtualizedResourceTable({
           ref={headerRef}
           className={cn(
             "relative z-10 scrollbar-none shrink-0 overflow-x-auto transition-shadow",
-            "bg-[#f3f9e8] dark:bg-[#1a2e0a]",
+            "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
             isScrolled && "shadow-md"
           )}
         >
