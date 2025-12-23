@@ -8,8 +8,23 @@
 
 import type { NextConfig } from "next";
 
-// Backend API configuration from environment
-const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "fernandol-dev.osmo.nvidia.com";
+// =============================================================================
+// Backend API Configuration
+// =============================================================================
+//
+// This controls the default backend that the Next.js proxy forwards to.
+// Set NEXT_PUBLIC_OSMO_API_HOSTNAME in .env.local
+//
+// For development, you can switch backends at runtime without restarting:
+//   - Sign out and use the environment selector on the login page
+//   - Or run in browser console: setBackend("https://your-backend.example.com")
+//
+// See: README.md "Local Development" section for full documentation.
+// =============================================================================
+
+// Backend API URL for production rewrites
+// Rewrites proxy all /api/* requests to the configured backend
+const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
 const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
 const scheme = sslEnabled ? "https" : "http";
 const API_URL = `${scheme}://${apiHostname}`;
@@ -45,7 +60,6 @@ const nextConfig: NextConfig = {
   // Proxy API requests to the backend (avoids CORS issues)
   async rewrites() {
     return {
-      // Run before filesystem (pages/public files) and dynamic routes
       beforeFiles: [
         {
           source: "/api/:path*",
