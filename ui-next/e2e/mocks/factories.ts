@@ -292,7 +292,7 @@ export function createProductionScenario() {
     resources: createResourcesResponse([
       // Production DGX nodes
       {
-        hostname: "dgx-a100-001.prod.nvidia.com",
+        hostname: "gpu-node-001.prod.example.com",
         resource_type: BackendResourceType.SHARED,
         exposed_fields: {
           node: "dgx-a100-001",
@@ -303,7 +303,7 @@ export function createProductionScenario() {
         pool_platform_labels: { production: ["dgx"], development: ["gpu"] },
       },
       {
-        hostname: "dgx-a100-002.prod.nvidia.com",
+        hostname: "gpu-node-002.prod.example.com",
         resource_type: BackendResourceType.RESERVED,
         exposed_fields: {
           node: "dgx-a100-002",
@@ -314,7 +314,7 @@ export function createProductionScenario() {
         pool_platform_labels: { production: ["dgx"] },
       },
       {
-        hostname: "dgx-h100-001.prod.nvidia.com",
+        hostname: "gpu-node-003.prod.example.com",
         resource_type: BackendResourceType.RESERVED,
         exposed_fields: {
           node: "dgx-h100-001",
@@ -326,7 +326,7 @@ export function createProductionScenario() {
       },
       // Development nodes
       {
-        hostname: "dev-gpu-001.dev.nvidia.com",
+        hostname: "gpu-node-004.dev.example.com",
         resource_type: BackendResourceType.SHARED,
         exposed_fields: {
           node: "dev-gpu-001",
@@ -338,7 +338,7 @@ export function createProductionScenario() {
       },
       // Node with issues
       {
-        hostname: "dgx-a100-003.prod.nvidia.com",
+        hostname: "gpu-node-005.prod.example.com",
         resource_type: BackendResourceType.SHARED,
         conditions: ["Ready", "SchedulingDisabled", "MemoryPressure"],
         exposed_fields: {
