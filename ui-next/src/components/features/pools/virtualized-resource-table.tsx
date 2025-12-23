@@ -231,7 +231,7 @@ export function VirtualizedResourceTable({
 
     let rafId: number;
     let isFirstMeasure = true;
-    
+
     const measure = () => {
       // Skip auto-collapse on first measurement (initial page load)
       // Only auto-collapse on subsequent resize events
@@ -239,7 +239,7 @@ export function VirtualizedResourceTable({
         isFirstMeasure = false;
         return;
       }
-      
+
       const containerH = container.clientHeight;
       const controlsPanelH = HEADER_HEIGHT + filterEl.scrollHeight + tableHeader.clientHeight;
       if (containerH > 0 && controlsPanelH > 0) {
@@ -518,6 +518,8 @@ const TableContent = memo(function TableContent({
   gridColumns: string;
   onRowClick: (resource: Resource) => void;
 }) {
+  "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
+  // eslint-disable-next-line react-hooks/incompatible-library -- intentionally opted out above
   const rowVirtualizer = useVirtualizer({
     count: resources.length,
     getScrollElement: () => scrollRef.current,
