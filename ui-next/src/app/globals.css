@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -144,8 +154,17 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Enable GPU compositing for smoother scrolling */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
+
+/* =============================================================================
+   PERFORMANCE OPTIMIZATION UTILITIES
+   Minimum reflow, GPU acceleration, CSS containment
+   ============================================================================= */
 
 /* Utility class to hide scrollbars while maintaining scroll functionality */
 .scrollbar-none {
@@ -154,4 +173,137 @@
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
+}
+
+/* GPU-accelerated transform layer - prevents layout thrashing */
+.gpu-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* CSS Containment - isolate layout/paint calculations */
+.contain-strict {
+  contain: strict;
+}
+
+.contain-layout {
+  contain: layout;
+}
+
+.contain-paint {
+  contain: paint;
+}
+
+.contain-content {
+  contain: content;
+}
+
+/* Content visibility for lazy rendering - massive perf win for off-screen content */
+.content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* Optimized animations - use transform/opacity only (no layout triggers) */
+.animate-gpu {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* Skeleton loading with GPU acceleration */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    theme(colors.zinc.200) 0%,
+    theme(colors.zinc.100) 50%,
+    theme(colors.zinc.200) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+  will-change: background-position;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    theme(colors.zinc.800) 0%,
+    theme(colors.zinc.700) 50%,
+    theme(colors.zinc.800) 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* Prevent layout shift during interactions */
+.stable-layout {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Optimized scrolling container */
+.scroll-optimized {
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-optimized {
+    scroll-behavior: auto;
+  }
+  .skeleton-shimmer {
+    animation: none;
+  }
+}
+
+/* Virtualized list item - optimized for transform positioning */
+.virtual-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  contain: layout style;
+  will-change: transform;
+}
+
+/* Prevent text rendering jank on hover */
+.text-stable {
+  font-synthesis: none;
+  text-size-adjust: 100%;
+}
+
+/* Optimized table cells - prevent width recalculation */
+.table-fixed-layout {
+  table-layout: fixed;
+}
+
+/* Reduce paint operations for frequently updated elements */
+.isolate-layer {
+  isolation: isolate;
+}
+
+/* Preload critical interactions */
+@media (hover: hover) {
+  .preload-hover:hover {
+    will-change: background-color, color, border-color;
+  }
+}
+
+/* Focus-visible optimization - only show focus ring for keyboard navigation */
+.focus-optimized:focus {
+  outline: none;
+}
+
+.focus-optimized:focus-visible {
+  outline: 2px solid var(--nvidia-green);
+  outline-offset: 2px;
 }
