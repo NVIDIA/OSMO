@@ -34,7 +34,7 @@ import {
   Minimize2,
   Maximize2,
 } from "lucide-react";
-import { cn, formatCompact } from "@/lib/utils";
+import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -771,7 +771,7 @@ const TableContent = memo(function TableContent({
                 <CapacityCell
                   used={resource.memory.used}
                   total={resource.memory.total}
-                  unit="Gi"
+                  isBytes
                   mode={displayMode}
                 />
               </div>
@@ -779,7 +779,7 @@ const TableContent = memo(function TableContent({
                 <CapacityCell
                   used={resource.storage.used}
                   total={resource.storage.total}
-                  unit="Gi"
+                  isBytes
                   mode={displayMode}
                 />
               </div>
@@ -794,29 +794,58 @@ const TableContent = memo(function TableContent({
 /**
  * Memoized capacity cell - prevents re-renders when values haven't changed.
  * Uses shallow comparison for props.
+ * 
+ * For memory/storage (isBytes=true), uses conventional binary units (Ki, Mi, Gi, Ti).
+ * When showing used/total, both use the same (more granular) unit for consistency.
+ * For other resources, uses compact number formatting.
  */
 const CapacityCell = memo(function CapacityCell({
   used,
   total,
-  unit = "",
+  isBytes = false,
   mode = "free",
 }: {
   used: number;
   total: number;
-  unit?: string;
+  /** If true, values are in GiB and will be formatted with appropriate binary unit */
+  isBytes?: boolean;
   mode?: ResourceDisplayMode;
 }) {
   if (total === 0) {
     return <span className="text-zinc-400 dark:text-zinc-600">—</span>;
   }
 
+  // For bytes, use pair formatting to ensure consistent units
+  if (isBytes) {
+    if (mode === "free") {
+      const free = total - used;
+      const formatted = formatBytes(free);
+      return (
+        <span className="text-zinc-900 dark:text-zinc-100">
+          {formatted.value}
+          <span className="ml-0.5 text-xs text-zinc-400">{formatted.unit}</span>
+        </span>
+      );
+    }
+
+    // Used/total mode: use consistent units
+    const pair = formatBytesPair(used, total);
+    return (
+      <span>
+        <span className="text-zinc-900 dark:text-zinc-100">{pair.used}</span>
+        <span className="text-zinc-400 dark:text-zinc-500">/{pair.total}</span>
+        <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{pair.unit}</span>
+      </span>
+    );
+  }
+
+  // Non-bytes: use compact formatting
   const free = total - used;
 
   if (mode === "free") {
     return (
       <span className="text-zinc-900 dark:text-zinc-100">
         {formatCompact(free)}
-        {unit && <span className="ml-0.5 text-xs text-zinc-400">{unit}</span>}
       </span>
     );
   }
@@ -825,7 +854,6 @@ const CapacityCell = memo(function CapacityCell({
     <span>
       <span className="text-zinc-900 dark:text-zinc-100">{formatCompact(used)}</span>
       <span className="text-zinc-400 dark:text-zinc-500">/{formatCompact(total)}</span>
-      {unit && <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{unit}</span>}
     </span>
   );
 });
