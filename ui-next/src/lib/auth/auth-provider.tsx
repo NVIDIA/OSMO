@@ -5,6 +5,8 @@
  *
  * Provides authentication context to the application.
  * Uses AuthBackend abstraction for provider-agnostic auth operations.
+ * 
+ * Production-first: LocalDevLogin is dynamically imported only in development.
  */
 
 import {
@@ -15,6 +17,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, usePathname } from "next/navigation";
 import { isLocalDev } from "@/lib/config";
 import { logError } from "@/lib/logger";
@@ -27,7 +30,15 @@ import {
   clearStoredTokens,
   refreshStoredToken,
 } from "./token-storage";
-import { LocalDevLogin } from "./auth-local-dev";
+
+// Dynamic import: LocalDevLogin is only loaded in development, excluded from production bundle
+const LocalDevLogin = dynamic(
+  () => import("./auth-local-dev").then((mod) => mod.LocalDevLogin),
+  { 
+    ssr: false,
+    loading: () => <p className="text-muted-foreground">Loading...</p>
+  }
+);
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -181,18 +192,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
-        <p className="text-zinc-500">Loading...</p>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
 
   if (authEnabled && !isAuthenticated && !isSkipped) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-zinc-950">
+      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-background">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-white mb-2">OSMO</h1>
-          <p className="text-zinc-500">Authentication required</p>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">OSMO</h1>
+          <p className="text-muted-foreground">Authentication required</p>
         </div>
 
         {isLocalDev() ? (
@@ -207,7 +218,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
             </button>
             <button
               onClick={skipAuth}
-              className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Continue without login →
             </button>
