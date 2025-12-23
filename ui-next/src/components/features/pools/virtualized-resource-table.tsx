@@ -250,7 +250,6 @@ export function VirtualizedResourceTable({
   useEffect(() => {
     const container = containerRef.current;
     const filterBar = filterBarRef.current;
-    const summary = summaryRef.current;
     const tableHeader = headerRef.current;
     if (!container || !tableHeader) return;
 
