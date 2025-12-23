@@ -239,8 +239,8 @@ function ResourcePanelContent({
               <div className="space-y-4">
                 <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
                 <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
-                <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} unit="Gi" />
-                <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} unit="Gi" />
+                <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} isBytes />
+                <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} isBytes />
               </div>
             </section>
 
