@@ -26,7 +26,7 @@ interface ResponsivePoolChipsProps {
 
 /**
  * Responsive pool chips that collapse to fit available width.
- * 
+ *
  * Behavior:
  * - Shows as many chips as fit in one line
  * - Shows +N overflow indicator when chips are hidden
@@ -45,7 +45,7 @@ export function ResponsivePoolChips({
   const [isExpanded, setIsExpanded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(pools.length);
   const [hasMeasured, setHasMeasured] = useState(false);
-  
+
   // Key for triggering recalculation when pools change
   const poolsKey = pools.join(",");
 
@@ -58,7 +58,7 @@ export function ResponsivePoolChips({
 
     const containerWidth = containerRef.current.clientWidth;
     const chips = measureRef.current.querySelectorAll<HTMLElement>("[data-measure-chip]");
-    
+
     if (chips.length === 0) {
       setVisibleCount(pools.length);
       setHasMeasured(true);
@@ -67,7 +67,7 @@ export function ResponsivePoolChips({
 
     const GAP = 6; // gap-1.5 = 6px
     const OVERFLOW_WIDTH = 40; // Width for "+N" button
-    
+
     let totalWidth = 0;
     let count = 0;
 
@@ -75,17 +75,17 @@ export function ResponsivePoolChips({
       const chip = chips[i];
       const chipWidth = chip.offsetWidth;
       const widthWithChip = totalWidth + chipWidth + (count > 0 ? GAP : 0);
-      
+
       // Check if we need overflow indicator
       const isLast = i === chips.length - 1;
-      const requiredWidth = isLast 
-        ? widthWithChip 
+      const requiredWidth = isLast
+        ? widthWithChip
         : widthWithChip + GAP + OVERFLOW_WIDTH;
-      
+
       if (requiredWidth > containerWidth && count > 0) {
         break;
       }
-      
+
       totalWidth = widthWithChip;
       count++;
     }
@@ -182,7 +182,7 @@ export function ResponsivePoolChips({
                 "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 "border hover:opacity-80",
                 isPrimary
-                  ? "border-[#76b900]/30 bg-[#76b900]/10 text-[#76b900]"
+                  ? "border-[var(--nvidia-green)]/30 bg-[var(--nvidia-green)]/10 text-[var(--nvidia-green)]"
                   : "border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               )}
               onClick={(e) => e.stopPropagation()}
