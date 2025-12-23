@@ -361,26 +361,75 @@ For custom components, add to `src/components/features/`.
 
 ---
 
-## Local Dev Against Production Backend
+## Production-First Architecture
 
-1. Get cookies from production (DevTools → Application → Cookies)
-2. Create `.env.local`:
-   ```
-   NEXT_PUBLIC_OSMO_API_HOSTNAME=osmo.nvidia.com
-   NEXT_PUBLIC_OSMO_SSL_ENABLED=true
-   AUTH_CLIENT_SECRET=<from-keycloak>
-   ```
-3. Run `pnpm dev`, paste cookies when prompted
+This codebase follows **production-first principles**: development features have zero impact on production builds.
+
+### Design Principles
+
+| Principle | Implementation |
+|-----------|----------------|
+| **Zero production overhead** | No middleware, no dev-only code paths |
+| **No dev code in prod bundle** | Dev components use `next/dynamic` for code splitting |
+| **Clean separation** | Dev login UI isolated to `auth-local-dev.tsx` |
+| **Transparent behavior** | Production code paths work without any shims or workarounds |
+
+### Dev vs Production Behavior
+
+| Feature | Development | Production |
+|---------|-------------|------------|
+| **Backend routing** | `next.config.ts` rewrites to configured hostname | Same |
+| **Login screen** | Shows cookie paste UI (`LocalDevLogin`) | Shows SSO button only |
+| **Auth client secret** | Uses `AUTH_CLIENT_SECRET` from `.env.local` | Uses `AUTH_CLIENT_SECRET` from env |
+
+### Files with Dev-Only Code
+
+| File | Dev Feature | Production Behavior |
+|------|-------------|---------------------|
+| `src/lib/auth/auth-local-dev.tsx` | Dev login UI with cookie paste | Not bundled (dynamic import) |
+
+### How to Verify Production Isolation
+
+```bash
+# Build and analyze bundle
+pnpm build
+
+# Search for dev code in production output
+grep -r "LocalDevLogin" .next/static/chunks/ # Should find nothing
+```
 
 ---
 
-## Environment Variables
+## Local Development
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_OSMO_API_HOSTNAME` | Backend API host |
-| `NEXT_PUBLIC_OSMO_SSL_ENABLED` | Use HTTPS for API |
-| `AUTH_CLIENT_SECRET` | OAuth client secret (for token refresh) |
+### Setup
+
+```bash
+# 1. Create .env.local
+cat > .env.local << 'EOF'
+NEXT_PUBLIC_OSMO_API_HOSTNAME=staging.example.com
+NEXT_PUBLIC_OSMO_AUTH_HOSTNAME=auth.example.com
+AUTH_CLIENT_SECRET=your-keycloak-secret
+EOF
+
+# 2. Start dev server
+pnpm dev
+```
+
+Open http://localhost:3000 → follow the login prompt to transfer your session.
+
+### Switch Backend
+
+Edit `.env.local` → restart `pnpm dev`
+
+### Environment Variables
+
+| Variable | Required | Default |
+|----------|----------|---------|
+| `NEXT_PUBLIC_OSMO_API_HOSTNAME` | Yes | `localhost:8080` |
+| `NEXT_PUBLIC_OSMO_AUTH_HOSTNAME` | Yes | `localhost:8081` |
+| `AUTH_CLIENT_SECRET` | Yes | — |
+| `NEXT_PUBLIC_OSMO_SSL_ENABLED` | No | Auto (false for localhost) |
 
 ---
 
@@ -408,11 +457,11 @@ This is preferred over the in-app floating devtools to avoid UI conflicts.
 
 | Issue | Fix |
 |-------|-----|
-| 401 / Token refresh fails | Set `AUTH_CLIENT_SECRET`, re-paste cookies |
-| CORS errors | Check `next.config.ts` rewrites |
 | Types out of sync | `pnpm generate-api && pnpm type-check` |
 | Backend quirks | See `src/lib/api/adapter/backend_todo.md` |
 | shadcn/ui issues | Check `components.json` config |
+
+See [Local Development](#local-development) for auth and environment issues.
 
 ---
 
@@ -610,7 +659,7 @@ Available in `@/lib/performance.ts`:
 ```typescript
 import {
   useDebounce,           // Debounce values
-  useDebouncedCallback,  // Debounce functions  
+  useDebouncedCallback,  // Debounce functions
   useInView,             // Lazy load when visible
   useScrollPosition,     // RAF-throttled scroll tracking
   usePrefersReducedMotion, // Respect a11y preferences
