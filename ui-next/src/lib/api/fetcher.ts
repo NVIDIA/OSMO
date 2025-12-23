@@ -16,19 +16,47 @@ interface RequestConfig {
   signal?: AbortSignal;
 }
 
+// =============================================================================
+// API Error - Plain object with type guard for tree-shaking
+// =============================================================================
+
+const API_ERROR_BRAND = Symbol("ApiError");
+
 /**
  * API error with retry information.
  */
-export class ApiError extends Error {
-  status?: number;
-  isRetryable: boolean;
+export interface ApiError extends Error {
+  readonly [API_ERROR_BRAND]: true;
+  readonly status?: number;
+  readonly isRetryable: boolean;
+}
 
-  constructor(message: string, status?: number, isRetryable = true) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.isRetryable = isRetryable;
-  }
+/**
+ * Creates an API error with retry information.
+ */
+export function createApiError(
+  message: string,
+  status?: number,
+  isRetryable = true
+): ApiError {
+  const error = new Error(message) as ApiError;
+  error.name = "ApiError";
+  (error as { [API_ERROR_BRAND]: true })[API_ERROR_BRAND] = true;
+  (error as { status?: number }).status = status;
+  (error as { isRetryable: boolean }).isRetryable = isRetryable;
+  return error;
+}
+
+/**
+ * Type guard to check if an error is an ApiError.
+ */
+export function isApiError(error: unknown): error is ApiError {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    API_ERROR_BRAND in error &&
+    (error as { [API_ERROR_BRAND]: unknown })[API_ERROR_BRAND] === true
+  );
 }
 
 // Shared refresh promise - all concurrent callers await the same promise
@@ -110,7 +138,7 @@ export const customFetch = async <T>(
   } catch (error) {
     // Network error (CORS, offline, etc.) - NOT retryable
     const message = error instanceof Error ? error.message : "Network error";
-    throw new ApiError(`Network error: ${message}`, 0, false);
+    throw createApiError(`Network error: ${message}`, 0, false);
   }
 
   // Handle auth errors - try to refresh token once using shared promise pattern
@@ -146,7 +174,7 @@ export const customFetch = async <T>(
       }
     }
 
-    throw new ApiError(
+    throw createApiError(
       `Authentication required (${response.status})`,
       response.status,
       false
@@ -156,7 +184,7 @@ export const customFetch = async <T>(
   // Handle other client errors (4xx) - NOT retryable
   if (response.status >= 400 && response.status < 500) {
     const error = await response.json().catch(() => ({ message: "Request failed" }));
-    throw new ApiError(
+    throw createApiError(
       error.message || error.detail || `HTTP ${response.status}`,
       response.status,
       false
@@ -166,7 +194,7 @@ export const customFetch = async <T>(
   // Handle server errors (5xx) - retryable
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "Server error" }));
-    throw new ApiError(
+    throw createApiError(
       error.message || error.detail || `HTTP ${response.status}`,
       response.status,
       true

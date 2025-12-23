@@ -8,7 +8,7 @@ import { useState } from "react";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
 import { AuthProvider } from "@/lib/auth/auth-provider";
 import { UserProvider } from "@/lib/user-context";
-import { ApiError } from "@/lib/api/fetcher";
+import { isApiError } from "@/lib/api/fetcher";
 import { QUERY_STALE_TIME_MS, QUERY_MAX_RETRY_DELAY_MS } from "@/lib/config";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -20,7 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             staleTime: QUERY_STALE_TIME_MS,
             retry: (failureCount, error) => {
               // Check if error is an ApiError with retryable flag
-              if (error instanceof ApiError) {
+              if (isApiError(error)) {
                 return error.isRetryable && failureCount < 2;
               }
               // For other errors, don't retry (fail fast)
