@@ -52,7 +52,7 @@ interface DataTableContainerProps {
 
 /**
  * Container component for data tables with collapsible controls panel.
- * 
+ *
  * Features:
  * - Auto-collapse when controls panel exceeds threshold of container height
  * - Manual pin/unpin to override auto behavior
@@ -269,7 +269,7 @@ export function DataTableContainer({
         ref={headerRef as React.RefObject<HTMLDivElement>}
         className={cn(
           "scrollbar-none shrink-0 overflow-x-auto transition-shadow",
-          "bg-[#f3f9e8] dark:bg-[#1a2e0a]",
+          "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
           isScrolled && "shadow-md"
         )}
       >

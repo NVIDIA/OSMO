@@ -20,22 +20,22 @@ export function NotFoundContent() {
     <div className="flex min-h-[60vh] flex-col items-center justify-center">
       {/* Decorative background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/4 left-1/2 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#76b900]/8 via-transparent to-transparent blur-3xl" />
+        <div className="absolute -top-1/4 left-1/2 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[var(--nvidia-green)]/8 via-transparent to-transparent blur-3xl" />
       </div>
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center text-center">
         {/* 404 - prominent */}
-        <h1 className="text-6xl font-black text-[#76b900] sm:text-7xl">
+        <h1 className="text-6xl font-black text-[var(--nvidia-green)] sm:text-7xl">
           404
         </h1>
 
         {/* OSMO acronym subtitle */}
         <p className="mb-6 mt-2 text-2xl text-zinc-400 dark:text-zinc-500 sm:text-3xl">
-          <span className="font-bold text-[#76b900]">O</span>ur{" "}
-          <span className="font-bold text-[#76b900]">S</span>erver{" "}
-          <span className="font-bold text-[#76b900]">M</span>issed{" "}
-          <span className="font-bold text-[#76b900]">O</span>ne...
+          <span className="font-bold text-[var(--nvidia-green)]">O</span>ur{" "}
+          <span className="font-bold text-[var(--nvidia-green)]">S</span>erver{" "}
+          <span className="font-bold text-[var(--nvidia-green)]">M</span>issed{" "}
+          <span className="font-bold text-[var(--nvidia-green)]">O</span>ne...
         </p>
 
         {/* Message */}
@@ -51,7 +51,7 @@ export function NotFoundContent() {
             asChild
             size="sm"
             variant="default"
-            className="gap-1.5 bg-[#76b900] hover:bg-[#5a8c00]"
+            className="gap-1.5 bg-[var(--nvidia-green)] hover:bg-[var(--nvidia-green-dark)]"
           >
             <Link href="/">
               <Home className="h-3.5 w-3.5" />
