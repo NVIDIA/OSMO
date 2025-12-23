@@ -1,6 +1,8 @@
 /**
  * Custom fetcher for orval-generated API client.
  * Handles authentication, token refresh, and error responses.
+ *
+ * Uses relative URLs - next.config.ts rewrites proxy to the configured backend.
  */
 
 import { getAuthToken, refreshToken, isTokenExpiringSoon } from "@/lib/auth";
@@ -64,7 +66,7 @@ let refreshPromise: Promise<string | null> | null = null;
 
 /**
  * Ensure we have a valid token, refreshing if needed.
- * 
+ *
  * Uses a shared promise pattern to prevent race conditions:
  * - Multiple concurrent requests share the same refresh promise
  * - The promise is reset only after refresh completes (success or failure)
@@ -72,7 +74,7 @@ let refreshPromise: Promise<string | null> | null = null;
  */
 async function ensureValidToken(): Promise<string> {
   let token = getAuthToken();
-  
+
   // If token is missing or expiring soon, try to refresh
   if (!token || isTokenExpiringSoon(token, TOKEN_REFRESH_THRESHOLD_SECONDS)) {
     // Only create promise once - all concurrent callers share it
@@ -82,13 +84,13 @@ async function ensureValidToken(): Promise<string> {
         refreshPromise = null;
       });
     }
-    
+
     const newToken = await refreshPromise;
     if (newToken) {
       token = newToken;
     }
   }
-  
+
   return token;
 }
 
@@ -98,7 +100,7 @@ export const customFetch = async <T>(
 ): Promise<T> => {
   const { url, method, headers, data, params, signal } = config;
 
-  // Build URL with query params
+  // Build URL with query params (always relative - routing layer handles backend)
   let fullUrl = url;
   if (params) {
     const searchParams = new URLSearchParams();
@@ -113,7 +115,7 @@ export const customFetch = async <T>(
     });
     const queryString = searchParams.toString();
     if (queryString) {
-      fullUrl = `${url}?${queryString}`;
+      fullUrl = `${fullUrl}?${queryString}`;
     }
   }
 
