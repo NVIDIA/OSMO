@@ -92,6 +92,9 @@ test.describe("Resources List", () => {
     // Wait for search to filter results - count should show "2 of 3"
     await expect(page.getByText(/2 of 3/)).toBeVisible({ timeout: 3000 });
 
+    // Re-expand filters in case auto-collapse was triggered by resize after filtering
+    await expandFiltersIfCollapsed(page);
+
     // Clear search by clearing the input directly
     await searchInput.clear();
     await expect(searchInput).toHaveValue("");
