@@ -23,21 +23,31 @@ interface AdaptiveSummaryProps {
   displayMode?: ResourceDisplayMode;
   /** Show loading skeleton */
   isLoading?: boolean;
+  /** Force compact layout regardless of container width */
+  forceCompact?: boolean;
 }
 
 /**
  * Adaptive summary cards using CSS container queries.
- * 
- * Automatically transitions between layouts based on available width:
+ *
+ * Full mode (forceCompact=false):
  * - Wide (≥500px): 4 column grid with icon + label header, value below
  * - Narrow (<500px): 2 column grid with icon + value inline
- * 
+ *
+ * Compact mode (forceCompact=true):
+ * - Always 4 column inline layout with smaller text
+ * - Progressively shows more detail as width increases:
+ *   - ≥600px: Shows denominator (e.g., "/ 100")
+ *   - ≥700px: Shows "free"/"used" label, larger text
+ *   - ≥800px: Shows metric labels (GPU, CPU, etc.)
+ *
  * Uses GPU-accelerated CSS transitions for smooth layout changes.
  */
 export function AdaptiveSummary({
   resources,
   displayMode = "free",
   isLoading = false,
+  forceCompact = false,
 }: AdaptiveSummaryProps) {
   // Calculate totals
   const totals = useMemo(() => {
@@ -68,41 +78,82 @@ export function AdaptiveSummary({
 
   return (
     // Container query wrapper - @container queries check this element's width
+    // Compact mode still uses container queries to progressively show more details
     <div className="@container">
-      {/* Grid: 2 col (narrow) → 4 col (wide) */}
-      <div className="grid grid-cols-2 gap-2 @[500px]:gap-3 @[500px]:grid-cols-4 transition-all duration-200">
+      {/* Grid: 2 col (narrow) → 4 col (wide or compact) */}
+      <div
+        className={cn(
+          "grid gap-2 transition-all duration-200",
+          forceCompact
+            ? "grid-cols-4" // Forced compact: always 4 col inline layout
+            : "grid-cols-2 @[500px]:gap-3 @[500px]:grid-cols-4" // Responsive
+        )}
+      >
         {metrics.map((item, i) => (
           <div
             key={i}
-            className="group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200 p-2 @[500px]:p-3"
+            className={cn(
+              "group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200",
+              forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3"
+            )}
           >
-            {/* Compact mode (<500px): single row with icon + value */}
-            {/* Wide mode (≥500px): stacked with header row */}
-            <div className="flex items-center gap-2 @[500px]:flex-col @[500px]:items-start @[500px]:gap-0 transition-all duration-200">
-              {/* Icon + Label (label only visible in wide mode) */}
-              <div className="flex items-center gap-2 @[500px]:mb-1">
+            {/* Compact mode: single row with icon + value */}
+            {/* Wide mode: stacked with header row */}
+            <div
+              className={cn(
+                "flex items-center gap-2 transition-all duration-200",
+                !forceCompact && "@[500px]:flex-col @[500px]:items-start @[500px]:gap-0"
+              )}
+            >
+              {/* Icon + Label */}
+              <div className={cn("flex items-center gap-2", !forceCompact && "@[500px]:mb-1")}>
                 <item.Icon className={cn("h-4 w-4 shrink-0", item.color)} />
-                <span className="hidden @[500px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  {item.label}
-                </span>
+                {/* In compact mode, show label at wider widths; in full mode, show at @[500px] */}
+                {forceCompact ? (
+                  <span className="hidden @[800px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    {item.label}
+                  </span>
+                ) : (
+                  <span className="hidden @[500px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    {item.label}
+                  </span>
+                )}
               </div>
 
-              {/* Value */}
+              {/* Value with progressive detail based on available space */}
               <div className="flex items-baseline gap-1 flex-wrap">
-                <span className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums text-zinc-900 dark:text-zinc-100",
+                    forceCompact ? "text-sm @[700px]:text-base" : "text-xl"
+                  )}
+                >
                   {format(getValue(item.value))}
                 </span>
+                {/* Denominator: always show in full mode, show at @[600px] in compact */}
                 {displayMode === "used" && (
-                  <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                  <span
+                    className={cn(
+                      "text-sm text-zinc-400 dark:text-zinc-500",
+                      forceCompact && "hidden @[600px]:inline"
+                    )}
+                  >
                     / {format(item.value.total)}
                   </span>
                 )}
+                {/* Unit */}
                 {item.unit && (
                   <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-0.5">
                     {item.unit}
                   </span>
                 )}
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-1">
+                {/* "free"/"used" label: always show in full mode, show at @[700px] in compact */}
+                <span
+                  className={cn(
+                    "text-xs text-zinc-400 dark:text-zinc-500 ml-1",
+                    forceCompact && "hidden @[700px]:inline"
+                  )}
+                >
                   {displayMode === "free" ? "free" : "used"}
                 </span>
               </div>
