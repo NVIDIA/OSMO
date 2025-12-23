@@ -45,3 +45,7 @@ export type {
 // All Resources (cross-pool view)
 export { useAllResources } from "./use-all-resources";
 export type { UseAllResourcesReturn } from "./use-all-resources";
+
+// UI Behavior Hooks
+export { useAutoCollapse } from "./use-auto-collapse";
+export { useHorizontalScrollSync, useScrollShadow } from "./use-horizontal-scroll-sync";
