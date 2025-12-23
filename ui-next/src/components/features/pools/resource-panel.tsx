@@ -8,7 +8,7 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { X, Check, Ban, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,10 @@ interface ResourcePanelProps {
   poolName?: string;
   /** Callback when panel is closed */
   onClose: () => void;
+  /** Element to restore focus to when panel closes */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Fallback element to restore focus to if primary target is unavailable */
+  fallbackFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -34,11 +38,19 @@ interface ResourcePanelProps {
  *
  * Shows pool-agnostic info (capacity, resource info, conditions) at the top,
  * and pool-specific task configurations in a tabbed interface below.
+ *
+ * Accessibility:
+ * - Focus moves to the panel when opened
+ * - Escape key closes the panel
+ * - Focus is trapped within the panel while open
+ * - Focus is restored to the triggering element when closed
  */
 export function ResourcePanel({
   resource,
   poolName,
   onClose,
+  restoreFocusRef,
+  fallbackFocusRef,
 }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
   const { pools, initialPool, taskConfigByPool, isLoadingPools, error, refetch } = useResourceDetail(
@@ -59,6 +71,8 @@ export function ResourcePanel({
       error={error}
       refetch={refetch}
       onClose={onClose}
+      restoreFocusRef={restoreFocusRef}
+      fallbackFocusRef={fallbackFocusRef}
     />
   );
 }
@@ -77,6 +91,8 @@ interface ResourcePanelContentProps {
   error: ApiErrorProps["error"];
   refetch: () => void;
   onClose: () => void;
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  fallbackFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 function ResourcePanelContent({
@@ -88,12 +104,82 @@ function ResourcePanelContent({
   error,
   refetch,
   onClose,
+  restoreFocusRef,
+  fallbackFocusRef,
 }: ResourcePanelContentProps) {
   // Track selected pool tab - initialized from initialPool
   const [selectedPool, setSelectedPool] = useState<string | null>(initialPool);
 
   // Get task config for selected pool
   const taskConfig = selectedPool ? taskConfigByPool[selectedPool] ?? null : null;
+
+  // Refs for focus management
+  const panelRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Store focus targets in refs so we can access them in cleanup
+  const restoreFocusTargetRef = useRef<HTMLElement | null>(null);
+  const fallbackFocusTargetRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    // Capture the elements to restore focus to when panel opens
+    restoreFocusTargetRef.current = restoreFocusRef?.current ?? null;
+    fallbackFocusTargetRef.current = fallbackFocusRef?.current ?? null;
+  }, [restoreFocusRef, fallbackFocusRef]);
+
+  // Restore focus when component unmounts (panel closes)
+  useLayoutEffect(() => {
+    return () => {
+      // Restore focus on cleanup (when panel unmounts)
+      // Use requestAnimationFrame to ensure DOM is ready after React updates
+      requestAnimationFrame(() => {
+        const primary = restoreFocusTargetRef.current;
+        const fallback = fallbackFocusTargetRef.current;
+
+        // Try primary target first (the row that was clicked)
+        if (primary && document.body.contains(primary)) {
+          primary.focus();
+        } else if (fallback && document.body.contains(fallback)) {
+          // Fall back to the table container if row is no longer available
+          fallback.focus();
+        }
+      });
+    };
+  }, []);
+
+  // Focus management: move focus to panel on open, trap focus, handle Escape
+  useEffect(() => {
+    // Focus the close button when panel opens
+    closeButtonRef.current?.focus();
+
+    // Handle Escape key
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    // Focus trap: keep focus within the panel
+    const handleFocusTrap = (e: FocusEvent) => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const relatedTarget = e.relatedTarget as HTMLElement | null;
+      // If focus is leaving the panel (not to another element inside it)
+      if (relatedTarget && !panel.contains(relatedTarget)) {
+        // Bring focus back to the close button
+        closeButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusout", handleFocusTrap);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusout", handleFocusTrap);
+    };
+  }, [onClose]);
 
   return (
     <>
@@ -106,6 +192,7 @@ function ResourcePanelContent({
 
       {/* Panel - WCAG 2.1 compliant slide-out */}
       <aside
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="resource-panel-title"
@@ -129,7 +216,13 @@ function ResourcePanelContent({
               {resource.platform}
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close resource panel">
+          <Button
+            ref={closeButtonRef}
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close resource panel"
+          >
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
