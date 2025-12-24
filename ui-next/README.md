@@ -19,6 +19,7 @@ For local backend: `pnpm dev:local` (points to localhost:8000)
 ```bash
 pnpm dev                    # Start dev server (Turbopack)
 pnpm dev:local              # Dev server → localhost:8000
+pnpm dev:mock               # Dev with mock data (no backend needed!)
 pnpm build                  # Production build
 pnpm start                  # Run production build
 ```
@@ -430,6 +431,208 @@ Edit `.env.local` → restart `pnpm dev`
 | `NEXT_PUBLIC_OSMO_AUTH_HOSTNAME` | Yes | `localhost:8081` |
 | `AUTH_CLIENT_SECRET` | Yes | — |
 | `NEXT_PUBLIC_OSMO_SSL_ENABLED` | No | Auto (false for localhost) |
+| `NEXT_PUBLIC_MOCK_API` | No | `false` |
+
+---
+
+## Hermetic Development (Mock Mode)
+
+Develop the UI **without any backend connection** using deterministic synthetic data.
+
+### Quick Start
+
+```bash
+# Start with mock data - no backend needed!
+pnpm dev:mock
+```
+
+That's it! The app runs with 10,000 workflows, 50 pools, and realistic data for all entities.
+
+### How It Works
+
+```
+UI Component → TanStack Query → MSW Intercept → Generators
+                                                  ↓
+                               Deterministic synthetic data
+                               (same index = same data)
+```
+
+- **MSW (Mock Service Worker)** intercepts all API requests in the browser
+- **Generators** produce data on-demand using `faker.seed(baseSeed + index)`
+- **No network required** - works offline (airplane mode!)
+- **Memory efficient** - items regenerated per request, not stored
+
+### Enable/Disable Mock Mode
+
+```bash
+# Option 1: npm script
+pnpm dev:mock
+
+# Option 2: Environment variable
+NEXT_PUBLIC_MOCK_API=true pnpm dev
+
+# Option 3: localStorage (toggle at runtime)
+# In browser console:
+localStorage.setItem("mockApi", "true")
+location.reload()
+
+# To disable:
+localStorage.removeItem("mockApi")
+location.reload()
+```
+
+### Configure Data Volume
+
+For stress testing pagination and virtualization, use the browser console:
+
+```javascript
+// Show help
+__mockConfig.help()
+
+// Configure volumes
+__mockConfig.setWorkflowTotal(100000)      // 100k workflows
+__mockConfig.setPoolTotal(1000)            // 1k pools  
+__mockConfig.setResourcePerPool(10000)     // 10k resources per pool
+__mockConfig.setResourceTotalGlobal(1000000) // 1M total resources
+__mockConfig.setBucketTotal(10000)         // 10k buckets
+__mockConfig.setDatasetTotal(50000)        // 50k datasets
+
+// Check current volumes
+__mockConfig.getVolumes()
+// → { workflows: 100000, pools: 1000, buckets: 10000, datasets: 50000 }
+```
+
+After changing volumes, refresh the page or navigate to see the new data.
+
+### Default Volumes
+
+| Entity | Default | Setter Function |
+|--------|---------|-----------------|
+| Workflows | 10,000 | `setWorkflowTotal(n)` |
+| Pools | 50 | `setPoolTotal(n)` |
+| Resources/pool | 50 | `setResourcePerPool(n)` |
+| Resources total | 500 | `setResourceTotalGlobal(n)` |
+| Buckets | 50 | `setBucketTotal(n)` |
+| Datasets | 100 | `setDatasetTotal(n)` |
+
+### Supported Endpoints
+
+All API endpoints are mocked with infinite pagination:
+
+| Endpoint | Generator | Pagination |
+|----------|-----------|------------|
+| `GET /api/workflow` | WorkflowGenerator | ✅ offset/limit |
+| `GET /api/workflow/:name` | WorkflowGenerator | - |
+| `GET /api/workflow/:name/logs` | LogGenerator | - |
+| `GET /api/workflow/:name/events` | EventGenerator | - |
+| `GET /api/workflow/:name/spec` | (inline YAML) | - |
+| `GET /api/workflow/:name/task/:task` | TaskGenerator | - |
+| `GET /api/workflow/:name/task/:task/logs` | LogGenerator | - |
+| `GET /api/workflow/:name/task/:task/events` | EventGenerator | - |
+| `POST /api/workflow/:name/exec/task/:task` | TerminalSimulator | - |
+| `POST /api/workflow/:name/webserver/:task` | PortForwardGenerator | - |
+| `GET /api/pool` | PoolGenerator | ✅ offset/limit |
+| `GET /api/pool/:name` | PoolGenerator | - |
+| `GET /api/pool/:name/resources` | ResourceGenerator | ✅ offset/limit |
+| `GET /api/resources` | ResourceGenerator | ✅ offset/limit |
+| `GET /api/bucket` | BucketGenerator | ✅ offset/limit |
+| `GET /api/bucket/:name/list` | BucketGenerator | ✅ offset/limit |
+| `GET /api/bucket/list_dataset` | DatasetGenerator | ✅ offset/limit |
+| `GET /api/bucket/collections` | DatasetGenerator | ✅ offset/limit |
+| `GET /api/profile` | ProfileGenerator | - |
+| `GET /api/profile/settings` | ProfileGenerator | - |
+
+### Deterministic Generation
+
+Same index always produces identical data:
+
+```typescript
+// First request
+workflowGenerator.generate(12345);
+// → { name: "train-model-abc123", status: "RUNNING", ... }
+
+// Later request (same result!)
+workflowGenerator.generate(12345);
+// → { name: "train-model-abc123", status: "RUNNING", ... }
+```
+
+This means:
+- ✅ Consistent pagination (scroll back = same items)
+- ✅ Reproducible bugs
+- ✅ Stable UI testing
+
+### Interactive Features
+
+Mock mode includes realistic simulations for:
+
+| Feature | Behavior |
+|---------|----------|
+| **Terminal/Exec** | Simulates shell with `ls`, `nvidia-smi`, `python`, etc. |
+| **Port Forward** | Returns mock router addresses and session keys |
+| **Logs** | Generates training output with epochs, loss, metrics |
+| **Events** | K8s-style events (Scheduled, Started, Completed, Failed) |
+
+### Mock Files
+
+```
+src/mocks/
+├── browser.ts           # MSW browser setup
+├── handlers.ts          # Request handlers for all endpoints
+├── index.ts             # Main exports
+├── MockProvider.tsx     # React provider
+│
+├── generators/          # Deterministic data generators
+│   ├── workflow-generator.ts   # Workflows (infinite)
+│   ├── pool-generator.ts       # Pools (infinite)
+│   ├── resource-generator.ts   # Resources (infinite)
+│   ├── task-generator.ts       # Tasks
+│   ├── log-generator.ts        # Streaming logs
+│   ├── event-generator.ts      # K8s-style events
+│   ├── bucket-generator.ts     # Buckets (infinite)
+│   ├── dataset-generator.ts    # Datasets (infinite)
+│   ├── profile-generator.ts    # User profiles
+│   ├── portforward-generator.ts # Port forwarding
+│   └── terminal-simulator.ts   # Interactive terminal
+│
+└── seed/                # Configuration patterns
+    ├── index.ts
+    └── types.ts         # MOCK_CONFIG with distributions
+```
+
+### Customize Mock Patterns
+
+Edit `src/mocks/seed/types.ts`:
+
+```typescript
+export const MOCK_CONFIG: MockConfig = {
+  volume: {
+    workflows: 10_000,    // Total workflows
+    pools: 50,            // Number of pools
+    resourcesPerPool: 50, // Resources per pool
+  },
+  
+  workflows: {
+    statusDistribution: {
+      RUNNING: 0.25,
+      COMPLETED: 0.40,
+      FAILED: 0.15,
+      WAITING: 0.10,
+      // ...
+    },
+    pools: ["training-pool", "inference-pool", "preemptible"],
+    users: ["alice", "bob", "charlie"],
+    // ...
+  },
+  
+  // ... more patterns
+};
+```
+
+### Documentation
+
+For more details, see:
+- [HERMETIC_DEV.md](../ui-next-design/docs/HERMETIC_DEV.md) - Full hermetic dev guide
+- [MOCK_ENTITY_REFERENCE.md](../ui-next-design/docs/MOCK_ENTITY_REFERENCE.md) - Generator API reference
 
 ---
 

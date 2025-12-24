@@ -78,6 +78,9 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
     devDependencies:
+      '@faker-js/faker':
+        specifier: ^10.1.0
+        version: 10.1.0
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.57.0
@@ -108,6 +111,9 @@ importers:
       jsdom:
         specifier: ^27.3.0
         version: 27.3.0
+      msw:
+        specifier: ^2.12.4
+        version: 2.12.4(@types/node@20.19.27)(typescript@5.9.3)
       orval:
         specifier: ^7.17.0
         version: 7.17.0(openapi-types@12.1.3)(typescript@5.9.3)
@@ -645,6 +651,10 @@ packages:
 
   '@exodus/schemasafe@1.3.0':
     resolution: {integrity: sha512-5Aap/GaRupgNx/feGBwLLTVv8OQFfv3pq2lPRzPg9R+IOBnDgghTGW7l7EuVXOvg5cc/xSAlRW8rBrjIC3Nvqw==}
+
+  '@faker-js/faker@10.1.0':
+    resolution: {integrity: sha512-C3mrr3b5dRVlKPJdfrAXS8+dq+rq8Qm5SNRazca0JKgw1HQERFmrVb0towvMmw5uu8hHKNiQasMaR/tydf3Zsg==}
+    engines: {node: ^20.19.0 || ^22.13.0 || ^23.5.0 || >=24.0.0, npm: '>=10'}
 
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
@@ -4515,6 +4525,8 @@ snapshots:
 
   '@exodus/schemasafe@1.3.0': {}
 
+  '@faker-js/faker@10.1.0': {}
+
   '@floating-ui/core@1.7.3':
     dependencies:
       '@floating-ui/utils': 0.2.10
@@ -4672,8 +4684,7 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@inquirer/ansi@1.0.2':
-    optional: true
+  '@inquirer/ansi@1.0.2': {}
 
   '@inquirer/confirm@5.1.21(@types/node@20.19.27)':
     dependencies:
@@ -4681,7 +4692,6 @@ snapshots:
       '@inquirer/type': 3.0.10(@types/node@20.19.27)
     optionalDependencies:
       '@types/node': 20.19.27
-    optional: true
 
   '@inquirer/core@10.3.2(@types/node@20.19.27)':
     dependencies:
@@ -4695,15 +4705,12 @@ snapshots:
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
       '@types/node': 20.19.27
-    optional: true
 
-  '@inquirer/figures@1.0.15':
-    optional: true
+  '@inquirer/figures@1.0.15': {}
 
   '@inquirer/type@3.0.10(@types/node@20.19.27)':
     optionalDependencies:
       '@types/node': 20.19.27
-    optional: true
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -4744,7 +4751,6 @@ snapshots:
       is-node-process: 1.2.0
       outvariant: 1.4.3
       strict-event-emitter: 0.5.1
-    optional: true
 
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
@@ -4797,17 +4803,14 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@open-draft/deferred-promise@2.2.0':
-    optional: true
+  '@open-draft/deferred-promise@2.2.0': {}
 
   '@open-draft/logger@0.3.0':
     dependencies:
       is-node-process: 1.2.0
       outvariant: 1.4.3
-    optional: true
 
-  '@open-draft/until@2.1.0':
-    optional: true
+  '@open-draft/until@2.1.0': {}
 
   '@orval/angular@7.17.0(openapi-types@12.1.3)(typescript@5.9.3)':
     dependencies:
@@ -5717,8 +5720,7 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  '@types/statuses@2.0.6':
-    optional: true
+  '@types/statuses@2.0.6': {}
 
   '@types/unist@3.0.3': {}
 
@@ -6132,8 +6134,7 @@ snapshots:
     dependencies:
       clsx: 2.1.1
 
-  cli-width@4.1.0:
-    optional: true
+  cli-width@4.1.0: {}
 
   client-only@0.0.1: {}
 
@@ -6171,8 +6172,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  cookie@1.1.1:
-    optional: true
+  cookie@1.1.1: {}
 
   cross-spawn@7.0.6:
     dependencies:
@@ -6828,8 +6828,7 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  graphql@16.12.0:
-    optional: true
+  graphql@16.12.0: {}
 
   has-bigints@1.1.0: {}
 
@@ -6853,8 +6852,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  headers-polyfill@4.0.3:
-    optional: true
+  headers-polyfill@4.0.3: {}
 
   hermes-estree@0.25.1: {}
 
@@ -6977,8 +6975,7 @@ snapshots:
 
   is-negative-zero@2.0.3: {}
 
-  is-node-process@1.2.0:
-    optional: true
+  is-node-process@1.2.0: {}
 
   is-number-object@1.1.1:
     dependencies:
@@ -7301,10 +7298,8 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - '@types/node'
-    optional: true
 
-  mute-stream@2.0.0:
-    optional: true
+  mute-stream@2.0.0: {}
 
   nanoid@3.3.11: {}
 
@@ -7500,8 +7495,7 @@ snapshots:
       - supports-color
       - typescript
 
-  outvariant@1.4.3:
-    optional: true
+  outvariant@1.4.3: {}
 
   own-keys@1.0.1:
     dependencies:
@@ -7531,8 +7525,7 @@ snapshots:
 
   path-parse@1.0.7: {}
 
-  path-to-regexp@6.3.0:
-    optional: true
+  path-to-regexp@6.3.0: {}
 
   path-type@4.0.0: {}
 
@@ -7670,8 +7663,7 @@ snapshots:
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
 
-  rettime@0.7.0:
-    optional: true
+  rettime@0.7.0: {}
 
   reusify@1.1.0: {}
 
@@ -7858,8 +7850,7 @@ snapshots:
 
   signal-exit@3.0.7: {}
 
-  signal-exit@4.1.0:
-    optional: true
+  signal-exit@4.1.0: {}
 
   simple-eval@1.0.1:
     dependencies:
@@ -7878,8 +7869,7 @@ snapshots:
 
   stackback@0.0.2: {}
 
-  statuses@2.0.2:
-    optional: true
+  statuses@2.0.2: {}
 
   std-env@3.10.0: {}
 
@@ -7888,8 +7878,7 @@ snapshots:
       es-errors: 1.3.0
       internal-slot: 1.1.0
 
-  strict-event-emitter@0.5.1:
-    optional: true
+  strict-event-emitter@0.5.1: {}
 
   string-argv@0.3.2: {}
 
@@ -7990,8 +7979,7 @@ snapshots:
 
   symbol-tree@3.2.4: {}
 
-  tagged-tag@1.0.0:
-    optional: true
+  tagged-tag@1.0.0: {}
 
   tailwind-merge@3.4.0: {}
 
@@ -8058,7 +8046,6 @@ snapshots:
   type-fest@5.3.1:
     dependencies:
       tagged-tag: 1.0.0
-    optional: true
 
   typed-array-buffer@1.0.3:
     dependencies:
@@ -8160,8 +8147,7 @@ snapshots:
       '@unrs/resolver-binding-win32-ia32-msvc': 1.11.1
       '@unrs/resolver-binding-win32-x64-msvc': 1.11.1
 
-  until-async@3.0.2:
-    optional: true
+  until-async@3.0.2: {}
 
   update-browserslist-db@1.2.3(browserslist@4.28.1):
     dependencies:
@@ -8328,7 +8314,6 @@ snapshots:
       ansi-styles: 4.3.0
       string-width: 4.2.3
       strip-ansi: 6.0.1
-    optional: true
 
   wrap-ansi@7.0.0:
     dependencies:
@@ -8364,8 +8349,7 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  yoctocolors-cjs@2.1.3:
-    optional: true
+  yoctocolors-cjs@2.1.3: {}
 
   zod-validation-error@4.0.2(zod@4.2.1):
     dependencies:
