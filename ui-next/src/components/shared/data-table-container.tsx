@@ -44,8 +44,6 @@ interface DataTableContainerProps {
   collapseThreshold?: number;
   /** Ref to the scroll container (for virtualization) */
   scrollRef?: React.RefObject<HTMLDivElement>;
-  /** Header ref for horizontal scroll sync */
-  headerRef?: React.RefObject<HTMLDivElement>;
   /** Additional class names for the container */
   className?: string;
 }
@@ -57,7 +55,7 @@ interface DataTableContainerProps {
  * - Auto-collapse when controls panel exceeds threshold of container height
  * - Manual pin/unpin to override auto behavior
  * - Smooth CSS Grid transitions for collapse/expand
- * - Horizontal scroll sync between header and body
+ * - Sticky header within single scroll container (perfect column alignment)
  * - Optional compact mode toggle
  */
 export function DataTableContainer({
@@ -75,17 +73,15 @@ export function DataTableContainer({
   onCompactModeChange,
   collapseThreshold = 0.5,
   scrollRef: externalScrollRef,
-  headerRef: externalHeaderRef,
   className,
 }: DataTableContainerProps) {
   // Refs for measuring
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
-  const internalHeaderRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const internalScrollRef = useRef<HTMLDivElement>(null);
 
-  // Use external refs if provided, otherwise use internal
-  const headerRef = externalHeaderRef || internalHeaderRef;
+  // Use external ref if provided, otherwise use internal
   const scrollRef = externalScrollRef || internalScrollRef;
 
   // State
@@ -124,12 +120,11 @@ export function DataTableContainer({
       cancelAnimationFrame(rafId);
       observer.disconnect();
     };
-  }, [collapseThreshold, headerRef]);
+  }, [collapseThreshold]);
 
-  // Scroll handling: shadow effect + horizontal sync
+  // Scroll handling: shadow effect on sticky header
   useEffect(() => {
     const scroll = scrollRef.current;
-    const header = headerRef.current;
     if (!scroll) return;
 
     let wasScrolled = false;
@@ -139,12 +134,11 @@ export function DataTableContainer({
         wasScrolled = scrolled;
         setIsScrolled(scrolled);
       }
-      if (header) header.scrollLeft = scroll.scrollLeft;
     };
 
     scroll.addEventListener("scroll", handleScroll, { passive: true });
     return () => scroll.removeEventListener("scroll", handleScroll);
-  }, [scrollRef, headerRef]);
+  }, [scrollRef]);
 
   // Effective collapsed: pinned state takes precedence
   const effectiveCollapsed = isPinned ? pinnedState : autoCollapsed;
@@ -264,23 +258,24 @@ export function DataTableContainer({
         </div>
       </div>
 
-      {/* Table Header - horizontal scroll synced with content */}
+      {/* Table - single scroll container with sticky header */}
       <div
-        ref={headerRef as React.RefObject<HTMLDivElement>}
-        className={cn(
-          "scrollbar-none shrink-0 overflow-x-auto transition-shadow",
-          "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
-          isScrolled && "shadow-md"
-        )}
+        ref={scrollRef as React.RefObject<HTMLDivElement>}
+        className="flex-1 overflow-auto"
       >
         <div style={{ minWidth }}>
-          {tableHeader}
-        </div>
-      </div>
-
-      {/* Table Content - horizontal + vertical scroll */}
-      <div ref={scrollRef as React.RefObject<HTMLDivElement>} className="flex-1 overflow-auto">
-        <div style={{ minWidth }}>
+          {/* Sticky Header */}
+          <div
+            ref={headerRef}
+            className={cn(
+              "sticky top-0 z-10 transition-shadow",
+              "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
+              isScrolled && "shadow-md"
+            )}
+          >
+            {tableHeader}
+          </div>
+          {/* Body */}
           {tableBody}
         </div>
       </div>
