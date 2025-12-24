@@ -16,6 +16,7 @@ import { useState } from "react";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
 import { AuthProvider } from "@/lib/auth/auth-provider";
 import { UserProvider } from "@/lib/user-context";
+import { MockProvider } from "@/mocks/MockProvider";
 import { isApiError } from "@/lib/api/fetcher";
 import { QUERY_STALE_TIME_MS, QUERY_MAX_RETRY_DELAY_MS } from "@/lib/config";
 
@@ -77,19 +78,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <AuthProvider>
-          <UserProvider>
-            <SidebarProvider>{children}</SidebarProvider>
-          </UserProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <MockProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <UserProvider>
+              <SidebarProvider>{children}</SidebarProvider>
+            </UserProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </MockProvider>
   );
 }
