@@ -85,9 +85,30 @@ interface VirtualizedResourceTableProps {
 // Layout Constants
 // =============================================================================
 
-const TABLE_GRID_COLUMNS_WITH_POOLS = "minmax(200px, 1fr) 120px 120px 80px 80px 100px 100px";
-const TABLE_GRID_COLUMNS_NO_POOLS = "minmax(200px, 1fr) 120px 80px 80px 100px 100px";
-const TABLE_MIN_WIDTH = 820;
+import {
+  defineColumns,
+  selectColumns,
+  COLUMN_MIN_WIDTHS,
+  COLUMN_FLEX,
+} from "@/lib/table-columns";
+
+// Define all possible columns with semantic IDs
+const ALL_COLUMNS = defineColumns([
+  { id: "resource", minWidth: COLUMN_MIN_WIDTHS.TEXT_TRUNCATE, flex: COLUMN_FLEX.PRIMARY },
+  { id: "pools", minWidth: COLUMN_MIN_WIDTHS.TEXT_SHORT, flex: COLUMN_FLEX.SECONDARY },
+  { id: "platform", minWidth: COLUMN_MIN_WIDTHS.TEXT_SHORT, flex: COLUMN_FLEX.SECONDARY },
+  { id: "gpu", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
+  { id: "cpu", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
+  { id: "memory", minWidth: COLUMN_MIN_WIDTHS.NUMBER_WITH_UNIT, flex: COLUMN_FLEX.NUMERIC_WIDE },
+  { id: "storage", minWidth: COLUMN_MIN_WIDTHS.NUMBER_WITH_UNIT, flex: COLUMN_FLEX.NUMERIC_WIDE },
+]);
+
+// Column subsets for different views
+const COLUMNS_WITH_POOLS = ALL_COLUMNS;
+const COLUMNS_NO_POOLS = selectColumns(ALL_COLUMNS, [
+  "resource", "platform", "gpu", "cpu", "memory", "storage"
+]);
+
 const HEADER_HEIGHT = 41; // pixels
 
 // =============================================================================
@@ -125,7 +146,7 @@ export function VirtualizedResourceTable({
 
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const filterContentRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
@@ -133,7 +154,10 @@ export function VirtualizedResourceTable({
   // Ref to track the last clicked row for focus restoration
   const lastClickedRowRef = useRef<HTMLElement | null>(null);
 
-  const gridColumns = showPoolsColumn ? TABLE_GRID_COLUMNS_WITH_POOLS : TABLE_GRID_COLUMNS_NO_POOLS;
+  // Select column configuration based on whether pools column is shown
+  const columnConfig = showPoolsColumn ? COLUMNS_WITH_POOLS : COLUMNS_NO_POOLS;
+  const gridColumns = columnConfig.gridTemplate;
+  const tableMinWidth = columnConfig.minWidth;
 
   // Derive current sort, resetting if displayMode changed
   const sort = useMemo<SortState>(
@@ -238,10 +262,9 @@ export function VirtualizedResourceTable({
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
 
-  // Scroll handling: shadow effect + horizontal sync
+  // Scroll handling: shadow effect on sticky header
   useEffect(() => {
     const scroll = scrollRef.current;
-    const header = headerRef.current;
     if (!scroll) return;
 
     let wasScrolled = false;
@@ -251,7 +274,6 @@ export function VirtualizedResourceTable({
         wasScrolled = scrolled;
         setIsScrolled(scrolled);
       }
-      if (header) header.scrollLeft = scroll.scrollLeft;
     };
 
     scroll.addEventListener("scroll", handleScroll, { passive: true });
@@ -271,7 +293,7 @@ export function VirtualizedResourceTable({
   useEffect(() => {
     const container = containerRef.current;
     const filterBar = filterBarRef.current;
-    const tableHeader = headerRef.current;
+    const tableHeader = tableHeaderRef.current;
     if (!container || !tableHeader) return;
 
     let debounceTimer: ReturnType<typeof setTimeout>;
@@ -500,27 +522,8 @@ export function VirtualizedResourceTable({
           </div>
         )}
 
-        {/* Table Header - horizontal scroll synced with content */}
-        <div
-          ref={headerRef}
-          className={cn(
-            "relative z-10 scrollbar-none shrink-0 overflow-x-auto transition-shadow",
-            "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
-            isScrolled && "shadow-md"
-          )}
-        >
-          <div style={{ minWidth: TABLE_MIN_WIDTH }}>
-            <TableHeaderRow
-              compact={compactMode}
-              showPoolsColumn={showPoolsColumn}
-              sort={sort}
-              onSort={handleSort}
-              gridColumns={gridColumns}
-            />
-          </div>
-        </div>
-
-        {/* Table Content - virtualized with horizontal + vertical scroll */}
+        {/* Table - single scroll container with sticky header */}
+        {/* Grid columns defined once via CSS custom property, inherited by header and rows */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-auto focus:outline-none scroll-optimized"
@@ -531,9 +534,28 @@ export function VirtualizedResourceTable({
             // Optimized scrolling
             overscrollBehavior: "contain",
             WebkitOverflowScrolling: "touch",
-          }}
+            // Single source of truth for column layout - used by header and all rows
+            "--table-grid-columns": gridColumns,
+          } as React.CSSProperties}
         >
-          <div style={{ minWidth: TABLE_MIN_WIDTH, contain: "layout" }}>
+          <div style={{ minWidth: tableMinWidth, contain: "layout" }}>
+            {/* Sticky Header */}
+            <div
+              ref={tableHeaderRef}
+              className={cn(
+                "sticky top-0 z-10 transition-shadow",
+                "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
+                isScrolled && "shadow-md"
+              )}
+            >
+              <TableHeaderRow
+                compact={compactMode}
+                showPoolsColumn={showPoolsColumn}
+                sort={sort}
+                onSort={handleSort}
+              />
+            </div>
+            {/* Virtualized Body */}
             <TableContent
               resources={sortedResources}
               isLoading={isLoading}
@@ -541,7 +563,6 @@ export function VirtualizedResourceTable({
               showPoolsColumn={showPoolsColumn}
               scrollRef={scrollRef}
               rowHeight={rowHeight}
-              gridColumns={gridColumns}
               onRowClick={handleRowClick}
             />
           </div>
@@ -568,19 +589,18 @@ export function VirtualizedResourceTable({
 
 /**
  * Memoized table header - only re-renders when sort state or layout changes.
+ * Uses CSS custom property --table-grid-columns from parent for column alignment.
  */
 const TableHeaderRow = memo(function TableHeaderRow({
   compact,
   showPoolsColumn,
   sort,
   onSort,
-  gridColumns,
 }: {
   compact: boolean;
   showPoolsColumn: boolean;
   sort: SortState;
   onSort: (column: SortColumn) => void;
-  gridColumns: string;
 }) {
   // Memoize columns array to prevent recreation on each render
   const columns = useMemo(() => [
@@ -600,7 +620,7 @@ const TableHeaderRow = memo(function TableHeaderRow({
         "text-[var(--nvidia-green)] dark:text-[var(--nvidia-green-light)]",
         compact ? "py-1.5" : "py-2.5"
       )}
-      style={{ gridTemplateColumns: gridColumns, contain: "layout style" }}
+      style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
     >
       {columns.map((col) => {
         const isActive = sort.column === col.column;
@@ -630,6 +650,10 @@ const TableHeaderRow = memo(function TableHeaderRow({
   );
 });
 
+/**
+ * Virtualized table content.
+ * Uses CSS custom property --table-grid-columns from parent for column alignment.
+ */
 const TableContent = memo(function TableContent({
   resources,
   isLoading,
@@ -637,7 +661,6 @@ const TableContent = memo(function TableContent({
   showPoolsColumn,
   scrollRef,
   rowHeight,
-  gridColumns,
   onRowClick,
 }: {
   resources: Resource[];
@@ -646,7 +669,6 @@ const TableContent = memo(function TableContent({
   showPoolsColumn: boolean;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   rowHeight: number;
-  gridColumns: string;
   onRowClick: (resource: Resource, rowElement?: HTMLElement) => void;
 }) {
   "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
@@ -670,7 +692,7 @@ const TableContent = memo(function TableContent({
           <div
             key={i}
             className="grid gap-0 border-b border-zinc-100 py-3 dark:border-zinc-800/50"
-            style={{ gridTemplateColumns: gridColumns, contain: "layout style" }}
+            style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
           >
             <div className="px-4">
               <div className="h-4 w-40 skeleton-shimmer rounded" />
@@ -743,7 +765,7 @@ const TableContent = memo(function TableContent({
           >
             <div
               className="grid h-full cursor-pointer items-center gap-0 border-b border-zinc-100 text-sm transition-[background-color] duration-150 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--nvidia-green)] dark:border-zinc-800/50 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
-              style={{ gridTemplateColumns: gridColumns, contain: "layout style" }}
+              style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
             >
               <div className="truncate px-4 font-medium text-zinc-900 dark:text-zinc-100">
                 {resource.name}
