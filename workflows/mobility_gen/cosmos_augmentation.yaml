@@ -1,0 +1,107 @@
+# Cosmos Transfer Augmentation for MobilityGen Data
+# Generates photorealistic videos from synthetic robot data using Cosmos Transfer
+#
+# To submit:
+#   osmo workflow submit cosmos_transfer_mobility.yaml --pool isaac-hil
+#
+# To connect:
+#   osmo workflow exec <workflow-id> -t cosmos_transfer
+
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: {{ exec_timeout }}
+    queue_timeout: {{ queue_timeout }}
+  resources:
+    default:
+      cpu: {{ ncpus }}
+      gpu: {{ ngpus }}
+      memory: {{ memory }}
+      storage: {{ storage }}
+
+  tasks:
+  - name: cosmos_transfer
+    image: {{ image_name }}
+    lead: true
+    environment:
+      ACCEPT_EULA: Y
+    credentials:
+      hf_token:
+        HF_TOKEN: HF_TOKEN
+    
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        set -euxo pipefail
+        
+        echo "=== System Info ==="
+        nvidia-smi
+        
+        echo "=== Setting up Cosmos Transfer 2.5 ==="
+        cd /workspace
+        git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git
+        cd cosmos-transfer2.5
+        git checkout 0033b77a9e41e74f9d8d0b9cf80e0ecf94b3533b
+        
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        source $HOME/.local/bin/env
+        
+        # Install dependencies
+        uv sync --extra=cu128
+        source .venv/bin/activate
+        pip3 install tyro
+        
+        # Hugging Face login
+        git config --global credential.helper store
+        huggingface-cli login --token $HF_TOKEN --add-to-git-credential
+        
+        echo ""
+        echo "=== Cosmos Transfer 2.5 Ready ==="
+        echo ""
+        echo "Data directories:"
+        echo "  Input:  /workspace/input"
+        echo "  Output: /workspace/output"
+        mkdir -p /workspace/input /workspace/output
+        
+        echo ""
+        echo "To copy data in/out, use:"
+        echo "  osmo workflow cp <local_path> <workflow-id>:cosmos_transfer:/workspace/input/"
+        echo "  osmo workflow cp <workflow-id>:cosmos_transfer:/workspace/output/ <local_path>"
+        echo ""
+        echo "To run inference:"
+        echo "  cd /workspace/cosmos-transfer2.5"
+        echo "  source .venv/bin/activate"
+        echo "  python examples/inference.py -i <spec_file> -o /workspace/output"
+        echo ""
+    - path: /workspace/params.json
+        contents: |
+          {
+              "name": "cosmos-transfer-mobility",
+              "prompt": "High-quality warehouse simulation...",
+              "video_path": "/workspace/input/clip_0000/rgb.mp4",
+              "vis": {"control_weight": 0.25},
+              "edge": {"control_weight": 0.25},
+              "depth": {
+                  "input_control": "/workspace/input/clip_0000/depth.mp4",
+                  "control_weight": 0.25
+              },
+              "seg": {
+                  "input_control": "/workspace/input/clip_0000/segmentation.mp4",
+                  "control_weight": 0.25
+              }
+          }
+    outputs:
+      - dataset:
+          name: cosmos-transfer-augmented-mobility
+
+default-values:
+  workflow_name: cosmos_transfer_mobility
+  image_name: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
+  memory: 256Gi
+  storage: 512Gi
+  ngpus: 4
+  ncpus: 64
+  exec_timeout: 72h
+  queue_timeout: 24h
