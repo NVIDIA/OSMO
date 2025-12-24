@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION
+# Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# MobilityGen Interactive Workflow with Isaac Sim UI Livestream
+# 
+# To submit:
+#   osmo workflow submit mobilitygen_replay.yaml --pool isaac-hil
+#
+# To see Isaac Sim livestream UI:
+#   osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48012,49000-49007,49100 --connect-timeout 300
+#   osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48012,49000-49007 --udp --connect-timeout 300
+#
+# Manual Steps (done interactively via UI):
+#   1. Build Occupancy Map: Tools > Robotics > Occupancy Map
+#   2. Record trajectory: MobilityGen UI extension with keyboard (W/A/S/D)
+#   3. Run /tmp/run_replay.sh to render sensor data
+
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: {{ exec_timeout }}
+    queue_timeout: {{ queue_timeout }}
+  resources:
+    default:
+      cpu: {{ ncpus }}
+      gpu: {{ ngpus }}
+      memory: {{ memory }}
+      storage: {{ storage }}
+
+  tasks:
+  - name: mobilitygen_interactive
+    image: {{ image_name }}
+    lead: true
+    environment:
+      ACCEPT_EULA: Y
+      OMNI_KIT_ALLOW_ROOT: 1
+      NO_NUCLEUS: Y
+    
+    command: ["bash"]
+    args: ["/tmp/entry.sh"]
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        set -euxo pipefail
+        
+        echo "=== System Info ==="
+        nvidia-smi
+        
+        echo "=== MobilityGen Interactive Session with Livestream UI ==="
+        echo ""
+        echo "Connect to Isaac Sim UI via port-forward:"
+        echo "  osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48012,49000-49007,49100 --connect-timeout 300"
+        echo "  osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48012,49000-49007 --udp --connect-timeout 300"
+        echo ""
+        echo "Manual steps to complete via UI:"
+        echo "  1. Build Occupancy Map (Tools > Robotics > Occupancy Map)"
+        echo "  2. Record trajectory (MobilityGen UI, keyboard: W/A/S/D)"
+        echo "  3. Run /tmp/run_replay.sh to render sensor data"
+        echo ""
+        
+        # Create MobilityGen data directory structure
+        export MOBILITYGEN_DATA=~/MobilityGenData
+        mkdir -p $MOBILITYGEN_DATA/maps
+        mkdir -p $MOBILITYGEN_DATA/recordings
+        mkdir -p $MOBILITYGEN_DATA/replays
+        
+        echo "Created directory structure at $MOBILITYGEN_DATA"
+        
+        # Create helper script for replay
+        cat > /tmp/run_replay.sh << 'EOF'
+        #!/bin/bash
+        set -euxo pipefail
+        
+        cd /isaac-sim
+        ./python.sh standalone_examples/replicator/mobility_gen/replay_directory.py \
+            --render_interval 40 \
+            --enable isaacsim.replicator.mobility_gen.examples
+        
+        echo "Replay complete. Output at ~/MobilityGenData/replays/"
+        EOF
+        chmod +x /tmp/run_replay.sh
+        
+        echo "Helper script created: /tmp/run_replay.sh"
+        echo ""
+        echo "Starting Isaac Sim with Livestream enabled..."
+        
+        # Start Isaac Sim with livestream enabled
+        cd /isaac-sim
+        ./runheadless.sh --/app/livestream/enabled=true
+
+default-values:
+  workflow_name: mobilitygen_interactive
+  image_name: nvcr.io/nvidia/isaac-lab:2.2.0
+  memory: 20Gi
+  storage: 30Gi
+  ngpus: 1
+  ncpus: 16
+  exec_timeout: 7d
+  queue_timeout: 2d
