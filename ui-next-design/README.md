@@ -27,12 +27,18 @@
 
 ```
 ui-next-design/
+├── INFORMATION_ARCHITECTURE.md  # ⭐ Entity relationships, state machines
+├── REDESIGN_PLAN.md             # Tech stack, architecture decisions
+├── WORKFLOWS_DESIGN.md          # ⭐ Workflows page design document
+│
 ├── docs/
-│   ├── OLLAMA-SETUP.md  # ⭐ Complete Ollama + Cursor setup guide
-│   ├── PATTERNS.md      # Architecture & component patterns
-│   ├── CONVENTIONS.md   # Styling, naming, TypeScript conventions
-│   ├── PROMPTS.md       # Copy-paste prompts optimized for local LLMs
-│   └── QUICK-REF.md     # Print this! Import cheatsheet & patterns
+│   ├── OLLAMA-SETUP.md          # Complete Ollama + Cursor setup guide
+│   ├── OFFLINE_LLM_SETUP.md     # ⭐ Flight prep: models, prompts, workflow
+│   ├── UI_PATTERNS_REFERENCE.md # ⭐ Dashboard UI patterns encyclopedia
+│   ├── PATTERNS.md              # Architecture & component patterns
+│   ├── CONVENTIONS.md           # Styling, naming, TypeScript conventions
+│   ├── PROMPTS.md               # Copy-paste prompts optimized for local LLMs
+│   └── QUICK-REF.md             # Print this! Import cheatsheet & patterns
 │
 └── examples/
     ├── components/
@@ -44,6 +50,15 @@ ui-next-design/
         ├── example-e2e-test.spec.ts      # E2E test pattern
         └── example-factories.ts          # Mock data factory pattern
 ```
+
+### Key Documents for Workflows Design
+
+| Document | Purpose |
+|----------|---------|
+| `WORKFLOWS_DESIGN.md` | Complete design spec for workflows page |
+| `docs/OFFLINE_LLM_SETUP.md` | Models to download, prompting strategies |
+| `docs/UI_PATTERNS_REFERENCE.md` | Dashboard/platform UI patterns |
+| `INFORMATION_ARCHITECTURE.md` | Entity relationships, state machines |
 
 ---
 
