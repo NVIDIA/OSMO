@@ -131,7 +131,8 @@ export function useDataTable<T, TParams extends object>({
     return query.data.pages.flatMap((page) => page.items);
   }, [query.data]);
 
-  // Get total from first page (if available)
+  // Get totals from first page (if available)
+  const filteredCount = query.data?.pages[0]?.filteredTotal;
   const totalCount = query.data?.pages[0]?.total;
 
   const reset = useCallback(() => {
@@ -142,6 +143,7 @@ export function useDataTable<T, TParams extends object>({
 
   return {
     items,
+    filteredCount,
     totalCount,
     loadedCount: items.length,
     hasNextPage: query.hasNextPage ?? false,
@@ -160,16 +162,3 @@ export function useDataTable<T, TParams extends object>({
  * Exported for testing and customization.
  */
 export { DEFAULT_CONFIG as DATA_TABLE_DEFAULTS };
-
-// =============================================================================
-// Deprecated aliases for backward compatibility
-// =============================================================================
-
-/** @deprecated Use useDataTable instead */
-export const useInfiniteDataTable = useDataTable;
-
-/** @deprecated Use UseDataTableOptions instead */
-export type UseInfiniteDataTableOptions<T, TParams extends object> = UseDataTableOptions<T, TParams>;
-
-/** @deprecated Use DATA_TABLE_DEFAULTS instead */
-export const INFINITE_PAGINATION_DEFAULTS = DEFAULT_CONFIG;

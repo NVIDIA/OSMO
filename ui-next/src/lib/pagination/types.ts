@@ -34,7 +34,9 @@ export interface PaginatedResponse<T> {
   nextOffset?: number;
   /** Whether more data is available */
   hasMore: boolean;
-  /** Total count if available (for "X of Y" display) */
+  /** Count matching current filters (the "X" in "X of Y") */
+  filteredTotal?: number;
+  /** Total count before filters (the "Y" in "X of Y") */
   total?: number;
 }
 
@@ -70,7 +72,9 @@ export interface DataTableConfig {
 export interface DataTableResult<T> {
   /** Flattened items from all loaded pages */
   items: T[];
-  /** Total count of available items (if API provides) */
+  /** Count matching current filters (the "X" in "X of Y") */
+  filteredCount?: number;
+  /** Total count before filters (the "Y" in "X of Y") */
   totalCount?: number;
   /** Number of items currently loaded */
   loadedCount: number;
@@ -100,13 +104,3 @@ export interface PageParam {
   cursor?: string;
   offset: number;
 }
-
-// =============================================================================
-// Deprecated aliases for backward compatibility
-// =============================================================================
-
-/** @deprecated Use DataTableConfig instead */
-export type InfinitePaginationConfig = DataTableConfig;
-
-/** @deprecated Use DataTableResult instead */
-export type InfiniteDataTableResult<T> = DataTableResult<T>;

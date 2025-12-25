@@ -376,8 +376,8 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const poolNames = poolGenerator.getPoolNames();
 
     if (allPools) {
-      // Return all resources across all pools
-      const { resources } = resourceGenerator.generateGlobalPage(poolNames, 0, 500);
+      // Return all resources across all pools (uses configured totalGlobal)
+      const { resources } = resourceGenerator.generateGlobalPage(poolNames, 0, resourceGenerator.totalGlobal);
       return HttpResponse.json({ resources });
     }
 
