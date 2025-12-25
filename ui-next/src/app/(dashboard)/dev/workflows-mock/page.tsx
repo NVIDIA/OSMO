@@ -695,7 +695,7 @@ export default function WorkflowsMockPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("me");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [_selectedWorkflow, _setSelectedWorkflow] = useState<string | null>(null);
+  const [_selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [_viewMode, _setViewMode] = useState<"standard" | "compact">("standard");
 
   const toggleExpanded = useCallback((id: string) => {
