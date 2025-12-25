@@ -22,21 +22,3 @@ export function logWarn(message: string, ...args: unknown[]): void {
     console.warn(`[OSMO] ${message}`, ...args);
   }
 }
-
-/**
- * Log info. Only logged in development.
- */
-export function logInfo(message: string, ...args: unknown[]): void {
-  if (isDev) {
-    console.info(`[OSMO] ${message}`, ...args);
-  }
-}
-
-/**
- * Log debug info. Only logged in development.
- */
-export function logDebug(message: string, ...args: unknown[]): void {
-  if (isDev) {
-    console.log(`[OSMO] ${message}`, ...args);
-  }
-}
