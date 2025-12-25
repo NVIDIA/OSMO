@@ -89,7 +89,7 @@ test.describe("Infinite Scroll - Resources Page", () => {
     await page.waitForLoadState("networkidle");
 
     // Get the scroll container (the table body area)
-    const scrollContainer = page.locator('[role="table"]').locator("..");
+    const scrollContainer = page.locator('[role="table"]');
     await expect(scrollContainer).toBeVisible();
 
     // Initial data should be visible
@@ -100,11 +100,14 @@ test.describe("Infinite Scroll - Resources Page", () => {
       el.scrollTop = el.scrollHeight;
     });
 
+    // Should still show the table (no error state)
+    await expect(page.getByText("Loading more...")).toBeVisible();
+
     // Wait for more data to potentially load
     await page.waitForTimeout(500);
 
-    // Should still show the table (no error state)
-    await expect(page.getByText("node-0001")).toBeVisible();
+    // Next page of data should be available
+    await expect(page.getByText("node-0051")).toBeVisible();
   });
 
   test("filter changes reset scroll position", async ({ page, withData }) => {
