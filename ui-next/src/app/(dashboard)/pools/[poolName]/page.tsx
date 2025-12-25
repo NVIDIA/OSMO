@@ -118,6 +118,7 @@ export default function PoolDetailPage() {
               isLoading={isLoading}
               poolName={poolName}
               displayMode={displayMode}
+              onDisplayModeChange={setDisplayMode}
               filterCount={filterCount}
               filterContent={
                 <FilterBar
@@ -155,17 +156,6 @@ export default function PoolDetailPage() {
                     />
                   )}
 
-                  <FilterBar.Actions>
-                    <FilterBar.Toggle
-                      label="View by"
-                      options={[
-                        { value: "free" as const, label: "Free" },
-                        { value: "used" as const, label: "Used" },
-                      ]}
-                      value={displayMode}
-                      onChange={setDisplayMode}
-                    />
-                  </FilterBar.Actions>
                 </FilterBar>
               }
               summaryContent={
