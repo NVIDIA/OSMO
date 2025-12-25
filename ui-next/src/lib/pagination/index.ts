@@ -17,28 +17,27 @@
  */
 
 /**
- * Pagination module - Generic infinite scroll infrastructure.
+ * Pagination module - Generic data table infrastructure.
  *
  * This module provides:
  * - Type-safe pagination types
- * - Generic useInfiniteDataTable hook
+ * - Generic useDataTable hook for any paginated entity
  * - Consistent interface across different data sources
  *
  * @example
  * ```tsx
- * import { useInfiniteDataTable, type PaginatedResponse } from "@/lib/pagination";
+ * import { useDataTable, type PaginatedResponse } from "@/lib/pagination";
  *
- * const result = useInfiniteDataTable({
+ * const result = useDataTable({
  *   queryKey: ['my-data', filters],
- *   queryFn: fetchPaginatedData,
+ *   queryFn: fetchData,
  *   params: { filters },
  * });
  * ```
  */
 
 export * from "./types";
-export {
-  useInfiniteDataTable,
-  INFINITE_PAGINATION_DEFAULTS,
-  type UseInfiniteDataTableOptions,
-} from "./use-infinite-data-table";
+export { useDataTable, DATA_TABLE_DEFAULTS, type UseDataTableOptions } from "./use-data-table";
+
+// Deprecated exports for backward compatibility
+export { useInfiniteDataTable, INFINITE_PAGINATION_DEFAULTS } from "./use-data-table";
