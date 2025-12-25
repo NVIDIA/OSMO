@@ -25,7 +25,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { fetchResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
+import { fetchResources, getResourceFilterOptions, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
 import { useDataTable } from "@/lib/pagination";
 import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
@@ -47,27 +47,17 @@ export interface UseResourcesReturn {
   resources: Resource[];
 
   /**
-   * Total resources matching current filters.
+   * Count of resources matching current filters (the "X" in "X of Y").
    * IDEAL: Server returns accurate filtered count.
    * SHIM: Count of loaded+filtered resources (may be incomplete during pagination).
    */
+  filteredCount?: number;
+
+  /**
+   * Total resources before any filters applied (the "Y" in "X of Y").
+   * This value remains constant regardless of filters.
+   */
   totalCount?: number;
-
-  /**
-   * @deprecated Use `resources` instead. Kept for backward compatibility.
-   * Will be removed once all components migrate.
-   */
-  filteredResources: Resource[];
-
-  /**
-   * @deprecated Use `totalCount` instead.
-   */
-  filteredCount: number;
-
-  /**
-   * @deprecated Implementation detail, will be removed.
-   */
-  loadedCount: number;
 
   // Available filter options
   pools: string[];
@@ -161,41 +151,45 @@ export function useResources(): UseResourcesReturn {
   // ==========================================================================
 
   // Build query key that includes ALL filter params
-  // IDEAL: All filters are server-side, so any change resets pagination
-  // SHIM: Only pools/platforms go to server; search/resourceType filtered client-side
+  // Any change to filters resets pagination (adapter handles filtering)
   const queryKey = useMemo(
     () => [
       "resources",
       {
         pools: Array.from(poolFilter.selected).sort(),
         platforms: Array.from(platformFilter.selected).sort(),
-        // IDEAL: Include these in query key when backend supports server-side filtering
-        // search: search.deferredValue,
-        // resourceTypes: Array.from(resourceTypeFilter.selected).sort(),
+        resourceTypes: Array.from(resourceTypeFilter.selected).sort(),
+        search: search.deferredValue,
       },
     ],
-    [poolFilter.selected, platformFilter.selected],
+    [poolFilter.selected, platformFilter.selected, resourceTypeFilter.selected, search.deferredValue],
   );
 
-  // IDEAL filter params - what we WOULD send to a perfect backend
+  // Filter params passed to adapter (handles client-side filtering shim)
   const filterParams = useMemo(
     () => ({
       pools: poolFilter.hasSelection ? Array.from(poolFilter.selected) : undefined,
       platforms: platformFilter.hasSelection ? Array.from(platformFilter.selected) : undefined,
-      // BACKEND TODO: Add support for these server-side filters
-      // search: search.deferredValue.trim() || undefined,
-      // resourceTypes: resourceTypeFilter.hasSelection
-      //   ? Array.from(resourceTypeFilter.selected)
-      //   : undefined,
+      resourceTypes: resourceTypeFilter.hasSelection ? Array.from(resourceTypeFilter.selected) : undefined,
+      search: search.deferredValue.trim() || undefined,
     }),
-    [poolFilter.hasSelection, poolFilter.selected, platformFilter.hasSelection, platformFilter.selected],
+    [
+      poolFilter.hasSelection,
+      poolFilter.selected,
+      platformFilter.hasSelection,
+      platformFilter.selected,
+      resourceTypeFilter.hasSelection,
+      resourceTypeFilter.selected,
+      search.deferredValue,
+    ],
   );
 
   // Use data table hook - provides paginated data fetching
+  // Adapter handles client-side filtering shim until backend supports it
   const {
-    items: allLoadedResources,
-    totalCount: serverTotalCount,
-    loadedCount,
+    items: resources,
+    filteredCount,
+    totalCount,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
@@ -207,6 +201,7 @@ export function useResources(): UseResourcesReturn {
     queryKey,
     queryFn: async (params): Promise<PaginatedResourcesResult> => {
       // Adapter handles the gap between ideal API and current backend
+      // including client-side filtering shim (see adapter/pagination.ts)
       return fetchResources(params);
     },
     params: filterParams,
@@ -220,14 +215,22 @@ export function useResources(): UseResourcesReturn {
   // Derived Data - Filter Options
   // ==========================================================================
 
-  // SHIM: Extract available filter options from loaded data
+  // Get filter options from adapter cache (unfiltered data)
+  // This ensures options don't disappear when filters are applied
   // IDEAL: Backend provides these in a separate endpoint or as metadata
   // BACKEND TODO: Add /api/resources/filters endpoint returning available pools, platforms
   const { pools, platforms } = useMemo(() => {
+    // Try to get from adapter cache first (unfiltered data)
+    const cachedOptions = getResourceFilterOptions();
+    if (cachedOptions) {
+      return cachedOptions;
+    }
+
+    // Fallback: derive from currently loaded resources
     const poolSet = new Set<string>();
     const platformSet = new Set<string>();
 
-    for (const resource of allLoadedResources) {
+    for (const resource of resources) {
       platformSet.add(resource.platform);
       for (const membership of resource.poolMemberships) {
         poolSet.add(membership.pool);
@@ -238,53 +241,15 @@ export function useResources(): UseResourcesReturn {
       pools: Array.from(poolSet).sort(),
       platforms: Array.from(platformSet).sort(),
     };
-  }, [allLoadedResources]);
+  }, [resources]);
 
-  // SHIM: Derive resource types from loaded resources
+  // Derive resource types from loaded resources
   // IDEAL: Backend provides this
   const resourceTypes = useMemo(() => {
     const types = new Set<BackendResourceType>();
-    allLoadedResources.forEach((resource) => types.add(resource.resourceType));
+    resources.forEach((resource) => types.add(resource.resourceType));
     return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
-  }, [allLoadedResources]);
-
-  // ==========================================================================
-  // Client-Side Filtering SHIM
-  // ==========================================================================
-  // SHIM: Filter client-side until backend supports server-side filtering
-  // IDEAL: Remove this entire section - server returns only matching resources
-  // BACKEND TODO: Add search and resourceTypes query params to /api/resources
-
-  const resources = useMemo(() => {
-    let result = allLoadedResources;
-
-    // SHIM: Filter by resource type (should be server-side)
-    if (resourceTypeFilter.hasSelection) {
-      result = result.filter((resource) => resourceTypeFilter.selected.has(resource.resourceType));
-    }
-
-    // SHIM: Filter by search (should be server-side)
-    if (search.deferredValue.trim()) {
-      const query = search.deferredValue.toLowerCase();
-      result = result.filter(
-        (resource) =>
-          resource.name.toLowerCase().includes(query) ||
-          resource.platform.toLowerCase().includes(query) ||
-          resource.resourceType.toLowerCase().includes(query) ||
-          resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query)),
-      );
-    }
-
-    return result;
-  }, [allLoadedResources, search.deferredValue, resourceTypeFilter.selected, resourceTypeFilter.hasSelection]);
-
-  // SHIM: Calculate filtered count from client-side filtering
-  // IDEAL: Server returns accurate count in response
-  const totalCount = serverTotalCount;
-  const filteredCount = resources.length;
-
-  // Backward compatibility alias
-  const filteredResources = resources;
+  }, [resources]);
 
   // ==========================================================================
   // Active Filters (using generic active filters hook)
@@ -330,12 +295,8 @@ export function useResources(): UseResourcesReturn {
   return {
     // Resource data (primary interface)
     resources, // Filtered resources ready to display
-    totalCount, // Total matching filters (from server when supported)
-
-    // Backward compatibility (deprecated)
-    filteredResources, // Same as resources
-    filteredCount, // Same as resources.length
-    loadedCount, // Implementation detail
+    filteredCount, // Count matching filters (the "X" in "X of Y")
+    totalCount, // Total before filters (the "Y" in "X of Y")
 
     // Available filter options
     pools,
