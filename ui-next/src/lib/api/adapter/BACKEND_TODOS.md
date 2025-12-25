@@ -9,24 +9,33 @@ All workarounds are quarantined in this **Backend Adapter Layer** (`src/lib/api/
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        UI COMPONENTS                            │
-│  (Clean code - no workarounds, uses ideal types)                │
-│  import { usePools, usePool, Resource, Pool } from "@/lib/api/adapter"
+│                     HEADLESS HOOKS                              │
+│  src/headless/use-resources.ts, use-pools.ts, etc.              │
+│  Written for IDEAL backend. Shims clearly marked.               │
+│  When backend is fixed, just remove shim code blocks.           │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                    BACKEND ADAPTER LAYER                        │
 │  src/lib/api/adapter/                                           │
-│  ├── types.ts      - Ideal types the UI expects                 │
-│  ├── transforms.ts - All workarounds quarantined here           │
-│  ├── hooks.ts      - Clean hooks with automatic transformation  │
-│  └── index.ts      - Public exports                             │
+│  ├── types.ts       - Ideal types the UI expects                │
+│  ├── transforms.ts  - Data shape workarounds                    │
+│  ├── pagination.ts  - Pagination shim (fetch all → paginate)    │
+│  ├── hooks.ts       - API functions with transformation         │
+│  └── index.ts       - Public exports                            │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                      GENERATED TYPES                            │
 │  src/lib/api/generated.ts (auto-generated from OpenAPI)         │
 └─────────────────────────────────────────────────────────────────┘
+
+MIGRATION PATH:
+1. Backend adds pagination/filtering support
+2. Update adapter to pass params directly (remove shims)
+3. Regenerate types: pnpm generate-api
+4. Remove shim blocks in hooks (marked with "SHIM:" comments)
+5. UI components work unchanged
 ```
 
 ---
@@ -281,69 +290,88 @@ export function usePoolDetail({ poolName }) {
 
 ---
 
-### 11. Resources API Needs Pagination Support
+### 11. Resources API Needs Pagination and Server-Side Filtering
 
 **Priority:** High  
-**Status:** Active workaround in `pagination.ts`
+**Status:** Active workaround in `pagination.ts` and `use-resources.ts`
 
-The `/api/resources` endpoint currently returns all resources at once with no pagination support. For clusters with 500+ resources, this causes slow initial page loads and high memory usage.
+The `/api/resources` endpoint currently returns all resources at once with no pagination or server-side filtering. For clusters with 500+ resources, this causes slow initial page loads and high memory usage.
 
 **Current behavior:**
 ```
 GET /api/resources?all_pools=true
 → Returns ALL resources (potentially 1000s) in a single response
+→ UI filters/paginates client-side (slow, memory-intensive)
 ```
 
-**Needed behavior:**
+**Ideal API behavior:**
 ```
-GET /api/resources?all_pools=true&limit=50&cursor=<opaque>
-→ Returns paginated response:
+GET /api/resources?limit=50&cursor=abc&search=dgx&resource_types=SHARED&pools=prod
+→ Returns paginated, filtered response:
 {
-  "resources": [...50 items...],
+  "resources": [...50 matching items...],
   "pagination": {
-    "cursor": "eyJpZCI6MTIzfQ==",
+    "cursor": "xyz789",
     "has_more": true,
-    "total": 1234
+    "total": 1234,
+    "filtered_total": 456
+  },
+  "metadata": {
+    "available_pools": ["prod", "dev", "staging"],
+    "available_platforms": ["dgx", "base", "cpu"]
   }
 }
 ```
 
 **Required API changes:**
 
-1. **Add query parameters:**
+1. **Pagination parameters:**
    - `limit`: Max items per page (default: 50, max: 500)
    - `cursor`: Opaque string for cursor-based pagination
    - `offset`: Alternative for offset-based pagination (fallback)
 
-2. **Add response fields:**
-   - `pagination.cursor`: Next page cursor (base64 encoded position)
+2. **Filtering parameters:**
+   - `search`: Text search across resource name, platform, pool memberships
+   - `resource_types`: Filter by `SHARED`, `RESERVED`, `UNUSED` (comma-separated)
+   - `pools`: Filter by pool membership (existing, works)
+   - `platforms`: Filter by platform (existing, works)
+
+3. **Response fields:**
+   - `pagination.cursor`: Next page cursor (base64 encoded)
    - `pagination.has_more`: Boolean if more pages exist
-   - `pagination.total`: Total count (optional but useful for UI "X of Y")
+   - `pagination.total`: Total resources (before filters)
+   - `pagination.filtered_total`: Total matching current filters
+   - `metadata.available_pools`: All pools available for filtering
+   - `metadata.available_platforms`: All platforms available for filtering
 
-3. **Support sorting in query (optional but recommended):**
+4. **Optional - Sorting:**
    - `sort_by`: Field to sort by (name, platform, gpu, cpu, memory, storage)
-   - `sort_order`: asc/desc
+   - `sort_order`: `asc` or `desc`
 
-4. **Support filtering in query (optional, enables server-side filtering):**
-   - `search`: Text search across name, platform
-   - `resource_types`: Filter by SHARED/RESERVED/UNUSED
+**Current UI workarounds:**
 
-**Current UI workaround:**
-The adapter layer fetches all resources on first page load and simulates pagination client-side using an in-memory cache. This provides the correct API contract for UI components but doesn't reduce initial load time.
-
-See: `src/lib/api/adapter/pagination.ts`
+| Workaround | Location | Description |
+|------------|----------|-------------|
+| Client-side pagination | `pagination.ts` | Fetches all, caches, returns slices |
+| Client-side search filter | `use-resources.ts` | Filters loaded data by search query |
+| Client-side type filter | `use-resources.ts` | Filters loaded data by resource type |
+| Derive filter options | `use-resources.ts` | Extracts pools/platforms from loaded data |
 
 **When fixed:**
-1. Update `fetchResources()` to pass pagination params directly to API
+
+1. Update `fetchResources()` in `hooks.ts` to pass all filter params to API
 2. Remove client-side caching shim in `pagination.ts`
-3. Regenerate types with `pnpm generate-api`
-4. UI components work unchanged (they already use paginated interface)
+3. Remove client-side filtering in `use-resources.ts`
+4. Use `metadata` from response for filter options
+5. Regenerate types with `pnpm generate-api`
+6. UI components work unchanged (already coded for ideal API)
 
 **Benefits of backend fix:**
-- Faster initial page load (50 items vs 1000+)
-- Lower memory usage on client
-- Better scalability for large clusters
-- Enables true server-side filtering/sorting
+- **Performance**: 50 items per request instead of 1000+
+- **Scalability**: Works with arbitrarily large clusters
+- **Accuracy**: Server returns exact filtered counts
+- **UX**: Instant filtering instead of loading everything first
+- **Memory**: No client-side cache needed
 
 ---
 
@@ -361,7 +389,13 @@ See: `src/lib/api/adapter/pagination.ts`
 | #8 Concise changes structure | Low | N/A | N/A |
 | #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
 | #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
-| #11 Resources needs pagination | High | pagination.ts | Pass params directly |
+| #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
+
+### Priority Guide
+
+- **High**: Affects performance/scalability for large clusters
+- **Medium**: Requires extra API calls or complex client-side logic
+- **Low**: Minor inconvenience or code cleanliness issue
 
 ---
 

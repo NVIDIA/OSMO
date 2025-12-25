@@ -35,22 +35,20 @@ interface LoadingMoreIndicatorProps {
 /**
  * Loading indicator for infinite scroll tables.
  *
- * Shows:
- * - Spinner + "Loading more..." when loading
- * - "X of Y loaded" when there are more items but not currently loading
- * - "End of list" when no more items
- * - Nothing when list is empty
+ * Shows a subtle loading spinner only when actively fetching more data.
+ * Pagination is an implementation detail - users just see content loading seamlessly.
  */
 export function LoadingMoreIndicator({
   isLoading,
-  hasMore,
+  hasMore: _hasMore,
   loadedCount,
-  totalCount,
+  totalCount: _totalCount,
   className,
 }: LoadingMoreIndicatorProps) {
   // Don't show anything if no items loaded yet
   if (loadedCount === 0) return null;
 
+  // Only show loading spinner when actively fetching more
   if (isLoading) {
     return (
       <div
@@ -60,28 +58,11 @@ export function LoadingMoreIndicator({
         )}
       >
         <Loader2 className="h-4 w-4 animate-spin" />
-        <span>Loading more...</span>
+        <span>Loading...</span>
       </div>
     );
   }
 
-  if (hasMore) {
-    // Show count if available
-    if (totalCount !== undefined && loadedCount !== undefined) {
-      return (
-        <div className={cn("py-2 text-center text-xs text-zinc-400 dark:text-zinc-500", className)}>
-          {loadedCount} of {totalCount} loaded
-        </div>
-      );
-    }
-    // More available but no count - just show nothing (sentinel will trigger)
-    return null;
-  }
-
-  // No more items
-  return (
-    <div className={cn("py-4 text-center text-sm text-zinc-400 dark:text-zinc-600", className)}>
-      {totalCount !== undefined ? `All ${totalCount} items loaded` : "End of list"}
-    </div>
-  );
+  // No indicator when idle - pagination is seamless
+  return null;
 }
