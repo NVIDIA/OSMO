@@ -133,7 +133,10 @@ const HEADER_HEIGHT = 41; // pixels
  * This version uses startTransition for all updates instead.
  */
 function useVirtualizerNoFlushSync<TScrollElement extends Element, TItemElement extends Element>(
-  options: Omit<VirtualizerOptions<TScrollElement, TItemElement>, "observeElementRect" | "observeElementOffset" | "scrollToFn"> & {
+  options: Omit<
+    VirtualizerOptions<TScrollElement, TItemElement>,
+    "observeElementRect" | "observeElementOffset" | "scrollToFn"
+  > & {
     observeElementRect?: VirtualizerOptions<TScrollElement, TItemElement>["observeElementRect"];
     observeElementOffset?: VirtualizerOptions<TScrollElement, TItemElement>["observeElementOffset"];
     scrollToFn?: VirtualizerOptions<TScrollElement, TItemElement>["scrollToFn"];
@@ -155,9 +158,7 @@ function useVirtualizerNoFlushSync<TScrollElement extends Element, TItemElement 
     },
   };
 
-  const [instance] = useState(
-    () => new Virtualizer<TScrollElement, TItemElement>(resolvedOptions),
-  );
+  const [instance] = useState(() => new Virtualizer<TScrollElement, TItemElement>(resolvedOptions));
 
   instance.setOptions(resolvedOptions);
 
