@@ -47,14 +47,20 @@ export default function Loading() {
           {/* Table header skeleton */}
           <div className="mb-4 flex items-center gap-4 border-b border-zinc-100 pb-3 dark:border-zinc-800/50">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-4 flex-1 skeleton-shimmer rounded" />
+              <div
+                key={i}
+                className="h-4 flex-1 skeleton-shimmer rounded"
+              />
             ))}
           </div>
 
           {/* Table rows skeleton */}
           <div className="space-y-3">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="flex items-center gap-4">
+              <div
+                key={i}
+                className="flex items-center gap-4"
+              >
                 {[1, 2, 3, 4, 5, 6].map((j) => (
                   <div
                     key={j}

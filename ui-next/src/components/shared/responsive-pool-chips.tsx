@@ -34,12 +34,7 @@ interface ResponsivePoolChipsProps {
  * - "Less" button collapses back to single line
  * - Dynamically adjusts to container width changes
  */
-export function ResponsivePoolChips({
-  pools,
-  primaryPool,
-  isLoading = false,
-  className,
-}: ResponsivePoolChipsProps) {
+export function ResponsivePoolChips({ pools, primaryPool, isLoading = false, className }: ResponsivePoolChipsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -78,9 +73,7 @@ export function ResponsivePoolChips({
 
       // Check if we need overflow indicator
       const isLast = i === chips.length - 1;
-      const requiredWidth = isLast
-        ? widthWithChip
-        : widthWithChip + GAP + OVERFLOW_WIDTH;
+      const requiredWidth = isLast ? widthWithChip : widthWithChip + GAP + OVERFLOW_WIDTH;
 
       if (requiredWidth > containerWidth && count > 0) {
         break;
@@ -132,11 +125,7 @@ export function ResponsivePoolChips({
   }
 
   if (pools.length === 0) {
-    return (
-      <span className="text-sm text-zinc-500 dark:text-zinc-400">
-        No pools
-      </span>
-    );
+    return <span className="text-sm text-zinc-500 dark:text-zinc-400">No pools</span>;
   }
 
   const hiddenCount = pools.length - visibleCount;
@@ -144,7 +133,10 @@ export function ResponsivePoolChips({
   const visiblePools = isExpanded ? pools : pools.slice(0, visibleCount);
 
   return (
-    <div ref={containerRef} className={cn("min-w-0", className)}>
+    <div
+      ref={containerRef}
+      className={cn("min-w-0", className)}
+    >
       {/* Hidden measurement container - renders all chips to measure */}
       <div
         ref={measureRef}
@@ -168,7 +160,7 @@ export function ResponsivePoolChips({
           "flex gap-1.5",
           isExpanded ? "flex-wrap" : "flex-nowrap",
           // Hide until measured to prevent flash
-          !hasMeasured && !isExpanded && "opacity-0"
+          !hasMeasured && !isExpanded && "opacity-0",
         )}
       >
         {visiblePools.map((pool) => {
@@ -183,7 +175,7 @@ export function ResponsivePoolChips({
                 "border hover:opacity-80",
                 isPrimary
                   ? "border-[var(--nvidia-green)]/30 bg-[var(--nvidia-green)]/10 text-[var(--nvidia-green)]"
-                  : "border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  : "border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
               )}
               onClick={(e) => e.stopPropagation()}
             >

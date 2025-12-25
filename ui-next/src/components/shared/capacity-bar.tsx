@@ -108,11 +108,7 @@ export const CapacityBar = memo(function CapacityBar({
           <span className="ml-2 tabular-nums text-zinc-900 dark:text-zinc-100">
             {usedStr}/{totalStr}
           </span>
-          {unit && (
-            <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-              {unit}
-            </span>
-          )}
+          {unit && <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{unit}</span>}
         </div>
       </div>
 
@@ -123,10 +119,7 @@ export const CapacityBar = memo(function CapacityBar({
         aria-valuemin={0}
         aria-valuemax={total}
         aria-label={ariaLabel}
-        className={cn(
-          barHeight,
-          "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-        )}
+        className={cn(barHeight, "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800")}
         style={{ contain: "layout paint" }}
       >
         <div

@@ -114,9 +114,7 @@ export function FilterBar<T extends string = string>({
     <FilterBarContext.Provider value={contextValue}>
       <div className={cn("space-y-3", className)}>
         {/* Filter controls row */}
-        <div className="flex flex-wrap items-center gap-3">
-          {children}
-        </div>
+        <div className="flex flex-wrap items-center gap-3">{children}</div>
 
         {/* Active filter chips - WCAG 2.1 accessible */}
         {hasFilters && (
@@ -125,7 +123,10 @@ export function FilterBar<T extends string = string>({
             role="region"
             aria-label="Active filters"
           >
-            <Filter className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+            <Filter
+              className="h-3.5 w-3.5 text-zinc-400"
+              aria-hidden="true"
+            />
             {activeFilters.map((filter) => (
               <button
                 key={`${filter.type}-${filter.value}`}
@@ -133,7 +134,7 @@ export function FilterBar<T extends string = string>({
                 aria-label={`Remove filter: ${getFilterLabel(filter)}`}
                 className={cn(
                   "group flex items-center gap-1.5 rounded-full border py-0.5 pl-2.5 pr-1.5 text-xs transition-colors",
-                  chip.selected
+                  chip.selected,
                 )}
               >
                 <span>{getFilterLabel(filter)}</span>

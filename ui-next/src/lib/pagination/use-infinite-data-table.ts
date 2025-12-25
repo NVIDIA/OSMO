@@ -46,9 +46,7 @@ export interface UseInfiniteDataTableOptions<T, TParams extends object> {
    * Function to fetch a page of data.
    * Receives merged params (your params + pagination params).
    */
-  queryFn: (
-    params: TParams & PaginationParams
-  ) => Promise<PaginatedResponse<T>>;
+  queryFn: (params: TParams & PaginationParams) => Promise<PaginatedResponse<T>>;
 
   /**
    * Your filter/sort/etc params (excluding pagination).
@@ -125,10 +123,7 @@ export function useInfiniteDataTable<T, TParams extends object>({
       }
 
       // Calculate offset from loaded items
-      const totalLoaded = allPages.reduce(
-        (acc, page) => acc + page.items.length,
-        0
-      );
+      const totalLoaded = allPages.reduce((acc, page) => acc + page.items.length, 0);
       return { cursor: undefined, offset: totalLoaded };
     },
     staleTime: config.staleTime,

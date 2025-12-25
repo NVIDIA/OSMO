@@ -79,8 +79,7 @@ export class PoolGenerator {
     faker.seed(this.config.baseSeed + index);
 
     // Generate unique name based on index
-    const baseName =
-      this.config.patterns.names[index % this.config.patterns.names.length];
+    const baseName = this.config.patterns.names[index % this.config.patterns.names.length];
     const name =
       index < this.config.patterns.names.length
         ? baseName
@@ -91,12 +90,8 @@ export class PoolGenerator {
     const gpuType = faker.helpers.arrayElement(this.config.patterns.gpuTypes);
 
     // GPU capacity
-    const totalGpus = faker.helpers.arrayElement(
-      this.config.patterns.quota.gpuCounts
-    );
-    const utilization = faker.number.float(
-      this.config.patterns.quota.utilizationRange
-    );
+    const totalGpus = faker.helpers.arrayElement(this.config.patterns.quota.gpuCounts);
+    const utilization = faker.number.float(this.config.patterns.quota.utilizationRange);
     const usedGpus = Math.floor(totalGpus * utilization);
     const availableGpus = totalGpus - usedGpus;
 
@@ -154,10 +149,7 @@ export class PoolGenerator {
    * Generate a page of pools.
    * MEMORY EFFICIENT: Only generates items for the requested page.
    */
-  generatePage(
-    offset: number,
-    limit: number
-  ): { entries: PoolResourceUsage[]; total: number } {
+  generatePage(offset: number, limit: number): { entries: PoolResourceUsage[]; total: number } {
     const entries: PoolResourceUsage[] = [];
     const total = this.config.total;
 
@@ -180,9 +172,7 @@ export class PoolGenerator {
 
     if (pools && pools.length > 0) {
       // Filter to specific pools
-      poolList = pools
-        .map((name) => this.getByName(name))
-        .filter((p): p is PoolResourceUsage => p !== null);
+      poolList = pools.map((name) => this.getByName(name)).filter((p): p is PoolResourceUsage => p !== null);
     } else {
       // Return all pools
       poolList = this.generatePage(0, this.config.total).entries;
@@ -238,8 +228,7 @@ export class PoolGenerator {
       const [, baseName, numStr] = match;
       const baseIndex = this.config.patterns.names.indexOf(baseName);
       if (baseIndex >= 0) {
-        const index =
-          baseIndex + parseInt(numStr, 10) * this.config.patterns.names.length;
+        const index = baseIndex + parseInt(numStr, 10) * this.config.patterns.names.length;
         if (index < this.config.total) {
           return this.generate(index);
         }
@@ -256,8 +245,7 @@ export class PoolGenerator {
   getPoolNames(): string[] {
     const names: string[] = [];
     for (let i = 0; i < this.config.total; i++) {
-      const baseName =
-        this.config.patterns.names[i % this.config.patterns.names.length];
+      const baseName = this.config.patterns.names[i % this.config.patterns.names.length];
       const name =
         i < this.config.patterns.names.length
           ? baseName
