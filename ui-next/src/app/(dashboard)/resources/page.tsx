@@ -40,6 +40,10 @@ export default function ResourcesPage() {
     isLoading,
     error,
     refetch,
+    // Infinite scroll
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
   } = useAllResources();
 
   return (
@@ -73,6 +77,9 @@ export default function ResourcesPage() {
               showPoolsColumn
               displayMode={displayMode}
               filterCount={filterCount}
+              hasNextPage={hasNextPage}
+              onLoadMore={fetchNextPage}
+              isFetchingNextPage={isFetchingNextPage}
               filterContent={
                 <FilterBar
                   activeFilters={activeFilters}
