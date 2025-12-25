@@ -23,19 +23,13 @@ export default function AuthSuccessPage() {
     const redirectTo = searchParams.get("redirect_to") || "/";
 
     // Check if redirect_to is a localhost URL (local-against-production mode)
-    const isLocalRedirect =
-      redirectTo.startsWith("http://localhost") ||
-      redirectTo.startsWith("http://127.0.0.1");
+    const isLocalRedirect = redirectTo.startsWith("http://localhost") || redirectTo.startsWith("http://127.0.0.1");
 
     if (isLocalRedirect && idToken) {
       // Redirect to localhost WITH tokens in the URL
       const localUrl = new URL(redirectTo);
       // If redirecting to a local auth/success, append tokens
-      if (
-        localUrl.pathname === "/auth/success" ||
-        localUrl.pathname === "/" ||
-        localUrl.pathname === ""
-      ) {
+      if (localUrl.pathname === "/auth/success" || localUrl.pathname === "/" || localUrl.pathname === "") {
         localUrl.pathname = "/auth/success";
         localUrl.searchParams.set("id_token", idToken);
         if (refreshToken) {

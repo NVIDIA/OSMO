@@ -7,17 +7,11 @@ export async function GET(request: Request) {
   const clientSecret = getAuthClientSecret();
 
   if (!refreshToken) {
-    return Response.json(
-      { isFailure: true, error: "No refresh token provided" },
-      { status: 400 }
-    );
+    return Response.json({ isFailure: true, error: "No refresh token provided" }, { status: 400 });
   }
 
   if (!loginInfo.token_endpoint) {
-    return Response.json(
-      { isFailure: true, error: "Token endpoint not configured" },
-      { status: 500 }
-    );
+    return Response.json({ isFailure: true, error: "Token endpoint not configured" }, { status: 500 });
   }
 
   // Build params - client_secret is required for confidential clients
@@ -45,7 +39,7 @@ export async function GET(request: Request) {
           error: data.error_description || data.error || `Auth server returned ${response.status}`,
           authError: data.error, // e.g., "invalid_grant" for expired refresh token
         },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
@@ -61,7 +55,7 @@ export async function GET(request: Request) {
         isFailure: true,
         error: `Failed to reach auth server: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

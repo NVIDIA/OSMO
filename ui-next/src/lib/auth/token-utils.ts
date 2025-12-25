@@ -1,6 +1,6 @@
 /**
  * Token Utilities
- * 
+ *
  * Pure functions for JWT token parsing and validation.
  * Provider-agnostic - works with any OAuth2/OIDC provider.
  */

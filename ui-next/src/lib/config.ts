@@ -22,10 +22,7 @@ export function isLocalDev(): boolean {
  * Check if running in a build phase (SSG/SSR).
  */
 export function isBuildPhase(): boolean {
-  return (
-    process.env.NEXT_PHASE === "phase-production-build" ||
-    process.env.NEXT_PHASE === "phase-export"
-  );
+  return process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export";
 }
 
 // =============================================================================

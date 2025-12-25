@@ -1,13 +1,4 @@
-import {
-  LayoutDashboard,
-  Workflow,
-  Layers,
-  Server,
-  Settings,
-  Shield,
-  Key,
-  type LucideIcon,
-} from "lucide-react";
+import { LayoutDashboard, Workflow, Layers, Server, Settings, Shield, Key, type LucideIcon } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -64,9 +55,7 @@ export interface Navigation {
  * @param isAdmin - Whether to include admin section
  */
 export function buildNavigation(isAdmin: boolean): Navigation {
-  const sections: NavSection[] = [
-    { items: userNav },
-  ];
+  const sections: NavSection[] = [{ items: userNav }];
 
   if (isAdmin) {
     sections.push(adminSection);

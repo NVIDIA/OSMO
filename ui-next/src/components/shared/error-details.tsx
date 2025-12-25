@@ -42,18 +42,11 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
   if (!error.message && !stackLines) return null;
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800",
-        className
-      )}
-    >
+    <div className={cn("rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800", className)}>
       {/* Error message */}
       {error.message && (
         <div className="px-4 py-3">
-          <p className="font-mono text-sm text-zinc-700 dark:text-zinc-300">
-            {error.message}
-          </p>
+          <p className="font-mono text-sm text-zinc-700 dark:text-zinc-300">{error.message}</p>
         </div>
       )}
 
@@ -63,19 +56,14 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
           <div
             className={cn(
               "flex items-center justify-between px-4 py-2",
-              error.message && "border-t border-zinc-200 dark:border-zinc-700"
+              error.message && "border-t border-zinc-200 dark:border-zinc-700",
             )}
           >
             <button
               onClick={() => setShowStack(!showStack)}
               className="flex items-center gap-2 text-left text-xs text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
             >
-              <ChevronDown
-                className={cn(
-                  "h-3 w-3 transition-transform",
-                  showStack && "rotate-180"
-                )}
-              />
+              <ChevronDown className={cn("h-3 w-3 transition-transform", showStack && "rotate-180")} />
               Stack trace
             </button>
             <button

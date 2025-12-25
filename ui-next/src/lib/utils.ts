@@ -1,8 +1,8 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 /**
@@ -64,7 +64,7 @@ function formatDecimal(n: number): string {
 /**
  * Format memory/storage with appropriate binary unit (Ki, Mi, Gi, Ti).
  * Input is in GiB, output uses the most readable unit.
- * 
+ *
  * Examples:
  *   0.5 GiB → "512 Mi"
  *   64 GiB → "64 Gi"
@@ -106,10 +106,14 @@ export function formatBytes(gib: number): FormattedBytes {
  */
 function gibToUnit(gib: number, unit: ByteUnit): number {
   switch (unit) {
-    case "Ti": return gib / 1024;
-    case "Gi": return gib;
-    case "Mi": return gib * 1024;
-    case "Ki": return gib * 1024 * 1024;
+    case "Ti":
+      return gib / 1024;
+    case "Gi":
+      return gib;
+    case "Mi":
+      return gib * 1024;
+    case "Ki":
+      return gib * 1024 * 1024;
   }
 }
 
@@ -117,13 +121,13 @@ function gibToUnit(gib: number, unit: ByteUnit): number {
  * Format a used/total pair with consistent units.
  * Uses the more granular unit so both values make sense.
  * Zero is treated as unitless - it adopts the other value's unit.
- * 
+ *
  * Example: 5 Gi used, 2048 Gi total → "5/2048 Gi" (not "5 Gi/2 Ti")
  * Example: 0 used, 2048 Gi total → "0/2 Ti" (zero adopts total's unit)
  */
 export function formatBytesPair(
   usedGib: number,
-  totalGib: number
+  totalGib: number,
 ): { used: string; total: string; unit: ByteUnit; freeDisplay: string } {
   // Handle zero cases - zero is unitless, so use the other value's unit
   if (usedGib === 0) {

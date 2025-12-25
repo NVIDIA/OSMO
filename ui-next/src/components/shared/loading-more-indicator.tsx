@@ -56,7 +56,7 @@ export function LoadingMoreIndicator({
       <div
         className={cn(
           "flex items-center justify-center gap-2 py-4 text-sm text-zinc-500 dark:text-zinc-400",
-          className
+          className,
         )}
       >
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -69,12 +69,7 @@ export function LoadingMoreIndicator({
     // Show count if available
     if (totalCount !== undefined && loadedCount !== undefined) {
       return (
-        <div
-          className={cn(
-            "py-2 text-center text-xs text-zinc-400 dark:text-zinc-500",
-            className
-          )}
-        >
+        <div className={cn("py-2 text-center text-xs text-zinc-400 dark:text-zinc-500", className)}>
           {loadedCount} of {totalCount} loaded
         </div>
       );
@@ -85,12 +80,7 @@ export function LoadingMoreIndicator({
 
   // No more items
   return (
-    <div
-      className={cn(
-        "py-4 text-center text-sm text-zinc-400 dark:text-zinc-600",
-        className
-      )}
-    >
+    <div className={cn("py-4 text-center text-sm text-zinc-400 dark:text-zinc-600", className)}>
       {totalCount !== undefined ? `All ${totalCount} items loaded` : "End of list"}
     </div>
   );

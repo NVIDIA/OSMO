@@ -41,10 +41,7 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         className={cn("mt-3 h-3", progressTrack)}
       >
         <div
-          className={cn(
-            "h-full rounded-full transition-all duration-500",
-            getProgressColor(percent)
-          )}
+          className={cn("h-full rounded-full transition-all duration-500", getProgressColor(percent))}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
@@ -53,10 +50,8 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
       <p className={cn("mt-2", text.muted)}>
         {free > 0 ? (
           <>
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">
-              {free} available
-            </span>{" "}
-            for HIGH/NORMAL priority workflows
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">{free} available</span> for HIGH/NORMAL
+            priority workflows
           </>
         ) : (
           <span className="text-amber-600 dark:text-amber-400">
