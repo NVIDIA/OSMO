@@ -9,9 +9,9 @@
 "use client";
 
 import { Cpu, Box, Layers } from "lucide-react";
-import { VirtualizedResourceTable } from "@/components/features/pools";
+import { ResourceTable } from "@/components/features/pools";
 import { FilterBar, ApiError, AdaptiveSummary } from "@/components/shared";
-import { useAllResources } from "@/headless";
+import { useResources } from "@/headless";
 
 export default function ResourcesPage() {
   const {
@@ -19,7 +19,7 @@ export default function ResourcesPage() {
     platforms,
     resourceTypes,
     filteredResources,
-    resourceCount,
+    totalCount,
     search,
     setSearch,
     clearSearch,
@@ -40,11 +40,11 @@ export default function ResourcesPage() {
     isLoading,
     error,
     refetch,
-    // Infinite scroll
+    // Pagination
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useAllResources();
+  } = useResources();
 
   return (
     <div className="flex h-full flex-col gap-6">
@@ -67,12 +67,12 @@ export default function ResourcesPage() {
           />
         )}
 
-        {/* Virtualized table with integrated filters and summary */}
+        {/* Table with integrated filters and summary */}
         {!error && (
           <div className="min-h-0 flex-1">
-            <VirtualizedResourceTable
+            <ResourceTable
               resources={filteredResources}
-              totalCount={resourceCount}
+              totalCount={totalCount}
               isLoading={isLoading}
               showPoolsColumn
               displayMode={displayMode}

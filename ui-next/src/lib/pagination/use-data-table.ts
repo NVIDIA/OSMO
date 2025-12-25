@@ -20,22 +20,16 @@
 
 import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, type QueryKey } from "@tanstack/react-query";
-import type {
-  PaginatedResponse,
-  PaginationParams,
-  InfinitePaginationConfig,
-  InfiniteDataTableResult,
-  PageParam,
-} from "./types";
+import type { PaginatedResponse, PaginationParams, DataTableConfig, DataTableResult, PageParam } from "./types";
 
-const DEFAULT_CONFIG: Required<InfinitePaginationConfig> = {
+const DEFAULT_CONFIG: Required<DataTableConfig> = {
   pageSize: 50,
   staleTime: 60_000, // 1 minute
   gcTime: 300_000, // 5 minutes
   prefetchThreshold: 10, // Fetch next page when 10 items from end
 };
 
-export interface UseInfiniteDataTableOptions<T, TParams extends object> {
+export interface UseDataTableOptions<T, TParams extends object> {
   /**
    * Unique query key - should include all filter/sort params.
    * Changes to this key reset pagination.
@@ -55,14 +49,14 @@ export interface UseInfiniteDataTableOptions<T, TParams extends object> {
   params: TParams;
 
   /** Pagination configuration */
-  config?: Partial<InfinitePaginationConfig>;
+  config?: Partial<DataTableConfig>;
 
   /** Whether query is enabled (default: true) */
   enabled?: boolean;
 }
 
 /**
- * Generic infinite scroll hook for data tables.
+ * Generic data table hook with pagination support.
  *
  * Features:
  * - Automatic page reset on filter/sort change (via queryKey)
@@ -72,14 +66,14 @@ export interface UseInfiniteDataTableOptions<T, TParams extends object> {
  *
  * @example
  * ```tsx
- * const result = useInfiniteDataTable({
+ * const result = useDataTable({
  *   queryKey: ['resources', filters, sort],
  *   queryFn: (params) => fetchResources(params),
  *   params: { pools, platforms, search, sort },
  * });
  *
- * // Use in VirtualizedTable
- * <VirtualizedTable
+ * // Use in table component
+ * <ResourceTable
  *   items={result.items}
  *   hasNextPage={result.hasNextPage}
  *   onLoadMore={result.fetchNextPage}
@@ -87,13 +81,13 @@ export interface UseInfiniteDataTableOptions<T, TParams extends object> {
  * />
  * ```
  */
-export function useInfiniteDataTable<T, TParams extends object>({
+export function useDataTable<T, TParams extends object>({
   queryKey,
   queryFn,
   params,
   config: userConfig,
   enabled = true,
-}: UseInfiniteDataTableOptions<T, TParams>): InfiniteDataTableResult<T> {
+}: UseDataTableOptions<T, TParams>): DataTableResult<T> {
   const config = { ...DEFAULT_CONFIG, ...userConfig };
 
   const query = useInfiniteQuery({
@@ -162,7 +156,20 @@ export function useInfiniteDataTable<T, TParams extends object>({
 }
 
 /**
- * Default configuration for infinite pagination.
+ * Default configuration for data table.
  * Exported for testing and customization.
  */
-export { DEFAULT_CONFIG as INFINITE_PAGINATION_DEFAULTS };
+export { DEFAULT_CONFIG as DATA_TABLE_DEFAULTS };
+
+// =============================================================================
+// Deprecated aliases for backward compatibility
+// =============================================================================
+
+/** @deprecated Use useDataTable instead */
+export const useInfiniteDataTable = useDataTable;
+
+/** @deprecated Use UseDataTableOptions instead */
+export type UseInfiniteDataTableOptions<T, TParams extends object> = UseDataTableOptions<T, TParams>;
+
+/** @deprecated Use DATA_TABLE_DEFAULTS instead */
+export const INFINITE_PAGINATION_DEFAULTS = DEFAULT_CONFIG;

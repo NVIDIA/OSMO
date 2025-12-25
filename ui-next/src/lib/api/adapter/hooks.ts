@@ -164,14 +164,14 @@ import type { PaginatedResourcesResult } from "./pagination";
 // =============================================================================
 
 /**
- * Fetch paginated resources across all pools.
+ * Fetch resources across all pools.
  *
  * CURRENT: Uses client-side pagination shim (fetches all, returns pages)
  * FUTURE: When backend supports pagination, this will pass through params
  *
  * Issue: BACKEND_TODOS.md#11
  */
-export async function fetchPaginatedAllResources(
+export async function fetchResources(
   params: {
     pools?: string[];
     platforms?: string[];

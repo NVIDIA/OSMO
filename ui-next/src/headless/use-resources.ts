@@ -9,15 +9,15 @@
  */
 
 /**
- * Headless hook for viewing resources with filtering and infinite scroll.
+ * Headless hook for viewing resources with filtering and pagination.
  *
  * Provides:
- * - Paginated resource loading with cursor-based navigation
+ * - Resource data with cursor-based navigation
  * - Filter state management (pools, platforms, search, resource type)
- * - Infinite scroll controls for virtualized tables
+ * - Pagination controls for data tables
  *
  * This hook demonstrates the composition pattern using:
- * - lib/pagination for infinite scroll primitives
+ * - lib/pagination for data table primitives
  * - lib/filters for filter state management
  *
  * The same pattern can be used for workflows, tasks, pools, etc.
@@ -26,8 +26,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { fetchPaginatedAllResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
-import { useInfiniteDataTable } from "@/lib/pagination";
+import { fetchResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
+import { useDataTable } from "@/lib/pagination";
 import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
@@ -38,16 +38,16 @@ import type { AllResourcesFilterType, ResourceDisplayMode } from "./types";
 // Types
 // =============================================================================
 
-export interface UseAllResourcesReturn {
+export interface UseResourcesReturn {
   // Resource data
   /** All loaded resources (before client-side filtering) */
-  allResources: Resource[];
+  resources: Resource[];
   /** Resources after all filters applied */
   filteredResources: Resource[];
   /** Total resources available (from API, if known) */
-  resourceCount?: number;
+  totalCount?: number;
   /** Number of resources after filtering */
-  filteredResourceCount: number;
+  filteredCount: number;
   /** Number of resources currently loaded */
   loadedCount: number;
 
@@ -85,7 +85,7 @@ export interface UseAllResourcesReturn {
   hasActiveFilter: boolean;
   filterCount: number;
 
-  // Infinite scroll state
+  // Pagination state
   hasNextPage: boolean;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
@@ -106,7 +106,7 @@ function isBackendResourceType(value: string): value is BackendResourceType {
   return (ALL_RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
-export function useAllResources(): UseAllResourcesReturn {
+export function useResources(): UseResourcesReturn {
   // ==========================================================================
   // Filter State (using generic filter primitives)
   // ==========================================================================
@@ -139,7 +139,7 @@ export function useAllResources(): UseAllResourcesReturn {
   }, []);
 
   // ==========================================================================
-  // Infinite Pagination
+  // Data Table with Pagination
   // ==========================================================================
 
   // Build query key that includes all server-side filter params
@@ -147,7 +147,6 @@ export function useAllResources(): UseAllResourcesReturn {
   const queryKey = useMemo(
     () => [
       "resources",
-      "all",
       {
         pools: Array.from(poolFilter.selected).sort(),
         platforms: Array.from(platformFilter.selected).sort(),
@@ -156,9 +155,9 @@ export function useAllResources(): UseAllResourcesReturn {
     [poolFilter.selected, platformFilter.selected],
   );
 
-  // Use infinite pagination
+  // Use data table hook
   const {
-    items: allResources,
+    items: resources,
     totalCount,
     loadedCount,
     hasNextPage,
@@ -168,10 +167,10 @@ export function useAllResources(): UseAllResourcesReturn {
     isRefetching,
     error,
     refetch,
-  } = useInfiniteDataTable<Resource, { pools?: string[]; platforms?: string[] }>({
+  } = useDataTable<Resource, { pools?: string[]; platforms?: string[] }>({
     queryKey,
     queryFn: async (params): Promise<PaginatedResourcesResult> => {
-      return fetchPaginatedAllResources(params);
+      return fetchResources(params);
     },
     params: {
       pools: poolFilter.hasSelection ? Array.from(poolFilter.selected) : undefined,
@@ -192,7 +191,7 @@ export function useAllResources(): UseAllResourcesReturn {
     const poolSet = new Set<string>();
     const platformSet = new Set<string>();
 
-    for (const resource of allResources) {
+    for (const resource of resources) {
       platformSet.add(resource.platform);
       for (const membership of resource.poolMemberships) {
         poolSet.add(membership.pool);
@@ -203,19 +202,19 @@ export function useAllResources(): UseAllResourcesReturn {
       pools: Array.from(poolSet).sort(),
       platforms: Array.from(platformSet).sort(),
     };
-  }, [allResources]);
+  }, [resources]);
 
   // Derive resource types from loaded resources
   const resourceTypes = useMemo(() => {
     const types = new Set<BackendResourceType>();
-    allResources.forEach((resource) => types.add(resource.resourceType));
+    resources.forEach((resource) => types.add(resource.resourceType));
     return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
-  }, [allResources]);
+  }, [resources]);
 
   // Client-side filtering for search and resource type
   // Pool/platform filters are handled server-side via query params
   const filteredResources = useMemo(() => {
-    let result = allResources;
+    let result = resources;
 
     // Filter by resource type (client-side)
     if (resourceTypeFilter.hasSelection) {
@@ -235,7 +234,7 @@ export function useAllResources(): UseAllResourcesReturn {
     }
 
     return result;
-  }, [allResources, search.deferredValue, resourceTypeFilter.selected, resourceTypeFilter.hasSelection]);
+  }, [resources, search.deferredValue, resourceTypeFilter.selected, resourceTypeFilter.hasSelection]);
 
   // ==========================================================================
   // Active Filters (using generic active filters hook)
@@ -280,10 +279,10 @@ export function useAllResources(): UseAllResourcesReturn {
 
   return {
     // Resource data
-    allResources,
+    resources,
     filteredResources,
-    resourceCount: totalCount,
-    filteredResourceCount: filteredResources.length,
+    totalCount,
+    filteredCount: filteredResources.length,
     loadedCount,
 
     // Available filter options
@@ -323,7 +322,7 @@ export function useAllResources(): UseAllResourcesReturn {
     hasActiveFilter: activeFilters.hasFilters,
     filterCount: activeFilters.count,
 
-    // Infinite scroll state
+    // Pagination state
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
