@@ -9,7 +9,7 @@
 "use client";
 
 import { memo } from "react";
-import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
+import { cn, formatCompact, formatBytesPair } from "@/lib/utils";
 import { getProgressColor } from "@/lib/styles";
 
 // =============================================================================
