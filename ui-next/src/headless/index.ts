@@ -38,3 +38,7 @@ export type { UsePoolDetailOptions, UsePoolDetailReturn } from "./use-pool-detai
 // Resources (cross-pool view with pagination)
 export { useResources } from "./use-resources";
 export type { UseResourcesReturn } from "./use-resources";
+
+// Display Mode (shared preference for free vs used display)
+export { useDisplayMode } from "./use-display-mode";
+export type { UseDisplayModeReturn } from "./use-display-mode";
