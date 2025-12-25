@@ -11,9 +11,9 @@
 import { useState, useMemo, useCallback } from "react";
 import { usePool, usePoolResources, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
-import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
 import type { ActiveFilter, PoolDetailFilterType, ResourceDisplayMode } from "./types";
+import { useDisplayMode } from "./use-display-mode";
 
 // =============================================================================
 // Types
@@ -95,22 +95,7 @@ export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetail
   const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<BackendResourceType>>(new Set());
 
   // Resource display mode (persisted to localStorage)
-  // Use lazy initializer to read from localStorage (client-side only)
-  const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(() => {
-    // Only access localStorage on client side
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
-      if (stored === "free" || stored === "used") {
-        return stored;
-      }
-    }
-    return "free";
-  });
-
-  const setDisplayMode = useCallback((mode: ResourceDisplayMode) => {
-    setDisplayModeState(mode);
-    localStorage.setItem(StorageKeys.RESOURCE_DISPLAY_MODE, mode);
-  }, []);
+  const { displayMode, setDisplayMode } = useDisplayMode();
 
   // Derive resource types from all resources (not filtered)
   const resourceTypes = useMemo(() => {

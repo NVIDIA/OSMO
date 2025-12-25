@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
+import { usePersistedState } from "@/lib/hooks";
 
 interface SidebarContextType {
   collapsed: boolean;
@@ -10,24 +11,8 @@ interface SidebarContextType {
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
-const STORAGE_KEY = "osmo-sidebar-collapsed";
-
-// Get initial state from localStorage (only runs on client)
-function getInitialCollapsed(): boolean {
-  if (typeof window === "undefined") return false;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "true";
-}
-
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsedState] = useState(getInitialCollapsed);
-
-  const setCollapsed = (value: boolean) => {
-    setCollapsedState(value);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, String(value));
-    }
-  };
+  const [collapsed, setCollapsed] = usePersistedState("sidebar-collapsed", false);
 
   const toggle = () => setCollapsed(!collapsed);
 
