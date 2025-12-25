@@ -46,6 +46,10 @@ export type {
 export { useAllResources } from "./use-all-resources";
 export type { UseAllResourcesReturn } from "./use-all-resources";
 
+// Infinite Resources (with pagination support)
+export { useInfiniteResources } from "./use-infinite-resources";
+export type { UseInfiniteResourcesReturn } from "./use-infinite-resources";
+
 // UI Behavior Hooks
 export { useAutoCollapse } from "./use-auto-collapse";
 export { useHorizontalScrollSync, useScrollShadow } from "./use-horizontal-scroll-sync";
