@@ -26,7 +26,7 @@ import {
 } from "./transforms";
 
 import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
-import { fetchPaginatedResources, invalidateResourcesCache } from "./pagination";
+import { fetchPaginatedResources, invalidateResourcesCache, getResourceFilterOptions } from "./pagination";
 import type { PaginationParams } from "@/lib/pagination";
 
 // =============================================================================
@@ -164,10 +164,10 @@ import type { PaginatedResourcesResult } from "./pagination";
 // =============================================================================
 
 /**
- * Fetch resources across all pools.
+ * Fetch resources across all pools with filtering and pagination.
  *
- * CURRENT: Uses client-side pagination shim (fetches all, returns pages)
- * FUTURE: When backend supports pagination, this will pass through params
+ * CURRENT: Uses client-side pagination and filtering shim (fetches all, filters/returns pages)
+ * FUTURE: When backend supports pagination/filtering, this will pass through params
  *
  * Issue: BACKEND_TODOS.md#11
  */
@@ -175,8 +175,11 @@ export async function fetchResources(
   params: {
     pools?: string[];
     platforms?: string[];
+    resourceTypes?: string[];
+    search?: string;
   } & PaginationParams,
 ): Promise<PaginatedResourcesResult> {
+  // Pass all filter params to the adapter shim - it handles client-side filtering
   return fetchPaginatedResources({ ...params, all_pools: true }, () =>
     getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown),
   );
@@ -186,6 +189,11 @@ export async function fetchResources(
  * Invalidate resources cache - call after mutations that affect resources.
  */
 export { invalidateResourcesCache };
+
+/**
+ * Get available filter options from the cached (unfiltered) resources.
+ */
+export { getResourceFilterOptions };
 
 /**
  * Extract pool memberships from a ResourcesResponse for a specific resource.
