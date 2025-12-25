@@ -47,9 +47,7 @@ export default function ResourcesPage() {
       {/* Page header */}
       <div className="shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          View and filter resources across all pools
-        </p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">View and filter resources across all pools</p>
       </div>
 
       {/* Resources section with integrated filter bar */}

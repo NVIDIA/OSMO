@@ -77,7 +77,7 @@ export function InfiniteScrollSentinel({
           onIntersect();
         }
       },
-      { rootMargin }
+      { rootMargin },
     );
 
     observer.observe(sentinel);
@@ -86,7 +86,11 @@ export function InfiniteScrollSentinel({
   }, [enabled, onIntersect, rootMargin]);
 
   return (
-    <div ref={sentinelRef} className={className} aria-hidden="true">
+    <div
+      ref={sentinelRef}
+      className={className}
+      aria-hidden="true"
+    >
       {children}
     </div>
   );

@@ -64,8 +64,14 @@ export default function RootLayout({
     >
       <head>
         {/* Preconnect to API for faster data fetching */}
-        <link rel="dns-prefetch" href="//fonts.googleapis.com" />
-        <link rel="dns-prefetch" href="//fonts.gstatic.com" />
+        <link
+          rel="dns-prefetch"
+          href="//fonts.googleapis.com"
+        />
+        <link
+          rel="dns-prefetch"
+          href="//fonts.gstatic.com"
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -76,7 +82,10 @@ export default function RootLayout({
         }}
       >
         <Providers>{children}</Providers>
-        <Toaster richColors position="bottom-right" />
+        <Toaster
+          richColors
+          position="bottom-right"
+        />
       </body>
     </html>
   );

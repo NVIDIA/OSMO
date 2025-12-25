@@ -136,7 +136,11 @@ accelerate>=0.24.0
   },
 
   hostname: () => {
-    return { stdout: `dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}`, stderr: "", exit_code: 0 };
+    return {
+      stdout: `dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}`,
+      stderr: "",
+      exit_code: 0,
+    };
   },
 
   date: () => {

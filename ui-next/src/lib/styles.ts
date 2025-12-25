@@ -29,11 +29,9 @@ export const section = {
 
 /** Section heading style (uppercase label) */
 export const heading = {
-  section:
-    "text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
+  section: "text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
   /** Section heading with count */
-  sectionWithMeta:
-    "text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
+  sectionWithMeta: "text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
   meta: "text-xs text-zinc-400 dark:text-zinc-500 font-normal",
 } as const;
 
@@ -51,8 +49,7 @@ export const text = {
 /** Focus ring for interactive elements */
 export const focus = {
   ring: "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  visible:
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+  visible: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 } as const;
 
 /** Clear/dismiss button style */
@@ -77,8 +74,7 @@ export const skeleton = {
 // =============================================================================
 
 /** Progress bar track */
-export const progressTrack =
-  "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800";
+export const progressTrack = "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800";
 
 /** Progress bar fill colors based on percentage thresholds */
 export function getProgressColor(percent: number): string {
@@ -96,10 +92,8 @@ export const chip = {
   selected:
     "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/10 text-[var(--nvidia-green)] dark:bg-[var(--nvidia-green)]/20 dark:text-[var(--nvidia-green-light)]",
   selectedHover: "hover:bg-[var(--nvidia-green)]/20 dark:hover:bg-[var(--nvidia-green)]/30",
-  unselected:
-    "border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500",
-  unselectedHover:
-    "hover:border-zinc-300 hover:text-zinc-500 dark:hover:border-zinc-700 dark:hover:text-zinc-400",
+  unselected: "border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500",
+  unselectedHover: "hover:border-zinc-300 hover:text-zinc-500 dark:hover:border-zinc-700 dark:hover:text-zinc-400",
   /** Dashed "action" chip (e.g., show more) */
   action:
     "border-dashed border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-300",
@@ -111,15 +105,13 @@ export const chip = {
 
 export const alert = {
   warning: {
-    container:
-      "rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30",
+    container: "rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30",
     icon: "text-amber-600 dark:text-amber-400",
     title: "font-medium text-amber-800 dark:text-amber-200",
     body: "text-sm text-amber-700 dark:text-amber-300",
   },
   info: {
-    container:
-      "rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30",
+    container: "rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30",
     icon: "text-blue-600 dark:text-blue-400",
     title: "font-medium text-blue-800 dark:text-blue-200",
     body: "text-sm text-blue-700 dark:text-blue-300",

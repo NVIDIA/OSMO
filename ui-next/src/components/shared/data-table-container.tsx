@@ -13,11 +13,7 @@
 import { useState, useEffect, useRef, ReactNode } from "react";
 import { Filter, Pin, PinOff, Rows3, Rows4 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DataTableContainerProps {
   /** Filter bar content */
@@ -146,7 +142,7 @@ export function DataTableContainer({
   // Toggle expand/collapse (pins if not already pinned)
   const handleToggle = () => {
     if (isPinned) {
-      setPinnedState(prev => !prev);
+      setPinnedState((prev) => !prev);
     } else {
       setIsPinned(true);
       setPinnedState(!autoCollapsed);
@@ -164,7 +160,7 @@ export function DataTableContainer({
       ref={containerRef}
       className={cn(
         "flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950",
-        className
+        className,
       )}
       style={{ contain: "strict" }}
     >
@@ -179,9 +175,7 @@ export function DataTableContainer({
           >
             <div className="flex items-center gap-2">
               <Filter className="h-3.5 w-3.5 text-zinc-400" />
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Filters & Summary
-              </span>
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Filters & Summary</span>
               {filterCount > 0 && (
                 <span className="rounded-full bg-[var(--nvidia-green)] px-1.5 py-0.5 text-[10px] font-medium text-white">
                   {filterCount}
@@ -204,7 +198,7 @@ export function DataTableContainer({
                     "rounded p-1.5 transition-colors",
                     isPinned
                       ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                      : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                      : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800",
                   )}
                 >
                   {isPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
@@ -227,7 +221,7 @@ export function DataTableContainer({
                       "rounded p-1.5 transition-colors",
                       compactMode
                         ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                        : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                        : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800",
                     )}
                   >
                     {compactMode ? <Rows4 className="h-3.5 w-3.5" /> : <Rows3 className="h-3.5 w-3.5" />}
@@ -270,7 +264,7 @@ export function DataTableContainer({
             className={cn(
               "sticky top-0 z-10 transition-shadow",
               "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
-              isScrolled && "shadow-md"
+              isScrolled && "shadow-md",
             )}
           >
             {tableHeader}
