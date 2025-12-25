@@ -39,7 +39,7 @@ export interface CommandResult {
 // ============================================================================
 
 const SIMULATED_COMMANDS: Record<string, (args: string[], session: TerminalSession) => CommandResult> = {
-  ls: (args, session) => {
+  ls: (_args, _session) => {
     const files = [
       "config.yaml",
       "train.py",
@@ -76,7 +76,7 @@ const SIMULATED_COMMANDS: Record<string, (args: string[], session: TerminalSessi
     return { stdout: "", stderr: "", exit_code: 0 };
   },
 
-  cat: (args, session) => {
+  cat: (args, _session) => {
     if (args.length === 0) {
       return { stdout: "", stderr: "cat: missing operand", exit_code: 1 };
     }

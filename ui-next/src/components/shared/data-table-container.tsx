@@ -59,9 +59,9 @@ export function DataTableContainer({
   summary,
   tableHeader,
   tableBody,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   itemCount: _itemCount,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   filteredCount: _filteredCount,
   filterCount = 0,
   minWidth = 820,

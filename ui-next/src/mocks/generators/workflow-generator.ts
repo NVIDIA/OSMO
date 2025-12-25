@@ -239,7 +239,7 @@ export class WorkflowGenerator {
   // Private: Name generation
   // --------------------------------------------------------------------------
 
-  private generateName(index: number): string {
+  private generateName(_index: number): string {
     const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
     const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
     const id = faker.string.alphanumeric(8).toLowerCase();
@@ -307,7 +307,7 @@ export class WorkflowGenerator {
   // Private: Group/Task generation
   // --------------------------------------------------------------------------
 
-  private generateGroups(status: WorkflowStatus, workflowName: string): MockGroup[] {
+  private generateGroups(status: WorkflowStatus, _workflowName: string): MockGroup[] {
     const groupPatterns = this.config.patterns.groupPatterns;
     const numGroups = faker.number.int(groupPatterns.groupsPerWorkflow);
     const groups: MockGroup[] = [];

@@ -7,7 +7,7 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import Link from "next/link";
-import { FlaskConical, GitBranch, HelpCircle, LayoutList, Palette } from "lucide-react";
+import { FlaskConical, GitBranch, HelpCircle, LayoutList } from "lucide-react";
 
 /**
  * Development Pages Index

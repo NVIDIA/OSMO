@@ -17,6 +17,20 @@ const eslintConfig = defineConfig([
     // E2E tests (Playwright, not React)
     "e2e/**",
   ]),
+  // Custom rules
+  {
+    rules: {
+      // Allow unused variables/args that start with underscore
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

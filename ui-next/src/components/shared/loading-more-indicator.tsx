@@ -42,7 +42,6 @@ export function LoadingMoreIndicator({
   isLoading,
   hasMore,
   loadedCount,
-  totalCount,
   className,
 }: LoadingMoreIndicatorProps) {
   // Don't show anything if no items loaded yet
@@ -73,7 +72,7 @@ export function LoadingMoreIndicator({
         )}
       >
         <Check className="h-3.5 w-3.5" />
-        <span>You've reached the end</span>
+        <span>You&apos;ve reached the end</span>
       </div>
     );
   }

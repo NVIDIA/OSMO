@@ -8,17 +8,16 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ChevronLeft,
   RefreshCw,
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Grid3X3,
   List,
   GitBranch,
   Terminal,
@@ -27,11 +26,6 @@ import {
   CheckCircle,
   Clock,
   Loader2,
-  AlertCircle,
-  ArrowRight,
-  MoreHorizontal,
-  ExternalLink,
-  Play,
   Eye,
 } from "lucide-react";
 
@@ -605,8 +599,8 @@ export default function DagMockPage() {
   const [zoom, setZoom] = useState(1);
   const [viewMode, setViewMode] = useState<"dag" | "list" | "timeline">("dag");
 
-  const nodeWidth = 180;
-  const nodeHeight = 100;
+  const _nodeWidth = 180;
+  const _nodeHeight = 100;
   const xSpacing = 220;
   const ySpacing = 130;
 
