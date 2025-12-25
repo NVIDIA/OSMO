@@ -114,20 +114,78 @@ export interface PaginatedResourcesResult extends PaginatedResponse<Resource> {
 }
 
 /**
- * SHIM: Paginate all resources with client-side cursor simulation.
+ * Filter parameters for client-side filtering shim.
+ * SHIM: These are applied client-side until backend supports server-side filtering.
+ */
+export interface ResourceFilterParams {
+  pools?: string[];
+  platforms?: string[];
+  resourceTypes?: string[];
+  search?: string;
+  all_pools?: boolean;
+}
+
+/**
+ * SHIM: Apply client-side filters to resources.
  *
- * When backend supports real pagination, this function can be updated
- * to pass params directly without the client-side cache.
+ * This function handles all filtering that should ideally be done server-side.
+ * When backend supports filtering, this function can be removed and filters
+ * passed directly to the API.
  *
- * @param params - Query params including pagination
+ * @internal
+ */
+function applyClientSideFilters(
+  resources: Resource[],
+  params: ResourceFilterParams,
+): Resource[] {
+  let result = resources;
+
+  // SHIM: Filter by pool (should be server-side)
+  if (params.pools && params.pools.length > 0) {
+    const poolSet = new Set(params.pools);
+    result = result.filter((resource) =>
+      resource.poolMemberships.some((m) => poolSet.has(m.pool)),
+    );
+  }
+
+  // SHIM: Filter by platform (should be server-side)
+  if (params.platforms && params.platforms.length > 0) {
+    const platformSet = new Set(params.platforms);
+    result = result.filter((resource) => platformSet.has(resource.platform));
+  }
+
+  // SHIM: Filter by resource type (should be server-side)
+  if (params.resourceTypes && params.resourceTypes.length > 0) {
+    const typeSet = new Set(params.resourceTypes);
+    result = result.filter((resource) => typeSet.has(resource.resourceType));
+  }
+
+  // SHIM: Filter by search (should be server-side)
+  if (params.search && params.search.trim()) {
+    const query = params.search.toLowerCase();
+    result = result.filter(
+      (resource) =>
+        resource.name.toLowerCase().includes(query) ||
+        resource.platform.toLowerCase().includes(query) ||
+        resource.resourceType.toLowerCase().includes(query) ||
+        resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query)),
+    );
+  }
+
+  return result;
+}
+
+/**
+ * SHIM: Paginate all resources with client-side cursor simulation and filtering.
+ *
+ * When backend supports real pagination and filtering, this function can be
+ * updated to pass params directly without the client-side cache or filters.
+ *
+ * @param params - Query params including pagination and filters
  * @param fetchFn - Function to fetch all resources from API
  */
 export async function fetchPaginatedResources(
-  params: {
-    pools?: string[];
-    platforms?: string[];
-    all_pools?: boolean;
-  } & PaginationParams,
+  params: ResourceFilterParams & PaginationParams,
   fetchFn: () => Promise<unknown>,
 ): Promise<PaginatedResourcesResult> {
   // Determine if this is the first page request
@@ -135,17 +193,21 @@ export async function fetchPaginatedResources(
 
   // If we have a valid cache and this is NOT the first page, use cache
   if (!isFirstPage && isCacheValid(resourcesCache)) {
+    // SHIM: Apply client-side filters to cached data
+    const filteredItems = applyClientSideFilters(resourcesCache.allItems, params);
+
     // Parse cursor (which is just the offset encoded)
     const startIndex = params.cursor ? decodeCursor(params.cursor) : (params.offset ?? 0);
 
     const endIndex = startIndex + params.limit;
-    const pageItems = resourcesCache.allItems.slice(startIndex, endIndex);
-    const hasMore = endIndex < resourcesCache.allItems.length;
+    const pageItems = filteredItems.slice(startIndex, endIndex);
+    const hasMore = endIndex < filteredItems.length;
 
     return {
       items: pageItems,
       nextCursor: hasMore ? encodeCursor(endIndex) : null,
       hasMore,
+      filteredTotal: filteredItems.length,
       total: resourcesCache.allItems.length,
       pools: resourcesCache.pools,
       platforms: resourcesCache.platforms,
@@ -156,7 +218,7 @@ export async function fetchPaginatedResources(
   const rawResponse = await fetchFn();
   const transformed = transformAllResourcesResponse(rawResponse);
 
-  // Update cache
+  // Update cache with unfiltered data
   resourcesCache = {
     allItems: transformed.resources,
     pools: transformed.pools,
@@ -164,16 +226,20 @@ export async function fetchPaginatedResources(
     fetchedAt: Date.now(),
   };
 
-  // Return first page
+  // SHIM: Apply client-side filters
+  const filteredItems = applyClientSideFilters(transformed.resources, params);
+
+  // Return first page of filtered results
   const startIndex = params.offset ?? 0;
   const endIndex = startIndex + params.limit;
-  const pageItems = transformed.resources.slice(startIndex, endIndex);
-  const hasMore = endIndex < transformed.resources.length;
+  const pageItems = filteredItems.slice(startIndex, endIndex);
+  const hasMore = endIndex < filteredItems.length;
 
   return {
     items: pageItems,
     nextCursor: hasMore ? encodeCursor(endIndex) : null,
     hasMore,
+    filteredTotal: filteredItems.length,
     total: transformed.resources.length,
     pools: transformed.pools,
     platforms: transformed.platforms,
@@ -186,6 +252,27 @@ export async function fetchPaginatedResources(
  */
 export function invalidateResourcesCache(): void {
   resourcesCache = null;
+}
+
+/**
+ * SHIM: Get available filter options from the cached (unfiltered) resources.
+ *
+ * This returns pools and platforms from the full dataset, not filtered results.
+ * Used to populate filter dropdowns that shouldn't disappear when filtering.
+ *
+ * @returns Filter options if cache is valid, null otherwise
+ */
+export function getResourceFilterOptions(): {
+  pools: string[];
+  platforms: string[];
+} | null {
+  if (!isCacheValid(resourcesCache)) {
+    return null;
+  }
+  return {
+    pools: resourcesCache.pools,
+    platforms: resourcesCache.platforms,
+  };
 }
 
 /**
