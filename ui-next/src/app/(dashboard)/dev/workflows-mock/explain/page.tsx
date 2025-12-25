@@ -9,25 +9,19 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ChevronLeft,
-  ChevronRight,
   Clock,
   AlertCircle,
   XCircle,
-  CheckCircle,
-  Loader2,
   Info,
   Lightbulb,
   ArrowRight,
   Key,
-  Image,
+  Image as ImageIcon,
   Timer,
   Zap,
-  Users,
   HardDrive,
   RefreshCw,
   ExternalLink,
@@ -161,7 +155,7 @@ function ImagePullFailureExplainer() {
       <div className="px-6 py-4 border-b border-red-500/20 bg-red-500/10">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-red-500/20">
-            <Image className="h-5 w-5 text-red-400" />
+            <ImageIcon className="h-5 w-5 text-red-400" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-red-200">Image Pull Failed</h2>
@@ -499,7 +493,7 @@ export default function ExplainMockPage() {
             Queued
           </TabsTrigger>
           <TabsTrigger value="image_pull">
-            <Image className="h-4 w-4 mr-1.5" />
+            <ImageIcon className="h-4 w-4 mr-1.5" />
             Image Pull
           </TabsTrigger>
           <TabsTrigger value="timeout">
