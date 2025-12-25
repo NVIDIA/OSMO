@@ -38,12 +38,7 @@ interface LoadingMoreIndicatorProps {
  * Shows a subtle loading spinner when actively fetching more data,
  * and an "end of results" indicator when all items have been loaded.
  */
-export function LoadingMoreIndicator({
-  isLoading,
-  hasMore,
-  loadedCount,
-  className,
-}: LoadingMoreIndicatorProps) {
+export function LoadingMoreIndicator({ isLoading, hasMore, loadedCount, className }: LoadingMoreIndicatorProps) {
   // Don't show anything if no items loaded yet
   if (loadedCount === 0) return null;
 
