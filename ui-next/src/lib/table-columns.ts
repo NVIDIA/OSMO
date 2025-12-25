@@ -99,9 +99,7 @@ export interface ColumnConfig {
  * ```
  */
 export function defineColumns(columns: ColumnDef[]): ColumnConfig {
-  const gridTemplate = columns
-    .map((col) => `minmax(${col.minWidth}px, ${col.flex}fr)`)
-    .join(" ");
+  const gridTemplate = columns.map((col) => `minmax(${col.minWidth}px, ${col.flex}fr)`).join(" ");
 
   const minWidth = columns.reduce((sum, col) => sum + col.minWidth, 0);
 

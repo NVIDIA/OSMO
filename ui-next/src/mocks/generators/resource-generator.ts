@@ -16,10 +16,7 @@
  */
 
 import { faker } from "@faker-js/faker";
-import type {
-  ResourcesEntry,
-  BackendResourceType,
-} from "@/lib/api/generated";
+import type { ResourcesEntry, BackendResourceType } from "@/lib/api/generated";
 
 import { MOCK_CONFIG, type ResourcePatterns } from "../seed";
 
@@ -83,11 +80,7 @@ export class ResourceGenerator {
 
     // Resource usage based on status
     const gpuUsed =
-      statusKey === "IN_USE"
-        ? faker.number.int({ min: 1, max: gpuTotal })
-        : statusKey === "AVAILABLE"
-          ? 0
-          : gpuTotal; // CORDONED/DRAINING/OFFLINE = unavailable
+      statusKey === "IN_USE" ? faker.number.int({ min: 1, max: gpuTotal }) : statusKey === "AVAILABLE" ? 0 : gpuTotal; // CORDONED/DRAINING/OFFLINE = unavailable
 
     const gpuAvailable = gpuTotal - gpuUsed;
 
@@ -100,9 +93,7 @@ export class ResourceGenerator {
     const memUsed = Math.floor(memTotal * (gpuUsed / gpuTotal));
 
     // Generate hostname
-    const prefix = faker.helpers.arrayElement(
-      this.config.patterns.nodePatterns.prefixes
-    );
+    const prefix = faker.helpers.arrayElement(this.config.patterns.nodePatterns.prefixes);
     const gpuShort = gpuType.toLowerCase().includes("h100")
       ? "h100"
       : gpuType.toLowerCase().includes("a100")
@@ -131,10 +122,7 @@ export class ResourceGenerator {
       },
 
       // Taints
-      taints:
-        statusKey === "CORDONED"
-          ? [{ key: "node.kubernetes.io/unschedulable", effect: "NoSchedule" }]
-          : [],
+      taints: statusKey === "CORDONED" ? [{ key: "node.kubernetes.io/unschedulable", effect: "NoSchedule" }] : [],
 
       // Usage fields: current usage
       usage_fields: {
@@ -220,11 +208,7 @@ export class ResourceGenerator {
    * Generate a page of resources for a pool.
    * MEMORY EFFICIENT: Only generates items for the requested page.
    */
-  generatePage(
-    poolName: string,
-    offset: number,
-    limit: number
-  ): { resources: ResourcesEntry[]; total: number } {
+  generatePage(poolName: string, offset: number, limit: number): { resources: ResourcesEntry[]; total: number } {
     const resources: ResourcesEntry[] = [];
     const total = this.config.perPool;
 
@@ -245,7 +229,7 @@ export class ResourceGenerator {
   generateGlobalPage(
     poolNames: string[],
     offset: number,
-    limit: number
+    limit: number,
   ): { resources: ResourcesEntry[]; total: number } {
     const resources: ResourcesEntry[] = [];
     const total = this.config.totalGlobal;
@@ -271,8 +255,7 @@ export class ResourceGenerator {
    * Generate resources for all pools.
    */
   generateAll(poolNames: string[]): ResourcesEntry[] {
-    return this.generateGlobalPage(poolNames, 0, this.config.totalGlobal)
-      .resources;
+    return this.generateGlobalPage(poolNames, 0, this.config.totalGlobal).resources;
   }
 
   // --------------------------------------------------------------------------

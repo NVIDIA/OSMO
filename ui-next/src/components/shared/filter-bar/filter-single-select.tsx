@@ -66,8 +66,16 @@ export function FilterSingleSelect<T extends string>({
   // Single option: show as informational only
   if (options.length <= 1) {
     return (
-      <Button variant="outline" size="sm" disabled className={cn("gap-1.5", className)}>
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className={cn("gap-1.5", className)}
+      >
+        <Icon
+          className="h-3.5 w-3.5"
+          aria-hidden="true"
+        />
         {options.length === 1 ? getLabel(options[0]) : label}
       </Button>
     );
@@ -83,10 +91,13 @@ export function FilterSingleSelect<T extends string>({
           className={cn(
             "gap-1.5",
             hasSelection && "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/5",
-            className
+            className,
           )}
         >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          <Icon
+            className="h-3.5 w-3.5"
+            aria-hidden="true"
+          />
           {label}
           {hasSelection && (
             <span
@@ -96,13 +107,25 @@ export function FilterSingleSelect<T extends string>({
               1
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 opacity-50" aria-hidden="true" />
+          <ChevronDown
+            className="h-3.5 w-3.5 opacity-50"
+            aria-hidden="true"
+          />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44">
-        <DropdownMenuRadioGroup value={value ?? ""} onValueChange={(v) => onChange(v as T)}>
+      <DropdownMenuContent
+        align="start"
+        className="w-44"
+      >
+        <DropdownMenuRadioGroup
+          value={value ?? ""}
+          onValueChange={(v) => onChange(v as T)}
+        >
           {options.map((option) => (
-            <DropdownMenuRadioItem key={option} value={option}>
+            <DropdownMenuRadioItem
+              key={option}
+              value={option}
+            >
               {getLabel(option)}
             </DropdownMenuRadioItem>
           ))}

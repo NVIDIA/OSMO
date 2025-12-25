@@ -45,19 +45,16 @@ interface FilterToggleProps<T extends string> {
  * />
  * ```
  */
-export function FilterToggle<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-  className,
-}: FilterToggleProps<T>) {
+export function FilterToggle<T extends string>({ label, options, value, onChange, className }: FilterToggleProps<T>) {
   const labelId = useId();
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {label && (
-        <span id={labelId} className="text-sm text-zinc-500 dark:text-zinc-400">
+        <span
+          id={labelId}
+          className="text-sm text-zinc-500 dark:text-zinc-400"
+        >
           {label}:
         </span>
       )}
@@ -77,7 +74,7 @@ export function FilterToggle<T extends string>({
               "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
               value === option.value
                 ? "bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200",
             )}
           >
             {option.label}

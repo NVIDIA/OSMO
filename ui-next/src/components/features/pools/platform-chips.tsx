@@ -79,9 +79,7 @@ export function PlatformChips({
   }, [platforms, calculateCollapsedCount]);
 
   const hasOverflow = collapsedCount < platforms.length;
-  const visiblePlatforms = isExpanded
-    ? platforms
-    : platforms.slice(0, collapsedCount);
+  const visiblePlatforms = isExpanded ? platforms : platforms.slice(0, collapsedCount);
   const hiddenCount = platforms.length - collapsedCount;
 
   return (
@@ -91,8 +89,9 @@ export function PlatformChips({
         <Cpu className="h-4 w-4 text-zinc-400" />
         <h2 className={heading.section}>Platforms</h2>
         {/* Hint or Clear - same position, same styling */}
-        {isInteractive && platforms.length > 1 && (
-          hasFilter && onClearFilter ? (
+        {isInteractive &&
+          platforms.length > 1 &&
+          (hasFilter && onClearFilter ? (
             <button
               onClick={onClearFilter}
               className={`${heading.meta} flex items-center gap-1 hover:text-zinc-600 dark:hover:text-zinc-300`}
@@ -102,17 +101,13 @@ export function PlatformChips({
             </button>
           ) : (
             <span className={heading.meta}>· Click to filter</span>
-          )
-        )}
+          ))}
       </div>
 
       {/* Chips */}
       <div
         ref={containerRef}
-        className={cn(
-          "flex items-center gap-2",
-          isExpanded ? "flex-wrap" : "flex-nowrap overflow-hidden"
-        )}
+        className={cn("flex items-center gap-2", isExpanded ? "flex-wrap" : "flex-nowrap overflow-hidden")}
       >
         {visiblePlatforms.map((platform, index) => {
           const isSelected = selectedPlatforms.has(platform);
@@ -132,7 +127,7 @@ export function PlatformChips({
                 showAsSelected && chip.selected,
                 showAsSelected && isInteractive && chip.selectedHover,
                 !showAsSelected && chip.unselected,
-                !showAsSelected && isInteractive && chip.unselectedHover
+                !showAsSelected && isInteractive && chip.unselectedHover,
               )}
             >
               {platform}
@@ -145,7 +140,7 @@ export function PlatformChips({
             onClick={() => setIsExpanded(!isExpanded)}
             className={cn(
               "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-sm transition-colors",
-              chip.action
+              chip.action,
             )}
           >
             {isExpanded ? (

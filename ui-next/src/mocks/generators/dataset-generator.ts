@@ -119,10 +119,12 @@ export class DatasetGenerator {
     faker.seed(this.config.baseSeed + index);
 
     const baseName = DATASET_PATTERNS.names[index % DATASET_PATTERNS.names.length];
-    const variant = DATASET_PATTERNS.variants[Math.floor(index / DATASET_PATTERNS.names.length) % DATASET_PATTERNS.variants.length];
-    const uniqueSuffix = index >= DATASET_PATTERNS.names.length * DATASET_PATTERNS.variants.length
-      ? `-${Math.floor(index / (DATASET_PATTERNS.names.length * DATASET_PATTERNS.variants.length))}`
-      : "";
+    const variant =
+      DATASET_PATTERNS.variants[Math.floor(index / DATASET_PATTERNS.names.length) % DATASET_PATTERNS.variants.length];
+    const uniqueSuffix =
+      index >= DATASET_PATTERNS.names.length * DATASET_PATTERNS.variants.length
+        ? `-${Math.floor(index / (DATASET_PATTERNS.names.length * DATASET_PATTERNS.variants.length))}`
+        : "";
     const name = `${baseName}-${variant}${uniqueSuffix}`;
 
     const bucket = faker.helpers.arrayElement(DATASET_PATTERNS.buckets);
@@ -151,10 +153,7 @@ export class DatasetGenerator {
   /**
    * Generate a page of datasets.
    */
-  generatePage(
-    offset: number,
-    limit: number
-  ): { entries: GeneratedDataset[]; total: number } {
+  generatePage(offset: number, limit: number): { entries: GeneratedDataset[]; total: number } {
     const entries: GeneratedDataset[] = [];
     const total = this.config.totalDatasets;
 
@@ -224,9 +223,8 @@ export class DatasetGenerator {
     ];
 
     const baseName = collectionNames[index % collectionNames.length];
-    const name = index < collectionNames.length
-      ? baseName
-      : `${baseName}-${Math.floor(index / collectionNames.length)}`;
+    const name =
+      index < collectionNames.length ? baseName : `${baseName}-${Math.floor(index / collectionNames.length)}`;
 
     // Generate 3-5 dataset names for this collection
     const numDatasets = faker.number.int({ min: 3, max: 5 });
@@ -247,10 +245,7 @@ export class DatasetGenerator {
   /**
    * Generate a page of collections.
    */
-  generateCollectionPage(
-    offset: number,
-    limit: number
-  ): { entries: GeneratedDatasetCollection[]; total: number } {
+  generateCollectionPage(offset: number, limit: number): { entries: GeneratedDatasetCollection[]; total: number } {
     const entries: GeneratedDatasetCollection[] = [];
     const total = this.config.totalCollections;
 

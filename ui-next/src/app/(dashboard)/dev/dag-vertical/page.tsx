@@ -35,14 +35,7 @@ import {
 // TYPES & MOCK DATA
 // ============================================================================
 
-type TaskStatus =
-  | "WAITING"
-  | "SCHEDULING"
-  | "INITIALIZING"
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED"
-  | "FAILED_UPSTREAM";
+type TaskStatus = "WAITING" | "SCHEDULING" | "INITIALIZING" | "RUNNING" | "COMPLETED" | "FAILED" | "FAILED_UPSTREAM";
 
 interface DagTask {
   id: string;
@@ -275,9 +268,7 @@ function formatTime(date: Date | null): string {
   });
 }
 
-function getStatusCategory(
-  status: TaskStatus
-): "waiting" | "running" | "completed" | "failed" {
+function getStatusCategory(status: TaskStatus): "waiting" | "running" | "completed" | "failed" {
   if (["WAITING", "SCHEDULING"].includes(status)) return "waiting";
   if (["INITIALIZING", "RUNNING"].includes(status)) return "running";
   if (status === "COMPLETED") return "completed";
@@ -355,7 +346,7 @@ function VerticalDagNode({
         style.bg,
         style.border,
         style.glow,
-        isSelected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950"
+        isSelected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950",
       )}
       onClick={onClick}
     >
@@ -364,16 +355,14 @@ function VerticalDagNode({
         className={cn(
           "absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full",
           style.dot,
-          category === "running" && "animate-pulse"
+          category === "running" && "animate-pulse",
         )}
       />
 
       {/* Content */}
       <div className="flex items-center gap-2 mb-1">
         {getStatusIcon(group.status, "h-3.5 w-3.5")}
-        <span className="font-semibold text-sm text-zinc-100 truncate">
-          {group.name}
-        </span>
+        <span className="font-semibold text-sm text-zinc-100 truncate">{group.name}</span>
       </div>
 
       {/* Task progress or single task info */}
@@ -381,10 +370,7 @@ function VerticalDagNode({
         <div className="space-y-1">
           <div className="w-full h-1 bg-zinc-700 rounded-full overflow-hidden">
             <div
-              className={cn(
-                "h-full transition-all",
-                category === "running" ? "bg-emerald-500" : "bg-zinc-500"
-              )}
+              className={cn("h-full transition-all", category === "running" ? "bg-emerald-500" : "bg-zinc-500")}
               style={{ width: `${(completedCount / totalCount) * 100}%` }}
             />
           </div>
@@ -393,9 +379,7 @@ function VerticalDagNode({
           </div>
         </div>
       ) : (
-        <div className={cn("text-xs", style.text)}>
-          {group.tasks[0]?.node || "Pending"}
-        </div>
+        <div className={cn("text-xs", style.text)}>{group.tasks[0]?.node || "Pending"}</div>
       )}
     </div>
   );
@@ -521,48 +505,36 @@ function TimelineListView({
               className={cn(
                 "relative flex items-center gap-4 px-4 py-3 transition-all cursor-pointer",
                 "hover:bg-zinc-800/50",
-                isGroupSelected && "bg-cyan-950/30 border-l-2 border-cyan-500"
+                isGroupSelected && "bg-cyan-950/30 border-l-2 border-cyan-500",
               )}
               onClick={() => onSelectGroup(task.group)}
             >
               {/* Time column with dot on timeline */}
-              <div className="w-24 text-sm text-zinc-400 font-mono">
-                {formatTime(task.startTime)}
-              </div>
+              <div className="w-24 text-sm text-zinc-400 font-mono">{formatTime(task.startTime)}</div>
 
               {/* Timeline dot */}
               <div
                 className={cn(
                   "absolute left-[50px] w-3 h-3 rounded-full border-2 border-zinc-900",
                   style.dot,
-                  category === "running" && "animate-pulse"
+                  category === "running" && "animate-pulse",
                 )}
               />
 
               {/* Status icon */}
-              <div className="w-6">
-                {getStatusIcon(task.status, "h-4 w-4")}
-              </div>
+              <div className="w-6">{getStatusIcon(task.status, "h-4 w-4")}</div>
 
               {/* Task name and group */}
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm text-zinc-100 truncate">
-                  {task.name}
-                </div>
-                <div className="text-xs text-zinc-500">
-                  {task.group.name}
-                </div>
+                <div className="font-medium text-sm text-zinc-100 truncate">{task.name}</div>
+                <div className="text-xs text-zinc-500">{task.group.name}</div>
               </div>
 
               {/* Duration */}
-              <div className="w-24 text-right text-sm text-zinc-400 font-mono">
-                {formatDuration(task.duration)}
-              </div>
+              <div className="w-24 text-right text-sm text-zinc-400 font-mono">{formatDuration(task.duration)}</div>
 
               {/* Node */}
-              <div className="w-32 text-sm text-zinc-500 truncate">
-                {task.node || "-"}
-              </div>
+              <div className="w-32 text-sm text-zinc-500 truncate">{task.node || "-"}</div>
             </div>
           );
         })}
@@ -575,16 +547,8 @@ function TimelineListView({
 // DETAIL PANEL
 // ============================================================================
 
-function DetailPanel({
-  group,
-  onClose,
-}: {
-  group: DagGroup;
-  onClose: () => void;
-}) {
-  const [expandedTask, setExpandedTask] = useState<string | null>(
-    group.tasks[0]?.id || null
-  );
+function DetailPanel({ group, onClose }: { group: DagGroup; onClose: () => void }) {
+  const [expandedTask, setExpandedTask] = useState<string | null>(group.tasks[0]?.id || null);
   const category = getStatusCategory(group.status);
   const style = statusStyles[category];
 
@@ -597,7 +561,12 @@ function DetailPanel({
             {getStatusIcon(group.status)}
             <h3 className="font-semibold text-zinc-100">{group.name}</h3>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onClose}
+          >
             <XCircle className="h-4 w-4 text-zinc-400" />
           </Button>
         </div>
@@ -608,9 +577,7 @@ function DetailPanel({
 
       {/* Tasks */}
       <div className="p-4 space-y-2">
-        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">
-          Tasks
-        </h4>
+        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">Tasks</h4>
         {group.tasks.map((task) => {
           const taskCategory = getStatusCategory(task.status);
           const taskStyle = statusStyles[taskCategory];
@@ -619,20 +586,14 @@ function DetailPanel({
           return (
             <div
               key={task.id}
-              className={cn(
-                "rounded-lg border transition-all",
-                taskStyle.bg,
-                taskStyle.border
-              )}
+              className={cn("rounded-lg border transition-all", taskStyle.bg, taskStyle.border)}
             >
               <button
                 className="w-full flex items-center gap-2 p-3 text-left"
                 onClick={() => setExpandedTask(isExpanded ? null : task.id)}
               >
                 {getStatusIcon(task.status, "h-3.5 w-3.5")}
-                <span className="flex-1 text-sm font-medium text-zinc-100 truncate">
-                  {task.name}
-                </span>
+                <span className="flex-1 text-sm font-medium text-zinc-100 truncate">{task.name}</span>
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 text-zinc-400" />
                 ) : (
@@ -645,15 +606,11 @@ function DetailPanel({
                   <dl className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <dt className="text-zinc-500">Start</dt>
-                      <dd className="text-zinc-300 font-mono">
-                        {formatTime(task.startTime)}
-                      </dd>
+                      <dd className="text-zinc-300 font-mono">{formatTime(task.startTime)}</dd>
                     </div>
                     <div>
                       <dt className="text-zinc-500">Duration</dt>
-                      <dd className="text-zinc-300 font-mono">
-                        {formatDuration(task.duration)}
-                      </dd>
+                      <dd className="text-zinc-300 font-mono">{formatDuration(task.duration)}</dd>
                     </div>
                     <div>
                       <dt className="text-zinc-500">Node</dt>
@@ -662,20 +619,26 @@ function DetailPanel({
                     <div>
                       <dt className="text-zinc-500">Resources</dt>
                       <dd className="text-zinc-300">
-                        {task.resources.gpu > 0
-                          ? `${task.resources.gpu} GPU`
-                          : `${task.resources.cpu} CPU`}
+                        {task.resources.gpu > 0 ? `${task.resources.gpu} GPU` : `${task.resources.cpu} CPU`}
                       </dd>
                     </div>
                   </dl>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1 h-7 text-xs">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs"
+                    >
                       <FileText className="h-3 w-3 mr-1" />
                       Logs
                     </Button>
                     {taskCategory === "running" && (
-                      <Button variant="outline" size="sm" className="flex-1 h-7 text-xs">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs"
+                      >
                         <Terminal className="h-3 w-3 mr-1" />
                         Shell
                       </Button>
@@ -690,30 +653,23 @@ function DetailPanel({
 
       {/* Dependencies */}
       <div className="p-4 border-t border-zinc-800">
-        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">
-          Dependencies
-        </h4>
+        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">Dependencies</h4>
         <div className="space-y-2">
           {group.upstreamGroups.length > 0 && (
             <div className="text-xs">
               <span className="text-zinc-500">Depends on: </span>
-              <span className="text-zinc-300">
-                {group.upstreamGroups.join(", ")}
-              </span>
+              <span className="text-zinc-300">{group.upstreamGroups.join(", ")}</span>
             </div>
           )}
           {group.downstreamGroups.length > 0 && (
             <div className="text-xs">
               <span className="text-zinc-500">Blocking: </span>
-              <span className="text-zinc-300">
-                {group.downstreamGroups.join(", ")}
-              </span>
+              <span className="text-zinc-300">{group.downstreamGroups.join(", ")}</span>
             </div>
           )}
-          {group.upstreamGroups.length === 0 &&
-            group.downstreamGroups.length === 0 && (
-              <div className="text-xs text-zinc-500">No dependencies</div>
-            )}
+          {group.upstreamGroups.length === 0 && group.downstreamGroups.length === 0 && (
+            <div className="text-xs text-zinc-500">No dependencies</div>
+          )}
         </div>
       </div>
     </div>
@@ -785,15 +741,17 @@ export default function DagVerticalPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-zinc-100">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-zinc-400 hover:text-zinc-100"
+          >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Workflows
           </Button>
           <div className="h-6 w-px bg-zinc-700" />
           <div>
-            <h1 className="text-lg font-semibold text-zinc-100">
-              train-distributed-xyz789
-            </h1>
+            <h1 className="text-lg font-semibold text-zinc-100">train-distributed-xyz789</h1>
             <div className="flex items-center gap-2 text-sm text-zinc-400">
               <span className="text-emerald-400 flex items-center gap-1">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -807,7 +765,10 @@ export default function DagVerticalPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -856,9 +817,7 @@ export default function DagVerticalPage() {
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-zinc-400 w-12 text-center font-mono">
-              {Math.round(zoom * 100)}%
-            </span>
+            <span className="text-sm text-zinc-400 w-12 text-center font-mono">{Math.round(zoom * 100)}%</span>
             <Button
               variant="outline"
               size="icon"

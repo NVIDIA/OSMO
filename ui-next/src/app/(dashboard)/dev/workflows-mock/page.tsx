@@ -13,13 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search,
   Filter,
@@ -357,11 +351,8 @@ function formatRelativeTime(date: Date): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-function getStatusCategory(
-  status: WorkflowStatus
-): "queued" | "running" | "completed" | "failed" {
-  if (["PENDING", "WAITING", "PROCESSING", "SCHEDULING"].includes(status))
-    return "queued";
+function getStatusCategory(status: WorkflowStatus): "queued" | "running" | "completed" | "failed" {
+  if (["PENDING", "WAITING", "PROCESSING", "SCHEDULING"].includes(status)) return "queued";
   if (["INITIALIZING", "RUNNING"].includes(status)) return "running";
   if (status === "COMPLETED") return "completed";
   return "failed";
@@ -452,7 +443,7 @@ function StatusBadge({ status }: { status: WorkflowStatus }) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium",
-        getStatusColor(status)
+        getStatusColor(status),
       )}
     >
       {getStatusIcon(status)}
@@ -466,7 +457,7 @@ function PriorityBadge({ priority }: { priority: Priority }) {
     <span
       className={cn(
         "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border",
-        getPriorityColor(priority)
+        getPriorityColor(priority),
       )}
     >
       {priority}
@@ -482,15 +473,7 @@ function PoolBadge({ pool }: { pool: string }) {
   );
 }
 
-function ProgressBar({
-  completed,
-  running,
-  total,
-}: {
-  completed: number;
-  running: number;
-  total: number;
-}) {
+function ProgressBar({ completed, running, total }: { completed: number; running: number; total: number }) {
   const completedPct = (completed / total) * 100;
   const runningPct = (running / total) * 100;
 
@@ -521,21 +504,14 @@ function WorkflowRow({
   onToggle: () => void;
   onSelect: () => void;
 }) {
-  const totalTasks = workflow.groups.reduce(
-    (acc, g) => acc + g.tasks.length,
-    0
-  );
+  const totalTasks = workflow.groups.reduce((acc, g) => acc + g.tasks.length, 0);
   const completedTasks = workflow.groups.reduce(
-    (acc, g) =>
-      acc + g.tasks.filter((t) => t.status === "COMPLETED").length,
-    0
+    (acc, g) => acc + g.tasks.filter((t) => t.status === "COMPLETED").length,
+    0,
   );
   const runningTasks = workflow.groups.reduce(
-    (acc, g) =>
-      acc +
-      g.tasks.filter((t) => ["RUNNING", "INITIALIZING"].includes(t.status))
-        .length,
-    0
+    (acc, g) => acc + g.tasks.filter((t) => ["RUNNING", "INITIALIZING"].includes(t.status)).length,
+    0,
   );
 
   const category = getStatusCategory(workflow.status);
@@ -545,7 +521,7 @@ function WorkflowRow({
       className={cn(
         "border rounded-lg transition-all duration-200",
         "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700",
-        isExpanded && "border-zinc-600 bg-zinc-900"
+        isExpanded && "border-zinc-600 bg-zinc-900",
       )}
     >
       {/* Main Row */}
@@ -570,9 +546,7 @@ function WorkflowRow({
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-mono text-sm font-medium text-zinc-100 truncate">
-                  {workflow.id}
-                </h3>
+                <h3 className="font-mono text-sm font-medium text-zinc-100 truncate">{workflow.id}</h3>
                 <StatusBadge status={workflow.status} />
                 <PriorityBadge priority={workflow.priority} />
               </div>
@@ -607,7 +581,11 @@ function WorkflowRow({
               <FileText className="h-3.5 w-3.5 mr-1" />
               Logs
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+            >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </div>
@@ -656,9 +634,7 @@ function WorkflowRow({
       {isExpanded && (
         <div className="border-t border-zinc-800 p-4 bg-zinc-950/50">
           <div className="ml-7">
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">
-              Task Overview
-            </h4>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">Task Overview</h4>
             <div className="flex items-center gap-3 flex-wrap">
               {workflow.groups.map((group) => (
                 <div
@@ -666,26 +642,29 @@ function WorkflowRow({
                   className={cn(
                     "flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm",
                     getStatusColor(group.status),
-                    "border-current/20"
+                    "border-current/20",
                   )}
                 >
                   {getStatusIcon(group.status)}
                   <span>{group.name}</span>
-                  {group.tasks.length > 1 && (
-                    <span className="text-xs opacity-60">
-                      ({group.tasks.length})
-                    </span>
-                  )}
+                  {group.tasks.length > 1 && <span className="text-xs opacity-60">({group.tasks.length})</span>}
                 </div>
               ))}
             </div>
             <div className="flex items-center gap-2 mt-4">
-              <Button size="sm" className="h-8">
+              <Button
+                size="sm"
+                className="h-8"
+              >
                 <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                 Open Detail
               </Button>
               {category === "running" && (
-                <Button variant="outline" size="sm" className="h-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                >
                   <Terminal className="h-3.5 w-3.5 mr-1.5" />
                   Shell
                 </Button>
@@ -735,10 +714,7 @@ export default function WorkflowsMockPage() {
   const filteredWorkflows = useMemo(() => {
     return mockWorkflows.filter((w) => {
       // Search filter
-      if (
-        searchQuery &&
-        !w.id.toLowerCase().includes(searchQuery.toLowerCase())
-      ) {
+      if (searchQuery && !w.id.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
 
@@ -760,18 +736,10 @@ export default function WorkflowsMockPage() {
   // Calculate summary stats
   const stats = useMemo(() => {
     return {
-      queued: filteredWorkflows.filter(
-        (w) => getStatusCategory(w.status) === "queued"
-      ).length,
-      running: filteredWorkflows.filter(
-        (w) => getStatusCategory(w.status) === "running"
-      ).length,
-      completed: filteredWorkflows.filter(
-        (w) => getStatusCategory(w.status) === "completed"
-      ).length,
-      failed: filteredWorkflows.filter(
-        (w) => getStatusCategory(w.status) === "failed"
-      ).length,
+      queued: filteredWorkflows.filter((w) => getStatusCategory(w.status) === "queued").length,
+      running: filteredWorkflows.filter((w) => getStatusCategory(w.status) === "running").length,
+      completed: filteredWorkflows.filter((w) => getStatusCategory(w.status) === "completed").length,
+      failed: filteredWorkflows.filter((w) => getStatusCategory(w.status) === "failed").length,
     };
   }, [filteredWorkflows]);
 
@@ -781,12 +749,13 @@ export default function WorkflowsMockPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Workflows</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            View and manage your workflow submissions
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">View and manage your workflow submissions</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -805,7 +774,7 @@ export default function WorkflowsMockPage() {
             "p-4 rounded-lg border transition-all text-left",
             statusFilter === "queued"
               ? "bg-amber-500/10 border-amber-500/30"
-              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700"
+              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700",
           )}
         >
           <div className="flex items-center gap-2 text-amber-400">
@@ -820,7 +789,7 @@ export default function WorkflowsMockPage() {
             "p-4 rounded-lg border transition-all text-left",
             statusFilter === "running"
               ? "bg-green-500/10 border-green-500/30"
-              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700"
+              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700",
           )}
         >
           <div className="flex items-center gap-2 text-green-400">
@@ -835,7 +804,7 @@ export default function WorkflowsMockPage() {
             "p-4 rounded-lg border transition-all text-left",
             statusFilter === "completed"
               ? "bg-zinc-500/10 border-zinc-500/30"
-              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700"
+              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700",
           )}
         >
           <div className="flex items-center gap-2 text-zinc-400">
@@ -850,7 +819,7 @@ export default function WorkflowsMockPage() {
             "p-4 rounded-lg border transition-all text-left",
             statusFilter === "failed"
               ? "bg-red-500/10 border-red-500/30"
-              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700"
+              : "bg-zinc-900/50 border-zinc-800 hover:border-zinc-700",
           )}
         >
           <div className="flex items-center gap-2 text-red-400">
@@ -872,7 +841,10 @@ export default function WorkflowsMockPage() {
             className="pl-9 bg-zinc-900/50 border-zinc-800"
           />
         </div>
-        <Select value={userFilter} onValueChange={setUserFilter}>
+        <Select
+          value={userFilter}
+          onValueChange={setUserFilter}
+        >
           <SelectTrigger className="w-[140px] bg-zinc-900/50 border-zinc-800">
             <SelectValue placeholder="User" />
           </SelectTrigger>
@@ -881,7 +853,10 @@ export default function WorkflowsMockPage() {
             <SelectItem value="all">All users</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+        >
           <SelectTrigger className="w-[140px] bg-zinc-900/50 border-zinc-800">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -893,7 +868,10 @@ export default function WorkflowsMockPage() {
             <SelectItem value="failed">Failed</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+        >
           <Filter className="h-4 w-4 mr-2" />
           More Filters
         </Button>
@@ -920,32 +898,25 @@ export default function WorkflowsMockPage() {
 
       {/* Design Notes */}
       <div className="mt-12 p-6 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30">
-        <h3 className="text-lg font-semibold mb-4 text-zinc-300">
-          🎨 Design Notes (for brainstorming)
-        </h3>
+        <h3 className="text-lg font-semibold mb-4 text-zinc-300">🎨 Design Notes (for brainstorming)</h3>
         <ul className="space-y-2 text-sm text-zinc-400">
           <li>
             ✅ <strong>Status at a glance</strong>: Color-coded badges with icons
           </li>
           <li>
-            ✅ <strong>Progress inline</strong>: Progress bar shows task
-            completion for running workflows
+            ✅ <strong>Progress inline</strong>: Progress bar shows task completion for running workflows
           </li>
           <li>
-            ✅ <strong>Queue visibility</strong>: Position and ETA for queued
-            workflows
+            ✅ <strong>Queue visibility</strong>: Position and ETA for queued workflows
           </li>
           <li>
-            ✅ <strong>Failure surfacing</strong>: Error message preview for
-            failed workflows
+            ✅ <strong>Failure surfacing</strong>: Error message preview for failed workflows
           </li>
           <li>
-            ✅ <strong>Expandable rows</strong>: Quick task overview without
-            navigating away
+            ✅ <strong>Expandable rows</strong>: Quick task overview without navigating away
           </li>
           <li>
-            ✅ <strong>Stats dashboard</strong>: Clickable summary cards for
-            quick filtering
+            ✅ <strong>Stats dashboard</strong>: Clickable summary cards for quick filtering
           </li>
           <li>
             ⏳ <strong>TODO</strong>: Date range filter, pool filter, tag filter
@@ -954,8 +925,7 @@ export default function WorkflowsMockPage() {
             ⏳ <strong>TODO</strong>: Real-time updates (polling or WebSocket)
           </li>
           <li>
-            ⏳ <strong>TODO</strong>: Keyboard navigation (j/k to move, Enter to
-            open)
+            ⏳ <strong>TODO</strong>: Keyboard navigation (j/k to move, Enter to open)
           </li>
         </ul>
       </div>

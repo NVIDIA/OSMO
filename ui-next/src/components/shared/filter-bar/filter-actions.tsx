@@ -33,9 +33,5 @@ interface FilterActionsProps {
  * ```
  */
 export function FilterActions({ children, className }: FilterActionsProps) {
-  return (
-    <div className={cn("ml-auto flex items-center gap-3", className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn("ml-auto flex items-center gap-3", className)}>{children}</div>;
 }

@@ -12,13 +12,13 @@ import { useState, useEffect, useRef } from "react";
 
 /**
  * Hook for auto-collapsing a controls panel based on available space.
- * 
+ *
  * Automatically collapses when the controls panel exceeds a threshold
  * of the container height. Supports manual pin/unpin to override auto behavior.
- * 
+ *
  * @param options Configuration options
  * @returns State and handlers for collapse behavior
- * 
+ *
  * @example
  * ```tsx
  * const {
@@ -32,12 +32,14 @@ import { useState, useEffect, useRef } from "react";
  * } = useAutoCollapse({ threshold: 0.5 });
  * ```
  */
-export function useAutoCollapse(options: {
-  /** Threshold ratio (0-1) at which to auto-collapse. Default: 0.5 (50%) */
-  threshold?: number;
-  /** Fixed height of the header bar in pixels. Default: 41 */
-  headerHeight?: number;
-} = {}) {
+export function useAutoCollapse(
+  options: {
+    /** Threshold ratio (0-1) at which to auto-collapse. Default: 0.5 (50%) */
+    threshold?: number;
+    /** Fixed height of the header bar in pixels. Default: 41 */
+    headerHeight?: number;
+  } = {},
+) {
   const { threshold = 0.5, headerHeight = 41 } = options;
 
   // Refs for measuring
@@ -90,7 +92,7 @@ export function useAutoCollapse(options: {
   // Toggle expand/collapse (pins if not already pinned)
   const toggleCollapse = () => {
     if (isPinned) {
-      setPinnedState(prev => !prev);
+      setPinnedState((prev) => !prev);
     } else {
       setIsPinned(true);
       setPinnedState(!autoCollapsed);

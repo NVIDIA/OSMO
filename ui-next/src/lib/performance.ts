@@ -56,7 +56,7 @@ export function useDebounce<T>(value: T, delay: number): T {
  */
 export function useDebouncedCallback<T extends (...args: never[]) => unknown>(
   callback: T,
-  delay: number
+  delay: number,
 ): (...args: Parameters<T>) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const callbackRef = useRef(callback);
@@ -84,7 +84,7 @@ export function useDebouncedCallback<T extends (...args: never[]) => unknown>(
         callbackRef.current(...args);
       }, delay);
     },
-    [delay]
+    [delay],
   );
 }
 
@@ -101,9 +101,7 @@ export function useDebouncedCallback<T extends (...args: never[]) => unknown>(
  *   element.style.transform = `translateY(${value}px)`;
  * });
  */
-export function useRafCallback<T extends (...args: never[]) => unknown>(
-  callback: T
-): (...args: Parameters<T>) => void {
+export function useRafCallback<T extends (...args: never[]) => unknown>(callback: T): (...args: Parameters<T>) => void {
   const rafRef = useRef<number | undefined>(undefined);
   const callbackRef = useRef(callback);
 
@@ -119,17 +117,14 @@ export function useRafCallback<T extends (...args: never[]) => unknown>(
     };
   }, []);
 
-  return useCallback(
-    (...args: Parameters<T>) => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-      rafRef.current = requestAnimationFrame(() => {
-        callbackRef.current(...args);
-      });
-    },
-    []
-  );
+  return useCallback((...args: Parameters<T>) => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+    rafRef.current = requestAnimationFrame(() => {
+      callbackRef.current(...args);
+    });
+  }, []);
 }
 
 // =============================================================================
@@ -144,9 +139,7 @@ export function useRafCallback<T extends (...args: never[]) => unknown>(
  * const [ref, isVisible] = useInView({ threshold: 0.1 });
  * return <div ref={ref}>{isVisible && <ExpensiveComponent />}</div>;
  */
-export function useInView(
-  options: IntersectionObserverInit = {}
-): [React.RefCallback<Element>, boolean] {
+export function useInView(options: IntersectionObserverInit = {}): [React.RefCallback<Element>, boolean] {
   const [isInView, setIsInView] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const optionsRef = useRef(options);
@@ -156,24 +149,21 @@ export function useInView(
     optionsRef.current = options;
   }, [options]);
 
-  const ref = useCallback(
-    (node: Element | null) => {
-      // Cleanup previous observer
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+  const ref = useCallback((node: Element | null) => {
+    // Cleanup previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
 
-      if (!node) return;
+    if (!node) return;
 
-      // Create new observer
-      observerRef.current = new IntersectionObserver(([entry]) => {
-        setIsInView(entry.isIntersecting);
-      }, optionsRef.current);
+    // Create new observer
+    observerRef.current = new IntersectionObserver(([entry]) => {
+      setIsInView(entry.isIntersecting);
+    }, optionsRef.current);
 
-      observerRef.current.observe(node);
-    },
-    []
-  );
+    observerRef.current.observe(node);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -199,10 +189,7 @@ export function useInView(
  * const [ref, dimensions] = useDimensions();
  * return <div ref={ref}>Width: {dimensions.width}</div>;
  */
-export function useDimensions(): [
-  React.RefCallback<HTMLElement>,
-  { width: number; height: number }
-] {
+export function useDimensions(): [React.RefCallback<HTMLElement>, { width: number; height: number }] {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const observerRef = useRef<ResizeObserver | null>(null);
 
@@ -247,10 +234,7 @@ export function useDimensions(): [
  *   sendAnalytics();
  * });
  */
-export function useIdleCallback(
-  callback: () => void,
-  options: { timeout?: number } = {}
-): void {
+export function useIdleCallback(callback: () => void, options: { timeout?: number } = {}): void {
   const callbackRef = useRef(callback);
   const timeoutValue = options.timeout;
 
@@ -260,10 +244,7 @@ export function useIdleCallback(
 
   useEffect(() => {
     if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(
-        () => callbackRef.current(),
-        { timeout: timeoutValue }
-      );
+      const id = window.requestIdleCallback(() => callbackRef.current(), { timeout: timeoutValue });
       return () => window.cancelIdleCallback(id);
     } else {
       // Fallback for Safari
@@ -285,9 +266,7 @@ export function useIdleCallback(
  * const scrollY = useScrollPosition();
  * const isScrolled = scrollY > 100;
  */
-export function useScrollPosition(
-  element?: React.RefObject<HTMLElement>
-): number {
+export function useScrollPosition(element?: React.RefObject<HTMLElement>): number {
   const [scrollY, setScrollY] = useState(0);
   const rafRef = useRef<number | undefined>(undefined);
 
@@ -299,8 +278,7 @@ export function useScrollPosition(
         cancelAnimationFrame(rafRef.current);
       }
       rafRef.current = requestAnimationFrame(() => {
-        const scrollTop =
-          element?.current?.scrollTop ?? window.scrollY ?? window.pageYOffset;
+        const scrollTop = element?.current?.scrollTop ?? window.scrollY ?? window.pageYOffset;
         setScrollY(scrollTop);
       });
     };

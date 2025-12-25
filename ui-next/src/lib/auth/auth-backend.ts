@@ -1,6 +1,6 @@
 /**
  * Auth Backend
- * 
+ *
  * Defines the interface for authentication providers.
  * Implement AuthBackend to integrate with different identity providers.
  */

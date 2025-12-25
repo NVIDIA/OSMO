@@ -31,11 +31,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   const toggle = () => setCollapsed(!collapsed);
 
-  return (
-    <SidebarContext.Provider value={{ collapsed, setCollapsed, toggle }}>
-      {children}
-    </SidebarContext.Provider>
-  );
+  return <SidebarContext.Provider value={{ collapsed, setCollapsed, toggle }}>{children}</SidebarContext.Provider>;
 }
 
 export function useSidebar() {

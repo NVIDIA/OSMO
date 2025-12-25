@@ -70,12 +70,7 @@ export default function PoolDetailPage() {
         </div>
 
         {pool && (
-          <div
-            className={cn(
-              "flex items-center gap-2 text-sm font-medium",
-              status.className
-            )}
-          >
+          <div className={cn("flex items-center gap-2 text-sm font-medium", status.className)}>
             <span>{status.icon}</span>
             <span>{status.label}</span>
           </div>
@@ -83,11 +78,7 @@ export default function PoolDetailPage() {
       </div>
 
       {/* Description */}
-      {pool?.description && (
-        <p className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
-          {pool.description}
-        </p>
-      )}
+      {pool?.description && <p className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">{pool.description}</p>}
 
       {/* API Error */}
       {error && (

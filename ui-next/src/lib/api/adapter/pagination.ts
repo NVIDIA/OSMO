@@ -51,9 +51,7 @@ const CACHE_TTL_MS = 60_000; // 1 minute
 /**
  * Check if cache is valid.
  */
-function isCacheValid<T>(
-  cache: ClientPaginationCache<T> | null
-): cache is ClientPaginationCache<T> {
+function isCacheValid<T>(cache: ClientPaginationCache<T> | null): cache is ClientPaginationCache<T> {
   if (!cache) return false;
   return Date.now() - cache.fetchedAt < CACHE_TTL_MS;
 }
@@ -80,8 +78,7 @@ function decodeCursor(cursor: string): number {
 /**
  * Extended paginated response with metadata.
  */
-export interface PaginatedResourcesResult
-  extends PaginatedResponse<Resource> {
+export interface PaginatedResourcesResult extends PaginatedResponse<Resource> {
   /** Available pools for filtering */
   pools: string[];
   /** Available platforms for filtering */
@@ -103,18 +100,15 @@ export async function fetchPaginatedResources(
     platforms?: string[];
     all_pools?: boolean;
   } & PaginationParams,
-  fetchFn: () => Promise<unknown>
+  fetchFn: () => Promise<unknown>,
 ): Promise<PaginatedResourcesResult> {
   // Determine if this is the first page request
-  const isFirstPage =
-    !params.cursor && (params.offset === undefined || params.offset === 0);
+  const isFirstPage = !params.cursor && (params.offset === undefined || params.offset === 0);
 
   // If we have a valid cache and this is NOT the first page, use cache
   if (!isFirstPage && isCacheValid(resourcesCache)) {
     // Parse cursor (which is just the offset encoded)
-    const startIndex = params.cursor
-      ? decodeCursor(params.cursor)
-      : params.offset ?? 0;
+    const startIndex = params.cursor ? decodeCursor(params.cursor) : (params.offset ?? 0);
 
     const endIndex = startIndex + params.limit;
     const pageItems = resourcesCache.allItems.slice(startIndex, endIndex);

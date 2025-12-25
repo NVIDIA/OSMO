@@ -269,9 +269,7 @@ function formatDuration(seconds: number | null): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-function getStatusCategory(
-  status: TaskStatus
-): "waiting" | "running" | "completed" | "failed" {
+function getStatusCategory(status: TaskStatus): "waiting" | "running" | "completed" | "failed" {
   if (["WAITING", "PROCESSING", "SCHEDULING"].includes(status)) return "waiting";
   if (["INITIALIZING", "RUNNING"].includes(status)) return "running";
   if (status === "COMPLETED") return "completed";
@@ -324,21 +322,9 @@ function getStatusIcon(status: TaskStatus) {
 // DAG NODE COMPONENTS
 // ============================================================================
 
-function DagNode({
-  group,
-  isSelected,
-  onClick,
-}: {
-  group: DagGroup;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  const completedCount = group.tasks.filter(
-    (t) => t.status === "COMPLETED"
-  ).length;
-  const runningCount = group.tasks.filter((t) =>
-    ["RUNNING", "INITIALIZING"].includes(t.status)
-  ).length;
+function DagNode({ group, isSelected, onClick }: { group: DagGroup; isSelected: boolean; onClick: () => void }) {
+  const completedCount = group.tasks.filter((t) => t.status === "COMPLETED").length;
+  const runningCount = group.tasks.filter((t) => ["RUNNING", "INITIALIZING"].includes(t.status)).length;
   const totalCount = group.tasks.length;
   const hasMultipleTasks = totalCount > 1;
 
@@ -347,15 +333,13 @@ function DagNode({
       className={cn(
         "relative p-3 rounded-lg border-2 min-w-[160px] cursor-pointer transition-all",
         getStatusColor(group.status),
-        isSelected && "ring-2 ring-indigo-500 ring-offset-2 ring-offset-zinc-900"
+        isSelected && "ring-2 ring-indigo-500 ring-offset-2 ring-offset-zinc-900",
       )}
       onClick={onClick}
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
-        <span className={cn("", getStatusTextColor(group.status))}>
-          {getStatusIcon(group.status)}
-        </span>
+        <span className={cn("", getStatusTextColor(group.status))}>{getStatusIcon(group.status)}</span>
         <span className="font-medium text-sm truncate">{group.name}</span>
       </div>
 
@@ -379,18 +363,13 @@ function DagNode({
           </div>
         </div>
       ) : (
-        <div className="text-xs text-zinc-400">
-          {group.tasks[0]?.node || "Not scheduled"}
-        </div>
+        <div className="text-xs text-zinc-400">{group.tasks[0]?.node || "Not scheduled"}</div>
       )}
 
       {/* Duration if running/completed */}
-      {(getStatusCategory(group.status) === "running" ||
-        getStatusCategory(group.status) === "completed") && (
+      {(getStatusCategory(group.status) === "running" || getStatusCategory(group.status) === "completed") && (
         <div className="text-xs text-zinc-500 mt-1">
-          {formatDuration(
-            group.tasks.reduce((max, t) => Math.max(max, t.duration || 0), 0)
-          )}
+          {formatDuration(group.tasks.reduce((max, t) => Math.max(max, t.duration || 0), 0))}
         </div>
       )}
     </div>
@@ -446,16 +425,8 @@ function DagEdge({
 // TASK DETAIL PANEL
 // ============================================================================
 
-function TaskDetailPanel({
-  group,
-  onClose,
-}: {
-  group: DagGroup;
-  onClose: () => void;
-}) {
-  const [selectedTask, setSelectedTask] = useState<DagTask | null>(
-    group.tasks[0] || null
-  );
+function TaskDetailPanel({ group, onClose }: { group: DagGroup; onClose: () => void }) {
+  const [selectedTask, setSelectedTask] = useState<DagTask | null>(group.tasks[0] || null);
 
   return (
     <div className="w-80 border-l border-zinc-800 bg-zinc-900 overflow-y-auto">
@@ -471,12 +442,8 @@ function TaskDetailPanel({
           </button>
         </div>
         <div className="flex items-center gap-2 mt-2">
-          <span className={getStatusTextColor(group.status)}>
-            {getStatusIcon(group.status)}
-          </span>
-          <span className={cn("text-sm", getStatusTextColor(group.status))}>
-            {group.status}
-          </span>
+          <span className={getStatusTextColor(group.status)}>{getStatusIcon(group.status)}</span>
+          <span className={cn("text-sm", getStatusTextColor(group.status))}>{group.status}</span>
         </div>
       </div>
 
@@ -493,14 +460,10 @@ function TaskDetailPanel({
                 onClick={() => setSelectedTask(task)}
                 className={cn(
                   "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors",
-                  selectedTask?.id === task.id
-                    ? "bg-indigo-500/20 text-indigo-300"
-                    : "hover:bg-zinc-800 text-zinc-300"
+                  selectedTask?.id === task.id ? "bg-indigo-500/20 text-indigo-300" : "hover:bg-zinc-800 text-zinc-300",
                 )}
               >
-                <span className={getStatusTextColor(task.status)}>
-                  {getStatusIcon(task.status)}
-                </span>
+                <span className={getStatusTextColor(task.status)}>{getStatusIcon(task.status)}</span>
                 <span className="truncate">{task.name}</span>
               </button>
             ))}
@@ -512,9 +475,7 @@ function TaskDetailPanel({
       {selectedTask && (
         <div className="p-4 space-y-4">
           <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-              Task Details
-            </h4>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Task Details</h4>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <dt className="text-zinc-400">Name</dt>
@@ -522,46 +483,32 @@ function TaskDetailPanel({
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-400">Status</dt>
-                <dd className={getStatusTextColor(selectedTask.status)}>
-                  {selectedTask.status}
-                </dd>
+                <dd className={getStatusTextColor(selectedTask.status)}>{selectedTask.status}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-400">Duration</dt>
-                <dd className="text-zinc-200">
-                  {formatDuration(selectedTask.duration)}
-                </dd>
+                <dd className="text-zinc-200">{formatDuration(selectedTask.duration)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-400">Node</dt>
-                <dd className="text-zinc-200">
-                  {selectedTask.node || "Not assigned"}
-                </dd>
+                <dd className="text-zinc-200">{selectedTask.node || "Not assigned"}</dd>
               </div>
             </dl>
           </div>
 
           <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-              Resources
-            </h4>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Resources</h4>
             <div className="grid grid-cols-3 gap-2">
               <div className="p-2 rounded bg-zinc-800 text-center">
-                <div className="text-lg font-semibold">
-                  {selectedTask.resources.cpu}
-                </div>
+                <div className="text-lg font-semibold">{selectedTask.resources.cpu}</div>
                 <div className="text-xs text-zinc-400">CPU</div>
               </div>
               <div className="p-2 rounded bg-zinc-800 text-center">
-                <div className="text-lg font-semibold">
-                  {selectedTask.resources.gpu}
-                </div>
+                <div className="text-lg font-semibold">{selectedTask.resources.gpu}</div>
                 <div className="text-xs text-zinc-400">GPU</div>
               </div>
               <div className="p-2 rounded bg-zinc-800 text-center">
-                <div className="text-sm font-semibold">
-                  {selectedTask.resources.memory}
-                </div>
+                <div className="text-sm font-semibold">{selectedTask.resources.memory}</div>
                 <div className="text-xs text-zinc-400">Memory</div>
               </div>
             </div>
@@ -569,11 +516,13 @@ function TaskDetailPanel({
 
           {/* Actions */}
           <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-              Actions
-            </h4>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Actions</h4>
             <div className="space-y-2">
-              <Button variant="outline" size="sm" className="w-full justify-start">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+              >
                 <FileText className="h-4 w-4 mr-2" />
                 View Logs
               </Button>
@@ -587,7 +536,11 @@ function TaskDetailPanel({
                   Open Shell
                 </Button>
               )}
-              <Button variant="outline" size="sm" className="w-full justify-start">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+              >
                 <Eye className="h-4 w-4 mr-2" />
                 View Events
               </Button>
@@ -615,33 +568,26 @@ function LifecycleTimeline() {
     <div className="px-6 py-4 border-b border-zinc-800">
       <div className="flex items-center justify-between">
         {stages.map((stage, i) => (
-          <div key={stage.name} className="flex items-center">
+          <div
+            key={stage.name}
+            className="flex items-center"
+          >
             <div className="flex flex-col items-center">
               <div
                 className={cn(
                   "w-3 h-3 rounded-full",
                   stage.status === "completed" && "bg-green-500",
                   stage.status === "current" && "bg-green-500 animate-pulse",
-                  stage.status === "pending" && "bg-zinc-600"
+                  stage.status === "pending" && "bg-zinc-600",
                 )}
               />
               <span className="text-xs text-zinc-400 mt-1">{stage.name}</span>
-              <span
-                className={cn(
-                  "text-xs",
-                  stage.status === "pending" ? "text-zinc-500" : "text-zinc-300"
-                )}
-              >
+              <span className={cn("text-xs", stage.status === "pending" ? "text-zinc-500" : "text-zinc-300")}>
                 {stage.time}
               </span>
             </div>
             {i < stages.length - 1 && (
-              <div
-                className={cn(
-                  "w-24 h-0.5 mx-2",
-                  stage.status === "completed" ? "bg-green-500" : "bg-zinc-700"
-                )}
-              />
+              <div className={cn("w-24 h-0.5 mx-2", stage.status === "completed" ? "bg-green-500" : "bg-zinc-700")} />
             )}
           </div>
         ))}
@@ -684,8 +630,7 @@ export default function DagMockPage() {
         const downstream = mockGroups.find((g) => g.id === downstreamId);
         if (downstream) {
           const isActive =
-            getStatusCategory(group.status) === "running" ||
-            getStatusCategory(group.status) === "completed";
+            getStatusCategory(group.status) === "running" || getStatusCategory(group.status) === "completed";
           result.push({
             fromX: group.x,
             fromY: group.y,
@@ -704,7 +649,10 @@ export default function DagMockPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm">
+          <Button
+            variant="ghost"
+            size="sm"
+          >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Workflows
           </Button>
@@ -723,11 +671,17 @@ export default function DagMockPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+          >
             <FileText className="h-4 w-4 mr-2" />
             All Logs
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -752,11 +706,17 @@ export default function DagMockPage() {
           onValueChange={(v) => setViewMode(v as typeof viewMode)}
         >
           <TabsList className="bg-zinc-800">
-            <TabsTrigger value="dag" className="data-[state=active]:bg-zinc-700">
+            <TabsTrigger
+              value="dag"
+              className="data-[state=active]:bg-zinc-700"
+            >
               <GitBranch className="h-4 w-4 mr-1" />
               DAG
             </TabsTrigger>
-            <TabsTrigger value="list" className="data-[state=active]:bg-zinc-700">
+            <TabsTrigger
+              value="list"
+              className="data-[state=active]:bg-zinc-700"
+            >
               <List className="h-4 w-4 mr-1" />
               List
             </TabsTrigger>
@@ -780,9 +740,7 @@ export default function DagMockPage() {
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-zinc-400 w-12 text-center">
-              {Math.round(zoom * 100)}%
-            </span>
+            <span className="text-sm text-zinc-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
             <Button
               variant="outline"
               size="icon"
@@ -791,7 +749,11 @@ export default function DagMockPage() {
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+            >
               <Maximize2 className="h-4 w-4" />
             </Button>
           </div>
@@ -818,12 +780,18 @@ export default function DagMockPage() {
                 height={svgHeight}
               >
                 {edges.map((edge, i) => (
-                  <DagEdge key={i} {...edge} />
+                  <DagEdge
+                    key={i}
+                    {...edge}
+                  />
                 ))}
               </svg>
 
               {/* Nodes */}
-              <div className="relative" style={{ width: svgWidth, height: svgHeight }}>
+              <div
+                className="relative"
+                style={{ width: svgWidth, height: svgHeight }}
+              >
                 {mockGroups.map((group) => (
                   <div
                     key={group.id}
@@ -855,23 +823,15 @@ export default function DagMockPage() {
                     key={task.id}
                     className="flex items-center gap-4 p-3 rounded-lg bg-zinc-900 border border-zinc-800"
                   >
-                    <span className={getStatusTextColor(task.status)}>
-                      {getStatusIcon(task.status)}
-                    </span>
+                    <span className={getStatusTextColor(task.status)}>{getStatusIcon(task.status)}</span>
                     <span className="font-mono text-sm flex-1">{task.name}</span>
-                    <span className="text-sm text-zinc-400">
-                      {formatDuration(task.duration)}
-                    </span>
-                    <span className="text-sm text-zinc-500">
-                      {task.node || "-"}
-                    </span>
+                    <span className="text-sm text-zinc-400">{formatDuration(task.duration)}</span>
+                    <span className="text-sm text-zinc-500">{task.node || "-"}</span>
                     <span className="text-xs text-zinc-500">
-                      {task.resources.gpu > 0
-                        ? `${task.resources.gpu} GPU`
-                        : `${task.resources.cpu} CPU`}
+                      {task.resources.gpu > 0 ? `${task.resources.gpu} GPU` : `${task.resources.cpu} CPU`}
                     </span>
                   </div>
-                ))
+                )),
               )}
             </div>
           </div>
@@ -901,27 +861,23 @@ export default function DagMockPage() {
           </summary>
           <ul className="mt-2 space-y-1 text-xs text-zinc-500">
             <li>
-              ✅ <strong>Custom DAG rendering</strong>: Using CSS positioning + SVG
-              edges (lightweight, no React Flow dependency)
+              ✅ <strong>Custom DAG rendering</strong>: Using CSS positioning + SVG edges (lightweight, no React Flow
+              dependency)
             </li>
             <li>
-              ✅ <strong>Node states</strong>: Visual distinction between waiting,
-              running, completed, failed
+              ✅ <strong>Node states</strong>: Visual distinction between waiting, running, completed, failed
             </li>
             <li>
-              ✅ <strong>Group nodes</strong>: Support for multi-task groups with
-              progress
+              ✅ <strong>Group nodes</strong>: Support for multi-task groups with progress
             </li>
             <li>
-              ✅ <strong>Detail panel</strong>: Click to see task details without
-              leaving context
+              ✅ <strong>Detail panel</strong>: Click to see task details without leaving context
             </li>
             <li>
               ✅ <strong>View modes</strong>: DAG, List, Timeline tabs
             </li>
             <li>
-              ⏳ <strong>TODO</strong>: Use React Flow for production (better
-              interaction, pan/zoom)
+              ⏳ <strong>TODO</strong>: Use React Flow for production (better interaction, pan/zoom)
             </li>
             <li>
               ⏳ <strong>TODO</strong>: Auto-layout with Dagre/ELK

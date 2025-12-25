@@ -30,9 +30,7 @@ export default function PoolsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Pools</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Compute pools and GPU quota allocation
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Compute pools and GPU quota allocation</p>
         </div>
 
         {/* Search */}
@@ -61,7 +59,10 @@ export default function PoolsPage() {
         <section>
           <h2 className={cn(heading.section, "mb-2")}>⭐ Your Default Pool</h2>
           <div className={card.base}>
-            <PoolRow pool={defaultPool} isDefault />
+            <PoolRow
+              pool={defaultPool}
+              isDefault
+            />
           </div>
         </section>
       )}
@@ -79,7 +80,10 @@ export default function PoolsPage() {
       {isLoading && (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className={card.base}>
+            <div
+              key={i}
+              className={card.base}
+            >
               <div className={section.list}>
                 <PoolRowSkeleton />
                 <PoolRowSkeleton />
@@ -93,10 +97,7 @@ export default function PoolsPage() {
       {!isLoading && !error && (
         <div className="space-y-4">
           {groupedPools.map((group) => {
-            const isCollapsed = isSectionCollapsed(
-              group.status,
-              group.pools.length
-            );
+            const isCollapsed = isSectionCollapsed(group.status, group.pools.length);
             const hasResults = group.pools.length > 0;
 
             return (
@@ -107,10 +108,7 @@ export default function PoolsPage() {
                   className="mb-2 flex w-full items-center gap-2 text-left"
                 >
                   <ChevronDown
-                    className={cn(
-                      "h-4 w-4 text-zinc-400 transition-transform",
-                      isCollapsed && "-rotate-90"
-                    )}
+                    className={cn("h-4 w-4 text-zinc-400 transition-transform", isCollapsed && "-rotate-90")}
                   />
                   <span className="text-sm">{group.icon}</span>
                   <span className={heading.section}>{group.label}</span>
@@ -123,7 +121,10 @@ export default function PoolsPage() {
                     {hasResults ? (
                       <div className={section.list}>
                         {group.pools.map((pool) => (
-                          <PoolRow key={pool.name} pool={pool} />
+                          <PoolRow
+                            key={pool.name}
+                            pool={pool}
+                          />
                         ))}
                       </div>
                     ) : (
@@ -140,9 +141,7 @@ export default function PoolsPage() {
           {/* No results at all */}
           {filteredCount === 0 && hasSearch && (
             <div className={cn(card.base, "p-8 text-center")}>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No pools match &ldquo;{search}&rdquo;
-              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No pools match &ldquo;{search}&rdquo;</p>
             </div>
           )}
         </div>

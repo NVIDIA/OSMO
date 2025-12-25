@@ -38,7 +38,7 @@ export class LogGenerator {
   constructor(
     patterns: LogPatterns = MOCK_CONFIG.logs,
     volume: MockVolume = MOCK_CONFIG.volume,
-    baseSeed: number = 11111
+    baseSeed: number = 11111,
   ) {
     this.patterns = patterns;
     this.volume = volume;
@@ -48,12 +48,7 @@ export class LogGenerator {
   /**
    * Generate logs for a task
    */
-  generateTaskLogs(
-    workflowName: string,
-    taskName: string,
-    status: string,
-    durationSeconds?: number
-  ): string {
+  generateTaskLogs(workflowName: string, taskName: string, status: string, durationSeconds?: number): string {
     faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
 
     const lines: string[] = [];
@@ -83,11 +78,7 @@ export class LogGenerator {
   /**
    * Generate logs for an entire workflow (all tasks interleaved)
    */
-  generateWorkflowLogs(
-    workflowName: string,
-    taskNames: string[],
-    status: string
-  ): string {
+  generateWorkflowLogs(workflowName: string, taskNames: string[], status: string): string {
     const allLines: { timestamp: Date; line: string }[] = [];
 
     for (const taskName of taskNames) {
@@ -136,12 +127,7 @@ export class LogGenerator {
     return lines;
   }
 
-  private generateMainLogs(
-    startTime: Date,
-    taskName: string,
-    count: number,
-    durationSeconds: number
-  ): string[] {
+  private generateMainLogs(startTime: Date, taskName: string, count: number, durationSeconds: number): string[] {
     const lines: string[] = [];
     const msPerLog = (durationSeconds * 1000) / count;
 
@@ -244,7 +230,12 @@ export class LogGenerator {
 
     return [
       this.formatLogLine(errorTime, "ERROR", taskName, errorMsg),
-      this.formatLogLine(new Date(errorTime.getTime() + 100), "ERROR", taskName, `Process exited with code ${faker.helpers.arrayElement([1, 137, 139])}`),
+      this.formatLogLine(
+        new Date(errorTime.getTime() + 100),
+        "ERROR",
+        taskName,
+        `Process exited with code ${faker.helpers.arrayElement([1, 137, 139])}`,
+      ),
       this.formatLogLine(new Date(errorTime.getTime() + 200), "INFO", taskName, "[osmo] Task failed"),
     ];
   }

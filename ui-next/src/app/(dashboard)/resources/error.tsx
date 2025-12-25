@@ -16,16 +16,10 @@ import { logError } from "@/lib/logger";
 
 /**
  * Resources page error boundary.
- * 
+ *
  * Catches errors in /resources.
  */
-export default function ResourcesError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function ResourcesError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     logError("Resources error boundary caught:", error);
   }, [error]);
@@ -35,9 +29,7 @@ export default function ResourcesError({
       {/* Header preserved */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          View and filter resources across all pools
-        </p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">View and filter resources across all pools</p>
       </div>
 
       {/* Error card */}
@@ -46,7 +38,7 @@ export default function ResourcesError({
           <h2 className="mb-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             Resources unavailable
           </h2>
-          
+
           <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
             We couldn&apos;t fetch the resource list. Give it another shot.
           </p>
@@ -58,13 +50,16 @@ export default function ResourcesError({
         </div>
 
         <div className="flex justify-center gap-3">
-          <Button onClick={reset} className="gap-2">
+          <Button
+            onClick={reset}
+            className="gap-2"
+          >
             <RefreshCw className="h-4 w-4" />
             Try again
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.location.href = "/"}
+            onClick={() => (window.location.href = "/")}
             className="gap-2"
           >
             <Home className="h-4 w-4" />

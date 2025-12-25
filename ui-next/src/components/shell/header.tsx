@@ -43,7 +43,11 @@ export function Header() {
         </Button>
 
         {/* Mobile search button */}
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+        >
           <Search className="h-4 w-4" />
           <span className="sr-only">Search</span>
         </Button>
@@ -54,14 +58,21 @@ export function Header() {
         {isAuthenticated && user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+              >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--nvidia-green)] text-sm font-medium text-black">
                   {user.initials}
                 </div>
                 <span className="sr-only">User menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent
+              align="end"
+              className="w-56"
+            >
               <div className="px-2 py-1.5">
                 <p className="text-sm font-medium">{user.name}</p>
                 <p className="text-xs text-zinc-500">{user.email}</p>

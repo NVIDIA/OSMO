@@ -7,13 +7,7 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import Link from "next/link";
-import {
-  FlaskConical,
-  GitBranch,
-  HelpCircle,
-  LayoutList,
-  Palette,
-} from "lucide-react";
+import { FlaskConical, GitBranch, HelpCircle, LayoutList, Palette } from "lucide-react";
 
 /**
  * Development Pages Index
@@ -43,7 +37,7 @@ const devPages = [
   {
     title: "Status Explainers",
     href: "/dev/workflows-mock/explain",
-    description: "\"Why isn't it running?\" and failure explanation UIs",
+    description: '"Why isn\'t it running?" and failure explanation UIs',
     icon: HelpCircle,
   },
   {
@@ -51,7 +45,7 @@ const devPages = [
     href: "/dev/dag-vertical",
     description: "Vertical top-to-bottom DAG with timeline view",
     icon: GitBranch,
-  }
+  },
 ];
 
 export default function DevIndexPage() {
@@ -63,20 +57,16 @@ export default function DevIndexPage() {
           <FlaskConical className="h-6 w-6 text-purple-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Development Pages
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Design exploration, prototypes, and experimental features
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Development Pages</h1>
+          <p className="text-sm text-muted-foreground">Design exploration, prototypes, and experimental features</p>
         </div>
       </div>
 
       {/* Warning */}
       <div className="mb-8 p-4 rounded-lg border border-amber-500/30 bg-amber-500/5">
         <p className="text-sm text-amber-200">
-          <strong>Note:</strong> These pages are for development only and use
-          mock data. They should be removed or hidden in production.
+          <strong>Note:</strong> These pages are for development only and use mock data. They should be removed or
+          hidden in production.
         </p>
       </div>
 
@@ -96,9 +86,7 @@ export default function DevIndexPage() {
                 <h2 className="font-semibold text-foreground group-hover:text-primary transition-colors">
                   {page.title}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {page.description}
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">{page.description}</p>
               </div>
             </div>
           </Link>
@@ -107,12 +95,10 @@ export default function DevIndexPage() {
 
       {/* Footer */}
       <div className="mt-12 pt-8 border-t border-border">
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">
-          Adding New Dev Pages
-        </h3>
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">Adding New Dev Pages</h3>
         <p className="text-sm text-muted-foreground">
-          Create a new folder under <code className="bg-muted px-1 py-0.5 rounded">/dev</code> and
-          add it to the <code className="bg-muted px-1 py-0.5 rounded">devPages</code> array in this file.
+          Create a new folder under <code className="bg-muted px-1 py-0.5 rounded">/dev</code> and add it to the{" "}
+          <code className="bg-muted px-1 py-0.5 rounded">devPages</code> array in this file.
         </p>
       </div>
     </div>

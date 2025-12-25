@@ -59,7 +59,12 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
         memory: { used: acc.memory.used + r.memory.used, total: acc.memory.total + r.memory.total },
         storage: { used: acc.storage.used + r.storage.used, total: acc.storage.total + r.storage.total },
       }),
-      { gpu: { used: 0, total: 0 }, cpu: { used: 0, total: 0 }, memory: { used: 0, total: 0 }, storage: { used: 0, total: 0 } }
+      {
+        gpu: { used: 0, total: 0 },
+        cpu: { used: 0, total: 0 },
+        memory: { used: 0, total: 0 },
+        storage: { used: 0, total: 0 },
+      },
     );
   }, [resources]);
 
@@ -70,7 +75,7 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
   // Format helper for each metric type
   const formatMetric = (
     m: { used: number; total: number },
-    isBytes: boolean
+    isBytes: boolean,
   ): { freeValue: string; usedValue: string; totalValue: string; unit: string } => {
     if (isBytes) {
       const free = m.total - m.used;
@@ -110,19 +115,19 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
           "grid gap-2 transition-all duration-200",
           forceCompact
             ? "grid-cols-4" // Forced compact: always 4 col inline layout
-            : "grid-cols-2 @[500px]:gap-3 @[500px]:grid-cols-4" // Responsive
+            : "grid-cols-2 @[500px]:gap-3 @[500px]:grid-cols-4", // Responsive
         )}
       >
         {metrics.map((item, i) => {
           const formatted = formatMetric(item.value, item.isBytes);
           const displayValue = displayMode === "free" ? formatted.freeValue : formatted.usedValue;
-          
+
           return (
             <div
               key={i}
               className={cn(
                 "group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200",
-                forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3"
+                forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3",
               )}
             >
               {/* Compact mode: single row with icon + value */}
@@ -130,7 +135,7 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
               <div
                 className={cn(
                   "flex items-center gap-2 transition-all duration-200",
-                  !forceCompact && "@[500px]:flex-col @[500px]:items-start @[500px]:gap-0"
+                  !forceCompact && "@[500px]:flex-col @[500px]:items-start @[500px]:gap-0",
                 )}
               >
                 {/* Icon + Label */}
@@ -153,7 +158,7 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
                   <span
                     className={cn(
                       "font-semibold tabular-nums text-zinc-900 dark:text-zinc-100",
-                      forceCompact ? "text-sm @[700px]:text-base" : "text-xl"
+                      forceCompact ? "text-sm @[700px]:text-base" : "text-xl",
                     )}
                   >
                     {displayValue}
@@ -163,7 +168,7 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
                     <span
                       className={cn(
                         "text-sm text-zinc-400 dark:text-zinc-500",
-                        forceCompact && "hidden @[600px]:inline"
+                        forceCompact && "hidden @[600px]:inline",
                       )}
                     >
                       / {formatted.totalValue}
@@ -171,15 +176,13 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
                   )}
                   {/* Unit */}
                   {formatted.unit && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-0.5">
-                      {formatted.unit}
-                    </span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-0.5">{formatted.unit}</span>
                   )}
                   {/* "free"/"used" label: always show in full mode, show at @[700px] in compact */}
                   <span
                     className={cn(
                       "text-xs text-zinc-400 dark:text-zinc-500 ml-1",
-                      forceCompact && "hidden @[700px]:inline"
+                      forceCompact && "hidden @[700px]:inline",
                     )}
                   >
                     {displayMode === "free" ? "free" : "used"}

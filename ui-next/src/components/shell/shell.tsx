@@ -63,9 +63,7 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
             WebkitOverflowScrolling: "touch",
           }}
         >
-          <Suspense fallback={<MainContentSkeleton />}>
-            {children}
-          </Suspense>
+          <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
         </main>
       </div>
     </div>
@@ -88,7 +86,10 @@ function MainContentSkeleton() {
       <div className="flex-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4">
+            <div
+              key={i}
+              className="flex items-center gap-4"
+            >
               <div className="h-10 flex-1 skeleton-shimmer rounded" />
             </div>
           ))}

@@ -175,12 +175,10 @@ export async function fetchPaginatedAllResources(
   params: {
     pools?: string[];
     platforms?: string[];
-  } & PaginationParams
+  } & PaginationParams,
 ): Promise<PaginatedResourcesResult> {
-  return fetchPaginatedResources(
-    { ...params, all_pools: true },
-    () =>
-      getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown)
+  return fetchPaginatedResources({ ...params, all_pools: true }, () =>
+    getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown),
   );
 }
 
@@ -198,10 +196,7 @@ export { invalidateResourcesCache };
  *
  * Issue: BACKEND_TODOS.md#7
  */
-function extractPoolMemberships(
-  data: unknown,
-  resourceName: string
-): PoolMembership[] {
+function extractPoolMemberships(data: unknown, resourceName: string): PoolMembership[] {
   let backendResources: ResourcesResponse["resources"] = [];
   try {
     const parsed = typeof data === "string" ? JSON.parse(data) : data;
@@ -244,7 +239,7 @@ function extractPoolMemberships(
 export function useResourceDetail(
   resource: Resource | null,
   /** Pool context - used to determine initial selected pool */
-  contextPool?: string
+  contextPool?: string,
 ) {
   // Fetch pool memberships for consistent UI across all entry points
   const resourcesQuery = useGetResourcesApiResourcesGet(
@@ -254,7 +249,7 @@ export function useResourceDetail(
         enabled: !!resource?.name,
         staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
       },
-    }
+    },
   );
 
   // Fetch all pools to get platform configs for task configuration display
@@ -265,7 +260,7 @@ export function useResourceDetail(
         enabled: !!resource?.name,
         staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
       },
-    }
+    },
   );
 
   const result = useMemo(() => {
@@ -290,14 +285,10 @@ export function useResourceDetail(
     }
 
     // Get unique pool names, always sorted alphabetically
-    const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) =>
-      a.localeCompare(b)
-    );
+    const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) => a.localeCompare(b));
 
     // Initial pool: if context pool exists and is valid, use it; otherwise first alphabetically
-    const initialPool = contextPool && pools.includes(contextPool)
-      ? contextPool
-      : pools[0] ?? null;
+    const initialPool = contextPool && pools.includes(contextPool) ? contextPool : (pools[0] ?? null);
 
     // Build task config for each pool
     const taskConfigByPool: Record<string, TaskConfig> = {};
@@ -323,10 +314,8 @@ export function useResourceDetail(
     }
 
     // Legacy support: primaryPool and taskConfig for backward compatibility
-    const primaryPool = contextPool && pools.includes(contextPool)
-      ? contextPool
-      : null;
-    const taskConfig = initialPool ? taskConfigByPool[initialPool] ?? null : null;
+    const primaryPool = contextPool && pools.includes(contextPool) ? contextPool : null;
+    const taskConfig = initialPool ? (taskConfigByPool[initialPool] ?? null) : null;
 
     return { pools, initialPool, taskConfigByPool, primaryPool, taskConfig };
   }, [resource, resourcesQuery.data, poolsQuery.data, contextPool]);
