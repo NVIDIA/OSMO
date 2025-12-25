@@ -312,7 +312,6 @@ src/
     │   └── fetcher.ts      # Auth-aware fetch wrapper
     ├── auth/               # Authentication logic
     ├── constants/          # Roles, headers, storage keys
-    ├── performance.ts      # Performance optimization hooks
     └── styles.ts           # Shared Tailwind patterns
 ```
 
@@ -853,20 +852,6 @@ Available in `globals.css` for performance-critical components:
 .scroll-optimized   /* Optimized scrolling */
 .virtual-item       /* For virtualized list items */
 .skeleton-shimmer   /* GPU-accelerated loading animation */
-```
-
-### Performance Hooks
-
-Available in `@/lib/performance.ts`:
-
-```typescript
-import {
-  useDebounce,           // Debounce values
-  useDebouncedCallback,  // Debounce functions
-  useInView,             // Lazy load when visible
-  useScrollPosition,     // RAF-throttled scroll tracking
-  usePrefersReducedMotion, // Respect a11y preferences
-} from "@/lib/performance";
 ```
 
 ### React Query Configuration

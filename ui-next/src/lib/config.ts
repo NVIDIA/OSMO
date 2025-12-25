@@ -63,22 +63,6 @@ export function isSslEnabled(): boolean {
   return !isLocalhost;
 }
 
-/**
- * Get the full API base URL.
- */
-export function getApiBaseUrl(): string {
-  const scheme = isSslEnabled() ? "https" : "http";
-  return `${scheme}://${getApiHostname()}`;
-}
-
-/**
- * Get the full auth base URL.
- */
-export function getAuthBaseUrl(): string {
-  const scheme = isSslEnabled() ? "https" : "http";
-  return `${scheme}://${getAuthHostname()}`;
-}
-
 // =============================================================================
 // Auth Configuration
 // =============================================================================

@@ -46,12 +46,6 @@ export const text = {
 // Interactive Patterns
 // =============================================================================
 
-/** Focus ring for interactive elements */
-export const focus = {
-  ring: "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  visible: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-} as const;
-
 /** Clear/dismiss button style */
 export const clearButton =
   "rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300";
@@ -97,25 +91,6 @@ export const chip = {
   /** Dashed "action" chip (e.g., show more) */
   action:
     "border-dashed border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-300",
-} as const;
-
-// =============================================================================
-// Alert/Message Patterns
-// =============================================================================
-
-export const alert = {
-  warning: {
-    container: "rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30",
-    icon: "text-amber-600 dark:text-amber-400",
-    title: "font-medium text-amber-800 dark:text-amber-200",
-    body: "text-sm text-amber-700 dark:text-amber-300",
-  },
-  info: {
-    container: "rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30",
-    icon: "text-blue-600 dark:text-blue-400",
-    title: "font-medium text-blue-800 dark:text-blue-200",
-    body: "text-sm text-blue-700 dark:text-blue-300",
-  },
 } as const;
 
 // =============================================================================
