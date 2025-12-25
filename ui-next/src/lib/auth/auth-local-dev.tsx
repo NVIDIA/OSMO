@@ -26,15 +26,14 @@ function parseCookieString(cookieStr: string): {
   let str = cookieStr.trim();
 
   // Remove surrounding quotes
-  if ((str.startsWith('"') && str.endsWith('"')) ||
-      (str.startsWith("'") && str.endsWith("'"))) {
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
     str = str.slice(1, -1);
   }
 
   const { ID_TOKEN, BEARER_TOKEN, REFRESH_TOKEN } = StorageKeys;
 
   // Check for JWT (3 dot-separated parts)
-  if (str.split('.').length === 3 && !str.includes('=')) {
+  if (str.split(".").length === 3 && !str.includes("=")) {
     return { idToken: str };
   }
 
@@ -121,7 +120,9 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
       {/* Instructions */}
       <div className="w-full space-y-4">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">1</span>
+          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
+            1
+          </span>
           <span>Run in browser console (F12):</span>
         </div>
 
@@ -138,13 +139,18 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
         </button>
 
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">2</span>
+          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
+            2
+          </span>
           <span>Paste the result:</span>
         </div>
 
         <textarea
           value={tokenInput}
-          onChange={(e) => { setTokenInput(e.target.value); setError(""); }}
+          onChange={(e) => {
+            setTokenInput(e.target.value);
+            setError("");
+          }}
           placeholder="Paste cookie string..."
           rows={2}
           autoComplete="off"

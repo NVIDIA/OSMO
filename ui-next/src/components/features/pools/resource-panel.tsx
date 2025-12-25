@@ -45,17 +45,11 @@ interface ResourcePanelProps {
  * - Focus is trapped within the panel while open
  * - Focus is restored to the triggering element when closed
  */
-export function ResourcePanel({
-  resource,
-  poolName,
-  onClose,
-  restoreFocusRef,
-  fallbackFocusRef,
-}: ResourcePanelProps) {
+export function ResourcePanel({ resource, poolName, onClose, restoreFocusRef, fallbackFocusRef }: ResourcePanelProps) {
   // All business logic is encapsulated in the adapter hook
   const { pools, initialPool, taskConfigByPool, isLoadingPools, error, refetch } = useResourceDetail(
     resource,
-    poolName // Pass context pool to determine initial selection
+    poolName, // Pass context pool to determine initial selection
   );
 
   if (!resource) return null;
@@ -111,7 +105,7 @@ function ResourcePanelContent({
   const [selectedPool, setSelectedPool] = useState<string | null>(initialPool);
 
   // Get task config for selected pool
-  const taskConfig = selectedPool ? taskConfigByPool[selectedPool] ?? null : null;
+  const taskConfig = selectedPool ? (taskConfigByPool[selectedPool] ?? null) : null;
 
   // Refs for focus management
   const panelRef = useRef<HTMLElement>(null);
@@ -202,19 +196,22 @@ function ResourcePanelContent({
         <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
             <div className="flex items-center gap-2">
-              <h2 id="resource-panel-title" className="text-lg font-semibold">{resource.name}</h2>
+              <h2
+                id="resource-panel-title"
+                className="text-lg font-semibold"
+              >
+                {resource.name}
+              </h2>
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-xs font-medium",
-                  getResourceAllocationTypeDisplay(resource.resourceType).className
+                  getResourceAllocationTypeDisplay(resource.resourceType).className,
                 )}
               >
                 {getResourceAllocationTypeDisplay(resource.resourceType).label}
               </span>
             </div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {resource.platform}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{resource.platform}</p>
           </div>
           <Button
             ref={closeButtonRef}
@@ -223,7 +220,10 @@ function ResourcePanelContent({
             onClick={onClose}
             aria-label="Close resource panel"
           >
-            <X className="h-4 w-4" aria-hidden="true" />
+            <X
+              className="h-4 w-4"
+              aria-hidden="true"
+            />
           </Button>
         </div>
 
@@ -233,33 +233,43 @@ function ResourcePanelContent({
           <div className="space-y-6 border-b border-zinc-200 p-6 dark:border-zinc-800">
             {/* Resource Capacity */}
             <section>
-              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Capacity
-              </h3>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">Capacity</h3>
               <div className="space-y-4">
-                <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
-                <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
-                <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} isBytes />
-                <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} isBytes />
+                <CapacityBar
+                  label="GPU"
+                  used={resource.gpu.used}
+                  total={resource.gpu.total}
+                />
+                <CapacityBar
+                  label="CPU"
+                  used={resource.cpu.used}
+                  total={resource.cpu.total}
+                />
+                <CapacityBar
+                  label="Memory"
+                  used={resource.memory.used}
+                  total={resource.memory.total}
+                  isBytes
+                />
+                <CapacityBar
+                  label="Storage"
+                  used={resource.storage.used}
+                  total={resource.storage.total}
+                  isBytes
+                />
               </div>
             </section>
 
             {/* Resource Info */}
             <section>
-              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Resource Info
-              </h3>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">Resource Info</h3>
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
                 <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Backend
-                  </span>
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">Backend</span>
                   <span className="text-sm font-medium">{resource.backend}</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Hostname
-                  </span>
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">Hostname</span>
                   <span className="text-sm font-medium">{resource.hostname}</span>
                 </div>
               </div>
@@ -268,9 +278,7 @@ function ResourcePanelContent({
             {/* Conditions if any */}
             {resource.conditions.length > 0 && (
               <section>
-                <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                  Conditions
-                </h3>
+                <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">Conditions</h3>
                 <div className="flex flex-wrap gap-2">
                   {resource.conditions.map((condition, idx) => (
                     <span
@@ -288,9 +296,7 @@ function ResourcePanelContent({
           {/* Pool-Specific Section */}
           <div className="p-6">
             <section>
-              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Pool Configuration
-              </h3>
+              <h3 className="mb-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">Pool Configuration</h3>
 
               {/* Error loading pool data - shown in context where data would appear */}
               {error ? (
@@ -307,16 +313,12 @@ function ResourcePanelContent({
                   <div className="h-16 rounded bg-zinc-200 dark:bg-zinc-800" />
                 </div>
               ) : pools.length === 0 ? (
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  This resource is not a member of any pool.
-                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">This resource is not a member of any pool.</p>
               ) : pools.length === 1 ? (
                 // Single pool - flat styling
                 <div>
                   <div className="mb-4 border-b border-zinc-200 pb-2 dark:border-zinc-700">
-                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                      {pools[0]}
-                    </span>
+                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{pools[0]}</span>
                   </div>
                   {taskConfig ? (
                     <TaskConfigContent config={taskConfig} />
@@ -390,7 +392,10 @@ function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
   }, [selectedPool]);
 
   return (
-    <div className="relative border-b border-zinc-200 dark:border-zinc-700" ref={tabsRef}>
+    <div
+      className="relative border-b border-zinc-200 dark:border-zinc-700"
+      ref={tabsRef}
+    >
       <div className="flex">
         {pools.map((pool) => (
           <button
@@ -401,7 +406,7 @@ function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
               "px-4 py-2 text-sm font-medium transition-colors",
               pool === selectedPool
                 ? "text-emerald-600 dark:text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300",
             )}
           >
             {pool}
@@ -431,27 +436,29 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Boolean flags */}
       <div className="space-y-1">
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            Host Network Allowed
-          </span>
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">Host Network Allowed</span>
           <BooleanIndicator value={config.hostNetworkAllowed} />
         </div>
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            Privileged Mode Allowed
-          </span>
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">Privileged Mode Allowed</span>
           <BooleanIndicator value={config.privilegedAllowed} />
         </div>
       </div>
 
       {/* Default Mounts */}
       {config.defaultMounts.length > 0 && (
-        <MountsList title="Default Mounts" mounts={config.defaultMounts} />
+        <MountsList
+          title="Default Mounts"
+          mounts={config.defaultMounts}
+        />
       )}
 
       {/* Allowed Mounts */}
       {config.allowedMounts.length > 0 && (
-        <MountsList title="Allowed Mounts" mounts={config.allowedMounts} />
+        <MountsList
+          title="Allowed Mounts"
+          mounts={config.allowedMounts}
+        />
       )}
     </div>
   );
@@ -466,9 +473,7 @@ function BooleanIndicator({ value }: { value: boolean }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 text-sm",
-        value
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-zinc-400 dark:text-zinc-500"
+        value ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500",
       )}
     >
       {value ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}

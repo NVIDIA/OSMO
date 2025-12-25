@@ -57,10 +57,7 @@ function parseNumber(value: string | number | undefined | null): number {
 // Ideal: Backend returns typed resource fields
 // =============================================================================
 
-function getFieldValue(
-  fields: Record<string, unknown> | undefined,
-  key: string
-): number {
+function getFieldValue(fields: Record<string, unknown> | undefined, key: string): number {
   if (!fields) return 0;
   const value = fields[key];
   if (typeof value === "number") return Math.floor(value);
@@ -125,7 +122,7 @@ function transformPlatformConfig(
     privileged_allowed?: boolean;
     allowed_mounts?: string[];
     default_mounts?: string[];
-  }
+  },
 ): PlatformConfig {
   return {
     description: platform.description,
@@ -175,9 +172,7 @@ export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
     return { pools: [] };
   }
 
-  const pools = response.node_sets.flatMap((nodeSet) =>
-    (nodeSet.pools ?? []).map(transformPool)
-  );
+  const pools = response.node_sets.flatMap((nodeSet) => (nodeSet.pools ?? []).map(transformPool));
 
   return { pools };
 }
@@ -185,10 +180,7 @@ export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
 /**
  * Extract a single pool from the response.
  */
-export function transformPoolDetail(
-  rawResponse: unknown,
-  poolName: string
-): Pool | null {
+export function transformPoolDetail(rawResponse: unknown, poolName: string): Pool | null {
   const response = rawResponse as PoolResponse | undefined;
 
   if (!response?.node_sets) return null;
@@ -219,11 +211,7 @@ type UnitConversion = "none" | "kibToGiB" | "bytesToGiB";
  * Issue: backend_todo.md#6-memory-and-storage-values-need-conversion
  * We convert to GiB here so UI can display consistently.
  */
-function extractCapacity(
-  resource: ResourcesEntry,
-  key: string,
-  conversion: UnitConversion = "none"
-): ResourceCapacity {
+function extractCapacity(resource: ResourcesEntry, key: string, conversion: UnitConversion = "none"): ResourceCapacity {
   const allocatable = resource.allocatable_fields as Record<string, unknown> | undefined;
   const usage = resource.usage_fields as Record<string, unknown> | undefined;
 
@@ -263,11 +251,7 @@ function parsePoolMemberships(backendResource: ResourcesEntry): PoolMembership[]
 /**
  * Transform backend ResourcesEntry to ideal Resource type.
  */
-function transformResource(
-  backendResource: ResourcesEntry,
-  resourceName: string,
-  platform: string
-): Resource {
+function transformResource(backendResource: ResourcesEntry, resourceName: string, platform: string): Resource {
   return {
     hostname: backendResource.hostname ?? "",
     name: resourceName,
@@ -276,7 +260,7 @@ function transformResource(
     backend: backendResource.backend ?? "",
     gpu: extractCapacity(backendResource, "gpu"),
     cpu: extractCapacity(backendResource, "cpu"),
-    memory: extractCapacity(backendResource, "memory", "kibToGiB"),   // Memory is in KiB
+    memory: extractCapacity(backendResource, "memory", "kibToGiB"), // Memory is in KiB
     storage: extractCapacity(backendResource, "storage", "bytesToGiB"), // Storage is in bytes
     conditions: backendResource.conditions ?? [],
     poolMemberships: parsePoolMemberships(backendResource),
@@ -289,10 +273,7 @@ function transformResource(
  * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
  * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
  */
-export function transformResourcesResponse(
-  rawResponse: unknown,
-  poolName: string
-): PoolResourcesResponse {
+export function transformResourcesResponse(rawResponse: unknown, poolName: string): PoolResourcesResponse {
   // Cast to actual type (backend returns this, but OpenAPI types it wrong)
   const response = rawResponse as ResourcesResponse | undefined;
 
@@ -357,9 +338,7 @@ export function transformVersionResponse(rawResponse: unknown): Version | null {
  * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
  * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
  */
-export function transformAllResourcesResponse(
-  rawResponse: unknown
-): AllResourcesResponse {
+export function transformAllResourcesResponse(rawResponse: unknown): AllResourcesResponse {
   // Cast to actual type (backend returns this, but OpenAPI types it wrong)
   const response = rawResponse as ResourcesResponse | undefined;
 

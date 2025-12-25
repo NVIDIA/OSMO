@@ -59,8 +59,7 @@ function createQueryClient() {
           // For other errors, don't retry (fail fast)
           return false;
         },
-        retryDelay: (attemptIndex) =>
-          Math.min(1000 * 2 ** attemptIndex, QUERY_MAX_RETRY_DELAY_MS),
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, QUERY_MAX_RETRY_DELAY_MS),
       },
       mutations: {
         // Retry failed mutations once
