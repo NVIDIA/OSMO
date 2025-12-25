@@ -131,7 +131,6 @@ export default function ResourcesPage() {
                       onChange={toggleResourceType}
                     />
                   )}
-
                 </FilterBar>
               }
               summaryContent={
