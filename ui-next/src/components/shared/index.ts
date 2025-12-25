@@ -28,6 +28,3 @@ export { ErrorDetails } from "./error-details";
 
 // Adaptive summary cards (CSS container query responsive)
 export { AdaptiveSummary } from "./resource-summary-card";
-
-// Data table container with collapsible controls panel
-export { DataTableContainer } from "./data-table-container";
