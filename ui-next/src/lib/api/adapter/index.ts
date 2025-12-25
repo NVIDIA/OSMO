@@ -37,9 +37,10 @@ export {
   useAllResources,
   useVersion,
   useResourceDetail,
-  // Resource fetchers
+  // Resource fetchers and cache utilities
   fetchResources,
   invalidateResourcesCache,
+  getResourceFilterOptions,
 } from "./hooks";
 
 // Pagination types

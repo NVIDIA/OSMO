@@ -18,7 +18,8 @@ export default function ResourcesPage() {
     pools,
     platforms,
     resourceTypes,
-    filteredResources,
+    resources,
+    filteredCount,
     totalCount,
     search,
     setSearch,
@@ -71,7 +72,8 @@ export default function ResourcesPage() {
         {!error && (
           <div className="min-h-0 flex-1">
             <ResourceTable
-              resources={filteredResources}
+              resources={resources}
+              filteredCount={filteredCount}
               totalCount={totalCount}
               isLoading={isLoading}
               showPoolsColumn
@@ -144,7 +146,7 @@ export default function ResourcesPage() {
               }
               summaryContent={
                 <AdaptiveSummary
-                  resources={filteredResources}
+                  resources={resources}
                   displayMode={displayMode}
                   isLoading={isLoading}
                 />

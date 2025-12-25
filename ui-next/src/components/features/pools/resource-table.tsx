@@ -21,7 +21,7 @@ import {
   cloneElement,
   startTransition,
 } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
 import {
   Filter,
   Pin,
@@ -56,7 +56,9 @@ interface SortState {
 interface ResourceTableProps {
   /** Array of resources to display */
   resources: Resource[];
-  /** Total count of resources before filtering (for "X of Y" display) */
+  /** Count matching current filters (the "X" in "X of Y") */
+  filteredCount?: number;
+  /** Total count before filters (the "Y" in "X of Y") */
   totalCount?: number;
   /** Show loading skeleton */
   isLoading?: boolean;
@@ -115,6 +117,7 @@ const HEADER_HEIGHT = 41; // pixels
 
 export function ResourceTable({
   resources,
+  filteredCount,
   totalCount,
   isLoading = false,
   showPoolsColumn = false,
@@ -437,8 +440,8 @@ export function ResourceTable({
                 <span className="text-zinc-300 dark:text-zinc-600">·</span>
                 <span className="text-xs text-zinc-400 dark:text-zinc-500">
                   {/* Show "X of Y" when filters are active, otherwise just total */}
-                  {filterCount > 0 && totalCount !== undefined
-                    ? `${resources.length} of ${totalCount}`
+                  {filterCount > 0 && filteredCount !== undefined && totalCount !== undefined
+                    ? `${filteredCount} of ${totalCount}`
                     : `${totalCount ?? resources.length}`}
                 </span>
                 <span className="ml-auto text-zinc-400">
@@ -693,12 +696,75 @@ const TableContent = memo(function TableContent({
   totalCount?: number;
 }) {
   "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
+
+  // Custom observeElementRect that uses RAF instead of flushSync to avoid React 18+ conflicts
+  // This prevents "flushSync was called from inside a lifecycle method" errors
+  const observeElementRectRAF = useCallback(
+    (
+      instance: Virtualizer<HTMLDivElement, Element>,
+      cb: (rect: { width: number; height: number }) => void,
+    ) => {
+      const element = instance.scrollElement;
+      if (!element) return;
+
+      // Report initial size
+      const { width, height } = element.getBoundingClientRect();
+      cb({ width: Math.round(width), height: Math.round(height) });
+
+      // Observe resize changes using RAF instead of flushSync
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (entry) {
+          // Use RAF to defer the callback and avoid flushSync during render
+          requestAnimationFrame(() => {
+            const { width: w, height: h } = entry.contentRect;
+            cb({ width: Math.round(w), height: Math.round(h) });
+          });
+        }
+      });
+
+      observer.observe(element);
+      return () => observer.unobserve(element);
+    },
+    [],
+  );
+
+  // Custom observeElementOffset that avoids flushSync
+  const observeElementOffsetRAF = useCallback(
+    (instance: Virtualizer<HTMLDivElement, Element>, cb: (offset: number) => void) => {
+      const element = instance.scrollElement;
+      if (!element) return;
+
+      // Report initial offset
+      cb(element.scrollTop);
+
+      // Use passive scroll listener with RAF batching
+      let rafId: number | null = null;
+      const onScroll = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          cb(element.scrollTop);
+        });
+      };
+
+      element.addEventListener("scroll", onScroll, { passive: true });
+      return () => {
+        element.removeEventListener("scroll", onScroll);
+        if (rafId !== null) cancelAnimationFrame(rafId);
+      };
+    },
+    [],
+  );
+
   // eslint-disable-next-line react-hooks/incompatible-library -- intentionally opted out above
   const rowVirtualizer = useVirtualizer({
     count: resources.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 5,
+    observeElementRect: observeElementRectRAF,
+    observeElementOffset: observeElementOffsetRAF,
   });
 
   // Reset measurements when row height changes
@@ -782,93 +848,95 @@ const TableContent = memo(function TableContent({
   }
 
   return (
-    <div
-      role="rowgroup"
-      style={{
-        height: rowVirtualizer.getTotalSize(),
-        position: "relative",
-        contain: "strict",
-        // Isolate paint operations
-        isolation: "isolate",
-      }}
-    >
-      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-        const resource = resources[virtualRow.index];
-        return (
-          <div
-            key={virtualRow.key}
-            role="row"
-            tabIndex={0}
-            onClick={(e) => onRowClick(resource, e.currentTarget)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onRowClick(resource, e.currentTarget);
-              }
-            }}
-            className="virtual-item"
-            style={{
-              height: virtualRow.size,
-              // GPU-accelerated transform instead of top positioning
-              transform: `translate3d(0, ${virtualRow.start}px, 0)`,
-            }}
-          >
+    <>
+      <div
+        role="rowgroup"
+        style={{
+          height: rowVirtualizer.getTotalSize(),
+          position: "relative",
+          contain: "strict",
+          // Isolate paint operations
+          isolation: "isolate",
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const resource = resources[virtualRow.index];
+          return (
             <div
-              className="grid h-full cursor-pointer items-center gap-0 border-b border-zinc-100 text-sm transition-[background-color] duration-150 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--nvidia-green)] dark:border-zinc-800/50 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
-              style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
+              key={virtualRow.key}
+              role="row"
+              tabIndex={0}
+              onClick={(e) => onRowClick(resource, e.currentTarget)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onRowClick(resource, e.currentTarget);
+                }
+              }}
+              className="virtual-item"
+              style={{
+                height: virtualRow.size,
+                // GPU-accelerated transform instead of top positioning
+                transform: `translate3d(0, ${virtualRow.start}px, 0)`,
+              }}
             >
-              <div className="truncate px-4 font-medium text-zinc-900 dark:text-zinc-100">{resource.name}</div>
-              {showPoolsColumn && (
-                <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">
-                  {resource.poolMemberships[0]?.pool ?? "—"}
-                  {resource.poolMemberships.length > 1 && (
-                    <span className="ml-1 text-xs text-zinc-400">+{resource.poolMemberships.length - 1}</span>
-                  )}
+              <div
+                className="grid h-full cursor-pointer items-center gap-0 border-b border-zinc-100 text-sm transition-[background-color] duration-150 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--nvidia-green)] dark:border-zinc-800/50 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
+                style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
+              >
+                <div className="truncate px-4 font-medium text-zinc-900 dark:text-zinc-100">{resource.name}</div>
+                {showPoolsColumn && (
+                  <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">
+                    {resource.poolMemberships[0]?.pool ?? "—"}
+                    {resource.poolMemberships.length > 1 && (
+                      <span className="ml-1 text-xs text-zinc-400">+{resource.poolMemberships.length - 1}</span>
+                    )}
+                  </div>
+                )}
+                <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">{resource.platform}</div>
+                <div className="whitespace-nowrap px-4 text-right tabular-nums">
+                  <CapacityCell
+                    used={resource.gpu.used}
+                    total={resource.gpu.total}
+                    mode={displayMode}
+                  />
                 </div>
-              )}
-              <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">{resource.platform}</div>
-              <div className="whitespace-nowrap px-4 text-right tabular-nums">
-                <CapacityCell
-                  used={resource.gpu.used}
-                  total={resource.gpu.total}
-                  mode={displayMode}
-                />
-              </div>
-              <div className="whitespace-nowrap px-4 text-right tabular-nums">
-                <CapacityCell
-                  used={resource.cpu.used}
-                  total={resource.cpu.total}
-                  mode={displayMode}
-                />
-              </div>
-              <div className="whitespace-nowrap px-4 text-right tabular-nums">
-                <CapacityCell
-                  used={resource.memory.used}
-                  total={resource.memory.total}
-                  isBytes
-                  mode={displayMode}
-                />
-              </div>
-              <div className="whitespace-nowrap px-4 text-right tabular-nums">
-                <CapacityCell
-                  used={resource.storage.used}
-                  total={resource.storage.total}
-                  isBytes
-                  mode={displayMode}
-                />
+                <div className="whitespace-nowrap px-4 text-right tabular-nums">
+                  <CapacityCell
+                    used={resource.cpu.used}
+                    total={resource.cpu.total}
+                    mode={displayMode}
+                  />
+                </div>
+                <div className="whitespace-nowrap px-4 text-right tabular-nums">
+                  <CapacityCell
+                    used={resource.memory.used}
+                    total={resource.memory.total}
+                    isBytes
+                    mode={displayMode}
+                  />
+                </div>
+                <div className="whitespace-nowrap px-4 text-right tabular-nums">
+                  <CapacityCell
+                    used={resource.storage.used}
+                    total={resource.storage.total}
+                    isBytes
+                    mode={displayMode}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
-      {/* Loading indicator for infinite scroll */}
+          );
+        })}
+      </div>
+      {/* Loading/end indicator - outside virtualized container to be visible */}
       <LoadingMoreIndicator
         isLoading={isFetchingNextPage}
         hasMore={hasNextPage}
         loadedCount={resources.length}
         totalCount={totalCount}
       />
-    </div>
+    </>
   );
 });
 
