@@ -17,22 +17,23 @@
  * - Filter state management (pools, platforms, search, resource type)
  * - Infinite scroll controls (hasNextPage, fetchNextPage, etc.)
  *
- * Performance optimizations:
- * - Server-side pagination reduces initial load time
- * - useDeferredValue for non-blocking filter updates
- * - useCallback for stable function references
- * - Query key includes all filter params for cache coherence
+ * This hook demonstrates the composition pattern using:
+ * - lib/pagination for infinite scroll primitives
+ * - lib/filters for filter state management
+ *
+ * The same pattern can be used for workflows, tasks, pools, etc.
  */
 
 "use client";
 
-import { useState, useMemo, useCallback, useDeferredValue, useTransition } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { fetchPaginatedAllResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
 import { useInfiniteDataTable } from "@/lib/pagination";
+import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
-import type { ActiveFilter, AllResourcesFilterType, ResourceDisplayMode } from "./types";
+import type { AllResourcesFilterType, ResourceDisplayMode } from "./types";
 
 // =============================================================================
 // Types
@@ -73,8 +74,8 @@ export interface UseInfiniteResourcesReturn {
   setDisplayMode: (mode: ResourceDisplayMode) => void;
 
   // Active filters (for chips display)
-  activeFilters: ActiveFilter<AllResourcesFilterType>[];
-  removeFilter: (filter: ActiveFilter<AllResourcesFilterType>) => void;
+  activeFilters: { type: AllResourcesFilterType; value: string; label: string }[];
+  removeFilter: (filter: { type: AllResourcesFilterType; value: string; label: string }) => void;
   clearAllFilters: () => void;
   hasActiveFilter: boolean;
   filterCount: number;
@@ -101,26 +102,22 @@ function isBackendResourceType(value: string): value is BackendResourceType {
 }
 
 export function useInfiniteResources(): UseInfiniteResourcesReturn {
-  // Local filter state
-  const [search, setSearchState] = useState("");
-  const [selectedPools, setSelectedPools] = useState<Set<string>>(new Set());
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
-  const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<BackendResourceType>>(new Set());
+  // ==========================================================================
+  // Filter State (using generic filter primitives)
+  // ==========================================================================
 
-  // Deferred search for non-blocking updates during typing
-  const deferredSearch = useDeferredValue(search);
+  // Search with deferred value for non-blocking updates
+  const search = useDeferredSearch();
 
-  // Transition for filter updates - keeps UI responsive
-  const [, startFilterTransition] = useTransition();
+  // Set-based filters
+  const poolFilter = useSetFilter<string>();
+  const platformFilter = useSetFilter<string>();
+  const resourceTypeFilter = useSetFilter<BackendResourceType>({ singleSelect: true });
 
-  // Wrapped setSearch to use deferred updates
-  const setSearch = useCallback((value: string) => {
-    startFilterTransition(() => {
-      setSearchState(value);
-    });
-  }, []);
+  // ==========================================================================
+  // Display Mode (persisted to localStorage)
+  // ==========================================================================
 
-  // Resource display mode (persisted to localStorage)
   const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
@@ -136,18 +133,22 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
     localStorage.setItem(StorageKeys.RESOURCE_DISPLAY_MODE, mode);
   }, []);
 
-  // Build query key that includes all filter params
+  // ==========================================================================
+  // Infinite Pagination
+  // ==========================================================================
+
+  // Build query key that includes all server-side filter params
   // When filters change, query key changes → pagination resets automatically
   const queryKey = useMemo(
     () => [
       "resources",
       "infinite",
       {
-        pools: Array.from(selectedPools).sort(),
-        platforms: Array.from(selectedPlatforms).sort(),
+        pools: Array.from(poolFilter.selected).sort(),
+        platforms: Array.from(platformFilter.selected).sort(),
       },
     ],
-    [selectedPools, selectedPlatforms],
+    [poolFilter.selected, platformFilter.selected],
   );
 
   // Use infinite pagination
@@ -168,14 +169,18 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
       return fetchPaginatedAllResources(params);
     },
     params: {
-      pools: selectedPools.size > 0 ? Array.from(selectedPools) : undefined,
-      platforms: selectedPlatforms.size > 0 ? Array.from(selectedPlatforms) : undefined,
+      pools: poolFilter.hasSelection ? Array.from(poolFilter.selected) : undefined,
+      platforms: platformFilter.hasSelection ? Array.from(platformFilter.selected) : undefined,
     },
     config: {
       pageSize: 50,
       staleTime: 60_000,
     },
   });
+
+  // ==========================================================================
+  // Derived Data
+  // ==========================================================================
 
   // Extract unique pools and platforms from loaded resources
   const { pools, platforms } = useMemo(() => {
@@ -208,13 +213,13 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
     let result = allResources;
 
     // Filter by resource type (client-side)
-    if (selectedResourceTypes.size > 0) {
-      result = result.filter((resource) => selectedResourceTypes.has(resource.resourceType));
+    if (resourceTypeFilter.hasSelection) {
+      result = result.filter((resource) => resourceTypeFilter.selected.has(resource.resourceType));
     }
 
     // Filter by search (client-side, using deferred value for smooth typing)
-    if (deferredSearch.trim()) {
-      const query = deferredSearch.toLowerCase();
+    if (search.deferredValue.trim()) {
+      const query = search.deferredValue.toLowerCase();
       result = result.filter(
         (resource) =>
           resource.name.toLowerCase().includes(query) ||
@@ -225,142 +230,48 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
     }
 
     return result;
-  }, [allResources, deferredSearch, selectedResourceTypes]);
+  }, [allResources, search.deferredValue, resourceTypeFilter.selected, resourceTypeFilter.hasSelection]);
 
-  // Pool filter handlers
-  const togglePool = useCallback((pool: string) => {
-    setSelectedPools((prev) => {
-      const next = new Set(prev);
-      if (next.has(pool)) {
-        next.delete(pool);
-      } else {
-        next.add(pool);
-      }
-      return next;
-    });
-  }, []);
+  // ==========================================================================
+  // Active Filters (using generic active filters hook)
+  // ==========================================================================
 
-  const clearPoolFilter = useCallback(() => {
-    setSelectedPools(new Set());
-  }, []);
-
-  // Platform filter handlers
-  const togglePlatform = useCallback((platform: string) => {
-    setSelectedPlatforms((prev) => {
-      const next = new Set(prev);
-      if (next.has(platform)) {
-        next.delete(platform);
-      } else {
-        next.add(platform);
-      }
-      return next;
-    });
-  }, []);
-
-  const clearPlatformFilter = useCallback(() => {
-    setSelectedPlatforms(new Set());
-  }, []);
-
-  // Resource type filter handlers (single-select: selecting same type deselects)
-  const toggleResourceType = useCallback((type: BackendResourceType) => {
-    setSelectedResourceTypes((prev) => {
-      if (prev.has(type)) {
-        return new Set();
-      }
-      return new Set([type]);
-    });
-  }, []);
-
-  const clearResourceTypeFilter = useCallback(() => {
-    setSelectedResourceTypes(new Set());
-  }, []);
-
-  // Search handlers
-  const clearSearch = useCallback(() => setSearchState(""), []);
-
-  // Build active filters for chips display
-  const activeFilters = useMemo<ActiveFilter<AllResourcesFilterType>[]>(() => {
-    const filters: ActiveFilter<AllResourcesFilterType>[] = [];
-
-    if (search.trim()) {
-      filters.push({
+  const filterDefinitions = useMemo<FilterDefinition<AllResourcesFilterType>[]>(
+    () => [
+      {
         type: "search",
-        value: search,
-        label: `"${search}"`,
-      });
-    }
-
-    selectedPools.forEach((pool) => {
-      filters.push({
+        getValues: () => (search.value.trim() ? [search.value] : []),
+        getLabel: (v) => `"${v}"`,
+        remove: () => search.clear(),
+      },
+      {
         type: "pool",
-        value: pool,
-        label: pool,
-      });
-    });
-
-    selectedPlatforms.forEach((platform) => {
-      filters.push({
+        getValues: () => Array.from(poolFilter.selected),
+        remove: (v) => poolFilter.toggle(v),
+      },
+      {
         type: "platform",
-        value: platform,
-        label: platform,
-      });
-    });
-
-    selectedResourceTypes.forEach((type) => {
-      filters.push({
+        getValues: () => Array.from(platformFilter.selected),
+        remove: (v) => platformFilter.toggle(v),
+      },
+      {
         type: "resourceType",
-        value: type,
-        label: type,
-      });
-    });
+        getValues: () => Array.from(resourceTypeFilter.selected),
+        remove: (v) => {
+          if (isBackendResourceType(v)) {
+            resourceTypeFilter.toggle(v);
+          }
+        },
+      },
+    ],
+    [search, poolFilter, platformFilter, resourceTypeFilter],
+  );
 
-    return filters;
-  }, [search, selectedPools, selectedPlatforms, selectedResourceTypes]);
+  const activeFilters = useActiveFilters(filterDefinitions);
 
-  // Remove a specific filter
-  const removeFilter = useCallback((filter: ActiveFilter<AllResourcesFilterType>) => {
-    switch (filter.type) {
-      case "search":
-        setSearchState("");
-        break;
-      case "pool":
-        setSelectedPools((prev) => {
-          const next = new Set(prev);
-          next.delete(filter.value);
-          return next;
-        });
-        break;
-      case "platform":
-        setSelectedPlatforms((prev) => {
-          const next = new Set(prev);
-          next.delete(filter.value);
-          return next;
-        });
-        break;
-      case "resourceType": {
-        const resourceType = filter.value;
-        if (isBackendResourceType(resourceType)) {
-          setSelectedResourceTypes((prev) => {
-            const next = new Set(prev);
-            next.delete(resourceType);
-            return next;
-          });
-        }
-        break;
-      }
-    }
-  }, []);
-
-  // Clear all filters
-  const clearAllFilters = useCallback(() => {
-    setSearchState("");
-    setSelectedPools(new Set());
-    setSelectedPlatforms(new Set());
-    setSelectedResourceTypes(new Set());
-  }, []);
-
-  const hasActiveFilter =
-    selectedPools.size > 0 || selectedPlatforms.size > 0 || selectedResourceTypes.size > 0 || search.length > 0;
+  // ==========================================================================
+  // Return Interface
+  // ==========================================================================
 
   return {
     // Resource data
@@ -375,36 +286,36 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
     resourceTypes,
 
     // Search behavior
-    search,
-    setSearch,
-    clearSearch,
-    hasSearch: search.length > 0,
+    search: search.value,
+    setSearch: search.setValue,
+    clearSearch: search.clear,
+    hasSearch: search.hasValue,
 
     // Pool filter behavior
-    selectedPools,
-    togglePool,
-    clearPoolFilter,
+    selectedPools: poolFilter.selected,
+    togglePool: poolFilter.toggle,
+    clearPoolFilter: poolFilter.clear,
 
     // Platform filter behavior
-    selectedPlatforms,
-    togglePlatform,
-    clearPlatformFilter,
+    selectedPlatforms: platformFilter.selected,
+    togglePlatform: platformFilter.toggle,
+    clearPlatformFilter: platformFilter.clear,
 
     // Resource type filter behavior
-    selectedResourceTypes,
-    toggleResourceType,
-    clearResourceTypeFilter,
+    selectedResourceTypes: resourceTypeFilter.selected,
+    toggleResourceType: resourceTypeFilter.toggle,
+    clearResourceTypeFilter: resourceTypeFilter.clear,
 
     // Resource display mode
     displayMode,
     setDisplayMode,
 
     // Active filters
-    activeFilters,
-    removeFilter,
-    clearAllFilters,
-    hasActiveFilter,
-    filterCount: activeFilters.length,
+    activeFilters: activeFilters.filters,
+    removeFilter: activeFilters.remove,
+    clearAllFilters: activeFilters.clearAll,
+    hasActiveFilter: activeFilters.hasFilters,
+    filterCount: activeFilters.count,
 
     // Infinite scroll state
     hasNextPage,

@@ -13,10 +13,18 @@
  *
  * These types are used across multiple hooks to ensure consistency
  * and type safety for common patterns like filtering.
+ *
+ * Generic filter primitives (ActiveFilter, SetFilterResult, etc.) are
+ * provided by lib/filters. This module defines domain-specific filter
+ * type unions for resources, pools, etc.
  */
 
+// Re-export generic ActiveFilter from lib/filters
+// This ensures a single source of truth for the type shape
+export type { ActiveFilter } from "@/lib/filters";
+
 // =============================================================================
-// Filter Types
+// Domain-Specific Filter Types
 // =============================================================================
 
 /**
@@ -41,19 +49,14 @@ export type PoolDetailFilterType = "search" | "platform" | "resourceType";
  */
 export type AllResourcesFilterType = "search" | "pool" | "platform" | "resourceType";
 
-/**
- * Represents an active filter that can be displayed and removed.
- *
- * @template T - The filter type union (defaults to all filter types)
- */
-export interface ActiveFilter<T extends FilterType = FilterType> {
-  /** The type of filter */
-  type: T;
-  /** The filter value (e.g., pool name, platform name, search term) */
-  value: string;
-  /** Human-readable label for display in filter chips */
-  label: string;
-}
+// =============================================================================
+// Future Entity Filter Types
+// =============================================================================
+// As new entity types are added (workflows, tasks, pools), define their
+// filter type unions here following the same pattern:
+//
+// export type WorkflowFilterType = "search" | "status" | "pool" | "user";
+// export type TaskFilterType = "search" | "status" | "workflow" | "resource";
 
 // =============================================================================
 // Display Mode Types
