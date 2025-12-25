@@ -17,7 +17,17 @@ import { logError } from "@/lib/logger";
 
 import { getAuthBackend } from "./auth-backend";
 import { parseJwtClaims, isTokenExpired } from "./token-utils";
-import { getStoredIdToken, hasStoredRefreshToken, clearStoredTokens, refreshStoredToken } from "./token-storage";
+import {
+  getStoredIdToken,
+  hasStoredRefreshToken,
+  clearStoredTokens,
+  refreshStoredToken,
+  isAuthSkipped,
+  setAuthSkipped,
+  setReturnUrl,
+  consumeReturnUrl,
+  clearAuthSessionState,
+} from "./token-storage";
 
 // Dynamic import: LocalDevLogin is only loaded in development, excluded from production bundle
 const LocalDevLogin = dynamic(() => import("./auth-local-dev").then((mod) => mod.LocalDevLogin), {
@@ -47,9 +57,6 @@ export function useAuth() {
   return auth;
 }
 
-const AUTH_SKIPPED_KEY = "osmo_auth_skipped";
-const RETURN_URL_KEY = "osmo_return_url";
-
 function getInitialState() {
   if (typeof window === "undefined") {
     return { idToken: "", hasRefreshToken: false, isSkipped: false };
@@ -58,7 +65,7 @@ function getInitialState() {
   return {
     idToken: getStoredIdToken(),
     hasRefreshToken: hasStoredRefreshToken(),
-    isSkipped: sessionStorage.getItem(AUTH_SKIPPED_KEY) === "true",
+    isSkipped: isAuthSkipped(),
   };
 }
 
@@ -121,10 +128,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     // (user may have navigated before clicking login)
     const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
 
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(RETURN_URL_KEY, currentPath);
-      sessionStorage.removeItem(AUTH_SKIPPED_KEY);
-    }
+    setReturnUrl(currentPath);
+    setAuthSkipped(false);
 
     if (isLocalDev()) {
       // Trigger re-render to show login UI
@@ -142,21 +147,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setIdToken(token);
     setHasRefreshToken(hasRefresh);
     setIsSkipped(false);
-    sessionStorage.removeItem(AUTH_SKIPPED_KEY);
+    setAuthSkipped(false);
 
-    const returnUrl = sessionStorage.getItem(RETURN_URL_KEY) || pathname;
-    sessionStorage.removeItem(RETURN_URL_KEY);
+    const returnUrl = consumeReturnUrl(pathname);
     router.push(returnUrl);
   };
 
   const skipAuth = () => {
-    sessionStorage.setItem(AUTH_SKIPPED_KEY, "true");
+    setAuthSkipped(true);
     setIsSkipped(true);
   };
 
   const logout = async () => {
     clearStoredTokens();
-    sessionStorage.removeItem(AUTH_SKIPPED_KEY);
+    clearAuthSessionState();
     setIdToken("");
     setHasRefreshToken(false);
     setIsSkipped(false);
