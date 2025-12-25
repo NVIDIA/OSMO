@@ -210,8 +210,8 @@ test.describe("Filter Integration", () => {
       // Search for a specific node
       await searchInput.fill("node-0050");
 
-      // Should find the matching node
-      await expect(page.getByText("node-0050")).toBeVisible({ timeout: 3000 });
+      // Should find the matching node (use exact: true to avoid matching the filter chip)
+      await expect(page.getByText("node-0050", { exact: true })).toBeVisible({ timeout: 3000 });
 
       // Clear search
       await searchInput.clear();
