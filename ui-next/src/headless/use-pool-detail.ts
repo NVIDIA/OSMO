@@ -8,10 +8,12 @@
  * See BACKEND_TODOS.md#10 for the optimization opportunity.
  */
 
-import { useState, useMemo, useCallback } from "react";
-import { usePool, usePoolResources, type Resource, type PlatformConfig } from "@/lib/api/adapter";
+import { useMemo, useCallback } from "react";
+import { matchesSearch } from "@/lib/utils";
+import { usePool, usePoolResources, deriveResourceTypes, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
-import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
+import { isBackendResourceType } from "@/lib/constants/ui";
+import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import type { ActiveFilter, PoolDetailFilterType, ResourceDisplayMode } from "./types";
 import { useDisplayMode } from "./use-display-mode";
 
@@ -72,11 +74,6 @@ export interface UsePoolDetailReturn {
 // Hook
 // =============================================================================
 
-/** Type guard for BackendResourceType */
-function isBackendResourceType(value: string): value is BackendResourceType {
-  return (ALL_RESOURCE_TYPES as readonly string[]).includes(value);
-}
-
 export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetailReturn {
   // Fetch data
   const { pool, isLoading: poolLoading, error: poolError, refetch: refetchPool } = usePool(poolName);
@@ -89,157 +86,102 @@ export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetail
     refetch: refetchResources,
   } = usePoolResources(poolName);
 
-  // Local state
-  const [search, setSearch] = useState("");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
-  const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<BackendResourceType>>(new Set());
+  // ==========================================================================
+  // Filter State (using shared filter primitives)
+  // ==========================================================================
+
+  // Search with deferred value for non-blocking updates
+  const search = useDeferredSearch();
+
+  // Set-based filters using shared hooks
+  const platformFilter = useSetFilter<string>();
+  const resourceTypeFilter = useSetFilter<BackendResourceType>({ singleSelect: true });
 
   // Resource display mode (persisted to localStorage)
   const { displayMode, setDisplayMode } = useDisplayMode();
 
+  // ==========================================================================
+  // Derived Data
+  // ==========================================================================
+
   // Derive resource types from all resources (not filtered)
-  const resourceTypes = useMemo(() => {
-    const types = new Set<BackendResourceType>();
-    resources.forEach((resource) => types.add(resource.resourceType));
-    return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
-  }, [resources]);
+  const resourceTypes = useMemo(() => deriveResourceTypes(resources), [resources]);
 
   // Filter resources by search, platform, AND resource type
   const filteredResources = useMemo(() => {
     let result = resources;
 
     // Filter by platform
-    if (selectedPlatforms.size > 0) {
-      result = result.filter((resource) => selectedPlatforms.has(resource.platform));
+    if (platformFilter.hasSelection) {
+      result = result.filter((resource) => platformFilter.selected.has(resource.platform));
     }
 
     // Filter by resource type
-    if (selectedResourceTypes.size > 0) {
-      result = result.filter((resource) => selectedResourceTypes.has(resource.resourceType));
+    if (resourceTypeFilter.hasSelection) {
+      result = result.filter((resource) => resourceTypeFilter.selected.has(resource.resourceType));
     }
 
-    // Filter by search
-    if (search.trim()) {
-      const query = search.toLowerCase();
-      result = result.filter(
-        (resource) =>
-          resource.name.toLowerCase().includes(query) ||
-          resource.platform.toLowerCase().includes(query) ||
-          resource.resourceType.toLowerCase().includes(query),
+    // Filter by search (use deferred value for non-blocking filtering)
+    if (search.deferredValue.trim()) {
+      result = result.filter((resource) =>
+        matchesSearch(resource, search.deferredValue, (r) => [r.name, r.platform, r.resourceType]),
       );
     }
 
     return result;
-  }, [resources, search, selectedPlatforms, selectedResourceTypes]);
+  }, [
+    resources,
+    search.deferredValue,
+    platformFilter.selected,
+    platformFilter.hasSelection,
+    resourceTypeFilter.selected,
+    resourceTypeFilter.hasSelection,
+  ]);
 
-  // Platform filter handlers
-  const togglePlatform = useCallback((platform: string) => {
-    setSelectedPlatforms((prev) => {
-      const next = new Set(prev);
-      if (next.has(platform)) {
-        next.delete(platform);
-      } else {
-        next.add(platform);
-      }
-      return next;
-    });
-  }, []);
+  // ==========================================================================
+  // Active Filters (using shared active filters hook)
+  // ==========================================================================
 
-  const clearPlatformFilter = useCallback(() => {
-    setSelectedPlatforms(new Set());
-  }, []);
-
-  // Resource type filter handlers (single-select: selecting same type deselects)
-  const toggleResourceType = useCallback((type: BackendResourceType) => {
-    setSelectedResourceTypes((prev) => {
-      // If already selected, deselect (clear)
-      if (prev.has(type)) {
-        return new Set();
-      }
-      // Otherwise, select only this one
-      return new Set([type]);
-    });
-  }, []);
-
-  const clearResourceTypeFilter = useCallback(() => {
-    setSelectedResourceTypes(new Set());
-  }, []);
-
-  // Search handlers
-  const clearSearch = useCallback(() => setSearch(""), []);
-
-  // Build active filters for chips display
-  const activeFilters = useMemo<ActiveFilter<PoolDetailFilterType>[]>(() => {
-    const filters: ActiveFilter<PoolDetailFilterType>[] = [];
-
-    if (search.trim()) {
-      filters.push({
+  const filterDefinitions = useMemo<FilterDefinition<PoolDetailFilterType>[]>(
+    () => [
+      {
         type: "search",
-        value: search,
-        label: `"${search}"`,
-      });
-    }
-
-    selectedPlatforms.forEach((platform) => {
-      filters.push({
+        getValues: () => (search.value.trim() ? [search.value] : []),
+        getLabel: (v) => `"${v}"`,
+        remove: () => search.clear(),
+      },
+      {
         type: "platform",
-        value: platform,
-        label: platform,
-      });
-    });
-
-    selectedResourceTypes.forEach((type) => {
-      filters.push({
+        getValues: () => Array.from(platformFilter.selected),
+        remove: (v) => platformFilter.toggle(v),
+      },
+      {
         type: "resourceType",
-        value: type,
-        label: type,
-      });
-    });
+        getValues: () => Array.from(resourceTypeFilter.selected),
+        remove: (v) => {
+          if (isBackendResourceType(v)) {
+            resourceTypeFilter.toggle(v);
+          }
+        },
+      },
+    ],
+    [search, platformFilter, resourceTypeFilter],
+  );
 
-    return filters;
-  }, [search, selectedPlatforms, selectedResourceTypes]);
+  const activeFiltersHook = useActiveFilters(filterDefinitions);
 
-  // Remove a specific filter
-  const removeFilter = useCallback((filter: ActiveFilter<PoolDetailFilterType>) => {
-    switch (filter.type) {
-      case "search":
-        setSearch("");
-        break;
-      case "platform":
-        setSelectedPlatforms((prev) => {
-          const next = new Set(prev);
-          next.delete(filter.value);
-          return next;
-        });
-        break;
-      case "resourceType": {
-        const resourceType = filter.value;
-        if (isBackendResourceType(resourceType)) {
-          setSelectedResourceTypes((prev) => {
-            const next = new Set(prev);
-            next.delete(resourceType);
-            return next;
-          });
-        }
-        break;
-      }
-    }
-  }, []);
+  // ==========================================================================
+  // Refetch
+  // ==========================================================================
 
-  // Clear all filters
-  const clearAllFilters = useCallback(() => {
-    setSearch("");
-    setSelectedPlatforms(new Set());
-    setSelectedResourceTypes(new Set());
-  }, []);
-
-  // Refetch all
   const refetch = useCallback(() => {
     refetchPool();
     refetchResources();
   }, [refetchPool, refetchResources]);
 
-  const hasActiveFilter = selectedPlatforms.size > 0 || selectedResourceTypes.size > 0 || search.length > 0;
+  // ==========================================================================
+  // Return Interface
+  // ==========================================================================
 
   return {
     // Pool data
@@ -255,31 +197,31 @@ export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetail
     filteredResourceCount: filteredResources.length,
 
     // Search behavior
-    search,
-    setSearch,
-    clearSearch,
-    hasSearch: search.length > 0,
+    search: search.value,
+    setSearch: search.setValue,
+    clearSearch: search.clear,
+    hasSearch: search.hasValue,
 
     // Platform filter behavior
-    selectedPlatforms,
-    togglePlatform,
-    clearPlatformFilter,
+    selectedPlatforms: platformFilter.selected,
+    togglePlatform: platformFilter.toggle,
+    clearPlatformFilter: platformFilter.clear,
 
     // Resource type filter behavior
-    selectedResourceTypes,
-    toggleResourceType,
-    clearResourceTypeFilter,
+    selectedResourceTypes: resourceTypeFilter.selected,
+    toggleResourceType: resourceTypeFilter.toggle,
+    clearResourceTypeFilter: resourceTypeFilter.clear,
 
     // Resource display mode
     displayMode,
     setDisplayMode,
 
     // Active filters
-    activeFilters,
-    removeFilter,
-    clearAllFilters,
-    hasActiveFilter,
-    filterCount: activeFilters.length,
+    activeFilters: activeFiltersHook.filters,
+    removeFilter: activeFiltersHook.remove,
+    clearAllFilters: activeFiltersHook.clearAll,
+    hasActiveFilter: activeFiltersHook.hasFilters,
+    filterCount: activeFiltersHook.count,
 
     // Query state
     isLoading: poolLoading || resourcesLoading,
