@@ -46,6 +46,12 @@ const devPages = [
     description: "\"Why isn't it running?\" and failure explanation UIs",
     icon: HelpCircle,
   },
+  {
+    title: "Vertical DAG",
+    href: "/dev/dag-vertical",
+    description: "Vertical top-to-bottom DAG with timeline view",
+    icon: GitBranch,
+  }
 ];
 
 export default function DevIndexPage() {
@@ -105,7 +111,7 @@ export default function DevIndexPage() {
           Adding New Dev Pages
         </h3>
         <p className="text-sm text-muted-foreground">
-          Create a new folder under <code className="bg-muted px-1 py-0.5 rounded">/dev</code> and 
+          Create a new folder under <code className="bg-muted px-1 py-0.5 rounded">/dev</code> and
           add it to the <code className="bg-muted px-1 py-0.5 rounded">devPages</code> array in this file.
         </p>
       </div>

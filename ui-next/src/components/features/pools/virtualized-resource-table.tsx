@@ -41,6 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ResourcePanel } from "./resource-panel";
+import { LoadingMoreIndicator } from "@/components/shared/loading-more-indicator";
 import type { Resource } from "@/lib/api/adapter";
 import type { ResourceDisplayMode } from "@/headless";
 
@@ -79,6 +80,14 @@ interface VirtualizedResourceTableProps {
   filterCount?: number;
   /** Collapse threshold (0-1). Default: 0.5 */
   collapseThreshold?: number;
+  
+  // === Infinite scroll props ===
+  /** Whether more data is available to load */
+  hasNextPage?: boolean;
+  /** Function to load next page (called when scrolling near end) */
+  onLoadMore?: () => void;
+  /** Whether currently loading more data */
+  isFetchingNextPage?: boolean;
 }
 
 // =============================================================================
@@ -127,6 +136,9 @@ export function VirtualizedResourceTable({
   summaryContent,
   filterCount = 0,
   collapseThreshold = 0.5,
+  hasNextPage = false,
+  onLoadMore,
+  isFetchingNextPage = false,
 }: VirtualizedResourceTableProps) {
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [compactMode, setCompactMode] = useState(false);
@@ -564,6 +576,10 @@ export function VirtualizedResourceTable({
               scrollRef={scrollRef}
               rowHeight={rowHeight}
               onRowClick={handleRowClick}
+              hasNextPage={hasNextPage}
+              onLoadMore={onLoadMore}
+              isFetchingNextPage={isFetchingNextPage}
+              totalCount={totalCount}
             />
           </div>
         </div>
@@ -662,6 +678,10 @@ const TableContent = memo(function TableContent({
   scrollRef,
   rowHeight,
   onRowClick,
+  hasNextPage = false,
+  onLoadMore,
+  isFetchingNextPage = false,
+  totalCount,
 }: {
   resources: Resource[];
   isLoading: boolean;
@@ -670,6 +690,10 @@ const TableContent = memo(function TableContent({
   scrollRef: React.RefObject<HTMLDivElement | null>;
   rowHeight: number;
   onRowClick: (resource: Resource, rowElement?: HTMLElement) => void;
+  hasNextPage?: boolean;
+  onLoadMore?: () => void;
+  isFetchingNextPage?: boolean;
+  totalCount?: number;
 }) {
   "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
   // eslint-disable-next-line react-hooks/incompatible-library -- intentionally opted out above
@@ -684,6 +708,28 @@ const TableContent = memo(function TableContent({
   useEffect(() => {
     rowVirtualizer.measure();
   }, [rowHeight, rowVirtualizer]);
+
+  // Trigger load more when scrolling near bottom
+  useEffect(() => {
+    if (!onLoadMore || !hasNextPage || isFetchingNextPage) return;
+
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const lastItem = virtualItems.at(-1);
+
+    if (!lastItem) return;
+
+    // Load more when within 10 items of end
+    const threshold = 10;
+    if (lastItem.index >= resources.length - threshold) {
+      onLoadMore();
+    }
+  }, [
+    rowVirtualizer,
+    resources.length,
+    hasNextPage,
+    isFetchingNextPage,
+    onLoadMore,
+  ]);
 
   if (isLoading) {
     return (
@@ -809,6 +855,13 @@ const TableContent = memo(function TableContent({
           </div>
         );
       })}
+      {/* Loading indicator for infinite scroll */}
+      <LoadingMoreIndicator
+        isLoading={isFetchingNextPage}
+        hasMore={hasNextPage}
+        loadedCount={resources.length}
+        totalCount={totalCount}
+      />
     </div>
   );
 });
