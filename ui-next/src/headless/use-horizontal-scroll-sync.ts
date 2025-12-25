@@ -12,16 +12,16 @@ import { useEffect, useRef } from "react";
 
 /**
  * Hook for synchronizing horizontal scroll between a header and content area.
- * 
+ *
  * When the content scrolls horizontally, the header follows.
  * Also tracks vertical scroll for shadow effects.
- * 
+ *
  * @returns Refs and scroll state
- * 
+ *
  * @example
  * ```tsx
  * const { headerRef, scrollRef, isScrolled } = useHorizontalScrollSync();
- * 
+ *
  * <div ref={headerRef} className={isScrolled && "shadow-md"}>Header</div>
  * <div ref={scrollRef}>Content</div>
  * ```
@@ -55,7 +55,7 @@ export function useHorizontalScrollSync() {
 /**
  * Hook for tracking vertical scroll state.
  * Returns a state boolean for whether content is scrolled.
- * 
+ *
  * @param scrollRef Ref to the scrollable container
  * @returns Whether the container is scrolled vertically
  */

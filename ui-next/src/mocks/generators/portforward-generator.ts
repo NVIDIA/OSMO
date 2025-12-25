@@ -60,11 +60,7 @@ const PORT_FORWARD_PATTERNS = {
     { port: 8000, service: "FastAPI" },
     { port: 7860, service: "Gradio" },
   ],
-  routerDomains: [
-    "pf.osmo.nvidia.com",
-    "tunnel.osmo.nvidia.com",
-    "access.osmo.nvidia.com",
-  ],
+  routerDomains: ["pf.osmo.nvidia.com", "tunnel.osmo.nvidia.com", "access.osmo.nvidia.com"],
 };
 
 // ============================================================================
@@ -82,11 +78,7 @@ export class PortForwardGenerator {
   /**
    * Create a new port forward session
    */
-  createSession(
-    workflowName: string,
-    taskName: string,
-    remotePort: number
-  ): GeneratedPortForwardResponse {
+  createSession(workflowName: string, taskName: string, remotePort: number): GeneratedPortForwardResponse {
     faker.seed(this.baseSeed + this.hashString(workflowName + taskName + remotePort));
 
     // Simulate occasional failures
@@ -141,9 +133,7 @@ export class PortForwardGenerator {
    * Get active sessions for a workflow
    */
   getWorkflowSessions(workflowName: string): GeneratedPortForwardSession[] {
-    return Array.from(this.activeSessions.values()).filter(
-      (s) => s.workflow_name === workflowName
-    );
+    return Array.from(this.activeSessions.values()).filter((s) => s.workflow_name === workflowName);
   }
 
   /**
@@ -169,10 +159,7 @@ export class PortForwardGenerator {
   /**
    * Generate a webserver/port forward response (for backward compatibility)
    */
-  generateWebserverResponse(
-    workflowName: string,
-    taskName: string
-  ): { router_address: string; session_key: string } {
+  generateWebserverResponse(workflowName: string, taskName: string): { router_address: string; session_key: string } {
     faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
 
     const routerDomain = faker.helpers.arrayElement(PORT_FORWARD_PATTERNS.routerDomains);

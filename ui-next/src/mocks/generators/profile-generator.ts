@@ -87,10 +87,10 @@ export class ProfileGenerator {
       created_at: faker.date.past({ years: 3 }).toISOString(),
       last_login: faker.date.recent({ days: 7 }).toISOString(),
       roles: faker.helpers.arrayElements(["user", "admin", "viewer"], { min: 1, max: 2 }),
-      teams: faker.helpers.arrayElements(
-        ["ml-platform", "training", "inference", "research", "sre"],
-        { min: 1, max: 3 }
-      ),
+      teams: faker.helpers.arrayElements(["ml-platform", "training", "inference", "research", "sre"], {
+        min: 1,
+        max: 3,
+      }),
     };
   }
 
@@ -103,9 +103,7 @@ export class ProfileGenerator {
     const pools = MOCK_CONFIG.pools.names;
 
     return {
-      default_pool: faker.datatype.boolean({ probability: 0.7 }) 
-        ? faker.helpers.arrayElement(pools) 
-        : null,
+      default_pool: faker.datatype.boolean({ probability: 0.7 }) ? faker.helpers.arrayElement(pools) : null,
       default_bucket: faker.datatype.boolean({ probability: 0.6 })
         ? faker.helpers.arrayElement(["osmo-artifacts", "osmo-checkpoints"])
         : null,
