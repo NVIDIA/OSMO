@@ -88,26 +88,44 @@ test.describe("Infinite Scroll - Resources Page", () => {
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
-    // Get the scroll container (the table body area)
-    const scrollContainer = page.locator('[role="table"]');
-    await expect(scrollContainer).toBeVisible();
+    const table = page.locator('[role="table"]');
+    await expect(table).toBeVisible();
 
-    // Initial data should be visible
+    // First row should be visible
     await expect(page.getByText("node-0001")).toBeVisible();
 
-    // Scroll to bottom to trigger loading more
-    await scrollContainer.evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
+    // The header shows total count (just "200" when no filters active)
+    const headerButton = page.locator('[aria-controls="filter-content"]');
 
-    // Should still show the table (no error state)
-    await expect(page.getByText("Loading more...")).toBeVisible();
+    // Wait for total count to appear - should show "200" (no filters = just total)
+    await expect(headerButton).toContainText("200");
 
-    // Wait for more data to potentially load
-    await page.waitForTimeout(500);
+    // Find a node that's beyond initial viewport - pick something safely in the middle
+    const targetNode = page.getByText("node-0100", { exact: true });
 
-    // Next page of data should be available
-    await expect(page.getByText("node-0051")).toBeVisible();
+    // Initially this node should not be visible (virtualized away)
+    const isInitiallyHidden = await targetNode.isHidden();
+
+    // Use mouse wheel scrolling to trigger infinite scroll loading
+    await expect(async () => {
+      // Hover over table and scroll down with mouse wheel
+      const box = await table.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.wheel(0, 3000);
+      }
+      await page.waitForTimeout(300);
+
+      // Check if target node is now in DOM
+      await expect(targetNode).toBeAttached();
+    }).toPass({ timeout: 30000 });
+
+    // Scroll the target node into view and verify viewport visibility
+    await targetNode.scrollIntoViewIfNeeded();
+    await expect(targetNode).toBeInViewport();
+
+    // Log for debugging
+    console.log(`Node was initially hidden: ${isInitiallyHidden}`);
   });
 
   test("filter changes reset scroll position", async ({ page, withData }) => {

@@ -436,9 +436,10 @@ export function ResourceTable({
                 )}
                 <span className="text-zinc-300 dark:text-zinc-600">·</span>
                 <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                  {totalCount !== undefined && totalCount !== resources.length
+                  {/* Show "X of Y" when filters are active, otherwise just total */}
+                  {filterCount > 0 && totalCount !== undefined
                     ? `${resources.length} of ${totalCount}`
-                    : `${resources.length}`}
+                    : `${totalCount ?? resources.length}`}
                 </span>
                 <span className="ml-auto text-zinc-400">
                   {effectiveCollapsed ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
