@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Server, Cpu, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { VirtualizedResourceTable, QuotaBar } from "@/components/features/pools";
+import { ResourceTable, QuotaBar } from "@/components/features/pools";
 import { FilterBar, ApiError, AdaptiveSummary } from "@/components/shared";
 import { usePoolDetail } from "@/headless";
 import { getPoolStatusDisplay } from "@/lib/constants/ui";
@@ -112,7 +112,7 @@ export default function PoolDetailPage() {
           </div>
 
           <div className="min-h-0 flex-1">
-            <VirtualizedResourceTable
+            <ResourceTable
               resources={filteredResources}
               totalCount={resourceCount}
               isLoading={isLoading}
