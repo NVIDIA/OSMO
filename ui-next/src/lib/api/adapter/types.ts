@@ -41,7 +41,7 @@ export interface PlatformConfig {
 export interface Pool {
   name: string;
   description: string;
-  status: PoolStatus;  // From generated.ts
+  status: PoolStatus; // From generated.ts
   quota: Quota;
   platforms: string[];
   /** Platform configurations keyed by platform name */
@@ -96,7 +96,7 @@ export interface Resource {
   /** Resource name (corresponds to Kubernetes node name) */
   name: string;
   platform: string;
-  resourceType: BackendResourceType;  // From generated.ts
+  resourceType: BackendResourceType; // From generated.ts
   backend: string;
   gpu: ResourceCapacity;
   cpu: ResourceCapacity;

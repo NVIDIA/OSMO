@@ -1,6 +1,6 @@
 /**
  * Token Storage
- * 
+ *
  * Abstracts token persistence. The storage mechanism is determined
  * by the environment configuration.
  */
@@ -19,7 +19,7 @@ export function getStoredIdToken(): string {
   if (typeof window === "undefined") return "";
 
   return isLocalDev()
-    ? localStorage.getItem(ID_TOKEN_KEY) ?? ""
+    ? (localStorage.getItem(ID_TOKEN_KEY) ?? "")
     : getCookieValue(ID_TOKEN_KEY) || getCookieValue(StorageKeys.BEARER_TOKEN) || "";
 }
 
@@ -29,9 +29,7 @@ export function getStoredIdToken(): string {
 export function getStoredRefreshToken(): string {
   if (typeof window === "undefined") return "";
 
-  return isLocalDev()
-    ? localStorage.getItem(REFRESH_TOKEN_KEY) ?? ""
-    : getCookieValue(REFRESH_TOKEN_KEY) || "";
+  return isLocalDev() ? (localStorage.getItem(REFRESH_TOKEN_KEY) ?? "") : getCookieValue(REFRESH_TOKEN_KEY) || "";
 }
 
 /**
@@ -78,7 +76,7 @@ export function clearStoredTokens(): void {
 /**
  * Refresh the token using the auth backend.
  * Returns new id_token on success, null on failure.
- * 
+ *
  * Only clears tokens if the refresh token is definitively invalid
  * (not on network errors which might be temporary).
  */

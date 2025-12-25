@@ -155,9 +155,8 @@ export class WorkflowGenerator {
       name,
       uuid: faker.string.uuid(),
       submitted_by: user,
-      cancelled_by: status === WorkflowStatus.FAILED_CANCELED
-        ? faker.helpers.arrayElement(this.config.patterns.users)
-        : undefined,
+      cancelled_by:
+        status === WorkflowStatus.FAILED_CANCELED ? faker.helpers.arrayElement(this.config.patterns.users) : undefined,
       status,
       priority,
       pool,
@@ -181,10 +180,7 @@ export class WorkflowGenerator {
    *
    * Efficient: Only generates items for the requested page.
    */
-  generatePage(
-    offset: number,
-    limit: number
-  ): { entries: MockWorkflow[]; total: number } {
+  generatePage(offset: number, limit: number): { entries: MockWorkflow[]; total: number } {
     const entries: MockWorkflow[] = [];
     const total = this.config.total;
 
@@ -259,14 +255,14 @@ export class WorkflowGenerator {
     const now = Date.now();
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
     // Newer workflows have higher indices (reverse order for typical list view)
-    const progress = 1 - (index / this.config.total);
+    const progress = 1 - index / this.config.total;
     const timestamp = thirtyDaysAgo + progress * (now - thirtyDaysAgo);
     return new Date(timestamp).toISOString();
   }
 
   private generateTiming(
     status: WorkflowStatus,
-    submitTime: string
+    submitTime: string,
   ): {
     startTime?: string;
     endTime?: string;
@@ -345,11 +341,7 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  private deriveGroupStatus(
-    workflowStatus: WorkflowStatus,
-    groupIndex: number,
-    totalGroups: number
-  ): TaskGroupStatus {
+  private deriveGroupStatus(workflowStatus: WorkflowStatus, groupIndex: number, totalGroups: number): TaskGroupStatus {
     if (workflowStatus === WorkflowStatus.COMPLETED) {
       return TaskGroupStatus.COMPLETED;
     }
@@ -386,11 +378,7 @@ export class WorkflowGenerator {
     return TaskGroupStatus.WAITING;
   }
 
-  private generateTask(
-    groupName: string,
-    taskIndex: number,
-    groupStatus: TaskGroupStatus
-  ): MockTask {
+  private generateTask(groupName: string, taskIndex: number, groupStatus: TaskGroupStatus): MockTask {
     const taskPatterns = MOCK_CONFIG.tasks;
     const name = `${groupName}-${taskIndex}`;
 
@@ -399,7 +387,11 @@ export class WorkflowGenerator {
     const memory = cpu * 4; // 4GB per CPU
     const storage = faker.helpers.arrayElement([10, 50, 100, 200]);
 
-    const notStartedStatuses: TaskGroupStatus[] = [TaskGroupStatus.WAITING, TaskGroupStatus.SUBMITTING, TaskGroupStatus.SCHEDULING];
+    const notStartedStatuses: TaskGroupStatus[] = [
+      TaskGroupStatus.WAITING,
+      TaskGroupStatus.SUBMITTING,
+      TaskGroupStatus.SCHEDULING,
+    ];
     const started = !notStartedStatuses.includes(groupStatus);
     const completed = groupStatus === TaskGroupStatus.COMPLETED || groupStatus.toString().startsWith("FAILED");
 
@@ -410,8 +402,11 @@ export class WorkflowGenerator {
       node: started ? this.generateNodeName() : undefined,
       start_time: started ? faker.date.recent({ days: 7 }).toISOString() : undefined,
       end_time: completed ? faker.date.recent({ days: 1 }).toISOString() : undefined,
-      exit_code: groupStatus === TaskGroupStatus.COMPLETED ? 0 : groupStatus.toString().startsWith("FAILED") ? 1 : undefined,
-      failure_message: groupStatus.toString().startsWith("FAILED") ? this.generateFailureMessage(groupStatus) : undefined,
+      exit_code:
+        groupStatus === TaskGroupStatus.COMPLETED ? 0 : groupStatus.toString().startsWith("FAILED") ? 1 : undefined,
+      failure_message: groupStatus.toString().startsWith("FAILED")
+        ? this.generateFailureMessage(groupStatus)
+        : undefined,
       storage,
       cpu,
       memory,

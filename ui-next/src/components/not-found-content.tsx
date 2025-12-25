@@ -26,9 +26,7 @@ export function NotFoundContent() {
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center text-center">
         {/* 404 - prominent */}
-        <h1 className="text-6xl font-black text-[var(--nvidia-green)] sm:text-7xl">
-          404
-        </h1>
+        <h1 className="text-6xl font-black text-[var(--nvidia-green)] sm:text-7xl">404</h1>
 
         {/* OSMO acronym subtitle */}
         <p className="mb-6 mt-2 text-2xl text-zinc-400 dark:text-zinc-500 sm:text-3xl">

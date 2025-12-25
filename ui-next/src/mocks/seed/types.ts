@@ -102,17 +102,17 @@ export interface WorkflowPatterns {
 export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   statusDistribution: {
     RUNNING: 0.25,
-    COMPLETED: 0.40,
-    FAILED: 0.10,
-    WAITING: 0.10,
+    COMPLETED: 0.4,
+    FAILED: 0.1,
+    WAITING: 0.1,
     PENDING: 0.05,
     SCHEDULING: 0.05,
     INITIALIZING: 0.05,
   },
   priorityDistribution: {
-    HIGH: 0.10,
-    NORMAL: 0.80,
-    LOW: 0.10,
+    HIGH: 0.1,
+    NORMAL: 0.8,
+    LOW: 0.1,
   },
   pools: [
     "dgx-cloud-us-west-2",
@@ -150,21 +150,44 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   ],
   namePatterns: {
     prefixes: [
-      "train", "eval", "infer", "finetune", "pretrain",
-      "benchmark", "test", "validate", "preprocess", "export",
-      "convert", "distill", "quantize", "prune", "optimize",
+      "train",
+      "eval",
+      "infer",
+      "finetune",
+      "pretrain",
+      "benchmark",
+      "test",
+      "validate",
+      "preprocess",
+      "export",
+      "convert",
+      "distill",
+      "quantize",
+      "prune",
+      "optimize",
     ],
     suffixes: [
-      "llama", "mistral", "gpt", "bert", "t5", "gemma",
-      "resnet", "vit", "clip", "whisper", "wav2vec",
-      "main", "dev", "prod", "exp", "v1", "v2",
+      "llama",
+      "mistral",
+      "gpt",
+      "bert",
+      "t5",
+      "gemma",
+      "resnet",
+      "vit",
+      "clip",
+      "whisper",
+      "wav2vec",
+      "main",
+      "dev",
+      "prod",
+      "exp",
+      "v1",
+      "v2",
     ],
   },
   groupPatterns: {
-    names: [
-      "data-prep", "train", "eval", "export", "validate",
-      "preprocess", "postprocess", "inference", "checkpoint",
-    ],
+    names: ["data-prep", "train", "eval", "export", "validate", "preprocess", "postprocess", "inference", "checkpoint"],
     tasksPerGroup: { min: 1, max: 8 },
     groupsPerWorkflow: { min: 1, max: 6 },
   },
@@ -174,11 +197,11 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   },
   failures: {
     typeDistribution: {
-      FAILED: 0.40,
+      FAILED: 0.4,
       FAILED_EXEC_TIMEOUT: 0.15,
       FAILED_IMAGE_PULL: 0.15,
-      FAILED_EVICTED: 0.10,
-      FAILED_PREEMPTED: 0.10,
+      FAILED_EVICTED: 0.1,
+      FAILED_PREEMPTED: 0.1,
       FAILED_QUEUE_TIMEOUT: 0.05,
       FAILED_UPSTREAM: 0.05,
     },
@@ -190,11 +213,7 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
         "RuntimeError: NCCL error",
         "Segmentation fault (core dumped)",
       ],
-      FAILED_EXEC_TIMEOUT: [
-        "Execution timeout exceeded (24h)",
-        "Task exceeded maximum runtime",
-        "Deadline exceeded",
-      ],
+      FAILED_EXEC_TIMEOUT: ["Execution timeout exceeded (24h)", "Task exceeded maximum runtime", "Deadline exceeded"],
       FAILED_IMAGE_PULL: [
         "ImagePullBackOff: unauthorized",
         "Failed to pull image: not found",
@@ -210,14 +229,8 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
         "Spot instance terminated",
         "Resource reclaimed for priority=HIGH",
       ],
-      FAILED_QUEUE_TIMEOUT: [
-        "Queue timeout exceeded (48h)",
-        "No resources available within timeout",
-      ],
-      FAILED_UPSTREAM: [
-        "Upstream task failed",
-        "Dependency task exited with error",
-      ],
+      FAILED_QUEUE_TIMEOUT: ["Queue timeout exceeded (48h)", "No resources available within timeout"],
+      FAILED_UPSTREAM: ["Upstream task failed", "Dependency task exited with error"],
     },
   },
 };
@@ -292,7 +305,7 @@ export const DEFAULT_RESOURCE_PATTERNS: ResourcePatterns = {
   cpuPerGpu: { min: 8, max: 32 },
   memoryPerGpu: { min: 64, max: 256 },
   statusDistribution: {
-    AVAILABLE: 0.50,
+    AVAILABLE: 0.5,
     IN_USE: 0.35,
     CORDONED: 0.05,
     DRAINING: 0.05,
@@ -332,9 +345,9 @@ export interface TaskPatterns {
 export const DEFAULT_TASK_PATTERNS: TaskPatterns = {
   statusDistribution: {
     RUNNING: 0.25,
-    COMPLETED: 0.40,
+    COMPLETED: 0.4,
     FAILED: 0.08,
-    WAITING: 0.10,
+    WAITING: 0.1,
     SCHEDULING: 0.07,
     INITIALIZING: 0.05,
     FAILED_IMAGE_PULL: 0.02,
@@ -429,16 +442,8 @@ export const DEFAULT_LOG_PATTERNS: LogPatterns = {
         "RuntimeError: CUDA error: out of memory",
         "torch.cuda.OutOfMemoryError",
       ],
-      NCCL: [
-        "RuntimeError: NCCL error",
-        "NCCL watchdog timeout",
-        "Connection timed out in NCCL",
-      ],
-      General: [
-        "RuntimeError: {message}",
-        "Exception: {message}",
-        "Process terminated with signal {signal}",
-      ],
+      NCCL: ["RuntimeError: NCCL error", "NCCL watchdog timeout", "Connection timed out in NCCL"],
+      General: ["RuntimeError: {message}", "Exception: {message}", "Process terminated with signal {signal}"],
     },
   },
   metrics: {
@@ -476,10 +481,7 @@ export const DEFAULT_EVENT_PATTERNS: EventPatterns = {
     scheduling: ["Scheduled", "SuccessfulCreate", "Pulling", "Pulled", "Created"],
     execution: ["Started", "Running", "Progressing"],
     completion: ["Completed", "Succeeded", "Terminated"],
-    failure: [
-      "Failed", "FailedScheduling", "BackOff", "OOMKilled",
-      "Evicted", "Preempted", "FailedMount", "Unhealthy",
-    ],
+    failure: ["Failed", "FailedScheduling", "BackOff", "OOMKilled", "Evicted", "Preempted", "FailedMount", "Unhealthy"],
   },
   messages: {
     Scheduled: ["Successfully assigned {namespace}/{pod} to {node}"],
@@ -493,10 +495,7 @@ export const DEFAULT_EVENT_PATTERNS: EventPatterns = {
     OOMKilled: ["Container {container} was OOMKilled"],
     Evicted: ["The node was low on resource: {resource}"],
     Preempted: ["Preempted by higher priority workload"],
-    FailedScheduling: [
-      "0/{total} nodes available: {reason}",
-      "Insufficient {resource}",
-    ],
+    FailedScheduling: ["0/{total} nodes available: {reason}", "Insufficient {resource}"],
     BackOff: ['Back-off pulling image "{image}"'],
   },
   sources: {
@@ -523,14 +522,7 @@ export const DEFAULT_IMAGE_PATTERNS: ImagePatterns = {
     "nvcr.io/nvidia/tritonserver",
     "nvcr.io/nvidia/cuda",
   ],
-  tags: [
-    "24.08-py3",
-    "24.07-py3",
-    "24.06-py3",
-    "24.05-py3",
-    "12.4.0-devel-ubuntu22.04",
-    "latest",
-  ],
+  tags: ["24.08-py3", "24.07-py3", "24.06-py3", "24.05-py3", "12.4.0-devel-ubuntu22.04", "latest"],
 };
 
 // ============================================================================

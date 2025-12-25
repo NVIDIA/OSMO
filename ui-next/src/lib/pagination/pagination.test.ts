@@ -17,11 +17,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  fetchPaginatedResources,
-  invalidateResourcesCache,
-  _getCacheState,
-} from "@/lib/api/adapter/pagination";
+import { fetchPaginatedResources, invalidateResourcesCache, _getCacheState } from "@/lib/api/adapter/pagination";
 import type { Resource } from "@/lib/api/adapter/types";
 
 // =============================================================================
@@ -76,10 +72,7 @@ describe("fetchPaginatedResources", () => {
     const mockResponse = createMockBackendResponse(100);
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
-    const result = await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    const result = await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(result.items).toHaveLength(20);
@@ -98,17 +91,11 @@ describe("fetchPaginatedResources", () => {
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
     // First page - triggers fetch
-    const page1 = await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    const page1 = await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
     // Second page - should use cache
-    const page2 = await fetchPaginatedResources(
-      { limit: 20, cursor: page1.nextCursor!, all_pools: true },
-      fetchFn
-    );
+    const page2 = await fetchPaginatedResources({ limit: 20, cursor: page1.nextCursor!, all_pools: true }, fetchFn);
     expect(fetchFn).toHaveBeenCalledTimes(1); // Still only 1 call
     expect(page2.items).toHaveLength(20);
     expect(page2.items[0].name).toBe("node-020"); // Starts after first page
@@ -119,18 +106,12 @@ describe("fetchPaginatedResources", () => {
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
     // First page
-    const page1 = await fetchPaginatedResources(
-      { limit: 30, offset: 0, all_pools: true },
-      fetchFn
-    );
+    const page1 = await fetchPaginatedResources({ limit: 30, offset: 0, all_pools: true }, fetchFn);
     expect(page1.hasMore).toBe(true);
     expect(page1.items).toHaveLength(30);
 
     // Second (last) page
-    const page2 = await fetchPaginatedResources(
-      { limit: 30, cursor: page1.nextCursor!, all_pools: true },
-      fetchFn
-    );
+    const page2 = await fetchPaginatedResources({ limit: 30, cursor: page1.nextCursor!, all_pools: true }, fetchFn);
     expect(page2.hasMore).toBe(false);
     expect(page2.items).toHaveLength(20); // Remaining items
   });
@@ -138,10 +119,7 @@ describe("fetchPaginatedResources", () => {
   it("handles empty response", async () => {
     const fetchFn = vi.fn().mockResolvedValue({ resources: [] });
 
-    const result = await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    const result = await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
 
     expect(result.items).toHaveLength(0);
     expect(result.hasMore).toBe(false);
@@ -153,20 +131,14 @@ describe("fetchPaginatedResources", () => {
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
     // First fetch
-    await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
     // Invalidate cache
     invalidateResourcesCache();
 
     // Should refetch
-    await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
@@ -175,16 +147,10 @@ describe("fetchPaginatedResources", () => {
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
     // First page to populate cache
-    await fetchPaginatedResources(
-      { limit: 25, offset: 0, all_pools: true },
-      fetchFn
-    );
+    await fetchPaginatedResources({ limit: 25, offset: 0, all_pools: true }, fetchFn);
 
     // Use offset instead of cursor
-    const page2 = await fetchPaginatedResources(
-      { limit: 25, offset: 25, all_pools: true },
-      fetchFn
-    );
+    const page2 = await fetchPaginatedResources({ limit: 25, offset: 25, all_pools: true }, fetchFn);
 
     expect(page2.items).toHaveLength(25);
     expect(page2.items[0].name).toBe("node-025");
@@ -194,10 +160,7 @@ describe("fetchPaginatedResources", () => {
     const mockResponse = createMockBackendResponse(10);
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
-    const result = await fetchPaginatedResources(
-      { limit: 10, offset: 0, all_pools: true },
-      fetchFn
-    );
+    const result = await fetchPaginatedResources({ limit: 10, offset: 0, all_pools: true }, fetchFn);
 
     expect(result.pools).toContain("pool-0");
     expect(result.pools).toContain("pool-1");
@@ -213,10 +176,7 @@ describe("invalidateResourcesCache", () => {
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
     // Populate cache
-    await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
 
     const beforeInvalidate = _getCacheState();
     expect(beforeInvalidate.isValid).toBe(true);
@@ -239,10 +199,7 @@ describe("cursor encoding/decoding", () => {
     const mockResponse = createMockBackendResponse(100);
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
-    const page1 = await fetchPaginatedResources(
-      { limit: 25, offset: 0, all_pools: true },
-      fetchFn
-    );
+    const page1 = await fetchPaginatedResources({ limit: 25, offset: 0, all_pools: true }, fetchFn);
 
     // Cursor should be base64 encoded "25"
     expect(page1.nextCursor).toBe(btoa("25"));
@@ -253,16 +210,10 @@ describe("cursor encoding/decoding", () => {
     const fetchFn = vi.fn().mockResolvedValue(mockResponse);
 
     // Populate cache
-    await fetchPaginatedResources(
-      { limit: 20, offset: 0, all_pools: true },
-      fetchFn
-    );
+    await fetchPaginatedResources({ limit: 20, offset: 0, all_pools: true }, fetchFn);
 
     // Invalid cursor should fallback to offset 0
-    const result = await fetchPaginatedResources(
-      { limit: 20, cursor: "invalid-cursor", all_pools: true },
-      fetchFn
-    );
+    const result = await fetchPaginatedResources({ limit: 20, cursor: "invalid-cursor", all_pools: true }, fetchFn);
 
     // Should still work (using offset 0 as fallback)
     expect(result.items).toBeDefined();

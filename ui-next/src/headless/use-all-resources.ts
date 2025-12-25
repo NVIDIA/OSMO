@@ -21,10 +21,7 @@
  */
 
 import { useState, useMemo, useCallback, useDeferredValue, useTransition } from "react";
-import {
-  useAllResources as useAllResourcesQuery,
-  type Resource,
-} from "@/lib/api/adapter";
+import { useAllResources as useAllResourcesQuery, type Resource } from "@/lib/api/adapter";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
@@ -92,14 +89,7 @@ function isBackendResourceType(value: string): value is BackendResourceType {
 
 export function useAllResources(): UseAllResourcesReturn {
   // Fetch data
-  const {
-    resources,
-    pools,
-    platforms,
-    isLoading,
-    error,
-    refetch,
-  } = useAllResourcesQuery();
+  const { resources, pools, platforms, isLoading, error, refetch } = useAllResourcesQuery();
 
   // Local state
   const [search, setSearchState] = useState("");
@@ -150,9 +140,7 @@ export function useAllResources(): UseAllResourcesReturn {
 
     // Filter by pools
     if (selectedPools.size > 0) {
-      result = result.filter((resource) =>
-        resource.poolMemberships.some((m) => selectedPools.has(m.pool))
-      );
+      result = result.filter((resource) => resource.poolMemberships.some((m) => selectedPools.has(m.pool)));
     }
 
     // Filter by platform
@@ -162,9 +150,7 @@ export function useAllResources(): UseAllResourcesReturn {
 
     // Filter by resource type
     if (selectedResourceTypes.size > 0) {
-      result = result.filter((resource) =>
-        selectedResourceTypes.has(resource.resourceType)
-      );
+      result = result.filter((resource) => selectedResourceTypes.has(resource.resourceType));
     }
 
     // Filter by search (using deferred value for smooth typing)
@@ -175,7 +161,7 @@ export function useAllResources(): UseAllResourcesReturn {
           resource.name.toLowerCase().includes(query) ||
           resource.platform.toLowerCase().includes(query) ||
           resource.resourceType.toLowerCase().includes(query) ||
-          resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query))
+          resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query)),
       );
     }
 
@@ -315,10 +301,7 @@ export function useAllResources(): UseAllResourcesReturn {
   }, []);
 
   const hasActiveFilter =
-    selectedPools.size > 0 ||
-    selectedPlatforms.size > 0 ||
-    selectedResourceTypes.size > 0 ||
-    search.length > 0;
+    selectedPools.size > 0 || selectedPlatforms.size > 0 || selectedResourceTypes.size > 0 || search.length > 0;
 
   return {
     // Resource data

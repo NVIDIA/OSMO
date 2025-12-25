@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth/auth-provider";
 import { hasAdminRole } from "@/lib/constants/roles";
 import { logWarn } from "@/lib/logger";
@@ -43,8 +38,7 @@ function getUserFromToken(idToken: string): User | null {
     const claims = JSON.parse(atob(parts[1]));
 
     const email = claims.email || claims.preferred_username || "";
-    const name =
-      claims.name || claims.given_name || email.split("@")[0] || "User";
+    const name = claims.name || claims.given_name || email.split("@")[0] || "User";
     const roles = claims.roles || [];
 
     return {
@@ -84,11 +78,7 @@ export function UserProvider({ children }: UserProviderProps) {
   // Loading when auth is loading
   const isLoading = authLoading;
 
-  return (
-    <UserContext.Provider value={{ user, isLoading }}>
-      {children}
-    </UserContext.Provider>
-  );
+  return <UserContext.Provider value={{ user, isLoading }}>{children}</UserContext.Provider>;
 }
 
 export function useUser() {

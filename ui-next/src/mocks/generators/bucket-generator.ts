@@ -119,10 +119,11 @@ export class BucketGenerator {
     faker.seed(this.config.baseSeed + index);
 
     const baseName = BUCKET_PATTERNS.names[index % BUCKET_PATTERNS.names.length];
-    const name = index < BUCKET_PATTERNS.names.length
-      ? baseName
-      : `${baseName}-${Math.floor(index / BUCKET_PATTERNS.names.length)}`;
-    
+    const name =
+      index < BUCKET_PATTERNS.names.length
+        ? baseName
+        : `${baseName}-${Math.floor(index / BUCKET_PATTERNS.names.length)}`;
+
     const provider = faker.helpers.arrayElement(BUCKET_PATTERNS.providers);
     const region = faker.helpers.arrayElement(BUCKET_PATTERNS.regions);
 
@@ -144,10 +145,7 @@ export class BucketGenerator {
   /**
    * Generate a page of buckets.
    */
-  generateBucketPage(
-    offset: number,
-    limit: number
-  ): { entries: GeneratedBucket[]; total: number } {
+  generateBucketPage(offset: number, limit: number): { entries: GeneratedBucket[]; total: number } {
     const entries: GeneratedBucket[] = [];
     const total = this.config.totalBuckets;
 
@@ -175,7 +173,7 @@ export class BucketGenerator {
     bucketName: string,
     workflowName: string,
     limit: number = 20,
-    offset: number = 0
+    offset: number = 0,
   ): GeneratedArtifactList {
     faker.seed(this.config.baseSeed + this.hashString(bucketName + workflowName));
 
@@ -190,7 +188,7 @@ export class BucketGenerator {
 
     for (let i = start; i < end; i++) {
       faker.seed(this.config.baseSeed + this.hashString(bucketName + workflowName) + i);
-      
+
       const type = types[i % types.length];
       const config = BUCKET_PATTERNS.artifactTypes[type];
       const ext = faker.helpers.arrayElement(config.extensions);
@@ -225,11 +223,7 @@ export class BucketGenerator {
     }
 
     // Common prefixes (subdirectories)
-    const commonPrefixes = [
-      `${prefix}checkpoints/`,
-      `${prefix}logs/`,
-      `${prefix}metrics/`,
-    ];
+    const commonPrefixes = [`${prefix}checkpoints/`, `${prefix}logs/`, `${prefix}metrics/`];
 
     return {
       bucket: bucketName,

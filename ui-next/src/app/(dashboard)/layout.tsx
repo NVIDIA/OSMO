@@ -10,16 +10,14 @@ import { Shell } from "@/components/shell";
 
 /**
  * Dashboard layout.
- * 
+ *
  * Error handling is automatic via Next.js error.tsx files:
  * - (dashboard)/error.tsx - Catches all dashboard errors
  * - (dashboard)/pools/error.tsx - Catches pool-specific errors
  * - (dashboard)/resources/error.tsx - Catches resource-specific errors
- * 
+ *
  * No manual ErrorBoundary wrapper needed!
  */
-export default function DashboardLayout(props: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout(props: { children: React.ReactNode }) {
   return <Shell>{props.children}</Shell>;
 }

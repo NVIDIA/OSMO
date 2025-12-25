@@ -49,7 +49,7 @@ export class EventGenerator {
   constructor(
     patterns: EventPatterns = MOCK_CONFIG.events,
     volume: MockVolume = MOCK_CONFIG.volume,
-    baseSeed: number = 22222
+    baseSeed: number = 22222,
   ) {
     this.patterns = patterns;
     this.volume = volume;
@@ -64,7 +64,7 @@ export class EventGenerator {
     status: string,
     submitTime: string,
     startTime?: string,
-    endTime?: string
+    endTime?: string,
   ): GeneratedEvent[] {
     faker.seed(this.baseSeed + this.hashString(workflowName));
 
@@ -79,8 +79,8 @@ export class EventGenerator {
         "Normal",
         "Scheduled",
         workflowName,
-        "Workflow"
-      )
+        "Workflow",
+      ),
     );
 
     // If started
@@ -94,15 +94,15 @@ export class EventGenerator {
           "Normal",
           "Pulled",
           workflowName,
-          "Workflow"
+          "Workflow",
         ),
         this.createEvent(
           new Date(currentTime.getTime() + faker.number.int({ min: 30000, max: 60000 })),
           "Normal",
           "Started",
           workflowName,
-          "Workflow"
-        )
+          "Workflow",
+        ),
       );
     }
 
@@ -123,7 +123,8 @@ export class EventGenerator {
     for (let i = 0; i < Math.max(0, extraEvents); i++) {
       const phase = faker.helpers.arrayElement(["scheduling", "execution"] as const);
       const reason = faker.helpers.arrayElement(this.patterns.reasons[phase]);
-      const type = phase === "execution" ? "Normal" : faker.helpers.arrayElement(this.patterns.types) as "Normal" | "Warning";
+      const type =
+        phase === "execution" ? "Normal" : (faker.helpers.arrayElement(this.patterns.types) as "Normal" | "Warning");
 
       events.push(
         this.createEvent(
@@ -131,15 +132,13 @@ export class EventGenerator {
           type,
           reason,
           workflowName,
-          "Workflow"
-        )
+          "Workflow",
+        ),
       );
     }
 
     // Sort by timestamp
-    events.sort(
-      (a, b) => new Date(a.first_timestamp).getTime() - new Date(b.first_timestamp).getTime()
-    );
+    events.sort((a, b) => new Date(a.first_timestamp).getTime() - new Date(b.first_timestamp).getTime());
 
     return events;
   }
@@ -152,7 +151,7 @@ export class EventGenerator {
     taskName: string,
     status: string,
     startTime?: string,
-    endTime?: string
+    endTime?: string,
   ): GeneratedEvent[] {
     faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
 
@@ -167,8 +166,8 @@ export class EventGenerator {
         "Normal",
         "Scheduled",
         objectName,
-        "Task"
-      )
+        "Task",
+      ),
     );
 
     // If started
@@ -178,7 +177,7 @@ export class EventGenerator {
         this.createEvent(start, "Normal", "Pulling", objectName, "Task"),
         this.createEvent(new Date(start.getTime() + 5000), "Normal", "Pulled", objectName, "Task"),
         this.createEvent(new Date(start.getTime() + 6000), "Normal", "Created", objectName, "Task"),
-        this.createEvent(new Date(start.getTime() + 7000), "Normal", "Started", objectName, "Task")
+        this.createEvent(new Date(start.getTime() + 7000), "Normal", "Started", objectName, "Task"),
       );
     }
 
@@ -205,12 +204,10 @@ export class EventGenerator {
     reason: string,
     objectName: string,
     kind: string,
-    failureType?: string
+    failureType?: string,
   ): GeneratedEvent {
     const messages = this.patterns.messages[reason];
-    let message = messages
-      ? faker.helpers.arrayElement(messages)
-      : `${reason} for ${objectName}`;
+    let message = messages ? faker.helpers.arrayElement(messages) : `${reason} for ${objectName}`;
 
     // Replace placeholders
     message = message
@@ -231,7 +228,10 @@ export class EventGenerator {
       message,
       source: {
         component: faker.helpers.arrayElement(this.patterns.sources.components),
-        host: kind === "Task" ? `dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}` : undefined,
+        host:
+          kind === "Task"
+            ? `dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}`
+            : undefined,
       },
       first_timestamp: time.toISOString(),
       last_timestamp: time.toISOString(),

@@ -25,8 +25,7 @@ export const worker = setupWorker(...handlers);
 export async function initMocking(): Promise<void> {
   const useMock =
     process.env.NEXT_PUBLIC_MOCK_API === "true" ||
-    (typeof window !== "undefined" &&
-      localStorage.getItem("osmo_use_mock_data") === "true");
+    (typeof window !== "undefined" && localStorage.getItem("osmo_use_mock_data") === "true");
 
   if (!useMock) {
     return;
@@ -39,7 +38,7 @@ export async function initMocking(): Promise<void> {
 
   console.log(
     "%c🔶 Mock API enabled",
-    "background: #f59e0b; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;"
+    "background: #f59e0b; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;",
   );
   console.log("   Requests are being intercepted and served from testdata/");
 }

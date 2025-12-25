@@ -78,19 +78,13 @@ export interface UsePoolsListReturn {
 // =============================================================================
 
 /** Order in which status groups are displayed */
-const STATUS_ORDER: PoolStatusType[] = [
-  PoolStatus.ONLINE,
-  PoolStatus.MAINTENANCE,
-  PoolStatus.OFFLINE,
-];
+const STATUS_ORDER: PoolStatusType[] = [PoolStatus.ONLINE, PoolStatus.MAINTENANCE, PoolStatus.OFFLINE];
 
 // =============================================================================
 // Hook
 // =============================================================================
 
-export function usePoolsList(
-  options: UsePoolsListOptions = {}
-): UsePoolsListReturn {
+export function usePoolsList(options: UsePoolsListOptions = {}): UsePoolsListReturn {
   const { defaultPoolName } = options;
 
   // Fetch pools from API
@@ -98,18 +92,14 @@ export function usePoolsList(
 
   // Local state
   const [search, setSearch] = useState("");
-  const [manuallyToggled, setManuallyToggled] = useState<Set<PoolStatusType>>(
-    new Set()
-  );
+  const [manuallyToggled, setManuallyToggled] = useState<Set<PoolStatusType>>(new Set());
 
   // Filter by search
   const filteredPools = useMemo(() => {
     if (!search.trim()) return pools;
     const query = search.toLowerCase();
     return pools.filter(
-      (pool) =>
-        pool.name.toLowerCase().includes(query) ||
-        pool.description.toLowerCase().includes(query)
+      (pool) => pool.name.toLowerCase().includes(query) || pool.description.toLowerCase().includes(query),
     );
   }, [pools, search]);
 
@@ -162,7 +152,7 @@ export function usePoolsList(
       // XOR logic: default state flipped if manually toggled
       return wasManuallyToggled ? !isEmptyByDefault : isEmptyByDefault;
     },
-    [manuallyToggled]
+    [manuallyToggled],
   );
 
   // Clear search

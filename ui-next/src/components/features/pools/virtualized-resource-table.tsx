@@ -35,11 +35,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResourcePanel } from "./resource-panel";
 import { LoadingMoreIndicator } from "@/components/shared/loading-more-indicator";
 import type { Resource } from "@/lib/api/adapter";
@@ -80,7 +76,7 @@ interface VirtualizedResourceTableProps {
   filterCount?: number;
   /** Collapse threshold (0-1). Default: 0.5 */
   collapseThreshold?: number;
-  
+
   // === Infinite scroll props ===
   /** Whether more data is available to load */
   hasNextPage?: boolean;
@@ -94,12 +90,7 @@ interface VirtualizedResourceTableProps {
 // Layout Constants
 // =============================================================================
 
-import {
-  defineColumns,
-  selectColumns,
-  COLUMN_MIN_WIDTHS,
-  COLUMN_FLEX,
-} from "@/lib/table-columns";
+import { defineColumns, selectColumns, COLUMN_MIN_WIDTHS, COLUMN_FLEX } from "@/lib/table-columns";
 
 // Define all possible columns with semantic IDs
 const ALL_COLUMNS = defineColumns([
@@ -114,9 +105,7 @@ const ALL_COLUMNS = defineColumns([
 
 // Column subsets for different views
 const COLUMNS_WITH_POOLS = ALL_COLUMNS;
-const COLUMNS_NO_POOLS = selectColumns(ALL_COLUMNS, [
-  "resource", "platform", "gpu", "cpu", "memory", "storage"
-]);
+const COLUMNS_NO_POOLS = selectColumns(ALL_COLUMNS, ["resource", "platform", "gpu", "cpu", "memory", "storage"]);
 
 const HEADER_HEIGHT = 41; // pixels
 
@@ -173,40 +162,45 @@ export function VirtualizedResourceTable({
 
   // Derive current sort, resetting if displayMode changed
   const sort = useMemo<SortState>(
-    () =>
-      sortState.displayMode === displayMode
-        ? sortState.sort
-        : { column: null, direction: "asc" },
-    [sortState, displayMode]
+    () => (sortState.displayMode === displayMode ? sortState.sort : { column: null, direction: "asc" }),
+    [sortState, displayMode],
   );
 
-  const setSort = useCallback((newSortOrUpdater: SortState | ((prev: SortState) => SortState)) => {
-    if (typeof newSortOrUpdater === "function") {
-      setSortState((prevState) => ({
-        displayMode,
-        sort: newSortOrUpdater(prevState.displayMode === displayMode ? prevState.sort : { column: null, direction: "asc" }),
-      }));
-    } else {
-      setSortState({ displayMode, sort: newSortOrUpdater });
-    }
-  }, [displayMode]);
+  const setSort = useCallback(
+    (newSortOrUpdater: SortState | ((prev: SortState) => SortState)) => {
+      if (typeof newSortOrUpdater === "function") {
+        setSortState((prevState) => ({
+          displayMode,
+          sort: newSortOrUpdater(
+            prevState.displayMode === displayMode ? prevState.sort : { column: null, direction: "asc" },
+          ),
+        }));
+      } else {
+        setSortState({ displayMode, sort: newSortOrUpdater });
+      }
+    },
+    [displayMode],
+  );
 
   // Handle column header click - wrapped in startTransition for non-blocking updates
-  const handleSort = useCallback((column: SortColumn) => {
-    startTransition(() => {
-      setSort((prev) => {
-        if (prev.column === column) {
-          if (prev.direction === "asc") {
-            return { column, direction: "desc" };
+  const handleSort = useCallback(
+    (column: SortColumn) => {
+      startTransition(() => {
+        setSort((prev) => {
+          if (prev.column === column) {
+            if (prev.direction === "asc") {
+              return { column, direction: "desc" };
+            } else {
+              return { column: null, direction: "asc" };
+            }
           } else {
-            return { column: null, direction: "asc" };
+            return { column, direction: "asc" };
           }
-        } else {
-          return { column, direction: "asc" };
-        }
+        });
       });
-    });
-  }, [setSort]);
+    },
+    [setSort],
+  );
 
   // Sort resources
   const sortedResources = useMemo(() => {
@@ -229,15 +223,11 @@ export function VirtualizedResourceTable({
           break;
         case "gpu":
           cmp =
-            displayMode === "free"
-              ? a.gpu.total - a.gpu.used - (b.gpu.total - b.gpu.used)
-              : a.gpu.used - b.gpu.used;
+            displayMode === "free" ? a.gpu.total - a.gpu.used - (b.gpu.total - b.gpu.used) : a.gpu.used - b.gpu.used;
           break;
         case "cpu":
           cmp =
-            displayMode === "free"
-              ? a.cpu.total - a.cpu.used - (b.cpu.total - b.cpu.used)
-              : a.cpu.used - b.cpu.used;
+            displayMode === "free" ? a.cpu.total - a.cpu.used - (b.cpu.total - b.cpu.used) : a.cpu.used - b.cpu.used;
           break;
         case "memory":
           cmp =
@@ -259,17 +249,20 @@ export function VirtualizedResourceTable({
   }, [resources, sort, displayMode]);
 
   // Handle row click with focus tracking - memoized to prevent re-renders
-  const handleRowClick = useCallback((resource: Resource, rowElement?: HTMLElement) => {
-    // Track the clicked element for focus restoration
-    if (rowElement) {
-      lastClickedRowRef.current = rowElement;
-    }
-    if (onResourceClick) {
-      onResourceClick(resource);
-    } else {
-      setSelectedResource(resource);
-    }
-  }, [onResourceClick]);
+  const handleRowClick = useCallback(
+    (resource: Resource, rowElement?: HTMLElement) => {
+      // Track the clicked element for focus restoration
+      if (rowElement) {
+        lastClickedRowRef.current = rowElement;
+      }
+      if (onResourceClick) {
+        onResourceClick(resource);
+      } else {
+        setSelectedResource(resource);
+      }
+    },
+    [onResourceClick],
+  );
 
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
@@ -435,9 +428,7 @@ export function VirtualizedResourceTable({
                 className="flex flex-1 items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--nvidia-green)] dark:hover:bg-zinc-800/50"
               >
                 <Filter className="h-3.5 w-3.5 text-zinc-400" />
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  Filters & Summary
-                </span>
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Filters & Summary</span>
                 {filterCount > 0 && (
                   <span className="rounded-full bg-[var(--nvidia-green)] px-1.5 py-0.5 text-[10px] font-medium text-white">
                     {filterCount}
@@ -450,11 +441,7 @@ export function VirtualizedResourceTable({
                     : `${resources.length}`}
                 </span>
                 <span className="ml-auto text-zinc-400">
-                  {effectiveCollapsed ? (
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <Minimize2 className="h-3.5 w-3.5" />
-                  )}
+                  {effectiveCollapsed ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
                 </span>
               </button>
 
@@ -468,7 +455,7 @@ export function VirtualizedResourceTable({
                         "rounded p-1.5 transition-colors",
                         isPinned
                           ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                          : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                          : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800",
                       )}
                     >
                       {isPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
@@ -490,7 +477,7 @@ export function VirtualizedResourceTable({
                         "rounded p-1.5 transition-colors",
                         compactMode
                           ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                          : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                          : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800",
                       )}
                     >
                       {compactMode ? <Rows4 className="h-3.5 w-3.5" /> : <Rows3 className="h-3.5 w-3.5" />}
@@ -513,20 +500,24 @@ export function VirtualizedResourceTable({
             }}
             aria-hidden={effectiveCollapsed}
           >
-            <div className="min-h-0" style={{ overflow: effectiveCollapsed ? "hidden" : "visible" }}>
+            <div
+              className="min-h-0"
+              style={{ overflow: effectiveCollapsed ? "hidden" : "visible" }}
+            >
               <div
                 ref={filterContentRef}
                 id="filter-content"
                 className="relative z-20 space-y-4 border-b border-zinc-100 bg-zinc-50/50 p-4 dark:border-zinc-800/50 dark:bg-zinc-900/30"
               >
                 {/* Filter bar - wrapped for measurement */}
-                <div ref={filterBarRef}>
-                  {filterContent}
-                </div>
+                <div ref={filterBarRef}>{filterContent}</div>
                 {/* Summary - wrapped for measurement, with forceCompact prop injected */}
                 <div ref={summaryRef}>
                   {summaryContent && isValidElement(summaryContent)
-                    ? cloneElement(summaryContent, { forceCompact: autoCompactSummary || effectiveCollapsed } as Record<string, unknown>)
+                    ? cloneElement(summaryContent, { forceCompact: autoCompactSummary || effectiveCollapsed } as Record<
+                        string,
+                        unknown
+                      >)
                     : summaryContent}
                 </div>
               </div>
@@ -542,13 +533,15 @@ export function VirtualizedResourceTable({
           role="table"
           aria-label="Resources"
           tabIndex={-1}
-          style={{
-            // Optimized scrolling
-            overscrollBehavior: "contain",
-            WebkitOverflowScrolling: "touch",
-            // Single source of truth for column layout - used by header and all rows
-            "--table-grid-columns": gridColumns,
-          } as React.CSSProperties}
+          style={
+            {
+              // Optimized scrolling
+              overscrollBehavior: "contain",
+              WebkitOverflowScrolling: "touch",
+              // Single source of truth for column layout - used by header and all rows
+              "--table-grid-columns": gridColumns,
+            } as React.CSSProperties
+          }
         >
           <div style={{ minWidth: tableMinWidth, contain: "layout" }}>
             {/* Sticky Header */}
@@ -557,7 +550,7 @@ export function VirtualizedResourceTable({
               className={cn(
                 "sticky top-0 z-10 transition-shadow",
                 "bg-[var(--nvidia-green-bg)] dark:bg-[var(--nvidia-green-bg-dark)]",
-                isScrolled && "shadow-md"
+                isScrolled && "shadow-md",
               )}
             >
               <TableHeaderRow
@@ -619,22 +612,25 @@ const TableHeaderRow = memo(function TableHeaderRow({
   onSort: (column: SortColumn) => void;
 }) {
   // Memoize columns array to prevent recreation on each render
-  const columns = useMemo(() => [
-    { label: "Resource", column: "resource" as SortColumn, align: "left" as const },
-    ...(showPoolsColumn ? [{ label: "Pools", column: "pools" as SortColumn, align: "left" as const }] : []),
-    { label: "Platform", column: "platform" as SortColumn, align: "left" as const },
-    { label: "GPU", column: "gpu" as SortColumn, align: "right" as const },
-    { label: "CPU", column: "cpu" as SortColumn, align: "right" as const },
-    { label: "Memory", column: "memory" as SortColumn, align: "right" as const },
-    { label: "Storage", column: "storage" as SortColumn, align: "right" as const },
-  ], [showPoolsColumn]);
+  const columns = useMemo(
+    () => [
+      { label: "Resource", column: "resource" as SortColumn, align: "left" as const },
+      ...(showPoolsColumn ? [{ label: "Pools", column: "pools" as SortColumn, align: "left" as const }] : []),
+      { label: "Platform", column: "platform" as SortColumn, align: "left" as const },
+      { label: "GPU", column: "gpu" as SortColumn, align: "right" as const },
+      { label: "CPU", column: "cpu" as SortColumn, align: "right" as const },
+      { label: "Memory", column: "memory" as SortColumn, align: "right" as const },
+      { label: "Storage", column: "storage" as SortColumn, align: "right" as const },
+    ],
+    [showPoolsColumn],
+  );
 
   return (
     <div
       className={cn(
         "grid gap-0 text-xs font-medium uppercase tracking-wider",
         "text-[var(--nvidia-green)] dark:text-[var(--nvidia-green-light)]",
-        compact ? "py-1.5" : "py-2.5"
+        compact ? "py-1.5" : "py-2.5",
       )}
       style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
     >
@@ -646,7 +642,7 @@ const TableHeaderRow = memo(function TableHeaderRow({
             onClick={() => onSort(col.column)}
             className={cn(
               "flex items-center gap-1 px-4 transition-colors hover:text-[var(--nvidia-green-dark)] dark:hover:text-white focus-optimized",
-              col.align === "right" && "justify-end"
+              col.align === "right" && "justify-end",
             )}
           >
             {col.label}
@@ -723,13 +719,7 @@ const TableContent = memo(function TableContent({
     if (lastItem.index >= resources.length - threshold) {
       onLoadMore();
     }
-  }, [
-    rowVirtualizer,
-    resources.length,
-    hasNextPage,
-    isFetchingNextPage,
-    onLoadMore,
-  ]);
+  }, [rowVirtualizer, resources.length, hasNextPage, isFetchingNextPage, onLoadMore]);
 
   if (isLoading) {
     return (
@@ -770,11 +760,7 @@ const TableContent = memo(function TableContent({
   }
 
   if (resources.length === 0) {
-    return (
-      <div className="p-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-        No resources found
-      </div>
-    );
+    return <div className="p-8 text-center text-sm text-zinc-500 dark:text-zinc-400">No resources found</div>;
   }
 
   return (
@@ -813,27 +799,29 @@ const TableContent = memo(function TableContent({
               className="grid h-full cursor-pointer items-center gap-0 border-b border-zinc-100 text-sm transition-[background-color] duration-150 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--nvidia-green)] dark:border-zinc-800/50 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
               style={{ gridTemplateColumns: "var(--table-grid-columns)", contain: "layout style" }}
             >
-              <div className="truncate px-4 font-medium text-zinc-900 dark:text-zinc-100">
-                {resource.name}
-              </div>
+              <div className="truncate px-4 font-medium text-zinc-900 dark:text-zinc-100">{resource.name}</div>
               {showPoolsColumn && (
                 <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">
                   {resource.poolMemberships[0]?.pool ?? "—"}
                   {resource.poolMemberships.length > 1 && (
-                    <span className="ml-1 text-xs text-zinc-400">
-                      +{resource.poolMemberships.length - 1}
-                    </span>
+                    <span className="ml-1 text-xs text-zinc-400">+{resource.poolMemberships.length - 1}</span>
                   )}
                 </div>
               )}
-              <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">
-                {resource.platform}
+              <div className="truncate px-4 text-zinc-500 dark:text-zinc-400">{resource.platform}</div>
+              <div className="whitespace-nowrap px-4 text-right tabular-nums">
+                <CapacityCell
+                  used={resource.gpu.used}
+                  total={resource.gpu.total}
+                  mode={displayMode}
+                />
               </div>
               <div className="whitespace-nowrap px-4 text-right tabular-nums">
-                <CapacityCell used={resource.gpu.used} total={resource.gpu.total} mode={displayMode} />
-              </div>
-              <div className="whitespace-nowrap px-4 text-right tabular-nums">
-                <CapacityCell used={resource.cpu.used} total={resource.cpu.total} mode={displayMode} />
+                <CapacityCell
+                  used={resource.cpu.used}
+                  total={resource.cpu.total}
+                  mode={displayMode}
+                />
               </div>
               <div className="whitespace-nowrap px-4 text-right tabular-nums">
                 <CapacityCell
@@ -869,7 +857,7 @@ const TableContent = memo(function TableContent({
 /**
  * Memoized capacity cell - prevents re-renders when values haven't changed.
  * Uses shallow comparison for props.
- * 
+ *
  * For memory/storage (isBytes=true), uses conventional binary units (Ki, Mi, Gi, Ti).
  * When showing used/total, both use the same (more granular) unit for consistency.
  * For other resources, uses compact number formatting.
@@ -918,11 +906,7 @@ const CapacityCell = memo(function CapacityCell({
   const free = total - used;
 
   if (mode === "free") {
-    return (
-      <span className="text-zinc-900 dark:text-zinc-100">
-        {formatCompact(free)}
-      </span>
-    );
+    return <span className="text-zinc-900 dark:text-zinc-100">{formatCompact(free)}</span>;
   }
 
   return (

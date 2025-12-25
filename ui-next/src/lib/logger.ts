@@ -1,6 +1,6 @@
 /**
  * Simple logger that can be configured for different environments.
- * 
+ *
  * In production, errors are logged. Warnings are suppressed unless debug mode is enabled.
  * In development, all logs are shown.
  */

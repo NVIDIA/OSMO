@@ -16,19 +16,13 @@ import { logError } from "@/lib/logger";
 
 /**
  * Dashboard-level error boundary.
- * 
+ *
  * This file is automatically used by Next.js as an error boundary
  * for all routes under (dashboard)/. No manual wrapping needed.
- * 
+ *
  * The Shell/layout remains visible - only the page content is replaced.
  */
-export default function DashboardError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     logError("Dashboard error boundary caught:", error);
   }, [error]);
@@ -39,24 +33,30 @@ export default function DashboardError({
         <h2 className="mb-2 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Something went wrong
         </h2>
-        
+
         <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
           An unexpected error occurred. Don&apos;t worry, your data is safe.
         </p>
 
         {/* Error details */}
         <div className="mb-6 text-left">
-          <ErrorDetails error={error} className="bg-zinc-50 dark:bg-zinc-900" />
+          <ErrorDetails
+            error={error}
+            className="bg-zinc-50 dark:bg-zinc-900"
+          />
         </div>
 
         <div className="flex justify-center gap-3">
-          <Button onClick={reset} className="gap-2">
+          <Button
+            onClick={reset}
+            className="gap-2"
+          >
             <RefreshCw className="h-4 w-4" />
             Try again
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.location.href = "/"}
+            onClick={() => (window.location.href = "/")}
             className="gap-2"
           >
             <Home className="h-4 w-4" />
@@ -67,9 +67,7 @@ export default function DashboardError({
         <p className="mt-6 text-xs text-zinc-400 dark:text-zinc-500">
           If this keeps happening, try refreshing the page
           {error.digest && (
-            <span className="mt-1 block font-mono text-zinc-300 dark:text-zinc-600">
-              Error ID: {error.digest}
-            </span>
+            <span className="mt-1 block font-mono text-zinc-300 dark:text-zinc-600">Error ID: {error.digest}</span>
           )}
         </p>
       </div>

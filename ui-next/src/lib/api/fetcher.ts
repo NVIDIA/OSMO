@@ -36,11 +36,7 @@ export interface ApiError extends Error {
 /**
  * Creates an API error with retry information.
  */
-export function createApiError(
-  message: string,
-  status?: number,
-  isRetryable = true
-): ApiError {
+export function createApiError(message: string, status?: number, isRetryable = true): ApiError {
   const error = new Error(message) as ApiError;
   error.name = "ApiError";
   (error as { [API_ERROR_BRAND]: true })[API_ERROR_BRAND] = true;
@@ -94,10 +90,7 @@ async function ensureValidToken(): Promise<string> {
   return token;
 }
 
-export const customFetch = async <T>(
-  config: RequestConfig,
-  options?: RequestInit
-): Promise<T> => {
+export const customFetch = async <T>(config: RequestConfig, options?: RequestInit): Promise<T> => {
   const { url, method, headers, data, params, signal } = config;
 
   // Build URL with query params (always relative - routing layer handles backend)
@@ -176,31 +169,19 @@ export const customFetch = async <T>(
       }
     }
 
-    throw createApiError(
-      `Authentication required (${response.status})`,
-      response.status,
-      false
-    );
+    throw createApiError(`Authentication required (${response.status})`, response.status, false);
   }
 
   // Handle other client errors (4xx) - NOT retryable
   if (response.status >= 400 && response.status < 500) {
     const error = await response.json().catch(() => ({ message: "Request failed" }));
-    throw createApiError(
-      error.message || error.detail || `HTTP ${response.status}`,
-      response.status,
-      false
-    );
+    throw createApiError(error.message || error.detail || `HTTP ${response.status}`, response.status, false);
   }
 
   // Handle server errors (5xx) - retryable
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "Server error" }));
-    throw createApiError(
-      error.message || error.detail || `HTTP ${response.status}`,
-      response.status,
-      true
-    );
+    throw createApiError(error.message || error.detail || `HTTP ${response.status}`, response.status, true);
   }
 
   // Handle empty responses (204 No Content, etc.)

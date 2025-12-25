@@ -76,9 +76,7 @@ export function FilterMultiSelect<T extends string>({
   const hasSelection = selected.size > 0;
 
   const filteredOptions = searchable
-    ? options.filter((opt) =>
-        (renderOption?.(opt) ?? opt).toLowerCase().includes(search.toLowerCase())
-      )
+    ? options.filter((opt) => (renderOption?.(opt) ?? opt).toLowerCase().includes(search.toLowerCase()))
     : options;
 
   const getLabel = (option: T) => renderOption?.(option) ?? option;
@@ -86,8 +84,16 @@ export function FilterMultiSelect<T extends string>({
   // Single option: show as informational only
   if (options.length <= 1) {
     return (
-      <Button variant="outline" size="sm" disabled className={cn("gap-1.5", className)}>
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className={cn("gap-1.5", className)}
+      >
+        <Icon
+          className="h-3.5 w-3.5"
+          aria-hidden="true"
+        />
         {options.length === 1 ? getLabel(options[0]) : label}
       </Button>
     );
@@ -103,10 +109,13 @@ export function FilterMultiSelect<T extends string>({
           className={cn(
             "gap-1.5",
             hasSelection && "border-[var(--nvidia-green)] bg-[var(--nvidia-green)]/5",
-            className
+            className,
           )}
         >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          <Icon
+            className="h-3.5 w-3.5"
+            aria-hidden="true"
+          />
           {label}
           {hasSelection && (
             <span
@@ -116,16 +125,25 @@ export function FilterMultiSelect<T extends string>({
               {selected.size}
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 opacity-50" aria-hidden="true" />
+          <ChevronDown
+            className="h-3.5 w-3.5 opacity-50"
+            aria-hidden="true"
+          />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent
+        align="start"
+        className="w-64"
+      >
         {/* Search input */}
         {searchable && (
           <>
             <div className="px-2 pb-2">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
+                <Search
+                  className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400"
+                  aria-hidden="true"
+                />
                 <input
                   type="search"
                   placeholder={searchPlaceholder}
@@ -144,9 +162,7 @@ export function FilterMultiSelect<T extends string>({
         {/* Options list */}
         <div className="max-h-48 overflow-y-auto">
           {filteredOptions.length === 0 ? (
-            <div className="px-2 py-4 text-center text-sm text-zinc-500">
-              No options found
-            </div>
+            <div className="px-2 py-4 text-center text-sm text-zinc-500">No options found</div>
           ) : (
             filteredOptions.map((option) => (
               <DropdownMenuCheckboxItem

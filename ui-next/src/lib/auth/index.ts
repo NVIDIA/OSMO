@@ -1,6 +1,6 @@
 /**
  * Authentication Module
- * 
+ *
  * ┌─────────────────────────────────────────────────────────────────┐
  * │                      auth-provider.tsx                          │
  * │              AuthProvider, useAuth, public API                  │

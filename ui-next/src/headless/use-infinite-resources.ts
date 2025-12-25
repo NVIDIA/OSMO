@@ -27,11 +27,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useDeferredValue, useTransition } from "react";
-import {
-  fetchPaginatedAllResources,
-  type Resource,
-  type PaginatedResourcesResult,
-} from "@/lib/api/adapter";
+import { fetchPaginatedAllResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
 import { useInfiniteDataTable } from "@/lib/pagination";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
@@ -151,7 +147,7 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
         platforms: Array.from(selectedPlatforms).sort(),
       },
     ],
-    [selectedPools, selectedPlatforms]
+    [selectedPools, selectedPlatforms],
   );
 
   // Use infinite pagination
@@ -185,14 +181,14 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
   const { pools, platforms } = useMemo(() => {
     const poolSet = new Set<string>();
     const platformSet = new Set<string>();
-    
+
     for (const resource of allResources) {
       platformSet.add(resource.platform);
       for (const membership of resource.poolMemberships) {
         poolSet.add(membership.pool);
       }
     }
-    
+
     return {
       pools: Array.from(poolSet).sort(),
       platforms: Array.from(platformSet).sort(),
@@ -213,9 +209,7 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
 
     // Filter by resource type (client-side)
     if (selectedResourceTypes.size > 0) {
-      result = result.filter((resource) =>
-        selectedResourceTypes.has(resource.resourceType)
-      );
+      result = result.filter((resource) => selectedResourceTypes.has(resource.resourceType));
     }
 
     // Filter by search (client-side, using deferred value for smooth typing)
@@ -226,7 +220,7 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
           resource.name.toLowerCase().includes(query) ||
           resource.platform.toLowerCase().includes(query) ||
           resource.resourceType.toLowerCase().includes(query) ||
-          resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query))
+          resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query)),
       );
     }
 
@@ -366,10 +360,7 @@ export function useInfiniteResources(): UseInfiniteResourcesReturn {
   }, []);
 
   const hasActiveFilter =
-    selectedPools.size > 0 ||
-    selectedPlatforms.size > 0 ||
-    selectedResourceTypes.size > 0 ||
-    search.length > 0;
+    selectedPools.size > 0 || selectedPlatforms.size > 0 || selectedResourceTypes.size > 0 || search.length > 0;
 
   return {
     // Resource data

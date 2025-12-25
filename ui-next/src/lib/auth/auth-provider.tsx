@@ -5,18 +5,11 @@
  *
  * Provides authentication context to the application.
  * Uses AuthBackend abstraction for provider-agnostic auth operations.
- * 
+ *
  * Production-first: LocalDevLogin is dynamically imported only in development.
  */
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type PropsWithChildren,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, usePathname } from "next/navigation";
 import { isLocalDev } from "@/lib/config";
@@ -24,21 +17,13 @@ import { logError } from "@/lib/logger";
 
 import { getAuthBackend } from "./auth-backend";
 import { parseJwtClaims, isTokenExpired } from "./token-utils";
-import {
-  getStoredIdToken,
-  hasStoredRefreshToken,
-  clearStoredTokens,
-  refreshStoredToken,
-} from "./token-storage";
+import { getStoredIdToken, hasStoredRefreshToken, clearStoredTokens, refreshStoredToken } from "./token-storage";
 
 // Dynamic import: LocalDevLogin is only loaded in development, excluded from production bundle
-const LocalDevLogin = dynamic(
-  () => import("./auth-local-dev").then((mod) => mod.LocalDevLogin),
-  { 
-    ssr: false,
-    loading: () => <p className="text-muted-foreground">Loading...</p>
-  }
-);
+const LocalDevLogin = dynamic(() => import("./auth-local-dev").then((mod) => mod.LocalDevLogin), {
+  ssr: false,
+  loading: () => <p className="text-muted-foreground">Loading...</p>,
+});
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -134,9 +119,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const login = async () => {
     // Read pathname fresh to avoid stale closure issues
     // (user may have navigated before clicking login)
-    const currentPath = typeof window !== "undefined"
-      ? window.location.pathname
-      : pathname;
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
 
     if (typeof window !== "undefined") {
       sessionStorage.setItem(RETURN_URL_KEY, currentPath);
@@ -207,7 +190,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         </div>
 
         {isLocalDev() ? (
-          <LocalDevLogin onLogin={handleDevLogin} onSkip={skipAuth} />
+          <LocalDevLogin
+            onLogin={handleDevLogin}
+            onSkip={skipAuth}
+          />
         ) : (
           <div className="flex flex-col items-center gap-3">
             <button

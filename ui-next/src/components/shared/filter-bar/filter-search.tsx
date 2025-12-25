@@ -37,13 +37,7 @@ interface FilterSearchProps {
  * />
  * ```
  */
-export function FilterSearch({
-  value,
-  onChange,
-  onClear,
-  placeholder = "Search...",
-  className,
-}: FilterSearchProps) {
+export function FilterSearch({ value, onChange, onClear, placeholder = "Search...", className }: FilterSearchProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     // When native X clears input, call onClear if provided
@@ -56,7 +50,10 @@ export function FilterSearch({
 
   return (
     <div className={cn("relative flex-1 min-w-[200px] max-w-xs", className)}>
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
+      <Search
+        className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+        aria-hidden="true"
+      />
       <Input
         type="search"
         placeholder={placeholder}

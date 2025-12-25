@@ -9,12 +9,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import {
-  usePool,
-  usePoolResources,
-  type Resource,
-  type PlatformConfig,
-} from "@/lib/api/adapter";
+import { usePool, usePoolResources, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
@@ -82,16 +77,9 @@ function isBackendResourceType(value: string): value is BackendResourceType {
   return (ALL_RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
-export function usePoolDetail({
-  poolName,
-}: UsePoolDetailOptions): UsePoolDetailReturn {
+export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetailReturn {
   // Fetch data
-  const {
-    pool,
-    isLoading: poolLoading,
-    error: poolError,
-    refetch: refetchPool,
-  } = usePool(poolName);
+  const { pool, isLoading: poolLoading, error: poolError, refetch: refetchPool } = usePool(poolName);
 
   const {
     resources,
@@ -103,27 +91,21 @@ export function usePoolDetail({
 
   // Local state
   const [search, setSearch] = useState("");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
-    new Set()
-  );
-  const [selectedResourceTypes, setSelectedResourceTypes] = useState<
-    Set<BackendResourceType>
-  >(new Set());
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+  const [selectedResourceTypes, setSelectedResourceTypes] = useState<Set<BackendResourceType>>(new Set());
 
   // Resource display mode (persisted to localStorage)
   // Use lazy initializer to read from localStorage (client-side only)
-  const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(
-    () => {
-      // Only access localStorage on client side
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
-        if (stored === "free" || stored === "used") {
-          return stored;
-        }
+  const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(() => {
+    // Only access localStorage on client side
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
+      if (stored === "free" || stored === "used") {
+        return stored;
       }
-      return "free";
     }
-  );
+    return "free";
+  });
 
   const setDisplayMode = useCallback((mode: ResourceDisplayMode) => {
     setDisplayModeState(mode);
@@ -148,9 +130,7 @@ export function usePoolDetail({
 
     // Filter by resource type
     if (selectedResourceTypes.size > 0) {
-      result = result.filter((resource) =>
-        selectedResourceTypes.has(resource.resourceType)
-      );
+      result = result.filter((resource) => selectedResourceTypes.has(resource.resourceType));
     }
 
     // Filter by search
@@ -160,7 +140,7 @@ export function usePoolDetail({
         (resource) =>
           resource.name.toLowerCase().includes(query) ||
           resource.platform.toLowerCase().includes(query) ||
-          resource.resourceType.toLowerCase().includes(query)
+          resource.resourceType.toLowerCase().includes(query),
       );
     }
 
@@ -274,10 +254,7 @@ export function usePoolDetail({
     refetchResources();
   }, [refetchPool, refetchResources]);
 
-  const hasActiveFilter =
-    selectedPlatforms.size > 0 ||
-    selectedResourceTypes.size > 0 ||
-    search.length > 0;
+  const hasActiveFilter = selectedPlatforms.size > 0 || selectedResourceTypes.size > 0 || search.length > 0;
 
   return {
     // Pool data

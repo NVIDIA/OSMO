@@ -29,18 +29,11 @@ export type {
 
 // Pools List
 export { usePoolsList } from "./use-pools-list";
-export type {
-  PoolGroup,
-  UsePoolsListOptions,
-  UsePoolsListReturn,
-} from "./use-pools-list";
+export type { PoolGroup, UsePoolsListOptions, UsePoolsListReturn } from "./use-pools-list";
 
 // Pool Detail
 export { usePoolDetail } from "./use-pool-detail";
-export type {
-  UsePoolDetailOptions,
-  UsePoolDetailReturn,
-} from "./use-pool-detail";
+export type { UsePoolDetailOptions, UsePoolDetailReturn } from "./use-pool-detail";
 
 // All Resources (cross-pool view)
 export { useAllResources } from "./use-all-resources";

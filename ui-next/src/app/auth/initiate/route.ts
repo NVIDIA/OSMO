@@ -17,6 +17,6 @@ export async function GET(request: Request) {
     }),
     {
       headers: { "Content-Type": "application/json" },
-    }
+    },
   );
 }

@@ -72,9 +72,7 @@ export const handlers = [
 
     return HttpResponse.json({
       entries: filtered,
-      total: statusFilter.length > 0 || poolFilter.length > 0 || userFilter.length > 0
-        ? filtered.length
-        : total,
+      total: statusFilter.length > 0 || poolFilter.length > 0 || userFilter.length > 0 ? filtered.length : total,
     });
   }),
 
@@ -100,11 +98,7 @@ export const handlers = [
     const workflow = workflowGenerator.getByName(name);
     const taskNames = workflow?.groups.flatMap((g) => g.tasks.map((t) => t.name)) || ["main"];
 
-    const logs = logGenerator.generateWorkflowLogs(
-      name,
-      taskNames,
-      workflow?.status || "RUNNING"
-    );
+    const logs = logGenerator.generateWorkflowLogs(name, taskNames, workflow?.status || "RUNNING");
 
     return HttpResponse.text(logs);
   }),
@@ -121,7 +115,7 @@ export const handlers = [
       workflow?.status || "RUNNING",
       workflow?.submit_time || new Date().toISOString(),
       workflow?.start_time || undefined,
-      workflow?.end_time || undefined
+      workflow?.end_time || undefined,
     );
 
     return HttpResponse.json({ events });
@@ -143,7 +137,7 @@ export const handlers = [
       gpu: ${t.gpu}
       cpu: ${t.cpu}
       memory: ${t.memory}Gi`;
-      })
+      }),
     );
 
     const spec = `workflow:
@@ -190,12 +184,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const taskName = params.taskName as string;
     const task = taskGenerator.generate(workflowName, taskName);
 
-    const logs = logGenerator.generateTaskLogs(
-      workflowName,
-      taskName,
-      task.status,
-      task.duration
-    );
+    const logs = logGenerator.generateTaskLogs(workflowName, taskName, task.status, task.duration);
 
     return HttpResponse.text(logs);
   }),
@@ -213,7 +202,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
       taskName,
       task.status,
       task.start_time,
-      task.end_time
+      task.end_time,
     );
 
     return HttpResponse.json({ events });
@@ -265,7 +254,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     await delay(MOCK_DELAY);
 
     const sessionId = params.sessionId as string;
-    const body = await request.json() as { command: string };
+    const body = (await request.json()) as { command: string };
 
     const result = terminalSimulator.executeCommand(sessionId, body.command);
 
@@ -282,13 +271,9 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
 
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
-    const body = await request.json() as { port?: number };
+    const body = (await request.json()) as { port?: number };
 
-    const response = portForwardGenerator.createSession(
-      workflowName,
-      taskName,
-      body.port || 8080
-    );
+    const response = portForwardGenerator.createSession(workflowName, taskName, body.port || 8080);
 
     if (!response.success) {
       return HttpResponse.json({ error: response.error }, { status: 400 });
@@ -460,7 +445,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const artifacts = bucketGenerator.generateWorkflowArtifacts(
       bucketName,
       prefix.replace("workflows/", "").replace("/", "") || "example-workflow",
-      limit
+      limit,
     );
 
     return HttpResponse.json(artifacts);
@@ -545,7 +530,7 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   http.put("/api/profile/settings", async ({ request }) => {
     await delay(MOCK_DELAY);
 
-    const body = await request.json() as Record<string, unknown>;
+    const body = (await request.json()) as Record<string, unknown>;
     // In a real implementation, this would persist the settings
     return HttpResponse.json({ ...body, updated_at: new Date().toISOString() });
   }),

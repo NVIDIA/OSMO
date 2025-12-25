@@ -17,16 +17,10 @@ import { logError } from "@/lib/logger";
 
 /**
  * Pools section error boundary.
- * 
+ *
  * Catches errors in /pools and /pools/[poolName].
  */
-export default function PoolsError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function PoolsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     logError("Pools error boundary caught:", error);
   }, [error]);
@@ -50,7 +44,7 @@ export default function PoolsError({
           <h2 className="mb-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             Couldn&apos;t load pool data
           </h2>
-          
+
           <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
             We hit a snag while fetching this pool. This is usually temporary.
           </p>
@@ -62,11 +56,17 @@ export default function PoolsError({
         </div>
 
         <div className="flex justify-center gap-3">
-          <Button onClick={reset} className="gap-2">
+          <Button
+            onClick={reset}
+            className="gap-2"
+          >
             <RefreshCw className="h-4 w-4" />
             Try again
           </Button>
-          <Button asChild variant="outline">
+          <Button
+            asChild
+            variant="outline"
+          >
             <Link href="/pools">View all pools</Link>
           </Button>
         </div>

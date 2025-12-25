@@ -33,33 +33,33 @@ export interface MockTaskDetail {
   group_name: string;
   status: TaskGroupStatus;
   retry_id: number;
-  
+
   // Timing
   start_time?: string;
   end_time?: string;
   duration?: number;
-  
+
   // Node info
   node?: string;
   pod_name?: string;
   pod_ip?: string;
-  
+
   // Resources
   gpu: number;
   cpu: number;
   memory: number;
   storage: number;
-  
+
   // Container
   image: string;
   command: string[];
   args: string[];
   env: Record<string, string>;
-  
+
   // Exit info
   exit_code?: number;
   failure_reason?: string;
-  
+
   // URLs
   logs_url: string;
   events_url: string;
@@ -103,15 +103,17 @@ export class TaskGenerator {
     const memory = cpu * 4; // 4GB per CPU
     const storage = faker.helpers.arrayElement([10, 50, 100, 200]);
 
-    const notStartedStatuses: TaskGroupStatus[] = [TaskGroupStatus.WAITING, TaskGroupStatus.SUBMITTING, TaskGroupStatus.SCHEDULING];
+    const notStartedStatuses: TaskGroupStatus[] = [
+      TaskGroupStatus.WAITING,
+      TaskGroupStatus.SUBMITTING,
+      TaskGroupStatus.SCHEDULING,
+    ];
     const started = !notStartedStatuses.includes(status);
     const completed = status === TaskGroupStatus.COMPLETED || status.toString().startsWith("FAILED");
 
     const startTime = started ? faker.date.recent({ days: 7 }) : undefined;
     const duration = completed ? faker.number.int(this.config.patterns.timing.duration) : undefined;
-    const endTime = startTime && duration
-      ? new Date(startTime.getTime() + duration * 1000)
-      : undefined;
+    const endTime = startTime && duration ? new Date(startTime.getTime() + duration * 1000) : undefined;
 
     const command = faker.helpers.arrayElement(this.config.patterns.commands.examples);
 
@@ -121,20 +123,22 @@ export class TaskGenerator {
       group_name: groupName || "main",
       status,
       retry_id: faker.datatype.boolean({ probability: 0.1 }) ? faker.number.int({ min: 1, max: 3 }) : 0,
-      
+
       start_time: startTime?.toISOString(),
       end_time: endTime?.toISOString(),
       duration,
-      
+
       node: started ? this.generateNodeName() : undefined,
       pod_name: started ? `${workflowName}-${taskName}-${faker.string.alphanumeric(5)}` : undefined,
-      pod_ip: started ? `10.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 1, max: 254 })}` : undefined,
-      
+      pod_ip: started
+        ? `10.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 1, max: 254 })}`
+        : undefined,
+
       gpu,
       cpu,
       memory,
       storage,
-      
+
       image: `${faker.helpers.arrayElement(MOCK_CONFIG.images.repositories)}:${faker.helpers.arrayElement(MOCK_CONFIG.images.tags)}`,
       command: [command[0]],
       args: command.slice(1),
@@ -143,10 +147,15 @@ export class TaskGenerator {
         PYTHONPATH: "/workspace",
         NCCL_DEBUG: "INFO",
       },
-      
-      exit_code: status === TaskGroupStatus.COMPLETED ? 0 : status.toString().startsWith("FAILED") ? faker.helpers.arrayElement([1, 137, 139]) : undefined,
+
+      exit_code:
+        status === TaskGroupStatus.COMPLETED
+          ? 0
+          : status.toString().startsWith("FAILED")
+            ? faker.helpers.arrayElement([1, 137, 139])
+            : undefined,
       failure_reason: status.toString().startsWith("FAILED") ? this.generateFailureReason(status) : undefined,
-      
+
       logs_url: `/api/workflow/${workflowName}/task/${taskName}/logs`,
       events_url: `/api/workflow/${workflowName}/task/${taskName}/events`,
     };
