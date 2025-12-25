@@ -155,7 +155,6 @@ export default function PoolDetailPage() {
                       onChange={toggleResourceType}
                     />
                   )}
-
                 </FilterBar>
               }
               summaryContent={
