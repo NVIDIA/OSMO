@@ -59,9 +59,9 @@ export function DataTableContainer({
   summary,
   tableHeader,
   tableBody,
-   
+
   itemCount: _itemCount,
-   
+
   filteredCount: _filteredCount,
   filterCount = 0,
   minWidth = 820,
