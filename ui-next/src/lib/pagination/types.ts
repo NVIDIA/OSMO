@@ -51,9 +51,9 @@ export interface PaginationParams {
 }
 
 /**
- * Configuration for infinite pagination hook.
+ * Configuration for data table hook.
  */
-export interface InfinitePaginationConfig {
+export interface DataTableConfig {
   /** Default page size */
   pageSize: number;
   /** Stale time in ms (default: 60000) */
@@ -65,9 +65,9 @@ export interface InfinitePaginationConfig {
 }
 
 /**
- * Return type from useInfiniteDataTable hook.
+ * Return type from useDataTable hook.
  */
-export interface InfiniteDataTableResult<T> {
+export interface DataTableResult<T> {
   /** Flattened items from all loaded pages */
   items: T[];
   /** Total count of available items (if API provides) */
@@ -100,3 +100,13 @@ export interface PageParam {
   cursor?: string;
   offset: number;
 }
+
+// =============================================================================
+// Deprecated aliases for backward compatibility
+// =============================================================================
+
+/** @deprecated Use DataTableConfig instead */
+export type InfinitePaginationConfig = DataTableConfig;
+
+/** @deprecated Use DataTableResult instead */
+export type InfiniteDataTableResult<T> = DataTableResult<T>;

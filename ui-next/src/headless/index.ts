@@ -35,9 +35,9 @@ export type { PoolGroup, UsePoolsListOptions, UsePoolsListReturn } from "./use-p
 export { usePoolDetail } from "./use-pool-detail";
 export type { UsePoolDetailOptions, UsePoolDetailReturn } from "./use-pool-detail";
 
-// All Resources (cross-pool view with infinite scroll)
-export { useAllResources } from "./use-all-resources";
-export type { UseAllResourcesReturn } from "./use-all-resources";
+// Resources (cross-pool view with pagination)
+export { useResources } from "./use-resources";
+export type { UseResourcesReturn } from "./use-resources";
 
 // UI Behavior Hooks
 export { useAutoCollapse } from "./use-auto-collapse";

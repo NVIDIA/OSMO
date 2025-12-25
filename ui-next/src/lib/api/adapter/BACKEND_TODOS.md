@@ -334,7 +334,7 @@ The adapter layer fetches all resources on first page load and simulates paginat
 See: `src/lib/api/adapter/pagination.ts`
 
 **When fixed:**
-1. Update `fetchPaginatedAllResources()` to pass pagination params directly to API
+1. Update `fetchResources()` to pass pagination params directly to API
 2. Remove client-side caching shim in `pagination.ts`
 3. Regenerate types with `pnpm generate-api`
 4. UI components work unchanged (they already use paginated interface)
