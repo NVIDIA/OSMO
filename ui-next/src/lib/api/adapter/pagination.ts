@@ -134,18 +134,13 @@ export interface ResourceFilterParams {
  *
  * @internal
  */
-function applyClientSideFilters(
-  resources: Resource[],
-  params: ResourceFilterParams,
-): Resource[] {
+function applyClientSideFilters(resources: Resource[], params: ResourceFilterParams): Resource[] {
   let result = resources;
 
   // SHIM: Filter by pool (should be server-side)
   if (params.pools && params.pools.length > 0) {
     const poolSet = new Set(params.pools);
-    result = result.filter((resource) =>
-      resource.poolMemberships.some((m) => poolSet.has(m.pool)),
-    );
+    result = result.filter((resource) => resource.poolMemberships.some((m) => poolSet.has(m.pool)));
   }
 
   // SHIM: Filter by platform (should be server-side)
