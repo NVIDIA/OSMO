@@ -24,22 +24,6 @@ import type { Resource } from "@/lib/api/adapter/types";
 // Test fixtures
 // =============================================================================
 
-function createMockResource(index: number): Resource {
-  return {
-    hostname: `node-${String(index).padStart(3, "0")}.cluster.local`,
-    name: `node-${String(index).padStart(3, "0")}`,
-    platform: index % 2 === 0 ? "dgx" : "base",
-    resourceType: "SHARED" as const,
-    backend: "k8s",
-    gpu: { total: 8, used: index % 8 },
-    cpu: { total: 128, used: 64 },
-    memory: { total: 512, used: 256 },
-    storage: { total: 1024, used: 512 },
-    conditions: ["Ready"],
-    poolMemberships: [{ pool: `pool-${index % 3}`, platform: index % 2 === 0 ? "dgx" : "base" }],
-  };
-}
-
 function createMockBackendResponse(count: number) {
   const resources = Array.from({ length: count }, (_, i) => ({
     hostname: `node-${String(i).padStart(3, "0")}.cluster.local`,
