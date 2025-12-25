@@ -375,6 +375,100 @@ GET /api/resources?limit=50&cursor=abc&search=dgx&resource_types=SHARED&pools=pr
 
 ---
 
+### 12. Summary Aggregates Need Server-Side Calculation
+
+**Priority:** High  
+**Status:** Anti-pattern in UI (aggregates loaded data only)
+
+The `AdaptiveSummary` component displays aggregated totals (GPU, CPU, Memory, Storage) for resources. Currently, it reduces over whatever resources are loaded client-side:
+
+```typescript
+// resource-summary-card.tsx - CURRENT (anti-pattern)
+const totals = useMemo(() => {
+  return resources.reduce((acc, r) => ({
+    gpu: { used: acc.gpu.used + r.gpu.used, total: acc.gpu.total + r.gpu.total },
+    // ...
+  }), initialTotals);
+}, [resources]);
+```
+
+**Problem:** With pagination, `resources` only contains loaded pages. Summary shows "32 GPU / 64 total" when user has scrolled through 2 pages, but cluster actually has "256 GPU / 512 total".
+
+**Ideal API behavior:**
+
+Option A: Include summary in paginated response (recommended)
+```json
+GET /api/resources?limit=50&cursor=abc&pools=prod
+
+{
+  "resources": [...50 items...],
+  "pagination": { "cursor": "xyz", "has_more": true, "total": 500 },
+  "summary": {
+    "gpu": { "used": 128, "total": 256 },
+    "cpu": { "used": 1024, "total": 2048 },
+    "memory_gib": { "used": 512, "total": 1024 },
+    "storage_gib": { "used": 2048, "total": 4096 }
+  }
+}
+```
+
+Option B: Separate summary endpoint
+```json
+GET /api/resources/summary?pools=prod
+
+{
+  "gpu": { "used": 128, "total": 256 },
+  "cpu": { "used": 1024, "total": 2048 },
+  "memory_gib": { "used": 512, "total": 1024 },
+  "storage_gib": { "used": 2048, "total": 4096 },
+  "resource_count": 500
+}
+```
+
+**Why backend should do this:**
+
+1. **Accuracy**: Server sees ALL data, can calculate exact totals
+2. **Performance**: Database can aggregate with `SUM()` much faster than client
+3. **Consistency**: Same filters applied to both list and summary
+4. **Scalability**: Works regardless of dataset size
+
+**Required summary fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `gpu.used` | number | Total GPUs currently in use |
+| `gpu.total` | number | Total GPUs allocatable |
+| `cpu.used` | number | Total CPUs currently in use |
+| `cpu.total` | number | Total CPUs allocatable |
+| `memory_gib.used` | number | Total memory in use (GiB) |
+| `memory_gib.total` | number | Total memory allocatable (GiB) |
+| `storage_gib.used` | number | Total storage in use (GiB) |
+| `storage_gib.total` | number | Total storage allocatable (GiB) |
+| `resource_count` | number | Total resources matching filters |
+
+**Current UI workaround:**
+
+The summary only aggregates loaded data. This is documented as a known limitation until backend provides server-side aggregates.
+
+```typescript
+// SHIM: Use server-provided summary when available, fall back to client aggregation
+const summary = serverSummary ?? aggregateLoadedResources(resources);
+```
+
+**When fixed:**
+
+1. Update `fetchResources()` to extract `summary` from response
+2. Pass server summary to `AdaptiveSummary` component
+3. Remove client-side aggregation fallback
+4. Summary will be accurate regardless of pagination state
+
+**Benefits:**
+- **Accurate totals**: Users see real cluster capacity, not just loaded pages
+- **Instant display**: Summary shows immediately, no need to load all pages
+- **Filter-aware**: Summary updates when filters change (server recalculates)
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -390,6 +484,7 @@ GET /api/resources?limit=50&cursor=abc&search=dgx&resource_types=SHARED&pools=pr
 | #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
 | #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
 | #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
+| #12 Server-side summary aggregates | **High** | resource-summary-card.tsx | Use server summary |
 
 ### Priority Guide
 
