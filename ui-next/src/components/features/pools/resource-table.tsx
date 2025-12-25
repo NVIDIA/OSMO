@@ -706,20 +706,37 @@ const TableContent = memo(function TableContent({
   }, [rowHeight, rowVirtualizer]);
 
   // Trigger load more when scrolling near bottom
+  // Uses scroll event listener since virtualizer's internal state changes on scroll
+  // but the virtualizer instance itself doesn't change (so useEffect deps won't trigger)
   useEffect(() => {
-    if (!onLoadMore || !hasNextPage || isFetchingNextPage) return;
+    const scrollElement = scrollRef.current;
+    if (!scrollElement || !onLoadMore) return;
 
-    const virtualItems = rowVirtualizer.getVirtualItems();
-    const lastItem = virtualItems.at(-1);
+    const checkLoadMore = () => {
+      if (!hasNextPage || isFetchingNextPage) return;
 
-    if (!lastItem) return;
+      const virtualItems = rowVirtualizer.getVirtualItems();
+      const lastItem = virtualItems.at(-1);
 
-    // Load more when within 10 items of end
-    const threshold = 10;
-    if (lastItem.index >= resources.length - threshold) {
-      onLoadMore();
-    }
-  }, [rowVirtualizer, resources.length, hasNextPage, isFetchingNextPage, onLoadMore]);
+      if (!lastItem) return;
+
+      // Load more when within 10 items of end
+      const threshold = 10;
+      if (lastItem.index >= resources.length - threshold) {
+        onLoadMore();
+      }
+    };
+
+    // Check on scroll
+    scrollElement.addEventListener("scroll", checkLoadMore, { passive: true });
+
+    // Also check immediately in case we're already near the bottom
+    checkLoadMore();
+
+    return () => {
+      scrollElement.removeEventListener("scroll", checkLoadMore);
+    };
+  }, [scrollRef, rowVirtualizer, resources.length, hasNextPage, isFetchingNextPage, onLoadMore]);
 
   if (isLoading) {
     return (
