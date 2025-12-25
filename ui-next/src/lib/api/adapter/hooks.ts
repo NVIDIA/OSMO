@@ -13,6 +13,7 @@ import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
   useGetVersionApiVersionGet,
+  getResourcesApiResourcesGet,
 } from "../generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS } from "@/lib/config";
 
@@ -25,6 +26,8 @@ import {
 } from "./transforms";
 
 import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
+import { fetchPaginatedResources, invalidateResourcesCache } from "./pagination";
+import type { PaginationParams } from "@/lib/pagination";
 
 // =============================================================================
 // Pool Hooks
@@ -154,6 +157,37 @@ export function useVersion() {
 
 import type { PoolMembership, Resource, TaskConfig, Pool } from "./types";
 import type { ResourcesResponse } from "../generated";
+import type { PaginatedResourcesResult } from "./pagination";
+
+// =============================================================================
+// Paginated Resource Functions
+// =============================================================================
+
+/**
+ * Fetch paginated resources across all pools.
+ *
+ * CURRENT: Uses client-side pagination shim (fetches all, returns pages)
+ * FUTURE: When backend supports pagination, this will pass through params
+ *
+ * Issue: BACKEND_TODOS.md#11
+ */
+export async function fetchPaginatedAllResources(
+  params: {
+    pools?: string[];
+    platforms?: string[];
+  } & PaginationParams
+): Promise<PaginatedResourcesResult> {
+  return fetchPaginatedResources(
+    { ...params, all_pools: true },
+    () =>
+      getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown)
+  );
+}
+
+/**
+ * Invalidate resources cache - call after mutations that affect resources.
+ */
+export { invalidateResourcesCache };
 
 /**
  * Extract pool memberships from a ResourcesResponse for a specific resource.
