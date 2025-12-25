@@ -14,6 +14,13 @@ import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
 export const ALL_RESOURCE_TYPES = Object.values(BackendResourceType) as BackendResourceType[];
 
 /**
+ * Type guard to check if a string is a valid BackendResourceType.
+ */
+export function isBackendResourceType(value: string): value is BackendResourceType {
+  return (ALL_RESOURCE_TYPES as readonly string[]).includes(value);
+}
+
+/**
  * Status display configuration for pools.
  * Keys match the generated PoolStatus enum values.
  */
