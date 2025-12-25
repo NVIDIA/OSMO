@@ -33,6 +33,8 @@ import {
   ChevronsUpDown,
   Minimize2,
   Maximize2,
+  MonitorCheck,
+  MonitorX,
 } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -68,6 +70,8 @@ interface ResourceTableProps {
   poolName?: string;
   /** Display mode: "free" shows available capacity, "used" shows utilization */
   displayMode?: ResourceDisplayMode;
+  /** Callback when display mode changes (enables the toggle button in controls) */
+  onDisplayModeChange?: (mode: ResourceDisplayMode) => void;
   /** Custom click handler for row selection */
   onResourceClick?: (resource: Resource) => void;
   /** Filter bar content (rendered in collapsible header) */
@@ -123,6 +127,7 @@ export function ResourceTable({
   showPoolsColumn = false,
   poolName,
   displayMode = "free",
+  onDisplayModeChange,
   onResourceClick,
   filterContent,
   summaryContent,
@@ -480,7 +485,7 @@ export function ResourceTable({
                       className={cn(
                         "rounded p-1.5 transition-colors",
                         compactMode
-                          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
                           : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800",
                       )}
                     >
@@ -490,6 +495,34 @@ export function ResourceTable({
                   <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
                 </Tooltip>
               </div>
+
+              {/* Display mode toggle button (Used vs Available) */}
+              {onDisplayModeChange && (
+                <div className="border-l border-zinc-100 px-2 dark:border-zinc-800/50">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => onDisplayModeChange(displayMode === "free" ? "used" : "free")}
+                        className={cn(
+                          "rounded p-1.5 transition-colors",
+                          displayMode === "used"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800",
+                        )}
+                      >
+                        {displayMode === "used" ? (
+                          <MonitorX className="h-3.5 w-3.5" />
+                        ) : (
+                          <MonitorCheck className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {displayMode === "used" ? "Show available capacity" : "Show used capacity"}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
             </div>
           </div>
         )}

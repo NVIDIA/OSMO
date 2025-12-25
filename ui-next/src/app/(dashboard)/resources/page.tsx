@@ -78,6 +78,7 @@ export default function ResourcesPage() {
               isLoading={isLoading}
               showPoolsColumn
               displayMode={displayMode}
+              onDisplayModeChange={setDisplayMode}
               filterCount={filterCount}
               hasNextPage={hasNextPage}
               onLoadMore={fetchNextPage}
@@ -131,17 +132,6 @@ export default function ResourcesPage() {
                     />
                   )}
 
-                  <FilterBar.Actions>
-                    <FilterBar.Toggle
-                      label="View by"
-                      options={[
-                        { value: "free" as const, label: "Free" },
-                        { value: "used" as const, label: "Used" },
-                      ]}
-                      value={displayMode}
-                      onChange={setDisplayMode}
-                    />
-                  </FilterBar.Actions>
                 </FilterBar>
               }
               summaryContent={
