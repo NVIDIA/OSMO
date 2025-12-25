@@ -38,6 +38,3 @@
 
 export * from "./types";
 export { useDataTable, DATA_TABLE_DEFAULTS, type UseDataTableOptions } from "./use-data-table";
-
-// Deprecated exports for backward compatibility
-export { useInfiniteDataTable, INFINITE_PAGINATION_DEFAULTS } from "./use-data-table";

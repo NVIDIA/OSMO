@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LoadingMoreIndicatorProps {
@@ -35,20 +35,20 @@ interface LoadingMoreIndicatorProps {
 /**
  * Loading indicator for infinite scroll tables.
  *
- * Shows a subtle loading spinner only when actively fetching more data.
- * Pagination is an implementation detail - users just see content loading seamlessly.
+ * Shows a subtle loading spinner when actively fetching more data,
+ * and an "end of results" indicator when all items have been loaded.
  */
 export function LoadingMoreIndicator({
   isLoading,
-  hasMore: _hasMore,
+  hasMore,
   loadedCount,
-  totalCount: _totalCount,
+  totalCount,
   className,
 }: LoadingMoreIndicatorProps) {
   // Don't show anything if no items loaded yet
   if (loadedCount === 0) return null;
 
-  // Only show loading spinner when actively fetching more
+  // Show loading spinner when actively fetching more
   if (isLoading) {
     return (
       <div
@@ -63,6 +63,21 @@ export function LoadingMoreIndicator({
     );
   }
 
-  // No indicator when idle - pagination is seamless
+  // Show end of results when all items have been loaded
+  if (!hasMore && loadedCount && loadedCount > 0) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-1.5 py-4 text-xs text-zinc-400 dark:text-zinc-500",
+          className,
+        )}
+      >
+        <Check className="h-3.5 w-3.5" />
+        <span>You've reached the end</span>
+      </div>
+    );
+  }
+
+  // No indicator when more items available - pagination is seamless
   return null;
 }
