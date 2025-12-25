@@ -45,3 +45,6 @@ export {
 
 // Pagination types
 export type { PaginatedResourcesResult } from "./pagination";
+
+// Utilities
+export { deriveResourceTypes } from "./utils";
