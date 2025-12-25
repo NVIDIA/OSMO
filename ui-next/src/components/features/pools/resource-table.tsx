@@ -150,7 +150,7 @@ function useVirtualizerNoFlushSync<TScrollElement extends Element, TItemElement 
     scrollToFn: elementScroll,
     ...options,
     // Override onChange to NEVER use flushSync - use startTransition instead
-    onChange: (instance, _sync) => {
+    onChange: (instance) => {
       startTransition(() => {
         rerender({});
       });
