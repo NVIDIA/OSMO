@@ -59,6 +59,7 @@
  */
 
 import type { PaginatedResponse, PaginationParams } from "@/lib/pagination";
+import { matchesSearch } from "@/lib/utils";
 import type { Resource } from "./types";
 import { transformAllResourcesResponse } from "./transforms";
 
@@ -157,13 +158,13 @@ function applyClientSideFilters(resources: Resource[], params: ResourceFilterPar
 
   // SHIM: Filter by search (should be server-side)
   if (params.search && params.search.trim()) {
-    const query = params.search.toLowerCase();
-    result = result.filter(
-      (resource) =>
-        resource.name.toLowerCase().includes(query) ||
-        resource.platform.toLowerCase().includes(query) ||
-        resource.resourceType.toLowerCase().includes(query) ||
-        resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(query)),
+    result = result.filter((resource) =>
+      matchesSearch(resource, params.search!, (r) => [
+        r.name,
+        r.platform,
+        r.resourceType,
+        ...r.poolMemberships.map((m) => m.pool),
+      ]),
     );
   }
 

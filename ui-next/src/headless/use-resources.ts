@@ -28,13 +28,14 @@ import { useMemo } from "react";
 import {
   fetchResources,
   getResourceFilterOptions,
+  deriveResourceTypes,
   type Resource,
   type PaginatedResourcesResult,
 } from "@/lib/api/adapter";
 import { useDataTable } from "@/lib/pagination";
 import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
-import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
+import { isBackendResourceType } from "@/lib/constants/ui";
 import type { AllResourcesFilterType, ResourceDisplayMode } from "./types";
 import { useDisplayMode } from "./use-display-mode";
 
@@ -113,11 +114,6 @@ export interface UseResourcesReturn {
 // =============================================================================
 // Hook
 // =============================================================================
-
-/** Type guard for BackendResourceType */
-function isBackendResourceType(value: string): value is BackendResourceType {
-  return (ALL_RESOURCE_TYPES as readonly string[]).includes(value);
-}
 
 export function useResources(): UseResourcesReturn {
   // ==========================================================================
@@ -237,11 +233,7 @@ export function useResources(): UseResourcesReturn {
 
   // Derive resource types from loaded resources
   // IDEAL: Backend provides this
-  const resourceTypes = useMemo(() => {
-    const types = new Set<BackendResourceType>();
-    resources.forEach((resource) => types.add(resource.resourceType));
-    return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
-  }, [resources]);
+  const resourceTypes = useMemo(() => deriveResourceTypes(resources), [resources]);
 
   // ==========================================================================
   // Active Filters (using generic active filters hook)
