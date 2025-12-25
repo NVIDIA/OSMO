@@ -17,17 +17,45 @@
  */
 
 /**
- * Pagination helpers and shimming for backend without cursor support.
+ * Pagination Adapter - Shim for backend pagination support.
  *
- * BACKEND SHIM: Until backend supports real cursor pagination, we fetch all
- * resources on first request and "paginate" through them client-side.
+ * =============================================================================
+ * IDEAL BACKEND API (what we're coding toward):
+ * =============================================================================
  *
- * This provides:
- * 1. Correct API contract for UI components
- * 2. Easy migration path when backend adds real pagination
- * 3. Reduced re-renders by returning consistent page sizes
+ * GET /api/resources?limit=50&cursor=abc123&search=dgx&resource_types=SHARED
  *
- * Issue: BACKEND_TODOS.md#11
+ * Response:
+ * {
+ *   "resources": [...50 items...],
+ *   "pagination": {
+ *     "cursor": "xyz789",      // Opaque cursor for next page
+ *     "has_more": true,        // Whether more pages exist
+ *     "total": 1234,           // Total matching filters
+ *     "filtered_total": 456    // Total after search/filter (if different)
+ *   },
+ *   "metadata": {
+ *     "pools": ["pool-1", "pool-2"],      // Available for filtering
+ *     "platforms": ["dgx", "base"]         // Available for filtering
+ *   }
+ * }
+ *
+ * =============================================================================
+ * CURRENT SHIM (what this file does):
+ * =============================================================================
+ *
+ * 1. Fetches ALL resources on first page request
+ * 2. Caches them client-side (60s TTL)
+ * 3. Returns paginated slices from cache
+ * 4. Simulates cursor-based pagination
+ *
+ * WHEN BACKEND IS UPDATED:
+ * 1. Update fetchPaginatedResources to pass params directly to API
+ * 2. Remove client-side cache
+ * 3. Parse pagination from response
+ * 4. UI components work unchanged
+ *
+ * See: BACKEND_TODOS.md#11 for detailed backend requirements.
  */
 
 import type { PaginatedResponse, PaginationParams } from "@/lib/pagination";
