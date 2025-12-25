@@ -14,6 +14,7 @@ import {
   useState,
   useRef,
   useEffect,
+  useLayoutEffect,
   useMemo,
   memo,
   useCallback,
@@ -21,7 +22,13 @@ import {
   cloneElement,
   startTransition,
 } from "react";
-import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
+import {
+  Virtualizer,
+  observeElementOffset,
+  observeElementRect,
+  elementScroll,
+  type VirtualizerOptions,
+} from "@tanstack/react-virtual";
 import {
   Filter,
   Pin,
@@ -114,6 +121,56 @@ const COLUMNS_WITH_POOLS = ALL_COLUMNS;
 const COLUMNS_NO_POOLS = selectColumns(ALL_COLUMNS, ["resource", "platform", "gpu", "cpu", "memory", "storage"]);
 
 const HEADER_HEIGHT = 41; // pixels
+
+// =============================================================================
+// Custom Virtualizer Hook (avoids flushSync)
+// =============================================================================
+
+/**
+ * Custom useVirtualizer that never uses flushSync.
+ * The library's default useVirtualizer uses flushSync for "sync" updates,
+ * which crashes in React 18+ when called during render/lifecycle methods.
+ * This version uses startTransition for all updates instead.
+ */
+function useVirtualizerNoFlushSync<TScrollElement extends Element, TItemElement extends Element>(
+  options: Omit<VirtualizerOptions<TScrollElement, TItemElement>, "observeElementRect" | "observeElementOffset" | "scrollToFn"> & {
+    observeElementRect?: VirtualizerOptions<TScrollElement, TItemElement>["observeElementRect"];
+    observeElementOffset?: VirtualizerOptions<TScrollElement, TItemElement>["observeElementOffset"];
+    scrollToFn?: VirtualizerOptions<TScrollElement, TItemElement>["scrollToFn"];
+  },
+): Virtualizer<TScrollElement, TItemElement> {
+  const [, rerender] = useState({});
+
+  const resolvedOptions: VirtualizerOptions<TScrollElement, TItemElement> = {
+    observeElementRect,
+    observeElementOffset,
+    scrollToFn: elementScroll,
+    ...options,
+    // Override onChange to NEVER use flushSync - use startTransition instead
+    onChange: (instance, _sync) => {
+      startTransition(() => {
+        rerender({});
+      });
+      options.onChange?.(instance, false); // Always pass false to downstream handlers
+    },
+  };
+
+  const [instance] = useState(
+    () => new Virtualizer<TScrollElement, TItemElement>(resolvedOptions),
+  );
+
+  instance.setOptions(resolvedOptions);
+
+  useLayoutEffect(() => {
+    return instance._didMount();
+  }, [instance]);
+
+  useLayoutEffect(() => {
+    return instance._willUpdate();
+  });
+
+  return instance;
+}
 
 // =============================================================================
 // Main Component
@@ -730,74 +787,11 @@ const TableContent = memo(function TableContent({
 }) {
   "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
 
-  // Custom observeElementRect that uses RAF instead of flushSync to avoid React 18+ conflicts
-  // This prevents "flushSync was called from inside a lifecycle method" errors
-  const observeElementRectRAF = useCallback(
-    (
-      instance: Virtualizer<HTMLDivElement, Element>,
-      cb: (rect: { width: number; height: number }) => void,
-    ) => {
-      const element = instance.scrollElement;
-      if (!element) return;
-
-      // Report initial size
-      const { width, height } = element.getBoundingClientRect();
-      cb({ width: Math.round(width), height: Math.round(height) });
-
-      // Observe resize changes using RAF instead of flushSync
-      const observer = new ResizeObserver((entries) => {
-        const entry = entries[0];
-        if (entry) {
-          // Use RAF to defer the callback and avoid flushSync during render
-          requestAnimationFrame(() => {
-            const { width: w, height: h } = entry.contentRect;
-            cb({ width: Math.round(w), height: Math.round(h) });
-          });
-        }
-      });
-
-      observer.observe(element);
-      return () => observer.unobserve(element);
-    },
-    [],
-  );
-
-  // Custom observeElementOffset that avoids flushSync
-  const observeElementOffsetRAF = useCallback(
-    (instance: Virtualizer<HTMLDivElement, Element>, cb: (offset: number) => void) => {
-      const element = instance.scrollElement;
-      if (!element) return;
-
-      // Report initial offset
-      cb(element.scrollTop);
-
-      // Use passive scroll listener with RAF batching
-      let rafId: number | null = null;
-      const onScroll = () => {
-        if (rafId !== null) return;
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          cb(element.scrollTop);
-        });
-      };
-
-      element.addEventListener("scroll", onScroll, { passive: true });
-      return () => {
-        element.removeEventListener("scroll", onScroll);
-        if (rafId !== null) cancelAnimationFrame(rafId);
-      };
-    },
-    [],
-  );
-
-  // eslint-disable-next-line react-hooks/incompatible-library -- intentionally opted out above
-  const rowVirtualizer = useVirtualizer({
+  const rowVirtualizer = useVirtualizerNoFlushSync({
     count: resources.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 5,
-    observeElementRect: observeElementRectRAF,
-    observeElementOffset: observeElementOffsetRAF,
   });
 
   // Reset measurements when row height changes
