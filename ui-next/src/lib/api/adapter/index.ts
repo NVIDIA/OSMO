@@ -37,8 +37,8 @@ export {
   useAllResources,
   useVersion,
   useResourceDetail,
-  // Paginated fetchers
-  fetchPaginatedAllResources,
+  // Resource fetchers
+  fetchResources,
   invalidateResourcesCache,
 } from "./hooks";
 
