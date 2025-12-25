@@ -9,19 +9,25 @@
  */
 
 /**
- * Headless hook for the Resources page behavior.
+ * Headless hook for viewing resources with filtering and infinite scroll.
  *
- * Provides logic for viewing all resources across pools,
- * with filtering by pool, platform, search, and resource type.
+ * Provides:
+ * - Paginated resource loading with cursor-based navigation
+ * - Filter state management (pools, platforms, search, resource type)
+ * - Infinite scroll controls for virtualized tables
  *
  * This hook demonstrates the composition pattern using:
+ * - lib/pagination for infinite scroll primitives
  * - lib/filters for filter state management
  *
  * The same pattern can be used for workflows, tasks, pools, etc.
  */
 
+"use client";
+
 import { useState, useMemo, useCallback } from "react";
-import { useAllResources as useAllResourcesQuery, type Resource } from "@/lib/api/adapter";
+import { fetchPaginatedAllResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
+import { useInfiniteDataTable } from "@/lib/pagination";
 import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { StorageKeys } from "@/lib/constants/storage";
@@ -34,10 +40,16 @@ import type { AllResourcesFilterType, ResourceDisplayMode } from "./types";
 
 export interface UseAllResourcesReturn {
   // Resource data
+  /** All loaded resources (before client-side filtering) */
   allResources: Resource[];
+  /** Resources after all filters applied */
   filteredResources: Resource[];
-  resourceCount: number;
+  /** Total resources available (from API, if known) */
+  resourceCount?: number;
+  /** Number of resources after filtering */
   filteredResourceCount: number;
+  /** Number of resources currently loaded */
+  loadedCount: number;
 
   // Available filter options
   pools: string[];
@@ -73,8 +85,14 @@ export interface UseAllResourcesReturn {
   hasActiveFilter: boolean;
   filterCount: number;
 
+  // Infinite scroll state
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
+  isFetchingNextPage: boolean;
+
   // Query state
   isLoading: boolean;
+  isRefetching: boolean;
   error: HTTPValidationError | null;
   refetch: () => void;
 }
@@ -89,12 +107,6 @@ function isBackendResourceType(value: string): value is BackendResourceType {
 }
 
 export function useAllResources(): UseAllResourcesReturn {
-  // ==========================================================================
-  // Data Fetching
-  // ==========================================================================
-
-  const { resources, pools, platforms, isLoading, error, refetch } = useAllResourcesQuery();
-
   // ==========================================================================
   // Filter State (using generic filter primitives)
   // ==========================================================================
@@ -127,37 +139,90 @@ export function useAllResources(): UseAllResourcesReturn {
   }, []);
 
   // ==========================================================================
+  // Infinite Pagination
+  // ==========================================================================
+
+  // Build query key that includes all server-side filter params
+  // When filters change, query key changes → pagination resets automatically
+  const queryKey = useMemo(
+    () => [
+      "resources",
+      "all",
+      {
+        pools: Array.from(poolFilter.selected).sort(),
+        platforms: Array.from(platformFilter.selected).sort(),
+      },
+    ],
+    [poolFilter.selected, platformFilter.selected],
+  );
+
+  // Use infinite pagination
+  const {
+    items: allResources,
+    totalCount,
+    loadedCount,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isRefetching,
+    error,
+    refetch,
+  } = useInfiniteDataTable<Resource, { pools?: string[]; platforms?: string[] }>({
+    queryKey,
+    queryFn: async (params): Promise<PaginatedResourcesResult> => {
+      return fetchPaginatedAllResources(params);
+    },
+    params: {
+      pools: poolFilter.hasSelection ? Array.from(poolFilter.selected) : undefined,
+      platforms: platformFilter.hasSelection ? Array.from(platformFilter.selected) : undefined,
+    },
+    config: {
+      pageSize: 50,
+      staleTime: 60_000,
+    },
+  });
+
+  // ==========================================================================
   // Derived Data
   // ==========================================================================
 
-  // Derive resource types from all resources
+  // Extract unique pools and platforms from loaded resources
+  const { pools, platforms } = useMemo(() => {
+    const poolSet = new Set<string>();
+    const platformSet = new Set<string>();
+
+    for (const resource of allResources) {
+      platformSet.add(resource.platform);
+      for (const membership of resource.poolMemberships) {
+        poolSet.add(membership.pool);
+      }
+    }
+
+    return {
+      pools: Array.from(poolSet).sort(),
+      platforms: Array.from(platformSet).sort(),
+    };
+  }, [allResources]);
+
+  // Derive resource types from loaded resources
   const resourceTypes = useMemo(() => {
     const types = new Set<BackendResourceType>();
-    resources.forEach((resource) => types.add(resource.resourceType));
+    allResources.forEach((resource) => types.add(resource.resourceType));
     return ALL_RESOURCE_TYPES.filter((t) => types.has(t));
-  }, [resources]);
+  }, [allResources]);
 
-  // Filter resources by pool, platform, search, AND resource type
-  // Uses deferredSearch for non-blocking search updates
+  // Client-side filtering for search and resource type
+  // Pool/platform filters are handled server-side via query params
   const filteredResources = useMemo(() => {
-    let result = resources;
+    let result = allResources;
 
-    // Filter by pools
-    if (poolFilter.hasSelection) {
-      result = result.filter((resource) => resource.poolMemberships.some((m) => poolFilter.selected.has(m.pool)));
-    }
-
-    // Filter by platform
-    if (platformFilter.hasSelection) {
-      result = result.filter((resource) => platformFilter.selected.has(resource.platform));
-    }
-
-    // Filter by resource type
+    // Filter by resource type (client-side)
     if (resourceTypeFilter.hasSelection) {
       result = result.filter((resource) => resourceTypeFilter.selected.has(resource.resourceType));
     }
 
-    // Filter by search (using deferred value for smooth typing)
+    // Filter by search (client-side, using deferred value for smooth typing)
     if (search.deferredValue.trim()) {
       const query = search.deferredValue.toLowerCase();
       result = result.filter(
@@ -170,16 +235,7 @@ export function useAllResources(): UseAllResourcesReturn {
     }
 
     return result;
-  }, [
-    resources,
-    search.deferredValue,
-    poolFilter.selected,
-    poolFilter.hasSelection,
-    platformFilter.selected,
-    platformFilter.hasSelection,
-    resourceTypeFilter.selected,
-    resourceTypeFilter.hasSelection,
-  ]);
+  }, [allResources, search.deferredValue, resourceTypeFilter.selected, resourceTypeFilter.hasSelection]);
 
   // ==========================================================================
   // Active Filters (using generic active filters hook)
@@ -224,10 +280,11 @@ export function useAllResources(): UseAllResourcesReturn {
 
   return {
     // Resource data
-    allResources: resources,
+    allResources,
     filteredResources,
-    resourceCount: resources.length,
+    resourceCount: totalCount,
     filteredResourceCount: filteredResources.length,
+    loadedCount,
 
     // Available filter options
     pools,
@@ -266,9 +323,15 @@ export function useAllResources(): UseAllResourcesReturn {
     hasActiveFilter: activeFilters.hasFilters,
     filterCount: activeFilters.count,
 
+    // Infinite scroll state
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+
     // Query state
     isLoading,
-    error,
+    isRefetching,
+    error: error as HTTPValidationError | null,
     refetch,
   };
 }
