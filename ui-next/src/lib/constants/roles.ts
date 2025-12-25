@@ -31,10 +31,3 @@ export type Role = (typeof Roles)[keyof typeof Roles];
 export function hasAdminRole(roles: string[]): boolean {
   return roles.includes(Roles.OSMO_ADMIN) || roles.includes(Roles.DASHBOARD_ADMIN);
 }
-
-/**
- * Check if roles array contains any user role.
- */
-export function hasUserRole(roles: string[]): boolean {
-  return roles.includes(Roles.OSMO_USER) || roles.includes(Roles.DASHBOARD_USER);
-}
