@@ -23,12 +23,10 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   FileText,
   Terminal,
   ChevronDown,
   ChevronRight,
-  MoreHorizontal,
 } from "lucide-react";
 
 // ============================================================================
@@ -473,7 +471,7 @@ function TimelineListView({
   }, [groups]);
 
   // Get the earliest start time for the timeline
-  const timelineStart = useMemo(() => {
+  const _timelineStart = useMemo(() => {
     const firstStart = allTasks.find((t) => t.startTime)?.startTime;
     return firstStart || new Date();
   }, [allTasks]);
@@ -494,7 +492,7 @@ function TimelineListView({
         {/* Vertical timeline line */}
         <div className="absolute left-[52px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-zinc-700 via-zinc-700 to-transparent" />
 
-        {allTasks.map((task, idx) => {
+        {allTasks.map((task) => {
           const category = getStatusCategory(task.status);
           const style = statusStyles[category];
           const isGroupSelected = selectedGroupId === task.groupId;
