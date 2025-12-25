@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { storeTokens } from "@/lib/auth/token-storage";
 
 /**
  * Auth success page - stores tokens and redirects to the original page.
@@ -41,12 +42,9 @@ export default function AuthSuccessPage() {
       }
     }
 
-    // Normal flow: store tokens locally and redirect
+    // Normal flow: store tokens via centralized storage
     if (idToken) {
-      localStorage.setItem("IdToken", idToken);
-    }
-    if (refreshToken) {
-      localStorage.setItem("RefreshToken", refreshToken);
+      storeTokens(idToken, refreshToken ?? undefined);
     }
 
     // Redirect to the original page

@@ -24,7 +24,7 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import {
   fetchResources,
   getResourceFilterOptions,
@@ -34,9 +34,9 @@ import {
 import { useDataTable } from "@/lib/pagination";
 import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
-import { StorageKeys } from "@/lib/constants/storage";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
 import type { AllResourcesFilterType, ResourceDisplayMode } from "./types";
+import { useDisplayMode } from "./use-display-mode";
 
 // =============================================================================
 // Types
@@ -136,20 +136,7 @@ export function useResources(): UseResourcesReturn {
   // Display Mode (persisted to localStorage)
   // ==========================================================================
 
-  const [displayMode, setDisplayModeState] = useState<ResourceDisplayMode>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem(StorageKeys.RESOURCE_DISPLAY_MODE);
-      if (stored === "free" || stored === "used") {
-        return stored;
-      }
-    }
-    return "free";
-  });
-
-  const setDisplayMode = useCallback((mode: ResourceDisplayMode) => {
-    setDisplayModeState(mode);
-    localStorage.setItem(StorageKeys.RESOURCE_DISPLAY_MODE, mode);
-  }, []);
+  const { displayMode, setDisplayMode } = useDisplayMode();
 
   // ==========================================================================
   // Data Table with Pagination
