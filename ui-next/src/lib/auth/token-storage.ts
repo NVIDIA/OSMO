@@ -11,6 +11,8 @@ import { getAuthBackend } from "./auth-backend";
 
 const ID_TOKEN_KEY = StorageKeys.ID_TOKEN;
 const REFRESH_TOKEN_KEY = StorageKeys.REFRESH_TOKEN;
+const AUTH_SKIPPED_KEY = "osmo_auth_skipped";
+const RETURN_URL_KEY = "osmo_return_url";
 
 /**
  * Get the stored IdToken.
@@ -103,7 +105,60 @@ export async function refreshStoredToken(): Promise<string | null> {
   return result.idToken || null;
 }
 
+// =============================================================================
+// Session Storage (auth flow state)
+// =============================================================================
+
+/**
+ * Check if auth was skipped (user chose "Continue without login").
+ */
+export function isAuthSkipped(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(AUTH_SKIPPED_KEY) === "true";
+}
+
+/**
+ * Mark auth as skipped.
+ */
+export function setAuthSkipped(skipped: boolean): void {
+  if (typeof window === "undefined") return;
+  if (skipped) {
+    sessionStorage.setItem(AUTH_SKIPPED_KEY, "true");
+  } else {
+    sessionStorage.removeItem(AUTH_SKIPPED_KEY);
+  }
+}
+
+/**
+ * Store the URL to return to after login.
+ */
+export function setReturnUrl(url: string): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(RETURN_URL_KEY, url);
+}
+
+/**
+ * Get and clear the return URL (one-time use).
+ */
+export function consumeReturnUrl(fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const url = sessionStorage.getItem(RETURN_URL_KEY) || fallback;
+  sessionStorage.removeItem(RETURN_URL_KEY);
+  return url;
+}
+
+/**
+ * Clear all auth session state (used on logout).
+ */
+export function clearAuthSessionState(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(AUTH_SKIPPED_KEY);
+  sessionStorage.removeItem(RETURN_URL_KEY);
+}
+
+// =============================================================================
 // Internal helpers
+// =============================================================================
 
 function getCookieValue(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
