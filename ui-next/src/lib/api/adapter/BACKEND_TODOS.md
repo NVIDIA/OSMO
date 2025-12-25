@@ -281,6 +281,72 @@ export function usePoolDetail({ poolName }) {
 
 ---
 
+### 11. Resources API Needs Pagination Support
+
+**Priority:** High  
+**Status:** Active workaround in `pagination.ts`
+
+The `/api/resources` endpoint currently returns all resources at once with no pagination support. For clusters with 500+ resources, this causes slow initial page loads and high memory usage.
+
+**Current behavior:**
+```
+GET /api/resources?all_pools=true
+→ Returns ALL resources (potentially 1000s) in a single response
+```
+
+**Needed behavior:**
+```
+GET /api/resources?all_pools=true&limit=50&cursor=<opaque>
+→ Returns paginated response:
+{
+  "resources": [...50 items...],
+  "pagination": {
+    "cursor": "eyJpZCI6MTIzfQ==",
+    "has_more": true,
+    "total": 1234
+  }
+}
+```
+
+**Required API changes:**
+
+1. **Add query parameters:**
+   - `limit`: Max items per page (default: 50, max: 500)
+   - `cursor`: Opaque string for cursor-based pagination
+   - `offset`: Alternative for offset-based pagination (fallback)
+
+2. **Add response fields:**
+   - `pagination.cursor`: Next page cursor (base64 encoded position)
+   - `pagination.has_more`: Boolean if more pages exist
+   - `pagination.total`: Total count (optional but useful for UI "X of Y")
+
+3. **Support sorting in query (optional but recommended):**
+   - `sort_by`: Field to sort by (name, platform, gpu, cpu, memory, storage)
+   - `sort_order`: asc/desc
+
+4. **Support filtering in query (optional, enables server-side filtering):**
+   - `search`: Text search across name, platform
+   - `resource_types`: Filter by SHARED/RESERVED/UNUSED
+
+**Current UI workaround:**
+The adapter layer fetches all resources on first page load and simulates pagination client-side using an in-memory cache. This provides the correct API contract for UI components but doesn't reduce initial load time.
+
+See: `src/lib/api/adapter/pagination.ts`
+
+**When fixed:**
+1. Update `fetchPaginatedAllResources()` to pass pagination params directly to API
+2. Remove client-side caching shim in `pagination.ts`
+3. Regenerate types with `pnpm generate-api`
+4. UI components work unchanged (they already use paginated interface)
+
+**Benefits of backend fix:**
+- Faster initial page load (50 items vs 1000+)
+- Lower memory usage on client
+- Better scalability for large clusters
+- Enables true server-side filtering/sorting
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -295,6 +361,7 @@ export function usePoolDetail({ poolName }) {
 | #8 Concise changes structure | Low | N/A | N/A |
 | #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
 | #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
+| #11 Resources needs pagination | High | pagination.ts | Pass params directly |
 
 ---
 
