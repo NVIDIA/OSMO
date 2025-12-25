@@ -140,7 +140,7 @@ export function useInfiniteDataTable<T, TParams extends object>({
   const items = useMemo(() => {
     if (!query.data?.pages) return [];
     return query.data.pages.flatMap((page) => page.items);
-  }, [query.data?.pages]);
+  }, [query.data]);
 
   // Get total from first page (if available)
   const totalCount = query.data?.pages[0]?.total;
