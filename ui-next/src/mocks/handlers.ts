@@ -28,7 +28,6 @@ import {
   profileGenerator,
   portForwardGenerator,
   terminalSimulator,
-  MOCK_CONFIG,
 } from "./generators";
 
 // Simulate network delay (ms) - realistic latency
