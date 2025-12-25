@@ -5,6 +5,36 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// =============================================================================
+// Search Utilities
+// =============================================================================
+
+/**
+ * Check if an item matches a search query across specified fields.
+ * Case-insensitive substring matching.
+ *
+ * @param item - The object to search
+ * @param query - Search query string
+ * @param getSearchableValues - Function to extract searchable string values from item
+ * @returns true if query is empty or any value contains the query
+ *
+ * @example
+ * ```ts
+ * const matches = matchesSearch(
+ *   resource,
+ *   "dgx",
+ *   (r) => [r.name, r.platform, r.resourceType]
+ * );
+ * ```
+ */
+export function matchesSearch<T>(item: T, query: string, getSearchableValues: (item: T) => string[]): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) return true;
+
+  const q = trimmed.toLowerCase();
+  return getSearchableValues(item).some((value) => value.toLowerCase().includes(q));
+}
+
 /**
  * Format a number with commas for thousands separator.
  * Example: 1234567 → "1,234,567"
