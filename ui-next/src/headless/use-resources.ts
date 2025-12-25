@@ -25,7 +25,12 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { fetchResources, getResourceFilterOptions, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
+import {
+  fetchResources,
+  getResourceFilterOptions,
+  type Resource,
+  type PaginatedResourcesResult,
+} from "@/lib/api/adapter";
 import { useDataTable } from "@/lib/pagination";
 import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
