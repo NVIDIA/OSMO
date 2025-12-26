@@ -33,7 +33,13 @@ import {
   type PaginatedResourcesResult,
 } from "@/lib/api/adapter";
 import { useDataTable } from "@/lib/pagination";
-import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
+import {
+  useUrlSearch,
+  useUrlSetFilter,
+  useUrlResourceTypeFilter,
+  useActiveFilters,
+  type FilterDefinition,
+} from "@/lib/filters";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { isBackendResourceType } from "@/lib/constants/ui";
 import type { AllResourcesFilterType, ResourceDisplayMode } from "./types";
@@ -117,16 +123,21 @@ export interface UseResourcesReturn {
 
 export function useResources(): UseResourcesReturn {
   // ==========================================================================
-  // Filter State (using generic filter primitives)
+  // Filter State (URL-synced for shareable/bookmarkable URLs)
   // ==========================================================================
 
   // Search with deferred value for non-blocking updates
-  const search = useDeferredSearch();
+  // URL: /resources?q=search-term
+  const search = useUrlSearch("q");
 
-  // Set-based filters
-  const poolFilter = useSetFilter<string>();
-  const platformFilter = useSetFilter<string>();
-  const resourceTypeFilter = useSetFilter<BackendResourceType>({ singleSelect: true });
+  // Set-based filters (multi-select)
+  // URL: /resources?pools=pool1&pools=pool2&platforms=linux
+  const poolFilter = useUrlSetFilter("pools");
+  const platformFilter = useUrlSetFilter("platforms");
+
+  // Resource type filter (single-select with type-safe validation)
+  // URL: /resources?type=gpu
+  const resourceTypeFilter = useUrlResourceTypeFilter("type");
 
   // ==========================================================================
   // Display Mode (persisted to localStorage)
