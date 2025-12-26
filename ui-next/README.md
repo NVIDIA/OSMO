@@ -312,6 +312,7 @@ src/
     │   └── fetcher.ts      # Auth-aware fetch wrapper
     ├── auth/               # Authentication logic
     ├── constants/          # Roles, headers, storage keys
+    ├── filters/            # URL-synced filter hooks (nuqs)
     └── styles.ts           # Shared Tailwind patterns
 ```
 
@@ -838,6 +839,7 @@ This UI is optimized for **blazing-fast rendering** with minimal layout reflow.
 | **CSS Containment** | `contain: strict` on containers |
 | **GPU Transforms** | `translate3d()` for positioning |
 | **Deferred Values** | `useDeferredValue` for search filters |
+| **URL State** | `nuqs` for shareable filter URLs |
 | **Transitions** | `startTransition` for non-blocking updates |
 | **Memoization** | `React.memo()` on expensive components |
 | **Structural Sharing** | React Query only updates changed refs |

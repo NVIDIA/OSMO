@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // React Query Devtools available via Chrome extension:
 // https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh
 import { ThemeProvider } from "next-themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
 import { AuthProvider } from "@/lib/auth/auth-provider";
@@ -78,20 +79,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <MockProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            <UserProvider>
-              <SidebarProvider>{children}</SidebarProvider>
-            </UserProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <NuqsAdapter>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <AuthProvider>
+              <UserProvider>
+                <SidebarProvider>{children}</SidebarProvider>
+              </UserProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </NuqsAdapter>
     </MockProvider>
   );
 }
