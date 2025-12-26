@@ -9,8 +9,8 @@
 "use client";
 
 import { Cpu, Box, Layers } from "lucide-react";
-import { ResourceTable } from "@/components/features/pools";
-import { FilterBar, ApiError, AdaptiveSummary } from "@/components/shared";
+import { ResourceTable, AdaptiveSummary } from "@/components/features/resources";
+import { FilterBar, ApiError } from "@/components/shared";
 import { useResources } from "@/headless";
 
 export default function ResourcesPage() {
