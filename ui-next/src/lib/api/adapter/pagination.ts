@@ -44,16 +44,16 @@
  * CURRENT SHIM (what this file does):
  * =============================================================================
  *
- * 1. Fetches ALL resources on first page request
+ * 1. Fetches ALL resources when cache is empty or expired
  * 2. Caches them client-side (60s TTL)
- * 3. Returns paginated slices from cache
- * 4. Simulates cursor-based pagination
+ * 3. Applies filters client-side to cached data
+ * 4. Returns paginated slices from filtered cache
+ * 5. Filter changes use cache (no refetch within TTL)
  *
  * WHEN BACKEND IS UPDATED:
- * 1. Update fetchPaginatedResources to pass params directly to API
- * 2. Remove client-side cache
- * 3. Parse pagination from response
- * 4. UI components work unchanged
+ * 1. Delete this file entirely
+ * 2. Query backend directly with filter params
+ * 3. TanStack Query handles caching per filter combination
  *
  * See: BACKEND_TODOS.md#11 for detailed backend requirements.
  */
@@ -184,17 +184,12 @@ export async function fetchPaginatedResources(
   params: ResourceFilterParams & PaginationParams,
   fetchFn: () => Promise<unknown>,
 ): Promise<PaginatedResourcesResult> {
-  // Determine if this is the first page request
-  const isFirstPage = !params.cursor && (params.offset === undefined || params.offset === 0);
-
-  // If we have a valid cache and this is NOT the first page, use cache
-  if (!isFirstPage && isCacheValid(resourcesCache)) {
-    // SHIM: Apply client-side filters to cached data
+  // SHIM: Use cache for ALL requests (including filter changes)
+  // This prevents refetching when filters change within the cache TTL.
+  // When backend supports filtering, remove this cache entirely.
+  if (isCacheValid(resourcesCache)) {
     const filteredItems = applyClientSideFilters(resourcesCache.allItems, params);
-
-    // Parse cursor (which is just the offset encoded)
     const startIndex = params.cursor ? decodeCursor(params.cursor) : (params.offset ?? 0);
-
     const endIndex = startIndex + params.limit;
     const pageItems = filteredItems.slice(startIndex, endIndex);
     const hasMore = endIndex < filteredItems.length;
@@ -210,7 +205,7 @@ export async function fetchPaginatedResources(
     };
   }
 
-  // Fetch all resources
+  // Cache invalid or missing - fetch fresh data
   const rawResponse = await fetchFn();
   const transformed = transformAllResourcesResponse(rawResponse);
 
@@ -222,10 +217,8 @@ export async function fetchPaginatedResources(
     fetchedAt: Date.now(),
   };
 
-  // SHIM: Apply client-side filters
+  // Apply filters and return first page
   const filteredItems = applyClientSideFilters(transformed.resources, params);
-
-  // Return first page of filtered results
   const startIndex = params.offset ?? 0;
   const endIndex = startIndex + params.limit;
   const pageItems = filteredItems.slice(startIndex, endIndex);
