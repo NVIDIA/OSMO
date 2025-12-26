@@ -112,7 +112,11 @@ export function FilterBar<T extends string = string>({
 
   return (
     <FilterBarContext.Provider value={contextValue}>
-      <div className={cn("space-y-3", className)}>
+      {/* Containment isolates layout calculations from parent */}
+      <div
+        className={cn("space-y-3", className)}
+        style={{ contain: "layout style" }}
+      >
         {/* Filter controls row */}
         <div className="flex flex-wrap items-center gap-3">{children}</div>
 

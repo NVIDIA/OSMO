@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Loader2, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LoadingMoreIndicatorProps {
@@ -37,12 +37,16 @@ interface LoadingMoreIndicatorProps {
  *
  * Shows a subtle loading spinner when actively fetching more data,
  * and an "end of results" indicator when all items have been loaded.
+ *
+ * Performance: Uses pure CSS spinner instead of Lucide SVG icon
+ * for GPU-accelerated animation with no React re-renders.
  */
 export function LoadingMoreIndicator({ isLoading, hasMore, loadedCount, className }: LoadingMoreIndicatorProps) {
   // Don't show anything if no items loaded yet
   if (loadedCount === 0) return null;
 
   // Show loading spinner when actively fetching more
+  // Uses pure CSS spinner for GPU-accelerated animation
   if (isLoading) {
     return (
       <div
@@ -51,7 +55,11 @@ export function LoadingMoreIndicator({ isLoading, hasMore, loadedCount, classNam
           className,
         )}
       >
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <div
+          className="css-spinner"
+          role="status"
+          aria-label="Loading more items"
+        />
         <span>Loading...</span>
       </div>
     );
