@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { card, skeleton, progressTrack, getProgressColor, badge } from "@/lib/styles";
@@ -11,7 +12,11 @@ interface PoolRowProps {
   isDefault?: boolean;
 }
 
-export function PoolRow({ pool, isDefault }: PoolRowProps) {
+/**
+ * Memoized pool row component.
+ * Only re-renders when pool data or isDefault changes.
+ */
+export const PoolRow = memo(function PoolRow({ pool, isDefault }: PoolRowProps) {
   const available = pool.quota.limit - pool.quota.used;
   const quotaPercent = pool.quota.limit > 0 ? (pool.quota.used / pool.quota.limit) * 100 : 0;
   const isAvailable = pool.status === PoolStatus.ONLINE;
@@ -25,6 +30,7 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
         !isAvailable && "opacity-60",
         isDefault && "bg-zinc-50 dark:bg-zinc-900/50",
       )}
+      style={{ contain: "layout style" }}
     >
       {/* Left: Name + Description */}
       <div className="min-w-0 flex-1">
@@ -56,10 +62,15 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
                 aria-valuemax={pool.quota.limit}
                 aria-label={`GPU quota: ${pool.quota.used} of ${pool.quota.limit} used`}
                 className={cn("mt-1 h-1.5", progressTrack)}
+                style={{ contain: "layout paint" }}
               >
+                {/* GPU-accelerated scaleX instead of width */}
                 <div
-                  className={cn("h-full rounded-full transition-all", getProgressColor(quotaPercent))}
-                  style={{ width: `${Math.min(quotaPercent, 100)}%` }}
+                  className={cn(
+                    "h-full w-full rounded-full transition-transform duration-200 origin-left",
+                    getProgressColor(quotaPercent),
+                  )}
+                  style={{ transform: `scaleX(${Math.min(quotaPercent, 100) / 100})` }}
                 />
               </div>
             </div>
@@ -76,7 +87,7 @@ export function PoolRow({ pool, isDefault }: PoolRowProps) {
       </div>
     </Link>
   );
-}
+});
 
 export function PoolRowSkeleton() {
   return (

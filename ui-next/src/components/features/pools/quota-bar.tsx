@@ -31,7 +31,7 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         </span>
       </div>
 
-      {/* Progress bar - WCAG 2.1 accessible progressbar */}
+      {/* Progress bar - WCAG 2.1 accessible progressbar with GPU-accelerated scaleX */}
       <div
         role="progressbar"
         aria-valuenow={used}
@@ -39,10 +39,14 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         aria-valuemax={limit}
         aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
         className={cn("mt-3 h-3", progressTrack)}
+        style={{ contain: "layout paint" }}
       >
         <div
-          className={cn("h-full rounded-full transition-all duration-500", getProgressColor(percent))}
-          style={{ width: `${Math.min(percent, 100)}%` }}
+          className={cn(
+            "h-full w-full rounded-full transition-transform duration-500 origin-left",
+            getProgressColor(percent),
+          )}
+          style={{ transform: `scaleX(${Math.min(percent, 100) / 100})` }}
         />
       </div>
 
