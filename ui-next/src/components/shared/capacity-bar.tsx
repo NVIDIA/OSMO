@@ -112,7 +112,7 @@ export const CapacityBar = memo(function CapacityBar({
         </div>
       </div>
 
-      {/* Bar - WCAG 2.1 accessible progressbar */}
+      {/* Bar - WCAG 2.1 accessible progressbar with GPU-accelerated scaleX */}
       <div
         role="progressbar"
         aria-valuenow={used}
@@ -122,13 +122,11 @@ export const CapacityBar = memo(function CapacityBar({
         className={cn(barHeight, "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800")}
         style={{ contain: "layout paint" }}
       >
+        {/* Uses scaleX instead of width for GPU-accelerated animation */}
         <div
-          className={cn("h-full rounded-full transition-[width] duration-300 ease-out", barColor)}
+          className={cn("h-full w-full rounded-full transition-transform duration-300 ease-out origin-left", barColor)}
           style={{
-            width: `${Math.min(percent, 100)}%`,
-            // GPU acceleration for smooth width transitions
-            transform: "translateZ(0)",
-            willChange: "width",
+            transform: `scaleX(${Math.min(percent, 100) / 100})`,
           }}
         />
       </div>
