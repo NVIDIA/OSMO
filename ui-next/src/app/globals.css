@@ -307,3 +307,70 @@
   outline: 2px solid var(--nvidia-green);
   outline-offset: 2px;
 }
+
+/* =============================================================================
+   PURE CSS SPINNER
+   GPU-accelerated, no JavaScript, minimal repaints
+   ============================================================================= */
+
+@keyframes css-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.css-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: css-spinner 0.6s linear infinite;
+  will-change: transform;
+}
+
+.css-spinner-sm {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-width: 1.5px;
+}
+
+.css-spinner-lg {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-width: 3px;
+}
+
+/* Pulsing dot loader - ultra lightweight alternative */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pulse-loader {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.pulse-loader > span {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+.pulse-loader > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.pulse-loader > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
