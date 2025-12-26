@@ -20,7 +20,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:all": "pnpm test && pnpm test:e2e"
+    "test:all": "pnpm test && pnpm test:e2e",
+    "validate": "pnpm type-check && pnpm lint && pnpm format:check && pnpm build && pnpm test:all"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.8",
