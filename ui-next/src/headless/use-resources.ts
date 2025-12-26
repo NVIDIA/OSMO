@@ -214,28 +214,22 @@ export function useResources(): UseResourcesReturn {
   // Derived Data - Filter Options
   // ==========================================================================
 
-  // Get filter options from adapter cache (unfiltered data)
-  // This ensures options don't disappear when filters are applied
-  // IDEAL: Backend provides these in a separate endpoint or as metadata
-  // BACKEND TODO: Add /api/resources/filters endpoint returning available pools, platforms
+  // Get filter options - prefer cache (has all options), derive from loaded resources on first load
   const { pools, platforms } = useMemo(() => {
-    // Try to get from adapter cache first (unfiltered data)
     const cachedOptions = getResourceFilterOptions();
     if (cachedOptions) {
       return cachedOptions;
     }
 
-    // Fallback: derive from currently loaded resources
+    // First load: derive from currently loaded resources
     const poolSet = new Set<string>();
     const platformSet = new Set<string>();
-
     for (const resource of resources) {
       platformSet.add(resource.platform);
       for (const membership of resource.poolMemberships) {
         poolSet.add(membership.pool);
       }
     }
-
     return {
       pools: Array.from(poolSet).sort(),
       platforms: Array.from(platformSet).sort(),
@@ -257,16 +251,19 @@ export function useResources(): UseResourcesReturn {
         getValues: () => (search.value.trim() ? [search.value] : []),
         getLabel: (v) => `"${v}"`,
         remove: () => search.clear(),
+        clear: () => search.clear(),
       },
       {
         type: "pool",
         getValues: () => Array.from(poolFilter.selected),
         remove: (v) => poolFilter.toggle(v),
+        clear: () => poolFilter.clear(),
       },
       {
         type: "platform",
         getValues: () => Array.from(platformFilter.selected),
         remove: (v) => platformFilter.toggle(v),
+        clear: () => platformFilter.clear(),
       },
       {
         type: "resourceType",
@@ -276,6 +273,7 @@ export function useResources(): UseResourcesReturn {
             resourceTypeFilter.toggle(v);
           }
         },
+        clear: () => resourceTypeFilter.clear(),
       },
     ],
     [search, poolFilter, platformFilter, resourceTypeFilter],
