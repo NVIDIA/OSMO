@@ -9,15 +9,12 @@
  */
 
 /**
- * Pool Feature Components
+ * Resource Feature Components
  *
- * Themed components for displaying pools and pool-specific UI.
- * These components use the headless hooks for behavior.
- *
- * Note: Resource components (ResourceTable, ResourcePanel, AdaptiveSummary)
- * have been moved to @/components/features/resources as they are
- * resource-domain components used across multiple pages.
+ * Domain-specific components for displaying and managing resources.
+ * Used across multiple pages (pools, resources) but owned by the resource domain.
  */
 
-export { PoolRow, PoolRowSkeleton } from "./pool-row";
-export { QuotaBar } from "./quota-bar";
+export { ResourcePanel } from "./resource-panel";
+export { ResourceTable } from "./resource-table";
+export { AdaptiveSummary } from "./resource-summary-card";

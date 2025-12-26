@@ -15,10 +15,18 @@
  * │     token-utils.ts    │           token-storage.ts             │
  * │   JWT parsing/validation │     Token persistence              │
  * └───────────────────────┴────────────────────────────────────────┘
+ *                              ↓
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │                      user-context.tsx                           │
+ * │         User info derived from auth (UserProvider, useUser)     │
+ * └─────────────────────────────────────────────────────────────────┘
  */
 
 // Provider and hooks
 export { AuthProvider, useAuth, getAuthToken, refreshToken } from "./auth-provider";
+
+// User context (derived from auth)
+export { UserProvider, useUser, useIsAdmin, type User } from "./user-context";
 
 // Backend abstraction
 export { getAuthBackend, setAuthBackend } from "./auth-backend";

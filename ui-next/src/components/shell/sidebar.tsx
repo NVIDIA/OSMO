@@ -6,8 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
-import { useNavigation } from "@/lib/use-navigation";
-import type { NavItem as NavItemType } from "@/lib/navigation";
+import { useNavigation, type NavItem as NavItemType } from "@/lib/navigation";
 import { NvidiaLogo } from "@/components/nvidia-logo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
