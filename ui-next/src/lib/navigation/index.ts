@@ -9,15 +9,16 @@
  */
 
 /**
- * Pool Feature Components
+ * Navigation Module
  *
- * Themed components for displaying pools and pool-specific UI.
- * These components use the headless hooks for behavior.
+ * Provides navigation configuration and hooks for the application shell.
  *
- * Note: Resource components (ResourceTable, ResourcePanel, AdaptiveSummary)
- * have been moved to @/components/features/resources as they are
- * resource-domain components used across multiple pages.
+ * - config.ts: Static navigation data (routes, icons, labels)
+ * - use-navigation.ts: Hook that builds navigation based on user role
  */
 
-export { PoolRow, PoolRowSkeleton } from "./pool-row";
-export { QuotaBar } from "./quota-bar";
+// Navigation data and types
+export { buildNavigation, type NavItem, type NavSection, type Navigation } from "./config";
+
+// Navigation hook
+export { useNavigation } from "./use-navigation";
