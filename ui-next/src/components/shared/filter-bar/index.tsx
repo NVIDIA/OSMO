@@ -146,15 +146,13 @@ export function FilterBar<T extends string = string>({
                 </span>
               </button>
             ))}
-            {activeFilters.length > 1 && (
-              <button
-                onClick={onClearAll}
-                aria-label={`Clear all ${activeFilters.length} filters`}
-                className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-              >
-                Clear all
-              </button>
-            )}
+            <button
+              onClick={onClearAll}
+              aria-label={`Clear all ${activeFilters.length} filter${activeFilters.length > 1 ? "s" : ""}`}
+              className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              Clear all
+            </button>
           </div>
         )}
       </div>

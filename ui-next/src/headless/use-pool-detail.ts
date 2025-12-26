@@ -160,11 +160,13 @@ export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetail
         getValues: () => (search.value.trim() ? [search.value] : []),
         getLabel: (v) => `"${v}"`,
         remove: () => search.clear(),
+        clear: () => search.clear(),
       },
       {
         type: "platform",
         getValues: () => Array.from(platformFilter.selected),
         remove: (v) => platformFilter.toggle(v),
+        clear: () => platformFilter.clear(),
       },
       {
         type: "resourceType",
@@ -174,6 +176,7 @@ export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetail
             resourceTypeFilter.toggle(v);
           }
         },
+        clear: () => resourceTypeFilter.clear(),
       },
     ],
     [search, platformFilter, resourceTypeFilter],

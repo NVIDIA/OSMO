@@ -277,9 +277,6 @@ export function useResourceDetail(
         pools: [] as string[],
         initialPool: null as string | null,
         taskConfigByPool: {} as Record<string, TaskConfig>,
-        // Legacy support
-        primaryPool: null as string | null,
-        taskConfig: null as TaskConfig | null,
       };
     }
 
@@ -321,11 +318,7 @@ export function useResourceDetail(
       }
     }
 
-    // Legacy support: primaryPool and taskConfig for backward compatibility
-    const primaryPool = contextPool && pools.includes(contextPool) ? contextPool : null;
-    const taskConfig = initialPool ? (taskConfigByPool[initialPool] ?? null) : null;
-
-    return { pools, initialPool, taskConfigByPool, primaryPool, taskConfig };
+    return { pools, initialPool, taskConfigByPool };
   }, [resource, resourcesQuery.data, poolsQuery.data, contextPool]);
 
   return {
@@ -333,15 +326,10 @@ export function useResourceDetail(
     initialPool: result.initialPool,
     taskConfigByPool: result.taskConfigByPool,
     isLoadingPools: resourcesQuery.isLoading || poolsQuery.isLoading,
-    // Error from either query
     error: resourcesQuery.error || poolsQuery.error,
-    // Refetch both queries
     refetch: () => {
       resourcesQuery.refetch();
       poolsQuery.refetch();
     },
-    // Legacy support
-    primaryPool: result.primaryPool,
-    taskConfig: result.taskConfig,
   };
 }
