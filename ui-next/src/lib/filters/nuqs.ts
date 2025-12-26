@@ -22,13 +22,7 @@
  */
 
 import { useMemo, useCallback, useDeferredValue, useTransition } from "react";
-import {
-  useQueryState,
-  parseAsString,
-  parseAsArrayOf,
-  parseAsStringLiteral,
-  type Options,
-} from "nuqs";
+import { useQueryState, parseAsString, parseAsArrayOf, parseAsStringLiteral, type Options } from "nuqs";
 import type { SetFilterResult, DeferredSearchResult } from "./types";
 import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
 import type { BackendResourceType } from "@/lib/api/generated";
@@ -163,10 +157,7 @@ interface UrlSetFilterOptions {
  * typeFilter.toggle("cpu");  // Removes type param
  * ```
  */
-export function useUrlSetFilter(
-  key: string,
-  options?: UrlSetFilterOptions,
-): SetFilterResult<string> {
+export function useUrlSetFilter(key: string, options?: UrlSetFilterOptions): SetFilterResult<string> {
   const singleSelect = options?.singleSelect ?? false;
 
   // For single select, use string parser; for multi-select, use array parser
@@ -233,9 +224,7 @@ export function useUrlSetFilter(
  * typeFilter.toggle("gpu");  // Type-safe: only accepts BackendResourceType
  * ```
  */
-export function useUrlResourceTypeFilter(
-  key: string = "type",
-): SetFilterResult<BackendResourceType> {
+export function useUrlResourceTypeFilter(key: string = "type"): SetFilterResult<BackendResourceType> {
   const [value, setValue] = useQueryState(key, parseAsResourceType.withOptions(DEFAULT_URL_OPTIONS));
 
   const selected = useMemo(() => (value ? new Set([value]) : new Set<BackendResourceType>()), [value]);

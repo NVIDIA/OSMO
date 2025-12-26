@@ -54,9 +54,4 @@ export { useDeferredSearch } from "./use-deferred-search";
 export { useActiveFilters } from "./use-active-filters";
 
 // Hooks - URL-synced state (for shareable/bookmarkable filters)
-export {
-  useUrlSearch,
-  useUrlSetFilter,
-  useUrlResourceTypeFilter,
-  parseAsResourceType,
-} from "./nuqs";
+export { useUrlSearch, useUrlSetFilter, useUrlResourceTypeFilter, parseAsResourceType } from "./nuqs";
