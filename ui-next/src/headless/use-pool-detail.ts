@@ -13,7 +13,13 @@ import { matchesSearch } from "@/lib/utils";
 import { usePool, usePoolResources, deriveResourceTypes, type Resource, type PlatformConfig } from "@/lib/api/adapter";
 import { type BackendResourceType, type HTTPValidationError } from "@/lib/api/generated";
 import { isBackendResourceType } from "@/lib/constants/ui";
-import { useSetFilter, useDeferredSearch, useActiveFilters, type FilterDefinition } from "@/lib/filters";
+import {
+  useUrlSearch,
+  useUrlSetFilter,
+  useUrlResourceTypeFilter,
+  useActiveFilters,
+  type FilterDefinition,
+} from "@/lib/filters";
 import type { ActiveFilter, PoolDetailFilterType, ResourceDisplayMode } from "./types";
 import { useDisplayMode } from "./use-display-mode";
 
@@ -87,15 +93,20 @@ export function usePoolDetail({ poolName }: UsePoolDetailOptions): UsePoolDetail
   } = usePoolResources(poolName);
 
   // ==========================================================================
-  // Filter State (using shared filter primitives)
+  // Filter State (URL-synced for shareable/bookmarkable URLs)
   // ==========================================================================
 
   // Search with deferred value for non-blocking updates
-  const search = useDeferredSearch();
+  // URL: /pools/[name]?q=search-term
+  const search = useUrlSearch("q");
 
-  // Set-based filters using shared hooks
-  const platformFilter = useSetFilter<string>();
-  const resourceTypeFilter = useSetFilter<BackendResourceType>({ singleSelect: true });
+  // Platform filter (multi-select)
+  // URL: /pools/[name]?platforms=linux&platforms=windows
+  const platformFilter = useUrlSetFilter("platforms");
+
+  // Resource type filter (single-select with type-safe validation)
+  // URL: /pools/[name]?type=gpu
+  const resourceTypeFilter = useUrlResourceTypeFilter("type");
 
   // Resource display mode (persisted to localStorage)
   const { displayMode, setDisplayMode } = useDisplayMode();
