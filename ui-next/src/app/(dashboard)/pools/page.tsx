@@ -115,25 +115,30 @@ export default function PoolsPage() {
                   <span className={heading.meta}>({group.pools.length})</span>
                 </button>
 
-                {/* Collapsible content */}
-                {!isCollapsed && (
-                  <div className={card.base}>
-                    {hasResults ? (
-                      <div className={section.list}>
-                        {group.pools.map((pool) => (
-                          <PoolRow
-                            key={pool.name}
-                            pool={pool}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
-                        {hasSearch ? "No matches" : "No pools"}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Collapsible content - uses content-visibility for lazy rendering */}
+                <div
+                  className={cn(card.base, isCollapsed && "hidden")}
+                  style={{
+                    // content-visibility: auto enables lazy rendering of off-screen content
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "auto 200px",
+                  }}
+                >
+                  {hasResults ? (
+                    <div className={section.list}>
+                      {group.pools.map((pool) => (
+                        <PoolRow
+                          key={pool.name}
+                          pool={pool}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
+                      {hasSearch ? "No matches" : "No pools"}
+                    </div>
+                  )}
+                </div>
               </section>
             );
           })}

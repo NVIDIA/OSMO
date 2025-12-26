@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
@@ -16,7 +16,11 @@ interface NavItemProps {
   collapsed: boolean;
 }
 
-function NavItem({ item, isActive, collapsed }: NavItemProps) {
+/**
+ * Memoized navigation item.
+ * Only re-renders when isActive or collapsed state changes.
+ */
+const NavItem = memo(function NavItem({ item, isActive, collapsed }: NavItemProps) {
   const Icon = item.icon;
 
   const linkContent = (
@@ -54,7 +58,7 @@ function NavItem({ item, isActive, collapsed }: NavItemProps) {
   }
 
   return linkContent;
-}
+});
 
 export function Sidebar() {
   const pathname = usePathname();
