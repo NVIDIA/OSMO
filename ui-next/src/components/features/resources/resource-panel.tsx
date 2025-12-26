@@ -365,59 +365,41 @@ interface PoolTabsProps {
   onSelectPool: (pool: string) => void;
 }
 
+/**
+ * CSS-only tab indicator using pseudo-elements.
+ *
+ * Performance: Eliminates JS-based offsetWidth/offsetLeft measurements
+ * and window.resize listeners. Each tab has its own indicator that
+ * scales from 0 to 1 using GPU-accelerated transform.
+ */
 function PoolTabs({ pools, selectedPool, onSelectPool }: PoolTabsProps) {
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
-
-  // Update indicator position when selected pool changes or on resize
-  useEffect(() => {
-    const updateIndicator = () => {
-      if (!tabsRef.current || !selectedPool) return;
-
-      const container = tabsRef.current;
-      const activeTab = container.querySelector(`[data-pool="${selectedPool}"]`) as HTMLButtonElement;
-
-      if (activeTab) {
-        setIndicatorStyle({
-          left: activeTab.offsetLeft,
-          width: activeTab.offsetWidth,
-        });
-      }
-    };
-
-    updateIndicator();
-
-    window.addEventListener("resize", updateIndicator);
-    return () => window.removeEventListener("resize", updateIndicator);
-  }, [selectedPool]);
-
   return (
-    <div
-      className="relative border-b border-zinc-200 dark:border-zinc-700"
-      ref={tabsRef}
-    >
+    <div className="relative border-b border-zinc-200 dark:border-zinc-700">
       <div className="flex">
-        {pools.map((pool) => (
-          <button
-            key={pool}
-            data-pool={pool}
-            onClick={() => onSelectPool(pool)}
-            className={cn(
-              "px-4 py-2 text-sm font-medium transition-colors",
-              pool === selectedPool
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300",
-            )}
-          >
-            {pool}
-          </button>
-        ))}
+        {pools.map((pool) => {
+          const isActive = pool === selectedPool;
+          return (
+            <button
+              key={pool}
+              onClick={() => onSelectPool(pool)}
+              className={cn(
+                // Base styles
+                "relative px-4 py-2 text-sm font-medium transition-colors",
+                // Text color
+                isActive
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300",
+                // CSS-only indicator using pseudo-element with GPU-accelerated transform
+                "after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-emerald-500",
+                "after:origin-center after:transition-transform after:duration-200 after:ease-out",
+                isActive ? "after:scale-x-100" : "after:scale-x-0",
+              )}
+            >
+              {pool}
+            </button>
+          );
+        })}
       </div>
-      {/* Sliding indicator */}
-      <div
-        className="absolute bottom-0 h-0.5 bg-emerald-500 transition-all duration-200 ease-out"
-        style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
-      />
     </div>
   );
 }
