@@ -100,10 +100,7 @@ export function useActiveFilters<TType extends string>(
   // Clear all filters
   const clearAll = useCallback(() => {
     for (const def of definitions) {
-      const values = def.getValues();
-      for (const value of values) {
-        def.remove(value);
-      }
+      def.clear();
     }
   }, [definitions]);
 

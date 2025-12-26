@@ -112,8 +112,10 @@ export interface FilterDefinition<TType extends string> {
   getValues: () => string[];
   /** Optional function to transform value to display label */
   getLabel?: (value: string) => string;
-  /** Optional function to remove a specific value */
+  /** Function to remove a specific value */
   remove: (value: string) => void;
+  /** Function to clear all values at once */
+  clear: () => void;
 }
 
 /**
