@@ -10,14 +10,16 @@
  * Shared Components
  *
  * Reusable UI components used across multiple feature areas.
- * These are more complex than shadcn primitives but less specialized
- * than feature-specific components.
+ * These are domain-agnostic primitives that can be used for any entity type.
+ *
+ * Note: AdaptiveSummary (resource summary cards) has been moved to
+ * @/components/features/resources as it is a resource-domain component.
  */
 
 // Filter bar for filtering lists
 export { FilterBar } from "./filter-bar";
 
-// Capacity/usage visualization
+// Capacity/usage visualization (generic progress bar)
 export { CapacityBar, type CapacityBarProps } from "./capacity-bar";
 
 // API error display (supports authAware prop for login prompts)
@@ -25,6 +27,3 @@ export { ApiError, type ApiErrorProps } from "./api-error";
 
 // Error details (message + collapsible stack)
 export { ErrorDetails } from "./error-details";
-
-// Adaptive summary cards (CSS container query responsive)
-export { AdaptiveSummary } from "./resource-summary-card";

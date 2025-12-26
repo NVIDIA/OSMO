@@ -11,8 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/lib/auth";
-import { useUser } from "@/lib/user-context";
+import { useAuth, useUser } from "@/lib/auth";
 import { useVersion } from "@/lib/api/adapter";
 
 export function Header() {
