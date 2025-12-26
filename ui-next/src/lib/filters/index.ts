@@ -48,7 +48,15 @@ export type {
   ActiveFiltersResult,
 } from "./types";
 
-// Hooks
+// Hooks - In-memory state (for local-only filters)
 export { useSetFilter } from "./use-set-filter";
 export { useDeferredSearch } from "./use-deferred-search";
 export { useActiveFilters } from "./use-active-filters";
+
+// Hooks - URL-synced state (for shareable/bookmarkable filters)
+export {
+  useUrlSearch,
+  useUrlSetFilter,
+  useUrlResourceTypeFilter,
+  parseAsResourceType,
+} from "./nuqs";
