@@ -7,7 +7,7 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import Link from "next/link";
-import { FlaskConical, GitBranch, HelpCircle, LayoutList } from "lucide-react";
+import { FlaskConical, GitBranch, HelpCircle, LayoutList, BarChart3, Workflow } from "lucide-react";
 
 /**
  * Development Pages Index
@@ -22,6 +22,25 @@ import { FlaskConical, GitBranch, HelpCircle, LayoutList } from "lucide-react";
  */
 
 const devPages = [
+  {
+    title: "Workflow Explorer",
+    href: "/dev/workflow-explorer",
+    description: "Compare different DAG and timeline visualization approaches",
+    icon: Workflow,
+    highlight: true,
+  },
+  {
+    title: "React Flow DAG",
+    href: "/dev/workflow-explorer/reactflow-dag",
+    description: "@xyflow/react + @dagrejs/dagre auto-layout DAG",
+    icon: GitBranch,
+  },
+  {
+    title: "vis-timeline Gantt",
+    href: "/dev/workflow-explorer/vis-timeline",
+    description: "Gantt-style timeline view with vis-timeline library",
+    icon: BarChart3,
+  },
   {
     title: "Workflows Mock",
     href: "/dev/workflows-mock",
@@ -76,16 +95,45 @@ export default function DevIndexPage() {
           <Link
             key={page.href}
             href={page.href}
-            className="group p-4 rounded-lg border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all"
+            className={`group p-4 rounded-lg border transition-all ${
+              "highlight" in page && page.highlight
+                ? "border-cyan-500/50 bg-cyan-500/5 hover:border-cyan-400 hover:bg-cyan-500/10"
+                : "border-border bg-card hover:border-primary/50 hover:bg-accent/50"
+            }`}
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
-                <page.icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              <div
+                className={`p-2 rounded-lg transition-colors ${
+                  "highlight" in page && page.highlight
+                    ? "bg-cyan-500/10 group-hover:bg-cyan-500/20"
+                    : "bg-muted group-hover:bg-primary/10"
+                }`}
+              >
+                <page.icon
+                  className={`h-5 w-5 transition-colors ${
+                    "highlight" in page && page.highlight
+                      ? "text-cyan-400 group-hover:text-cyan-300"
+                      : "text-muted-foreground group-hover:text-primary"
+                  }`}
+                />
               </div>
               <div>
-                <h2 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                  {page.title}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2
+                    className={`font-semibold transition-colors ${
+                      "highlight" in page && page.highlight
+                        ? "text-cyan-400 group-hover:text-cyan-300"
+                        : "text-foreground group-hover:text-primary"
+                    }`}
+                  >
+                    {page.title}
+                  </h2>
+                  {"highlight" in page && page.highlight && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-medium">
+                      NEW
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground mt-1">{page.description}</p>
               </div>
             </div>
