@@ -26,6 +26,12 @@ import {
   Map,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { LayoutDirection } from "../types";
 
 interface DAGControlsProps {
@@ -64,65 +70,67 @@ export function DAGControls({
   }, [layoutDirection, onLayoutChange]);
 
   return (
-    <div
-      className="absolute bottom-4 left-4 z-10 flex flex-col gap-1 bg-zinc-900/95 backdrop-blur border border-zinc-700 rounded-lg p-1 shadow-lg"
-      role="toolbar"
-      aria-label="DAG controls"
-    >
-      {/* Zoom Controls */}
-      <ControlButton
-        onClick={handleZoomIn}
-        aria-label="Zoom in"
-        title="Zoom in"
+    <TooltipProvider delayDuration={300}>
+      <div
+        className="absolute bottom-4 left-4 z-10 flex flex-col gap-1 bg-zinc-900/95 backdrop-blur border border-zinc-700 rounded-lg p-1 shadow-lg"
+        role="toolbar"
+        aria-label="DAG controls"
       >
-        <ZoomIn className="h-4 w-4" />
-      </ControlButton>
+        {/* Zoom Controls */}
+        <ControlButton
+          onClick={handleZoomIn}
+          tooltip="Zoom In"
+          aria-label="Zoom in"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </ControlButton>
 
-      <ControlButton
-        onClick={handleZoomOut}
-        aria-label="Zoom out"
-        title="Zoom out"
-      >
-        <ZoomOut className="h-4 w-4" />
-      </ControlButton>
+        <ControlButton
+          onClick={handleZoomOut}
+          tooltip="Zoom Out"
+          aria-label="Zoom out"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </ControlButton>
 
-      <ControlButton
-        onClick={handleFitView}
-        aria-label="Fit to view"
-        title="Fit to view"
-      >
-        <Maximize className="h-4 w-4" />
-      </ControlButton>
+        <ControlButton
+          onClick={handleFitView}
+          tooltip="Fit All"
+          aria-label="Fit all nodes to view"
+        >
+          <Maximize className="h-4 w-4" />
+        </ControlButton>
 
-      {/* Divider */}
-      <div className="h-px bg-zinc-700 my-1" aria-hidden="true" />
+        {/* Divider */}
+        <div className="h-px bg-zinc-700 my-1" aria-hidden="true" />
 
-      {/* Layout Direction Toggle */}
-      <ControlButton
-        onClick={handleToggleLayout}
-        aria-label={`Switch to ${layoutDirection === "TB" ? "horizontal" : "vertical"} layout`}
-        aria-pressed={layoutDirection === "LR"}
-        title={layoutDirection === "TB" ? "Switch to horizontal" : "Switch to vertical"}
-        active={layoutDirection === "LR"}
-      >
-        {layoutDirection === "TB" ? (
-          <ArrowDown className="h-4 w-4" />
-        ) : (
-          <ArrowRight className="h-4 w-4" />
-        )}
-      </ControlButton>
+        {/* Layout Direction Toggle */}
+        <ControlButton
+          onClick={handleToggleLayout}
+          tooltip="Toggle Direction"
+          aria-label={`Switch to ${layoutDirection === "TB" ? "horizontal" : "vertical"} layout`}
+          aria-pressed={layoutDirection === "LR"}
+          active={layoutDirection === "LR"}
+        >
+          {layoutDirection === "TB" ? (
+            <ArrowDown className="h-4 w-4" />
+          ) : (
+            <ArrowRight className="h-4 w-4" />
+          )}
+        </ControlButton>
 
-      {/* Minimap Toggle */}
-      <ControlButton
-        onClick={onToggleMinimap}
-        aria-label={showMinimap ? "Hide minimap" : "Show minimap"}
-        aria-pressed={showMinimap}
-        title={showMinimap ? "Hide minimap" : "Show minimap"}
-        active={showMinimap}
-      >
-        <Map className="h-4 w-4" />
-      </ControlButton>
-    </div>
+        {/* Minimap Toggle */}
+        <ControlButton
+          onClick={onToggleMinimap}
+          tooltip="Toggle Minimap"
+          aria-label={showMinimap ? "Hide minimap" : "Show minimap"}
+          aria-pressed={showMinimap}
+          active={showMinimap}
+        >
+          <Map className="h-4 w-4" />
+        </ControlButton>
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -133,34 +141,40 @@ export function DAGControls({
 interface ControlButtonProps {
   onClick: () => void;
   children: React.ReactNode;
+  tooltip: string;
   "aria-label": string;
   "aria-pressed"?: boolean;
-  title?: string;
   active?: boolean;
 }
 
 function ControlButton({
   onClick,
   children,
+  tooltip,
   "aria-label": ariaLabel,
   "aria-pressed": ariaPressed,
-  title,
   active,
 }: ControlButtonProps) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
-        "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset",
-        active && "bg-zinc-700 text-zinc-100"
-      )}
-      aria-label={ariaLabel}
-      aria-pressed={ariaPressed}
-      title={title}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={onClick}
+          className={cn(
+            "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+            "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset",
+            active && "bg-zinc-700 text-zinc-100"
+          )}
+          aria-label={ariaLabel}
+          aria-pressed={ariaPressed}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
   );
 }
