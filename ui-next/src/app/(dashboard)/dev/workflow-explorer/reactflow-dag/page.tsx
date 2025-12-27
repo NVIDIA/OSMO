@@ -131,7 +131,7 @@ interface GroupNodeData extends Record<string, unknown> {
   isSelected: boolean;
   isExpanded: boolean;
   layoutDirection: LayoutDirection;
-  onSelect: (group: GroupWithLayout) => void;
+  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
   onToggleExpand: (groupId: string) => void;
   // Dimensions for MiniMap (since we can't set width/height on node directly)
   nodeWidth: number;
@@ -139,7 +139,7 @@ interface GroupNodeData extends Record<string, unknown> {
 }
 
 function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
-  const { group, isSelected, isExpanded, layoutDirection, onSelect, onToggleExpand } = data;
+  const { group, isSelected, isExpanded, layoutDirection, onSelectTask, onToggleExpand } = data;
   const category = getStatusCategory(group.status);
   const style = statusStyles[category];
 
@@ -164,8 +164,10 @@ function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
       // Multi-task nodes: click to expand/collapse
       onToggleExpand(group.name);
     } else {
-      // Single-task nodes: click to select
-      onSelect(group);
+      // Single-task nodes: click to select the task
+      if (tasks[0]) {
+        onSelectTask(tasks[0], group);
+      }
     }
   };
 
@@ -187,7 +189,7 @@ function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
 
   // Calculate expanded height to match getActualDimensions() in layout
   const getExpandedHeight = () => {
-    const taskListHeight = Math.min(totalCount, 50) * 28 + 16;
+    const taskListHeight = totalCount * 28 + 16;
     return Math.min(72 + taskListHeight, 320);
   };
 
@@ -217,10 +219,16 @@ function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
     return nodeName || duration || "Completed";
   };
 
+  // Handle task click - opens DetailPanel
+  const handleTaskClick = (e: React.MouseEvent, task: TaskQueryResponse) => {
+    e.stopPropagation();
+    onSelectTask(task, group);
+  };
+
   return (
     <div
       className={cn(
-        "rounded-lg border-2 backdrop-blur-sm transition-all duration-200",
+        "rounded-lg border-2 backdrop-blur-sm transition-all duration-200 flex flex-col",
         style.bg,
         style.border,
         isSelected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950",
@@ -249,7 +257,7 @@ function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
       {/* Header - clickable to expand/collapse (multi-task) or select (single-task) */}
       <div
         className={cn(
-          "px-3 py-2.5 cursor-pointer select-none",
+          "px-3 py-2.5 cursor-pointer select-none flex-shrink-0",
           !isExpanded && "flex flex-col justify-center h-full"
         )}
         onClick={handleNodeClick}
@@ -282,21 +290,23 @@ function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
         )}
       </div>
 
-      {/* Expanded task list */}
+      {/* Expanded task list - uses flex-1 to fill remaining space and overflow-y-auto for scrolling */}
+      {/* nowheel class tells ReactFlow not to capture wheel events, allowing native scrolling */}
       {isExpanded && hasManyTasks && (
-        <div className="border-t border-zinc-700/50 px-2 py-2 max-h-[300px] overflow-y-auto">
+        <div className="nowheel border-t border-zinc-700/50 px-2 py-2 flex-1 min-h-0 overflow-y-auto">
           <div className="space-y-1">
-            {tasks.slice(0, 50).map((task) => {
+            {tasks.map((task) => {
               const taskCategory = getStatusCategory(task.status);
               const taskStyle = statusStyles[taskCategory];
               const taskDuration = calculateDuration(task.start_time, task.end_time);
               return (
-                <div
+                <button
                   key={`${task.name}-${task.retry_id}`}
                   className={cn(
-                    "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
-                    "hover:bg-zinc-700/30 transition-colors"
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left",
+                    "hover:bg-zinc-700/50 transition-colors cursor-pointer"
                   )}
+                  onClick={(e) => handleTaskClick(e, task)}
                 >
                   {getStatusIcon(task.status, "h-3 w-3")}
                   <span className="flex-1 truncate text-zinc-300">
@@ -305,14 +315,9 @@ function CollapsibleGroupNode({ data }: { data: GroupNodeData }) {
                   <span className={cn("tabular-nums", taskStyle.text)}>
                     {formatDurationUtil(taskDuration)}
                   </span>
-                </div>
+                </button>
               );
             })}
-            {tasks.length > 50 && (
-              <div className="text-xs text-zinc-500 text-center py-1">
-                +{tasks.length - 50} more tasks...
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -353,7 +358,8 @@ function getLayoutedElements(
   groups: GroupWithLayout[],
   expandedGroups: Set<string>,
   selectedGroup: GroupWithLayout | null,
-  onSelectGroup: (group: GroupWithLayout) => void,
+  selectedTask: TaskQueryResponse | null,
+  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void,
   onToggleExpand: (groupId: string) => void,
   direction: LayoutDirection = "TB",
   showDebug: boolean = false
@@ -377,7 +383,7 @@ function getLayoutedElements(
     const hasManyTasks = tasks.length > 1;
 
     if (isExpanded && hasManyTasks) {
-      const taskListHeight = Math.min(tasks.length, 50) * 28 + 16;
+      const taskListHeight = tasks.length * 28 + 16;
       return {
         width: EXPANDED_WIDTH,
         height: Math.min(72 + taskListHeight, 320),
@@ -441,6 +447,142 @@ function getLayoutedElements(
   dagre.layout(dagreGraph);
 
   // ============================================================================
+  // LR Mode: Post-layout adjustment for expanded nodes
+  // ============================================================================
+  // In LR mode, dagre uses uniform heights for alignment, but expanded nodes
+  // need more vertical space. We adjust Y positions to prevent overlap while
+  // maintaining alignment with parent/child connections.
+  // ============================================================================
+
+  if (direction === "LR") {
+    // Build a map of group name -> actual dimensions for quick lookup
+    const actualDimsMap = new Map<string, { width: number; height: number }>();
+    groups.forEach((group) => {
+      actualDimsMap.set(group.name, getActualDimensions(group));
+    });
+
+    // Build upstream map (parent → child relationships)
+    const upstreamMap = new Map<string, string[]>();
+    groups.forEach((g) => upstreamMap.set(g.name, []));
+    groups.forEach((g) => {
+      (g.downstream_groups || []).forEach((downstream) => {
+        const upstreams = upstreamMap.get(downstream);
+        if (upstreams) upstreams.push(g.name);
+      });
+    });
+
+    // Group nodes by their X position (same rank/level)
+    const nodesByRank = new Map<number, GroupWithLayout[]>();
+    groups.forEach((group) => {
+      const dagreNode = dagreGraph.node(group.name);
+      const x = Math.round(dagreNode.x); // Round to handle floating point
+      if (!nodesByRank.has(x)) {
+        nodesByRank.set(x, []);
+      }
+      nodesByRank.get(x)!.push(group);
+    });
+
+    // For each rank, sort nodes by Y and adjust positions to prevent overlap
+    const yAdjustments = new Map<string, number>();
+    const MIN_SPACING = 20; // Minimum gap between nodes
+
+    nodesByRank.forEach((rankGroups) => {
+      if (rankGroups.length <= 1) return; // No overlap possible with single node
+
+      // Sort by dagre Y position
+      rankGroups.sort((a, b) => {
+        const aNode = dagreGraph.node(a.name);
+        const bNode = dagreGraph.node(b.name);
+        return aNode.y - bNode.y;
+      });
+
+      // Calculate actual bounds for each node and check for overlaps
+      // Use center-based positioning (dagre returns center Y)
+      let prevBottom = -Infinity;
+
+      rankGroups.forEach((group, index) => {
+        const dagreNode = dagreGraph.node(group.name);
+        const dims = actualDimsMap.get(group.name)!;
+        const centerY = dagreNode.y;
+        const halfHeight = dims.height / 2;
+        const nodeTop = centerY - halfHeight;
+        const nodeBottom = centerY + halfHeight;
+
+        // Check for overlap with previous node
+        if (index > 0 && nodeTop < prevBottom + MIN_SPACING) {
+          // Calculate how much we need to push this node down
+          const adjustment = prevBottom + MIN_SPACING - nodeTop;
+
+          // Apply cumulative adjustment (including any previous adjustments)
+          const prevAdjustment = yAdjustments.get(group.name) || 0;
+          yAdjustments.set(group.name, prevAdjustment + adjustment);
+
+          // Update prevBottom with adjusted position
+          prevBottom = nodeBottom + adjustment;
+        } else {
+          prevBottom = nodeBottom;
+        }
+      });
+
+      // Propagate adjustments: when a node moves, its descendants should consider this
+      // For now, we simply recalculate with adjustments applied
+    });
+
+    // Apply adjustments to dagre nodes
+    yAdjustments.forEach((adjustment, groupName) => {
+      const dagreNode = dagreGraph.node(groupName);
+      dagreNode.y += adjustment;
+    });
+
+    // Second pass: ensure children align with their parents when there's only one parent
+    // This maintains the visual connection between parent and child
+    groups.forEach((group) => {
+      const upstreams = upstreamMap.get(group.name) || [];
+      if (upstreams.length === 1) {
+        const parentName = upstreams[0];
+        const parentNode = dagreGraph.node(parentName);
+        const childNode = dagreGraph.node(group.name);
+
+        // Check if they're at different Y positions now
+        const yDiff = childNode.y - parentNode.y;
+
+        // Only adjust if the child has no siblings that would be affected
+        // and the adjustment wouldn't cause new overlaps
+        const parentGroup = groups.find((g) => g.name === parentName);
+        const parentDownstreams = parentGroup?.downstream_groups || [];
+
+        if (parentDownstreams.length === 1 && Math.abs(yDiff) > 1) {
+          // Single child case: align child Y to parent Y
+          // But first check it won't overlap with neighbors at child's rank
+          const childX = Math.round(childNode.x);
+          const childRankGroups = nodesByRank.get(childX) || [];
+
+          let canAlign = true;
+          const childDims = actualDimsMap.get(group.name)!;
+          const proposedTop = parentNode.y - childDims.height / 2;
+          const proposedBottom = parentNode.y + childDims.height / 2;
+
+          childRankGroups.forEach((sibling) => {
+            if (sibling.name === group.name) return;
+            const siblingNode = dagreGraph.node(sibling.name);
+            const siblingDims = actualDimsMap.get(sibling.name)!;
+            const siblingTop = siblingNode.y - siblingDims.height / 2;
+            const siblingBottom = siblingNode.y + siblingDims.height / 2;
+
+            if (proposedBottom + MIN_SPACING > siblingTop && proposedTop < siblingBottom + MIN_SPACING) {
+              canAlign = false;
+            }
+          });
+
+          if (canAlign) {
+            childNode.y = parentNode.y;
+          }
+        }
+      }
+    });
+  }
+
+  // ============================================================================
   // Debug: Log dagre output for analysis
   // ============================================================================
 
@@ -490,8 +632,52 @@ function getLayoutedElements(
 
     // Check for alignment issues in LR mode
     if (direction === "LR") {
-      console.log("\n🔍 LR Alignment Check (center Y = handle Y, should match for 1:1 chains):");
+      console.log("\n🔍 LR Alignment Check (after overlap adjustment):");
 
+      // Check for any remaining overlaps
+      const nodesByRank = new Map<number, GroupWithLayout[]>();
+      groups.forEach((group) => {
+        const dagreNode = dagreGraph.node(group.name);
+        const x = Math.round(dagreNode.x);
+        if (!nodesByRank.has(x)) {
+          nodesByRank.set(x, []);
+        }
+        nodesByRank.get(x)!.push(group);
+      });
+
+      let hasOverlaps = false;
+      nodesByRank.forEach((rankGroups, rankX) => {
+        if (rankGroups.length <= 1) return;
+
+        rankGroups.sort((a, b) => {
+          const aNode = dagreGraph.node(a.name);
+          const bNode = dagreGraph.node(b.name);
+          return aNode.y - bNode.y;
+        });
+
+        for (let i = 0; i < rankGroups.length - 1; i++) {
+          const currGroup = rankGroups[i];
+          const nextGroup = rankGroups[i + 1];
+          const currNode = dagreGraph.node(currGroup.name);
+          const nextNode = dagreGraph.node(nextGroup.name);
+          const currDims = getActualDimensions(currGroup);
+          const nextDims = getActualDimensions(nextGroup);
+          const currBottom = currNode.y + currDims.height / 2;
+          const nextTop = nextNode.y - nextDims.height / 2;
+          const gap = nextTop - currBottom;
+
+          if (gap < 0) {
+            console.warn(`  ⚠️ OVERLAP at rank ${rankX}: ${currGroup.name.slice(0, 15)} overlaps ${nextGroup.name.slice(0, 15)} by ${Math.round(-gap)}px`);
+            hasOverlaps = true;
+          }
+        }
+      });
+
+      if (!hasOverlaps) {
+        console.log("  ✅ No overlapping nodes detected after adjustment");
+      }
+
+      console.log("\n🔍 LR Parent-Child Alignment Check:");
       groups.forEach((group) => {
         const upstreams = upstreamMap.get(group.name) || [];
         if (upstreams.length === 1) {
@@ -500,9 +686,9 @@ function getLayoutedElements(
           const childNode = dagreGraph.node(group.name);
           const yDiff = Math.abs(parentNode.y - childNode.y);
           if (yDiff > 1) {
-            console.warn(`  ⚠️ ${parentName.slice(0,15)} (Y=${Math.round(parentNode.y)}) → ${group.name.slice(0,15)} (Y=${Math.round(childNode.y)}) | Diff: ${Math.round(yDiff)}px`);
+            console.log(`  ⚡ ${parentName.slice(0, 15)} (Y=${Math.round(parentNode.y)}) → ${group.name.slice(0, 15)} (Y=${Math.round(childNode.y)}) | Offset: ${Math.round(yDiff)}px (due to sibling spacing)`);
           } else {
-            console.log(`  ✅ ${parentName.slice(0,15)} → ${group.name.slice(0,15)} aligned (Y=${Math.round(childNode.y)})`);
+            console.log(`  ✅ ${parentName.slice(0, 15)} → ${group.name.slice(0, 15)} aligned (Y=${Math.round(childNode.y)})`);
           }
         }
       });
@@ -534,10 +720,10 @@ function getLayoutedElements(
       initialHeight: actualDims.height,
       data: {
         group,
-        isSelected: selectedGroup?.name === group.name,
+        isSelected: selectedGroup?.name === group.name && selectedTask !== null,
         isExpanded: expandedGroups.has(group.name),
         layoutDirection: direction,
-        onSelect: onSelectGroup,
+        onSelectTask,
         onToggleExpand,
         // Pass dimensions for bounds calculations
         nodeWidth: actualDims.width,
@@ -598,142 +784,101 @@ function getLayoutedElements(
 
 function DetailPanel({
   group,
+  task,
   onClose,
 }: {
   group: GroupWithLayout;
+  task: TaskQueryResponse;
   onClose: () => void;
 }) {
-  const tasks = group.tasks || [];
-  const [selectedTask, setSelectedTask] = useState<TaskQueryResponse | null>(
-    tasks[0] || null
-  );
-  const category = getStatusCategory(group.status);
+  const category = getStatusCategory(task.status);
   const style = statusStyles[category];
 
-  // Reset selected task when group changes
-  useEffect(() => {
-    setSelectedTask(tasks[0] || null);
-  }, [group, tasks]);
-
   return (
-    <div className="w-80 border-l border-zinc-800 bg-zinc-900/95 backdrop-blur overflow-y-auto">
-      {/* Header */}
+    <div className="w-1/3 min-w-[320px] max-w-[480px] border-l border-zinc-800 bg-zinc-900/95 backdrop-blur overflow-y-auto">
+      {/* Header - shows task name and status */}
       <div className="sticky top-0 bg-zinc-900/95 backdrop-blur border-b border-zinc-800 p-4 z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(group.status)}
-            <h3 className="font-semibold text-zinc-100">{group.name}</h3>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {getStatusIcon(task.status)}
+            <h3 className="font-semibold text-zinc-100 truncate">{task.name}</h3>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={onClose}>
             <XCircle className="h-4 w-4 text-zinc-400" />
           </Button>
         </div>
         <div className={cn("text-xs mt-1", style.text)}>
-          {group.status} • {tasks.length} task
-          {tasks.length > 1 ? "s" : ""}
+          {task.status}
+          {task.retry_id > 0 && ` • Retry #${task.retry_id}`}
         </div>
       </div>
 
-      {/* Task list */}
-      {tasks.length > 1 && (
-        <div className="p-4 border-b border-zinc-800">
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">
-            Tasks ({tasks.length})
+      {/* Task details */}
+      <div className="p-4 space-y-4">
+        <div>
+          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+            Task Details
           </h4>
-          <div className="space-y-1 max-h-[200px] overflow-y-auto">
-            {tasks.map((task) => {
-              const taskKey = `${task.name}-${task.retry_id}`;
-              const isSelected = selectedTask?.name === task.name && selectedTask?.retry_id === task.retry_id;
-              const taskDuration = calculateDuration(task.start_time, task.end_time);
-              return (
-                <button
-                  key={taskKey}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors",
-                    isSelected
-                      ? "bg-cyan-500/20 text-cyan-300"
-                      : "hover:bg-zinc-800 text-zinc-300"
-                  )}
-                  onClick={() => setSelectedTask(task)}
-                >
-                  {getStatusIcon(task.status, "h-3.5 w-3.5")}
-                  <span className="flex-1 truncate">{task.name}</span>
-                  <span className="text-xs opacity-60">
-                    {formatDurationUtil(taskDuration)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Selected task details */}
-      {selectedTask && (
-        <div className="p-4 space-y-4">
-          <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-              Task Details
-            </h4>
-            <dl className="space-y-2 text-sm">
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-zinc-400">Group</dt>
+              <dd className="text-zinc-200 font-mono text-xs truncate max-w-[150px]" title={group.name}>
+                {group.name}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-zinc-400">Duration</dt>
+              <dd className="text-zinc-200">
+                {formatDurationUtil(calculateDuration(task.start_time, task.end_time))}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-zinc-400">Node</dt>
+              <dd className="text-zinc-200 font-mono text-xs">
+                {task.node_name || "-"}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-zinc-400">Pod</dt>
+              <dd className="text-zinc-200 font-mono text-xs truncate max-w-[150px]" title={task.pod_name}>
+                {task.pod_name || "-"}
+              </dd>
+            </div>
+            {task.start_time && (
               <div className="flex justify-between">
-                <dt className="text-zinc-400">Name</dt>
-                <dd className="text-zinc-200 font-mono text-xs">
-                  {selectedTask.name}
+                <dt className="text-zinc-400">Started</dt>
+                <dd className="text-zinc-200 text-xs">
+                  {new Date(task.start_time).toLocaleString()}
                 </dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-400">Status</dt>
-                <dd className={statusStyles[getStatusCategory(selectedTask.status)].text}>
-                  {selectedTask.status}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-400">Duration</dt>
-                <dd className="text-zinc-200">
-                  {formatDurationUtil(calculateDuration(selectedTask.start_time, selectedTask.end_time))}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-400">Node</dt>
-                <dd className="text-zinc-200 font-mono text-xs">
-                  {selectedTask.node_name || "-"}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-400">Pod</dt>
-                <dd className="text-zinc-200 font-mono text-xs truncate max-w-[150px]" title={selectedTask.pod_name}>
-                  {selectedTask.pod_name || "-"}
-                </dd>
-              </div>
-              {selectedTask.retry_id > 0 && (
-                <div className="flex justify-between">
-                  <dt className="text-zinc-400">Retry</dt>
-                  <dd className="text-zinc-200">
-                    #{selectedTask.retry_id}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1 h-7 text-xs" asChild>
-              <a href={selectedTask.logs} target="_blank" rel="noopener noreferrer">
-                <FileText className="h-3 w-3 mr-1" />
-                Logs
-              </a>
-            </Button>
-            {getStatusCategory(selectedTask.status) === "running" && (
-              <Button variant="outline" size="sm" className="flex-1 h-7 text-xs">
-                <Terminal className="h-3 w-3 mr-1" />
-                Shell
-              </Button>
             )}
-          </div>
+            {task.end_time && (
+              <div className="flex justify-between">
+                <dt className="text-zinc-400">Ended</dt>
+                <dd className="text-zinc-200 text-xs">
+                  {new Date(task.end_time).toLocaleString()}
+                </dd>
+              </div>
+            )}
+          </dl>
         </div>
-      )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1 h-7 text-xs" asChild>
+            <a href={task.logs} target="_blank" rel="noopener noreferrer">
+              <FileText className="h-3 w-3 mr-1" />
+              Logs
+            </a>
+          </Button>
+          {category === "running" && (
+            <Button variant="outline" size="sm" className="flex-1 h-7 text-xs">
+              <Terminal className="h-3 w-3 mr-1" />
+              Shell
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -828,6 +973,7 @@ function ReactFlowDagPageInner() {
   const [workflowPattern, setWorkflowPattern] = useState<WorkflowPattern>("complex");
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>("TB");
   const [selectedGroup, setSelectedGroup] = useState<GroupWithLayout | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskQueryResponse | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showDebug, setShowDebug] = useState(false);
 
@@ -874,6 +1020,12 @@ function ReactFlowDagPageInner() {
     setExpandedGroups(new Set());
   }, []);
 
+  // Handle task click - opens DetailPanel with task pre-selected
+  const handleTaskClick = useCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+    setSelectedGroup(group);
+    setSelectedTask(task);
+  }, []);
+
   // Get root node IDs (level 0) for initial zoom target
   const rootNodeIds = useMemo(() => {
     return groupsWithLayout
@@ -888,12 +1040,13 @@ function ReactFlowDagPageInner() {
         groupsWithLayout,
         expandedGroups,
         selectedGroup,
-        setSelectedGroup,
+        selectedTask,
+        handleTaskClick,
         handleToggleExpand,
         layoutDirection,
         showDebug
       ),
-    [groupsWithLayout, expandedGroups, selectedGroup, layoutDirection, handleToggleExpand, showDebug]
+    [groupsWithLayout, expandedGroups, selectedGroup, selectedTask, layoutDirection, handleToggleExpand, handleTaskClick, showDebug]
   );
 
   const [nodes, setNodes] = useNodesState(initialNodes);
@@ -952,6 +1105,7 @@ function ReactFlowDagPageInner() {
   const onPatternChange = useCallback((pattern: WorkflowPattern) => {
     setWorkflowPattern(pattern);
     setSelectedGroup(null);
+    setSelectedTask(null);
   }, []);
 
   // Layout direction change
@@ -1153,8 +1307,15 @@ function ReactFlowDagPageInner() {
         </div>
 
         {/* Detail Panel */}
-        {selectedGroup && (
-          <DetailPanel group={selectedGroup} onClose={() => setSelectedGroup(null)} />
+        {selectedGroup && selectedTask && (
+          <DetailPanel
+            group={selectedGroup}
+            task={selectedTask}
+            onClose={() => {
+              setSelectedGroup(null);
+              setSelectedTask(null);
+            }}
+          />
         )}
       </div>
 
@@ -1181,7 +1342,16 @@ function ReactFlowDagPageInner() {
               ✅ <strong>Expand/Collapse All</strong>: Bulk expand/collapse buttons
             </li>
             <li>
-              ✅ <strong>Virtualized list</strong>: Only shows first 50 tasks when expanded
+              ✅ <strong>Scrollable task list</strong>: All tasks shown in scrollable container
+            </li>
+            <li>
+              ✅ <strong>LR overlap prevention</strong>: Expanded nodes push siblings apart in horizontal mode
+            </li>
+            <li>
+              ✅ <strong>Smart alignment</strong>: 1:1 parent-child chains maintain alignment when possible
+            </li>
+            <li>
+              ✅ <strong>Task selection</strong>: Click any task in expanded node to open detail panel
             </li>
           </ul>
         </details>
