@@ -104,14 +104,19 @@ function getElkLayoutOptions(direction: LayoutDirection): Record<string, string>
     "elk.layered.spacing.nodeNodeBetweenLayers": String(
       direction === "TB" ? SPACING_RANKS_TB : SPACING_RANKS_LR
     ),
-    // Node placement strategy - network simplex minimizes edge length
-    "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+    // Node placement strategy - Brandes-Koepf produces more balanced layouts
+    // with better parent-child centering than NETWORK_SIMPLEX
+    "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
+    // Favor balanced placement (centers nodes between their connections)
+    "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
     // Edge routing - orthogonal for clean 90-degree edges
     "elk.edgeRouting": "ORTHOGONAL",
     // Margins
     "elk.padding": `[top=${LAYOUT_MARGIN},left=${LAYOUT_MARGIN},bottom=${LAYOUT_MARGIN},right=${LAYOUT_MARGIN}]`,
     // Align nodes considering their sizes
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+    // Center nodes within their layer
+    "elk.alignment": "CENTER",
   };
 }
 
