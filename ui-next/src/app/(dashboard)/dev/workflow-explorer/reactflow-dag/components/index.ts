@@ -20,3 +20,4 @@ export { DAGErrorBoundary } from "./DAGErrorBoundary";
 export { DAGHeader } from "./DAGHeader";
 export { DAGToolbar } from "./DAGToolbar";
 export { DAGControls } from "./DAGControls";
+export { DAGSkeleton } from "./DAGSkeleton";
