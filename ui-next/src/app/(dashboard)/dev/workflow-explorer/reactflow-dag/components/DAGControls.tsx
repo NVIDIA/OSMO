@@ -90,13 +90,11 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
           aria-hidden="true"
         />
 
-        {/* Layout Direction Toggle */}
+        {/* Layout Direction Toggle - no active state, just shows current direction */}
         <ControlButton
           onClick={handleToggleLayout}
           tooltip="Toggle Direction"
           aria-label={`Switch to ${layoutDirection === "TB" ? "horizontal" : "vertical"} layout`}
-          aria-pressed={layoutDirection === "LR"}
-          active={layoutDirection === "LR"}
         >
           {layoutDirection === "TB" ? <ArrowDown className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
         </ControlButton>
