@@ -43,9 +43,6 @@ export interface GroupNodeData extends Record<string, unknown> {
   /** The group data from the workflow */
   group: GroupWithLayout;
 
-  /** Whether this node is currently selected */
-  isSelected: boolean;
-
   /** Whether this node is expanded (showing task list) */
   isExpanded: boolean;
 
