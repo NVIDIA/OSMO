@@ -15,10 +15,14 @@
 import { Clock, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_STYLES, type StatusCategory } from "../constants";
-import { getStatusCategory as getStatusCategoryFromTypes } from "../../workflow-types";
+import { 
+  getStatusCategory as getStatusCategoryFromTypes, 
+  isFailedStatus as isFailedStatusFromTypes 
+} from "../../workflow-types";
 
-// Re-export the status category function
+// Re-export the status category and failure check functions
 export const getStatusCategory = getStatusCategoryFromTypes;
+export const isFailedStatus = isFailedStatusFromTypes;
 
 /**
  * Get the appropriate status icon for a given status.
