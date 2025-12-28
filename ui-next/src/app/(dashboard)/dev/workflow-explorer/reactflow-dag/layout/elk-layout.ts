@@ -19,15 +19,8 @@
 import ELK from "elkjs/lib/elk.bundled.js";
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
-import type { GroupWithLayout, TaskQueryResponse } from "../../workflow-types";
-import type {
-  LayoutDirection,
-  GroupNodeData,
-  NodeDimensions,
-  LayoutResult,
-  ElkGraph,
-  ElkLayoutResult,
-} from "../types";
+import type { GroupWithLayout } from "../../workflow-types";
+import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph, ElkLayoutResult } from "../types";
 import { getStatusCategory } from "../utils/status";
 import {
   NODE_COLLAPSED_WIDTH,
@@ -63,10 +56,7 @@ const elk = new ELK();
  * @param isExpanded - Whether the node is expanded
  * @returns Node dimensions
  */
-export function getNodeDimensions(
-  group: GroupWithLayout,
-  isExpanded: boolean
-): NodeDimensions {
+export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): NodeDimensions {
   const tasks = group.tasks || [];
   const hasManyTasks = tasks.length > 1;
 
@@ -104,9 +94,7 @@ function getElkLayoutOptions(direction: LayoutDirection): Record<string, string>
     // Spacing between sibling nodes
     "elk.spacing.nodeNode": String(direction === "TB" ? SPACING_NODES_TB : SPACING_NODES_LR),
     // Spacing between layers/ranks
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(
-      direction === "TB" ? SPACING_RANKS_TB : SPACING_RANKS_LR
-    ),
+    "elk.layered.spacing.nodeNodeBetweenLayers": String(direction === "TB" ? SPACING_RANKS_TB : SPACING_RANKS_LR),
     // Node placement strategy - Brandes-Koepf produces more balanced layouts
     // with better parent-child centering than NETWORK_SIMPLEX
     "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
@@ -158,7 +146,7 @@ export interface LayoutPositionResult {
 export async function calculatePositions(
   groups: GroupWithLayout[],
   expandedGroups: Set<string>,
-  direction: LayoutDirection
+  direction: LayoutDirection,
 ): Promise<LayoutPositionResult> {
   // Build dimension map for all nodes - O(n)
   const dimensionsMap = new Map<string, NodeDimensions>();
@@ -212,14 +200,14 @@ export async function calculatePositions(
 
 /**
  * Build ReactFlow nodes from layout positions and group data.
- * Separated from layout to allow callback injection at a higher level.
+ *
+ * Note: Callbacks are accessed via DAGContext, not passed in node data.
+ * This prevents layout re-calculation when callbacks change reference.
  *
  * @param groups - The workflow groups
  * @param positions - Position map from calculatePositions
  * @param expandedGroups - Set of expanded group names
  * @param direction - Layout direction
- * @param onSelectTask - Callback for task selection
- * @param onToggleExpand - Callback for expand/collapse
  * @returns ReactFlow nodes
  */
 export function buildNodes(
@@ -227,21 +215,27 @@ export function buildNodes(
   positions: Map<string, LayoutPosition>,
   expandedGroups: Set<string>,
   direction: LayoutDirection,
-  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void,
-  onToggleExpand: (groupId: string) => void
 ): Node<GroupNodeData>[] {
-  // Build group lookup map for O(1) access
-  const groupMap = new Map<string, GroupWithLayout>();
-  groups.forEach((group) => groupMap.set(group.name, group));
+  // Pre-compute which groups have incoming edges (are targets of other groups)
+  const hasIncomingEdgesSet = new Set<string>();
+  for (const group of groups) {
+    const downstreams = group.downstream_groups || [];
+    for (const downstream of downstreams) {
+      hasIncomingEdgesSet.add(downstream);
+    }
+  }
 
   const nodes: Node<GroupNodeData>[] = [];
-  
+
   for (const group of groups) {
     const pos = positions.get(group.name);
     if (!pos) {
       console.warn(`No position found for group: ${group.name}`);
       continue;
     }
+
+    const hasOutgoingEdges = (group.downstream_groups?.length ?? 0) > 0;
+    const hasIncomingEdges = hasIncomingEdgesSet.has(group.name);
 
     nodes.push({
       id: group.name,
@@ -252,17 +246,17 @@ export function buildNodes(
       initialHeight: pos.height,
       data: {
         group,
-        isSelected: false, // Selection state managed separately
+        isSelected: false, // Selection state managed via CSS data-selected
         isExpanded: expandedGroups.has(group.name),
         layoutDirection: direction,
-        onSelectTask,
-        onToggleExpand,
         nodeWidth: pos.width,
         nodeHeight: pos.height,
+        hasIncomingEdges,
+        hasOutgoingEdges,
       },
     });
   }
-  
+
   return nodes;
 }
 
@@ -309,19 +303,15 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
  * @param groups - The workflow groups
  * @param expandedGroups - Set of expanded group names
  * @param direction - Layout direction
- * @param onSelectTask - Callback for task selection
- * @param onToggleExpand - Callback for expand/collapse
  * @returns Promise resolving to layouted nodes and edges
  */
 export async function calculateLayout(
   groups: GroupWithLayout[],
   expandedGroups: Set<string>,
   direction: LayoutDirection,
-  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void,
-  onToggleExpand: (groupId: string) => void
 ): Promise<LayoutResult> {
   const { positions } = await calculatePositions(groups, expandedGroups, direction);
-  const nodes = buildNodes(groups, positions, expandedGroups, direction, onSelectTask, onToggleExpand);
+  const nodes = buildNodes(groups, positions, expandedGroups, direction);
   const edges = buildEdges(groups);
 
   return { nodes, edges };
@@ -342,7 +332,7 @@ export async function calculateLayout(
 export function computeInitialExpandedGroups(
   groups: GroupWithLayout[],
   taskThreshold = 20,
-  groupThreshold = 10
+  groupThreshold = 10,
 ): Set<string> {
   // Only multi-task groups are expandable
   const expandableGroups = groups.filter((g) => (g.tasks || []).length > 1);
@@ -363,9 +353,5 @@ export function computeInitialExpandedGroups(
   }
 
   // Otherwise, expand groups with fewer tasks than threshold
-  return new Set(
-    expandableGroups
-      .filter((g) => (g.tasks || []).length < taskThreshold)
-      .map((g) => g.name)
-  );
+  return new Set(expandableGroups.filter((g) => (g.tasks || []).length < taskThreshold).map((g) => g.name));
 }

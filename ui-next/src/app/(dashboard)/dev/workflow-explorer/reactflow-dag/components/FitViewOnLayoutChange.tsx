@@ -31,10 +31,7 @@ interface FitViewOnLayoutChangeProps {
   rootNodeIds: string[];
 }
 
-export function FitViewOnLayoutChange({
-  layoutDirection,
-  rootNodeIds,
-}: FitViewOnLayoutChangeProps) {
+export function FitViewOnLayoutChange({ layoutDirection, rootNodeIds }: FitViewOnLayoutChangeProps) {
   const { setCenter, getNode } = useReactFlow();
   const prevLayout = useRef(layoutDirection);
   const hasInitialized = useRef(false);
@@ -59,7 +56,7 @@ export function FitViewOnLayoutChange({
         });
       }
     },
-    [rootNodeIds, getNode, setCenter]
+    [rootNodeIds, getNode, setCenter],
   );
 
   useEffect(() => {

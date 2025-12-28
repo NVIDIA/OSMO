@@ -17,21 +17,9 @@
 
 import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
-import {
-  ZoomIn,
-  ZoomOut,
-  Maximize,
-  ArrowDown,
-  ArrowRight,
-  Map,
-} from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LayoutDirection } from "../types";
 
 interface DAGControlsProps {
@@ -45,12 +33,7 @@ interface DAGControlsProps {
   onToggleMinimap: () => void;
 }
 
-export function DAGControls({
-  layoutDirection,
-  onLayoutChange,
-  showMinimap,
-  onToggleMinimap,
-}: DAGControlsProps) {
+export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onToggleMinimap }: DAGControlsProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const handleZoomIn = useCallback(() => {
@@ -102,7 +85,10 @@ export function DAGControls({
         </ControlButton>
 
         {/* Divider */}
-        <div className="h-px bg-zinc-700 my-1" aria-hidden="true" />
+        <div
+          className="h-px bg-zinc-700 my-1"
+          aria-hidden="true"
+        />
 
         {/* Layout Direction Toggle */}
         <ControlButton
@@ -112,11 +98,7 @@ export function DAGControls({
           aria-pressed={layoutDirection === "LR"}
           active={layoutDirection === "LR"}
         >
-          {layoutDirection === "TB" ? (
-            <ArrowDown className="h-4 w-4" />
-          ) : (
-            <ArrowRight className="h-4 w-4" />
-          )}
+          {layoutDirection === "TB" ? <ArrowDown className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
         </ControlButton>
 
         {/* Minimap Toggle */}
@@ -164,7 +146,7 @@ function ControlButton({
             "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
             "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset",
-            active && "bg-zinc-700 text-zinc-100"
+            active && "bg-zinc-700 text-zinc-100",
           )}
           aria-label={ariaLabel}
           aria-pressed={ariaPressed}
@@ -172,9 +154,7 @@ function ControlButton({
           {children}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right">
-        {tooltip}
-      </TooltipContent>
+      <TooltipContent side="right">{tooltip}</TooltipContent>
     </Tooltip>
   );
 }

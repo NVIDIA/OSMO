@@ -45,34 +45,31 @@ interface UseDAGStateReturn {
   edges: Edge[];
   layoutDirection: LayoutDirection;
   setLayoutDirection: (direction: LayoutDirection) => void;
-  
+
   // Groups with computed layout
   groupsWithLayout: GroupWithLayout[];
   rootNodeIds: string[];
-  
+
   // Expansion state
   expandedGroups: Set<string>;
   handleToggleExpand: (groupId: string) => void;
   handleExpandAll: () => void;
   handleCollapseAll: () => void;
-  
+
   // Selection state
   selectedGroup: GroupWithLayout | null;
   selectedTask: TaskQueryResponse | null;
   handleSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
   handleCloseDetail: () => void;
-  
+
   // Bounds for viewport
   nodeBounds: GraphBounds;
-  
+
   // Loading state
   isLayouting: boolean;
 }
 
-export function useDAGState({
-  groups,
-  initialDirection = "TB",
-}: UseDAGStateOptions): UseDAGStateReturn {
+export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOptions): UseDAGStateReturn {
   // Core state
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(initialDirection);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -81,25 +78,18 @@ export function useDAGState({
   const [isLayouting, setIsLayouting] = useState(false);
 
   // Compute topological levels from dependency graph
-  const groupsWithLayout = useMemo(
-    () => computeTopologicalLevelsFromGraph(groups),
-    [groups]
-  );
+  const groupsWithLayout = useMemo(() => computeTopologicalLevelsFromGraph(groups), [groups]);
 
   // Get root node IDs (level 0) for initial zoom target
   const rootNodeIds = useMemo(
     () => groupsWithLayout.filter((g) => g.level === 0).map((g) => g.name),
-    [groupsWithLayout]
+    [groupsWithLayout],
   );
 
   // Initialize expanded groups when workflow changes
   useEffect(() => {
     setExpandedGroups(
-      computeInitialExpandedGroups(
-        groupsWithLayout,
-        AUTO_COLLAPSE_TASK_THRESHOLD,
-        AUTO_COLLAPSE_GROUP_THRESHOLD
-      )
+      computeInitialExpandedGroups(groupsWithLayout, AUTO_COLLAPSE_TASK_THRESHOLD, AUTO_COLLAPSE_GROUP_THRESHOLD),
     );
     // Clear selection on workflow change
     setSelectedGroup(null);
@@ -120,9 +110,7 @@ export function useDAGState({
   }, []);
 
   const handleExpandAll = useCallback(() => {
-    const expandableNames = groupsWithLayout
-      .filter((g) => (g.tasks || []).length > 1)
-      .map((g) => g.name);
+    const expandableNames = groupsWithLayout.filter((g) => (g.tasks || []).length > 1).map((g) => g.name);
     setExpandedGroups(new Set(expandableNames));
   }, [groupsWithLayout]);
 
@@ -130,13 +118,10 @@ export function useDAGState({
     setExpandedGroups(new Set());
   }, []);
 
-  const handleSelectTask = useCallback(
-    (task: TaskQueryResponse, group: GroupWithLayout) => {
-      setSelectedGroup(group);
-      setSelectedTask(task);
-    },
-    []
-  );
+  const handleSelectTask = useCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+    setSelectedGroup(group);
+    setSelectedTask(task);
+  }, []);
 
   const handleCloseDetail = useCallback(() => {
     setSelectedGroup(null);
@@ -148,20 +133,14 @@ export function useDAGState({
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
   // Calculate layout when relevant state changes
-  // Note: Callbacks are NOT in deps - they're injected into nodes but don't affect layout
+  // Callbacks are accessed via DAGContext, not passed in node data
   useEffect(() => {
     let cancelled = false;
 
     const runLayout = async () => {
       setIsLayouting(true);
       try {
-        const result = await calculateLayout(
-          groupsWithLayout,
-          expandedGroups,
-          layoutDirection,
-          handleSelectTask,
-          handleToggleExpand
-        );
+        const result = await calculateLayout(groupsWithLayout, expandedGroups, layoutDirection);
 
         if (!cancelled) {
           setNodes(result.nodes);
@@ -181,15 +160,7 @@ export function useDAGState({
     return () => {
       cancelled = true;
     };
-  }, [
-    groupsWithLayout,
-    expandedGroups,
-    layoutDirection,
-    handleSelectTask,
-    handleToggleExpand,
-    setNodes,
-    setEdges,
-  ]);
+  }, [groupsWithLayout, expandedGroups, layoutDirection, setNodes, setEdges]);
 
   // Update node selection state without re-running layout
   useEffect(() => {
@@ -200,7 +171,7 @@ export function useDAGState({
           ...node.data,
           isSelected: selectedGroup?.name === node.id && selectedTask !== null,
         },
-      }))
+      })),
     );
   }, [selectedGroup, selectedTask, setNodes]);
 

@@ -13,16 +13,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  GitBranch,
-  BarChart3,
-  Clock,
-  Loader2,
-  CheckCircle,
-  XCircle,
-  ArrowRight,
-  Workflow,
-} from "lucide-react";
+import { GitBranch, BarChart3, Clock, Loader2, CheckCircle, XCircle, ArrowRight, Workflow } from "lucide-react";
 
 import {
   EXAMPLE_WORKFLOWS,
@@ -71,9 +62,7 @@ function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
       <div className="flex items-center gap-3 mb-3">
         {getStatusIcon(workflow.status, "h-5 w-5")}
         <div>
-          <h3 className="font-mono text-sm font-medium text-zinc-100">
-            {workflow.name}
-          </h3>
+          <h3 className="font-mono text-sm font-medium text-zinc-100">{workflow.name}</h3>
           <p className="text-xs text-zinc-500">
             {workflow.pool} • {workflow.user}
           </p>
@@ -83,27 +72,19 @@ function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2 mb-3">
         <div className="text-center">
-          <div className="text-lg font-bold text-zinc-100">
-            {workflow.totalTasks}
-          </div>
+          <div className="text-lg font-bold text-zinc-100">{workflow.totalTasks}</div>
           <div className="text-xs text-zinc-500">Tasks</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-emerald-400">
-            {workflow.completedTasks}
-          </div>
+          <div className="text-lg font-bold text-emerald-400">{workflow.completedTasks}</div>
           <div className="text-xs text-zinc-500">Complete</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-yellow-400">
-            {workflow.runningTasks}
-          </div>
+          <div className="text-lg font-bold text-yellow-400">{workflow.runningTasks}</div>
           <div className="text-xs text-zinc-500">Running</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-bold text-zinc-400">
-            {workflow.waitingTasks}
-          </div>
+          <div className="text-lg font-bold text-zinc-400">{workflow.waitingTasks}</div>
           <div className="text-xs text-zinc-500">Waiting</div>
         </div>
       </div>
@@ -122,9 +103,7 @@ function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
         </div>
       </div>
 
-      <div className="mt-2 text-xs text-zinc-500 text-center">
-        Duration: {formatDuration(workflow.duration)}
-      </div>
+      <div className="mt-2 text-xs text-zinc-500 text-center">Duration: {formatDuration(workflow.duration)}</div>
     </div>
   );
 }
@@ -171,10 +150,7 @@ const visualizations = [
 export default function WorkflowExplorerPage() {
   const [workflowPattern, setWorkflowPattern] = useState<WorkflowPattern>("complex");
 
-  const workflow = useMemo(
-    () => EXAMPLE_WORKFLOWS[workflowPattern](),
-    [workflowPattern]
-  );
+  const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
@@ -184,9 +160,7 @@ export default function WorkflowExplorerPage() {
           <Workflow className="h-6 w-6 text-cyan-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Workflow Visualization Explorer
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Workflow Visualization Explorer</h1>
           <p className="text-sm text-muted-foreground">
             Explore different approaches for visualizing workflow DAGs and timelines
           </p>
@@ -298,9 +272,7 @@ export default function WorkflowExplorerPage() {
 
       {/* Info Box */}
       <div className="mt-8 p-4 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30">
-        <h3 className="text-sm font-medium text-zinc-300 mb-2">
-          📦 Libraries Used
-        </h3>
+        <h3 className="text-sm font-medium text-zinc-300 mb-2">📦 Libraries Used</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
           <div>
             <div className="font-medium text-zinc-400">@xyflow/react</div>

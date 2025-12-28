@@ -110,7 +110,7 @@ interface TimelineGroup {
 
 function convertToTimelineData(
   workflow: ReturnType<typeof EXAMPLE_WORKFLOWS.complex>,
-  showNestedTasks: boolean
+  showNestedTasks: boolean,
 ): {
   items: TimelineItem[];
   groups: TimelineGroup[];
@@ -121,9 +121,7 @@ function convertToTimelineData(
   workflow.groups.forEach((group) => {
     const category = getStatusCategory(group.status);
     const colors = statusColors[category];
-    const completedCount = group.tasks.filter(
-      (t) => t.status === TaskGroupStatus.COMPLETED
-    ).length;
+    const completedCount = group.tasks.filter((t) => t.status === TaskGroupStatus.COMPLETED).length;
     const hasManyTasks = group.tasks.length > 1;
 
     if (showNestedTasks && hasManyTasks) {
@@ -235,7 +233,12 @@ function DetailPanel({
             {getStatusIcon(task.status)}
             <h3 className="font-semibold text-zinc-100">{task.name}</h3>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onClose}
+          >
             <XCircle className="h-4 w-4 text-zinc-400" />
           </Button>
         </div>
@@ -247,21 +250,15 @@ function DetailPanel({
       {/* Task details */}
       <div className="p-4 space-y-4">
         <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-            Timing
-          </h4>
+          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Timing</h4>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-zinc-400">Start</dt>
-              <dd className="text-zinc-200 font-mono text-xs">
-                {formatTime(task.startTime)}
-              </dd>
+              <dd className="text-zinc-200 font-mono text-xs">{formatTime(task.startTime)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-400">End</dt>
-              <dd className="text-zinc-200 font-mono text-xs">
-                {formatTime(task.endTime)}
-              </dd>
+              <dd className="text-zinc-200 font-mono text-xs">{formatTime(task.endTime)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-400">Duration</dt>
@@ -271,9 +268,7 @@ function DetailPanel({
         </div>
 
         <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-            Resources
-          </h4>
+          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Resources</h4>
           <div className="grid grid-cols-3 gap-2">
             <div className="p-2 rounded bg-zinc-800 text-center">
               <div className="text-lg font-semibold">{task.cpu}</div>
@@ -291,27 +286,31 @@ function DetailPanel({
         </div>
 
         <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-            Placement
-          </h4>
+          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Placement</h4>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-zinc-400">Node</dt>
-              <dd className="text-zinc-200 font-mono text-xs">
-                {task.node || "-"}
-              </dd>
+              <dd className="text-zinc-200 font-mono text-xs">{task.node || "-"}</dd>
             </div>
           </dl>
         </div>
 
         {/* Actions */}
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1 h-7 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+          >
             <FileText className="h-3 w-3 mr-1" />
             Logs
           </Button>
           {category === "running" && (
-            <Button variant="outline" size="sm" className="flex-1 h-7 text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-7 text-xs"
+            >
               <Terminal className="h-3 w-3 mr-1" />
               Shell
             </Button>
@@ -336,15 +335,12 @@ export default function VisTimelinePage() {
   const [showNestedTasks, setShowNestedTasks] = useState(true); // Default to nested view
 
   // Generate workflow
-  const workflow = useMemo(
-    () => EXAMPLE_WORKFLOWS[workflowPattern](),
-    [workflowPattern]
-  );
+  const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
 
   // Convert to timeline data
   const { items, groups } = useMemo(
     () => convertToTimelineData(workflow, showNestedTasks),
-    [workflow, showNestedTasks]
+    [workflow, showNestedTasks],
   );
 
   // Track if component is mounted
@@ -359,19 +355,19 @@ export default function VisTimelinePage() {
       const now = new Date();
       return { min: new Date(now.getTime() - 3600000), max: now };
     }
-    
+
     let minTime = Infinity;
     let maxTime = -Infinity;
-    
+
     items.forEach((item) => {
       minTime = Math.min(minTime, item.start.getTime());
       maxTime = Math.max(maxTime, item.end.getTime());
     });
-    
+
     // Add 5% padding on each side
     const range = maxTime - minTime;
     const padding = range * 0.05;
-    
+
     return {
       min: new Date(minTime - padding),
       max: new Date(maxTime + padding),
@@ -479,7 +475,12 @@ export default function VisTimelinePage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-zinc-100" asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-zinc-400 hover:text-zinc-100"
+            asChild
+          >
             <a href="/dev/workflow-explorer">
               <ChevronLeft className="h-4 w-4 mr-1" />
               Back
@@ -487,9 +488,7 @@ export default function VisTimelinePage() {
           </Button>
           <div className="h-6 w-px bg-zinc-700" />
           <div>
-            <h1 className="text-lg font-semibold text-zinc-100">
-              vis-timeline Gantt View
-            </h1>
+            <h1 className="text-lg font-semibold text-zinc-100">vis-timeline Gantt View</h1>
             <div className="flex items-center gap-2 text-sm text-zinc-400">
               <span className="text-emerald-400 flex items-center gap-1">
                 {getStatusIcon(workflow.status, "h-3.5 w-3.5")}
@@ -522,7 +521,10 @@ export default function VisTimelinePage() {
               </>
             )}
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -532,34 +534,62 @@ export default function VisTimelinePage() {
       {/* Controls */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-800">
         <div className="flex items-center gap-4">
-          <Tabs value={workflowPattern} onValueChange={(v) => onPatternChange(v as WorkflowPattern)}>
+          <Tabs
+            value={workflowPattern}
+            onValueChange={(v) => onPatternChange(v as WorkflowPattern)}
+          >
             <TabsList className="bg-zinc-800/50">
-              <TabsTrigger value="linear" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="linear"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 Linear
               </TabsTrigger>
-              <TabsTrigger value="diamond" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="diamond"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 Diamond
               </TabsTrigger>
-              <TabsTrigger value="parallel" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="parallel"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 Parallel
               </TabsTrigger>
-              <TabsTrigger value="complex" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="complex"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 Complex
               </TabsTrigger>
-              <TabsTrigger value="massiveParallel" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="massiveParallel"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 200 Tasks
               </TabsTrigger>
-              <TabsTrigger value="manyGroups" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="manyGroups"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 100 Groups
               </TabsTrigger>
-              <TabsTrigger value="multiRoot" className="data-[state=active]:bg-zinc-700">
+              <TabsTrigger
+                value="multiRoot"
+                className="data-[state=active]:bg-zinc-700"
+              >
                 Multi-Root
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleFit}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleFit}
+          >
             <Maximize2 className="h-4 w-4 mr-2" />
             Fit All
           </Button>
@@ -624,7 +654,10 @@ export default function VisTimelinePage() {
       </div>
 
       {/* Custom styles for vis-timeline dark theme */}
-      <style jsx global>{`
+      <style
+        jsx
+        global
+      >{`
         .vis-timeline-container {
           background: #09090b;
         }
