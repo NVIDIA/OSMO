@@ -11,21 +11,22 @@
  *
  * Collapsible node component for DAG visualization.
  * Features:
- * - Expand/collapse for multi-task groups
+ * - Single-task nodes show task name directly (flattened)
+ * - Multi-task nodes show group name with expand/collapse
+ * - Status-specific hint text
  * - Virtualized task list for large groups
  * - WCAG 2.1 AA accessibility
- * - Status-based styling
  */
 
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useMemo, useEffect } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TaskQueryResponse } from "../../workflow-types";
-import { TaskGroupStatus } from "../../workflow-types";
+import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
+import { TaskGroupStatus, isFailedStatus } from "../../workflow-types";
 import type { GroupNodeData } from "../types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../utils/status";
 import { calculateDuration, formatDuration } from "../../workflow-types";
@@ -33,6 +34,197 @@ import {
   TASK_ROW_HEIGHT,
   NODE_HEADER_HEIGHT,
 } from "../constants";
+
+// ============================================================================
+// Smart Scroll Handler
+// ============================================================================
+
+/**
+ * Hook to handle wheel events:
+ * - Horizontal scroll (deltaX) → always pass through for panning
+ * - Vertical scroll (deltaY) → capture for list scrolling, pass through at boundaries
+ */
+function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Horizontal scroll → let it pan
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        return;
+      }
+
+      const { scrollTop, scrollHeight, clientHeight } = element;
+      const atTop = scrollTop <= 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+
+      // At boundaries → let it pan
+      if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
+        return;
+      }
+
+      // Vertical scroll in the middle → capture for list scrolling
+      e.stopPropagation();
+    };
+
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => element.removeEventListener("wheel", handleWheel);
+  }, [ref]);
+}
+
+// ============================================================================
+// Status Hint Text
+// ============================================================================
+
+/**
+ * Get status-specific hint text for display in the node.
+ * Different logic for single-task vs multi-task groups.
+ */
+function getStatusHint(
+  group: GroupWithLayout,
+  task: TaskQueryResponse | undefined,
+  isSingleTask: boolean
+): string {
+  const tasks = group.tasks || [];
+  const taskCount = tasks.length;
+
+  // Count failures for multi-task groups
+  const failedTasks = tasks.filter((t) => isFailedStatus(t.status));
+  const failedCount = failedTasks.length;
+
+  // For multi-task with failures, always show failure count
+  if (!isSingleTask && failedCount > 0) {
+    if (failedCount === taskCount) {
+      // All failed - show the common failure type if available
+      const firstFailed = failedTasks[0];
+      const failureHint = getFailureHint(firstFailed);
+      return `Failed · ${failureHint}`;
+    }
+    return `${failedCount} of ${taskCount} failed`;
+  }
+
+  // Use task status for single-task, group status for multi-task
+  const status = isSingleTask && task ? task.status : group.status;
+
+  switch (status) {
+    // Waiting states
+    case TaskGroupStatus.WAITING: {
+      const blocking = group.remaining_upstream_groups;
+      if (blocking?.length === 1) {
+        return `Waiting for: ${blocking[0]}`;
+      }
+      if (blocking && blocking.length > 1) {
+        return `Waiting for ${blocking.length} tasks`;
+      }
+      return isSingleTask ? "Queued..." : `${taskCount} tasks queued`;
+    }
+
+    case TaskGroupStatus.SUBMITTING:
+      return isSingleTask ? "Submitting..." : `Submitting ${taskCount} tasks...`;
+
+    case TaskGroupStatus.SCHEDULING:
+      return isSingleTask ? "In queue..." : `Scheduling ${taskCount} tasks...`;
+
+    case TaskGroupStatus.PROCESSING:
+      return isSingleTask ? "Processing..." : `Processing ${taskCount} tasks...`;
+
+    // Active states
+    case TaskGroupStatus.INITIALIZING:
+      return isSingleTask ? "Starting up..." : `Starting ${taskCount} tasks...`;
+
+    case TaskGroupStatus.RUNNING: {
+      const startTime = isSingleTask ? task?.start_time : group.start_time;
+      const elapsed = calculateDuration(startTime, null);
+      return `Running · ${formatDuration(elapsed)}`;
+    }
+
+    // Terminal states
+    case TaskGroupStatus.COMPLETED: {
+      const startTime = isSingleTask ? task?.start_time : group.start_time;
+      const endTime = isSingleTask ? task?.end_time : group.end_time;
+      const duration = calculateDuration(startTime, endTime);
+      return formatDuration(duration);
+    }
+
+    case TaskGroupStatus.RESCHEDULED: {
+      const retryId = task?.retry_id || 0;
+      return retryId > 0 ? `Retrying... (attempt ${retryId + 1})` : "Retrying...";
+    }
+
+    // Failure states - use failure_message when available, fallback to status-specific text
+    case TaskGroupStatus.FAILED:
+      return task?.failure_message?.slice(0, 25) || "Failed";
+
+    case TaskGroupStatus.FAILED_CANCELED:
+      return "Cancelled";
+
+    case TaskGroupStatus.FAILED_SERVER_ERROR:
+      return task?.failure_message?.slice(0, 25) || "Server error";
+
+    case TaskGroupStatus.FAILED_BACKEND_ERROR:
+      return task?.failure_message?.slice(0, 25) || "Backend error";
+
+    case TaskGroupStatus.FAILED_EXEC_TIMEOUT:
+      return "Execution timeout";
+
+    case TaskGroupStatus.FAILED_QUEUE_TIMEOUT:
+      return "Queue timeout";
+
+    case TaskGroupStatus.FAILED_IMAGE_PULL:
+      return "Image pull failed";
+
+    case TaskGroupStatus.FAILED_UPSTREAM:
+      return "Upstream failed";
+
+    case TaskGroupStatus.FAILED_EVICTED:
+      return "Evicted";
+
+    case TaskGroupStatus.FAILED_START_ERROR:
+      return task?.failure_message?.slice(0, 25) || "Start error";
+
+    case TaskGroupStatus.FAILED_START_TIMEOUT:
+      return "Start timeout";
+
+    case TaskGroupStatus.FAILED_PREEMPTED:
+      return "Preempted";
+
+    default:
+      return "";
+  }
+}
+
+/**
+ * Get a short hint for failure type (used in multi-task group summaries).
+ */
+function getFailureHint(task: TaskQueryResponse): string {
+  switch (task.status) {
+    case TaskGroupStatus.FAILED_CANCELED:
+      return "Cancelled";
+    case TaskGroupStatus.FAILED_SERVER_ERROR:
+      return "Server error";
+    case TaskGroupStatus.FAILED_BACKEND_ERROR:
+      return "Backend error";
+    case TaskGroupStatus.FAILED_EXEC_TIMEOUT:
+      return "Timeout";
+    case TaskGroupStatus.FAILED_QUEUE_TIMEOUT:
+      return "Queue timeout";
+    case TaskGroupStatus.FAILED_IMAGE_PULL:
+      return "Image pull";
+    case TaskGroupStatus.FAILED_UPSTREAM:
+      return "Upstream failed";
+    case TaskGroupStatus.FAILED_EVICTED:
+      return "Evicted";
+    case TaskGroupStatus.FAILED_START_ERROR:
+      return "Start error";
+    case TaskGroupStatus.FAILED_START_TIMEOUT:
+      return "Start timeout";
+    case TaskGroupStatus.FAILED_PREEMPTED:
+      return "Preempted";
+    default:
+      return task.failure_message?.slice(0, 15) || "Failed";
+  }
+}
 
 interface GroupNodeProps {
   data: GroupNodeData;
@@ -52,12 +244,19 @@ export function GroupNode({ data }: GroupNodeProps) {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const category = getStatusCategory(group.status);
-  const style = getStatusStyle(group.status);
+  // Smart scroll handling - only capture wheel when content is scrollable
+  useSmartScroll(scrollContainerRef);
 
   const tasks = group.tasks || [];
   const totalCount = tasks.length;
+  const isSingleTask = totalCount === 1;
   const hasManyTasks = totalCount > 1;
+
+  // For single-task nodes, use the task's status; for multi-task, use group status
+  const primaryTask = tasks[0];
+  const displayStatus = isSingleTask && primaryTask ? primaryTask.status : group.status;
+  const category = getStatusCategory(displayStatus);
+  const style = getStatusStyle(displayStatus);
 
   // Virtualization for large task lists
   const virtualizer = useVirtualizer({
@@ -67,16 +266,14 @@ export function GroupNode({ data }: GroupNodeProps) {
     overscan: 5,
   });
 
-  // Get representative info for collapsed view
-  const runningTask = tasks.find((t) => getStatusCategory(t.status) === "running");
-  const completedTask = tasks.find((t) => t.status === TaskGroupStatus.COMPLETED);
-  const representativeTask = runningTask || completedTask || tasks[0];
+  // Get hint text based on status
+  const hintText = useMemo(
+    () => getStatusHint(group, primaryTask, isSingleTask),
+    [group, primaryTask, isSingleTask]
+  );
 
-  // Calculate total duration from start/end times
-  const totalDuration = tasks.reduce((sum, t) => {
-    const duration = calculateDuration(t.start_time, t.end_time);
-    return sum + (duration || 0);
-  }, 0);
+  // Display name: task name for single-task, group name for multi-task
+  const displayName = isSingleTask && primaryTask ? primaryTask.name : group.name;
 
   // Handle positions based on layout direction
   const isVertical = layoutDirection === "TB";
@@ -136,28 +333,10 @@ export function GroupNode({ data }: GroupNodeProps) {
     [group, onSelectTask]
   );
 
-  // Secondary info line content
-  const getSecondaryInfo = () => {
-    if (category === "waiting") {
-      return "Waiting...";
-    }
-    if (category === "running") {
-      const nodeName = representativeTask?.node_name;
-      return nodeName ? `Running on ${nodeName}` : "Running...";
-    }
-    if (category === "failed") {
-      return "Failed";
-    }
-    const nodeName = representativeTask?.node_name;
-    const duration = totalDuration > 0 ? formatDuration(totalDuration) : null;
-    if (nodeName && duration) {
-      return `${nodeName} · ${duration}`;
-    }
-    return nodeName || duration || "Completed";
-  };
-
   // Accessibility labels
-  const ariaLabel = `${group.name}, ${getStatusLabel(group.status)}, ${totalCount} task${totalCount !== 1 ? "s" : ""}`;
+  const ariaLabel = isSingleTask
+    ? `${displayName}, ${getStatusLabel(displayStatus)}`
+    : `${displayName}, ${getStatusLabel(displayStatus)}, ${totalCount} tasks`;
   const expandLabel = isExpanded ? "Collapse task list" : "Expand task list";
 
   return (
@@ -200,8 +379,8 @@ export function GroupNode({ data }: GroupNodeProps) {
       {/* Header */}
       <div
         className={cn(
-          "px-3 py-2.5 cursor-pointer select-none flex-shrink-0",
-          !isExpanded && "flex flex-col justify-center h-full"
+          "px-3 cursor-pointer select-none flex-shrink-0 flex flex-col justify-center",
+          !isExpanded && "h-full"
         )}
         style={{ height: isExpanded ? NODE_HEADER_HEIGHT : undefined }}
         onClick={handleNodeClick}
@@ -221,24 +400,23 @@ export function GroupNode({ data }: GroupNodeProps) {
               )}
             </button>
           )}
-          {getStatusIcon(group.status, "h-4 w-4")}
+          {getStatusIcon(displayStatus, "h-4 w-4")}
           <span className="font-medium text-sm text-zinc-100 truncate flex-1">
-            {group.name}
+            {displayName}
           </span>
         </div>
 
-        {!isExpanded && (
-          <div className={cn("text-xs mt-1 truncate", style.text, hasManyTasks && "ml-7")}>
-            {getSecondaryInfo()}
-          </div>
-        )}
+        {/* Always show hint below name */}
+        <div className={cn("text-xs mt-1 truncate", style.text, hasManyTasks && "ml-7")}>
+          {hintText}
+        </div>
       </div>
 
       {/* Virtualized task list */}
       {isExpanded && hasManyTasks && (
         <div
           ref={scrollContainerRef}
-          className="nowheel border-t border-zinc-700/50 px-2 py-2 flex-1 min-h-0 overflow-y-auto"
+          className="border-t border-zinc-700/50 px-2 py-2 flex-1 min-h-0 overflow-y-auto"
           role="list"
           aria-label={`Tasks in ${group.name}`}
         >

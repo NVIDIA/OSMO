@@ -61,6 +61,9 @@ export function DAGToolbar({
           <TabsTrigger value="multiRoot" className="data-[state=active]:bg-zinc-700">
             Multi-Root
           </TabsTrigger>
+          <TabsTrigger value="showcase" className="data-[state=active]:bg-zinc-700 data-[state=active]:bg-amber-700">
+            Showcase
+          </TabsTrigger>
         </TabsList>
       </Tabs>
     </nav>

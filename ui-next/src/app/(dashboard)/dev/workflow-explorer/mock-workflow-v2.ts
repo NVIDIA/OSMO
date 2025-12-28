@@ -26,6 +26,7 @@ import type {
   TaskGroupStatus,
 } from "@/lib/api/generated";
 import { TaskGroupStatus as Status } from "@/lib/api/generated";
+import { isFailedStatus } from "./workflow-types";
 
 // ============================================================================
 // Mock Data Generator
@@ -38,7 +39,8 @@ export type WorkflowPattern =
   | "complex"
   | "massiveParallel"
   | "manyGroups"
-  | "multiRoot";
+  | "multiRoot"
+  | "showcase";
 
 interface GeneratorOptions {
   pattern?: WorkflowPattern;
@@ -61,18 +63,22 @@ function generateTask(
   const taskUuid = faker.string.uuid();
   const podName = `${workflowUuid.slice(0, 8)}-${taskUuid.slice(0, 8)}`;
   
+  // Defensive check - status should never be undefined but helps debugging
+  const statusStr = status || Status.WAITING;
+  const isFailed = isFailedStatus(statusStr);
+  
   return {
     name,
     retry_id: retryId,
-    status,
-    failure_message: status.startsWith("FAILED") 
+    status: statusStr,
+    failure_message: isFailed 
       ? faker.lorem.sentence() 
       : undefined,
-    exit_code: status === Status.COMPLETED ? 0 
-      : status.startsWith("FAILED") ? 1 
+    exit_code: statusStr === Status.COMPLETED ? 0 
+      : isFailed ? 1 
       : undefined,
     logs: `${baseUrl}/api/workflow/${groupName}/logs?task_name=${name}&retry_id=${retryId}`,
-    error_logs: status.startsWith("FAILED") 
+    error_logs: isFailed 
       ? `${baseUrl}/api/workflow/${groupName}/error_logs?task_name=${name}` 
       : undefined,
     processing_start_time: startTime?.toISOString(),
@@ -83,9 +89,9 @@ function generateTask(
     end_time: endTime?.toISOString(),
     dashboard_url: `https://dashboard.example.com/pod/${podName}`,
     pod_name: podName,
-    pod_ip: status !== Status.WAITING ? faker.internet.ipv4() : undefined,
+    pod_ip: statusStr !== Status.WAITING ? faker.internet.ipv4() : undefined,
     task_uuid: taskUuid,
-    node_name: status !== Status.WAITING 
+    node_name: statusStr !== Status.WAITING 
       ? `${faker.helpers.arrayElement(["dgx", "gpu", "node"])}-${faker.helpers.arrayElement(["a100", "h100", "l40s"])}-${faker.number.int({ min: 100, max: 999 })}`
       : undefined,
     lead: false,
@@ -118,7 +124,7 @@ function generateGroup(
     initializing_start_time: startTime?.toISOString(),
     remaining_upstream_groups: remainingUpstream,
     downstream_groups: downstreamGroups,
-    failure_message: status.startsWith("FAILED") ? faker.lorem.sentence() : undefined,
+    failure_message: isFailedStatus(status) ? faker.lorem.sentence() : undefined,
     tasks,
   };
 }
@@ -678,6 +684,277 @@ function generateMultiRootPattern(
   return groups;
 }
 
+/**
+ * Showcase: Demonstrates all status combinations in a logical flow.
+ * 
+ * Flow:
+ * - completed-single (COMPLETED) → running-single (RUNNING) → waiting-single (WAITING for 1)
+ * - completed-group (COMPLETED, 4 tasks) → running-group (RUNNING, 6 tasks) → waiting-group (WAITING for 2)
+ * - failed-single (FAILED_APP_ERROR) ↘
+ *                                       → failed-downstream (WAITING - blocked by failed)
+ * - timeout-single (FAILED_TIMEOUT) ↗
+ * - cancelled-single (FAILED_USER_CANCELLED) - standalone
+ * - preempted-group (FAILED_PREEMPTED, 8 tasks - partial failure)
+ * - initializing-single (INITIALIZING)
+ * - scheduling-single (SCHEDULING)
+ */
+function generateShowcasePattern(
+  workflowUuid: string,
+  baseUrl: string,
+  submitTime: Date,
+  startTime: Date
+): GroupQueryResponse[] {
+  const groups: GroupQueryResponse[] = [];
+  let currentTime = startTime;
+
+  // ========== COMPLETED BRANCH ==========
+  
+  // 1. completed-single: Single task, completed
+  const completedSingleEnd = new Date(currentTime.getTime() + 45000);
+  groups.push(generateGroup(
+    "fetch-data",
+    Status.COMPLETED,
+    [],
+    ["process-data"],
+    [generateTask("fetch-data-0", "fetch-data", Status.COMPLETED, workflowUuid, baseUrl, currentTime, completedSingleEnd)],
+    currentTime,
+    completedSingleEnd
+  ));
+
+  // 2. completed-group: Multi-task, all completed
+  const completedGroupEnd = new Date(completedSingleEnd.getTime() + 300000);
+  const completedGroupTasks: TaskQueryResponse[] = [];
+  for (let i = 0; i < 4; i++) {
+    completedGroupTasks.push(generateTask(
+      `validate-shard-${i}`,
+      "validate-data",
+      Status.COMPLETED,
+      workflowUuid,
+      baseUrl,
+      completedSingleEnd,
+      new Date(completedGroupEnd.getTime() - (3 - i) * 10000)
+    ));
+  }
+  groups.push(generateGroup(
+    "validate-data",
+    Status.COMPLETED,
+    [],
+    ["train-model"],
+    completedGroupTasks,
+    completedSingleEnd,
+    completedGroupEnd
+  ));
+
+  // 3. running-single: Single task, running
+  const runningSingleStart = new Date(completedGroupEnd.getTime());
+  groups.push(generateGroup(
+    "process-data",
+    Status.RUNNING,
+    ["fetch-data"],
+    ["export-results"],
+    [generateTask("process-data-0", "process-data", Status.RUNNING, workflowUuid, baseUrl, runningSingleStart, null)],
+    runningSingleStart,
+    null
+  ));
+
+  // 4. running-group: Multi-task, running (mixed statuses)
+  const runningGroupStart = new Date(completedGroupEnd.getTime());
+  const runningGroupTasks: TaskQueryResponse[] = [];
+  for (let i = 0; i < 6; i++) {
+    const taskStatus = i < 2 ? Status.COMPLETED : i < 5 ? Status.RUNNING : Status.WAITING;
+    runningGroupTasks.push(generateTask(
+      `train-shard-${i}`,
+      "train-model",
+      taskStatus,
+      workflowUuid,
+      baseUrl,
+      taskStatus !== Status.WAITING ? runningGroupStart : null,
+      taskStatus === Status.COMPLETED ? new Date(runningGroupStart.getTime() + (i + 1) * 600000) : null
+    ));
+  }
+  groups.push(generateGroup(
+    "train-model",
+    Status.RUNNING,
+    ["validate-data"],
+    ["evaluate-model"],
+    runningGroupTasks,
+    runningGroupStart,
+    null
+  ));
+
+  // 5. waiting-single: Waiting for 1 upstream (process-data)
+  groups.push(generateGroup(
+    "export-results",
+    Status.WAITING,
+    ["process-data"],
+    [],
+    [generateTask("export-results-0", "export-results", Status.WAITING, workflowUuid, baseUrl, null, null)],
+    null,
+    null
+  ));
+
+  // 6. waiting-group: Waiting for 2 upstreams (train-model, process-data)
+  const waitingGroupTasks: TaskQueryResponse[] = [];
+  for (let i = 0; i < 3; i++) {
+    waitingGroupTasks.push(generateTask(
+      `evaluate-shard-${i}`,
+      "evaluate-model",
+      Status.WAITING,
+      workflowUuid,
+      baseUrl,
+      null,
+      null
+    ));
+  }
+  groups.push(generateGroup(
+    "evaluate-model",
+    Status.WAITING,
+    ["train-model"],
+    [],
+    waitingGroupTasks,
+    null,
+    null
+  ));
+
+  // ========== FAILURE BRANCH ==========
+
+  // 7. failed-single: Generic failure with message (OOM)
+  const failedSingleStart = new Date(currentTime.getTime());
+  const failedSingleEnd = new Date(failedSingleStart.getTime() + 120000);
+  const failedTask = generateTask(
+    "check-gpu-0",
+    "check-gpu",
+    Status.FAILED,
+    workflowUuid,
+    baseUrl,
+    failedSingleStart,
+    failedSingleEnd
+  );
+  failedTask.failure_message = "OutOfMemoryError: CUDA out of memory. Tried to allocate 32.00 GiB";
+  failedTask.exit_code = 1;
+  groups.push(generateGroup(
+    "check-gpu",
+    Status.FAILED,
+    [],
+    ["deploy-model"],
+    [failedTask],
+    failedSingleStart,
+    failedSingleEnd
+  ));
+
+  // 8. timeout-single: Execution timeout
+  const timeoutStart = new Date(currentTime.getTime());
+  const timeoutEnd = new Date(timeoutStart.getTime() + 3600000);
+  const timeoutTask = generateTask(
+    "long-running-0",
+    "long-running",
+    Status.FAILED_EXEC_TIMEOUT,
+    workflowUuid,
+    baseUrl,
+    timeoutStart,
+    timeoutEnd
+  );
+  timeoutTask.failure_message = "Task exceeded execution timeout of 1h";
+  groups.push(generateGroup(
+    "long-running",
+    Status.FAILED_EXEC_TIMEOUT,
+    [],
+    ["deploy-model"],
+    [timeoutTask],
+    timeoutStart,
+    timeoutEnd
+  ));
+
+  // 9. failed-downstream: Waiting but blocked by failed upstreams
+  groups.push(generateGroup(
+    "deploy-model",
+    Status.WAITING,
+    ["check-gpu", "long-running"],
+    [],
+    [generateTask("deploy-model-0", "deploy-model", Status.WAITING, workflowUuid, baseUrl, null, null)],
+    null,
+    null
+  ));
+
+  // 10. cancelled-single: User cancelled
+  const cancelledStart = new Date(currentTime.getTime() + 60000);
+  const cancelledEnd = new Date(cancelledStart.getTime() + 30000);
+  const cancelledTask = generateTask(
+    "cleanup-0",
+    "cleanup",
+    Status.FAILED_CANCELED,
+    workflowUuid,
+    baseUrl,
+    cancelledStart,
+    cancelledEnd
+  );
+  cancelledTask.failure_message = "Cancelled by user";
+  groups.push(generateGroup(
+    "cleanup",
+    Status.FAILED_CANCELED,
+    [],
+    [],
+    [cancelledTask],
+    cancelledStart,
+    cancelledEnd
+  ));
+
+  // 11. preempted-group: Multi-task with partial preemption
+  const preemptedStart = new Date(currentTime.getTime());
+  const preemptedTasks: TaskQueryResponse[] = [];
+  for (let i = 0; i < 8; i++) {
+    const taskStatus = i < 5 ? Status.COMPLETED : Status.FAILED_PREEMPTED;
+    const task = generateTask(
+      `distributed-${i}`,
+      "distributed-job",
+      taskStatus,
+      workflowUuid,
+      baseUrl,
+      preemptedStart,
+      new Date(preemptedStart.getTime() + (i + 1) * 300000)
+    );
+    if (taskStatus === Status.FAILED_PREEMPTED) {
+      task.failure_message = "Preempted by higher priority job";
+    }
+    preemptedTasks.push(task);
+  }
+  groups.push(generateGroup(
+    "distributed-job",
+    Status.FAILED_PREEMPTED,
+    [],
+    [],
+    preemptedTasks,
+    preemptedStart,
+    null
+  ));
+
+  // ========== PENDING STATES ==========
+
+  // 12. initializing-single: Starting up
+  groups.push(generateGroup(
+    "warmup-cache",
+    Status.INITIALIZING,
+    [],
+    [],
+    [generateTask("warmup-cache-0", "warmup-cache", Status.INITIALIZING, workflowUuid, baseUrl, new Date(), null)],
+    new Date(),
+    null
+  ));
+
+  // 13. scheduling-single: In queue
+  groups.push(generateGroup(
+    "batch-job",
+    Status.SCHEDULING,
+    [],
+    [],
+    [generateTask("batch-job-0", "batch-job", Status.SCHEDULING, workflowUuid, baseUrl, null, null)],
+    null,
+    null
+  ));
+
+  return groups;
+}
+
 // ============================================================================
 // Main Generator
 // ============================================================================
@@ -717,6 +994,9 @@ export function generateMockWorkflow(options: GeneratorOptions = {}): WorkflowQu
     case "multiRoot":
       groups = generateMultiRootPattern(workflowUuid, baseUrl, submitTime, startTime);
       break;
+    case "showcase":
+      groups = generateShowcasePattern(workflowUuid, baseUrl, submitTime, startTime);
+      break;
     case "complex":
     default:
       groups = generateComplexPattern(workflowUuid, baseUrl, submitTime, startTime);
@@ -726,7 +1006,7 @@ export function generateMockWorkflow(options: GeneratorOptions = {}): WorkflowQu
   // Calculate workflow status
   const allTasks = groups.flatMap(g => g.tasks || []);
   const hasRunning = allTasks.some(t => t.status === Status.RUNNING || t.status === Status.INITIALIZING);
-  const hasFailed = allTasks.some(t => t.status.startsWith("FAILED"));
+  const hasFailed = allTasks.some(t => isFailedStatus(t.status));
   const allCompleted = allTasks.every(t => t.status === Status.COMPLETED);
   
   let workflowStatus: TaskGroupStatus;
@@ -795,4 +1075,5 @@ export const EXAMPLE_WORKFLOWS: Record<WorkflowPattern, () => WorkflowQueryRespo
   massiveParallel: () => generateMockWorkflow({ pattern: "massiveParallel", seed: 500 }),
   manyGroups: () => generateMockWorkflow({ pattern: "manyGroups", seed: 600 }),
   multiRoot: () => generateMockWorkflow({ pattern: "multiRoot", seed: 700 }),
+  showcase: () => generateMockWorkflow({ pattern: "showcase", seed: 800 }),
 };

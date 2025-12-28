@@ -18,4 +18,5 @@ export {
   getStatusStyle,
   getEdgeColor,
   getStatusLabel,
+  isFailedStatus,
 } from "./status";
