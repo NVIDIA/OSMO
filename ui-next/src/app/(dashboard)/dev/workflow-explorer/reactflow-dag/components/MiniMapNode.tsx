@@ -16,15 +16,7 @@
 import type { MiniMapNodeProps } from "@xyflow/react";
 import { NODE_COLLAPSED_WIDTH, NODE_COLLAPSED_HEIGHT } from "../constants";
 
-export function MiniMapNode({
-  x,
-  y,
-  width,
-  height,
-  color,
-  strokeColor,
-  strokeWidth,
-}: MiniMapNodeProps) {
+export function MiniMapNode({ x, y, width, height, color, strokeColor, strokeWidth }: MiniMapNodeProps) {
   const nodeWidth = width || NODE_COLLAPSED_WIDTH;
   const nodeHeight = height || NODE_COLLAPSED_HEIGHT;
 

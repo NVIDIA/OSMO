@@ -23,14 +23,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  Background,
-  MiniMap,
-  BackgroundVariant,
-  PanOnScrollMode,
-} from "@xyflow/react";
+import { ReactFlow, ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
 import "./reactflow-dark.css";
@@ -50,6 +43,7 @@ import {
 } from "./components";
 import { useDAGState } from "./hooks";
 import { getStatusCategory } from "./utils";
+import { DAGProvider } from "./context";
 
 // Workflow data
 import { EXAMPLE_WORKFLOWS, type WorkflowPattern } from "../mock-workflow-v2";
@@ -63,10 +57,7 @@ function ReactFlowDagPageInner() {
   const [showMinimap, setShowMinimap] = useState(true);
 
   // Generate workflow from mock
-  const workflow = useMemo(
-    () => EXAMPLE_WORKFLOWS[workflowPattern](),
-    [workflowPattern]
-  );
+  const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
 
   // DAG state management
   const {
@@ -78,6 +69,8 @@ function ReactFlowDagPageInner() {
     rootNodeIds,
     handleExpandAll,
     handleCollapseAll,
+    handleSelectTask,
+    handleToggleExpand,
     selectedGroup,
     selectedTask,
     handleCloseDetail,
@@ -98,7 +91,7 @@ function ReactFlowDagPageInner() {
     (direction: LayoutDirection) => {
       setLayoutDirection(direction);
     },
-    [setLayoutDirection]
+    [setLayoutDirection],
   );
 
   // Minimap toggle handler
@@ -157,66 +150,71 @@ function ReactFlowDagPageInner() {
             role="application"
             aria-label="Workflow DAG visualization"
           >
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              // Read-only DAG
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={true}
-              edgesFocusable={false}
-              nodesFocusable={true}
-              selectNodesOnDrag={false}
-              // Viewport settings
-              defaultViewport={{ x: 100, y: 50, zoom: DEFAULT_ZOOM }}
-              minZoom={nodeBounds.fitAllZoom}
-              maxZoom={MAX_ZOOM}
-              translateExtent={[
-                [nodeBounds.minX, nodeBounds.minY],
-                [nodeBounds.maxX, nodeBounds.maxY],
-              ]}
-              // Scroll behavior
-              panOnScroll={true}
-              zoomOnScroll={false}
-              panOnScrollMode={PanOnScrollMode.Free}
-              zoomOnPinch={true}
-              preventScrolling={true}
-              proOptions={{ hideAttribution: true }}
+            <DAGProvider
+              onSelectTask={handleSelectTask}
+              onToggleExpand={handleToggleExpand}
             >
-              <FitViewOnLayoutChange
-                layoutDirection={layoutDirection}
-                rootNodeIds={rootNodeIds}
-              />
-              <Background
-                variant={BackgroundVariant.Dots}
-                gap={20}
-                size={1}
-                color="#27272a"
-              />
-              {/* Unified controls panel */}
-              <DAGControls
-                layoutDirection={layoutDirection}
-                onLayoutChange={onLayoutChange}
-                showMinimap={showMinimap}
-                onToggleMinimap={handleToggleMinimap}
-              />
-              {/* Conditional minimap */}
-              {showMinimap && (
-                <MiniMap
-                  pannable={true}
-                  zoomable={true}
-                  position="top-left"
-                  style={{ background: "#18181b" }}
-                  maskColor="rgba(0, 0, 0, 0.6)"
-                  nodeStrokeWidth={2}
-                  nodeComponent={MiniMapNode}
-                  nodeColor={getMiniMapNodeColor}
-                  nodeStrokeColor={getMiniMapStrokeColor}
-                  aria-label="Workflow minimap"
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                // Read-only DAG
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={true}
+                edgesFocusable={false}
+                nodesFocusable={true}
+                selectNodesOnDrag={false}
+                // Viewport settings
+                defaultViewport={{ x: 100, y: 50, zoom: DEFAULT_ZOOM }}
+                minZoom={nodeBounds.fitAllZoom}
+                maxZoom={MAX_ZOOM}
+                translateExtent={[
+                  [nodeBounds.minX, nodeBounds.minY],
+                  [nodeBounds.maxX, nodeBounds.maxY],
+                ]}
+                // Scroll behavior
+                panOnScroll={true}
+                zoomOnScroll={false}
+                panOnScrollMode={PanOnScrollMode.Free}
+                zoomOnPinch={true}
+                preventScrolling={true}
+                proOptions={{ hideAttribution: true }}
+              >
+                <FitViewOnLayoutChange
+                  layoutDirection={layoutDirection}
+                  rootNodeIds={rootNodeIds}
                 />
-              )}
-            </ReactFlow>
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={20}
+                  size={1}
+                  color="#27272a"
+                />
+                {/* Unified controls panel */}
+                <DAGControls
+                  layoutDirection={layoutDirection}
+                  onLayoutChange={onLayoutChange}
+                  showMinimap={showMinimap}
+                  onToggleMinimap={handleToggleMinimap}
+                />
+                {/* Conditional minimap */}
+                {showMinimap && (
+                  <MiniMap
+                    pannable={true}
+                    zoomable={true}
+                    position="top-left"
+                    style={{ background: "#18181b" }}
+                    maskColor="rgba(0, 0, 0, 0.6)"
+                    nodeStrokeWidth={2}
+                    nodeComponent={MiniMapNode}
+                    nodeColor={getMiniMapNodeColor}
+                    nodeStrokeColor={getMiniMapStrokeColor}
+                    aria-label="Workflow minimap"
+                  />
+                )}
+              </ReactFlow>
+            </DAGProvider>
           </main>
 
           {/* Detail Panel */}
@@ -236,12 +234,24 @@ function ReactFlowDagPageInner() {
               🎨 Implementation Notes
             </summary>
             <ul className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-500">
-              <li>✅ <strong>ELK.js layout</strong>: Better algorithms, web worker ready</li>
-              <li>✅ <strong>Virtualized task lists</strong>: Handles 200+ tasks efficiently</li>
-              <li>✅ <strong>WCAG 2.1 AA</strong>: ARIA labels, keyboard nav, focus indicators</li>
-              <li>✅ <strong>Modular architecture</strong>: Split into components/hooks/layout</li>
-              <li>✅ <strong>Optimized re-renders</strong>: Selection doesn&apos;t trigger layout</li>
-              <li>✅ <strong>Reduced motion</strong>: Respects prefers-reduced-motion</li>
+              <li>
+                ✅ <strong>ELK.js layout</strong>: Better algorithms, web worker ready
+              </li>
+              <li>
+                ✅ <strong>Virtualized task lists</strong>: Handles 200+ tasks efficiently
+              </li>
+              <li>
+                ✅ <strong>WCAG 2.1 AA</strong>: ARIA labels, keyboard nav, focus indicators
+              </li>
+              <li>
+                ✅ <strong>Modular architecture</strong>: Split into components/hooks/layout
+              </li>
+              <li>
+                ✅ <strong>Optimized re-renders</strong>: Selection doesn&apos;t trigger layout
+              </li>
+              <li>
+                ✅ <strong>Reduced motion</strong>: Respects prefers-reduced-motion
+              </li>
             </ul>
           </details>
         </footer>

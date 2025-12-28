@@ -65,15 +65,19 @@ export function DAGHeader({
           asChild
         >
           <a href={backUrl}>
-            <ChevronLeft className="h-4 w-4 mr-1" aria-hidden="true" />
+            <ChevronLeft
+              className="h-4 w-4 mr-1"
+              aria-hidden="true"
+            />
             Back
           </a>
         </Button>
-        <div className="h-6 w-px bg-zinc-700" aria-hidden="true" />
+        <div
+          className="h-6 w-px bg-zinc-700"
+          aria-hidden="true"
+        />
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">
-            React Flow + ELK DAG
-          </h1>
+          <h1 className="text-lg font-semibold text-zinc-100">React Flow + ELK DAG</h1>
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <span className="text-emerald-400 flex items-center gap-1">
               {getStatusIcon(status, "h-3.5 w-3.5")}
@@ -88,12 +92,16 @@ export function DAGHeader({
             {isLayouting && (
               <>
                 <span aria-hidden="true">•</span>
-                <Loader2 
-                  className="h-3.5 w-3.5 animate-spin text-blue-400" 
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin text-blue-400"
                   aria-label="Calculating layout"
                 />
                 {/* Live region for screen readers */}
-                <span className="sr-only" role="status" aria-live="polite">
+                <span
+                  className="sr-only"
+                  role="status"
+                  aria-live="polite"
+                >
                   Calculating layout
                 </span>
               </>
@@ -101,17 +109,41 @@ export function DAGHeader({
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2" role="group" aria-label="View actions">
-        <Button variant="outline" size="sm" onClick={onExpandAll}>
-          <Maximize2 className="h-4 w-4 mr-2" aria-hidden="true" />
+      <div
+        className="flex items-center gap-2"
+        role="group"
+        aria-label="View actions"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExpandAll}
+        >
+          <Maximize2
+            className="h-4 w-4 mr-2"
+            aria-hidden="true"
+          />
           Expand All
         </Button>
-        <Button variant="outline" size="sm" onClick={onCollapseAll}>
-          <Minimize2 className="h-4 w-4 mr-2" aria-hidden="true" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onCollapseAll}
+        >
+          <Minimize2
+            className="h-4 w-4 mr-2"
+            aria-hidden="true"
+          />
           Collapse All
         </Button>
-        <Button variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+        <Button
+          variant="outline"
+          size="sm"
+        >
+          <RefreshCw
+            className="h-4 w-4 mr-2"
+            aria-hidden="true"
+          />
           Refresh
         </Button>
       </div>
