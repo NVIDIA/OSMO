@@ -57,21 +57,20 @@ export class DAGErrorBoundary extends Component<Props, State> {
           aria-live="assertive"
         >
           <div className="flex items-center gap-3 text-amber-500">
-            <AlertTriangle className="h-8 w-8" aria-hidden="true" />
+            <AlertTriangle
+              className="h-8 w-8"
+              aria-hidden="true"
+            />
             <h2 className="text-xl font-semibold">Visualization Error</h2>
           </div>
           <p className="text-zinc-400 text-center max-w-md">
-            The DAG visualization encountered an error. This might be due to
-            invalid workflow data or a layout calculation failure.
+            The DAG visualization encountered an error. This might be due to invalid workflow data or a layout
+            calculation failure.
           </p>
           {this.state.error && (
             <details className="text-sm text-zinc-500 max-w-lg">
-              <summary className="cursor-pointer hover:text-zinc-400">
-                Technical details
-              </summary>
-              <pre className="mt-2 p-3 bg-zinc-900 rounded-lg overflow-auto text-xs">
-                {this.state.error.message}
-              </pre>
+              <summary className="cursor-pointer hover:text-zinc-400">Technical details</summary>
+              <pre className="mt-2 p-3 bg-zinc-900 rounded-lg overflow-auto text-xs">{this.state.error.message}</pre>
             </details>
           )}
           <Button
@@ -79,7 +78,10 @@ export class DAGErrorBoundary extends Component<Props, State> {
             onClick={this.handleRetry}
             className="mt-4"
           >
-            <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+            <RefreshCw
+              className="h-4 w-4 mr-2"
+              aria-hidden="true"
+            />
             Try Again
           </Button>
         </div>

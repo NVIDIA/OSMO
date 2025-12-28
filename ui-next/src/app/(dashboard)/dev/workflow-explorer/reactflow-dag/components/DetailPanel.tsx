@@ -68,7 +68,10 @@ export function DetailPanel({ group, task, onClose }: DetailPanelProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {getStatusIcon(task.status)}
-            <h2 className="font-semibold text-zinc-100 truncate" id="detail-panel-title">
+            <h2
+              className="font-semibold text-zinc-100 truncate"
+              id="detail-panel-title"
+            >
               {task.name}
             </h2>
           </div>
@@ -80,7 +83,10 @@ export function DetailPanel({ group, task, onClose }: DetailPanelProps) {
             onClick={onClose}
             aria-label="Close details panel"
           >
-            <XCircle className="h-4 w-4 text-zinc-400" aria-hidden="true" />
+            <XCircle
+              className="h-4 w-4 text-zinc-400"
+              aria-hidden="true"
+            />
           </Button>
         </div>
         <div className={cn("text-xs mt-1", style.text)}>
@@ -90,11 +96,12 @@ export function DetailPanel({ group, task, onClose }: DetailPanelProps) {
       </div>
 
       {/* Task details */}
-      <div className="p-4 space-y-4" aria-labelledby="detail-panel-title">
+      <div
+        className="p-4 space-y-4"
+        aria-labelledby="detail-panel-title"
+      >
         <div>
-          <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-            Task Details
-          </h3>
+          <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Task Details</h3>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-zinc-400">Group</dt>
@@ -107,9 +114,7 @@ export function DetailPanel({ group, task, onClose }: DetailPanelProps) {
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-400">Duration</dt>
-              <dd className="text-zinc-200">
-                {formatDuration(calculateDuration(task.start_time, task.end_time))}
-              </dd>
+              <dd className="text-zinc-200">{formatDuration(calculateDuration(task.start_time, task.end_time))}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-400">Node</dt>
@@ -127,32 +132,40 @@ export function DetailPanel({ group, task, onClose }: DetailPanelProps) {
             {task.start_time && (
               <div className="flex justify-between">
                 <dt className="text-zinc-400">Started</dt>
-                <dd className="text-zinc-200 text-xs">
-                  {new Date(task.start_time).toLocaleString()}
-                </dd>
+                <dd className="text-zinc-200 text-xs">{new Date(task.start_time).toLocaleString()}</dd>
               </div>
             )}
             {task.end_time && (
               <div className="flex justify-between">
                 <dt className="text-zinc-400">Ended</dt>
-                <dd className="text-zinc-200 text-xs">
-                  {new Date(task.end_time).toLocaleString()}
-                </dd>
+                <dd className="text-zinc-200 text-xs">{new Date(task.end_time).toLocaleString()}</dd>
               </div>
             )}
           </dl>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2" role="group" aria-label="Task actions">
-          <Button variant="outline" size="sm" className="flex-1 h-7 text-xs" asChild>
+        <div
+          className="flex gap-2"
+          role="group"
+          aria-label="Task actions"
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+            asChild
+          >
             <a
               href={task.logs}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`View logs for ${task.name}`}
             >
-              <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
+              <FileText
+                className="h-3 w-3 mr-1"
+                aria-hidden="true"
+              />
               Logs
             </a>
           </Button>
@@ -163,7 +176,10 @@ export function DetailPanel({ group, task, onClose }: DetailPanelProps) {
               className="flex-1 h-7 text-xs"
               aria-label={`Open shell for ${task.name}`}
             >
-              <Terminal className="h-3 w-3 mr-1" aria-hidden="true" />
+              <Terminal
+                className="h-3 w-3 mr-1"
+                aria-hidden="true"
+              />
               Shell
             </Button>
           )}
