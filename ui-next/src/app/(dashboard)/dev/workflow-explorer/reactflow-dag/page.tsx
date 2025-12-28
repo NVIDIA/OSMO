@@ -26,7 +26,7 @@ import { useState, useMemo, useCallback } from "react";
 import { ReactFlow, ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
-import "./reactflow-dark.css";
+import "./dag.css";
 
 // Local modules
 import type { LayoutDirection, GroupNodeData } from "./types";
