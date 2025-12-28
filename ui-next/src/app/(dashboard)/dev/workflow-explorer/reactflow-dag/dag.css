@@ -50,12 +50,12 @@
   /* GPU acceleration - composite layer */
   transform: translateZ(0);
   will-change: transform;
-
-  /* CSS containment - isolate layout/paint calculations */
-  contain: layout style paint;
-
+  
+  /* Allow handles to overflow outside the node */
+  overflow: visible;
+  
   /* Smooth transitions using GPU-accelerated properties only */
-  transition:
+  transition: 
     box-shadow 200ms ease,
     border-color 200ms ease;
 }
@@ -123,8 +123,6 @@
    ========================================================================== */
 
 .dag-scroll-container {
-  /* Contain scroll paint to this element */
-  contain: strict;
   /* GPU layer for smooth scrolling */
   transform: translateZ(0);
   /* Optimize scroll performance */
@@ -158,19 +156,8 @@
   transform: translateZ(0);
 }
 
-/* Position handles outside the node border */
-.dag-handle[data-handlepos="top"] {
-  top: -4px !important;
-}
-.dag-handle[data-handlepos="bottom"] {
-  bottom: -4px !important;
-}
-.dag-handle[data-handlepos="left"] {
-  left: -4px !important;
-}
-.dag-handle[data-handlepos="right"] {
-  right: -4px !important;
-}
+/* Handle positioning is done via inline styles in GroupNode.tsx
+   to account for layout direction (TB vs LR) */
 
 /* ==========================================================================
    ReactFlow Canvas Optimization

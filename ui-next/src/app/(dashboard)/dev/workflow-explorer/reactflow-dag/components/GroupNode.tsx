@@ -41,9 +41,14 @@ import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../constants";
  * Hook to handle wheel events:
  * - Horizontal scroll (deltaX) → always pass through for panning
  * - Vertical scroll (deltaY) → capture for list scrolling, pass through at boundaries
+ *
+ * @param ref - Ref to the scroll container
+ * @param isActive - Whether the scroll container is mounted (e.g., isExpanded)
  */
-function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>) {
+function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>, isActive: boolean) {
   useEffect(() => {
+    if (!isActive) return;
+
     const element = ref.current;
     if (!element) return;
 
@@ -68,7 +73,7 @@ function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>) {
 
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
-  }, [ref]);
+  }, [ref, isActive]);
 }
 
 // ============================================================================
@@ -237,14 +242,14 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Smart scroll handling - only capture wheel when content is scrollable
-  useSmartScroll(scrollContainerRef);
-
   // Memoize tasks array to prevent useCallback deps changing on every render
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
   const totalCount = tasks.length;
   const isSingleTask = totalCount === 1;
   const hasManyTasks = totalCount > 1;
+
+  // Smart scroll handling - only active when expanded with scrollable content
+  useSmartScroll(scrollContainerRef, isExpanded && hasManyTasks);
 
   // For single-task nodes, use the task's status; for multi-task, use group status
   const primaryTask = tasks[0];
@@ -346,13 +351,14 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* Handles - only render when there are actual connections */}
+      {/* Handles - only render when there are actual connections, positioned outside node */}
       {hasIncomingEdges && (
         <Handle
           type="target"
           position={targetPosition}
           id="target"
           className="dag-handle"
+          style={isVertical ? { top: -6 } : { left: -6 }}
           aria-hidden="true"
         />
       )}
@@ -362,6 +368,7 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
           position={sourcePosition}
           id="source"
           className="dag-handle"
+          style={isVertical ? { bottom: -6 } : { right: -6 }}
           aria-hidden="true"
         />
       )}
