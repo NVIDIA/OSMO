@@ -17,3 +17,4 @@
  */
 
 export { usePersistedState } from "./use-persisted-state";
+export { useVirtualizerCompat } from "./use-virtualizer-compat";
