@@ -7,6 +7,22 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
+/**
+ * DAG Visualization Styles
+ *
+ * This stylesheet provides:
+ * - CSS custom properties for theming (status colors, dimensions)
+ * - GPU-accelerated styling via transform/will-change
+ * - Data-attribute styling for status (avoids JS style recalculation)
+ * - ReactFlow overrides for dark mode
+ *
+ * PERFORMANCE NOTES:
+ * - Uses CSS containment (contain: layout style) to isolate calculations
+ * - GPU layers via translateZ(0) for smooth transforms
+ * - Prefers data-attribute selectors over JS-driven className changes
+ * - Respects prefers-reduced-motion for accessibility
+ */
+
 /* ==========================================================================
    CSS Custom Properties - Single source of truth for theming
    ========================================================================== */
@@ -50,12 +66,12 @@
   /* GPU acceleration - composite layer */
   transform: translateZ(0);
   will-change: transform;
-  
+
   /* Allow handles to overflow outside the node */
   overflow: visible;
-  
+
   /* Smooth transitions using GPU-accelerated properties only */
-  transition: 
+  transition:
     box-shadow 200ms ease,
     border-color 200ms ease;
 }
@@ -181,7 +197,7 @@
 }
 
 /* ==========================================================================
-   Edge Styling via CSS
+   Edge Styling via CSS (class-based, no inline styles)
    ========================================================================== */
 
 .react-flow__edge-path {
@@ -192,10 +208,26 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* Edge status styling - ReactFlow adds these classes */
+/* Edge status coloring via class names - eliminates inline stroke styles */
+.dag-edge.dag-edge--waiting path {
+  stroke: var(--dag-status-waiting-color);
+}
+
+.dag-edge.dag-edge--running path {
+  stroke: var(--dag-status-running-color);
+}
+
+.dag-edge.dag-edge--completed path {
+  stroke: var(--dag-status-completed-color);
+}
+
+.dag-edge.dag-edge--failed path {
+  stroke: var(--dag-status-failed-color);
+}
+
+/* Edge animation - GPU-accelerated using stroke-dashoffset */
 .react-flow__edge.animated path {
   stroke-dasharray: 5;
-  /* GPU-accelerated animation using stroke-dashoffset */
   animation: dag-edge-flow 0.5s linear infinite;
 }
 
