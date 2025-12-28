@@ -36,7 +36,7 @@ export const TASK_ROW_HEIGHT = 28;
 export const TASK_LIST_PADDING = 16;
 
 /** Header height for expanded nodes (pixels) */
-export const NODE_HEADER_HEIGHT = 48;
+export const NODE_HEADER_HEIGHT = 56;
 
 // ============================================================================
 // Layout Spacing

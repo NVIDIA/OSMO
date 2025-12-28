@@ -269,30 +269,38 @@ export function computeTopologicalLevelsFromGraph(
 // ============================================================================
 
 /**
+ * Check if a status represents a failure state.
+ * All failure statuses start with "FAILED" (FAILED, FAILED_CANCELED, FAILED_TIMEOUT, etc.)
+ */
+export function isFailedStatus(status: string): boolean {
+  return typeof status === 'string' && status.startsWith(TaskGroupStatus.FAILED);
+}
+
+/**
  * Categorize status for UI styling.
  * Works with both TaskGroupStatus and WorkflowStatus.
+ * Uses TaskGroupStatus enum values to avoid magic strings.
  */
 export function getStatusCategory(
   status: string  // Accept string to handle both TaskGroupStatus and WorkflowStatus
 ): "waiting" | "running" | "completed" | "failed" {
   // Waiting/pending statuses
   if (
-    status === "WAITING" ||
-    status === "PENDING" ||
-    status === "SUBMITTING" ||
-    status === "SCHEDULING" ||
-    status === "PROCESSING"
+    status === TaskGroupStatus.WAITING ||
+    status === TaskGroupStatus.SUBMITTING ||
+    status === TaskGroupStatus.SCHEDULING ||
+    status === TaskGroupStatus.PROCESSING
   ) {
     return "waiting";
   }
   
   // Running/active statuses
-  if (status === "INITIALIZING" || status === "RUNNING") {
+  if (status === TaskGroupStatus.INITIALIZING || status === TaskGroupStatus.RUNNING) {
     return "running";
   }
   
   // Completed statuses
-  if (status === "COMPLETED" || status === "RESCHEDULED") {
+  if (status === TaskGroupStatus.COMPLETED || status === TaskGroupStatus.RESCHEDULED) {
     return "completed";
   }
   
