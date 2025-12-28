@@ -35,6 +35,9 @@ export interface NodeDimensions {
 /**
  * Data passed to the GroupNode component via ReactFlow.
  * Extends Record<string, unknown> as required by ReactFlow.
+ *
+ * Note: Callbacks (onSelectTask, onToggleExpand) are accessed via DAGContext
+ * to prevent re-renders when callbacks change reference.
  */
 export interface GroupNodeData extends Record<string, unknown> {
   /** The group data from the workflow */
@@ -49,17 +52,17 @@ export interface GroupNodeData extends Record<string, unknown> {
   /** Current layout direction */
   layoutDirection: LayoutDirection;
 
-  /** Callback when a task is selected */
-  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
-
-  /** Callback to toggle expand/collapse */
-  onToggleExpand: (groupId: string) => void;
-
   /** Node width for bounds calculations and MiniMap */
   nodeWidth: number;
 
   /** Node height for bounds calculations and MiniMap */
   nodeHeight: number;
+
+  /** Whether this node has incoming edges (for handle rendering) */
+  hasIncomingEdges: boolean;
+
+  /** Whether this node has outgoing edges (for handle rendering) */
+  hasOutgoingEdges: boolean;
 }
 
 // ============================================================================
