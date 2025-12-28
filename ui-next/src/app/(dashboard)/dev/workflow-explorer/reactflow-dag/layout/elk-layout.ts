@@ -71,10 +71,13 @@ export function getNodeDimensions(
   const hasManyTasks = tasks.length > 1;
 
   if (isExpanded && hasManyTasks) {
-    const taskListHeight = tasks.length * TASK_ROW_HEIGHT + TASK_LIST_PADDING;
+    // Task list height: tasks + padding (py-2 = 16px) + border (1px)
+    const taskListHeight = tasks.length * TASK_ROW_HEIGHT + TASK_LIST_PADDING + 1;
+    // Total height capped at max, plus 4px for node border (border-2)
+    const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + 4;
     return {
       width: NODE_EXPANDED_WIDTH,
-      height: Math.min(NODE_HEADER_HEIGHT + taskListHeight, NODE_MAX_EXPANDED_HEIGHT),
+      height: Math.min(totalHeight, NODE_MAX_EXPANDED_HEIGHT),
     };
   }
 
@@ -231,34 +234,36 @@ export function buildNodes(
   const groupMap = new Map<string, GroupWithLayout>();
   groups.forEach((group) => groupMap.set(group.name, group));
 
-  return groups
-    .map((group) => {
-      const pos = positions.get(group.name);
-      if (!pos) {
-        console.warn(`No position found for group: ${group.name}`);
-        return null;
-      }
+  const nodes: Node<GroupNodeData>[] = [];
+  
+  for (const group of groups) {
+    const pos = positions.get(group.name);
+    if (!pos) {
+      console.warn(`No position found for group: ${group.name}`);
+      continue;
+    }
 
-      return {
-        id: group.name,
-        type: "collapsibleGroup",
-        position: { x: pos.x, y: pos.y },
-        // Dimensions for MiniMap and bounds calculations
-        initialWidth: pos.width,
-        initialHeight: pos.height,
-        data: {
-          group,
-          isSelected: false, // Selection state managed separately
-          isExpanded: expandedGroups.has(group.name),
-          layoutDirection: direction,
-          onSelectTask,
-          onToggleExpand,
-          nodeWidth: pos.width,
-          nodeHeight: pos.height,
-        },
-      };
-    })
-    .filter((node): node is Node<GroupNodeData> => node !== null);
+    nodes.push({
+      id: group.name,
+      type: "collapsibleGroup" as const,
+      position: { x: pos.x, y: pos.y },
+      // Dimensions for MiniMap and bounds calculations
+      initialWidth: pos.width,
+      initialHeight: pos.height,
+      data: {
+        group,
+        isSelected: false, // Selection state managed separately
+        isExpanded: expandedGroups.has(group.name),
+        layoutDirection: direction,
+        onSelectTask,
+        onToggleExpand,
+        nodeWidth: pos.width,
+        nodeHeight: pos.height,
+      },
+    });
+  }
+  
+  return nodes;
 }
 
 /**
