@@ -7,7 +7,232 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-/* Dark mode overrides for React Flow controls and minimap */
+/* ==========================================================================
+   CSS Custom Properties - Single source of truth for theming
+   ========================================================================== */
+
+:root {
+  /* Status colors */
+  --dag-status-waiting-bg: rgba(39, 39, 42, 0.6);
+  --dag-status-waiting-border: #52525b;
+  --dag-status-waiting-text: #a1a1aa;
+  --dag-status-waiting-color: #71717a;
+
+  --dag-status-running-bg: rgba(23, 37, 84, 0.6);
+  --dag-status-running-border: #3b82f6;
+  --dag-status-running-text: #60a5fa;
+  --dag-status-running-color: #3b82f6;
+
+  --dag-status-completed-bg: rgba(6, 78, 59, 0.6);
+  --dag-status-completed-border: #059669;
+  --dag-status-completed-text: #34d399;
+  --dag-status-completed-color: #10b981;
+
+  --dag-status-failed-bg: rgba(127, 29, 29, 0.6);
+  --dag-status-failed-border: #ef4444;
+  --dag-status-failed-text: #f87171;
+  --dag-status-failed-color: #ef4444;
+
+  /* Node dimensions */
+  --dag-node-collapsed-width: 180px;
+  --dag-node-collapsed-height: 72px;
+  --dag-node-expanded-width: 240px;
+  --dag-node-max-height: 320px;
+  --dag-node-header-height: 56px;
+  --dag-task-row-height: 28px;
+}
+
+/* ==========================================================================
+   Node Status Styling via data-attributes (no JS style recalculation)
+   ========================================================================== */
+
+.dag-node {
+  /* GPU acceleration - composite layer */
+  transform: translateZ(0);
+  will-change: transform;
+
+  /* CSS containment - isolate layout/paint calculations */
+  contain: layout style paint;
+
+  /* Smooth transitions using GPU-accelerated properties only */
+  transition:
+    box-shadow 200ms ease,
+    border-color 200ms ease;
+}
+
+.dag-node[data-status="waiting"] {
+  background: var(--dag-status-waiting-bg);
+  border-color: var(--dag-status-waiting-border);
+}
+
+.dag-node[data-status="running"] {
+  background: var(--dag-status-running-bg);
+  border-color: var(--dag-status-running-border);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.dag-node[data-status="completed"] {
+  background: var(--dag-status-completed-bg);
+  border-color: var(--dag-status-completed-border);
+}
+
+.dag-node[data-status="failed"] {
+  background: var(--dag-status-failed-bg);
+  border-color: var(--dag-status-failed-border);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* Status text colors for node hints */
+.dag-node[data-status="waiting"] .dag-node-hint {
+  color: var(--dag-status-waiting-text);
+}
+.dag-node[data-status="running"] .dag-node-hint {
+  color: var(--dag-status-running-text);
+}
+.dag-node[data-status="completed"] .dag-node-hint {
+  color: var(--dag-status-completed-text);
+}
+.dag-node[data-status="failed"] .dag-node-hint {
+  color: var(--dag-status-failed-text);
+}
+
+/* Status text colors for task row durations */
+.dag-task-row[data-status="waiting"] .dag-task-duration {
+  color: var(--dag-status-waiting-text);
+}
+.dag-task-row[data-status="running"] .dag-task-duration {
+  color: var(--dag-status-running-text);
+}
+.dag-task-row[data-status="completed"] .dag-task-duration {
+  color: var(--dag-status-completed-text);
+}
+.dag-task-row[data-status="failed"] .dag-task-duration {
+  color: var(--dag-status-failed-text);
+}
+
+/* Task rows - GPU-accelerated positioning (already using transform) */
+.dag-task-row {
+  /* Avoid layout thrashing - use transform for positioning */
+  will-change: transform;
+  /* Isolate stacking context */
+  isolation: isolate;
+}
+
+/* ==========================================================================
+   Virtualized scroll container optimization
+   ========================================================================== */
+
+.dag-scroll-container {
+  /* Contain scroll paint to this element */
+  contain: strict;
+  /* GPU layer for smooth scrolling */
+  transform: translateZ(0);
+  /* Optimize scroll performance */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Selection state - pure CSS, no JS re-render needed */
+.dag-node[data-selected="true"] {
+  ring: 2px solid #06b6d4;
+  ring-offset: 2px;
+  ring-offset-color: #09090b;
+}
+
+/* ==========================================================================
+   Connection Handles - positioned outside the node
+   ========================================================================== */
+
+.dag-handle {
+  /* Size */
+  width: 8px !important;
+  height: 8px !important;
+  min-width: 8px !important;
+  min-height: 8px !important;
+
+  /* Appearance */
+  background: var(--color-zinc-700) !important;
+  border: 1.5px solid var(--color-zinc-500) !important;
+  border-radius: 50% !important;
+
+  /* GPU layer */
+  transform: translateZ(0);
+}
+
+/* Position handles outside the node border */
+.dag-handle[data-handlepos="top"] {
+  top: -4px !important;
+}
+.dag-handle[data-handlepos="bottom"] {
+  bottom: -4px !important;
+}
+.dag-handle[data-handlepos="left"] {
+  left: -4px !important;
+}
+.dag-handle[data-handlepos="right"] {
+  right: -4px !important;
+}
+
+/* ==========================================================================
+   ReactFlow Canvas Optimization
+   ========================================================================== */
+
+/* GPU-accelerate the entire canvas */
+.react-flow__viewport {
+  will-change: transform;
+}
+
+/* Nodes container - GPU layer */
+.react-flow__nodes {
+  will-change: transform;
+}
+
+/* Individual node wrappers */
+.react-flow__node {
+  /* Each node gets its own composite layer */
+  will-change: transform;
+  contain: layout style;
+}
+
+/* ==========================================================================
+   Edge Styling via CSS
+   ========================================================================== */
+
+.react-flow__edge-path {
+  stroke-width: 2;
+  /* Only transition color, not geometry */
+  transition: stroke 150ms ease;
+  /* Vector effect for crisp lines at any zoom */
+  vector-effect: non-scaling-stroke;
+}
+
+/* Edge status styling - ReactFlow adds these classes */
+.react-flow__edge.animated path {
+  stroke-dasharray: 5;
+  /* GPU-accelerated animation using stroke-dashoffset */
+  animation: dag-edge-flow 0.5s linear infinite;
+}
+
+@keyframes dag-edge-flow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .dag-node,
+  .react-flow__edge-path {
+    transition: none;
+  }
+
+  .react-flow__edge.animated path {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Dark mode overrides for React Flow controls and minimap
+   ========================================================================== */
 
 /* Controls panel */
 .react-flow__controls {

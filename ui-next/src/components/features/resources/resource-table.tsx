@@ -14,7 +14,6 @@ import {
   useState,
   useRef,
   useEffect,
-  useLayoutEffect,
   useMemo,
   memo,
   useCallback,
@@ -22,13 +21,6 @@ import {
   cloneElement,
   startTransition,
 } from "react";
-import {
-  Virtualizer,
-  observeElementOffset,
-  observeElementRect,
-  elementScroll,
-  type VirtualizerOptions,
-} from "@tanstack/react-virtual";
 import {
   Filter,
   Pin,
@@ -44,6 +36,7 @@ import {
   MonitorX,
 } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
+import { useVirtualizerCompat } from "@/lib/hooks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResourcePanel } from "./resource-panel";
 import { LoadingMoreIndicator } from "@/components/shared/loading-more-indicator";
@@ -121,57 +114,6 @@ const COLUMNS_WITH_POOLS = ALL_COLUMNS;
 const COLUMNS_NO_POOLS = selectColumns(ALL_COLUMNS, ["resource", "platform", "gpu", "cpu", "memory", "storage"]);
 
 const HEADER_HEIGHT = 41; // pixels
-
-// =============================================================================
-// Custom Virtualizer Hook (avoids flushSync)
-// =============================================================================
-
-/**
- * Custom useVirtualizer that never uses flushSync.
- * The library's default useVirtualizer uses flushSync for "sync" updates,
- * which crashes in React 18+ when called during render/lifecycle methods.
- * This version uses startTransition for all updates instead.
- */
-function useVirtualizerNoFlushSync<TScrollElement extends Element, TItemElement extends Element>(
-  options: Omit<
-    VirtualizerOptions<TScrollElement, TItemElement>,
-    "observeElementRect" | "observeElementOffset" | "scrollToFn"
-  > & {
-    observeElementRect?: VirtualizerOptions<TScrollElement, TItemElement>["observeElementRect"];
-    observeElementOffset?: VirtualizerOptions<TScrollElement, TItemElement>["observeElementOffset"];
-    scrollToFn?: VirtualizerOptions<TScrollElement, TItemElement>["scrollToFn"];
-  },
-): Virtualizer<TScrollElement, TItemElement> {
-  const [, rerender] = useState({});
-
-  const resolvedOptions: VirtualizerOptions<TScrollElement, TItemElement> = {
-    observeElementRect,
-    observeElementOffset,
-    scrollToFn: elementScroll,
-    ...options,
-    // Override onChange to NEVER use flushSync - use startTransition instead
-    onChange: (instance) => {
-      startTransition(() => {
-        rerender({});
-      });
-      options.onChange?.(instance, false); // Always pass false to downstream handlers
-    },
-  };
-
-  const [instance] = useState(() => new Virtualizer<TScrollElement, TItemElement>(resolvedOptions));
-
-  instance.setOptions(resolvedOptions);
-
-  useLayoutEffect(() => {
-    return instance._didMount();
-  }, [instance]);
-
-  useLayoutEffect(() => {
-    return instance._willUpdate();
-  });
-
-  return instance;
-}
 
 // =============================================================================
 // Main Component
@@ -786,9 +728,7 @@ const TableContent = memo(function TableContent({
   isFetchingNextPage?: boolean;
   totalCount?: number;
 }) {
-  "use no memo"; // Opt out of React Compiler - useVirtualizer returns functions that can't be memoized safely
-
-  const rowVirtualizer = useVirtualizerNoFlushSync({
+  const rowVirtualizer = useVirtualizerCompat({
     count: resources.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,

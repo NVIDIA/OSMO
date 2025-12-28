@@ -90,18 +90,13 @@ export interface MockComplexWorkflow {
 // Status Helpers
 // ============================================================================
 
-export function getStatusCategory(
-  status: TaskGroupStatus
-): "waiting" | "running" | "completed" | "failed" {
+export function getStatusCategory(status: TaskGroupStatus): "waiting" | "running" | "completed" | "failed" {
   const waitingStatuses: TaskGroupStatus[] = [
     TaskGroupStatus.WAITING,
     TaskGroupStatus.SUBMITTING,
     TaskGroupStatus.SCHEDULING,
   ];
-  const runningStatuses: TaskGroupStatus[] = [
-    TaskGroupStatus.INITIALIZING,
-    TaskGroupStatus.RUNNING,
-  ];
+  const runningStatuses: TaskGroupStatus[] = [TaskGroupStatus.INITIALIZING, TaskGroupStatus.RUNNING];
 
   if (waitingStatuses.includes(status)) return "waiting";
   if (runningStatuses.includes(status)) return "running";
@@ -117,7 +112,7 @@ export function generateComplexWorkflow(
   seed: number = 42,
   options: {
     pattern?: WorkflowPattern;
-  } = {}
+  } = {},
 ): MockComplexWorkflow {
   faker.seed(seed);
 
@@ -182,16 +177,8 @@ export function generateComplexWorkflow(
     name: workflowName,
     status: workflowStatus,
     priority: faker.helpers.arrayElement(["LOW", "NORMAL", "HIGH"]),
-    pool: faker.helpers.arrayElement([
-      "dgx-cloud-us-west-2",
-      "gpu-cluster-prod",
-      "spot-gpu-pool",
-    ]),
-    user: faker.helpers.arrayElement([
-      "alice.chen",
-      "bob.smith",
-      "carol.jones",
-    ]),
+    pool: faker.helpers.arrayElement(["dgx-cloud-us-west-2", "gpu-cluster-prod", "spot-gpu-pool"]),
+    user: faker.helpers.arrayElement(["alice.chen", "bob.smith", "carol.jones"]),
     submitTime,
     startTime,
     endTime: allCompleted ? new Date(startTime.getTime() + (duration || 0) * 1000) : null,
@@ -210,11 +197,7 @@ export function generateComplexWorkflow(
 // DAG Pattern Generators
 // ============================================================================
 
-function generateLinearDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateLinearDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   const groupNames = ["fetch-data", "preprocess", "train", "evaluate", "deploy"];
   const groups: MockGroupNode[] = [];
   let currentTime = startTime;
@@ -230,9 +213,7 @@ function generateLinearDAG(
 
     const taskDuration = isCompleted ? faker.number.int({ min: 300, max: 1800 }) : null;
     const taskStartTime = isCompleted || isRunning ? new Date(currentTime) : null;
-    const taskEndTime = isCompleted && taskDuration
-      ? new Date(currentTime.getTime() + taskDuration * 1000)
-      : null;
+    const taskEndTime = isCompleted && taskDuration ? new Date(currentTime.getTime() + taskDuration * 1000) : null;
 
     if (taskEndTime) {
       currentTime = taskEndTime;
@@ -246,28 +227,14 @@ function generateLinearDAG(
       downstreamGroups: i < groupNames.length - 1 ? [groupNames[i + 1]] : [],
       level: i,
       lane: 0,
-      tasks: [
-        generateTask(
-          groupNames[i],
-          groupNames[i],
-          status,
-          submitTime,
-          taskStartTime,
-          taskEndTime,
-          taskDuration
-        ),
-      ],
+      tasks: [generateTask(groupNames[i], groupNames[i], status, submitTime, taskStartTime, taskEndTime, taskDuration)],
     });
   }
 
   return groups;
 }
 
-function generateDiamondDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateDiamondDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   // Diamond pattern: start -> [branch-a, branch-b] -> merge -> end
   const groups: MockGroupNode[] = [];
   let currentTime = startTime;
@@ -282,7 +249,15 @@ function generateDiamondDAG(
     level: 0,
     lane: 1,
     tasks: [
-      generateTask("start-0", "data-download", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 300000), 300),
+      generateTask(
+        "start-0",
+        "data-download",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 300000),
+        300,
+      ),
     ],
   });
   currentTime = new Date(currentTime.getTime() + 300000);
@@ -297,7 +272,15 @@ function generateDiamondDAG(
     level: 1,
     lane: 0,
     tasks: [
-      generateTask("branch-a-0", "preprocess-images", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 600000), 600),
+      generateTask(
+        "branch-a-0",
+        "preprocess-images",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 600000),
+        600,
+      ),
     ],
   });
 
@@ -324,9 +307,7 @@ function generateDiamondDAG(
     downstreamGroups: ["end"],
     level: 2,
     lane: 1,
-    tasks: [
-      generateTask("merge-0", "merge-data", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("merge-0", "merge-data", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   // End node - waiting
@@ -338,19 +319,13 @@ function generateDiamondDAG(
     downstreamGroups: [],
     level: 3,
     lane: 1,
-    tasks: [
-      generateTask("end-0", "train", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("end-0", "train", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   return groups;
 }
 
-function generateParallelDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateParallelDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   // Parallel training: start -> [train-0..train-7] -> aggregate
   const groups: MockGroupNode[] = [];
   const numShards = 8;
@@ -365,7 +340,15 @@ function generateParallelDAG(
     level: 0,
     lane: Math.floor(numShards / 2),
     tasks: [
-      generateTask("preprocess-0", "preprocess", TaskGroupStatus.COMPLETED, submitTime, startTime, new Date(startTime.getTime() + 300000), 300),
+      generateTask(
+        "preprocess-0",
+        "preprocess",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        startTime,
+        new Date(startTime.getTime() + 300000),
+        300,
+      ),
     ],
   });
 
@@ -384,9 +367,10 @@ function generateParallelDAG(
   const shardTasks: MockTaskNode[] = [];
   for (let i = 0; i < numShards; i++) {
     const taskStartTime = new Date(startTime.getTime() + 300000 + i * 10000);
-    const taskEndTime = shardStatuses[i] === TaskGroupStatus.COMPLETED
-      ? new Date(taskStartTime.getTime() + faker.number.int({ min: 3600000, max: 7200000 }))
-      : null;
+    const taskEndTime =
+      shardStatuses[i] === TaskGroupStatus.COMPLETED
+        ? new Date(taskStartTime.getTime() + faker.number.int({ min: 3600000, max: 7200000 }))
+        : null;
     const duration = taskEndTime
       ? (taskEndTime.getTime() - taskStartTime.getTime()) / 1000
       : shardStatuses[i] === TaskGroupStatus.RUNNING
@@ -401,8 +385,8 @@ function generateParallelDAG(
         submitTime,
         taskStartTime,
         taskEndTime,
-        duration
-      )
+        duration,
+      ),
     );
 
     groups.push({
@@ -426,19 +410,13 @@ function generateParallelDAG(
     downstreamGroups: [],
     level: 2,
     lane: Math.floor(numShards / 2),
-    tasks: [
-      generateTask("aggregate-0", "aggregate", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("aggregate-0", "aggregate", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   return groups;
 }
 
-function generateComplexDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateComplexDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   /**
    * Complex DAG pattern:
    *
@@ -486,7 +464,15 @@ function generateComplexDAG(
     level: 0,
     lane: 1,
     tasks: [
-      generateTask("fetch-0", "fetch-dataset", TaskGroupStatus.COMPLETED, submitTime, currentTime, fetchEnd, fetchDuration),
+      generateTask(
+        "fetch-0",
+        "fetch-dataset",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        fetchEnd,
+        fetchDuration,
+      ),
     ],
   });
   currentTime = fetchEnd;
@@ -501,7 +487,15 @@ function generateComplexDAG(
     level: 1,
     lane: 0,
     tasks: [
-      generateTask("validate-0", "validate-schema", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 120000), 120),
+      generateTask(
+        "validate-0",
+        "validate-schema",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 120000),
+        120,
+      ),
     ],
   });
 
@@ -514,7 +508,15 @@ function generateComplexDAG(
     level: 1,
     lane: 1,
     tasks: [
-      generateTask("preproc-a-0", "preprocess-images", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 600000), 600),
+      generateTask(
+        "preproc-a-0",
+        "preprocess-images",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 600000),
+        600,
+      ),
     ],
   });
 
@@ -527,7 +529,15 @@ function generateComplexDAG(
     level: 1,
     lane: 2,
     tasks: [
-      generateTask("preproc-b-0", "preprocess-labels", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 480000), 480),
+      generateTask(
+        "preproc-b-0",
+        "preprocess-labels",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 480000),
+        480,
+      ),
     ],
   });
 
@@ -537,18 +547,12 @@ function generateComplexDAG(
   const trainTasks: MockTaskNode[] = [];
   for (let i = 0; i < 4; i++) {
     const taskStartTime = new Date(currentTime.getTime() + i * 5000);
-    const status = i < 1
-      ? TaskGroupStatus.COMPLETED
-      : i < 3
-        ? TaskGroupStatus.RUNNING
-        : TaskGroupStatus.INITIALIZING;
+    const status = i < 1 ? TaskGroupStatus.COMPLETED : i < 3 ? TaskGroupStatus.RUNNING : TaskGroupStatus.INITIALIZING;
     const taskDuration = status === TaskGroupStatus.COMPLETED ? 3600 : null;
-    const taskEndTime = status === TaskGroupStatus.COMPLETED
-      ? new Date(taskStartTime.getTime() + 3600000)
-      : null;
+    const taskEndTime = status === TaskGroupStatus.COMPLETED ? new Date(taskStartTime.getTime() + 3600000) : null;
 
     trainTasks.push(
-      generateTask(`train-${i}`, `train-shard-${i}`, status, submitTime, taskStartTime, taskEndTime, taskDuration)
+      generateTask(`train-${i}`, `train-shard-${i}`, status, submitTime, taskStartTime, taskEndTime, taskDuration),
     );
   }
 
@@ -572,9 +576,7 @@ function generateComplexDAG(
     downstreamGroups: ["export", "report"],
     level: 3,
     lane: 1,
-    tasks: [
-      generateTask("evaluate-0", "run-benchmarks", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("evaluate-0", "run-benchmarks", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   // Level 4: export, report (waiting)
@@ -586,9 +588,7 @@ function generateComplexDAG(
     downstreamGroups: ["deploy"],
     level: 4,
     lane: 0,
-    tasks: [
-      generateTask("export-0", "export-onnx", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("export-0", "export-onnx", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   groups.push({
@@ -599,9 +599,7 @@ function generateComplexDAG(
     downstreamGroups: ["deploy"],
     level: 4,
     lane: 2,
-    tasks: [
-      generateTask("report-0", "generate-report", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("report-0", "generate-report", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   // Level 5: deploy (waiting)
@@ -613,9 +611,7 @@ function generateComplexDAG(
     downstreamGroups: [],
     level: 5,
     lane: 1,
-    tasks: [
-      generateTask("deploy-0", "deploy-model", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("deploy-0", "deploy-model", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   return groups;
@@ -632,7 +628,7 @@ function generateTask(
   submitTime: Date,
   startTime: Date | null,
   endTime: Date | null,
-  duration: number | null
+  duration: number | null,
 ): MockTaskNode {
   const category = getStatusCategory(status);
   const hasGpu = faker.datatype.boolean({ probability: 0.7 });
@@ -700,13 +696,14 @@ function generateTask(
       ? `${faker.helpers.arrayElement(["dgx", "gpu", "node"])}-${faker.helpers.arrayElement(["a100", "h100", "l40s"])}-${faker.number.int({ min: 1, max: 999 }).toString().padStart(3, "0")}`
       : null,
     phases,
-    failureMessage: category === "failed"
-      ? faker.helpers.arrayElement([
-          "Process exited with code 1",
-          "CUDA error: out of memory",
-          "RuntimeError: NCCL error",
-        ])
-      : undefined,
+    failureMessage:
+      category === "failed"
+        ? faker.helpers.arrayElement([
+            "Process exited with code 1",
+            "CUDA error: out of memory",
+            "RuntimeError: NCCL error",
+          ])
+        : undefined,
     exitCode: category === "completed" ? 0 : category === "failed" ? 1 : undefined,
   };
 }
@@ -719,11 +716,7 @@ function generateTask(
  * Massive Parallel: 1 group with 200 tasks
  * Tests rendering of many tasks within a single collapsible group
  */
-function generateMassiveParallelDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateMassiveParallelDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   const groups: MockGroupNode[] = [];
   const numTasks = 200;
 
@@ -737,7 +730,15 @@ function generateMassiveParallelDAG(
     level: 0,
     lane: 0,
     tasks: [
-      generateTask("preprocess-0", "preprocess", TaskGroupStatus.COMPLETED, submitTime, startTime, new Date(startTime.getTime() + 300000), 300),
+      generateTask(
+        "preprocess-0",
+        "preprocess",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        startTime,
+        new Date(startTime.getTime() + 300000),
+        300,
+      ),
     ],
   });
 
@@ -776,8 +777,8 @@ function generateMassiveParallelDAG(
         submitTime,
         taskStartTime,
         taskEndTime,
-        taskDuration
-      )
+        taskDuration,
+      ),
     );
   }
 
@@ -813,11 +814,7 @@ function generateMassiveParallelDAG(
  * Many Groups: 100 groups with 5 tasks each
  * Tests rendering of many collapsible groups
  */
-function generateManyGroupsDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateManyGroupsDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   const groups: MockGroupNode[] = [];
   const numGroups = 100;
   const tasksPerGroup = 5;
@@ -832,9 +829,9 @@ function generateManyGroupsDAG(
     for (let lane = 0; lane < groupsInThisLevel; lane++) {
       const groupIndex = level * groupsPerLevel + lane;
       const groupId = `group-${groupIndex.toString().padStart(3, "0")}`;
-      const groupName = faker.helpers.arrayElement([
-        "train", "eval", "preprocess", "export", "validate", "transform", "inference"
-      ]) + `-${groupIndex}`;
+      const groupName =
+        faker.helpers.arrayElement(["train", "eval", "preprocess", "export", "validate", "transform", "inference"]) +
+        `-${groupIndex}`;
 
       // Determine group status based on level
       let groupStatus: TaskGroupStatus;
@@ -849,14 +846,20 @@ function generateManyGroupsDAG(
       // Generate tasks for this group
       const tasks: MockTaskNode[] = [];
       for (let t = 0; t < tasksPerGroup; t++) {
-        const taskStatus = groupStatus === TaskGroupStatus.COMPLETED
-          ? TaskGroupStatus.COMPLETED
-          : groupStatus === TaskGroupStatus.RUNNING
-            ? faker.helpers.arrayElement([TaskGroupStatus.COMPLETED, TaskGroupStatus.RUNNING, TaskGroupStatus.RUNNING])
-            : TaskGroupStatus.WAITING;
+        const taskStatus =
+          groupStatus === TaskGroupStatus.COMPLETED
+            ? TaskGroupStatus.COMPLETED
+            : groupStatus === TaskGroupStatus.RUNNING
+              ? faker.helpers.arrayElement([
+                  TaskGroupStatus.COMPLETED,
+                  TaskGroupStatus.RUNNING,
+                  TaskGroupStatus.RUNNING,
+                ])
+              : TaskGroupStatus.WAITING;
 
         const taskStartTime = taskStatus !== TaskGroupStatus.WAITING ? currentTime : null;
-        const taskDuration = taskStatus === TaskGroupStatus.COMPLETED ? faker.number.int({ min: 300, max: 1200 }) : null;
+        const taskDuration =
+          taskStatus === TaskGroupStatus.COMPLETED ? faker.number.int({ min: 300, max: 1200 }) : null;
         const taskEndTime = taskDuration ? new Date(currentTime.getTime() + taskDuration * 1000) : null;
 
         tasks.push(
@@ -867,18 +870,19 @@ function generateManyGroupsDAG(
             submitTime,
             taskStartTime,
             taskEndTime,
-            taskDuration
-          )
+            taskDuration,
+          ),
         );
       }
 
       // Dependencies: connect to all groups in the previous level
-      const upstreamGroups = level > 0
-        ? Array.from({ length: Math.min(2, groupsPerLevel) }, (_, i) => {
-            const prevIndex = (level - 1) * groupsPerLevel + ((lane + i) % groupsPerLevel);
-            return `group-${prevIndex.toString().padStart(3, "0")}`;
-          })
-        : [];
+      const upstreamGroups =
+        level > 0
+          ? Array.from({ length: Math.min(2, groupsPerLevel) }, (_, i) => {
+              const prevIndex = (level - 1) * groupsPerLevel + ((lane + i) % groupsPerLevel);
+              return `group-${prevIndex.toString().padStart(3, "0")}`;
+            })
+          : [];
 
       groups.push({
         id: groupId,
@@ -912,11 +916,7 @@ function generateManyGroupsDAG(
  * Multi-Root DAG: Multiple independent starting points that converge
  * Tests non-tree DAG structures
  */
-function generateMultiRootDAG(
-  workflowName: string,
-  submitTime: Date,
-  startTime: Date
-): MockGroupNode[] {
+function generateMultiRootDAG(workflowName: string, submitTime: Date, startTime: Date): MockGroupNode[] {
   /**
    * Multi-root pattern:
    *
@@ -969,7 +969,15 @@ function generateMultiRootDAG(
     level: 0,
     lane: 0,
     tasks: [
-      generateTask("download-images-0", "download-images", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 180000), 180),
+      generateTask(
+        "download-images-0",
+        "download-images",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 180000),
+        180,
+      ),
     ],
   });
 
@@ -982,7 +990,15 @@ function generateMultiRootDAG(
     level: 0,
     lane: 1,
     tasks: [
-      generateTask("generate-labels-0", "generate-labels", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 240000), 240),
+      generateTask(
+        "generate-labels-0",
+        "generate-labels",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 240000),
+        240,
+      ),
     ],
   });
 
@@ -995,7 +1011,15 @@ function generateMultiRootDAG(
     level: 0,
     lane: 2,
     tasks: [
-      generateTask("fetch-config-0", "fetch-config", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 60000), 60),
+      generateTask(
+        "fetch-config-0",
+        "fetch-config",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 60000),
+        60,
+      ),
     ],
   });
 
@@ -1011,7 +1035,15 @@ function generateMultiRootDAG(
     level: 1,
     lane: 1,
     tasks: [
-      generateTask("validate-0", "validate-inputs", TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 120000), 120),
+      generateTask(
+        "validate-0",
+        "validate-inputs",
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 120000),
+        120,
+      ),
     ],
   });
 
@@ -1021,7 +1053,15 @@ function generateMultiRootDAG(
   const trainATasks: MockTaskNode[] = [];
   for (let i = 0; i < 4; i++) {
     trainATasks.push(
-      generateTask(`train-a-${i}`, `train-a-shard-${i}`, TaskGroupStatus.COMPLETED, submitTime, currentTime, new Date(currentTime.getTime() + 1800000), 1800)
+      generateTask(
+        `train-a-${i}`,
+        `train-a-shard-${i}`,
+        TaskGroupStatus.COMPLETED,
+        submitTime,
+        currentTime,
+        new Date(currentTime.getTime() + 1800000),
+        1800,
+      ),
     );
   }
   groups.push({
@@ -1046,8 +1086,8 @@ function generateMultiRootDAG(
         submitTime,
         currentTime,
         status === TaskGroupStatus.COMPLETED ? new Date(currentTime.getTime() + 2400000) : null,
-        status === TaskGroupStatus.COMPLETED ? 2400 : null
-      )
+        status === TaskGroupStatus.COMPLETED ? 2400 : null,
+      ),
     );
   }
   groups.push({
@@ -1070,9 +1110,7 @@ function generateMultiRootDAG(
     downstreamGroups: ["evaluate", "export", "report"],
     level: 3,
     lane: 1,
-    tasks: [
-      generateTask("merge-0", "merge-checkpoints", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("merge-0", "merge-checkpoints", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   // Level 4: Three parallel outputs (waiting)
@@ -1084,9 +1122,7 @@ function generateMultiRootDAG(
     downstreamGroups: ["deploy"],
     level: 4,
     lane: 0,
-    tasks: [
-      generateTask("evaluate-0", "run-benchmarks", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("evaluate-0", "run-benchmarks", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   groups.push({
@@ -1097,9 +1133,7 @@ function generateMultiRootDAG(
     downstreamGroups: ["deploy"],
     level: 4,
     lane: 1,
-    tasks: [
-      generateTask("export-0", "export-onnx", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("export-0", "export-onnx", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   groups.push({
@@ -1110,9 +1144,7 @@ function generateMultiRootDAG(
     downstreamGroups: ["deploy"],
     level: 4,
     lane: 2,
-    tasks: [
-      generateTask("report-0", "generate-report", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("report-0", "generate-report", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   // Level 5: Deploy (converges from 3 branches)
@@ -1124,9 +1156,7 @@ function generateMultiRootDAG(
     downstreamGroups: [],
     level: 5,
     lane: 1,
-    tasks: [
-      generateTask("deploy-0", "deploy-model", TaskGroupStatus.WAITING, submitTime, null, null, null),
-    ],
+    tasks: [generateTask("deploy-0", "deploy-model", TaskGroupStatus.WAITING, submitTime, null, null, null)],
   });
 
   return groups;

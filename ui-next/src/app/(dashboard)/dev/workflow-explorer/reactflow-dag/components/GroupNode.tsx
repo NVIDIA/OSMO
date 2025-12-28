@@ -20,20 +20,18 @@
 
 "use client";
 
-import { useRef, useCallback, useMemo, useEffect } from "react";
+import { useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useVirtualizerCompat } from "@/lib/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
 import { TaskGroupStatus, isFailedStatus } from "../../workflow-types";
 import type { GroupNodeData } from "../types";
-import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../utils/status";
+import { useDAGContext } from "../context";
+import { getStatusIcon, getStatusCategory, getStatusLabel } from "../utils/status";
 import { calculateDuration, formatDuration } from "../../workflow-types";
-import {
-  TASK_ROW_HEIGHT,
-  NODE_HEADER_HEIGHT,
-} from "../constants";
+import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../constants";
 
 // ============================================================================
 // Smart Scroll Handler
@@ -81,11 +79,7 @@ function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>) {
  * Get status-specific hint text for display in the node.
  * Different logic for single-task vs multi-task groups.
  */
-function getStatusHint(
-  group: GroupWithLayout,
-  task: TaskQueryResponse | undefined,
-  isSingleTask: boolean
-): string {
+function getStatusHint(group: GroupWithLayout, task: TaskQueryResponse | undefined, isSingleTask: boolean): string {
   const tasks = group.tasks || [];
   const taskCount = tasks.length;
 
@@ -230,24 +224,24 @@ interface GroupNodeProps {
   data: GroupNodeData;
 }
 
-export function GroupNode({ data }: GroupNodeProps) {
-  const {
-    group,
-    isSelected,
-    isExpanded,
-    layoutDirection,
-    onSelectTask,
-    onToggleExpand,
-    nodeWidth,
-    nodeHeight,
-  } = data;
+/**
+ * Memoized GroupNode component.
+ * Only re-renders when data props actually change.
+ */
+export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
+  const { group, isSelected, isExpanded, layoutDirection, nodeWidth, nodeHeight, hasIncomingEdges, hasOutgoingEdges } =
+    data;
+
+  // Get handlers from context (not props) to prevent re-renders
+  const { onSelectTask, onToggleExpand } = useDAGContext();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Smart scroll handling - only capture wheel when content is scrollable
   useSmartScroll(scrollContainerRef);
 
-  const tasks = group.tasks || [];
+  // Memoize tasks array to prevent useCallback deps changing on every render
+  const tasks = useMemo(() => group.tasks || [], [group.tasks]);
   const totalCount = tasks.length;
   const isSingleTask = totalCount === 1;
   const hasManyTasks = totalCount > 1;
@@ -256,10 +250,9 @@ export function GroupNode({ data }: GroupNodeProps) {
   const primaryTask = tasks[0];
   const displayStatus = isSingleTask && primaryTask ? primaryTask.status : group.status;
   const category = getStatusCategory(displayStatus);
-  const style = getStatusStyle(displayStatus);
 
-  // Virtualization for large task lists
-  const virtualizer = useVirtualizer({
+  // Virtualization for large task lists (React Compiler compatible)
+  const virtualizer = useVirtualizerCompat({
     count: tasks.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => TASK_ROW_HEIGHT,
@@ -267,10 +260,7 @@ export function GroupNode({ data }: GroupNodeProps) {
   });
 
   // Get hint text based on status
-  const hintText = useMemo(
-    () => getStatusHint(group, primaryTask, isSingleTask),
-    [group, primaryTask, isSingleTask]
-  );
+  const hintText = useMemo(() => getStatusHint(group, primaryTask, isSingleTask), [group, primaryTask, isSingleTask]);
 
   // Display name: task name for single-task, group name for multi-task
   const displayName = isSingleTask && primaryTask ? primaryTask.name : group.name;
@@ -290,7 +280,7 @@ export function GroupNode({ data }: GroupNodeProps) {
         onSelectTask(tasks[0], group);
       }
     },
-    [hasManyTasks, group, tasks, onToggleExpand, onSelectTask]
+    [hasManyTasks, group, tasks, onToggleExpand, onSelectTask],
   );
 
   const handleExpandClick = useCallback(
@@ -298,7 +288,7 @@ export function GroupNode({ data }: GroupNodeProps) {
       e.stopPropagation();
       onToggleExpand(group.name);
     },
-    [group.name, onToggleExpand]
+    [group.name, onToggleExpand],
   );
 
   const handleKeyDown = useCallback(
@@ -312,7 +302,7 @@ export function GroupNode({ data }: GroupNodeProps) {
         }
       }
     },
-    [hasManyTasks, group, tasks, onToggleExpand, onSelectTask]
+    [hasManyTasks, group, tasks, onToggleExpand, onSelectTask],
   );
 
   const handleTaskClick = useCallback(
@@ -320,7 +310,7 @@ export function GroupNode({ data }: GroupNodeProps) {
       e.stopPropagation();
       onSelectTask(task, group);
     },
-    [group, onSelectTask]
+    [group, onSelectTask],
   );
 
   const handleTaskKeyDown = useCallback(
@@ -330,7 +320,7 @@ export function GroupNode({ data }: GroupNodeProps) {
         onSelectTask(task, group);
       }
     },
-    [group, onSelectTask]
+    [group, onSelectTask],
   );
 
   // Accessibility labels
@@ -342,15 +332,13 @@ export function GroupNode({ data }: GroupNodeProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border-2 backdrop-blur-sm transition-all duration-200 flex flex-col",
+        "dag-node rounded-lg border-2 backdrop-blur-sm flex flex-col",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
-        style.bg,
-        style.border,
         isSelected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950",
-        category === "running" && "shadow-[0_0_20px_rgba(59,130,246,0.3)]",
-        category === "failed" && "shadow-[0_0_20px_rgba(239,68,68,0.3)]"
       )}
       style={{ width: nodeWidth, height: nodeHeight }}
+      data-status={category}
+      data-selected={isSelected}
       role="treeitem"
       aria-label={ariaLabel}
       aria-expanded={hasManyTasks ? isExpanded : undefined}
@@ -358,29 +346,31 @@ export function GroupNode({ data }: GroupNodeProps) {
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* Handles */}
-      <Handle
-        type="target"
-        position={targetPosition}
-        id="target"
-        className="!bg-zinc-600 !border-zinc-500 !w-3 !h-3"
-        style={isVertical ? { left: "50%" } : { top: "50%" }}
-        aria-hidden="true"
-      />
-      <Handle
-        type="source"
-        position={sourcePosition}
-        id="source"
-        className="!bg-zinc-600 !border-zinc-500 !w-3 !h-3"
-        style={isVertical ? { left: "50%" } : { top: "50%" }}
-        aria-hidden="true"
-      />
+      {/* Handles - only render when there are actual connections */}
+      {hasIncomingEdges && (
+        <Handle
+          type="target"
+          position={targetPosition}
+          id="target"
+          className="dag-handle"
+          aria-hidden="true"
+        />
+      )}
+      {hasOutgoingEdges && (
+        <Handle
+          type="source"
+          position={sourcePosition}
+          id="source"
+          className="dag-handle"
+          aria-hidden="true"
+        />
+      )}
 
       {/* Header */}
       <div
         className={cn(
           "px-3 cursor-pointer select-none flex-shrink-0 flex flex-col justify-center",
-          !isExpanded && "h-full"
+          !isExpanded && "h-full",
         )}
         style={{ height: isExpanded ? NODE_HEADER_HEIGHT : undefined }}
         onClick={handleNodeClick}
@@ -394,29 +384,31 @@ export function GroupNode({ data }: GroupNodeProps) {
               aria-expanded={isExpanded}
             >
               {isExpanded ? (
-                <ChevronDown className="h-4 w-4 text-zinc-400" aria-hidden="true" />
+                <ChevronDown
+                  className="h-4 w-4 text-zinc-400"
+                  aria-hidden="true"
+                />
               ) : (
-                <ChevronRight className="h-4 w-4 text-zinc-400" aria-hidden="true" />
+                <ChevronRight
+                  className="h-4 w-4 text-zinc-400"
+                  aria-hidden="true"
+                />
               )}
             </button>
           )}
           {getStatusIcon(displayStatus, "h-4 w-4")}
-          <span className="font-medium text-sm text-zinc-100 truncate flex-1">
-            {displayName}
-          </span>
+          <span className="font-medium text-sm text-zinc-100 truncate flex-1">{displayName}</span>
         </div>
 
         {/* Always show hint below name */}
-        <div className={cn("text-xs mt-1 truncate", style.text, hasManyTasks && "ml-7")}>
-          {hintText}
-        </div>
+        <div className={cn("dag-node-hint text-xs mt-1 truncate", hasManyTasks && "ml-7")}>{hintText}</div>
       </div>
 
       {/* Virtualized task list */}
       {isExpanded && hasManyTasks && (
         <div
           ref={scrollContainerRef}
-          className="border-t border-zinc-700/50 px-2 py-2 flex-1 min-h-0 overflow-y-auto"
+          className="dag-scroll-container border-t border-zinc-700/50 px-2 py-2 flex-1 min-h-0 overflow-y-auto"
           role="list"
           aria-label={`Tasks in ${group.name}`}
         >
@@ -429,21 +421,18 @@ export function GroupNode({ data }: GroupNodeProps) {
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const task = tasks[virtualRow.index];
-              const taskStyle = getStatusStyle(task.status);
+              const taskCategory = getStatusCategory(task.status);
               const taskDuration = calculateDuration(task.start_time, task.end_time);
 
               return (
                 <button
                   key={`${task.name}-${task.retry_id}`}
-                  className={cn(
-                    "absolute left-0 w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left",
-                    "hover:bg-zinc-700/50 transition-colors cursor-pointer",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
-                  )}
+                  className="dag-task-row absolute left-0 w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left hover:bg-zinc-700/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
                   style={{
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
+                  data-status={taskCategory}
                   onClick={(e) => handleTaskClick(e, task)}
                   onKeyDown={(e) => handleTaskKeyDown(e, task)}
                   role="listitem"
@@ -451,9 +440,7 @@ export function GroupNode({ data }: GroupNodeProps) {
                 >
                   {getStatusIcon(task.status, "h-3 w-3")}
                   <span className="flex-1 truncate text-zinc-300">{task.name}</span>
-                  <span className={cn("tabular-nums", taskStyle.text)}>
-                    {formatDuration(taskDuration)}
-                  </span>
+                  <span className="dag-task-duration tabular-nums">{formatDuration(taskDuration)}</span>
                 </button>
               );
             })}
@@ -462,7 +449,7 @@ export function GroupNode({ data }: GroupNodeProps) {
       )}
     </div>
   );
-}
+});
 
 // Export node types map for ReactFlow
 export const nodeTypes = {
