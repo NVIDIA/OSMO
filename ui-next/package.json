@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "cp node_modules/elkjs/lib/elk-worker.min.js public/elk-worker.min.js 2>/dev/null || true",
     "dev": "next dev --turbopack",
     "dev:local": "NEXT_PUBLIC_OSMO_API_HOSTNAME=localhost:8000 NEXT_PUBLIC_OSMO_SSL_ENABLED=false next dev --turbopack",
     "dev:mock": "NEXT_PUBLIC_MOCK_API=true next dev --turbopack",

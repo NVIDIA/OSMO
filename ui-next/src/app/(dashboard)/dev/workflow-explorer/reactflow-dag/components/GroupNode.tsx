@@ -227,15 +227,15 @@ function getFailureHint(task: TaskQueryResponse): string {
 
 interface GroupNodeProps {
   data: GroupNodeData;
+  selected?: boolean; // ReactFlow provides this prop to custom nodes
 }
 
 /**
  * Memoized GroupNode component.
  * Only re-renders when data props actually change.
  */
-export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
-  const { group, isSelected, isExpanded, layoutDirection, nodeWidth, nodeHeight, hasIncomingEdges, hasOutgoingEdges } =
-    data;
+export const GroupNode = memo(function GroupNode({ data, selected = false }: GroupNodeProps) {
+  const { group, isExpanded, layoutDirection, nodeWidth, nodeHeight, hasIncomingEdges, hasOutgoingEdges } = data;
 
   // Get handlers from context (not props) to prevent re-renders
   const { onSelectTask, onToggleExpand } = useDAGContext();
@@ -339,15 +339,15 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
       className={cn(
         "dag-node rounded-lg border-2 backdrop-blur-sm flex flex-col",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
-        isSelected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950",
+        selected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950",
       )}
       style={{ width: nodeWidth, height: nodeHeight }}
       data-status={category}
-      data-selected={isSelected}
+      data-selected={selected}
       role="treeitem"
       aria-label={ariaLabel}
       aria-expanded={hasManyTasks ? isExpanded : undefined}
-      aria-selected={isSelected}
+      aria-selected={selected}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
