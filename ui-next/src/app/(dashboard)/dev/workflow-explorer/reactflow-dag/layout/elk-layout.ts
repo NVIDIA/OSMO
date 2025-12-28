@@ -16,11 +16,10 @@
  * - Better edge routing
  */
 
-import ELK from "elkjs/lib/elk.bundled.js";
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import type { GroupWithLayout } from "../../workflow-types";
-import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph, ElkLayoutResult } from "../types";
+import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph } from "../types";
 import { getStatusCategory } from "../utils/status";
 import {
   NODE_COLLAPSED_WIDTH,
@@ -41,9 +40,7 @@ import {
   ARROW_HEIGHT,
   STATUS_STYLES,
 } from "../constants";
-
-// Create ELK instance (can be moved to web worker for large graphs)
-const elk = new ELK();
+import { elkWorker } from "./elk-worker-client";
 
 // ============================================================================
 // Dimension Calculations
@@ -177,8 +174,8 @@ export async function calculatePositions(
     }),
   };
 
-  // Run ELK layout
-  const layoutResult = (await elk.layout(elkGraph)) as ElkLayoutResult;
+  // Run ELK layout (offloaded to web worker for performance)
+  const layoutResult = await elkWorker.layout(elkGraph);
 
   // Build position map - O(n) lookup later
   const positions = new Map<string, LayoutPosition>();
@@ -246,7 +243,6 @@ export function buildNodes(
       initialHeight: pos.height,
       data: {
         group,
-        isSelected: false, // Selection state managed via CSS data-selected
         isExpanded: expandedGroups.has(group.name),
         layoutDirection: direction,
         nodeWidth: pos.width,
@@ -263,13 +259,15 @@ export function buildNodes(
 /**
  * Build ReactFlow edges from groups.
  *
+ * Uses CSS variables and data attributes for styling instead of inline styles.
+ * This enables GPU-accelerated rendering and reduces React reconciliation work.
+ *
  * @param groups - The workflow groups
  * @returns ReactFlow edges
  */
 export function buildEdges(groups: GroupWithLayout[]): Edge[] {
   return groups.flatMap((group) => {
     const category = getStatusCategory(group.status);
-    const edgeColor = STATUS_STYLES[category].color;
     const isTerminal = category === "completed" || category === "failed";
     const downstreams = group.downstream_groups || [];
 
@@ -281,17 +279,22 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
       targetHandle: "target",
       type: "smoothstep",
       animated: category === "running",
+      // Use className for CSS-based styling instead of inline styles
+      className: `dag-edge dag-edge--${category}`,
+      // Minimal inline style - only what can't be done in CSS
       style: {
-        stroke: edgeColor,
         strokeWidth: EDGE_STROKE_WIDTH,
         strokeDasharray: isTerminal || category === "running" ? undefined : EDGE_DASH_ARRAY,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: edgeColor,
+        // Marker color still needs inline - ReactFlow limitation
+        color: STATUS_STYLES[category].color,
         width: ARROW_WIDTH,
         height: ARROW_HEIGHT,
       },
+      // Pass status data for potential future use
+      data: { status: category },
     }));
   });
 }

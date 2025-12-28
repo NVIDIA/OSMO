@@ -162,18 +162,9 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     };
   }, [groupsWithLayout, expandedGroups, layoutDirection, setNodes, setEdges]);
 
-  // Update node selection state without re-running layout
-  useEffect(() => {
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          isSelected: selectedGroup?.name === node.id && selectedTask !== null,
-        },
-      })),
-    );
-  }, [selectedGroup, selectedTask, setNodes]);
+  // Selection state is now handled purely via CSS data-selected attribute
+  // No need to update node data - GroupNode reads isSelected from data but
+  // the visual styling comes from [data-selected="true"] CSS selector
 
   // Calculate bounds for viewport
   const nodeBounds = useMemo((): GraphBounds => {

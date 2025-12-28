@@ -42,3 +42,6 @@ next-env.d.ts
 
 # test outputs
 test-results/
+
+# Auto-generated files (copied by postinstall)
+public/elk-worker.min.js
