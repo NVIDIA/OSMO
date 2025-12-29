@@ -9,14 +9,35 @@
 /**
  * Utils Index
  *
- * Re-exports utility functions for cleaner imports.
+ * Re-exports all utility functions for cleaner imports.
  */
 
 export {
-  getStatusIcon,
+  // Status functions
   getStatusCategory,
+  isFailedStatus,
+  getStatusOrder,
+  statusMatchesState,
+  getStatusLabel,
   getStatusStyle,
   getEdgeColor,
-  getStatusLabel,
-  isFailedStatus,
+  getStatusIcon,
+  getStatusIconCompact,
+  // Stats computation
+  computeTaskStats,
+  computeGroupStatus,
+  computeGroupDuration,
+  // Constants re-exports
+  STATUS_STYLES,
+  STATUS_CATEGORY_MAP,
+  STATUS_SORT_ORDER,
+  STATUS_LABELS,
+  StatusDisplay,
+  STATE_CATEGORIES,
+  STATE_CATEGORY_NAMES,
+  // Types
+  type StatusCategory,
+  type StateCategory,
+  type TaskStats,
+  type GroupStatus,
 } from "./status";
