@@ -33,7 +33,7 @@ This workflow leverages NVIDIA OSMO to generate occupancy maps and record trajec
 
 - OSMO CLI installed and authenticated
 - Access to GPU pool
-- Isaac Sim environment
+- [Isaac Sim environment](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
 
 ## Step 1: MobilityGen Data Generation
 
@@ -50,10 +50,10 @@ When the task logs: `"Isaac Sim Full Streaming App is loaded."`, run these comma
 
 ```bash
 # Terminal 1: TCP port forwarding
-osmo workflow port-forward <workflow-id> isaac-lab --port 47995-48012,49000-49007,49100 --connect-timeout 300
+osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48012,49000-49007,49100 --connect-timeout 300
 
 # Terminal 2: UDP port forwarding
-osmo workflow port-forward <workflow-id> isaac-lab --port 47995-48012,49000-49007 --udp
+osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48012,49000-49007 --udp
 ```
 
 ### Building an Occupancy Map
@@ -147,7 +147,6 @@ The workflow can be scaled to thousands of generations by customizing the workfl
 
 ```bash
 osmo workflow logs <workflow-id> -n 100
-osmo workflow list
 ```
 
 ## Troubleshooting
