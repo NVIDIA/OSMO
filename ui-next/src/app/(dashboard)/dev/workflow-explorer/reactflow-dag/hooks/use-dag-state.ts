@@ -12,8 +12,14 @@
  * Manages state for the DAG visualization including:
  * - Layout direction
  * - Expanded groups
- * - Selected task/group
+ * - Selected group (for GroupPanel)
+ * - Selected task (for DetailPanel)
  * - Layout calculation
+ *
+ * Navigation flow:
+ * - Click GROUP node (multi-task) → Opens GroupPanel
+ * - Click task in GroupPanel → Opens DetailPanel
+ * - Click SINGLE-TASK node → Opens DetailPanel directly
  */
 
 "use client";
@@ -39,6 +45,14 @@ interface UseDAGStateOptions {
   initialDirection?: LayoutDirection;
 }
 
+/**
+ * Panel view state for navigation.
+ * - "none" → No panel open
+ * - "group" → GroupPanel showing task list
+ * - "task" → DetailPanel showing single task
+ */
+export type PanelView = "none" | "group" | "task";
+
 interface UseDAGStateReturn {
   // Layout
   nodes: Node<GroupNodeData>[];
@@ -56,10 +70,18 @@ interface UseDAGStateReturn {
   handleExpandAll: () => void;
   handleCollapseAll: () => void;
 
-  // Selection state
+  // Panel navigation state
+  panelView: PanelView;
   selectedGroup: GroupWithLayout | null;
   selectedTask: TaskQueryResponse | null;
+
+  // Panel actions
+  handleSelectGroup: (group: GroupWithLayout) => void;
   handleSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
+  handleClosePanel: () => void;
+  handleBackToGroup: () => void;
+
+  // Legacy (for backwards compatibility)
   handleCloseDetail: () => void;
 
   // Bounds for viewport
@@ -73,9 +95,12 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
   // Core state
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(initialDirection);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [isLayouting, setIsLayouting] = useState(false);
+
+  // Panel navigation state
+  const [panelView, setPanelView] = useState<PanelView>("none");
   const [selectedGroup, setSelectedGroup] = useState<GroupWithLayout | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskQueryResponse | null>(null);
-  const [isLayouting, setIsLayouting] = useState(false);
 
   // Compute topological levels from dependency graph
   const groupsWithLayout = useMemo(() => computeTopologicalLevelsFromGraph(groups), [groups]);
@@ -92,11 +117,12 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
       computeInitialExpandedGroups(groupsWithLayout, AUTO_COLLAPSE_TASK_THRESHOLD, AUTO_COLLAPSE_GROUP_THRESHOLD),
     );
     // Clear selection on workflow change
+    setPanelView("none");
     setSelectedGroup(null);
     setSelectedTask(null);
   }, [groupsWithLayout]);
 
-  // Callbacks for state changes
+  // Callbacks for expansion state
   const handleToggleExpand = useCallback((groupName: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -118,22 +144,39 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     setExpandedGroups(new Set());
   }, []);
 
+  // Panel navigation callbacks
+  const handleSelectGroup = useCallback((group: GroupWithLayout) => {
+    setSelectedGroup(group);
+    setSelectedTask(null);
+    setPanelView("group");
+  }, []);
+
   const handleSelectTask = useCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
     setSelectedGroup(group);
     setSelectedTask(task);
+    setPanelView("task");
   }, []);
 
-  const handleCloseDetail = useCallback(() => {
+  const handleClosePanel = useCallback(() => {
+    setPanelView("none");
     setSelectedGroup(null);
     setSelectedTask(null);
   }, []);
+
+  const handleBackToGroup = useCallback(() => {
+    // Go back from task detail to group panel
+    setSelectedTask(null);
+    setPanelView("group");
+  }, []);
+
+  // Legacy alias for backwards compatibility
+  const handleCloseDetail = handleClosePanel;
 
   // ReactFlow state - typed for our node data
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
   // Calculate layout when relevant state changes
-  // Callbacks are accessed via DAGContext, not passed in node data
   useEffect(() => {
     let cancelled = false;
 
@@ -161,10 +204,6 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
       cancelled = true;
     };
   }, [groupsWithLayout, expandedGroups, layoutDirection, setNodes, setEdges]);
-
-  // Selection state is now handled purely via CSS data-selected attribute
-  // No need to update node data - GroupNode reads isSelected from data but
-  // the visual styling comes from [data-selected="true"] CSS selector
 
   // Calculate bounds for viewport
   const nodeBounds = useMemo((): GraphBounds => {
@@ -215,9 +254,13 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     handleToggleExpand,
     handleExpandAll,
     handleCollapseAll,
+    panelView,
     selectedGroup,
     selectedTask,
+    handleSelectGroup,
     handleSelectTask,
+    handleClosePanel,
+    handleBackToGroup,
     handleCloseDetail,
     nodeBounds,
     isLayouting,
