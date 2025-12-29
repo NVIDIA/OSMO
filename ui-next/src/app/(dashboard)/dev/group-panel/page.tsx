@@ -15,6 +15,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  GripVertical,
   Search,
   Check,
   AlertCircle,
@@ -28,7 +29,6 @@ import {
   PanelLeft,
   Columns2,
   Columns,
-  GripVertical,
   MoreVertical,
 } from "lucide-react";
 import {
@@ -45,8 +45,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/lib/hooks";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
 import {
   DndContext,
   closestCenter,
@@ -55,26 +53,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type Modifier,
 } from "@dnd-kit/core";
-
-// Modifier to restrict dragging to horizontal axis and within parent bounds
-const restrictToHorizontalAxis: Modifier = ({ transform, draggingNodeRect, containerNodeRect }) => {
-  let x = transform.x;
-  
-  // Restrict to container bounds if available
-  if (draggingNodeRect && containerNodeRect) {
-    const minX = containerNodeRect.left - draggingNodeRect.left;
-    const maxX = containerNodeRect.right - draggingNodeRect.right;
-    x = Math.max(minX, Math.min(x, maxX));
-  }
-  
-  return {
-    ...transform,
-    x,
-    y: 0, // Lock vertical movement
-  };
-};
 import {
   arrayMove,
   SortableContext,
@@ -82,89 +61,176 @@ import {
   useSortable,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import * as chrono from "chrono-node";
+
+// Simple horizontal-only modifier (no boundary restrictions that might cause issues)
+const restrictHorizontal = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
+  ...transform,
+  y: 0,
+});
 
 // =============================================================================
-// Types
+// Import backend-aligned types from generated API spec (prevents drift!)
 // =============================================================================
 
-type TaskStatus =
-  | "COMPLETED"
-  | "RUNNING"
-  | "WAITING"
-  | "FAILED"
-  | "FAILED_TIMEOUT"
-  | "FAILED_PREEMPTED"
-  | "FAILED_CANCELED"
-  | "INITIALIZING"
-  | "SCHEDULING";
+import {
+  TaskGroupStatus,
+  type TaskQueryResponse,
+  type GroupQueryResponse,
+} from "@/lib/api/generated";
 
-interface MockTask {
-  name: string;
-  status: TaskStatus;
-  duration: number | null; // seconds
-  startTime: Date | null;
-  endTime: Date | null;
-  nodeName: string | null;
-  podIp: string | null;
-  podName: string | null;
-  retryId: number;
-  failureMessage?: string;
-  exitCode?: number;
+// Import status helpers aligned with backend types
+import {
+  isFailedStatus,
+  calculateDuration,
+  formatDuration,
+} from "@/app/(dashboard)/dev/workflow-explorer/workflow-types";
+
+// =============================================================================
+// Performance: GPU-accelerated CSS styles (defined once, reused)
+// =============================================================================
+
+const GPU_ACCELERATED_STYLE: React.CSSProperties = {
+  willChange: "transform",
+  transform: "translate3d(0, 0, 0)",
+  backfaceVisibility: "hidden",
+};
+
+const CONTAIN_STYLE: React.CSSProperties = {
+  contain: "content",
+};
+
+
+// =============================================================================
+// Persistence (with debounced writes)
+// =============================================================================
+
+const STORAGE_KEY = "group-panel-settings";
+const DEBOUNCE_MS = 300;
+
+interface PersistedSettings {
+  panelPct: number;
+  visibleOptionalIds: ColumnId[];
+  sort: SortState;
 }
 
+let settingsCache: Partial<PersistedSettings> | null = null;
+
+function loadPersistedSettings(): Partial<PersistedSettings> {
+  if (typeof window === "undefined") return {};
+  if (settingsCache) return settingsCache;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return {};
+    settingsCache = JSON.parse(stored) as Partial<PersistedSettings>;
+    return settingsCache;
+  } catch {
+    return {};
+  }
+}
+
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+function savePersistedSettings(settings: Partial<PersistedSettings>): void {
+  if (typeof window === "undefined") return;
+  if (saveTimeout) clearTimeout(saveTimeout);
+  settingsCache = { ...settingsCache, ...settings };
+  saveTimeout = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsCache));
+    } catch {
+      // Ignore storage errors
+    }
+  }, DEBOUNCE_MS);
+}
+
+function usePersistedState<T>(
+  key: keyof PersistedSettings,
+  defaultValue: T,
+): [T, (value: T | ((prev: T) => T)) => void] {
+  const [value, setValue] = useState<T>(() => {
+    const persisted = loadPersistedSettings();
+    return (persisted[key] as T) ?? defaultValue;
+  });
+
+  useEffect(() => {
+    savePersistedSettings({ [key]: value } as Partial<PersistedSettings>);
+  }, [key, value]);
+
+  return [value, setValue];
+}
+
+// =============================================================================
+// Extended Task type for UI (adds computed fields to backend TaskQueryResponse)
+// =============================================================================
+
+/**
+ * Task with computed fields for UI display.
+ * Extends the backend TaskQueryResponse with duration computed from timestamps.
+ */
+interface TaskWithDuration extends TaskQueryResponse {
+  /** Computed duration in seconds (from start_time/end_time) */
+  duration: number | null;
+}
+
+/**
+ * Group structure matching backend GroupQueryResponse
+ */
 interface MockGroup {
   name: string;
-  tasks: MockTask[];
+  status: TaskGroupStatus;
+  start_time?: string;
+  end_time?: string;
+  tasks: TaskWithDuration[];
 }
 
 // =============================================================================
-// Column Configuration
+// Column Configuration (static, computed once)
 // =============================================================================
 
-type ColumnId = "status" | "name" | "duration" | "node" | "podIp" | "exitCode" | "startTime" | "retry";
-
-// Column width can be fixed pixels OR flex with min + share
+type ColumnId = "status" | "name" | "duration" | "node" | "podIp" | "exitCode" | "startTime" | "endTime" | "retry";
 type ColumnWidth = number | { min: number; share: number };
 
 interface ColumnDef {
   id: ColumnId;
-  label: string;
+  label: string;        // Short label for table header
+  menuLabel: string;    // Full label for dropdown menu
   width: ColumnWidth;
   align: "left" | "right";
   sortable: boolean;
 }
 
-// Mandatory columns - always visible, fixed position, not in menu
-const MANDATORY_COLUMNS: ColumnDef[] = [
-  { id: "status", label: "", width: 24, align: "left", sortable: true },
-  { id: "name", label: "Name", width: { min: 150, share: 3 }, align: "left", sortable: true },
-];
-
-// Optional columns - can be shown/hidden and reordered
 interface OptionalColumnDef extends ColumnDef {
   defaultVisible: boolean;
 }
 
-const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
-  { id: "duration", label: "Duration", width: 90, align: "right", sortable: true, defaultVisible: true },
-  { id: "node", label: "Node", width: { min: 80, share: 1 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "podIp", label: "IP", width: { min: 95, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
-  { id: "exitCode", label: "Exit", width: 55, align: "right", sortable: true, defaultVisible: false },
-  { id: "startTime", label: "Start", width: 70, align: "right", sortable: true, defaultVisible: false },
-  { id: "retry", label: "Retry", width: 60, align: "right", sortable: true, defaultVisible: false },
+const MANDATORY_COLUMNS: ColumnDef[] = [
+  { id: "status", label: "", menuLabel: "Status", width: 24, align: "left", sortable: true },
+  { id: "name", label: "Name", menuLabel: "Name", width: { min: 150, share: 3 }, align: "left", sortable: true },
 ];
 
-// Legacy: ALL_COLUMNS for backward compat in cell rendering
+const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
+  { id: "duration", label: "Duration", menuLabel: "Duration", width: 90, align: "right", sortable: true, defaultVisible: true },
+  { id: "node", label: "Node", menuLabel: "Node Name", width: { min: 80, share: 1 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "podIp", label: "IP", menuLabel: "IP", width: { min: 95, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
+  { id: "exitCode", label: "Exit", menuLabel: "Exit Code", width: 55, align: "right", sortable: true, defaultVisible: false },
+  { id: "startTime", label: "Start", menuLabel: "Start Time", width: 115, align: "right", sortable: true, defaultVisible: false },
+  { id: "endTime", label: "End", menuLabel: "End Time", width: 115, align: "right", sortable: true, defaultVisible: false },
+  { id: "retry", label: "Retry", menuLabel: "Retry ID", width: 60, align: "right", sortable: true, defaultVisible: false },
+];
+
+// Alphabetically sorted column list for stable menu order (by menuLabel)
+const OPTIONAL_COLUMNS_ALPHABETICAL = [...OPTIONAL_COLUMNS].sort((a, b) => a.menuLabel.localeCompare(b.menuLabel));
+
 const ALL_COLUMNS: ColumnDef[] = [
   ...MANDATORY_COLUMNS,
   ...OPTIONAL_COLUMNS.map(({ defaultVisible, ...rest }) => rest),
 ];
 
-// Get default visible optional column IDs
 const DEFAULT_VISIBLE_OPTIONAL: ColumnId[] = OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id);
 
-// For sorting, we need column lookup
 const COLUMN_MAP = new Map(ALL_COLUMNS.map((c) => [c.id, c]));
+const OPTIONAL_COLUMN_MAP = new Map(OPTIONAL_COLUMNS.map((c) => [c.id, c]));
 
 type SortColumn = ColumnId;
 type SortDirection = "asc" | "desc";
@@ -175,118 +241,121 @@ interface SortState {
 }
 
 // =============================================================================
-// Mock Data Generation
+// Status Utilities (using backend-aligned helpers + pre-computed lookups)
 // =============================================================================
 
-function generateMockGroup(taskCount: number, scenarioName: string): MockGroup {
-  faker.seed(42);
+// Pre-computed status category lookup for O(1) access
+const STATUS_CATEGORY_MAP: Record<TaskGroupStatus, "waiting" | "running" | "completed" | "failed"> = {
+  [TaskGroupStatus.SUBMITTING]: "waiting",
+  [TaskGroupStatus.WAITING]: "waiting",
+  [TaskGroupStatus.PROCESSING]: "waiting",
+  [TaskGroupStatus.SCHEDULING]: "waiting",
+  [TaskGroupStatus.INITIALIZING]: "running",
+  [TaskGroupStatus.RUNNING]: "running",
+  [TaskGroupStatus.COMPLETED]: "completed",
+  [TaskGroupStatus.RESCHEDULED]: "completed",
+  [TaskGroupStatus.FAILED]: "failed",
+  [TaskGroupStatus.FAILED_CANCELED]: "failed",
+  [TaskGroupStatus.FAILED_SERVER_ERROR]: "failed",
+  [TaskGroupStatus.FAILED_BACKEND_ERROR]: "failed",
+  [TaskGroupStatus.FAILED_EXEC_TIMEOUT]: "failed",
+  [TaskGroupStatus.FAILED_QUEUE_TIMEOUT]: "failed",
+  [TaskGroupStatus.FAILED_IMAGE_PULL]: "failed",
+  [TaskGroupStatus.FAILED_UPSTREAM]: "failed",
+  [TaskGroupStatus.FAILED_EVICTED]: "failed",
+  [TaskGroupStatus.FAILED_START_ERROR]: "failed",
+  [TaskGroupStatus.FAILED_START_TIMEOUT]: "failed",
+  [TaskGroupStatus.FAILED_PREEMPTED]: "failed",
+};
 
-  const nodes = [
-    "dgx-a100-001",
-    "dgx-a100-002",
-    "dgx-a100-003",
-    "dgx-h100-001",
-    "dgx-h100-002",
-    "gpu-l40s-101",
-    "gpu-l40s-102",
-    "gpu-l40s-103",
-  ];
+// Pre-computed sort order for status
+const STATUS_ORDER: Record<TaskGroupStatus, number> = {
+  [TaskGroupStatus.FAILED]: 0,
+  [TaskGroupStatus.FAILED_CANCELED]: 1,
+  [TaskGroupStatus.FAILED_SERVER_ERROR]: 2,
+  [TaskGroupStatus.FAILED_BACKEND_ERROR]: 3,
+  [TaskGroupStatus.FAILED_EXEC_TIMEOUT]: 4,
+  [TaskGroupStatus.FAILED_QUEUE_TIMEOUT]: 5,
+  [TaskGroupStatus.FAILED_IMAGE_PULL]: 6,
+  [TaskGroupStatus.FAILED_UPSTREAM]: 7,
+  [TaskGroupStatus.FAILED_EVICTED]: 8,
+  [TaskGroupStatus.FAILED_START_ERROR]: 9,
+  [TaskGroupStatus.FAILED_START_TIMEOUT]: 10,
+  [TaskGroupStatus.FAILED_PREEMPTED]: 11,
+  [TaskGroupStatus.RUNNING]: 12,
+  [TaskGroupStatus.INITIALIZING]: 13,
+  [TaskGroupStatus.PROCESSING]: 14,
+  [TaskGroupStatus.SCHEDULING]: 15,
+  [TaskGroupStatus.SUBMITTING]: 16,
+  [TaskGroupStatus.WAITING]: 17,
+  [TaskGroupStatus.RESCHEDULED]: 18,
+  [TaskGroupStatus.COMPLETED]: 19,
+};
 
-  const tasks: MockTask[] = [];
-  const baseTime = new Date();
-  baseTime.setHours(baseTime.getHours() - 2);
+function getStatusOrder(status: TaskGroupStatus): number {
+  return STATUS_ORDER[status] ?? 99;
+}
 
-  for (let i = 0; i < taskCount; i++) {
-    // Determine status based on position and scenario
-    let status: TaskStatus;
-    if (i < taskCount * 0.7) {
-      status = "COMPLETED";
-    } else if (i < taskCount * 0.85) {
-      status = "RUNNING";
-    } else if (i < taskCount * 0.92) {
-      status = faker.helpers.arrayElement(["FAILED", "FAILED_TIMEOUT", "FAILED_PREEMPTED"]);
-    } else {
-      status = faker.helpers.arrayElement(["WAITING", "SCHEDULING", "INITIALIZING"]);
-    }
+// =============================================================================
+// Stats computation - SINGLE PASS for all stats
+// =============================================================================
 
-    const startTime =
-      status !== "WAITING" && status !== "SCHEDULING"
-        ? new Date(baseTime.getTime() + i * 60000 + faker.number.int({ min: 0, max: 30000 }))
-        : null;
+interface TaskStats {
+  total: number;
+  completed: number;
+  running: number;
+  failed: number;
+  pending: number;
+  subStats: Map<TaskGroupStatus, number>;
+  earliestStart: number | null;
+  latestEnd: number | null;
+  hasRunning: boolean;
+}
 
-    const duration =
-      status === "COMPLETED" || status === "FAILED" || status === "FAILED_TIMEOUT"
-        ? faker.number.int({ min: 30, max: 600 })
-        : status === "RUNNING"
-          ? Math.floor((Date.now() - (startTime?.getTime() ?? Date.now())) / 1000)
-          : null;
+function computeAllStats(tasks: TaskWithDuration[]): TaskStats {
+  const subStats = new Map<TaskGroupStatus, number>();
+  let completed = 0;
+  let running = 0;
+  let failed = 0;
+  let earliestStart: number | null = null;
+  let latestEnd: number | null = null;
+  let hasRunning = false;
 
-    const endTime = status === "COMPLETED" || status.startsWith("FAILED") ? new Date() : null;
-
-    const taskName = `${scenarioName}-shard-${i.toString().padStart(3, "0")}`;
-    const isStarted = status !== "WAITING" && status !== "SCHEDULING";
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    const status = task.status;
     
-    tasks.push({
-      name: taskName,
-      status,
-      duration,
-      startTime,
-      endTime,
-      nodeName: isStarted ? faker.helpers.arrayElement(nodes) : null,
-      podIp: isStarted ? `10.0.${faker.number.int({ min: 1, max: 10 })}.${faker.number.int({ min: 1, max: 254 })}` : null,
-      podName: isStarted ? `${scenarioName}-${i}-${faker.string.alphanumeric(5)}` : null,
-      retryId: faker.helpers.weightedArrayElement([
-        { value: 0, weight: 90 },
-        { value: 1, weight: 8 },
-        { value: 2, weight: 2 },
-      ]),
-      failureMessage: status.startsWith("FAILED")
-        ? faker.helpers.arrayElement([
-            "OutOfMemoryError: CUDA out of memory",
-            "Connection timeout after 30s",
-            "Process killed by signal 9",
-            "RuntimeError: NCCL error",
-          ])
-        : undefined,
-      exitCode: status === "COMPLETED" ? 0 : status.startsWith("FAILED") ? 1 : undefined,
-    });
+    subStats.set(status, (subStats.get(status) ?? 0) + 1);
+    
+    const cat = STATUS_CATEGORY_MAP[status];
+    if (cat === "completed") completed++;
+    else if (cat === "running") {
+      running++;
+      hasRunning = true;
+    }
+    else if (cat === "failed") failed++;
+    
+    if (task.start_time) {
+      const t = new Date(task.start_time).getTime();
+      if (earliestStart === null || t < earliestStart) earliestStart = t;
+    }
+    if (task.end_time) {
+      const t = new Date(task.end_time).getTime();
+      if (latestEnd === null || t > latestEnd) latestEnd = t;
+    }
   }
 
-  // Shuffle to make it more realistic
   return {
-    name: scenarioName,
-    tasks: faker.helpers.shuffle(tasks),
+    total: tasks.length,
+    completed,
+    running,
+    failed,
+    pending: tasks.length - completed - running - failed,
+    subStats,
+    earliestStart,
+    latestEnd,
+    hasRunning,
   };
-}
-
-// =============================================================================
-// Status Utilities
-// =============================================================================
-
-function isFailedStatus(status: TaskStatus): boolean {
-  return status.startsWith("FAILED");
-}
-
-function getStatusCategory(status: TaskStatus): "completed" | "running" | "failed" | "pending" {
-  if (status === "COMPLETED") return "completed";
-  if (status === "RUNNING" || status === "INITIALIZING") return "running";
-  if (isFailedStatus(status)) return "failed";
-  return "pending";
-}
-
-function getStatusOrder(status: TaskStatus): number {
-  const order: Record<TaskStatus, number> = {
-    FAILED: 0,
-    FAILED_TIMEOUT: 1,
-    FAILED_PREEMPTED: 2,
-    FAILED_CANCELED: 3,
-    RUNNING: 4,
-    INITIALIZING: 5,
-    SCHEDULING: 6,
-    WAITING: 7,
-    COMPLETED: 8,
-  };
-  return order[status] ?? 99;
 }
 
 interface GroupStatus {
@@ -294,434 +363,1129 @@ interface GroupStatus {
   label: string;
 }
 
-function computeGroupStatus(tasks: MockTask[]): GroupStatus {
-  const total = tasks.length;
-  const completed = tasks.filter((t) => t.status === "COMPLETED").length;
-  const running = tasks.filter((t) => t.status === "RUNNING" || t.status === "INITIALIZING").length;
-  const failed = tasks.filter((t) => isFailedStatus(t.status)).length;
-
-  if (completed === total) {
+function computeGroupStatusFromStats(stats: TaskStats): GroupStatus {
+  if (stats.completed === stats.total) {
     return { status: "completed", label: "Completed" };
   }
-  if (failed > 0) {
-    return { status: "failed", label: running > 0 ? "Running with failures" : "Failed" };
+  if (stats.failed > 0) {
+    return { status: "failed", label: stats.running > 0 ? "Running with failures" : "Failed" };
   }
-  if (running > 0) {
+  if (stats.running > 0) {
     return { status: "running", label: "Running" };
   }
   return { status: "pending", label: "Pending" };
 }
 
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) return "—";
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}h ${m}m`;
+function computeGroupDurationFromStats(stats: TaskStats): number | null {
+  if (stats.earliestStart === null) return null;
+  const endTime = stats.hasRunning ? Date.now() : stats.latestEnd;
+  if (endTime === null) return null;
+  return Math.floor((endTime - stats.earliestStart) / 1000);
+}
+
+function formatTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  
+  const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  
+  return `${month} ${day} ${timeStr}`;
 }
 
 // =============================================================================
-// Status Icon Component
+// Smart Search Component
 // =============================================================================
 
-function StatusIcon({ status, className }: { status: TaskStatus; className?: string }) {
-  const category = getStatusCategory(status);
+// Searchable field definitions
+interface SearchField {
+  id: string;
+  label: string;
+  prefix: string;
+  getValues: (tasks: TaskWithDuration[]) => string[];
+  match: (task: TaskWithDuration, value: string) => boolean;
+}
 
-  switch (category) {
-    case "completed":
-      return <Check className={cn("h-3.5 w-3.5 text-emerald-500", className)} />;
-    case "running":
-      return <Loader2 className={cn("h-3.5 w-3.5 animate-spin text-blue-500", className)} />;
-    case "failed":
-      return <AlertCircle className={cn("h-3.5 w-3.5 text-red-500", className)} />;
-    case "pending":
-      return <Clock className={cn("h-3.5 w-3.5 text-zinc-400", className)} />;
-    default:
-      return <Circle className={cn("h-3.5 w-3.5 text-zinc-400", className)} />;
+// State categories (high-level groupings of statuses)
+type StateCategory = "completed" | "running" | "failed" | "pending";
+
+const STATE_CATEGORIES: Record<StateCategory, Set<TaskGroupStatus>> = {
+  completed: new Set([TaskGroupStatus.COMPLETED, TaskGroupStatus.RESCHEDULED]),
+  running: new Set([TaskGroupStatus.RUNNING, TaskGroupStatus.INITIALIZING]),
+  failed: new Set([
+    TaskGroupStatus.FAILED,
+    TaskGroupStatus.FAILED_CANCELED,
+    TaskGroupStatus.FAILED_SERVER_ERROR,
+    TaskGroupStatus.FAILED_BACKEND_ERROR,
+    TaskGroupStatus.FAILED_EXEC_TIMEOUT,
+    TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
+    TaskGroupStatus.FAILED_IMAGE_PULL,
+    TaskGroupStatus.FAILED_UPSTREAM,
+    TaskGroupStatus.FAILED_EVICTED,
+    TaskGroupStatus.FAILED_START_ERROR,
+    TaskGroupStatus.FAILED_START_TIMEOUT,
+    TaskGroupStatus.FAILED_PREEMPTED,
+  ]),
+  pending: new Set([TaskGroupStatus.WAITING, TaskGroupStatus.SCHEDULING, TaskGroupStatus.SUBMITTING, TaskGroupStatus.PROCESSING]),
+};
+
+const STATE_CATEGORY_NAMES: StateCategory[] = ["completed", "running", "failed", "pending"];
+
+// Check if a status belongs to a state category
+function statusMatchesState(status: TaskGroupStatus, state: string): boolean {
+  const category = STATE_CATEGORIES[state.toLowerCase() as StateCategory];
+  return category?.has(status) ?? false;
+}
+
+const SEARCH_FIELDS: SearchField[] = [
+  {
+    id: "name",
+    label: "Name",
+    prefix: "",
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.name))].slice(0, 10),
+    match: (task, value) => task.name.toLowerCase().includes(value.toLowerCase()),
+  },
+  {
+    id: "state",
+    label: "State",
+    prefix: "state:",
+    getValues: () => STATE_CATEGORY_NAMES,
+    match: (task, value) => statusMatchesState(task.status, value),
+  },
+  {
+    id: "status",
+    label: "Status",
+    prefix: "status:",
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.status))],
+    match: (task, value) => task.status.toLowerCase() === value.toLowerCase(),
+  },
+  {
+    id: "node",
+    label: "Node",
+    prefix: "node:",
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.node_name).filter(Boolean) as string[])],
+    match: (task, value) => task.node_name?.toLowerCase().includes(value.toLowerCase()) ?? false,
+  },
+  {
+    id: "ip",
+    label: "IP",
+    prefix: "ip:",
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.pod_ip).filter(Boolean) as string[])],
+    match: (task, value) => task.pod_ip?.includes(value) ?? false,
+  },
+  {
+    id: "exit",
+    label: "Exit Code",
+    prefix: "exit:",
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.exit_code?.toString()).filter(Boolean) as string[])],
+    match: (task, value) => task.exit_code?.toString() === value,
+  },
+  {
+    id: "retry",
+    label: "Retry",
+    prefix: "retry:",
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.retry_id.toString()))],
+    match: (task, value) => task.retry_id.toString() === value,
+  },
+  {
+    id: "duration",
+    label: "Duration",
+    prefix: "duration:",
+    getValues: () => [], // Free-form entry, no presets
+    match: (task, value) => {
+      // task.duration is in seconds, convert to ms for comparison
+      const durationMs = (task.duration ?? 0) * 1000;
+      return compareWithOperator(durationMs, value, parseDurationString);
+    },
+  },
+  {
+    id: "started",
+    label: "Started",
+    prefix: "started:",
+    getValues: () => ["last 10m", "last 1h", "last 24h", "last 7d", "today", "yesterday"],
+    match: (task, value) => {
+      if (!task.start_time) return false;
+      const taskTime = new Date(task.start_time).getTime();
+      return matchTimeFilter(taskTime, value);
+    },
+  },
+  {
+    id: "ended",
+    label: "Ended",
+    prefix: "ended:",
+    getValues: () => ["last 10m", "last 1h", "last 24h", "last 7d", "today", "yesterday"],
+    match: (task, value) => {
+      if (!task.end_time) return false;
+      const taskTime = new Date(task.end_time).getTime();
+      return matchTimeFilter(taskTime, value);
+    },
+  },
+];
+
+// Parse duration string like "1m", "30s", "2h", "1h30m" into milliseconds
+function parseDurationString(str: string): number | null {
+  const normalized = str.toLowerCase().trim();
+  if (!normalized) return null;
+  
+  let totalMs = 0;
+  let remaining = normalized;
+  
+  // Match patterns like 1h, 30m, 45s, 100ms
+  const regex = /^(\d+(?:\.\d+)?)\s*(h|m|s|ms)/;
+  let hasMatch = false;
+  
+  while (remaining.length > 0) {
+    const match = regex.exec(remaining);
+    if (match) {
+      hasMatch = true;
+      const num = parseFloat(match[1]);
+      const unit = match[2];
+      switch (unit) {
+        case "h": totalMs += num * 60 * 60 * 1000; break;
+        case "m": totalMs += num * 60 * 1000; break;
+        case "s": totalMs += num * 1000; break;
+        case "ms": totalMs += num; break;
+      }
+      remaining = remaining.slice(match[0].length).trim();
+    } else {
+      break;
+    }
+  }
+  
+  // If we consumed everything with unit matches, return the total
+  if (hasMatch && remaining.length === 0) {
+    return totalMs;
+  }
+  
+  // If no unit match, try parsing as plain number (assume seconds)
+  // Must be a pure number with nothing left over
+  if (!hasMatch && /^\d+(?:\.\d+)?$/.test(normalized)) {
+    return parseFloat(normalized) * 1000;
+  }
+  
+  return null;
+}
+
+// Parse time string - supports "Xh ago", "Xm ago", or ISO date strings
+function parseTimeString(str: string): number | null {
+  const normalized = str.toLowerCase().trim();
+  
+  // Handle "X ago" format
+  const agoMatch = normalized.match(/^(\d+(?:\.\d+)?)\s*(h|m|d)\s*ago$/);
+  if (agoMatch) {
+    const num = parseFloat(agoMatch[1]);
+    const unit = agoMatch[2];
+    const now = Date.now();
+    switch (unit) {
+      case "h": return now - num * 60 * 60 * 1000;
+      case "m": return now - num * 60 * 1000;
+      case "d": return now - num * 24 * 60 * 60 * 1000;
+    }
+  }
+  
+  // Try parsing as date
+  const parsed = Date.parse(str);
+  if (!isNaN(parsed)) return parsed;
+  
+  return null;
+}
+
+// Compare a value using operator prefix (>, >=, <, <=, =)
+// Default is >= (at least) which is most useful for filtering
+function compareWithOperator(
+  taskValue: number,
+  filterValue: string,
+  parser: (s: string) => number | null,
+): boolean {
+  const normalized = filterValue.trim();
+  
+  let operator = ">=";  // Default: at least
+  let valueStr = normalized;
+  
+  if (normalized.startsWith(">=")) {
+    operator = ">=";
+    valueStr = normalized.slice(2);
+  } else if (normalized.startsWith("<=")) {
+    operator = "<=";
+    valueStr = normalized.slice(2);
+  } else if (normalized.startsWith(">")) {
+    operator = ">";
+    valueStr = normalized.slice(1);
+  } else if (normalized.startsWith("<")) {
+    operator = "<";
+    valueStr = normalized.slice(1);
+  } else if (normalized.startsWith("=")) {
+    operator = "=";
+    valueStr = normalized.slice(1);
+  }
+  
+  const compareValue = parser(valueStr.trim());
+  if (compareValue === null) return false;
+  
+  switch (operator) {
+    case ">": return taskValue > compareValue;
+    case ">=": return taskValue >= compareValue;
+    case "<": return taskValue < compareValue;
+    case "<=": return taskValue <= compareValue;
+    case "=": return taskValue === compareValue;
+    default: return false;
   }
 }
 
 // =============================================================================
-// Progress Bar Component (with clickable filter labels)
+// Date parsing using chrono-node (handles all natural language + formats)
 // =============================================================================
 
-type StatusFilter = "completed" | "running" | "failed" | "pending" | null;
+// Parse any date/time string using chrono-node
+function parseDateTime(input: string): Date | null {
+  if (!input?.trim()) return null;
+  return chrono.parseDate(input);
+}
 
-function ProgressBar({
+// Convert any time input to an absolute timestamp for consistent storage/sharing
+// Returns { display: string, value: string } where value is ISO timestamp
+function normalizeTimeFilter(input: string): { display: string; value: string } | null {
+  // Handle "last X" patterns manually since chrono interprets them differently
+  const lastMatch = input.toLowerCase().match(/^last\s+(\d+)\s*(h|d|m|w|hours?|days?|minutes?|weeks?)$/);
+  let parsed: Date | null = null;
+  
+  if (lastMatch) {
+    const num = parseInt(lastMatch[1]);
+    const unit = lastMatch[2];
+    const now = Date.now();
+    let offsetMs = 0;
+    
+    if (unit.startsWith("h")) offsetMs = num * 60 * 60 * 1000;
+    else if (unit.startsWith("d")) offsetMs = num * 24 * 60 * 60 * 1000;
+    else if (unit.startsWith("m")) offsetMs = num * 60 * 1000;
+    else if (unit.startsWith("w")) offsetMs = num * 7 * 24 * 60 * 60 * 1000;
+    
+    parsed = new Date(now - offsetMs);
+  } else {
+    parsed = parseDateTime(input);
+  }
+  
+  if (!parsed) return null;
+  
+  // Format display: always include date and time for precision
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[parsed.getMonth()];
+  const day = parsed.getDate();
+  const year = parsed.getFullYear();
+  const currentYear = new Date().getFullYear();
+  const hours = parsed.getHours();
+  const minutes = parsed.getMinutes();
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 || 12;
+  
+  let display = `${month} ${day}`;
+  if (year !== currentYear) {
+    display += `, ${year}`;
+  }
+  display += ` ${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+  
+  // Value is ISO string for URL serialization
+  const value = parsed.toISOString();
+  
+  return { display, value };
+}
+
+// Check if a task time matches a filter value
+// Filter value is now an ISO timestamp - task must be >= that time
+function matchTimeFilter(taskTime: number, filterValue: string): boolean {
+  // Try parsing as ISO timestamp first (our normalized format)
+  const isoDate = new Date(filterValue);
+  if (!isNaN(isoDate.getTime())) {
+    return taskTime >= isoDate.getTime();
+  }
+  
+  // Fallback: parse as natural language (for backwards compatibility)
+  const parsed = parseDateTime(filterValue);
+  if (parsed) {
+    return taskTime >= parsed.getTime();
+  }
+  
+  return false;
+}
+
+// Field hints for dropdown display
+const FIELD_HINTS: Record<string, string> = {
+  state: "state category",
+  status: "specific status",
+  node: "node name",
+  ip: "pod IP address",
+  exit: "exit code",
+  retry: "retry attempt ID",
+  duration: "5m (≥5m), <1h, =30s",
+  started: "last 2h, yesterday, Dec 25 9am",
+  ended: "last 2h, yesterday, Dec 25 9am",
+};
+
+interface SearchChip {
+  field: string;
+  value: string;
+  label: string;
+}
+
+interface SmartSearchProps {
+  tasks: TaskWithDuration[];
+  chips: SearchChip[];
+  onChipsChange: (chips: SearchChip[]) => void;
+  placeholder?: string;
+}
+
+// Fields that can only have one active filter (time is linear/single-dimension)
+const SINGULAR_FIELDS = new Set(["started", "ended", "duration"]);
+
+const SmartSearch = memo(function SmartSearch({
   tasks,
-  activeFilter,
-  onFilterChange,
-}: {
-  tasks: MockTask[];
-  activeFilter: StatusFilter;
-  onFilterChange: (filter: StatusFilter) => void;
-}) {
-  const stats = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter((t) => t.status === "COMPLETED").length;
-    const running = tasks.filter((t) => t.status === "RUNNING" || t.status === "INITIALIZING").length;
-    const failed = tasks.filter((t) => isFailedStatus(t.status)).length;
-    const pending = total - completed - running - failed;
+  chips,
+  onChipsChange,
+  placeholder = "Search tasks...",
+}: SmartSearchProps) {
+  const [inputValue, setInputValue] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-    return { total, completed, running, failed, pending };
-  }, [tasks]);
+  // Helper to add a chip - for singular fields, replaces existing
+  const addChip = useCallback((newChip: SearchChip) => {
+    if (SINGULAR_FIELDS.has(newChip.field)) {
+      // Remove any existing chip for this field first
+      const filtered = chips.filter(c => c.field !== newChip.field);
+      onChipsChange([...filtered, newChip]);
+    } else {
+      onChipsChange([...chips, newChip]);
+    }
+  }, [chips, onChipsChange]);
 
-  const pcts = {
-    completed: (stats.completed / stats.total) * 100,
-    running: (stats.running / stats.total) * 100,
-    failed: (stats.failed / stats.total) * 100,
-  };
-
-  const handleClick = (filter: StatusFilter) => {
-    // Toggle off if clicking the same filter
-    onFilterChange(activeFilter === filter ? null : filter);
-  };
-
-  // When a filter is active, mute the non-selected segments
-  const isFiltered = activeFilter !== null;
-
-  return (
-    <div className="space-y-2">
-      {/* Progress bar */}
-      <div className="flex h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-        <div
-          className={cn(
-            "transition-all duration-300",
-            isFiltered && activeFilter !== "completed"
-              ? "bg-emerald-500/25"
-              : "bg-emerald-500",
-          )}
-          style={{ width: `${pcts.completed}%` }}
-        />
-        <div
-          className={cn(
-            "transition-all duration-300",
-            isFiltered && activeFilter !== "running"
-              ? "bg-blue-500/25"
-              : "bg-blue-500",
-          )}
-          style={{ width: `${pcts.running}%` }}
-        />
-        <div
-          className={cn(
-            "transition-all duration-300",
-            isFiltered && activeFilter !== "failed"
-              ? "bg-red-500/25"
-              : "bg-red-500",
-          )}
-          style={{ width: `${pcts.failed}%` }}
-        />
-        {/* Pending segment (shown muted when other filter active) */}
-        <div
-          className={cn(
-            "transition-all duration-300",
-            isFiltered && activeFilter !== "pending"
-              ? "bg-zinc-300/25 dark:bg-zinc-600/25"
-              : "bg-zinc-300 dark:bg-zinc-600",
-          )}
-          style={{ width: `${(stats.pending / stats.total) * 100}%` }}
-        />
-      </div>
-
-      {/* Clickable filter labels */}
-      <div className="flex flex-wrap gap-3 text-xs">
-        {stats.completed > 0 && (
-          <button
-            onClick={() => handleClick("completed")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2 py-1 transition-all duration-200",
-              activeFilter === "completed"
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                : isFiltered
-                  ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-400"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
-            )}
-          >
-            <span className={cn("h-2 w-2 rounded-full transition-opacity duration-200", isFiltered && activeFilter !== "completed" ? "bg-emerald-500/40" : "bg-emerald-500")} />
-            <span>{stats.completed} completed</span>
-          </button>
-        )}
-        {stats.running > 0 && (
-          <button
-            onClick={() => handleClick("running")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2 py-1 transition-all duration-200",
-              activeFilter === "running"
-                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                : isFiltered
-                  ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-400"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
-            )}
-          >
-            <span className={cn("h-2 w-2 rounded-full transition-opacity duration-200", isFiltered && activeFilter !== "running" ? "bg-blue-500/40" : "bg-blue-500")} />
-            <span>{stats.running} running</span>
-          </button>
-        )}
-        {stats.failed > 0 && (
-          <button
-            onClick={() => handleClick("failed")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2 py-1 transition-all duration-200",
-              activeFilter === "failed"
-                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                : isFiltered
-                  ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-400"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
-            )}
-          >
-            <span className={cn("h-2 w-2 rounded-full transition-opacity duration-200", isFiltered && activeFilter !== "failed" ? "bg-red-500/40" : "bg-red-500")} />
-            <span>{stats.failed} failed</span>
-          </button>
-        )}
-        {stats.pending > 0 && (
-          <button
-            onClick={() => handleClick("pending")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2 py-1 transition-all duration-200",
-              activeFilter === "pending"
-                ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300"
-                : isFiltered
-                  ? "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-400"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
-            )}
-          >
-            <span className={cn("h-2 w-2 rounded-full transition-opacity duration-200", isFiltered && activeFilter !== "pending" ? "bg-zinc-300/40 dark:bg-zinc-600/40" : "bg-zinc-300 dark:bg-zinc-600")} />
-            <span>{stats.pending} pending</span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// Column Utilities
-// =============================================================================
-
-function getGridTemplate(columns: ColumnDef[]): string {
-  return columns
-    .map((col) => {
-      if (typeof col.width === "number") {
-        return `${col.width}px`;
-      }
-      // Flex column with min width and share value
-      return `minmax(${col.width.min}px, ${col.width.share}fr)`;
-    })
-    .join(" ");
-}
-
-// Calculate minimum table width based on columns
-function getMinTableWidth(columns: ColumnDef[]): number {
-  const fixedWidth = columns.reduce((sum, col) => {
-    if (typeof col.width === "number") return sum + col.width;
-    return sum + col.width.min; // use min width for flex columns
-  }, 0);
-  const gapWidth = (columns.length - 1) * 24; // gap-6 = 24px
-  const paddingWidth = 24; // px-3 on each side = 12px * 2
-  return fixedWidth + gapWidth + paddingWidth;
-}
-
-function formatTime(date: Date | null): string {
-  if (!date) return "—";
-  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-}
-
-// =============================================================================
-// Task Table Header with @dnd-kit sortable columns
-// =============================================================================
-
-// Header cell content (used by both sortable and overlay)
-function HeaderCellContent({
-  col,
-  sort,
-  onSort,
-  isOverlay,
-}: {
-  col: ColumnDef;
-  sort: SortState;
-  onSort?: (column: SortColumn) => void;
-  isOverlay?: boolean;
-}) {
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onSort && col.sortable && onSort(col.id);
-      }}
-      disabled={!col.sortable || isOverlay}
-      className={cn(
-        "flex items-center gap-1 truncate transition-colors",
-        col.sortable && !isOverlay && "hover:text-zinc-900 dark:hover:text-white",
-      )}
-    >
-      <span className="truncate">{col.label}</span>
-      {col.sortable && (
-        sort.column === col.id ? (
-          sort.direction === "asc" ? (
-            <ChevronUp className="h-3 w-3 shrink-0" />
-          ) : (
-            <ChevronDown className="h-3 w-3 shrink-0" />
-          )
-        ) : (
-          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
-        )
-      )}
-    </button>
-  );
-}
-
-// Sortable header cell component
-function SortableHeaderCell({
-  col,
-  sort,
-  onSort,
-  disabled,
-}: {
-  col: ColumnDef;
-  sort: SortState;
-  onSort: (column: SortColumn) => void;
-  disabled?: boolean;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: col.id, disabled });
-
-  const style: React.CSSProperties = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center",
-        !disabled && "cursor-grab active:cursor-grabbing",
-        isDragging && "rounded bg-zinc-100 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-800 dark:ring-zinc-600",
-        col.align === "right" && "justify-end",
-      )}
-      {...attributes}
-      {...listeners}
-    >
-      <HeaderCellContent col={col} sort={sort} onSort={onSort} />
-    </div>
-  );
-}
-
-
-const TaskTableHeader = memo(function TaskTableHeader({
-  columns,
-  sort,
-  onSort,
-  optionalColumnIds,
-  onReorder,
-}: {
-  columns: ColumnDef[];
-  sort: SortState;
-  onSort: (column: SortColumn) => void;
-  optionalColumnIds: ColumnId[];
-  onReorder: (newOrder: ColumnId[]) => void;
-}) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = optionalColumnIds.indexOf(active.id as ColumnId);
-      const newIndex = optionalColumnIds.indexOf(over.id as ColumnId);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onReorder(arrayMove(optionalColumnIds, oldIndex, newIndex));
+  // Parse input to detect field prefix
+  const parsedInput = useMemo(() => {
+    for (const field of SEARCH_FIELDS) {
+      if (field.prefix && inputValue.toLowerCase().startsWith(field.prefix)) {
+        return {
+          field,
+          query: inputValue.slice(field.prefix.length),
+          hasPrefix: true,
+        };
       }
     }
+    return { field: null, query: inputValue, hasPrefix: false };
+  }, [inputValue]);
+
+
+  // Generate suggestions based on input
+  type SuggestionItem = {
+    type: "field" | "value" | "state-parent" | "state-child" | "hint";
+    field: SearchField;
+    value: string;
+    count: number;
+    display: string;
+    indent?: boolean;
   };
 
-  // Separate mandatory and optional columns
-  const mandatoryIds = MANDATORY_COLUMNS.map((c) => c.id);
+  const suggestions = useMemo(() => {
+    const items: SuggestionItem[] = [];
+    const query = inputValue.toLowerCase().trim();
+    const stateField = SEARCH_FIELDS.find((f) => f.id === "state")!;
+    const statusField = SEARCH_FIELDS.find((f) => f.id === "status")!;
+
+    // Helper: count tasks matching a state category
+    const countByState = (state: StateCategory) => 
+      tasks.filter((t) => STATE_CATEGORIES[state].has(t.status)).length;
+
+    // Helper: count tasks matching a specific status
+    const countByStatus = (status: TaskGroupStatus) =>
+      tasks.filter((t) => t.status === status).length;
+
+    if (!query) {
+      // States are now in the quick filters row, so just show field hints here
+      SEARCH_FIELDS.filter((f) => f.prefix && f.id !== "state").forEach((field) => {
+        items.push({
+          type: "field",
+          field,
+          value: field.prefix,
+          count: 0,
+          display: `${field.prefix} — ${FIELD_HINTS[field.id] ?? field.label.toLowerCase()}`,
+        });
+      });
+    } else if (parsedInput.hasPrefix && parsedInput.field) {
+      // Explicit prefix: show values for the specific field
+      const field = parsedInput.field;
+      const prefixQuery = parsedInput.query.toLowerCase();
+      const values = field.getValues(tasks);
+      
+      // Show format hint for free-form fields (duration, started, ended)
+      const freeFormFields = ["duration", "started", "ended"];
+      if (freeFormFields.includes(field.id) && FIELD_HINTS[field.id]) {
+        items.push({
+          type: "hint",
+          field,
+          value: "",
+          count: 0,
+          display: `Format: ${FIELD_HINTS[field.id]}`,
+        });
+      }
+      
+      values
+        .filter((v) => v.toLowerCase().includes(prefixQuery))
+        .slice(0, 8)
+        .forEach((value) => {
+          const count = tasks.filter((t) => field.match(t, value)).length;
+          items.push({
+            type: "value",
+            field,
+            value,
+            count,
+            display: `${field.prefix}${value}`,
+          });
+        });
+    } else {
+      // Smart recognition: check if query matches a state category
+      const matchingStates = STATE_CATEGORY_NAMES.filter((s) => s.includes(query));
+      
+      if (matchingStates.length > 0) {
+        // Show hierarchical state options
+        matchingStates.forEach((state) => {
+          const totalCount = countByState(state);
+          if (totalCount === 0) return;
+
+          // Parent: "All {state} tasks"
+          items.push({
+            type: "state-parent",
+            field: stateField,
+            value: state,
+            count: totalCount,
+            display: `All ${state}`,
+          });
+
+          // Children: specific statuses within this category
+          const statuses = [...STATE_CATEGORIES[state]];
+          statuses.forEach((status) => {
+            const count = countByStatus(status);
+            if (count > 0) {
+              items.push({
+                type: "state-child",
+                field: statusField,
+                value: status,
+                count,
+                display: STATUS_LABELS[status] || status,
+                indent: true,
+              });
+            }
+          });
+        });
+      }
+
+      // Also show other field matches
+      // Field prefix suggestions
+      SEARCH_FIELDS.filter((f) => f.prefix && f.prefix.startsWith(query) && f.id !== "state").forEach((field) => {
+        items.push({
+          type: "field",
+          field,
+          value: field.prefix,
+          count: 0,
+          display: `${field.prefix} — ${FIELD_HINTS[field.id] ?? field.label.toLowerCase()}`,
+        });
+      });
+
+      // Name matches (if query doesn't look like a state)
+      if (matchingStates.length === 0 || query.length > 3) {
+        const nameField = SEARCH_FIELDS.find((f) => f.id === "name")!;
+        tasks
+          .filter((t) => t.name.toLowerCase().includes(query))
+          .slice(0, 5)
+          .forEach((task) => {
+            items.push({
+              type: "value",
+              field: nameField,
+              value: task.name,
+              count: 1,
+              display: task.name,
+            });
+          });
+      }
+
+      // Node matches
+      const nodeField = SEARCH_FIELDS.find((f) => f.id === "node")!;
+      const matchingNodes = [...new Set(
+        tasks
+          .filter((t) => t.node_name?.toLowerCase().includes(query))
+          .map((t) => t.node_name)
+          .filter(Boolean) as string[]
+      )].slice(0, 3);
+      
+      matchingNodes.forEach((node) => {
+        const count = tasks.filter((t) => t.node_name === node).length;
+        items.push({
+          type: "value",
+          field: nodeField,
+          value: node,
+          count,
+          display: `node:${node}`,
+        });
+      });
+    }
+
+    return items;
+  }, [inputValue, parsedInput, tasks]);
+
+  // Reset highlight when suggestions change
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [suggestions.length]);
+
+  // Handle selection
+  const handleSelect = useCallback((index: number) => {
+    const selected = suggestions[index];
+    if (!selected || selected.type === "hint") return;
+
+    if (selected.type === "field") {
+      setInputValue(selected.value);
+      inputRef.current?.focus();
+    } else {
+      // Check if this is a time field that needs normalization
+      const isTimeField = selected.field.id === "started" || selected.field.id === "ended";
+      const normalizedTime = isTimeField ? normalizeTimeFilter(selected.value) : null;
+      
+      // Determine the chip value and label
+      let chipValue: string;
+      let chipLabel: string;
+      
+      if (normalizedTime) {
+        chipValue = normalizedTime.value;  // ISO timestamp
+        chipLabel = `${selected.field.prefix}${normalizedTime.display}`;
+      } else if (selected.type === "state-parent") {
+        chipValue = selected.value;
+        chipLabel = selected.value;
+      } else if (selected.type === "state-child") {
+        chipValue = selected.value;
+        chipLabel = `status:${selected.value}`;
+      } else {
+        chipValue = selected.value;
+        chipLabel = selected.display;
+      }
+
+      const newChip: SearchChip = {
+        field: selected.field.id,
+        value: chipValue,
+        label: chipLabel,
+      };
+      addChip(newChip);
+      setInputValue("");
+      setShowDropdown(false);
+    }
+  }, [suggestions, addChip]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      // Check if there are any selectable (non-hint) suggestions
+      const selectableSuggestions = suggestions.filter(s => s.type !== "hint");
+      const highlightedItem = suggestions[highlightedIndex];
+      
+      if (selectableSuggestions.length > 0 && showDropdown && highlightedItem?.type !== "hint") {
+        e.preventDefault();
+        handleSelect(highlightedIndex);
+      } else if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
+        // Try to create a chip from free-form input
+        e.preventDefault();
+        const field = parsedInput.field;
+        const value = parsedInput.query.trim();
+        
+        // Validate the filter by checking if it would match anything or is valid format
+        const isValidDuration = field.id === "duration" && parseDurationString(value.replace(/^[><=]+/, "")) !== null;
+        
+        // For time fields, use chrono-node to validate and normalize to absolute timestamp
+        const isTimeField = field.id === "started" || field.id === "ended";
+        const normalizedTime = isTimeField ? normalizeTimeFilter(value) : null;
+        const isValidTime = isTimeField && normalizedTime !== null;
+        
+        const isValidOther = field.id !== "duration" && !isTimeField;
+        
+        if (isValidDuration || isValidTime || isValidOther) {
+          // For time fields, use normalized absolute timestamp
+          const chipValue = normalizedTime ? normalizedTime.value : value;
+          const chipLabel = normalizedTime 
+            ? `${field.prefix}${normalizedTime.display}`
+            : `${field.prefix}${value}`;
+          
+          const newChip: SearchChip = {
+            field: field.id,
+            value: chipValue,  // ISO timestamp for URL sharing
+            label: chipLabel,   // Human-readable display
+          };
+          addChip(newChip);
+          setInputValue("");
+          setShowDropdown(false);
+        }
+      }
+    } else if (e.key === "Backspace" && !inputValue && chips.length > 0) {
+      // Remove last chip
+      onChipsChange(chips.slice(0, -1));
+    } else if (e.key === "Escape") {
+      setInputValue(""); // Clear unfinished filter
+      setShowDropdown(false);
+      inputRef.current?.blur();
+    }
+  }, [suggestions, highlightedIndex, showDropdown, handleSelect, inputValue, chips, onChipsChange]);
+
+  // Remove chip
+  const removeChip = useCallback((index: number) => {
+    onChipsChange(chips.filter((_, i) => i !== index));
+  }, [chips, onChipsChange]);
+
+  // Click outside to close and clear unfinished filter
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        !inputRef.current?.contains(e.target as Node)
+      ) {
+        setInputValue(""); // Clear unfinished filter
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-      modifiers={[restrictToHorizontalAxis]}
-    >
+    <div className="relative">
+      {/* Chips + Input container */}
       <div
-        className="grid items-center gap-6 border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
-        style={{ 
-          gridTemplateColumns: getGridTemplate(columns),
-          minWidth: getMinTableWidth(columns),
-        }}
+        className={cn(
+          "flex flex-wrap items-center gap-1.5 rounded-md border bg-white px-2 py-1.5 text-sm",
+          "border-zinc-200 dark:border-zinc-700 dark:bg-zinc-900",
+          "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
+        )}
+        onClick={() => inputRef.current?.focus()}
       >
-        {/* Mandatory columns - not sortable */}
-        {columns.filter((c) => mandatoryIds.includes(c.id)).map((col) => (
-          <div
-            key={col.id}
-            className={cn(
-              "flex items-center",
-              col.align === "right" && "justify-end",
-            )}
+        <Search className="h-4 w-4 shrink-0 text-zinc-400" />
+        
+        {/* Chips */}
+        {chips.map((chip, index) => (
+          <span
+            key={`${chip.field}-${chip.value}-${index}`}
+            className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
           >
+            {chip.label}
             <button
-              onClick={() => col.sortable && onSort(col.id)}
-              disabled={!col.sortable}
-              className={cn(
-                "flex items-center gap-1 truncate transition-colors",
-                col.sortable && "hover:text-zinc-900 dark:hover:text-white",
-              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeChip(index);
+              }}
+              className="hover:text-blue-600 dark:hover:text-blue-200"
             >
-              <span className="truncate">{col.label}</span>
-              {col.sortable && (
-                sort.column === col.id ? (
-                  sort.direction === "asc" ? (
-                    <ChevronUp className="h-3 w-3 shrink-0" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3 shrink-0" />
-                  )
-                ) : (
-                  <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
-                )
-              )}
+              <X className="h-3 w-3" />
             </button>
-          </div>
+          </span>
         ))}
 
-        {/* Optional columns - sortable */}
-        <SortableContext items={optionalColumnIds} strategy={horizontalListSortingStrategy}>
-          {columns.filter((c) => !mandatoryIds.includes(c.id)).map((col) => (
-            <SortableHeaderCell
-              key={col.id}
-              col={col}
-              sort={sort}
-              onSort={onSort}
-            />
-          ))}
-        </SortableContext>
+        {/* Input */}
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={() => setShowDropdown(true)}
+          onKeyDown={handleKeyDown}
+          placeholder={chips.length === 0 ? placeholder : "Add filter..."}
+          className="min-w-[120px] flex-1 bg-transparent outline-none placeholder:text-zinc-400"
+        />
       </div>
-      
-    </DndContext>
+
+      {/* Dropdown */}
+      {showDropdown && suggestions.length > 0 && (
+        <div
+          ref={dropdownRef}
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          {/* Quick state filters - preset shortcuts that add status chips */}
+          {inputValue === "" && (
+            <div className="border-b border-zinc-100 p-2 dark:border-zinc-800">
+              <div className="flex flex-wrap gap-1.5">
+                {STATE_CATEGORY_NAMES.map((state) => {
+                  const statusesInCategory = [...STATE_CATEGORIES[state]];
+                  const statusesWithTasks = statusesInCategory.filter((s) => 
+                    tasks.some((t) => t.status === s)
+                  );
+                  const count = tasks.filter((t) => STATE_CATEGORIES[state].has(t.status)).length;
+                  if (count === 0) return null;
+                  
+                  return (
+                    <button
+                      key={state}
+                      onClick={() => {
+                        // Clear existing status chips and add new ones for this category
+                        const statusField = SEARCH_FIELDS.find((f) => f.id === "status")!;
+                        const chipsWithoutStatus = chips.filter((c) => c.field !== "status");
+                        const newChips = statusesWithTasks.map((status) => ({
+                          field: statusField.id,
+                          value: status,
+                          label: `status:${status}`,
+                        }));
+                        onChipsChange([...chipsWithoutStatus, ...newChips]);
+                        setInputValue("");
+                        setShowDropdown(false);
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
+                        "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700",
+                      )}
+                    >
+                      <span className={cn(
+                        "h-2 w-2 rounded-full",
+                        state === "completed" && "bg-emerald-500",
+                        state === "running" && "bg-blue-500",
+                        state === "failed" && "bg-red-500",
+                        state === "pending" && "bg-zinc-400",
+                      )} />
+                      <span>{state}</span>
+                      <span className="text-zinc-400">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          
+          {/* Suggestions */}
+          {suggestions.map((item, index) =>
+            item.type === "hint" ? (
+              <div
+                key={`${item.type}-${index}`}
+                className="px-3 py-2 text-sm text-zinc-500 italic dark:text-zinc-400"
+              >
+                {item.display}
+              </div>
+            ) : (
+              <button
+                key={`${item.type}-${item.value}-${index}`}
+                onClick={() => handleSelect(index)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                className={cn(
+                  "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
+                  item.indent && "pl-6",
+                  item.type === "state-parent" && "font-medium",
+                  item.type === "state-child" && "text-zinc-600 dark:text-zinc-400",
+                  index === highlightedIndex
+                    ? "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100"
+                    : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800",
+                )}
+              >
+                <span className={cn(
+                  item.type === "field" && "text-zinc-500 dark:text-zinc-400",
+                  item.type === "state-parent" && "flex items-center gap-2",
+                )}>
+                  {item.type === "state-parent" && (
+                    <span className={cn(
+                      "h-2 w-2 rounded-full",
+                      item.value === "completed" && "bg-emerald-500",
+                      item.value === "running" && "bg-blue-500",
+                      item.value === "failed" && "bg-red-500",
+                      item.value === "pending" && "bg-zinc-400",
+                    )} />
+                  )}
+                  {item.display}
+                </span>
+                {(item.type === "value" || item.type === "state-parent" || item.type === "state-child") && item.count > 0 && (
+                  <span className="text-xs text-zinc-400">{item.count}</span>
+                )}
+              </button>
+            )
+          )}
+          {inputValue && (
+            <div className="border-t border-zinc-100 px-3 py-2 text-xs text-zinc-400 dark:border-zinc-800">
+              Press <kbd className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">Enter</kbd> to add filter,{" "}
+              <kbd className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">Esc</kbd> to close
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 });
 
+// Helper to filter tasks by chips
+// Same-field chips use OR logic (union), different fields use AND logic
+function filterTasksByChips(tasks: TaskWithDuration[], chips: SearchChip[]): TaskWithDuration[] {
+  if (chips.length === 0) return tasks;
+  
+  // Group chips by field
+  const chipsByField = new Map<string, SearchChip[]>();
+  for (const chip of chips) {
+    const existing = chipsByField.get(chip.field) ?? [];
+    existing.push(chip);
+    chipsByField.set(chip.field, existing);
+  }
+  
+  return tasks.filter((task) => {
+    // For each field group, at least one chip must match (OR within field)
+    // All field groups must pass (AND between fields)
+    for (const [fieldId, fieldChips] of chipsByField) {
+      const field = SEARCH_FIELDS.find((f) => f.id === fieldId);
+      if (!field) continue;
+      
+      // OR logic: at least one chip in this field group must match
+      const anyMatch = fieldChips.some((chip) => field.match(task, chip.value));
+      if (!anyMatch) return false;
+    }
+    return true;
+  });
+}
+
 // =============================================================================
-// Task Row
+// Grid template utilities (memoized with cache)
 // =============================================================================
 
-function getCellValue(task: MockTask, columnId: ColumnId): React.ReactNode {
+const gridTemplateCache = new Map<string, string>();
+const minWidthCache = new Map<string, number>();
+
+function getGridTemplate(columns: ColumnDef[]): string {
+  const key = columns.map((c) => c.id).join(",");
+  let cached = gridTemplateCache.get(key);
+  if (cached) return cached;
+  
+  cached = columns
+    .map((col) => {
+      if (typeof col.width === "number") return `${col.width}px`;
+      return `minmax(${col.width.min}px, ${col.width.share}fr)`;
+    })
+    .join(" ");
+  
+  gridTemplateCache.set(key, cached);
+  return cached;
+}
+
+function getMinTableWidth(columns: ColumnDef[]): number {
+  const key = columns.map((c) => c.id).join(",");
+  let cached = minWidthCache.get(key);
+  if (cached) return cached;
+  
+  const fixedWidth = columns.reduce((sum, col) => {
+    if (typeof col.width === "number") return sum + col.width;
+    return sum + col.width.min;
+  }, 0);
+  cached = fixedWidth + (columns.length - 1) * 24 + 24;
+  
+  minWidthCache.set(key, cached);
+  return cached;
+}
+
+// =============================================================================
+// Mock Data Generation (using backend-aligned types)
+// =============================================================================
+
+const MOCK_NODES = [
+  "dgx-a100-001", "dgx-a100-002", "dgx-a100-003",
+  "dgx-h100-001", "dgx-h100-002",
+  "gpu-l40s-101", "gpu-l40s-102", "gpu-l40s-103",
+];
+
+const MOCK_FAILURE_MESSAGES: Record<string, string[]> = {
+  [TaskGroupStatus.FAILED]: ["Process exited with code 1", "Unknown error occurred"],
+  [TaskGroupStatus.FAILED_EXEC_TIMEOUT]: ["Execution timed out after 3600s"],
+  [TaskGroupStatus.FAILED_QUEUE_TIMEOUT]: ["Queue timeout - no resources available"],
+  [TaskGroupStatus.FAILED_PREEMPTED]: ["Preempted by higher priority workflow"],
+  [TaskGroupStatus.FAILED_EVICTED]: ["Evicted due to node pressure"],
+  [TaskGroupStatus.FAILED_IMAGE_PULL]: ["Failed to pull image: ImagePullBackOff"],
+  [TaskGroupStatus.FAILED_CANCELED]: ["Canceled by user"],
+  [TaskGroupStatus.FAILED_SERVER_ERROR]: ["Internal server error"],
+  [TaskGroupStatus.FAILED_BACKEND_ERROR]: ["Backend returned error: NCCL timeout"],
+  [TaskGroupStatus.FAILED_START_ERROR]: ["Container failed to start"],
+  [TaskGroupStatus.FAILED_START_TIMEOUT]: ["Container start timed out"],
+  [TaskGroupStatus.FAILED_UPSTREAM]: ["Upstream task failed"],
+};
+
+function generateMockGroup(taskCount: number, scenarioName: string): MockGroup {
+  faker.seed(42);
+
+  const tasks: TaskWithDuration[] = [];
+  const baseTime = new Date();
+  baseTime.setHours(baseTime.getHours() - 2);
+
+  // Status distribution: 70% completed, 15% running, 7% failed, 8% pending
+  const failedStatuses: TaskGroupStatus[] = [
+    TaskGroupStatus.FAILED,
+    TaskGroupStatus.FAILED_EXEC_TIMEOUT,
+    TaskGroupStatus.FAILED_PREEMPTED,
+    TaskGroupStatus.FAILED_EVICTED,
+  ];
+
+  const pendingStatuses: TaskGroupStatus[] = [
+    TaskGroupStatus.WAITING,
+    TaskGroupStatus.SCHEDULING,
+    TaskGroupStatus.INITIALIZING,
+  ];
+
+  for (let i = 0; i < taskCount; i++) {
+    let status: TaskGroupStatus;
+    if (i < taskCount * 0.7) {
+      status = TaskGroupStatus.COMPLETED;
+    } else if (i < taskCount * 0.85) {
+      status = TaskGroupStatus.RUNNING;
+    } else if (i < taskCount * 0.92) {
+      status = faker.helpers.arrayElement(failedStatuses);
+    } else {
+      status = faker.helpers.arrayElement(pendingStatuses);
+    }
+
+    const isStarted = status !== TaskGroupStatus.WAITING && status !== TaskGroupStatus.SCHEDULING;
+    const isEnded = status === TaskGroupStatus.COMPLETED || isFailedStatus(status);
+
+    const startTime = isStarted
+      ? new Date(baseTime.getTime() + i * 60000 + faker.number.int({ min: 0, max: 30000 })).toISOString()
+      : undefined;
+
+    const endTime = isEnded ? new Date().toISOString() : undefined;
+
+    // Create task matching TaskQueryResponse structure
+    const task: TaskWithDuration = {
+      // Required fields from TaskQueryResponse
+      name: `${scenarioName}-shard-${i.toString().padStart(3, "0")}`,
+      retry_id: faker.helpers.weightedArrayElement([
+        { value: 0, weight: 90 },
+        { value: 1, weight: 8 },
+        { value: 2, weight: 2 },
+      ]),
+      status,
+      logs: `/api/tasks/${scenarioName}-shard-${i}/logs`,
+      events: `/api/tasks/${scenarioName}-shard-${i}/events`,
+      pod_name: isStarted ? `${scenarioName}-${i}-${faker.string.alphanumeric(5)}` : "",
+      task_uuid: faker.string.uuid(),
+      
+      // Optional fields from TaskQueryResponse
+      pod_ip: isStarted ? `10.0.${faker.number.int({ min: 1, max: 10 })}.${faker.number.int({ min: 1, max: 254 })}` : undefined,
+      node_name: isStarted ? faker.helpers.arrayElement(MOCK_NODES) : undefined,
+      start_time: startTime,
+      end_time: endTime,
+      exit_code: status === TaskGroupStatus.COMPLETED ? 0 : isFailedStatus(status) ? 1 : undefined,
+      failure_message: isFailedStatus(status)
+        ? faker.helpers.arrayElement(MOCK_FAILURE_MESSAGES[status] || MOCK_FAILURE_MESSAGES[TaskGroupStatus.FAILED])
+        : undefined,
+      dashboard_url: isStarted ? `/dashboard/${scenarioName}-shard-${i}` : undefined,
+      lead: i === 0, // First task is lead
+      
+      // Computed field for UI
+      duration: calculateDuration(startTime, endTime),
+    };
+
+    tasks.push(task);
+  }
+
+  return {
+    name: scenarioName,
+    status: TaskGroupStatus.RUNNING, // Overall group status
+    start_time: baseTime.toISOString(),
+    tasks: faker.helpers.shuffle(tasks),
+  };
+}
+
+// =============================================================================
+// Status Icon Component (memoized)
+// =============================================================================
+
+const StatusIcon = memo(function StatusIcon({ status, className }: { status: TaskGroupStatus; className?: string }) {
+  const category = STATUS_CATEGORY_MAP[status];
+  switch (category) {
+    case "completed":
+      return <Check className={cn("h-3.5 w-3.5 text-emerald-500", className)} />;
+    case "running":
+      return <Loader2 className={cn("h-3.5 w-3.5 text-blue-500", className)} style={{ animation: "spin 1s linear infinite" }} />;
+    case "failed":
+      return <AlertCircle className={cn("h-3.5 w-3.5 text-red-500", className)} />;
+    case "waiting":
+      return <Clock className={cn("h-3.5 w-3.5 text-zinc-400", className)} />;
+    default:
+      return <Circle className={cn("h-3.5 w-3.5 text-zinc-400", className)} />;
+  }
+});
+
+// Human-readable labels for statuses
+const STATUS_LABELS: Record<TaskGroupStatus, string> = {
+  [TaskGroupStatus.COMPLETED]: "Completed",
+  [TaskGroupStatus.RESCHEDULED]: "Rescheduled",
+  [TaskGroupStatus.RUNNING]: "Running",
+  [TaskGroupStatus.INITIALIZING]: "Initializing",
+  [TaskGroupStatus.FAILED]: "Failed",
+  [TaskGroupStatus.FAILED_CANCELED]: "Canceled",
+  [TaskGroupStatus.FAILED_SERVER_ERROR]: "Server Error",
+  [TaskGroupStatus.FAILED_BACKEND_ERROR]: "Backend Error",
+  [TaskGroupStatus.FAILED_EXEC_TIMEOUT]: "Exec Timeout",
+  [TaskGroupStatus.FAILED_QUEUE_TIMEOUT]: "Queue Timeout",
+  [TaskGroupStatus.FAILED_IMAGE_PULL]: "Image Pull",
+  [TaskGroupStatus.FAILED_UPSTREAM]: "Upstream",
+  [TaskGroupStatus.FAILED_EVICTED]: "Evicted",
+  [TaskGroupStatus.FAILED_START_ERROR]: "Start Error",
+  [TaskGroupStatus.FAILED_START_TIMEOUT]: "Start Timeout",
+  [TaskGroupStatus.FAILED_PREEMPTED]: "Preempted",
+  [TaskGroupStatus.WAITING]: "Waiting",
+  [TaskGroupStatus.SCHEDULING]: "Scheduling",
+  [TaskGroupStatus.SUBMITTING]: "Submitting",
+  [TaskGroupStatus.PROCESSING]: "Processing",
+};
+
+// =============================================================================
+// Task Row (heavily optimized)
+// =============================================================================
+
+const TaskRow = memo(function TaskRow({
+  task,
+  gridTemplate,
+  minWidth,
+  isSelected,
+  onSelect,
+  visibleColumnIds,
+}: {
+  task: TaskWithDuration;
+  gridTemplate: string;
+  minWidth: number;
+  isSelected: boolean;
+  onSelect: () => void;
+  visibleColumnIds: ColumnId[];
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      className={cn(
+        "grid cursor-pointer items-center gap-6 border-b border-zinc-100 px-3 py-2 text-sm dark:border-zinc-800",
+        isSelected ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-zinc-50 dark:hover:bg-zinc-900",
+      )}
+      style={{ gridTemplateColumns: gridTemplate, minWidth, ...GPU_ACCELERATED_STYLE, ...CONTAIN_STYLE }}
+    >
+      {visibleColumnIds.map((colId) => {
+        const col = COLUMN_MAP.get(colId)!;
+        return (
+          <div key={colId} className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
+            <TaskCell task={task} columnId={colId} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}, (prev, next) => {
+  return prev.task === next.task &&
+    prev.gridTemplate === next.gridTemplate &&
+    prev.minWidth === next.minWidth &&
+    prev.isSelected === next.isSelected &&
+    prev.visibleColumnIds === next.visibleColumnIds;
+});
+
+const TaskCell = memo(function TaskCell({ task, columnId }: { task: TaskWithDuration; columnId: ColumnId }) {
   switch (columnId) {
     case "status":
       return <StatusIcon status={task.status} />;
@@ -730,60 +1494,164 @@ function getCellValue(task: MockTask, columnId: ColumnId): React.ReactNode {
     case "duration":
       return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(task.duration)}</span>;
     case "node":
-      return <span className="truncate text-zinc-500 dark:text-zinc-400">{task.nodeName ?? "—"}</span>;
+      return <span className="truncate text-zinc-500 dark:text-zinc-400">{task.node_name ?? "—"}</span>;
     case "podIp":
-      return <span className="whitespace-nowrap font-mono text-xs text-zinc-500 dark:text-zinc-400">{task.podIp ?? "—"}</span>;
+      return <span className="whitespace-nowrap font-mono text-xs text-zinc-500 dark:text-zinc-400">{task.pod_ip ?? "—"}</span>;
     case "exitCode":
       return (
-        <span className={cn("tabular-nums", task.exitCode === 0 ? "text-zinc-400" : task.exitCode !== undefined ? "text-red-500" : "text-zinc-400")}>
-          {task.exitCode ?? "—"}
+        <span className={cn("tabular-nums", task.exit_code === 0 ? "text-zinc-400" : task.exit_code !== undefined ? "text-red-500" : "text-zinc-400")}>
+          {task.exit_code ?? "—"}
         </span>
       );
     case "startTime":
-      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.startTime)}</span>;
+      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.start_time)}</span>;
+    case "endTime":
+      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.end_time)}</span>;
     case "retry":
       return (
-        <span className={cn("tabular-nums", task.retryId > 0 ? "text-amber-500" : "text-zinc-400")}>
-          {task.retryId > 0 ? task.retryId : "—"}
+        <span className={cn("tabular-nums", task.retry_id > 0 ? "text-amber-500" : "text-zinc-400")}>
+          {task.retry_id > 0 ? task.retry_id : "—"}
         </span>
       );
     default:
-      return "—";
+      return <span>—</span>;
   }
-}
+});
 
-const TaskRow = memo(function TaskRow({
-  task,
-  columns,
-  isSelected,
-  onSelect,
+// =============================================================================
+// Sortable Header Cell
+// =============================================================================
+
+const SortableHeaderCell = memo(function SortableHeaderCell({
+  col,
+  sort,
+  onSort,
 }: {
-  task: MockTask;
-  columns: ColumnDef[];
-  isSelected: boolean;
-  onSelect: () => void;
+  col: ColumnDef;
+  sort: SortState;
+  onSort: (column: SortColumn) => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, node } = useSortable({ id: col.id });
+
+  // Get the element's width to prevent stretching during drag
+  const width = node.current?.offsetWidth;
+
+  // Use only translate (no scale) to prevent stretching
+  const style: React.CSSProperties = {
+    transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.8 : 1,
+    // Lock width during drag to prevent stretching
+    width: isDragging && width ? width : undefined,
+  };
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (col.sortable) onSort(col.id);
+  }, [col.id, col.sortable, onSort]);
+
   return (
     <div
-      onClick={onSelect}
+      ref={setNodeRef}
+      style={style}
       className={cn(
-        "grid cursor-pointer items-center gap-6 border-b border-zinc-100 px-3 py-2 text-sm transition-colors dark:border-zinc-800",
-        isSelected ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-zinc-50 dark:hover:bg-zinc-900",
+        "flex cursor-grab items-center active:cursor-grabbing",
+        isDragging && "rounded bg-zinc-100 px-2 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-800 dark:ring-zinc-600",
+        col.align === "right" && "justify-end",
       )}
-      style={{ 
-        gridTemplateColumns: getGridTemplate(columns),
-        minWidth: getMinTableWidth(columns),
-      }}
+      {...attributes}
+      {...listeners}
     >
-      {columns.map((col) => (
-        <div
-          key={col.id}
-          className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
-        >
-          {getCellValue(task, col.id)}
-        </div>
-      ))}
+      <button
+        onClick={handleClick}
+        disabled={!col.sortable}
+        className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-zinc-900 dark:hover:text-white")}
+      >
+        <span className="truncate">{col.label}</span>
+        {col.sortable && (
+          sort.column === col.id ? (
+            sort.direction === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />
+          ) : (
+            <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
+          )
+        )}
+      </button>
     </div>
+  );
+});
+
+// =============================================================================
+// Task Table Header
+// =============================================================================
+
+const TaskTableHeader = memo(function TaskTableHeader({
+  columns,
+  gridTemplate,
+  minWidth,
+  sort,
+  onSort,
+  optionalColumnIds,
+  onReorder,
+}: {
+  columns: ColumnDef[];
+  gridTemplate: string;
+  minWidth: number;
+  sort: SortState;
+  onSort: (column: SortColumn) => void;
+  optionalColumnIds: ColumnId[];
+  onReorder: (newOrder: ColumnId[]) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = optionalColumnIds.indexOf(active.id as ColumnId);
+      const newIndex = optionalColumnIds.indexOf(over.id as ColumnId);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onReorder(arrayMove(optionalColumnIds, oldIndex, newIndex));
+      }
+    }
+  }, [optionalColumnIds, onReorder]);
+
+  const mandatoryIds = useMemo(() => new Set(MANDATORY_COLUMNS.map((c) => c.id)), []);
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictHorizontal]}>
+      <div
+        className="grid items-center gap-6 border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+        style={{ gridTemplateColumns: gridTemplate, minWidth, ...GPU_ACCELERATED_STYLE }}
+      >
+        {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
+          <div key={col.id} className={cn("flex items-center", col.align === "right" && "justify-end")}>
+            <button
+              onClick={() => col.sortable && onSort(col.id)}
+              disabled={!col.sortable}
+              className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-zinc-900 dark:hover:text-white")}
+            >
+              <span className="truncate">{col.label}</span>
+              {col.sortable && (
+                sort.column === col.id ? (
+                  sort.direction === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />
+                ) : (
+                  <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
+                )
+              )}
+            </button>
+          </div>
+        ))}
+
+        <SortableContext items={optionalColumnIds} strategy={horizontalListSortingStrategy}>
+          {columns.filter((c) => !mandatoryIds.has(c.id)).map((col) => (
+            <SortableHeaderCell key={col.id} col={col} sort={sort} onSort={onSort} />
+          ))}
+        </SortableContext>
+      </div>
+    </DndContext>
   );
 });
 
@@ -791,20 +1659,20 @@ const TaskRow = memo(function TaskRow({
 // Virtualized Task List
 // =============================================================================
 
-function VirtualizedTaskList({
+const VirtualizedTaskList = memo(function VirtualizedTaskList({
   tasks,
   columns,
-  selectedTask,
+  selectedTaskName,
   onSelectTask,
   sort,
   onSort,
   optionalColumnIds,
   onReorderColumns,
 }: {
-  tasks: MockTask[];
+  tasks: TaskWithDuration[];
   columns: ColumnDef[];
-  selectedTask: MockTask | null;
-  onSelectTask: (task: MockTask) => void;
+  selectedTaskName: string | null;
+  onSelectTask: (task: TaskWithDuration) => void;
   sort: SortState;
   onSort: (column: SortColumn) => void;
   optionalColumnIds: ColumnId[];
@@ -812,14 +1680,17 @@ function VirtualizedTaskList({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowHeight = 40;
-  const headerHeight = 36;
 
   const virtualizer = useVirtualizerCompat({
     count: tasks.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
-    overscan: 5,
+    overscan: 10,
   });
+
+  const gridTemplate = useMemo(() => getGridTemplate(columns), [columns]);
+  const minWidth = useMemo(() => getMinTableWidth(columns), [columns]);
+  const visibleColumnIds = useMemo(() => columns.map((c) => c.id), [columns]);
 
   if (tasks.length === 0) {
     return (
@@ -830,50 +1701,41 @@ function VirtualizedTaskList({
   }
 
   return (
-    <div
-      ref={scrollRef}
-      className="flex-1 overflow-auto"
-    >
-      {/* Sticky header - scrolls horizontally with content, sticks vertically */}
-      <div 
-        className="sticky top-0 z-10"
-        style={{ minWidth: getMinTableWidth(columns) }}
-      >
-        <TaskTableHeader 
-          columns={columns} 
-          sort={sort} 
+    <div ref={scrollRef} className="flex-1 overflow-auto" style={GPU_ACCELERATED_STYLE}>
+      <div className="sticky top-0 z-10" style={{ minWidth }}>
+        <TaskTableHeader
+          columns={columns}
+          gridTemplate={gridTemplate}
+          minWidth={minWidth}
+          sort={sort}
           onSort={onSort}
           optionalColumnIds={optionalColumnIds}
           onReorder={onReorderColumns}
         />
       </div>
       
-      {/* Virtualized rows */}
-      <div
-        style={{
-          height: virtualizer.getTotalSize(),
-          position: "relative",
-        }}
-      >
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative", ...GPU_ACCELERATED_STYLE }}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const task = tasks[virtualRow.index];
           return (
             <div
-              key={virtualRow.key}
+              key={task.name}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
                 width: "100%",
                 height: virtualRow.size,
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translate3d(0, ${virtualRow.start}px, 0)`,
               }}
             >
               <TaskRow
                 task={task}
-                columns={columns}
-                isSelected={selectedTask?.name === task.name}
+                gridTemplate={gridTemplate}
+                minWidth={minWidth}
+                isSelected={selectedTaskName === task.name}
                 onSelect={() => onSelectTask(task)}
+                visibleColumnIds={visibleColumnIds}
               />
             </div>
           );
@@ -881,17 +1743,17 @@ function VirtualizedTaskList({
       </div>
     </div>
   );
-}
+});
 
 // =============================================================================
 // Task Detail Mini Panel
 // =============================================================================
 
-function TaskDetailMini({ task, onClose }: { task: MockTask; onClose: () => void }) {
-  const category = getStatusCategory(task.status);
+const TaskDetailMini = memo(function TaskDetailMini({ task, onClose }: { task: TaskWithDuration; onClose: () => void }) {
+  const category = STATUS_CATEGORY_MAP[task.status];
 
   return (
-    <div className="border-t border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="border-t border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900" style={CONTAIN_STYLE}>
       <div className="mb-3 flex items-start justify-between">
         <div>
           <h4 className="font-medium text-zinc-900 dark:text-white">{task.name}</h4>
@@ -903,17 +1765,14 @@ function TaskDetailMini({ task, onClose }: { task: MockTask; onClose: () => void
                 category === "completed" && "text-emerald-600 dark:text-emerald-400",
                 category === "running" && "text-blue-600 dark:text-blue-400",
                 category === "failed" && "text-red-600 dark:text-red-400",
-                category === "pending" && "text-zinc-500 dark:text-zinc-400",
+                category === "waiting" && "text-zinc-500 dark:text-zinc-400",
               )}
             >
-              {task.status.replace(/_/g, " ")}
+              {STATUS_LABELS[task.status] || task.status}
             </span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="rounded p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-        >
+        <button onClick={onClose} className="rounded p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -925,25 +1784,24 @@ function TaskDetailMini({ task, onClose }: { task: MockTask; onClose: () => void
         </div>
         <div>
           <dt className="text-zinc-500 dark:text-zinc-400">Node</dt>
-          <dd className="font-medium text-zinc-900 dark:text-white">{task.nodeName ?? "—"}</dd>
+          <dd className="font-medium text-zinc-900 dark:text-white">{task.node_name ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-zinc-500 dark:text-zinc-400">Pod IP</dt>
-          <dd className="font-mono text-zinc-900 dark:text-white">{task.podIp ?? "—"}</dd>
+          <dd className="font-mono text-zinc-900 dark:text-white">{task.pod_ip ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-zinc-500 dark:text-zinc-400">Exit Code</dt>
-          <dd className="font-mono text-zinc-900 dark:text-white">{task.exitCode ?? "—"}</dd>
+          <dd className="font-mono text-zinc-900 dark:text-white">{task.exit_code ?? "—"}</dd>
         </div>
       </dl>
 
-      {task.failureMessage && (
+      {task.failure_message && (
         <div className="mt-3 rounded-md bg-red-50 p-2 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-200">
-          {task.failureMessage}
+          {task.failure_message}
         </div>
       )}
 
-      {/* Quick actions */}
       <div className="mt-4 flex gap-2">
         <button className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
           <ScrollText className="h-3.5 w-3.5" />
@@ -960,7 +1818,17 @@ function TaskDetailMini({ task, onClose }: { task: MockTask; onClose: () => void
       </div>
     </div>
   );
-}
+});
+
+// =============================================================================
+// Width Presets
+// =============================================================================
+
+const WIDTH_PRESETS = [
+  { key: "33", pct: 33, icon: PanelLeftClose },
+  { key: "50", pct: 50, icon: Columns2 },
+  { key: "75", pct: 75, icon: PanelLeft },
+];
 
 // =============================================================================
 // Group Panel Component
@@ -974,101 +1842,71 @@ interface GroupPanelProps {
 }
 
 function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sort, setSort] = useState<SortState>({ column: "status", direction: "asc" });
-  const [selectedTask, setSelectedTask] = useState<MockTask | null>(null);
+  const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
+  const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
   
-  
-  // Optional column visibility - only track optional columns (mandatory are always shown)
-  const [visibleOptionalIds, setVisibleOptionalIds] = useState<ColumnId[]>(DEFAULT_VISIBLE_OPTIONAL);
+  const [sort, setSort] = usePersistedState<SortState>("sort", { column: "status", direction: "asc" });
+  const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedState<ColumnId[]>("visibleOptionalIds", DEFAULT_VISIBLE_OPTIONAL);
 
-  // Compute full visible columns: mandatory (fixed order) + optional (user order)
+  const stats = useMemo(() => computeAllStats(group.tasks), [group.tasks]);
+  const groupStatus = useMemo(() => computeGroupStatusFromStats(stats), [stats]);
+  const groupDuration = useMemo(() => computeGroupDurationFromStats(stats), [stats]);
+
   const visibleColumns = useMemo(() => {
     const optionalCols = visibleOptionalIds
-      .map((id) => OPTIONAL_COLUMNS.find((c) => c.id === id))
+      .map((id) => OPTIONAL_COLUMN_MAP.get(id))
       .filter(Boolean) as ColumnDef[];
     return [...MANDATORY_COLUMNS, ...optionalCols];
   }, [visibleOptionalIds]);
 
-  // Toggle optional column visibility
-  const toggleColumn = useCallback((columnId: ColumnId) => {
-    setVisibleOptionalIds((prev) => {
-      if (prev.includes(columnId)) {
-        return prev.filter((id) => id !== columnId);
-      } else {
-        return [...prev, columnId];
-      }
-    });
-  }, []);
+  const sortComparator = useMemo(() => {
+    if (!sort.column) return null;
+    const dir = sort.direction === "asc" ? 1 : -1;
+    
+    switch (sort.column) {
+      case "status": return (a: TaskWithDuration, b: TaskWithDuration) => (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
+      case "name": return (a: TaskWithDuration, b: TaskWithDuration) => a.name.localeCompare(b.name) * dir;
+      case "duration": return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
+      case "node": return (a: TaskWithDuration, b: TaskWithDuration) => (a.node_name ?? "").localeCompare(b.node_name ?? "") * dir;
+      case "podIp": return (a: TaskWithDuration, b: TaskWithDuration) => (a.pod_ip ?? "").localeCompare(b.pod_ip ?? "") * dir;
+      case "exitCode": return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
+      case "startTime": return (a: TaskWithDuration, b: TaskWithDuration) => {
+        const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
+        const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
+        return (aTime - bTime) * dir;
+      };
+      case "endTime": return (a: TaskWithDuration, b: TaskWithDuration) => {
+        const aTime = a.end_time ? new Date(a.end_time).getTime() : 0;
+        const bTime = b.end_time ? new Date(b.end_time).getTime() : 0;
+        return (aTime - bTime) * dir;
+      };
+      case "retry": return (a: TaskWithDuration, b: TaskWithDuration) => (a.retry_id - b.retry_id) * dir;
+      default: return null;
+    }
+  }, [sort.column, sort.direction]);
 
-  // Reorder columns via drag-and-drop on headers
-  const reorderColumns = useCallback((newOrder: ColumnId[]) => {
-    setVisibleOptionalIds(newOrder);
-  }, []);
-
-
-  // Filter and sort tasks
   const filteredTasks = useMemo(() => {
-    let result = [...group.tasks];
+    // Apply search chips (including status chips)
+    let result = filterTasksByChips(group.tasks, searchChips);
 
-    // Apply status filter
-    if (statusFilter !== null) {
-      result = result.filter((task) => {
-        const category = getStatusCategory(task.status);
-        return category === statusFilter;
-      });
-    }
-
-    // Apply search
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (task) =>
-          task.name.toLowerCase().includes(query) ||
-          task.nodeName?.toLowerCase().includes(query) ||
-          task.podIp?.includes(query),
-      );
-    }
-
-    // Apply sort
-    if (sort.column) {
-      result.sort((a, b) => {
-        let cmp = 0;
-        switch (sort.column) {
-          case "status":
-            cmp = getStatusOrder(a.status) - getStatusOrder(b.status);
-            break;
-          case "name":
-            cmp = a.name.localeCompare(b.name);
-            break;
-          case "duration":
-            cmp = (a.duration ?? 0) - (b.duration ?? 0);
-            break;
-          case "node":
-            cmp = (a.nodeName ?? "").localeCompare(b.nodeName ?? "");
-            break;
-          case "podIp":
-            cmp = (a.podIp ?? "").localeCompare(b.podIp ?? "");
-            break;
-          case "exitCode":
-            cmp = (a.exitCode ?? -1) - (b.exitCode ?? -1);
-            break;
-          case "startTime":
-            cmp = (a.startTime?.getTime() ?? 0) - (b.startTime?.getTime() ?? 0);
-            break;
-          case "retry":
-            cmp = a.retryId - b.retryId;
-            break;
-        }
-        return sort.direction === "asc" ? cmp : -cmp;
-      });
+    if (sortComparator) {
+      result = [...result].sort(sortComparator);
     }
 
     return result;
-  }, [group.tasks, statusFilter, searchQuery, sort]);
+  }, [group.tasks, searchChips, sortComparator]);
 
-  // Sort handler
+  const toggleColumn = useCallback((columnId: ColumnId) => {
+    setVisibleOptionalIds((prev) => {
+      if (prev.includes(columnId)) return prev.filter((id) => id !== columnId);
+      return [...prev, columnId];
+    });
+  }, [setVisibleOptionalIds]);
+
+  const reorderColumns = useCallback((newOrder: ColumnId[]) => {
+    setVisibleOptionalIds(newOrder);
+  }, [setVisibleOptionalIds]);
+
   const handleSort = useCallback((column: SortColumn) => {
     setSort((prev) => {
       if (prev.column === column) {
@@ -1077,23 +1915,34 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
       }
       return { column, direction: "asc" };
     });
+  }, [setSort]);
+
+  const handleSelectTask = useCallback((task: TaskWithDuration) => {
+    setSelectedTaskName(task.name);
   }, []);
 
-  // Compute group status for header
-  const groupStatus = useMemo(() => computeGroupStatus(group.tasks), [group.tasks]);
+  const handleCloseDetail = useCallback(() => {
+    setSelectedTaskName(null);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchChips([]);
+  }, []);
+
+  const selectedTask = useMemo(() => {
+    if (!selectedTaskName) return null;
+    return group.tasks.find((t) => t.name === selectedTaskName) ?? null;
+  }, [group.tasks, selectedTaskName]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-white shadow-[-4px_0_16px_-4px_rgba(0,0,0,0.1)] dark:bg-zinc-950 dark:shadow-[-4px_0_16px_-4px_rgba(0,0,0,0.4)]">
-      {/* Compact Header */}
+    <div className="flex h-full flex-col overflow-hidden bg-white shadow-[-4px_0_16px_-4px_rgba(0,0,0,0.1)] dark:bg-zinc-950 dark:shadow-[-4px_0_16px_-4px_rgba(0,0,0,0.4)]" style={CONTAIN_STYLE}>
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
         <div className="min-w-0 flex-1">
-          {/* Line 1: Group name · Task count */}
           <div className="flex items-center gap-2">
             <h2 className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{group.name}</h2>
             <span className="text-zinc-300 dark:text-zinc-600">·</span>
             <span className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">{group.tasks.length} tasks</span>
           </div>
-          {/* Line 2: Status icon · Status label */}
           <div className="mt-0.5 flex items-center gap-1.5 text-xs">
             <span
               className={cn(
@@ -1105,17 +1954,21 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
               )}
             >
               {groupStatus.status === "completed" && <Check className="h-3 w-3" />}
-              {groupStatus.status === "running" && <Loader2 className="h-3 w-3 animate-spin" />}
+              {groupStatus.status === "running" && <Loader2 className="h-3 w-3" style={{ animation: "spin 1s linear infinite" }} />}
               {groupStatus.status === "failed" && <AlertCircle className="h-3 w-3" />}
               {groupStatus.status === "pending" && <Clock className="h-3 w-3" />}
               <span className="font-medium">{groupStatus.label}</span>
             </span>
+            {groupDuration !== null && (
+              <>
+                <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                <span className="text-zinc-500 dark:text-zinc-400">{formatDuration(groupDuration)}</span>
+              </>
+            )}
           </div>
         </div>
         
-        {/* Actions */}
         <div className="ml-2 flex shrink-0 items-center gap-1">
-          {/* Panel options dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
@@ -1123,31 +1976,26 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              {/* Column configuration */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Columns className="mr-2 h-4 w-4" />
                   Columns
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-36">
-                  {/* Show visible columns first (in current order), then hidden */}
-                  {[
-                    ...visibleOptionalIds.map((id) => OPTIONAL_COLUMNS.find((c) => c.id === id)!),
-                    ...OPTIONAL_COLUMNS.filter((c) => !visibleOptionalIds.includes(c.id)),
-                  ].map((col) => (
+                  {/* Alphabetical order for stable menu - user drags header to reorder */}
+                  {OPTIONAL_COLUMNS_ALPHABETICAL.map((col) => (
                     <DropdownMenuCheckboxItem
                       key={col.id}
                       checked={visibleOptionalIds.includes(col.id)}
                       onCheckedChange={() => toggleColumn(col.id)}
                       onSelect={(e) => e.preventDefault()}
                     >
-                      {col.label}
+                      {col.menuLabel}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               
-              {/* Width presets */}
               {onPanelResize && (
                 <>
                   <DropdownMenuSeparator />
@@ -1155,10 +2003,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
                   {WIDTH_PRESETS.map((preset) => {
                     const Icon = preset.icon;
                     return (
-                      <DropdownMenuItem
-                        key={preset.key}
-                        onClick={() => onPanelResize(preset.pct)}
-                      >
+                      <DropdownMenuItem key={preset.key} onClick={() => onPanelResize(preset.pct)}>
                         <Icon className="mr-2 h-4 w-4" />
                         <span>{preset.pct}%</span>
                       </DropdownMenuItem>
@@ -1169,7 +2014,6 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
             </DropdownMenuContent>
           </DropdownMenu>
           
-          {/* Close button */}
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
@@ -1179,92 +2023,45 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
         </div>
       </div>
 
-      {/* Progress bar with clickable filter labels */}
-      <div className="border-b border-zinc-100 px-4 py-2 dark:border-zinc-800">
-        <ProgressBar
+      <div className="space-y-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
+        <SmartSearch
           tasks={group.tasks}
-          activeFilter={statusFilter}
-          onFilterChange={setStatusFilter}
+          chips={searchChips}
+          onChipsChange={setSearchChips}
+          placeholder="Search tasks... (try state:failed or node:)"
         />
-      </div>
-
-      {/* Search */}
-      <div className="space-y-2 border-b border-zinc-100 px-4 py-2 dark:border-zinc-800">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <Input
-            placeholder="Search by name, node, or IP..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-9 text-sm"
-          />
-        </div>
-        {(statusFilter !== null || searchQuery) && (
+        {searchChips.length > 0 && (
           <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-            <span>
-              Showing {filteredTasks.length} of {group.tasks.length} tasks
-            </span>
-            <button
-              onClick={() => {
-                setStatusFilter(null);
-                setSearchQuery("");
-              }}
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
+            <span>Showing {filteredTasks.length} of {group.tasks.length} tasks</span>
+            <button onClick={handleClearFilters} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
               Clear filters
             </button>
           </div>
         )}
       </div>
 
-      {/* Virtualized table with sticky header - single scroll container */}
       <VirtualizedTaskList
         tasks={filteredTasks}
         columns={visibleColumns}
-        selectedTask={selectedTask}
-        onSelectTask={setSelectedTask}
+        selectedTaskName={selectedTaskName}
+        onSelectTask={handleSelectTask}
         sort={sort}
         onSort={handleSort}
         optionalColumnIds={visibleOptionalIds}
         onReorderColumns={reorderColumns}
       />
 
-      {/* Selected task detail */}
-      {selectedTask && (
-        <TaskDetailMini
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-        />
-      )}
+      {selectedTask && <TaskDetailMini task={selectedTask} onClose={handleCloseDetail} />}
     </div>
   );
 }
-
-// =============================================================================
-// Scenario Selector
-// =============================================================================
-
-const SCENARIOS = [
-  { key: "small", label: "Small Group (8 tasks)", count: 8 },
-  { key: "medium", label: "Medium Group (50 tasks)", count: 50 },
-  { key: "large", label: "Large Group (200 tasks)", count: 200 },
-  { key: "massive", label: "Massive Group (500 tasks)", count: 500 },
-  { key: "extreme", label: "Extreme Group (1000 tasks)", count: 1000 },
-] as const;
-
-// Panel width presets (percentage of container)
-const WIDTH_PRESETS = [
-  { key: "narrow", pct: 33, icon: PanelLeftClose, label: "Narrow (33%)" },
-  { key: "medium", pct: 50, icon: Columns2, label: "Medium (50%)" },
-  { key: "wide", pct: 75, icon: PanelLeft, label: "Wide (75%)" },
-] as const;
 
 // =============================================================================
 // Resizable Panel Hook
 // =============================================================================
 
 function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct: number = 80) {
-  const [panelPct, setPanelPct] = useState(initialPct);
+  const [panelPct, setPanelPct] = usePersistedState<number>("panelPct", initialPct);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -1284,9 +2081,7 @@ function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct:
       setPanelPct(Math.min(maxPct, Math.max(minPct, pct)));
     };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
+    const handleMouseUp = () => setIsDragging(false);
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -1295,7 +2090,7 @@ function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct:
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, minPct, maxPct]);
+  }, [isDragging, minPct, maxPct, setPanelPct]);
 
   return { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef };
 }
@@ -1304,110 +2099,83 @@ function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct:
 // Main Page
 // =============================================================================
 
-export default function GroupPanelDevPage() {
-  const [scenario, setScenario] = useState<(typeof SCENARIOS)[number]["key"]>("medium");
-  const { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef } = useResizablePanel(50);
+const SCENARIOS = [
+  { name: "training-gpt4", taskCount: 64 },
+  { name: "inference-batch", taskCount: 256 },
+  { name: "data-preprocessing", taskCount: 1000 },
+  { name: "small-job", taskCount: 8 },
+] as const;
 
-  const group = useMemo(() => {
-    const config = SCENARIOS.find((s) => s.key === scenario)!;
-    return generateMockGroup(config.count, `distributed-training-${config.key}`);
-  }, [scenario]);
+export default function GroupPanelPage() {
+  const [scenarioIdx, setScenarioIdx] = useState(0);
+  const [showPanel, setShowPanel] = useState(true);
+  const { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef } = useResizablePanel(50, 25, 80);
+
+  const scenario = SCENARIOS[scenarioIdx];
+  const group = useMemo(() => generateMockGroup(scenario.taskCount, scenario.name), [scenario]);
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Compact header with scenario selector */}
-      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+    <div className="flex h-screen flex-col bg-zinc-100 dark:bg-zinc-900">
+      <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2 dark:border-zinc-800 dark:bg-zinc-950">
+        <h1 className="text-sm font-medium text-zinc-900 dark:text-white">Group Panel Dev</h1>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Demo:</span>
-          <div className="flex gap-1">
-            {SCENARIOS.map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setScenario(s.key)}
-                className={cn(
-                  "rounded px-2 py-1 text-xs font-medium transition-colors",
-                  scenario === s.key
-                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
-                )}
-              >
-                {s.count}
-              </button>
+          <select
+            value={scenarioIdx}
+            onChange={(e) => setScenarioIdx(Number(e.target.value))}
+            className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+          >
+            {SCENARIOS.map((s, i) => (
+              <option key={s.name} value={i}>{s.name} ({s.taskCount} tasks)</option>
             ))}
-          </div>
+          </select>
+          <button
+            onClick={() => setShowPanel(!showPanel)}
+            className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+          >
+            {showPanel ? "Hide" : "Show"} Panel
+          </button>
         </div>
       </div>
 
-      {/* Main content - DAG with panel overlay */}
-      <div
-        ref={containerRef}
-        className="relative flex-1 overflow-hidden"
-        style={{ cursor: isDragging ? "col-resize" : undefined }}
-      >
-        {/* DAG takes full space (panel overlays this) */}
-        <div className="absolute inset-0 bg-zinc-50 dark:bg-zinc-900/50">
-          <div className="flex h-full items-center justify-center text-zinc-400 dark:text-zinc-600">
-            <div className="text-center">
-              <div className="text-2xl">🗺️</div>
-              <div className="mt-1 text-xs">DAG Visualization</div>
-              <div className="mt-2 text-[10px] text-zinc-300 dark:text-zinc-700">
-                (Full width - panel overlays from right)
-              </div>
-            </div>
+      <div ref={containerRef} className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+          <div className="text-center">
+            <div className="text-4xl text-zinc-300 dark:text-zinc-700">DAG Canvas</div>
+            <div className="mt-2 text-sm text-zinc-400">{scenario.name} • {scenario.taskCount} tasks</div>
           </div>
         </div>
 
-        {/* Panel overlay - slides in from right, casts shadow over DAG */}
-        <div
-          className="absolute inset-y-0 right-0 shadow-[-2px_0_8px_0_rgba(0,0,0,0.1)] dark:shadow-[-3px_0_12px_0_rgba(0,0,0,0.7),_-1px_0_0_0_rgba(255,255,255,0.1)]"
-          style={{ width: `${panelPct}%`, minWidth: "300px" }}
-        >
-          {/* Drag handle - positioned at the left edge of panel */}
-          <div
-            onMouseDown={handleMouseDown}
-            className="group absolute inset-y-0 left-0 z-20 w-3 -translate-x-1/2 cursor-col-resize"
-          >
-            {/* Edge highlight line - right at panel edge */}
-            <div
-              className={cn(
-                "absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 transition-all duration-150",
-                isDragging
-                  ? "bg-blue-400/70"
-                  : "bg-transparent group-hover:bg-zinc-300/80 dark:group-hover:bg-zinc-600/50",
-              )}
-            />
-            {/* Grip indicator - appears on hover, centered on edge */}
-            <div
-              className={cn(
-                "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-150",
-                isDragging
-                  ? "scale-100 opacity-100"
-                  : "scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-100",
-              )}
-            >
+        {showPanel && (
+          <>
               <div
                 className={cn(
-                  "flex h-8 w-4 items-center justify-center rounded-full shadow-md",
-                  isDragging
-                    ? "bg-blue-500 text-white"
-                    : "bg-white text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500",
+                  "group absolute top-0 z-20 h-full w-1 cursor-ew-resize transition-colors",
+                  isDragging ? "bg-blue-500" : "bg-transparent hover:bg-zinc-300 dark:hover:bg-zinc-600",
                 )}
+                style={{ left: `${100 - panelPct}%`, transform: "translateX(-50%)" }}
+                onMouseDown={handleMouseDown}
               >
-                <GripVertical className="h-3.5 w-3.5" />
+                <div className={cn(
+                  "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-200 px-0.5 py-1 shadow-md transition-opacity dark:bg-zinc-700",
+                  isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                )}>
+                  <GripVertical className="h-4 w-4 text-zinc-600 dark:text-zinc-300" />
+                </div>
               </div>
+            
+            <div
+              className="absolute inset-y-0 right-0 z-10"
+              style={{ width: `${panelPct}%`, ...GPU_ACCELERATED_STYLE }}
+            >
+              <GroupPanel
+                group={group}
+                onClose={() => setShowPanel(false)}
+                panelPct={panelPct}
+                onPanelResize={setPanelPct}
+              />
             </div>
-          </div>
-          
-          {/* Panel content - fills the overlay */}
-          <div className="h-full overflow-hidden">
-            <GroupPanel
-              group={group}
-              onClose={() => {}}
-              panelPct={panelPct}
-              onPanelResize={setPanelPct}
-            />
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
