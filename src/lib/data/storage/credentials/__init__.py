@@ -14,16 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-package(default_visibility = ["//visibility:public"])
+"""
+Credentials for the data module.
+"""
 
-load("//bzl:py.bzl", "osmo_py_test")
-
-osmo_py_test(
-    name = "test_backends",
-    srcs = ["test_backends.py"],
-    deps = [
-        "//src/lib/data/storage/backends",
-        "//src/lib/data/storage/core",
-        "//src/lib/data/storage/credentials",
-    ],
-)
+from .credentials import *

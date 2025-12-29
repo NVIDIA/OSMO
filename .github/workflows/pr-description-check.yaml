@@ -19,7 +19,7 @@ name: PR Description Check
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [main]
+    branches: [ main, 'feature/**' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}

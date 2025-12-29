@@ -909,7 +909,7 @@ def get_user_credential(
 @router_credentials.post('/api/credentials/{cred_name}')
 def set_user_credential(
     cred_name: str,
-    credential: objects.CredentialOptions,
+    credential_option: objects.CredentialOptions,
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
     """ Post/Update user credentials """
@@ -923,11 +923,11 @@ def set_user_credential(
     if not rows:
         context.database.secret_manager.add_new_user(user_name)
 
-    credential_set = getattr(credential, credential.__fields_set__.pop())
+    credential = credential_option.get_credential()
     workflow_config = context.database.get_workflow_configs()
-    credential_set.valid_cred(workflow_config)
+    credential.valid_cred(workflow_config)
     try:
-        cmd_arg = credential_set.to_db_row(user_name, context.database)
+        cmd_arg = credential.to_db_row(user_name, context.database)
         context.database.execute_commit_command(objects.UserCredential.commit_cmd(),
                                                 tuple([user_name, cred_name]) + cmd_arg)
         logging.info('Saved credential %s on the server.', cred_name)

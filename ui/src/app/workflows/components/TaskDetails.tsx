@@ -18,7 +18,7 @@ import React from "react";
 
 import Link from "next/link";
 
-import { OutlinedIcon } from "~/components/Icon";
+import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { Colors, Tag } from "~/components/Tag";
 import { type Task } from "~/models";
 import { useRuntimeEnv } from "~/runtime-env";
@@ -214,6 +214,24 @@ const TaskDetails = ({
             <p className="break-words">{task.failure_message}</p>
           </div>
         )}
+        {task.events &&
+          ["SUBMITTING", "SCHEDULING", "WAITING", "PROCESSING", "INITIALIZING", "RUNNING"].includes(task.status) && (
+            <div>
+              <a
+                className="btn btn-action font-bold justify-between"
+                href={task.events}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Events <FilledIcon name="open_in_new" />
+              </a>
+              <iframe
+                className="w-full border-1 border-border"
+                src={task.events}
+                title="Events"
+              />
+            </div>
+          )}
       </div>
       <TaskActions
         task={task}

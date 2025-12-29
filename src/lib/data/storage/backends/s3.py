@@ -25,7 +25,7 @@ import os
 import re
 import time
 from typing import Any, Callable, Dict, Generator, List, Tuple, Type
-from typing_extensions import override
+from typing_extensions import assert_never, override
 
 import boto3.exceptions
 import boto3.s3.transfer
@@ -38,6 +38,7 @@ import mypy_boto3_s3.client
 import mypy_boto3_s3.type_defs
 
 from . import common
+from .. import credentials
 from ..core import client, provider
 from ....utils import common as utils_common
 
@@ -507,8 +508,7 @@ class S3ResumableStream(client.ResumableStream):
 
 
 def create_client(
-    access_key_id: str,
-    access_key: str,
+    data_cred: credentials.DataCredential,
     scheme: str,
     *,
     endpoint_url: str | None = None,
@@ -522,8 +522,7 @@ def create_client(
           without proper synchronization.
 
     Args:
-        access_key_id: The access key ID.
-        access_key: The access key.
+        data_cred: The data credential.
         scheme: The scheme of the storage.
         endpoint_url: The endpoint URL.
         region: The region.
@@ -538,14 +537,27 @@ def create_client(
         session = boto3.Session()
         _add_request_headers(session, extra_headers)
 
-        return session.client(
-            's3',
-            endpoint_url=endpoint_url,
-            aws_access_key_id=access_key_id,
-            aws_secret_access_key=access_key,
-            region_name=region,
-            config=config,
-        )
+        match data_cred:
+            case credentials.StaticDataCredential():
+                # Uses direct credentials (e.g. access key and secret key)
+                return session.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    aws_access_key_id=data_cred.access_key_id,
+                    aws_secret_access_key=data_cred.access_key.get_secret_value(),
+                    region_name=region,
+                    config=config,
+                )
+            case credentials.DefaultDataCredential():
+                # Uses ambient credentials (e.g. Environment variables, Workload Identity, etc.)
+                return session.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    region_name=region,
+                    config=config,
+                )
+            case _ as unreachable:
+                assert_never(unreachable)
 
     return client.execute_api(
         _get_client,
@@ -1137,8 +1149,7 @@ class S3StorageClientFactory(provider.StorageClientFactory):
     Factory for the S3StorageClient.
     """
 
-    access_key_id: str
-    access_key: str
+    data_cred: credentials.DataCredential
     region: str
     scheme: str
     endpoint_url: str | None = dataclasses.field(default=None)
@@ -1149,8 +1160,7 @@ class S3StorageClientFactory(provider.StorageClientFactory):
     def create(self) -> S3StorageClient:
         return S3StorageClient(
             lambda: create_client(
-                self.access_key_id,
-                self.access_key,
+                self.data_cred,
                 scheme=self.scheme,
                 endpoint_url=self.endpoint_url,
                 region=self.region,

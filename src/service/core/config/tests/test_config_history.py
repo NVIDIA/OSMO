@@ -1232,9 +1232,11 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         test_bucket = connectors.BucketConfig(
             check_key=False,
             dataset_path='swift://test-endpoint/AUTH_test-team/dev/testuser/datasets',
-            default_credential=credentials.BasicDataCredential(
-                access_key='test-secret',
+            default_credential=credentials.StaticDataCredential(
+                access_key=pydantic.SecretStr('test-secret'),
                 access_key_id='testuser:AUTH_team-osmo',
+                endpoint='swift://test-endpoint/AUTH_test-team/',
+                region='us-east-1',
             ),
             description='My fancy dataset',
             mode='read-write',

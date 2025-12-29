@@ -166,6 +166,24 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
               </>
             )}
           </dl>
+          {workflow.events &&
+            ["SCHEDULING", "WAITING", "PROCESSING", "INITIALIZING", "RUNNING", "PENDING"].includes(workflow.status) && (
+              <div>
+                <a
+                  className="btn btn-action font-bold justify-between"
+                  href={workflow.events}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Events <FilledIcon name="open_in_new" />
+                </a>
+                <iframe
+                  className="w-full border-1 border-border"
+                  src={workflow.events}
+                  title="Events"
+                />
+              </div>
+            )}
         </div>
       </div>
       <WorkflowActions

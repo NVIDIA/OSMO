@@ -22,7 +22,7 @@ import pathlib
 import re
 
 from . import common, osmo_errors
-from ..data import constants
+from ..data.storage import constants
 
 
 def positive_integer(x: int):

@@ -125,14 +125,21 @@ For proposals that are significant or complex, a project design document provide
 1. **Create sub-issues** – Break the project into concrete tasks and open sub-issues for each.
    - Use the implementation plan from the project design to organize work.
 
-2. **Submit pull requests** – Implement the project in PRs, linking back to the relevant issues.
-   - Reference the project proposal in PR descriptions for context.
+2. **Track progress** – OSMO team updates the **Stage** field to **Stage: In Development** in the Projects project board.
 
-3. **Update the project design** – As implementation progresses, update the project design document if decisions change or new details emerge.
+3. **Create a feature branch** - Work in a feature branch to keep `main` clean during feature development.
+   - Create the feature branch with the naming `feature/PROJ-NNN-short-slug`. Use the same name as your [Design (Markdown)](#stage-design-markdown).
+   - If your feature can be completed in a single, reasonably-sized PR, this project process may be unecessary. Use your discretion about whether a feature branch is necessary, and feel free to ask the OSMO team in your proposal issue.
+
+4. **Submit pull requests** – Implement the project in PRs against your feature branch.
+   - Reference the sub-issues in PR descriptions for context.
+
+5. **Merge `main`** - Keep your feature branch compatible with `main` by merging `main` into your feature branch with a PR.
+   - PRs will be opened weekly on Monday by automation to merge the latest `main` into the feature branch.
+   - Resolve any merge conflicts you encounter and merge into your feature branch.
+
+5. **Update the project design** – As implementation progresses, update the project design document if decisions change or new details emerge.
    - Submit PRs to update the design document as needed.
-
-4. **Track progress** – OSMO team updates the **Stage** field to **Stage: In Development** in the Projects project board.
-   - Create sub-issues and link them to PRs for visibility.
 
 ### Stage: Shipped
 
