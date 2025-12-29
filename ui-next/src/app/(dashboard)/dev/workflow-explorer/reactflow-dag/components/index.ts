@@ -21,3 +21,5 @@ export { DAGHeader } from "./DAGHeader";
 export { DAGToolbar } from "./DAGToolbar";
 export { DAGControls } from "./DAGControls";
 export { DAGSkeleton } from "./DAGSkeleton";
+export { GroupPanel } from "./GroupPanel";
+export type { GroupPanelProps } from "./GroupPanel";
