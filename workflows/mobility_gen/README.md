@@ -57,69 +57,24 @@ osmo workflow port-forward <workflow-id> mobilitygen_interactive --port 47995-48
 ```
 
 ### Building an Occupancy Map
-Follow the [documentation](!https://docs.isaacsim.omniverse.nvidia.com/latest/synthetic_data_generation/tutorial_replicator_mobility_gen.html) to complete the below steps.
 
-#### Load the Warehouse Stage
+Follow the [MobilityGen documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/synthetic_data_generation/tutorial_replicator_mobility_gen.html) to load the warehouse stage and create the occupancy map.
 
-1. Open Content Browser: `Window > Browsers > Content`
-2. Load the warehouse USD file: `Isaac Sim/Environments/Simple_Warehouse/warehouse_multiple_shelves.usd`
-
-#### Create the Occupancy Map
-
-1. Select `Tools > Robotics > Occupancy Map` to open the extension
-2. Click **Calculate** to generate the occupancy map
-3. Click **Visualize Image** to view the occupancy map
-4. Save the file
-
-**Verify:** You should now have `~/MobilityGenData/maps/warehouse_multiple_shelves/` containing `map.yaml` and `map.png`.
+> **Note:** After completing the steps, verify that `~/MobilityGenData/maps/warehouse_multiple_shelves/` contains `map.yaml` and `map.png`.
 
 ### Recording a Trajectory
 
-#### Enable the MobilityGen UI Extension
+Follow the [Record a Trajectory documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/synthetic_data_generation/tutorial_replicator_mobility_gen.html#record-a-trajectory) to enable the MobilityGen UI extension, build the scenario, and record trajectory data.
 
-1. Navigate to `Window > Extensions` and search for `MobilityGen UI`
-2. Click the toggle switch to enable the extension
-
-> **Note:** Two windows will appear - MobilityGen UI and Occupancy Map visualization. Drag them into view if one is hiding behind the other.
-
-#### Build the Scenario
-
-1. In the MobilityGen window under **Stage**, paste:
-   ```
-   http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/warehouse_multiple_shelves.usd
-   ```
-
-2. Under **Occupancy Map**, enter the path:
-   ```
-   ~/MobilityGenData/maps/warehouse_multiple_shelves/map.yaml
-   ```
-
-3. Under **Robot** dropdown, select `H1Robot`
-4. Under **Scenario** dropdown, select `KeyboardTeleoperationScenario`
-5. Click **Build**
-
-#### Test Drive and Record
-
-Test drive the robot using keyboard controls:
-- `W` - Move forward
-- `A` - Turn left
-- `S` - Move backwards
-- `D` - Turn right
-
-**Start Recording:**
-1. Click **Start recording** to begin
-2. Move the robot around
-3. Click **Stop recording** to finish
-
-Data is recorded to `~/MobilityGenData/recordings` by default.
+> **Note:** Data is recorded to `~/MobilityGenData/recordings` by default.
 
 ### Replay and Render
 
-After recording a trajectory (including robot poses), replay the scenario using the `replay_directory.py` script that ships with Isaac Sim.
+Follow the [Replay and Render documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/synthetic_data_generation/tutorial_replicator_mobility_gen.html#replay-and-render) to replay the recorded trajectory using the `replay_directory.py` script.
 
-**Verify:** After the script finishes, check `~/MobilityGenData/replays` for rendered sensor data.
+> **Note:** After the script finishes, verify that `~/MobilityGenData/replays` contains the rendered sensor data.
 
-> **Tip:** Visualize your recorded data using the [Gradio Visualization Script](https://github.com/NVIDIA-Omniverse/MobilityGen) from the MobilityGen GitHub Repository.
+> **Tip:** Visualize your recorded data using the [`visualize_data.py` script](https://github.com/NVIDIA-Omniverse/MobilityGen/blob/main/scripts/visualize_data.py) from the MobilityGen GitHub Repository.
 
 ## Step 2: Cosmos Transfer Augmentation
 
