@@ -27,12 +27,61 @@ import {
   PanelLeftClose,
   PanelLeft,
   Columns2,
+  Columns,
   GripVertical,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/lib/hooks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+
+// Modifier to restrict dragging to horizontal axis and within parent bounds
+const restrictToHorizontalAxis: Modifier = ({ transform, draggingNodeRect, containerNodeRect }) => {
+  let x = transform.x;
+  
+  // Restrict to container bounds if available
+  if (draggingNodeRect && containerNodeRect) {
+    const minX = containerNodeRect.left - draggingNodeRect.left;
+    const maxX = containerNodeRect.right - draggingNodeRect.right;
+    x = Math.max(minX, Math.min(x, maxX));
+  }
+  
+  return {
+    ...transform,
+    x,
+    y: 0, // Lock vertical movement
+  };
+};
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 // =============================================================================
 // Types
@@ -57,6 +106,8 @@ interface MockTask {
   endTime: Date | null;
   nodeName: string | null;
   podIp: string | null;
+  podName: string | null;
+  retryId: number;
   failureMessage?: string;
   exitCode?: number;
 }
@@ -66,7 +117,56 @@ interface MockGroup {
   tasks: MockTask[];
 }
 
-type SortColumn = "status" | "name" | "duration" | "node";
+// =============================================================================
+// Column Configuration
+// =============================================================================
+
+type ColumnId = "status" | "name" | "duration" | "node" | "podIp" | "exitCode" | "startTime" | "retry";
+
+// Column width can be fixed pixels OR flex with min + share
+type ColumnWidth = number | { min: number; share: number };
+
+interface ColumnDef {
+  id: ColumnId;
+  label: string;
+  width: ColumnWidth;
+  align: "left" | "right";
+  sortable: boolean;
+}
+
+// Mandatory columns - always visible, fixed position, not in menu
+const MANDATORY_COLUMNS: ColumnDef[] = [
+  { id: "status", label: "", width: 24, align: "left", sortable: true },
+  { id: "name", label: "Name", width: { min: 150, share: 3 }, align: "left", sortable: true },
+];
+
+// Optional columns - can be shown/hidden and reordered
+interface OptionalColumnDef extends ColumnDef {
+  defaultVisible: boolean;
+}
+
+const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
+  { id: "duration", label: "Duration", width: 90, align: "right", sortable: true, defaultVisible: true },
+  { id: "node", label: "Node", width: { min: 80, share: 1 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "podIp", label: "IP", width: { min: 95, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
+  { id: "exitCode", label: "Exit", width: 55, align: "right", sortable: true, defaultVisible: false },
+  { id: "startTime", label: "Start", width: 70, align: "right", sortable: true, defaultVisible: false },
+  { id: "retry", label: "Retry", width: 60, align: "right", sortable: true, defaultVisible: false },
+];
+
+// Legacy: ALL_COLUMNS for backward compat in cell rendering
+const ALL_COLUMNS: ColumnDef[] = [
+  ...MANDATORY_COLUMNS,
+  ...OPTIONAL_COLUMNS.map(({ defaultVisible, ...rest }) => rest),
+];
+
+// Get default visible optional column IDs
+const DEFAULT_VISIBLE_OPTIONAL: ColumnId[] = OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id);
+
+// For sorting, we need column lookup
+const COLUMN_MAP = new Map(ALL_COLUMNS.map((c) => [c.id, c]));
+
+type SortColumn = ColumnId;
 type SortDirection = "asc" | "desc";
 
 interface SortState {
@@ -123,15 +223,23 @@ function generateMockGroup(taskCount: number, scenarioName: string): MockGroup {
 
     const endTime = status === "COMPLETED" || status.startsWith("FAILED") ? new Date() : null;
 
+    const taskName = `${scenarioName}-shard-${i.toString().padStart(3, "0")}`;
+    const isStarted = status !== "WAITING" && status !== "SCHEDULING";
+    
     tasks.push({
-      name: `${scenarioName}-shard-${i.toString().padStart(3, "0")}`,
+      name: taskName,
       status,
       duration,
       startTime,
       endTime,
-      nodeName: status !== "WAITING" && status !== "SCHEDULING" ? faker.helpers.arrayElement(nodes) : null,
-      podIp:
-        status !== "WAITING" && status !== "SCHEDULING" ? `10.0.${faker.number.int({ min: 1, max: 10 })}.${faker.number.int({ min: 1, max: 254 })}` : null,
+      nodeName: isStarted ? faker.helpers.arrayElement(nodes) : null,
+      podIp: isStarted ? `10.0.${faker.number.int({ min: 1, max: 10 })}.${faker.number.int({ min: 1, max: 254 })}` : null,
+      podName: isStarted ? `${scenarioName}-${i}-${faker.string.alphanumeric(5)}` : null,
+      retryId: faker.helpers.weightedArrayElement([
+        { value: 0, weight: 90 },
+        { value: 1, weight: 8 },
+        { value: 2, weight: 2 },
+      ]),
       failureMessage: status.startsWith("FAILED")
         ? faker.helpers.arrayElement([
             "OutOfMemoryError: CUDA out of memory",
@@ -388,50 +496,224 @@ function ProgressBar({
 }
 
 // =============================================================================
-// Task Table Header
+// Column Utilities
 // =============================================================================
 
-const TaskTableHeader = memo(function TaskTableHeader({
+function getGridTemplate(columns: ColumnDef[]): string {
+  return columns
+    .map((col) => {
+      if (typeof col.width === "number") {
+        return `${col.width}px`;
+      }
+      // Flex column with min width and share value
+      return `minmax(${col.width.min}px, ${col.width.share}fr)`;
+    })
+    .join(" ");
+}
+
+// Calculate minimum table width based on columns
+function getMinTableWidth(columns: ColumnDef[]): number {
+  const fixedWidth = columns.reduce((sum, col) => {
+    if (typeof col.width === "number") return sum + col.width;
+    return sum + col.width.min; // use min width for flex columns
+  }, 0);
+  const gapWidth = (columns.length - 1) * 24; // gap-6 = 24px
+  const paddingWidth = 24; // px-3 on each side = 12px * 2
+  return fixedWidth + gapWidth + paddingWidth;
+}
+
+function formatTime(date: Date | null): string {
+  if (!date) return "—";
+  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+
+// =============================================================================
+// Task Table Header with @dnd-kit sortable columns
+// =============================================================================
+
+// Header cell content (used by both sortable and overlay)
+function HeaderCellContent({
+  col,
   sort,
   onSort,
+  isOverlay,
 }: {
+  col: ColumnDef;
+  sort: SortState;
+  onSort?: (column: SortColumn) => void;
+  isOverlay?: boolean;
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onSort && col.sortable && onSort(col.id);
+      }}
+      disabled={!col.sortable || isOverlay}
+      className={cn(
+        "flex items-center gap-1 truncate transition-colors",
+        col.sortable && !isOverlay && "hover:text-zinc-900 dark:hover:text-white",
+      )}
+    >
+      <span className="truncate">{col.label}</span>
+      {col.sortable && (
+        sort.column === col.id ? (
+          sort.direction === "asc" ? (
+            <ChevronUp className="h-3 w-3 shrink-0" />
+          ) : (
+            <ChevronDown className="h-3 w-3 shrink-0" />
+          )
+        ) : (
+          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
+        )
+      )}
+    </button>
+  );
+}
+
+// Sortable header cell component
+function SortableHeaderCell({
+  col,
+  sort,
+  onSort,
+  disabled,
+}: {
+  col: ColumnDef;
   sort: SortState;
   onSort: (column: SortColumn) => void;
+  disabled?: boolean;
 }) {
-  const columns: { key: SortColumn; label: string; align: "left" | "right" }[] = [
-    { key: "status", label: "St", align: "left" },
-    { key: "name", label: "Name", align: "left" },
-    { key: "duration", label: "Duration", align: "right" },
-    { key: "node", label: "Node", align: "left" },
-  ];
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: col.id, disabled });
+
+  const style: React.CSSProperties = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+  };
 
   return (
     <div
-      className="grid gap-2 border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
-      style={{ gridTemplateColumns: "32px 1fr 80px 1fr" }}
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center",
+        !disabled && "cursor-grab active:cursor-grabbing",
+        isDragging && "rounded bg-zinc-100 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-800 dark:ring-zinc-600",
+        col.align === "right" && "justify-end",
+      )}
+      {...attributes}
+      {...listeners}
     >
-      {columns.map((col) => (
-        <button
-          key={col.key}
-          onClick={() => onSort(col.key)}
-          className={cn(
-            "flex items-center gap-1 transition-colors hover:text-zinc-900 dark:hover:text-white",
-            col.align === "right" && "justify-end",
-          )}
-        >
-          {col.label}
-          {sort.column === col.key ? (
-            sort.direction === "asc" ? (
-              <ChevronUp className="h-3 w-3" />
-            ) : (
-              <ChevronDown className="h-3 w-3" />
-            )
-          ) : (
-            <ChevronsUpDown className="h-3 w-3 opacity-30" />
-          )}
-        </button>
-      ))}
+      <HeaderCellContent col={col} sort={sort} onSort={onSort} />
     </div>
+  );
+}
+
+
+const TaskTableHeader = memo(function TaskTableHeader({
+  columns,
+  sort,
+  onSort,
+  optionalColumnIds,
+  onReorder,
+}: {
+  columns: ColumnDef[];
+  sort: SortState;
+  onSort: (column: SortColumn) => void;
+  optionalColumnIds: ColumnId[];
+  onReorder: (newOrder: ColumnId[]) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = optionalColumnIds.indexOf(active.id as ColumnId);
+      const newIndex = optionalColumnIds.indexOf(over.id as ColumnId);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onReorder(arrayMove(optionalColumnIds, oldIndex, newIndex));
+      }
+    }
+  };
+
+  // Separate mandatory and optional columns
+  const mandatoryIds = MANDATORY_COLUMNS.map((c) => c.id);
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+      modifiers={[restrictToHorizontalAxis]}
+    >
+      <div
+        className="grid items-center gap-6 border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+        style={{ 
+          gridTemplateColumns: getGridTemplate(columns),
+          minWidth: getMinTableWidth(columns),
+        }}
+      >
+        {/* Mandatory columns - not sortable */}
+        {columns.filter((c) => mandatoryIds.includes(c.id)).map((col) => (
+          <div
+            key={col.id}
+            className={cn(
+              "flex items-center",
+              col.align === "right" && "justify-end",
+            )}
+          >
+            <button
+              onClick={() => col.sortable && onSort(col.id)}
+              disabled={!col.sortable}
+              className={cn(
+                "flex items-center gap-1 truncate transition-colors",
+                col.sortable && "hover:text-zinc-900 dark:hover:text-white",
+              )}
+            >
+              <span className="truncate">{col.label}</span>
+              {col.sortable && (
+                sort.column === col.id ? (
+                  sort.direction === "asc" ? (
+                    <ChevronUp className="h-3 w-3 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 shrink-0" />
+                  )
+                ) : (
+                  <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
+                )
+              )}
+            </button>
+          </div>
+        ))}
+
+        {/* Optional columns - sortable */}
+        <SortableContext items={optionalColumnIds} strategy={horizontalListSortingStrategy}>
+          {columns.filter((c) => !mandatoryIds.includes(c.id)).map((col) => (
+            <SortableHeaderCell
+              key={col.id}
+              col={col}
+              sort={sort}
+              onSort={onSort}
+            />
+          ))}
+        </SortableContext>
+      </div>
+      
+    </DndContext>
   );
 });
 
@@ -439,12 +721,45 @@ const TaskTableHeader = memo(function TaskTableHeader({
 // Task Row
 // =============================================================================
 
+function getCellValue(task: MockTask, columnId: ColumnId): React.ReactNode {
+  switch (columnId) {
+    case "status":
+      return <StatusIcon status={task.status} />;
+    case "name":
+      return <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{task.name}</span>;
+    case "duration":
+      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(task.duration)}</span>;
+    case "node":
+      return <span className="truncate text-zinc-500 dark:text-zinc-400">{task.nodeName ?? "—"}</span>;
+    case "podIp":
+      return <span className="whitespace-nowrap font-mono text-xs text-zinc-500 dark:text-zinc-400">{task.podIp ?? "—"}</span>;
+    case "exitCode":
+      return (
+        <span className={cn("tabular-nums", task.exitCode === 0 ? "text-zinc-400" : task.exitCode !== undefined ? "text-red-500" : "text-zinc-400")}>
+          {task.exitCode ?? "—"}
+        </span>
+      );
+    case "startTime":
+      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.startTime)}</span>;
+    case "retry":
+      return (
+        <span className={cn("tabular-nums", task.retryId > 0 ? "text-amber-500" : "text-zinc-400")}>
+          {task.retryId > 0 ? task.retryId : "—"}
+        </span>
+      );
+    default:
+      return "—";
+  }
+}
+
 const TaskRow = memo(function TaskRow({
   task,
+  columns,
   isSelected,
   onSelect,
 }: {
   task: MockTask;
+  columns: ColumnDef[];
   isSelected: boolean;
   onSelect: () => void;
 }) {
@@ -452,17 +767,22 @@ const TaskRow = memo(function TaskRow({
     <div
       onClick={onSelect}
       className={cn(
-        "grid cursor-pointer items-center gap-2 border-b border-zinc-100 px-3 py-2 text-sm transition-colors dark:border-zinc-800",
+        "grid cursor-pointer items-center gap-6 border-b border-zinc-100 px-3 py-2 text-sm transition-colors dark:border-zinc-800",
         isSelected ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-zinc-50 dark:hover:bg-zinc-900",
       )}
-      style={{ gridTemplateColumns: "32px 1fr 80px 1fr" }}
+      style={{ 
+        gridTemplateColumns: getGridTemplate(columns),
+        minWidth: getMinTableWidth(columns),
+      }}
     >
-      <div className="flex items-center">
-        <StatusIcon status={task.status} />
-      </div>
-      <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{task.name}</div>
-      <div className="text-right tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(task.duration)}</div>
-      <div className="truncate text-zinc-500 dark:text-zinc-400">{task.nodeName ?? "—"}</div>
+      {columns.map((col) => (
+        <div
+          key={col.id}
+          className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
+        >
+          {getCellValue(task, col.id)}
+        </div>
+      ))}
     </div>
   );
 });
@@ -473,15 +793,26 @@ const TaskRow = memo(function TaskRow({
 
 function VirtualizedTaskList({
   tasks,
+  columns,
   selectedTask,
   onSelectTask,
+  sort,
+  onSort,
+  optionalColumnIds,
+  onReorderColumns,
 }: {
   tasks: MockTask[];
+  columns: ColumnDef[];
   selectedTask: MockTask | null;
   onSelectTask: (task: MockTask) => void;
+  sort: SortState;
+  onSort: (column: SortColumn) => void;
+  optionalColumnIds: ColumnId[];
+  onReorderColumns: (newOrder: ColumnId[]) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowHeight = 40;
+  const headerHeight = 36;
 
   const virtualizer = useVirtualizerCompat({
     count: tasks.length,
@@ -502,8 +833,22 @@ function VirtualizedTaskList({
     <div
       ref={scrollRef}
       className="flex-1 overflow-auto"
-      style={{ contain: "strict" }}
     >
+      {/* Sticky header - scrolls horizontally with content, sticks vertically */}
+      <div 
+        className="sticky top-0 z-10"
+        style={{ minWidth: getMinTableWidth(columns) }}
+      >
+        <TaskTableHeader 
+          columns={columns} 
+          sort={sort} 
+          onSort={onSort}
+          optionalColumnIds={optionalColumnIds}
+          onReorder={onReorderColumns}
+        />
+      </div>
+      
+      {/* Virtualized rows */}
       <div
         style={{
           height: virtualizer.getTotalSize(),
@@ -526,6 +871,7 @@ function VirtualizedTaskList({
             >
               <TaskRow
                 task={task}
+                columns={columns}
                 isSelected={selectedTask?.name === task.name}
                 onSelect={() => onSelectTask(task)}
               />
@@ -620,11 +966,47 @@ function TaskDetailMini({ task, onClose }: { task: MockTask; onClose: () => void
 // Group Panel Component
 // =============================================================================
 
-function GroupPanel({ group, onClose }: { group: MockGroup; onClose: () => void }) {
+interface GroupPanelProps {
+  group: MockGroup;
+  onClose: () => void;
+  panelPct?: number;
+  onPanelResize?: (pct: number) => void;
+}
+
+function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sort, setSort] = useState<SortState>({ column: "status", direction: "asc" });
   const [selectedTask, setSelectedTask] = useState<MockTask | null>(null);
+  
+  
+  // Optional column visibility - only track optional columns (mandatory are always shown)
+  const [visibleOptionalIds, setVisibleOptionalIds] = useState<ColumnId[]>(DEFAULT_VISIBLE_OPTIONAL);
+
+  // Compute full visible columns: mandatory (fixed order) + optional (user order)
+  const visibleColumns = useMemo(() => {
+    const optionalCols = visibleOptionalIds
+      .map((id) => OPTIONAL_COLUMNS.find((c) => c.id === id))
+      .filter(Boolean) as ColumnDef[];
+    return [...MANDATORY_COLUMNS, ...optionalCols];
+  }, [visibleOptionalIds]);
+
+  // Toggle optional column visibility
+  const toggleColumn = useCallback((columnId: ColumnId) => {
+    setVisibleOptionalIds((prev) => {
+      if (prev.includes(columnId)) {
+        return prev.filter((id) => id !== columnId);
+      } else {
+        return [...prev, columnId];
+      }
+    });
+  }, []);
+
+  // Reorder columns via drag-and-drop on headers
+  const reorderColumns = useCallback((newOrder: ColumnId[]) => {
+    setVisibleOptionalIds(newOrder);
+  }, []);
+
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
@@ -665,6 +1047,18 @@ function GroupPanel({ group, onClose }: { group: MockGroup; onClose: () => void 
             break;
           case "node":
             cmp = (a.nodeName ?? "").localeCompare(b.nodeName ?? "");
+            break;
+          case "podIp":
+            cmp = (a.podIp ?? "").localeCompare(b.podIp ?? "");
+            break;
+          case "exitCode":
+            cmp = (a.exitCode ?? -1) - (b.exitCode ?? -1);
+            break;
+          case "startTime":
+            cmp = (a.startTime?.getTime() ?? 0) - (b.startTime?.getTime() ?? 0);
+            break;
+          case "retry":
+            cmp = a.retryId - b.retryId;
             break;
         }
         return sort.direction === "asc" ? cmp : -cmp;
@@ -718,12 +1112,71 @@ function GroupPanel({ group, onClose }: { group: MockGroup; onClose: () => void 
             </span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="ml-2 shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        
+        {/* Actions */}
+        <div className="ml-2 flex shrink-0 items-center gap-1">
+          {/* Panel options dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {/* Column configuration */}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Columns className="mr-2 h-4 w-4" />
+                  Columns
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-36">
+                  {/* Show visible columns first (in current order), then hidden */}
+                  {[
+                    ...visibleOptionalIds.map((id) => OPTIONAL_COLUMNS.find((c) => c.id === id)!),
+                    ...OPTIONAL_COLUMNS.filter((c) => !visibleOptionalIds.includes(c.id)),
+                  ].map((col) => (
+                    <DropdownMenuCheckboxItem
+                      key={col.id}
+                      checked={visibleOptionalIds.includes(col.id)}
+                      onCheckedChange={() => toggleColumn(col.id)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {col.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              
+              {/* Width presets */}
+              {onPanelResize && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-zinc-500">Snap to</DropdownMenuLabel>
+                  {WIDTH_PRESETS.map((preset) => {
+                    const Icon = preset.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={preset.key}
+                        onClick={() => onPanelResize(preset.pct)}
+                      >
+                        <Icon className="mr-2 h-4 w-4" />
+                        <span>{preset.pct}%</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Progress bar with clickable filter labels */}
@@ -764,17 +1217,16 @@ function GroupPanel({ group, onClose }: { group: MockGroup; onClose: () => void 
         )}
       </div>
 
-      {/* Table header */}
-      <TaskTableHeader
-        sort={sort}
-        onSort={handleSort}
-      />
-
-      {/* Virtualized task list */}
+      {/* Virtualized table with sticky header - single scroll container */}
       <VirtualizedTaskList
         tasks={filteredTasks}
+        columns={visibleColumns}
         selectedTask={selectedTask}
         onSelectTask={setSelectedTask}
+        sort={sort}
+        onSort={handleSort}
+        optionalColumnIds={visibleOptionalIds}
+        onReorderColumns={reorderColumns}
       />
 
       {/* Selected task detail */}
@@ -845,23 +1297,6 @@ function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct:
     };
   }, [isDragging, minPct, maxPct]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (e.key === "[") {
-        setPanelPct((p) => Math.max(minPct, p - 10));
-      } else if (e.key === "]") {
-        setPanelPct((p) => Math.min(maxPct, p + 10));
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [minPct, maxPct]);
-
   return { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef };
 }
 
@@ -880,60 +1315,26 @@ export default function GroupPanelDevPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Compact header with scenario selector and width presets */}
+      {/* Compact header with scenario selector */}
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tasks:</span>
-            <div className="flex gap-1">
-              {SCENARIOS.map((s) => (
-                <button
-                  key={s.key}
-                  onClick={() => setScenario(s.key)}
-                  className={cn(
-                    "rounded px-2 py-1 text-xs font-medium transition-colors",
-                    scenario === s.key
-                      ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
-                  )}
-                >
-                  {s.count}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Width presets */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            {Math.round(panelPct)}%
-          </span>
-          <div className="flex gap-0.5">
-            {WIDTH_PRESETS.map((preset) => {
-              const Icon = preset.icon;
-              const isActive = Math.abs(panelPct - preset.pct) < 5;
-              return (
-                <Tooltip key={preset.key}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setPanelPct(preset.pct)}
-                      className={cn(
-                        "rounded p-1.5 transition-colors",
-                        isActive
-                          ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                          : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{preset.label}</TooltipContent>
-                </Tooltip>
-              );
-            })}
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Demo:</span>
+          <div className="flex gap-1">
+            {SCENARIOS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setScenario(s.key)}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-medium transition-colors",
+                  scenario === s.key
+                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
+                )}
+              >
+                {s.count}
+              </button>
+            ))}
           </div>
-          <span className="ml-1 text-[10px] text-zinc-400 dark:text-zinc-600">[ ]</span>
         </div>
       </div>
 
@@ -958,7 +1359,7 @@ export default function GroupPanelDevPage() {
 
         {/* Panel overlay - slides in from right, casts shadow over DAG */}
         <div
-          className="absolute inset-y-0 right-0 shadow-[-8px_0_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[-8px_0_24px_-8px_rgba(0,0,0,0.5)]"
+          className="absolute inset-y-0 right-0 shadow-[-2px_0_8px_0_rgba(0,0,0,0.1)] dark:shadow-[-3px_0_12px_0_rgba(0,0,0,0.7),_-1px_0_0_0_rgba(255,255,255,0.1)]"
           style={{ width: `${panelPct}%`, minWidth: "300px" }}
         >
           {/* Drag handle - positioned at the left edge of panel */}
@@ -1002,6 +1403,8 @@ export default function GroupPanelDevPage() {
             <GroupPanel
               group={group}
               onClose={() => {}}
+              panelPct={panelPct}
+              onPanelResize={setPanelPct}
             />
           </div>
         </div>
