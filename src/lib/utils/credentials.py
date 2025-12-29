@@ -16,12 +16,12 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import re
-
 import pydantic
 
-from . import osmo_errors
-from ..data import constants
+from ..data.storage import credentials
+
+StaticDataCredential = credentials.StaticDataCredential
+get_static_data_credential_from_config = credentials.get_static_data_credential_from_config
 
 
 CREDNAMEREGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
@@ -35,59 +35,3 @@ class RegistryCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         pydantic.SecretStr(''),
         description='The authentication token for the Docker registry',
     )
-
-
-class BasicDataCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
-    """ Authentication information for a data service without endpoint and region info. """
-    access_key_id: str = pydantic.Field(
-        description='The authentication key for the data service')
-    access_key: pydantic.SecretStr = pydantic.Field(
-        description='The authentication secret for the data service')
-
-
-class DataCredential(BasicDataCredential, extra=pydantic.Extra.forbid):
-    """
-    Authentication information for a data service.
-    """
-
-    endpoint: str = pydantic.Field(
-        ...,
-        description='The endpoint URL for the data service',
-    )
-
-    region: str = pydantic.Field(
-        constants.DEFAULT_BOTO3_REGION,
-        description='The region for the data service',
-    )
-
-    @pydantic.validator('endpoint')
-    @classmethod
-    def validate_endpoint(cls, value: str) -> constants.StorageCredentialPattern:
-        """
-        Validates endpoint. Returns the value of parsed job_id if valid.
-        """
-        if not re.fullmatch(constants.STORAGE_CREDENTIAL_REGEX, value):
-            raise osmo_errors.OSMOUserError(f'Invalid endpoint: {value}')
-        return value.rstrip('/')
-
-
-class DecryptedDataCredential(BasicDataCredential, extra=pydantic.Extra.ignore):
-    """
-    Basic data cred with access_key decrypted.
-    """
-
-    access_key: str = pydantic.Field(  # type: ignore[assignment]
-        ...,
-        description='The authentication secret for the data service',
-    )
-
-    region: str = pydantic.Field(
-        constants.DEFAULT_BOTO3_REGION,
-        description='The region for the data service',
-    )
-
-
-def decrypt(base_cred: DataCredential) -> DecryptedDataCredential:
-    cred_dict = base_cred.dict()
-    cred_dict['access_key'] = cred_dict['access_key'].get_secret_value()
-    return DecryptedDataCredential(**cred_dict)

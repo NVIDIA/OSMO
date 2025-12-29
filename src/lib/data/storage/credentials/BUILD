@@ -16,14 +16,17 @@
 
 package(default_visibility = ["//visibility:public"])
 
-load("//bzl:py.bzl", "osmo_py_test")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
+load("@osmo_python_deps//:requirements.bzl", "requirement")
 
-osmo_py_test(
-    name = "test_backends",
-    srcs = ["test_backends.py"],
+osmo_py_library(
+    name = "credentials",
+    srcs = glob(["*.py"]),
     deps = [
-        "//src/lib/data/storage/backends",
-        "//src/lib/data/storage/core",
-        "//src/lib/data/storage/credentials",
+        "//src/lib/data/storage/constants",
+        "//src/lib/utils:client_configs",
+        "//src/lib/utils:osmo_errors",
+        requirement("pydantic"),
+        requirement("pyyaml"),
     ],
 )
