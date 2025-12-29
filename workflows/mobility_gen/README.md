@@ -31,19 +31,16 @@ This workflow leverages NVIDIA OSMO to generate occupancy maps and record trajec
 
 ## Prerequisites
 
-- OSMO CLI installed and authenticated
-- Access to GPU pool
+- Access to an OSMO cluster with GPU resources
 - [Isaac Sim environment](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
 
 ## Step 1: MobilityGen Data Generation
 
-### Submit and Connect
-
-Submit the workflow and enter the container's interactive shell to perform manual recording:
+### Running this workflow
 
 ```bash
-# Submit the YAML definition
-osmo workflow submit workflows/mobility_gen/mobility_gen.yaml --pool <pool-name>
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/mobility_gen/mobility_gen.yaml
+osmo workflow submit mobility_gen.yaml
 ```
 
 When the task logs: `"Isaac Sim Full Streaming App is loaded."`, run these commands in **two separate terminals**:
@@ -80,10 +77,11 @@ Follow the [Replay and Render documentation](https://docs.isaacsim.omniverse.nvi
 
 Once raw trajectories are recorded, use Cosmos Transfer to apply diffusion-based photorealistic augmentation for enhanced sim-to-real performance.
 
-### Submit the Augmentation Workflow
+### Running this workflow
 
 ```bash
-osmo workflow submit workflows/mobility_gen/cosmos_augmentation.yaml --pool <pool-name>
+curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/workflows/mobility_gen/cosmos_augmentation.yaml
+osmo workflow submit cosmos_augmentation.yaml
 ```
 
 **Example Prompt:**
@@ -103,14 +101,3 @@ The workflow can be scaled to thousands of generations by customizing the workfl
 ```bash
 osmo workflow logs <workflow-id> -n 100
 ```
-
-## Troubleshooting
-
-For typical OSMO issues, follow the [official documentation](https://developer.nvidia.com/osmo).
-
-## References
-
-- [NVIDIA OSMO](https://developer.nvidia.com/osmo)
-- [MobilityGen GitHub Repository](https://github.com/NVIDIA-Omniverse/MobilityGen)
-- [Cosmos Transfer](https://developer.nvidia.com/cosmos)
-- [Data Generation with MobilityGen Tutorial](https://docs.omniverse.nvidia.com/isaacsim/latest/features/warehouse_logistics/ext_omni_isaac_mobility_gen.html)
