@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, memo, useRef, useEffect, useDeferredValue, startTransition } from "react";
 import { faker } from "@faker-js/faker";
 import {
   X,
@@ -89,6 +89,7 @@ import {
 
 // =============================================================================
 // Performance: GPU-accelerated CSS styles (defined once, reused)
+// Uses composite layer promotion for silky smooth animations
 // =============================================================================
 
 const GPU_ACCELERATED_STYLE: React.CSSProperties = {
@@ -97,9 +98,19 @@ const GPU_ACCELERATED_STYLE: React.CSSProperties = {
   backfaceVisibility: "hidden",
 };
 
+// Strict containment for maximum layout isolation
 const CONTAIN_STYLE: React.CSSProperties = {
-  contain: "content",
+  contain: "layout style paint",
 };
+
+// For virtual list items - maximum isolation
+const VIRTUAL_ITEM_STYLE: React.CSSProperties = {
+  contain: "strict",
+  contentVisibility: "auto",
+};
+
+// Pre-computed constants (prevents object recreation on render)
+const ROW_HEIGHT = 40;
 
 
 // =============================================================================
@@ -324,9 +335,9 @@ function computeAllStats(tasks: TaskWithDuration[]): TaskStats {
   for (let i = 0; i < tasks.length; i++) {
     const task = tasks[i];
     const status = task.status;
-    
+
     subStats.set(status, (subStats.get(status) ?? 0) + 1);
-    
+
     const cat = STATUS_CATEGORY_MAP[status];
     if (cat === "completed") completed++;
     else if (cat === "running") {
@@ -334,7 +345,7 @@ function computeAllStats(tasks: TaskWithDuration[]): TaskStats {
       hasRunning = true;
     }
     else if (cat === "failed") failed++;
-    
+
     if (task.start_time) {
       const t = new Date(task.start_time).getTime();
       if (earliestStart === null || t < earliestStart) earliestStart = t;
@@ -386,12 +397,12 @@ function computeGroupDurationFromStats(stats: TaskStats): number | null {
 function formatTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   const date = new Date(dateStr);
-  
+
   const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const month = months[date.getMonth()];
   const day = date.getDate();
-  
+
   return `${month} ${day} ${timeStr}`;
 }
 
@@ -524,18 +535,21 @@ const SEARCH_FIELDS: SearchField[] = [
   },
 ];
 
+// Pre-computed lookup map for O(1) field access (performance optimization)
+const SEARCH_FIELDS_MAP = new Map(SEARCH_FIELDS.map(f => [f.id, f]));
+
 // Parse duration string like "1m", "30s", "2h", "1h30m" into milliseconds
 function parseDurationString(str: string): number | null {
   const normalized = str.toLowerCase().trim();
   if (!normalized) return null;
-  
+
   let totalMs = 0;
   let remaining = normalized;
-  
+
   // Match patterns like 1h, 30m, 45s, 100ms
   const regex = /^(\d+(?:\.\d+)?)\s*(h|m|s|ms)/;
   let hasMatch = false;
-  
+
   while (remaining.length > 0) {
     const match = regex.exec(remaining);
     if (match) {
@@ -553,25 +567,25 @@ function parseDurationString(str: string): number | null {
       break;
     }
   }
-  
+
   // If we consumed everything with unit matches, return the total
   if (hasMatch && remaining.length === 0) {
     return totalMs;
   }
-  
+
   // If no unit match, try parsing as plain number (assume seconds)
   // Must be a pure number with nothing left over
   if (!hasMatch && /^\d+(?:\.\d+)?$/.test(normalized)) {
     return parseFloat(normalized) * 1000;
   }
-  
+
   return null;
 }
 
 // Parse time string - supports "Xh ago", "Xm ago", or ISO date strings
 function parseTimeString(str: string): number | null {
   const normalized = str.toLowerCase().trim();
-  
+
   // Handle "X ago" format
   const agoMatch = normalized.match(/^(\d+(?:\.\d+)?)\s*(h|m|d)\s*ago$/);
   if (agoMatch) {
@@ -584,11 +598,11 @@ function parseTimeString(str: string): number | null {
       case "d": return now - num * 24 * 60 * 60 * 1000;
     }
   }
-  
+
   // Try parsing as date
   const parsed = Date.parse(str);
   if (!isNaN(parsed)) return parsed;
-  
+
   return null;
 }
 
@@ -600,10 +614,10 @@ function compareWithOperator(
   parser: (s: string) => number | null,
 ): boolean {
   const normalized = filterValue.trim();
-  
+
   let operator = ">=";  // Default: at least
   let valueStr = normalized;
-  
+
   if (normalized.startsWith(">=")) {
     operator = ">=";
     valueStr = normalized.slice(2);
@@ -620,10 +634,10 @@ function compareWithOperator(
     operator = "=";
     valueStr = normalized.slice(1);
   }
-  
+
   const compareValue = parser(valueStr.trim());
   if (compareValue === null) return false;
-  
+
   switch (operator) {
     case ">": return taskValue > compareValue;
     case ">=": return taskValue >= compareValue;
@@ -636,39 +650,76 @@ function compareWithOperator(
 
 // =============================================================================
 // Date parsing using chrono-node (handles all natural language + formats)
+// Includes LRU cache for performance (chrono parsing is expensive)
 // =============================================================================
 
-// Parse any date/time string using chrono-node
+// Simple LRU cache for chrono parsing results
+const chronoCache = new Map<string, Date | null>();
+const CHRONO_CACHE_MAX = 100;
+
 function parseDateTime(input: string): Date | null {
   if (!input?.trim()) return null;
-  return chrono.parseDate(input);
+
+  const key = input.trim().toLowerCase();
+
+  // Check cache first
+  if (chronoCache.has(key)) {
+    return chronoCache.get(key)!;
+  }
+
+  // Parse with chrono
+  const result = chrono.parseDate(input);
+
+  // LRU eviction if cache is full
+  if (chronoCache.size >= CHRONO_CACHE_MAX) {
+    const firstKey = chronoCache.keys().next().value;
+    if (firstKey) chronoCache.delete(firstKey);
+  }
+
+  chronoCache.set(key, result);
+  return result;
+}
+
+// Extract operator from time filter input
+function extractTimeOperator(input: string): { operator: string; dateStr: string } {
+  const trimmed = input.trim();
+
+  if (trimmed.startsWith(">=")) return { operator: ">=", dateStr: trimmed.slice(2).trim() };
+  if (trimmed.startsWith("<=")) return { operator: "<=", dateStr: trimmed.slice(2).trim() };
+  if (trimmed.startsWith(">")) return { operator: ">", dateStr: trimmed.slice(1).trim() };
+  if (trimmed.startsWith("<")) return { operator: "<", dateStr: trimmed.slice(1).trim() };
+  if (trimmed.startsWith("=")) return { operator: "=", dateStr: trimmed.slice(1).trim() };
+
+  return { operator: ">=", dateStr: trimmed }; // Default: on or after
 }
 
 // Convert any time input to an absolute timestamp for consistent storage/sharing
-// Returns { display: string, value: string } where value is ISO timestamp
-function normalizeTimeFilter(input: string): { display: string; value: string } | null {
+// Returns { display: string, value: string, operator: string }
+function normalizeTimeFilter(input: string): { display: string; value: string; operator: string } | null {
+  const { operator, dateStr } = extractTimeOperator(input);
+
   // Handle "last X" patterns manually since chrono interprets them differently
-  const lastMatch = input.toLowerCase().match(/^last\s+(\d+)\s*(h|d|m|w|hours?|days?|minutes?|weeks?)$/);
+  const lastMatch = dateStr.toLowerCase().match(/^last\s+(\d+)\s*(h|d|m|w|hours?|days?|minutes?|weeks?)$/);
   let parsed: Date | null = null;
-  
+
   if (lastMatch) {
     const num = parseInt(lastMatch[1]);
     const unit = lastMatch[2];
     const now = Date.now();
     let offsetMs = 0;
-    
+
     if (unit.startsWith("h")) offsetMs = num * 60 * 60 * 1000;
     else if (unit.startsWith("d")) offsetMs = num * 24 * 60 * 60 * 1000;
     else if (unit.startsWith("m")) offsetMs = num * 60 * 1000;
     else if (unit.startsWith("w")) offsetMs = num * 7 * 24 * 60 * 60 * 1000;
-    
+
     parsed = new Date(now - offsetMs);
   } else {
-    parsed = parseDateTime(input);
+    parsed = parseDateTime(dateStr);
   }
-  
+
   if (!parsed) return null;
-  
+
   // Format display: always include date and time for precision
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const month = months[parsed.getMonth()];
@@ -679,34 +730,80 @@ function normalizeTimeFilter(input: string): { display: string; value: string } 
   const minutes = parsed.getMinutes();
   const ampm = hours >= 12 ? "PM" : "AM";
   const hour12 = hours % 12 || 12;
-  
-  let display = `${month} ${day}`;
+
+  let displayDate = `${month} ${day}`;
   if (year !== currentYear) {
-    display += `, ${year}`;
+    displayDate += `, ${year}`;
   }
-  display += ` ${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
-  
-  // Value is ISO string for URL serialization
-  const value = parsed.toISOString();
-  
-  return { display, value };
+  displayDate += ` ${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+
+  // Add operator symbol to display (except for default >=)
+  const operatorSymbol = operator === ">=" ? "" : `${operator}`;
+  const display = operatorSymbol + displayDate;
+
+  // Value includes operator prefix + ISO string for matching
+  const value = `${operator}${parsed.toISOString()}`;
+
+  return { display, value, operator };
 }
 
-// Check if a task time matches a filter value
-// Filter value is now an ISO timestamp - task must be >= that time
+// Check if a task time matches a filter value (with operator support)
+// Filter value format: ">=2024-12-25T00:00:00.000Z" or just ISO timestamp
 function matchTimeFilter(taskTime: number, filterValue: string): boolean {
-  // Try parsing as ISO timestamp first (our normalized format)
-  const isoDate = new Date(filterValue);
+  // Extract operator if present
+  let operator = ">=";
+  let isoStr = filterValue;
+
+  if (filterValue.startsWith(">=")) {
+    operator = ">=";
+    isoStr = filterValue.slice(2);
+  } else if (filterValue.startsWith("<=")) {
+    operator = "<=";
+    isoStr = filterValue.slice(2);
+  } else if (filterValue.startsWith(">")) {
+    operator = ">";
+    isoStr = filterValue.slice(1);
+  } else if (filterValue.startsWith("<")) {
+    operator = "<";
+    isoStr = filterValue.slice(1);
+  } else if (filterValue.startsWith("=")) {
+    operator = "=";
+    isoStr = filterValue.slice(1);
+  }
+
+  // Try parsing as ISO timestamp
+  const isoDate = new Date(isoStr);
   if (!isNaN(isoDate.getTime())) {
-    return taskTime >= isoDate.getTime();
+    const compareTime = isoDate.getTime();
+    switch (operator) {
+      case ">": return taskTime > compareTime;
+      case ">=": return taskTime >= compareTime;
+      case "<": return taskTime < compareTime;
+      case "<=": return taskTime <= compareTime;
+      case "=":
+        // For "equals", check if same day
+        const taskDate = new Date(taskTime);
+        return taskDate.toDateString() === isoDate.toDateString();
+      default: return taskTime >= compareTime;
+    }
   }
-  
+
   // Fallback: parse as natural language (for backwards compatibility)
-  const parsed = parseDateTime(filterValue);
+  const parsed = parseDateTime(isoStr);
   if (parsed) {
-    return taskTime >= parsed.getTime();
+    const compareTime = parsed.getTime();
+    switch (operator) {
+      case ">": return taskTime > compareTime;
+      case ">=": return taskTime >= compareTime;
+      case "<": return taskTime < compareTime;
+      case "<=": return taskTime <= compareTime;
+      case "=":
+        const taskDate = new Date(taskTime);
+        return taskDate.toDateString() === parsed.toDateString();
+      default: return taskTime >= compareTime;
+    }
   }
-  
+
   return false;
 }
 
@@ -719,8 +816,8 @@ const FIELD_HINTS: Record<string, string> = {
   exit: "exit code",
   retry: "retry attempt ID",
   duration: "5m (≥5m), <1h, =30s",
-  started: "last 2h, yesterday, Dec 25 9am",
-  ended: "last 2h, yesterday, Dec 25 9am",
+  started: "last 2h, >yesterday, <Dec 25 9am",
+  ended: "last 2h, >yesterday, <Dec 25 9am",
 };
 
 interface SearchChip {
@@ -751,30 +848,37 @@ const SmartSearch = memo(function SmartSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Defer expensive suggestion computation to not block typing
+  const deferredInputValue = useDeferredValue(inputValue);
+  const deferredTasks = useDeferredValue(tasks);
+
   // Helper to add a chip - for singular fields, replaces existing
+  // Uses startTransition for non-urgent UI updates
   const addChip = useCallback((newChip: SearchChip) => {
-    if (SINGULAR_FIELDS.has(newChip.field)) {
-      // Remove any existing chip for this field first
-      const filtered = chips.filter(c => c.field !== newChip.field);
-      onChipsChange([...filtered, newChip]);
-    } else {
-      onChipsChange([...chips, newChip]);
-    }
+    startTransition(() => {
+      if (SINGULAR_FIELDS.has(newChip.field)) {
+        // Remove any existing chip for this field first
+        const filtered = chips.filter(c => c.field !== newChip.field);
+        onChipsChange([...filtered, newChip]);
+      } else {
+        onChipsChange([...chips, newChip]);
+      }
+    });
   }, [chips, onChipsChange]);
 
-  // Parse input to detect field prefix
+  // Parse input to detect field prefix (uses deferred value for suggestions)
   const parsedInput = useMemo(() => {
     for (const field of SEARCH_FIELDS) {
-      if (field.prefix && inputValue.toLowerCase().startsWith(field.prefix)) {
+      if (field.prefix && deferredInputValue.toLowerCase().startsWith(field.prefix)) {
         return {
           field,
-          query: inputValue.slice(field.prefix.length),
+          query: deferredInputValue.slice(field.prefix.length),
           hasPrefix: true,
         };
       }
     }
-    return { field: null, query: inputValue, hasPrefix: false };
-  }, [inputValue]);
+    return { field: null, query: deferredInputValue, hasPrefix: false };
+  }, [deferredInputValue]);
 
 
   // Generate suggestions based on input
@@ -789,17 +893,32 @@ const SmartSearch = memo(function SmartSearch({
 
   const suggestions = useMemo(() => {
     const items: SuggestionItem[] = [];
-    const query = inputValue.toLowerCase().trim();
-    const stateField = SEARCH_FIELDS.find((f) => f.id === "state")!;
-    const statusField = SEARCH_FIELDS.find((f) => f.id === "status")!;
+    const query = deferredInputValue.toLowerCase().trim();
+    const stateField = SEARCH_FIELDS_MAP.get("state")!;
+    const statusField = SEARCH_FIELDS_MAP.get("status")!;
 
-    // Helper: count tasks matching a state category
-    const countByState = (state: StateCategory) => 
-      tasks.filter((t) => STATE_CATEGORIES[state].has(t.status)).length;
+    // Pre-compute status counts (single pass over tasks)
+    const statusCounts = new Map<TaskGroupStatus, number>();
+    const stateCounts = new Map<StateCategory, number>();
 
-    // Helper: count tasks matching a specific status
-    const countByStatus = (status: TaskGroupStatus) =>
-      tasks.filter((t) => t.status === status).length;
+    for (const task of deferredTasks) {
+      statusCounts.set(task.status, (statusCounts.get(task.status) ?? 0) + 1);
+    }
+
+    // Compute state counts from status counts
+    for (const [state, statuses] of Object.entries(STATE_CATEGORIES) as [StateCategory, Set<TaskGroupStatus>][]) {
+      let count = 0;
+      for (const status of statuses) {
+        count += statusCounts.get(status) ?? 0;
+      }
+      stateCounts.set(state, count);
+    }
+
+    // Helper: count tasks matching a state category (O(1) lookup)
+    const countByState = (state: StateCategory) => stateCounts.get(state) ?? 0;
+
+    // Helper: count tasks matching a specific status (O(1) lookup)
+    const countByStatus = (status: TaskGroupStatus) => statusCounts.get(status) ?? 0;
 
     if (!query) {
       // States are now in the quick filters row, so just show field hints here
@@ -816,8 +935,8 @@ const SmartSearch = memo(function SmartSearch({
       // Explicit prefix: show values for the specific field
       const field = parsedInput.field;
       const prefixQuery = parsedInput.query.toLowerCase();
-      const values = field.getValues(tasks);
-      
+      const values = field.getValues(deferredTasks);
+
       // Show format hint for free-form fields (duration, started, ended)
       const freeFormFields = ["duration", "started", "ended"];
       if (freeFormFields.includes(field.id) && FIELD_HINTS[field.id]) {
@@ -829,12 +948,12 @@ const SmartSearch = memo(function SmartSearch({
           display: `Format: ${FIELD_HINTS[field.id]}`,
         });
       }
-      
+
       values
         .filter((v) => v.toLowerCase().includes(prefixQuery))
         .slice(0, 8)
         .forEach((value) => {
-          const count = tasks.filter((t) => field.match(t, value)).length;
+          const count = deferredTasks.filter((t) => field.match(t, value)).length;
           items.push({
             type: "value",
             field,
@@ -846,7 +965,7 @@ const SmartSearch = memo(function SmartSearch({
     } else {
       // Smart recognition: check if query matches a state category
       const matchingStates = STATE_CATEGORY_NAMES.filter((s) => s.includes(query));
-      
+
       if (matchingStates.length > 0) {
         // Show hierarchical state options
         matchingStates.forEach((state) => {
@@ -894,8 +1013,8 @@ const SmartSearch = memo(function SmartSearch({
 
       // Name matches (if query doesn't look like a state)
       if (matchingStates.length === 0 || query.length > 3) {
-        const nameField = SEARCH_FIELDS.find((f) => f.id === "name")!;
-        tasks
+        const nameField = SEARCH_FIELDS_MAP.get("name")!;
+        deferredTasks
           .filter((t) => t.name.toLowerCase().includes(query))
           .slice(0, 5)
           .forEach((task) => {
@@ -910,16 +1029,16 @@ const SmartSearch = memo(function SmartSearch({
       }
 
       // Node matches
-      const nodeField = SEARCH_FIELDS.find((f) => f.id === "node")!;
+      const nodeField = SEARCH_FIELDS_MAP.get("node")!;
       const matchingNodes = [...new Set(
-        tasks
+        deferredTasks
           .filter((t) => t.node_name?.toLowerCase().includes(query))
           .map((t) => t.node_name)
           .filter(Boolean) as string[]
       )].slice(0, 3);
-      
+
       matchingNodes.forEach((node) => {
-        const count = tasks.filter((t) => t.node_name === node).length;
+        const count = deferredTasks.filter((t) => t.node_name === node).length;
         items.push({
           type: "value",
           field: nodeField,
@@ -931,7 +1050,7 @@ const SmartSearch = memo(function SmartSearch({
     }
 
     return items;
-  }, [inputValue, parsedInput, tasks]);
+  }, [deferredInputValue, parsedInput, deferredTasks]);
 
   // Reset highlight when suggestions change
   useEffect(() => {
@@ -950,11 +1069,11 @@ const SmartSearch = memo(function SmartSearch({
       // Check if this is a time field that needs normalization
       const isTimeField = selected.field.id === "started" || selected.field.id === "ended";
       const normalizedTime = isTimeField ? normalizeTimeFilter(selected.value) : null;
-      
+
       // Determine the chip value and label
       let chipValue: string;
       let chipLabel: string;
-      
+
       if (normalizedTime) {
         chipValue = normalizedTime.value;  // ISO timestamp
         chipLabel = `${selected.field.prefix}${normalizedTime.display}`;
@@ -992,7 +1111,7 @@ const SmartSearch = memo(function SmartSearch({
       // Check if there are any selectable (non-hint) suggestions
       const selectableSuggestions = suggestions.filter(s => s.type !== "hint");
       const highlightedItem = suggestions[highlightedIndex];
-      
+
       if (selectableSuggestions.length > 0 && showDropdown && highlightedItem?.type !== "hint") {
         e.preventDefault();
         handleSelect(highlightedIndex);
@@ -1001,24 +1120,24 @@ const SmartSearch = memo(function SmartSearch({
         e.preventDefault();
         const field = parsedInput.field;
         const value = parsedInput.query.trim();
-        
+
         // Validate the filter by checking if it would match anything or is valid format
         const isValidDuration = field.id === "duration" && parseDurationString(value.replace(/^[><=]+/, "")) !== null;
-        
+
         // For time fields, use chrono-node to validate and normalize to absolute timestamp
         const isTimeField = field.id === "started" || field.id === "ended";
         const normalizedTime = isTimeField ? normalizeTimeFilter(value) : null;
         const isValidTime = isTimeField && normalizedTime !== null;
-        
+
         const isValidOther = field.id !== "duration" && !isTimeField;
-        
+
         if (isValidDuration || isValidTime || isValidOther) {
           // For time fields, use normalized absolute timestamp
           const chipValue = normalizedTime ? normalizedTime.value : value;
-          const chipLabel = normalizedTime 
+          const chipLabel = normalizedTime
             ? `${field.prefix}${normalizedTime.display}`
             : `${field.prefix}${value}`;
-          
+
           const newChip: SearchChip = {
             field: field.id,
             value: chipValue,  // ISO timestamp for URL sharing
@@ -1072,7 +1191,7 @@ const SmartSearch = memo(function SmartSearch({
         onClick={() => inputRef.current?.focus()}
       >
         <Search className="h-4 w-4 shrink-0 text-zinc-400" />
-        
+
         {/* Chips */}
         {chips.map((chip, index) => (
           <span
@@ -1108,11 +1227,12 @@ const SmartSearch = memo(function SmartSearch({
         />
       </div>
 
-      {/* Dropdown */}
+      {/* Dropdown - GPU accelerated with containment */}
       {showDropdown && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto overscroll-contain rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          style={{ ...GPU_ACCELERATED_STYLE, contain: "layout style" }}
         >
           {/* Quick state filters - preset shortcuts that add status chips */}
           {inputValue === "" && (
@@ -1120,12 +1240,12 @@ const SmartSearch = memo(function SmartSearch({
               <div className="flex flex-wrap gap-1.5">
                 {STATE_CATEGORY_NAMES.map((state) => {
                   const statusesInCategory = [...STATE_CATEGORIES[state]];
-                  const statusesWithTasks = statusesInCategory.filter((s) => 
+                  const statusesWithTasks = statusesInCategory.filter((s) =>
                     tasks.some((t) => t.status === s)
                   );
                   const count = tasks.filter((t) => STATE_CATEGORIES[state].has(t.status)).length;
                   if (count === 0) return null;
-                  
+
                   return (
                     <button
                       key={state}
@@ -1162,7 +1282,7 @@ const SmartSearch = memo(function SmartSearch({
               </div>
             </div>
           )}
-          
+
           {/* Suggestions */}
           {suggestions.map((item, index) =>
             item.type === "hint" ? (
@@ -1220,28 +1340,65 @@ const SmartSearch = memo(function SmartSearch({
   );
 });
 
-// Helper to filter tasks by chips
+// Helper to filter tasks by chips (hyper-optimized)
 // Same-field chips use OR logic (union), different fields use AND logic
+// Uses loop unrolling and early exits for maximum performance
 function filterTasksByChips(tasks: TaskWithDuration[], chips: SearchChip[]): TaskWithDuration[] {
   if (chips.length === 0) return tasks;
-  
-  // Group chips by field
-  const chipsByField = new Map<string, SearchChip[]>();
-  for (const chip of chips) {
-    const existing = chipsByField.get(chip.field) ?? [];
-    existing.push(chip);
-    chipsByField.set(chip.field, existing);
+
+  // Group chips by field - single pass, pre-resolve field references
+  const chipGroups: Array<{ field: SearchField; values: string[] }> = [];
+  const fieldGroupMap = new Map<string, number>();
+
+  for (let i = 0; i < chips.length; i++) {
+    const chip = chips[i];
+    const field = SEARCH_FIELDS_MAP.get(chip.field);
+    if (!field) continue;
+
+    let groupIdx = fieldGroupMap.get(chip.field);
+    if (groupIdx === undefined) {
+      groupIdx = chipGroups.length;
+      fieldGroupMap.set(chip.field, groupIdx);
+      chipGroups.push({ field, values: [] });
+    }
+    chipGroups[groupIdx].values.push(chip.value);
   }
-  
+
+  // Early exit if no valid chips
+  const numGroups = chipGroups.length;
+  if (numGroups === 0) return tasks;
+
+  // Special case: single field group (most common) - optimized path
+  if (numGroups === 1) {
+    const { field, values } = chipGroups[0];
+    const numValues = values.length;
+
+    // Single value - direct comparison
+    if (numValues === 1) {
+      const value = values[0];
+      return tasks.filter((task) => field.match(task, value));
+    }
+
+    // Multiple values - OR logic
+    return tasks.filter((task) => {
+      for (let i = 0; i < numValues; i++) {
+        if (field.match(task, values[i])) return true;
+      }
+      return false;
+    });
+  }
+
+  // General case: multiple field groups - AND of ORs
   return tasks.filter((task) => {
-    // For each field group, at least one chip must match (OR within field)
-    // All field groups must pass (AND between fields)
-    for (const [fieldId, fieldChips] of chipsByField) {
-      const field = SEARCH_FIELDS.find((f) => f.id === fieldId);
-      if (!field) continue;
-      
-      // OR logic: at least one chip in this field group must match
-      const anyMatch = fieldChips.some((chip) => field.match(task, chip.value));
+    for (let g = 0; g < numGroups; g++) {
+      const { field, values } = chipGroups[g];
+      let anyMatch = false;
+      for (let v = 0; v < values.length; v++) {
+        if (field.match(task, values[v])) {
+          anyMatch = true;
+          break;
+        }
+      }
       if (!anyMatch) return false;
     }
     return true;
@@ -1259,14 +1416,14 @@ function getGridTemplate(columns: ColumnDef[]): string {
   const key = columns.map((c) => c.id).join(",");
   let cached = gridTemplateCache.get(key);
   if (cached) return cached;
-  
+
   cached = columns
     .map((col) => {
       if (typeof col.width === "number") return `${col.width}px`;
       return `minmax(${col.width.min}px, ${col.width.share}fr)`;
     })
     .join(" ");
-  
+
   gridTemplateCache.set(key, cached);
   return cached;
 }
@@ -1275,13 +1432,13 @@ function getMinTableWidth(columns: ColumnDef[]): number {
   const key = columns.map((c) => c.id).join(",");
   let cached = minWidthCache.get(key);
   if (cached) return cached;
-  
+
   const fixedWidth = columns.reduce((sum, col) => {
     if (typeof col.width === "number") return sum + col.width;
     return sum + col.width.min;
   }, 0);
   cached = fixedWidth + (columns.length - 1) * 24 + 24;
-  
+
   minWidthCache.set(key, cached);
   return cached;
 }
@@ -1367,7 +1524,7 @@ function generateMockGroup(taskCount: number, scenarioName: string): MockGroup {
       events: `/api/tasks/${scenarioName}-shard-${i}/events`,
       pod_name: isStarted ? `${scenarioName}-${i}-${faker.string.alphanumeric(5)}` : "",
       task_uuid: faker.string.uuid(),
-      
+
       // Optional fields from TaskQueryResponse
       pod_ip: isStarted ? `10.0.${faker.number.int({ min: 1, max: 10 })}.${faker.number.int({ min: 1, max: 254 })}` : undefined,
       node_name: isStarted ? faker.helpers.arrayElement(MOCK_NODES) : undefined,
@@ -1379,7 +1536,7 @@ function generateMockGroup(taskCount: number, scenarioName: string): MockGroup {
         : undefined,
       dashboard_url: isStarted ? `/dashboard/${scenarioName}-shard-${i}` : undefined,
       lead: i === 0, // First task is lead
-      
+
       // Computed field for UI
       duration: calculateDuration(startTime, endTime),
     };
@@ -1405,7 +1562,7 @@ const StatusIcon = memo(function StatusIcon({ status, className }: { status: Tas
     case "completed":
       return <Check className={cn("h-3.5 w-3.5 text-emerald-500", className)} />;
     case "running":
-      return <Loader2 className={cn("h-3.5 w-3.5 text-blue-500", className)} style={{ animation: "spin 1s linear infinite" }} />;
+      return <Loader2 className={cn("h-3.5 w-3.5 text-blue-500 animate-spin", className)} />;
     case "failed":
       return <AlertCircle className={cn("h-3.5 w-3.5 text-red-500", className)} />;
     case "waiting":
@@ -1443,6 +1600,12 @@ const STATUS_LABELS: Record<TaskGroupStatus, string> = {
 // Task Row (heavily optimized)
 // =============================================================================
 
+// Pre-computed row style object to avoid recreation
+const ROW_BASE_STYLE: React.CSSProperties = {
+  ...GPU_ACCELERATED_STYLE,
+  contain: "layout style paint",
+};
+
 const TaskRow = memo(function TaskRow({
   task,
   gridTemplate,
@@ -1458,14 +1621,21 @@ const TaskRow = memo(function TaskRow({
   onSelect: () => void;
   visibleColumnIds: ColumnId[];
 }) {
+  // Merge styles once per render
+  const rowStyle = useMemo(() => ({
+    ...ROW_BASE_STYLE,
+    gridTemplateColumns: gridTemplate,
+    minWidth,
+  }), [gridTemplate, minWidth]);
+
   return (
     <div
       onClick={onSelect}
       className={cn(
-        "grid cursor-pointer items-center gap-6 border-b border-zinc-100 px-3 py-2 text-sm dark:border-zinc-800",
+        "grid cursor-pointer items-center gap-6 border-b border-zinc-100 px-3 py-2 text-sm transition-colors duration-75 dark:border-zinc-800",
         isSelected ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-zinc-50 dark:hover:bg-zinc-900",
       )}
-      style={{ gridTemplateColumns: gridTemplate, minWidth, ...GPU_ACCELERATED_STYLE, ...CONTAIN_STYLE }}
+      style={rowStyle}
     >
       {visibleColumnIds.map((colId) => {
         const col = COLUMN_MAP.get(colId)!;
@@ -1478,6 +1648,7 @@ const TaskRow = memo(function TaskRow({
     </div>
   );
 }, (prev, next) => {
+  // Fast shallow comparison
   return prev.task === next.task &&
     prev.gridTemplate === next.gridTemplate &&
     prev.minWidth === next.minWidth &&
@@ -1679,18 +1850,22 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
   onReorderColumns: (newOrder: ColumnId[]) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rowHeight = 40;
 
   const virtualizer = useVirtualizerCompat({
     count: tasks.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowHeight,
-    overscan: 10,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 15, // Increased overscan for smoother scrolling
   });
 
+  // Memoize expensive computations with stable references
   const gridTemplate = useMemo(() => getGridTemplate(columns), [columns]);
   const minWidth = useMemo(() => getMinTableWidth(columns), [columns]);
   const visibleColumnIds = useMemo(() => columns.map((c) => c.id), [columns]);
+
+  // Pre-compute virtual items for stable reference
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
 
   if (tasks.length === 0) {
     return (
@@ -1701,8 +1876,8 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto" style={GPU_ACCELERATED_STYLE}>
-      <div className="sticky top-0 z-10" style={{ minWidth }}>
+    <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain" style={GPU_ACCELERATED_STYLE}>
+      <div className="sticky top-0 z-10" style={{ minWidth, ...CONTAIN_STYLE }}>
         <TaskTableHeader
           columns={columns}
           gridTemplate={gridTemplate}
@@ -1713,9 +1888,9 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
           onReorder={onReorderColumns}
         />
       </div>
-      
-      <div style={{ height: virtualizer.getTotalSize(), position: "relative", ...GPU_ACCELERATED_STYLE }}>
-        {virtualizer.getVirtualItems().map((virtualRow) => {
+
+      <div style={{ height: totalSize, position: "relative", ...GPU_ACCELERATED_STYLE }}>
+        {virtualItems.map((virtualRow) => {
           const task = tasks[virtualRow.index];
           return (
             <div
@@ -1725,8 +1900,9 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
                 top: 0,
                 left: 0,
                 width: "100%",
-                height: virtualRow.size,
+                height: ROW_HEIGHT,
                 transform: `translate3d(0, ${virtualRow.start}px, 0)`,
+                ...VIRTUAL_ITEM_STYLE,
               }}
             >
               <TaskRow
@@ -1844,7 +2020,7 @@ interface GroupPanelProps {
 function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps) {
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
-  
+
   const [sort, setSort] = usePersistedState<SortState>("sort", { column: "status", direction: "asc" });
   const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedState<ColumnId[]>("visibleOptionalIds", DEFAULT_VISIBLE_OPTIONAL);
 
@@ -1862,7 +2038,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
   const sortComparator = useMemo(() => {
     if (!sort.column) return null;
     const dir = sort.direction === "asc" ? 1 : -1;
-    
+
     switch (sort.column) {
       case "status": return (a: TaskWithDuration, b: TaskWithDuration) => (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
       case "name": return (a: TaskWithDuration, b: TaskWithDuration) => a.name.localeCompare(b.name) * dir;
@@ -1954,7 +2130,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
               )}
             >
               {groupStatus.status === "completed" && <Check className="h-3 w-3" />}
-              {groupStatus.status === "running" && <Loader2 className="h-3 w-3" style={{ animation: "spin 1s linear infinite" }} />}
+              {groupStatus.status === "running" && <Loader2 className="h-3 w-3 animate-spin" />}
               {groupStatus.status === "failed" && <AlertCircle className="h-3 w-3" />}
               {groupStatus.status === "pending" && <Clock className="h-3 w-3" />}
               <span className="font-medium">{groupStatus.label}</span>
@@ -1967,7 +2143,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
             )}
           </div>
         </div>
-        
+
         <div className="ml-2 flex shrink-0 items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1995,7 +2171,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
                   ))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              
+
               {onPanelResize && (
                 <>
                   <DropdownMenuSeparator />
@@ -2013,7 +2189,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          
+
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
@@ -2028,7 +2204,7 @@ function GroupPanel({ group, onClose, panelPct, onPanelResize }: GroupPanelProps
           tasks={group.tasks}
           chips={searchChips}
           onChipsChange={setSearchChips}
-          placeholder="Search tasks... (try state:failed or node:)"
+          placeholder="Filter by name, status:, ip:, duration:, and more..."
         />
         {searchChips.length > 0 && (
           <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
@@ -2064,6 +2240,8 @@ function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct:
   const [panelPct, setPanelPct] = usePersistedState<number>("panelPct", initialPct);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingPctRef = useRef<number | null>(null);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -2073,22 +2251,42 @@ function useResizablePanel(initialPct: number = 50, minPct: number = 25, maxPct:
   useEffect(() => {
     if (!isDragging) return;
 
+    // RAF-throttled resize for 60fps smooth dragging
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const pct = 100 - (x / rect.width) * 100;
-      setPanelPct(Math.min(maxPct, Math.max(minPct, pct)));
+      pendingPctRef.current = Math.min(maxPct, Math.max(minPct, pct));
+
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(() => {
+          if (pendingPctRef.current !== null) {
+            setPanelPct(pendingPctRef.current);
+          }
+          rafRef.current = null;
+        });
+      }
     };
 
-    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
 
-    document.addEventListener("mousemove", handleMouseMove);
+    // Passive event listeners for better scroll performance
+    document.addEventListener("mousemove", handleMouseMove, { passive: true });
     document.addEventListener("mouseup", handleMouseUp);
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
     };
   }, [isDragging, minPct, maxPct, setPanelPct]);
 
@@ -2149,20 +2347,31 @@ export default function GroupPanelPage() {
           <>
               <div
                 className={cn(
-                  "group absolute top-0 z-20 h-full w-1 cursor-ew-resize transition-colors",
+                  "group absolute top-0 z-20 h-full w-1 cursor-ew-resize",
                   isDragging ? "bg-blue-500" : "bg-transparent hover:bg-zinc-300 dark:hover:bg-zinc-600",
                 )}
-                style={{ left: `${100 - panelPct}%`, transform: "translateX(-50%)" }}
+                style={{
+                  left: `${100 - panelPct}%`,
+                  transform: "translateX(-50%)",
+                  // GPU layer for smooth dragging
+                  willChange: isDragging ? "left" : "auto",
+                }}
                 onMouseDown={handleMouseDown}
               >
-                <div className={cn(
-                  "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-200 px-0.5 py-1 shadow-md transition-opacity dark:bg-zinc-700",
-                  isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-                )}>
+                <div
+                  className={cn(
+                    "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-200 px-0.5 py-1 shadow-md dark:bg-zinc-700",
+                    isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                  )}
+                  style={{
+                    transition: "opacity 150ms ease-out",
+                    ...GPU_ACCELERATED_STYLE,
+                  }}
+                >
                   <GripVertical className="h-4 w-4 text-zinc-600 dark:text-zinc-300" />
                 </div>
               </div>
-            
+
             <div
               className="absolute inset-y-0 right-0 z-10"
               style={{ width: `${panelPct}%`, ...GPU_ACCELERATED_STYLE }}
