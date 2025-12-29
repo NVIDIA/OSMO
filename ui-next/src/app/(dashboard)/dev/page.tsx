@@ -28,43 +28,7 @@ const devPages = [
     description: "Compare different DAG and timeline visualization approaches",
     icon: Workflow,
     highlight: true,
-  },
-  {
-    title: "React Flow DAG",
-    href: "/dev/workflow-explorer/reactflow-dag",
-    description: "@xyflow/react + @dagrejs/dagre auto-layout DAG",
-    icon: GitBranch,
-  },
-  {
-    title: "vis-timeline Gantt",
-    href: "/dev/workflow-explorer/vis-timeline",
-    description: "Gantt-style timeline view with vis-timeline library",
-    icon: BarChart3,
-  },
-  {
-    title: "Workflows Mock",
-    href: "/dev/workflows-mock",
-    description: "Workflow list design exploration with mock data",
-    icon: LayoutList,
-  },
-  {
-    title: "DAG Visualization",
-    href: "/dev/workflows-mock/dag",
-    description: "DAG/graph visualization for workflow tasks",
-    icon: GitBranch,
-  },
-  {
-    title: "Status Explainers",
-    href: "/dev/workflows-mock/explain",
-    description: '"Why isn\'t it running?" and failure explanation UIs',
-    icon: HelpCircle,
-  },
-  {
-    title: "Vertical DAG",
-    href: "/dev/dag-vertical",
-    description: "Vertical top-to-bottom DAG with timeline view",
-    icon: GitBranch,
-  },
+  }
 ];
 
 export default function DevIndexPage() {

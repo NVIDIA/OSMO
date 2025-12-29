@@ -7,11 +7,12 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * Hooks Index
+ * GroupPanel Index
  *
- * Re-exports all hooks for cleaner imports.
+ * Re-exports GroupPanel components and utilities.
  */
 
-export { useDAGState, type PanelView } from "./use-dag-state";
-export { usePersistedState, clearPersistedSettings, type PersistedSettings } from "./use-persisted-state";
-export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "./use-resizable-panel";
+export { GroupPanel } from "./GroupPanel";
+export { SmartSearch, filterTasksByChips } from "./SmartSearch";
+export { VirtualizedTaskList } from "./TaskTable";
+export type { GroupPanelProps, TaskWithDuration, SearchChip, ColumnId, SortState } from "./types";
