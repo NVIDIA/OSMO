@@ -91,6 +91,7 @@ Preserve the original structure, object positions, and layout from the input vid
 Ensure the output exactly matches the segmentation video frame-by-frame in timing and content. 
 Camera movement must follow the original path precisely.
 ```
+Please follow the Cosmos Transfer-2.5 [Documentation](https://github.com/nvidia-cosmos/cosmos-transfer2.5/blob/14d396cc94ea18e7f8f47b0fd385e3e438cf66c5/docs/inference.md) for configuring the prompt and other parameters.
 
 ### Scaling to Production
 
