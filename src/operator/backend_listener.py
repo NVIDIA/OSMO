@@ -1216,6 +1216,7 @@ def watch_pod_events(progress_writer: progress.ProgressWriter,
                 backend_messages.LoggingType.WARNING,
                 f'Connection error during watch pod events: {error}, retrying ...',
                 event_send_queue)
+            progress_writer.report_progress()
         except KeyboardInterrupt:
             sys.exit(0)
         except Exception as error: # pylint: disable=broad-except
@@ -1311,19 +1312,20 @@ def watch_node_events(progress_writer: progress.ProgressWriter,
             if error.status == 410:
                 # Reset last resource version
                 last_resource_version = ''
-
+            progress_writer.report_progress()
         except urllib3.exceptions.ReadTimeoutError:
             helpers.send_log_through_queue(
                 backend_messages.LoggingType.INFO,
                 'Connection timed out during watch node events, reestablishing watch stream.',
                 event_send_queue)
-
+            progress_writer.report_progress()
         except (urllib3.exceptions.MaxRetryError, urllib3.exceptions.ProtocolError) as error:
             send_connection_error_count(event_type='node')
             helpers.send_log_through_queue(
                 backend_messages.LoggingType.WARNING,
                 f'Cluster monitor errored out during watch node events due to {error} retrying ...',
                 event_send_queue)
+            progress_writer.report_progress()
         except KeyboardInterrupt:
             sys.exit(0)
         except Exception as error: # pylint: disable=broad-except
@@ -1428,11 +1430,13 @@ def watch_backend_events(progress_writer: progress.ProgressWriter,
             if error.status == 410:
                 # Reset last resource version
                 last_resource_version = ''
+            progress_writer.report_progress()
         except urllib3.exceptions.ReadTimeoutError:
             helpers.send_log_through_queue(
                 backend_messages.LoggingType.WARNING,
                 'Connection timed out during watch backend events, reestablishing watch stream.',
                 event_send_queue)
+            progress_writer.report_progress()
         except (urllib3.exceptions.MaxRetryError, urllib3.exceptions.ProtocolError) as error:
             send_connection_error_count(event_type='backend')
             helpers.send_log_through_queue(
@@ -1440,6 +1444,7 @@ def watch_backend_events(progress_writer: progress.ProgressWriter,
                 f'Cluster monitor errored out during watch backend events due to {error} ' +\
                 'retrying ...',
                 event_send_queue)
+            progress_writer.report_progress()
         except KeyboardInterrupt:
             sys.exit(0)
         except Exception as error:  # pylint: disable=broad-except
