@@ -200,6 +200,9 @@ interface MockGroup {
 // =============================================================================
 
 type ColumnId = "status" | "name" | "duration" | "node" | "podIp" | "exitCode" | "startTime" | "endTime" | "retry";
+// Width types:
+// - number: fixed px
+// - { min, share }: flexible - min is floor, share determines proportion of available space
 type ColumnWidth = number | { min: number; share: number };
 
 interface ColumnDef {
@@ -217,16 +220,17 @@ interface OptionalColumnDef extends ColumnDef {
 
 const MANDATORY_COLUMNS: ColumnDef[] = [
   { id: "status", label: "", menuLabel: "Status", width: 24, align: "left", sortable: true },
-  { id: "name", label: "Name", menuLabel: "Name", width: { min: 150, share: 3 }, align: "left", sortable: true },
+  // Name: highest priority (share: 3) - gets 3x more flexible space than share:1 columns
+  { id: "name", label: "Name", menuLabel: "Name", width: { min: 150, share: 2.8 }, align: "left", sortable: true },
 ];
 
 const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
-  { id: "duration", label: "Duration", menuLabel: "Duration", width: 90, align: "right", sortable: true, defaultVisible: true },
-  { id: "node", label: "Node", menuLabel: "Node Name", width: { min: 80, share: 1 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "duration", label: "Duration", menuLabel: "Duration", width: { min: 70, share: 0.8 }, align: "right", sortable: true, defaultVisible: true },
+  { id: "node", label: "Node", menuLabel: "Node Name", width: { min: 80, share: 1.2 }, align: "left", sortable: true, defaultVisible: true },
   { id: "podIp", label: "IP", menuLabel: "IP", width: { min: 95, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
   { id: "exitCode", label: "Exit", menuLabel: "Exit Code", width: 55, align: "right", sortable: true, defaultVisible: false },
-  { id: "startTime", label: "Start", menuLabel: "Start Time", width: 115, align: "right", sortable: true, defaultVisible: false },
-  { id: "endTime", label: "End", menuLabel: "End Time", width: 115, align: "right", sortable: true, defaultVisible: false },
+  { id: "startTime", label: "Start", menuLabel: "Start Time", width: { min: 85, share: 0.8 }, align: "right", sortable: true, defaultVisible: false },
+  { id: "endTime", label: "End", menuLabel: "End Time", width: { min: 85, share: 0.8 }, align: "right", sortable: true, defaultVisible: false },
   { id: "retry", label: "Retry", menuLabel: "Retry ID", width: 60, align: "right", sortable: true, defaultVisible: false },
 ];
 
@@ -398,12 +402,15 @@ function formatTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   const date = new Date(dateStr);
 
-  const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const month = months[date.getMonth()];
+  const month = date.getMonth() + 1;
   const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "p" : "a";
+  const hour12 = hours % 12 || 12;
 
-  return `${month} ${day} ${timeStr}`;
+  // Compact format: 12/25 3:45p
+  return `${month}/${day} ${hour12}:${minutes}${ampm}`;
 }
 
 // =============================================================================
@@ -1412,6 +1419,22 @@ function filterTasksByChips(tasks: TaskWithDuration[], chips: SearchChip[]): Tas
 const gridTemplateCache = new Map<string, string>();
 const minWidthCache = new Map<string, number>();
 
+// =============================================================================
+// CSS Grid Template - Guaranteed Alignment Solution
+// =============================================================================
+//
+// PROBLEM: Each row is a separate CSS Grid container (required for virtualization).
+// When using `max-content`, each grid calculates column widths independently,
+// causing misalignment between header and rows.
+//
+// SOLUTION: Use only `fr` units for flexible columns.
+// - `fr` distributes available space proportionally
+// - Same template string → same column widths → guaranteed alignment
+// - Content truncates with ellipsis when exceeding available space
+//
+// Trade-off: Columns don't shrink to fit short content, but they always align.
+// =============================================================================
+
 function getGridTemplate(columns: ColumnDef[]): string {
   const key = columns.map((c) => c.id).join(",");
   let cached = gridTemplateCache.get(key);
@@ -1420,6 +1443,8 @@ function getGridTemplate(columns: ColumnDef[]): string {
   cached = columns
     .map((col) => {
       if (typeof col.width === "number") return `${col.width}px`;
+      // Use fr units only - guarantees alignment across all rows
+      // min ensures columns don't collapse, share determines proportion
       return `minmax(${col.width.min}px, ${col.width.share}fr)`;
     })
     .join(" ");
@@ -1435,8 +1460,10 @@ function getMinTableWidth(columns: ColumnDef[]): number {
 
   const fixedWidth = columns.reduce((sum, col) => {
     if (typeof col.width === "number") return sum + col.width;
+    // Both flexible types have a min property
     return sum + col.width.min;
   }, 0);
+  // Add gap spacing (24px per gap) + some padding
   cached = fixedWidth + (columns.length - 1) * 24 + 24;
 
   minWidthCache.set(key, cached);
@@ -1640,7 +1667,10 @@ const TaskRow = memo(function TaskRow({
       {visibleColumnIds.map((colId) => {
         const col = COLUMN_MAP.get(colId)!;
         return (
-          <div key={colId} className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
+          <div
+            key={colId}
+            className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
+          >
             <TaskCell task={task} columnId={colId} />
           </div>
         );
@@ -1663,24 +1693,24 @@ const TaskCell = memo(function TaskCell({ task, columnId }: { task: TaskWithDura
     case "name":
       return <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{task.name}</span>;
     case "duration":
-      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(task.duration)}</span>;
+      return <span className="whitespace-nowrap tabular-nums text-zinc-500 dark:text-zinc-400">{formatDuration(task.duration)}</span>;
     case "node":
       return <span className="truncate text-zinc-500 dark:text-zinc-400">{task.node_name ?? "—"}</span>;
     case "podIp":
-      return <span className="whitespace-nowrap font-mono text-xs text-zinc-500 dark:text-zinc-400">{task.pod_ip ?? "—"}</span>;
+      return <span className="whitespace-nowrap truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">{task.pod_ip ?? "—"}</span>;
     case "exitCode":
       return (
-        <span className={cn("tabular-nums", task.exit_code === 0 ? "text-zinc-400" : task.exit_code !== undefined ? "text-red-500" : "text-zinc-400")}>
+        <span className={cn("whitespace-nowrap tabular-nums", task.exit_code === 0 ? "text-zinc-400" : task.exit_code !== undefined ? "text-red-500" : "text-zinc-400")}>
           {task.exit_code ?? "—"}
         </span>
       );
     case "startTime":
-      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.start_time)}</span>;
+      return <span className="whitespace-nowrap tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.start_time)}</span>;
     case "endTime":
-      return <span className="tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.end_time)}</span>;
+      return <span className="whitespace-nowrap tabular-nums text-zinc-500 dark:text-zinc-400">{formatTime(task.end_time)}</span>;
     case "retry":
       return (
-        <span className={cn("tabular-nums", task.retry_id > 0 ? "text-amber-500" : "text-zinc-400")}>
+        <span className={cn("whitespace-nowrap tabular-nums", task.retry_id > 0 ? "text-amber-500" : "text-zinc-400")}>
           {task.retry_id > 0 ? task.retry_id : "—"}
         </span>
       );
@@ -1798,7 +1828,10 @@ const TaskTableHeader = memo(function TaskTableHeader({
         style={{ gridTemplateColumns: gridTemplate, minWidth, ...GPU_ACCELERATED_STYLE }}
       >
         {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
-          <div key={col.id} className={cn("flex items-center", col.align === "right" && "justify-end")}>
+          <div
+            key={col.id}
+            className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
+          >
             <button
               onClick={() => col.sortable && onSort(col.id)}
               disabled={!col.sortable}
@@ -1855,10 +1888,10 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
     count: tasks.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 15, // Increased overscan for smoother scrolling
+    overscan: 15,
   });
 
-  // Memoize expensive computations with stable references
+  // Pure CSS-driven grid template
   const gridTemplate = useMemo(() => getGridTemplate(columns), [columns]);
   const minWidth = useMemo(() => getMinTableWidth(columns), [columns]);
   const visibleColumnIds = useMemo(() => columns.map((c) => c.id), [columns]);
@@ -1877,20 +1910,22 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain" style={GPU_ACCELERATED_STYLE}>
-      <div className="sticky top-0 z-10" style={{ minWidth, ...CONTAIN_STYLE }}>
-        <TaskTableHeader
-          columns={columns}
-          gridTemplate={gridTemplate}
-          minWidth={minWidth}
-          sort={sort}
-          onSort={onSort}
-          optionalColumnIds={optionalColumnIds}
-          onReorder={onReorderColumns}
-        />
-      </div>
+      {/* Inner wrapper ensures consistent minWidth for header + all rows */}
+      <div style={{ minWidth }}>
+        <div className="sticky top-0 z-10" style={CONTAIN_STYLE}>
+          <TaskTableHeader
+            columns={columns}
+            gridTemplate={gridTemplate}
+            minWidth={minWidth}
+            sort={sort}
+            onSort={onSort}
+            optionalColumnIds={optionalColumnIds}
+            onReorder={onReorderColumns}
+          />
+        </div>
 
-      <div style={{ height: totalSize, position: "relative", ...GPU_ACCELERATED_STYLE }}>
-        {virtualItems.map((virtualRow) => {
+        <div style={{ height: totalSize, position: "relative", ...GPU_ACCELERATED_STYLE }}>
+          {virtualItems.map((virtualRow) => {
           const task = tasks[virtualRow.index];
           return (
             <div
@@ -1915,7 +1950,8 @@ const VirtualizedTaskList = memo(function VirtualizedTaskList({
               />
             </div>
           );
-        })}
+          })}
+        </div>
       </div>
     </div>
   );
