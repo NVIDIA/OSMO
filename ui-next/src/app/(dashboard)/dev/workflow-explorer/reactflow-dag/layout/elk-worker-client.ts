@@ -22,7 +22,7 @@
  */
 
 import ELK from "elkjs/lib/elk-api.js";
-import type { ElkGraph, ElkLayoutResult } from "../types";
+import type { ElkGraph, ElkLayoutResult } from "../types/layout";
 
 // ELK worker script URL - served from our public folder
 // File is copied from node_modules by postinstall script
