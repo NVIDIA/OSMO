@@ -20,12 +20,15 @@
 "use client";
 
 import { useMemo, useCallback, memo } from "react";
-import { FileText, Terminal } from "lucide-react";
+import { FileText, Terminal, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
+import type { GroupWithLayout } from "../../../workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../utils/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
+import { TaskTimeline } from "./TaskTimeline";
+import { DependencyPills } from "./DependencyPills";
 import type { TaskDetailsProps, SiblingTask } from "../../types/panel";
 
 // ============================================================================
@@ -33,22 +36,32 @@ import type { TaskDetailsProps, SiblingTask } from "../../types/panel";
 // ============================================================================
 
 interface TaskDetailsInternalProps extends TaskDetailsProps {
+  allGroups: GroupWithLayout[];
   onClose: () => void;
   onPanelResize: (pct: number) => void;
+  onSelectGroup?: (group: GroupWithLayout) => void;
+  isDetailsExpanded: boolean;
+  onToggleDetailsExpanded: () => void;
 }
 
 export const TaskDetails = memo(function TaskDetails({
   group,
+  allGroups,
   task,
   onBackToGroup,
   onSelectTask,
+  onSelectGroup,
   onClose,
   onPanelResize,
+  isDetailsExpanded,
+  onToggleDetailsExpanded,
 }: TaskDetailsInternalProps) {
   const category = getStatusCategory(task.status);
   const style = getStatusStyle(task.status);
   const tasks = group.tasks || [];
+  const isStandaloneTask = tasks.length <= 1; // Single-task group
   const isFromGroup = tasks.length > 1;
+  const duration = calculateDuration(task.start_time, task.end_time);
 
   // Build sibling tasks for inline switcher
   const siblingTasks: SiblingTask[] = useMemo(() => {
@@ -68,11 +81,38 @@ export const TaskDetails = memo(function TaskDetails({
     }
   }, [tasks, group, onSelectTask]);
 
-  // Status content for header (Row 2 - matches GroupDetails layout)
+  // Handle dependency pill click (for standalone tasks)
+  const handleSelectGroupByName = useCallback((groupName: string) => {
+    if (onSelectGroup) {
+      const targetGroup = allGroups.find((g) => g.name === groupName);
+      if (targetGroup) {
+        onSelectGroup(targetGroup);
+      }
+    }
+  }, [allGroups, onSelectGroup]);
+
+  // Compute upstream/downstream groups (only for standalone tasks)
+  const upstreamGroups = useMemo(() => {
+    if (!isStandaloneTask) return [];
+    return allGroups.filter((g) => g.downstream_groups?.includes(group.name));
+  }, [allGroups, group.name, isStandaloneTask]);
+
+  const downstreamGroups = useMemo(() => {
+    if (!isStandaloneTask) return [];
+    return allGroups.filter((g) => group.downstream_groups?.includes(g.name));
+  }, [allGroups, group.downstream_groups, isStandaloneTask]);
+
+  // Status content for header (Row 2 - clean, consistent with GroupDetails)
   const statusContent = (
     <div className={cn("flex items-center gap-1.5 text-xs", style.text)}>
       {getStatusIcon(task.status, "size-3")}
       <span className="font-medium">{getStatusLabel(task.status)}</span>
+      {duration !== null && (
+        <>
+          <span className="text-zinc-600">·</span>
+          <span className="text-zinc-400">{formatDuration(duration)}</span>
+        </>
+      )}
       {task.retry_id > 0 && (
         <>
           <span className="text-zinc-600">·</span>
@@ -81,6 +121,33 @@ export const TaskDetails = memo(function TaskDetails({
       )}
     </div>
   );
+
+  // Check if we have any expandable content
+  const hasFailureMessage = !!task.failure_message;
+  const hasTimeline = task.scheduling_start_time || task.start_time;
+  const hasDependencies = isStandaloneTask && (upstreamGroups.length > 0 || downstreamGroups.length > 0);
+  const hasExpandableContent = hasFailureMessage || hasTimeline || hasDependencies;
+
+  // Expandable content for header
+  const expandableContent = hasExpandableContent ? (
+    <div className="space-y-3">
+      {/* Failure message - first item when present */}
+      {hasFailureMessage && (
+        <div className="flex items-start gap-1.5 text-xs text-red-400">
+          <AlertCircle className="mt-0.5 size-3 shrink-0" />
+          <span>{task.failure_message}</span>
+        </div>
+      )}
+      {hasTimeline && <TaskTimeline task={task} />}
+      {hasDependencies && (
+        <DependencyPills
+          upstreamGroups={upstreamGroups}
+          downstreamGroups={downstreamGroups}
+          onSelectGroup={handleSelectGroupByName}
+        />
+      )}
+    </div>
+  ) : undefined;
 
   return (
     <>
@@ -95,6 +162,9 @@ export const TaskDetails = memo(function TaskDetails({
         onPanelResize={onPanelResize}
         siblingTasks={isFromGroup ? siblingTasks : undefined}
         onSelectSibling={isFromGroup ? handleSelectSibling : undefined}
+        expandableContent={expandableContent}
+        isExpanded={isDetailsExpanded}
+        onToggleExpand={onToggleDetailsExpanded}
       />
 
       {/* Content */}
@@ -158,14 +228,6 @@ export const TaskDetails = memo(function TaskDetails({
             )}
           </dl>
         </div>
-
-        {/* Failure message */}
-        {task.failure_message && (
-          <div className="rounded-md bg-red-950/50 p-3">
-            <h3 className="mb-1 text-xs font-medium text-red-400">Failure Message</h3>
-            <p className="text-sm text-red-200">{task.failure_message}</p>
-          </div>
-        )}
 
         {/* Actions */}
         <div className="flex gap-2" role="group" aria-label="Task actions">

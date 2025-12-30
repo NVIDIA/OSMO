@@ -54,6 +54,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   onPanelResize,
   isDragging,
   onResizeMouseDown,
+  isDetailsExpanded,
+  onToggleDetailsExpanded,
 }: DetailsPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const announce = useAnnouncer();
@@ -129,17 +131,23 @@ export const DetailsPanel = memo(function DetailsPanel({
             onSelectGroup={onSelectGroup}
             onClose={onClose}
             onPanelResize={onPanelResize}
+            isDetailsExpanded={isDetailsExpanded}
+            onToggleDetailsExpanded={onToggleDetailsExpanded}
           />
         )}
 
         {view === "task" && task && (
           <TaskDetails
             group={group}
+            allGroups={allGroups}
             task={task}
             onBackToGroup={onBackToGroup}
             onSelectTask={onSelectTask}
+            onSelectGroup={onSelectGroup}
             onClose={onClose}
             onPanelResize={onPanelResize}
+            isDetailsExpanded={isDetailsExpanded}
+            onToggleDetailsExpanded={onToggleDetailsExpanded}
           />
         )}
       </aside>
