@@ -16,6 +16,8 @@ export { DetailsPanel } from "./DetailsPanel";
 export { GroupDetails } from "./GroupDetails";
 export { TaskDetails } from "./TaskDetails";
 export { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
+export { GroupTimeline } from "./GroupTimeline";
+export { DependencyPills } from "./DependencyPills";
 export type {
   DetailsPanelProps,
   DetailsPanelView,
