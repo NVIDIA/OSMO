@@ -28,8 +28,8 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../../workflow-types";
-import { computeTopologicalLevelsFromGraph } from "../../workflow-types";
-import type { LayoutDirection, GroupNodeData } from "../types";
+import { transformGroups } from "../adapters";
+import type { LayoutDirection, GroupNodeData } from "../types/layout";
 import { calculateLayout, computeInitialExpandedGroups } from "../layout/elk-layout";
 import {
   ESTIMATED_VIEWPORT_WIDTH,
@@ -100,7 +100,7 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
   const [selectedTask, setSelectedTask] = useState<TaskQueryResponse | null>(null);
 
   // Compute topological levels from dependency graph
-  const groupsWithLayout = useMemo(() => computeTopologicalLevelsFromGraph(groups), [groups]);
+  const groupsWithLayout = useMemo(() => transformGroups(groups), [groups]);
 
   // Get root node IDs (level 0) for initial zoom target
   const rootNodeIds = useMemo(

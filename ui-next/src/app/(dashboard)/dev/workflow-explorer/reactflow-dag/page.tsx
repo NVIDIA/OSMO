@@ -35,8 +35,17 @@ import "@xyflow/react/dist/style.css";
 import "./dag.css";
 
 // Local modules
-import type { LayoutDirection, GroupNodeData } from "./types";
-import { DEFAULT_ZOOM, MAX_ZOOM, STATUS_STYLES } from "./constants";
+import type { LayoutDirection, GroupNodeData } from "./types/layout";
+import {
+  DEFAULT_ZOOM,
+  MAX_ZOOM,
+  STATUS_STYLES,
+  VIEWPORT,
+  NODE_COLLAPSED,
+  ANIMATION,
+  MINIMAP,
+  BACKGROUND,
+} from "./constants";
 import {
   nodeTypes,
   MiniMapNode,
@@ -108,8 +117,8 @@ function ReactFlowDagPageInner() {
   // Get visible area dimensions (call fresh each time, no stale closures)
   const getVisibleArea = useCallback(() => {
     const container = containerRef.current;
-    const containerWidth = container?.clientWidth || 1200;
-    const containerHeight = container?.clientHeight || 800;
+    const containerWidth = container?.clientWidth || VIEWPORT.ESTIMATED_WIDTH;
+    const containerHeight = container?.clientHeight || VIEWPORT.ESTIMATED_HEIGHT;
     const panelWidthPx = isPanelOpen ? (panelPct / 100) * containerWidth : 0;
     return {
       width: containerWidth - panelWidthPx,
@@ -156,8 +165,8 @@ function ReactFlowDagPageInner() {
     outerFrameId = requestAnimationFrame(() => {
       innerFrameId = requestAnimationFrame(() => {
         const nodeData = selectedNode.data as GroupNodeData;
-        const nodeWidth = nodeData?.nodeWidth || 180;
-        const nodeHeight = nodeData?.nodeHeight || 72;
+        const nodeWidth = nodeData?.nodeWidth || NODE_COLLAPSED.width;
+        const nodeHeight = nodeData?.nodeHeight || NODE_COLLAPSED.height;
         const nodeCenterX = selectedNode.position.x + nodeWidth / 2;
         const nodeCenterY = selectedNode.position.y + nodeHeight / 2;
         
@@ -172,7 +181,7 @@ function ReactFlowDagPageInner() {
         
         reactFlowInstance.setViewport(
           { x: targetX, y: targetY, zoom: viewport.zoom },
-          { duration: 300 }
+          { duration: ANIMATION.NODE_CENTER }
         );
       });
     });
@@ -211,7 +220,7 @@ function ReactFlowDagPageInner() {
     if (needsUpdate) {
       reactFlowInstance.setViewport(
         { x: newX, y: newY, zoom: viewport.zoom },
-        { duration: 100 }
+        { duration: ANIMATION.BOUNDARY_ENFORCE }
       );
     }
   }, [panelPct, isPanelOpen, reactFlowInstance, getViewportBounds, getVisibleArea]);
@@ -234,14 +243,11 @@ function ReactFlowDagPageInner() {
     const outOfBoundsY = viewport.y < bounds.minY || viewport.y > bounds.maxY;
     
     if (outOfBoundsX || outOfBoundsY) {
-      // Clamp immediately
+      // Clamp immediately (no animation during active panning)
       const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, viewport.x));
       const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, viewport.y));
       
-      reactFlowInstance.setViewport(
-        { x: clampedX, y: clampedY, zoom: viewport.zoom },
-        { duration: 0 }
-      );
+      reactFlowInstance.setViewport({ x: clampedX, y: clampedY, zoom: viewport.zoom });
     }
   }, [reactFlowInstance, getVisibleArea, getViewportBounds]);
   
@@ -262,7 +268,7 @@ function ReactFlowDagPageInner() {
     if (Math.abs(clampedX - viewport.x) > 0.5 || Math.abs(clampedY - viewport.y) > 0.5) {
       reactFlowInstance.setViewport(
         { x: clampedX, y: clampedY, zoom: viewport.zoom },
-        { duration: 150 }
+        { duration: ANIMATION.MOVE_END }
       );
     }
   }, [reactFlowInstance, getVisibleArea, getViewportBounds]);
@@ -373,9 +379,9 @@ function ReactFlowDagPageInner() {
                 />
                 <Background
                   variant={BackgroundVariant.Dots}
-                  gap={20}
-                  size={1}
-                  color="#27272a"
+                  gap={BACKGROUND.GAP}
+                  size={BACKGROUND.DOT_SIZE}
+                  color={BACKGROUND.COLOR}
                 />
                 {/* Unified controls panel */}
                 <DAGControls
@@ -387,12 +393,16 @@ function ReactFlowDagPageInner() {
                 {/* Conditional minimap */}
                 {showMinimap && (
                   <MiniMap
-                    pannable={true}
-                    zoomable={true}
+                    pannable
+                    zoomable
                     position="top-left"
-                    style={{ background: "#18181b", width: 120, height: 80 }}
+                    style={{
+                      background: "#18181b",
+                      width: MINIMAP.WIDTH,
+                      height: MINIMAP.HEIGHT,
+                    }}
                     maskColor="rgba(0, 0, 0, 0.6)"
-                    nodeStrokeWidth={1}
+                    nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
                     nodeComponent={MiniMapNode}
                     nodeColor={getMiniMapNodeColor}
                     nodeStrokeColor={getMiniMapStrokeColor}
