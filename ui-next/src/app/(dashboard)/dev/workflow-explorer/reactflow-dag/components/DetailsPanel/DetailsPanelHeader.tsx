@@ -86,10 +86,15 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   siblingTasks,
   onSelectSibling,
   expandableContent,
+  isExpanded: controlledExpanded,
+  onToggleExpand,
 }: ExtendedHeaderProps) {
   const badge = viewType ? VIEW_TYPE_BADGE[viewType] : null;
   const [searchQuery, setSearchQuery] = useState("");
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Use controlled state if provided, otherwise fall back to local state
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const isExpanded = controlledExpanded ?? localExpanded;
+  const handleToggleExpand = onToggleExpand ?? (() => setLocalExpanded(!localExpanded));
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   
@@ -294,7 +299,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           <>
             <span className="text-zinc-600">·</span>
             <button
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={handleToggleExpand}
               className="text-zinc-500 transition-colors hover:text-zinc-300"
               aria-expanded={isExpanded}
               aria-controls="header-expandable-content"

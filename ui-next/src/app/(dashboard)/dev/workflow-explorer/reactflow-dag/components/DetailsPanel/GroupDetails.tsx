@@ -42,6 +42,8 @@ import { DependencyPills } from "./DependencyPills";
 interface GroupDetailsInternalProps extends GroupDetailsProps {
   onClose: () => void;
   onPanelResize: (pct: number) => void;
+  isDetailsExpanded: boolean;
+  onToggleDetailsExpanded: () => void;
 }
 
 export const GroupDetails = memo(function GroupDetails({
@@ -51,6 +53,8 @@ export const GroupDetails = memo(function GroupDetails({
   onSelectGroup,
   onClose,
   onPanelResize,
+  isDetailsExpanded,
+  onToggleDetailsExpanded,
 }: GroupDetailsInternalProps) {
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
@@ -243,6 +247,8 @@ export const GroupDetails = memo(function GroupDetails({
         onPanelResize={onPanelResize}
         menuContent={menuContent}
         expandableContent={expandableContent}
+        isExpanded={isDetailsExpanded}
+        onToggleExpand={onToggleDetailsExpanded}
       />
 
       {/* Search */}

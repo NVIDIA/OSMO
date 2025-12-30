@@ -69,6 +69,7 @@ import { EXAMPLE_WORKFLOWS, type WorkflowPattern } from "../mock-workflow-v2";
 function ReactFlowDagPageInner() {
   const [workflowPattern, setWorkflowPattern] = useState<WorkflowPattern>("complex");
   const [showMinimap, setShowMinimap] = useState(true);
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
 
   // Generate workflow from mock
   const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
@@ -131,6 +132,11 @@ function ReactFlowDagPageInner() {
   // Minimap toggle handler
   const handleToggleMinimap = useCallback(() => {
     setShowMinimap((prev) => !prev);
+  }, []);
+
+  // Details expansion toggle (persists across group/task navigation)
+  const handleToggleDetailsExpanded = useCallback(() => {
+    setIsDetailsExpanded((prev) => !prev);
   }, []);
 
   // Note: getMiniMapNodeColor and getMiniMapStrokeColor are imported from utils
@@ -258,6 +264,8 @@ function ReactFlowDagPageInner() {
               onPanelResize={setPanelPct}
               isDragging={isDragging}
               onResizeMouseDown={handleMouseDown}
+              isDetailsExpanded={isDetailsExpanded}
+              onToggleDetailsExpanded={handleToggleDetailsExpanded}
             />
           )}
         </div>
