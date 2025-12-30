@@ -12,8 +12,8 @@
  * Re-exports all components for cleaner imports.
  */
 
+// DAG visualization components
 export { GroupNode, nodeTypes } from "./GroupNode";
-export { DetailPanel } from "./DetailPanel";
 export { MiniMapNode } from "./MiniMapNode";
 export { FitViewOnLayoutChange } from "./FitViewOnLayoutChange";
 export { DAGErrorBoundary } from "./DAGErrorBoundary";
@@ -21,5 +21,12 @@ export { DAGHeader } from "./DAGHeader";
 export { DAGToolbar } from "./DAGToolbar";
 export { DAGControls } from "./DAGControls";
 export { DAGSkeleton } from "./DAGSkeleton";
+
+// Unified details panel
+export { DetailsPanel, GroupDetails, TaskDetails } from "./DetailsPanel";
+export type { DetailsPanelProps, DetailsPanelView } from "./DetailsPanel";
+
+// Legacy exports (for backwards compatibility - can be removed later)
+export { DetailPanel } from "./DetailPanel";
 export { GroupPanel } from "./GroupPanel";
 export type { GroupPanelProps } from "./GroupPanel";
