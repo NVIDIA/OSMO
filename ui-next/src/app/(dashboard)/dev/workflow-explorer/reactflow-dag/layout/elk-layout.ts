@@ -19,7 +19,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import type { GroupWithLayout } from "../../workflow-types";
-import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph } from "../types";
+import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph } from "../types/layout";
 import { getStatusCategory } from "../utils/status";
 import {
   NODE_COLLAPSED_WIDTH,
@@ -27,6 +27,7 @@ import {
   NODE_EXPANDED_WIDTH,
   NODE_MAX_EXPANDED_HEIGHT,
   NODE_HEADER_HEIGHT,
+  NODE_BORDER_WIDTH,
   TASK_ROW_HEIGHT,
   TASK_LIST_PADDING,
   SPACING_NODES_TB,
@@ -58,10 +59,10 @@ export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): 
   const hasManyTasks = tasks.length > 1;
 
   if (isExpanded && hasManyTasks) {
-    // Task list height: tasks + padding (py-2 = 16px) + border (1px)
+    // Task list height: tasks + padding (py-2 = 16px) + task list border (1px)
     const taskListHeight = tasks.length * TASK_ROW_HEIGHT + TASK_LIST_PADDING + 1;
-    // Total height capped at max, plus 4px for node border (border-2)
-    const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + 4;
+    // Total height capped at max, plus node border (border-2 = 2px * 2 sides)
+    const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + NODE_BORDER_WIDTH;
     return {
       width: NODE_EXPANDED_WIDTH,
       height: Math.min(totalHeight, NODE_MAX_EXPANDED_HEIGHT),

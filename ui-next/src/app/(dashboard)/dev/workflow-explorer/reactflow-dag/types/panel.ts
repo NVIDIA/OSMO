@@ -12,21 +12,7 @@
  * Unified types for the DetailsPanel component system.
  */
 
-import type { TaskQueryResponse, GroupWithLayout } from "../../../workflow-types";
-
-// Re-export from GroupPanel types
-export type {
-  TaskWithDuration,
-  ColumnId,
-  ColumnWidth,
-  ColumnDef,
-  OptionalColumnDef,
-  SortColumn,
-  SortDirection,
-  SortState,
-  SearchChip,
-  SearchField,
-} from "../GroupPanel/types";
+import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
 
 // ============================================================================
 // Panel View Types
@@ -110,7 +96,7 @@ export interface SiblingTask {
 
 /**
  * Props for the shared panel header.
- * 
+ *
  * Layout structure (consistent across views):
  * - Row 1: [Back] [Icon] Breadcrumb / Title · Subtitle    [Menu] [Close]
  * - Row 2: Status · Additional info
@@ -128,6 +114,8 @@ export interface DetailsPanelHeaderProps {
   onBack?: () => void;
   /** Close button handler */
   onClose: () => void;
+  /** Panel resize callback for snap presets */
+  onPanelResize?: (pct: number) => void;
   /** Additional menu content */
   menuContent?: React.ReactNode;
   /** View type for visual differentiation (shows colored icon) */

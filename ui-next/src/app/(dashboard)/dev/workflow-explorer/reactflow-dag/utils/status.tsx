@@ -25,7 +25,7 @@ import {
   STATUS_LABELS,
   type StatusCategory,
 } from "../constants";
-import { TaskGroupStatus } from "../../workflow-types";
+import { TaskGroupStatus } from "@/lib/api/generated";
 
 // =============================================================================
 // Re-exports from constants for convenience

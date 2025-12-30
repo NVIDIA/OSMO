@@ -26,9 +26,8 @@ import { useState, useMemo, useCallback, memo, useRef, useEffect, useDeferredVal
 import { Search, X } from "lucide-react";
 import * as chrono from "chrono-node";
 import { cn } from "@/lib/utils";
-import { GPU_STYLES } from "../../constants";
 import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, STATUS_LABELS, type StateCategory } from "../../utils/status";
-import type { TaskWithDuration, SearchChip, SearchField } from "./types";
+import type { TaskWithDuration, SearchChip, SearchField } from "../../types/table";
 
 // ============================================================================
 // Field Definitions
@@ -644,8 +643,7 @@ export const SmartSearch = memo(function SmartSearch({
       {showDropdown && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-auto overscroll-contain rounded-md border border-zinc-700 bg-zinc-800 shadow-lg"
-          style={{ ...GPU_STYLES.accelerated, contain: "layout style" }}
+          className="dag-dropdown absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-auto overscroll-contain rounded-md border border-zinc-700 bg-zinc-800 shadow-lg"
         >
           {inputValue === "" && (
             <div className="border-b border-zinc-700 p-2">

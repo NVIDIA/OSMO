@@ -32,11 +32,11 @@ import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/lib/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
 import { TaskGroupStatus, isFailedStatus } from "../../workflow-types";
-import type { GroupNodeData } from "../types";
+import type { GroupNodeData } from "../types/layout";
 import { useDAGContext } from "../context";
 import { getStatusIcon, getStatusCategory, getStatusLabel } from "../utils/status";
 import { calculateDuration, formatDuration } from "../../workflow-types";
-import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../constants";
+import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT, HANDLE_OFFSET } from "../constants";
 
 // ============================================================================
 // Smart Scroll Handler
@@ -356,7 +356,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
           position={targetPosition}
           id="target"
           className="dag-handle"
-          style={isVertical ? { top: -6 } : { left: -6 }}
+          style={isVertical ? { top: -HANDLE_OFFSET } : { left: -HANDLE_OFFSET }}
           aria-hidden="true"
         />
       )}
@@ -366,7 +366,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
           position={sourcePosition}
           id="source"
           className="dag-handle"
-          style={isVertical ? { bottom: -6 } : { right: -6 }}
+          style={isVertical ? { bottom: -HANDLE_OFFSET } : { right: -HANDLE_OFFSET }}
           aria-hidden="true"
         />
       )}

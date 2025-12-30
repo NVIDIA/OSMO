@@ -7,12 +7,15 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * GroupPanel Utilities
- *
- * Shared utilities for task tables: search, virtualization, columns.
- * The main GroupPanel component has been consolidated into DetailsPanel/GroupDetails.
+ * Adapters - Data transformation layer between backend and frontend.
  */
 
-export { SmartSearch, filterTasksByChips } from "./SmartSearch";
-export { VirtualizedTaskList } from "./TaskTable";
-export type { TaskWithDuration, SearchChip, ColumnId, SortState, SortColumn, ColumnDef } from "../../types/table";
+export {
+  transformGroups,
+  computeFullUpstreamDependencies,
+  getMaxLevel,
+  getGroupsByLevel,
+  getRootGroups,
+  getLeafGroups,
+  type TopologicalLevelOptions,
+} from "./workflow-adapter";

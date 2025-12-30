@@ -13,7 +13,7 @@
  * Uses flexible widths with min/share for responsive layouts.
  */
 
-import type { ColumnDef, OptionalColumnDef, ColumnId, ColumnWidth } from "./types";
+import type { ColumnDef, OptionalColumnDef, ColumnId, ColumnWidth } from "../../types/table";
 
 // ============================================================================
 // Column Definitions
