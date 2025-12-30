@@ -24,8 +24,59 @@
 
 import { useState, useMemo, useCallback, memo, useRef, useEffect, useDeferredValue, startTransition } from "react";
 import { Search, X } from "lucide-react";
-import * as chrono from "chrono-node";
 import { cn } from "@/lib/utils";
+
+// ============================================================================
+// Lazy-loaded chrono-node with idle prefetch
+// ============================================================================
+
+/**
+ * chrono-node is lazy-loaded to reduce initial bundle size (~40KB).
+ * It's prefetched during browser idle time, so it's ready when needed.
+ */
+let chronoModule: typeof import("chrono-node") | null = null;
+let chronoLoadPromise: Promise<typeof import("chrono-node")> | null = null;
+
+// Prefetch during browser idle time (non-blocking)
+if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+  requestIdleCallback(
+    () => {
+      chronoLoadPromise = import("chrono-node").then((m) => {
+        chronoModule = m;
+        return m;
+      });
+    },
+    { timeout: 5000 } // Load within 5 seconds even if not idle
+  );
+} else if (typeof window !== "undefined") {
+  // Fallback for browsers without requestIdleCallback (Safari)
+  setTimeout(() => {
+    chronoLoadPromise = import("chrono-node").then((m) => {
+      chronoModule = m;
+      return m;
+    });
+  }, 2000);
+}
+
+/**
+ * Get chrono module, loading it if not already loaded.
+ * Returns null if not yet loaded (sync access).
+ */
+function getChronoSync(): typeof import("chrono-node") | null {
+  return chronoModule;
+}
+
+/**
+ * Ensure chrono is loaded (for prefetch on focus).
+ */
+function ensureChronoLoaded(): void {
+  if (!chronoModule && !chronoLoadPromise) {
+    chronoLoadPromise = import("chrono-node").then((m) => {
+      chronoModule = m;
+      return m;
+    });
+  }
+}
 import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, STATUS_LABELS, type StateCategory } from "../../utils/status";
 import type { TaskWithDuration, SearchChip, SearchField } from "../../types/table";
 
@@ -106,10 +157,19 @@ function compareWithOperator(
 const chronoCache = new Map<string, Date | null>();
 const CHRONO_CACHE_MAX = 100;
 
+/**
+ * Parse natural language date string using chrono-node.
+ * Uses LRU cache for performance.
+ * Returns null if chrono isn't loaded yet (shouldn't happen with prefetch).
+ */
 function parseDateTime(input: string): Date | null {
   if (!input?.trim()) return null;
   const key = input.trim().toLowerCase();
   if (chronoCache.has(key)) return chronoCache.get(key)!;
+
+  // Get chrono module (may be null if not yet loaded)
+  const chrono = getChronoSync();
+  if (!chrono) return null; // Chrono not loaded yet - graceful degradation
 
   const result = chrono.parseDate(input);
   if (chronoCache.size >= CHRONO_CACHE_MAX) {
@@ -577,9 +637,18 @@ export const SmartSearch = memo(function SmartSearch({
     } else if (e.key === "Backspace" && !inputValue && chips.length > 0) {
       onChipsChange(chips.slice(0, -1));
     } else if (e.key === "Escape") {
-      setInputValue("");
-      setShowDropdown(false);
-      inputRef.current?.blur();
+      // If dropdown is open, close it and stop propagation (don't close panel)
+      if (showDropdown) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Also stop the native event to prevent document-level listeners
+        e.nativeEvent.stopImmediatePropagation();
+        setInputValue("");
+        setShowDropdown(false);
+      } else {
+        // Dropdown already closed, let event bubble to close panel
+        inputRef.current?.blur();
+      }
     }
   }, [suggestions, highlightedIndex, showDropdown, handleSelect, inputValue, chips, onChipsChange, parsedInput, addChip]);
 
@@ -609,7 +678,7 @@ export const SmartSearch = memo(function SmartSearch({
           "border-zinc-700 bg-zinc-800/50",
           "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
         )}
-        onClick={() => inputRef.current?.focus()}
+        onClick={() => { inputRef.current?.focus(); setShowDropdown(true); }}
       >
         <Search className="size-4 shrink-0 text-zinc-400" />
 
@@ -633,7 +702,7 @@ export const SmartSearch = memo(function SmartSearch({
           type="text"
           value={inputValue}
           onChange={(e) => { setInputValue(e.target.value); setShowDropdown(true); }}
-          onFocus={() => setShowDropdown(true)}
+          onFocus={() => { ensureChronoLoaded(); }}
           onKeyDown={handleKeyDown}
           placeholder={chips.length === 0 ? placeholder : "Add filter..."}
           className="min-w-[7.5rem] flex-1 bg-transparent text-zinc-200 outline-none placeholder:text-zinc-500"
