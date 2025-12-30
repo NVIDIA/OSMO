@@ -25,10 +25,9 @@
 import { memo } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GPU_STYLES } from "../../constants";
 import { GroupDetails } from "./GroupDetails";
 import { TaskDetails } from "./TaskDetails";
-import type { DetailsPanelProps } from "./types";
+import type { DetailsPanelProps } from "../../types/panel";
 
 // ============================================================================
 // Component
@@ -63,13 +62,9 @@ export const DetailsPanel = memo(function DetailsPanel({
       >
         <div
           className={cn(
-            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 px-0.5 py-1 shadow-md",
+            "dag-details-panel-handle absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 px-0.5 py-1 shadow-md transition-opacity duration-150",
             isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
-          style={{
-            transition: "opacity 150ms ease-out",
-            ...GPU_STYLES.accelerated,
-          }}
         >
           <GripVertical className="size-4 text-zinc-300" />
         </div>
@@ -77,8 +72,8 @@ export const DetailsPanel = memo(function DetailsPanel({
 
       {/* Panel Container */}
       <div
-        className="absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-zinc-800 bg-zinc-900/95 backdrop-blur"
-        style={{ width: `${panelPct}%`, ...GPU_STYLES.accelerated }}
+        className="dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-zinc-800 bg-zinc-900/95 backdrop-blur"
+        style={{ width: `${panelPct}%` }}
         role="complementary"
         aria-label={view === "group" ? "Group details" : "Task details"}
       >

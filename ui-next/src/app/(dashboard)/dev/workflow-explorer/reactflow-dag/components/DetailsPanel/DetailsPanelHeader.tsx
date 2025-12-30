@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PANEL } from "../../constants";
 import { getStatusIcon } from "../../utils/status";
-import type { DetailsPanelHeaderProps, SiblingTask } from "./types";
+import type { DetailsPanelHeaderProps, SiblingTask } from "../../types/panel";
 
 // ============================================================================
 // Width Preset Configuration
