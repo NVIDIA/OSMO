@@ -28,24 +28,21 @@
 
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { ReactFlow, ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode, useReactFlow } from "@xyflow/react";
+import { useState, useMemo, useCallback } from "react";
+import { ReactFlow, ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
 import "./dag.css";
 
 // Local modules
-import type { LayoutDirection, GroupNodeData } from "./types/layout";
+import type { LayoutDirection } from "./types/layout";
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
-  STATUS_STYLES,
-  VIEWPORT,
-  NODE_COLLAPSED,
-  ANIMATION,
   MINIMAP,
   BACKGROUND,
 } from "./constants";
+
 import {
   nodeTypes,
   MiniMapNode,
@@ -56,9 +53,11 @@ import {
   DAGControls,
   DetailsPanel,
 } from "./components";
-import { useDAGState, useResizablePanel } from "./hooks";
-import { getStatusCategory } from "./utils";
+import { useDAGState, useResizablePanel, useViewportBoundaries } from "./hooks";
 import { DAGProvider } from "./context";
+
+// MiniMap color functions (pure, extracted to utils for memoization)
+import { getMiniMapNodeColor, getMiniMapStrokeColor } from "./utils";
 
 // Workflow data
 import { EXAMPLE_WORKFLOWS, type WorkflowPattern } from "../mock-workflow-v2";
@@ -102,176 +101,19 @@ function ReactFlowDagPageInner() {
   // Resizable panel
   const { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef } = useResizablePanel();
 
-  // Determine if panel is open (needed early for dynamic bounds)
+  // Determine if panel is open (needed for viewport boundaries)
   const isPanelOpen = panelView !== "none" && selectedGroup !== null;
 
-  // ReactFlow instance for viewport control
-  const reactFlowInstance = useReactFlow();
-  
-  // Track previous selection to detect new selections vs resizes
-  const prevSelectionRef = useRef<string | null>(null);
-  
-  // Track "desired" viewport position (where user wants to be, ignoring boundaries)
-  const desiredViewportRef = useRef<{ x: number; y: number } | null>(null);
-
-  // Get visible area dimensions (call fresh each time, no stale closures)
-  const getVisibleArea = useCallback(() => {
-    const container = containerRef.current;
-    const containerWidth = container?.clientWidth || VIEWPORT.ESTIMATED_WIDTH;
-    const containerHeight = container?.clientHeight || VIEWPORT.ESTIMATED_HEIGHT;
-    const panelWidthPx = isPanelOpen ? (panelPct / 100) * containerWidth : 0;
-    return {
-      width: containerWidth - panelWidthPx,
-      height: containerHeight,
-    };
-  }, [isPanelOpen, panelPct]);
-
-  // Calculate viewport bounds - allows any outermost node to be centered
-  // These are the allowed ranges for viewport.x and viewport.y
-  const getViewportBounds = useCallback((zoom: number, visWidth: number, visHeight: number) => {
-    // For a node at worldX to appear at screenX:
-    //   screenX = worldX * zoom + viewport.x
-    // For rightmost node to be at center of visible area:
-    //   viewport.x = visWidth/2 - nodeBounds.maxX * zoom  (minX - can't pan further left)
-    // For leftmost node to be at center:
-    //   viewport.x = visWidth/2 - nodeBounds.minX * zoom  (maxX - can't pan further right)
-    
-    const minX = visWidth / 2 - nodeBounds.maxX * zoom;
-    const maxX = visWidth / 2 - nodeBounds.minX * zoom;
-    const minY = visHeight / 2 - nodeBounds.maxY * zoom;
-    const maxY = visHeight / 2 - nodeBounds.minY * zoom;
-    
-    return { minX, maxX, minY, maxY };
-  }, [nodeBounds]);
-
-  // Auto-pan to center node when CLICKING (new selection)
-  // Uses requestAnimationFrame to wait for panel to render before calculating visible area
-  useEffect(() => {
-    if (!selectedGroup || panelView === "none") return;
-    
-    // Only auto-pan on NEW selection
-    const currentSelection = `${selectedGroup.name}-${panelView}`;
-    if (prevSelectionRef.current === currentSelection) return;
-    prevSelectionRef.current = currentSelection;
-
-    const selectedNode = nodes.find((n) => n.id === selectedGroup.name);
-    if (!selectedNode) return;
-
-    // Wait for panel to render before calculating visible area
-    // Double rAF ensures layout is complete after panel mounts
-    let outerFrameId: number;
-    let innerFrameId: number;
-    
-    outerFrameId = requestAnimationFrame(() => {
-      innerFrameId = requestAnimationFrame(() => {
-        const nodeData = selectedNode.data as GroupNodeData;
-        const nodeWidth = nodeData?.nodeWidth || NODE_COLLAPSED.width;
-        const nodeHeight = nodeData?.nodeHeight || NODE_COLLAPSED.height;
-        const nodeCenterX = selectedNode.position.x + nodeWidth / 2;
-        const nodeCenterY = selectedNode.position.y + nodeHeight / 2;
-        
-        const viewport = reactFlowInstance.getViewport();
-        const { width, height } = getVisibleArea();
-        
-        // Center node in visible area (after panel has expanded)
-        const targetX = -(nodeCenterX * viewport.zoom) + width / 2;
-        const targetY = -(nodeCenterY * viewport.zoom) + height / 2;
-        
-        desiredViewportRef.current = { x: targetX, y: targetY };
-        
-        reactFlowInstance.setViewport(
-          { x: targetX, y: targetY, zoom: viewport.zoom },
-          { duration: ANIMATION.NODE_CENTER }
-        );
-      });
-    });
-    
-    return () => {
-      cancelAnimationFrame(outerFrameId);
-      cancelAnimationFrame(innerFrameId);
-    };
-  }, [selectedGroup?.name, panelView, nodes, reactFlowInstance, getVisibleArea]);
-  
-  // Enforce boundaries when visible area changes (panel resize)
-  // This runs on every panelPct change
-  useEffect(() => {
-    const viewport = reactFlowInstance.getViewport();
-    const { width, height } = getVisibleArea();
-    const bounds = getViewportBounds(viewport.zoom, width, height);
-    
-    // Clamp current viewport to bounds
-    let newX = viewport.x;
-    let newY = viewport.y;
-    let needsUpdate = false;
-    
-    // If we have a desired position, try to get as close to it as bounds allow
-    if (desiredViewportRef.current) {
-      const desired = desiredViewportRef.current;
-      newX = Math.max(bounds.minX, Math.min(bounds.maxX, desired.x));
-      newY = Math.max(bounds.minY, Math.min(bounds.maxY, desired.y));
-      needsUpdate = Math.abs(newX - viewport.x) > 0.5 || Math.abs(newY - viewport.y) > 0.5;
-    } else {
-      // No desired position - just clamp to bounds
-      newX = Math.max(bounds.minX, Math.min(bounds.maxX, viewport.x));
-      newY = Math.max(bounds.minY, Math.min(bounds.maxY, viewport.y));
-      needsUpdate = newX !== viewport.x || newY !== viewport.y;
-    }
-    
-    if (needsUpdate) {
-      reactFlowInstance.setViewport(
-        { x: newX, y: newY, zoom: viewport.zoom },
-        { duration: ANIMATION.BOUNDARY_ENFORCE }
-      );
-    }
-  }, [panelPct, isPanelOpen, reactFlowInstance, getViewportBounds, getVisibleArea]);
-  
-  // Clear refs when panel closes
-  useEffect(() => {
-    if (panelView === "none") {
-      prevSelectionRef.current = null;
-      desiredViewportRef.current = null;
-    }
-  }, [panelView]);
-
-  // Enforce viewport bounds during panning (prevents going out of bounds)
-  const handleMove = useCallback((_event: unknown, viewport: { x: number; y: number; zoom: number }) => {
-    const { width, height } = getVisibleArea();
-    const bounds = getViewportBounds(viewport.zoom, width, height);
-    
-    // Check if out of bounds
-    const outOfBoundsX = viewport.x < bounds.minX || viewport.x > bounds.maxX;
-    const outOfBoundsY = viewport.y < bounds.minY || viewport.y > bounds.maxY;
-    
-    if (outOfBoundsX || outOfBoundsY) {
-      // Clamp immediately (no animation during active panning)
-      const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, viewport.x));
-      const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, viewport.y));
-      
-      reactFlowInstance.setViewport({ x: clampedX, y: clampedY, zoom: viewport.zoom });
-    }
-  }, [reactFlowInstance, getVisibleArea, getViewportBounds]);
-  
-  // Also enforce on move end for final cleanup
-  const handleMoveEnd = useCallback(() => {
-    const viewport = reactFlowInstance.getViewport();
-    const { width, height } = getVisibleArea();
-    const bounds = getViewportBounds(viewport.zoom, width, height);
-    
-    // Clamp viewport to bounds
-    const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, viewport.x));
-    const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, viewport.y));
-    
-    // Store as desired position so resize respects it
-    desiredViewportRef.current = { x: clampedX, y: clampedY };
-    
-    // Only update if out of bounds
-    if (Math.abs(clampedX - viewport.x) > 0.5 || Math.abs(clampedY - viewport.y) > 0.5) {
-      reactFlowInstance.setViewport(
-        { x: clampedX, y: clampedY, zoom: viewport.zoom },
-        { duration: ANIMATION.MOVE_END }
-      );
-    }
-  }, [reactFlowInstance, getVisibleArea, getViewportBounds]);
+  // Viewport boundary management (auto-pan, pan limits, resize handling)
+  const { handleMove, handleMoveEnd } = useViewportBoundaries({
+    nodeBounds,
+    panelPct,
+    isPanelOpen,
+    containerRef,
+    selectedGroupName: selectedGroup?.name ?? null,
+    panelView,
+    nodes,
+  });
 
   // Pattern change handler
   const onPatternChange = useCallback((pattern: WorkflowPattern) => {
@@ -291,20 +133,8 @@ function ReactFlowDagPageInner() {
     setShowMinimap((prev) => !prev);
   }, []);
 
-  // MiniMap color callbacks
-  const getMiniMapNodeColor = useCallback((node: { data: unknown }) => {
-    const data = node.data as GroupNodeData;
-    if (!data?.group) return "#52525b";
-    const category = getStatusCategory(data.group.status);
-    return STATUS_STYLES[category].color;
-  }, []);
-
-  const getMiniMapStrokeColor = useCallback((node: { data: unknown }) => {
-    const data = node.data as GroupNodeData;
-    if (!data?.group) return "#3f3f46";
-    const category = getStatusCategory(data.group.status);
-    return STATUS_STYLES[category].strokeColor;
-  }, []);
+  // Note: getMiniMapNodeColor and getMiniMapStrokeColor are imported from utils
+  // They're pure functions extracted outside the component for better performance
 
   return (
     <DAGErrorBoundary>
