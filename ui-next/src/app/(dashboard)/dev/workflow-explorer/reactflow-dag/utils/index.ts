@@ -27,6 +27,9 @@ export {
   computeTaskStats,
   computeGroupStatus,
   computeGroupDuration,
+  // MiniMap helpers (pure functions)
+  getMiniMapNodeColor,
+  getMiniMapStrokeColor,
   // Constants re-exports
   STATUS_STYLES,
   STATUS_CATEGORY_MAP,

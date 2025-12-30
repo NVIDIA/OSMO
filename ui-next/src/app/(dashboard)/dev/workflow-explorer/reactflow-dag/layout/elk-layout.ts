@@ -44,6 +44,66 @@ import {
 import { elkWorker } from "./elk-worker-client";
 
 // ============================================================================
+// Layout Cache
+// ============================================================================
+
+/**
+ * Cache key for layout results.
+ * Uses a stable string representation of the input parameters.
+ */
+function getLayoutCacheKey(
+  groups: GroupWithLayout[],
+  expandedGroups: Set<string>,
+  direction: LayoutDirection,
+): string {
+  // Group names + task counts (task count affects node dimensions)
+  const groupKey = groups.map((g) => `${g.name}:${g.tasks?.length || 0}`).join("|");
+  // Expanded groups (sorted for stable key)
+  const expandedKey = [...expandedGroups].sort().join(",");
+  return `${direction}/${expandedKey}/${groupKey}`;
+}
+
+/**
+ * LRU-style cache for layout results.
+ * Caches LayoutPositionResult to avoid re-running ELK for identical inputs.
+ */
+const layoutCache = new Map<string, LayoutPositionResult>();
+const CACHE_MAX_SIZE = 20; // Keep last 20 layouts
+
+/**
+ * Add to cache with LRU eviction.
+ */
+function addToCache(key: string, result: LayoutPositionResult): void {
+  // If at capacity, remove oldest entry
+  if (layoutCache.size >= CACHE_MAX_SIZE) {
+    const firstKey = layoutCache.keys().next().value;
+    if (firstKey) layoutCache.delete(firstKey);
+  }
+  layoutCache.set(key, result);
+}
+
+/**
+ * Get from cache with LRU update (move to end).
+ */
+function getFromCache(key: string): LayoutPositionResult | undefined {
+  const result = layoutCache.get(key);
+  if (result) {
+    // Move to end for LRU
+    layoutCache.delete(key);
+    layoutCache.set(key, result);
+  }
+  return result;
+}
+
+/**
+ * Clear the layout cache.
+ * Useful when workflow data changes fundamentally.
+ */
+export function clearLayoutCache(): void {
+  layoutCache.clear();
+}
+
+// ============================================================================
 // Dimension Calculations
 // ============================================================================
 
@@ -135,6 +195,7 @@ export interface LayoutPositionResult {
 
 /**
  * Calculate positions for DAG nodes using ELK (pure layout, no callbacks).
+ * Results are cached for repeated calls with identical parameters.
  *
  * @param groups - The workflow groups
  * @param expandedGroups - Set of expanded group names
@@ -146,6 +207,13 @@ export async function calculatePositions(
   expandedGroups: Set<string>,
   direction: LayoutDirection,
 ): Promise<LayoutPositionResult> {
+  // Check cache first
+  const cacheKey = getLayoutCacheKey(groups, expandedGroups, direction);
+  const cached = getFromCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   // Build dimension map for all nodes - O(n)
   const dimensionsMap = new Map<string, NodeDimensions>();
   groups.forEach((group) => {
@@ -193,7 +261,12 @@ export async function calculatePositions(
     }
   });
 
-  return { positions, dimensions: dimensionsMap };
+  const result = { positions, dimensions: dimensionsMap };
+  
+  // Store in cache
+  addToCache(cacheKey, result);
+
+  return result;
 }
 
 /**

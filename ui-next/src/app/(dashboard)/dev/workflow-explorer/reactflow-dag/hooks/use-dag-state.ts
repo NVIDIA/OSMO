@@ -30,7 +30,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../../workflow-types";
 import { transformGroups } from "../adapters";
 import type { LayoutDirection, GroupNodeData } from "../types/layout";
-import { calculateLayout, computeInitialExpandedGroups } from "../layout/elk-layout";
+import { calculateLayout, computeInitialExpandedGroups, clearLayoutCache } from "../layout/elk-layout";
 import {
   ESTIMATED_VIEWPORT_WIDTH,
   ESTIMATED_VIEWPORT_HEIGHT,
@@ -110,6 +110,9 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
 
   // Initialize expanded groups when workflow changes
   useEffect(() => {
+    // Clear layout cache when workflow fundamentally changes
+    clearLayoutCache();
+    
     setExpandedGroups(
       computeInitialExpandedGroups(groupsWithLayout, AUTO_COLLAPSE_TASK_THRESHOLD, AUTO_COLLAPSE_GROUP_THRESHOLD),
     );
