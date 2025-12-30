@@ -34,7 +34,7 @@ export const MANDATORY_COLUMNS: ColumnDef[] = [
 export const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
   { id: "duration", label: "Duration", menuLabel: "Duration", width: { min: 70, share: 0.8 }, align: "right", sortable: true, defaultVisible: true },
   { id: "node", label: "Node", menuLabel: "Node Name", width: { min: 80, share: 1.2 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "podIp", label: "IP", menuLabel: "IP", width: { min: 95, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
+  { id: "podIp", label: "IP", menuLabel: "IP", width: { min: 95, share: 1.2 }, align: "left", sortable: true, defaultVisible: false },
   { id: "exitCode", label: "Exit", menuLabel: "Exit Code", width: 55, align: "right", sortable: true, defaultVisible: false },
   { id: "startTime", label: "Start", menuLabel: "Start Time", width: { min: 85, share: 0.8 }, align: "right", sortable: true, defaultVisible: false },
   { id: "endTime", label: "End", menuLabel: "End Time", width: { min: 85, share: 0.8 }, align: "right", sortable: true, defaultVisible: false },
@@ -44,7 +44,7 @@ export const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
 /**
  * Alphabetically sorted column list for stable menu order.
  */
-export const OPTIONAL_COLUMNS_ALPHABETICAL = [...OPTIONAL_COLUMNS].sort((a, b) => 
+export const OPTIONAL_COLUMNS_ALPHABETICAL = [...OPTIONAL_COLUMNS].sort((a, b) =>
   a.menuLabel.localeCompare(b.menuLabel)
 );
 
@@ -68,6 +68,12 @@ export const DEFAULT_VISIBLE_OPTIONAL: ColumnId[] = OPTIONAL_COLUMNS
  */
 export const COLUMN_MAP = new Map(ALL_COLUMNS.map((c) => [c.id, c]));
 export const OPTIONAL_COLUMN_MAP = new Map(OPTIONAL_COLUMNS.map((c) => [c.id, c]));
+
+/**
+ * Pre-computed set of mandatory column IDs.
+ * Extracted as constant to avoid useMemo in components.
+ */
+export const MANDATORY_COLUMN_IDS: ReadonlySet<ColumnId> = new Set(MANDATORY_COLUMNS.map((c) => c.id));
 
 // ============================================================================
 // Grid Template Utilities

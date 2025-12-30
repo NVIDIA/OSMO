@@ -19,6 +19,7 @@ export {
   buildEdges,
   computeInitialExpandedGroups,
   getNodeDimensions,
+  clearLayoutCache,
   type LayoutPosition,
   type LayoutPositionResult,
 } from "./elk-layout";

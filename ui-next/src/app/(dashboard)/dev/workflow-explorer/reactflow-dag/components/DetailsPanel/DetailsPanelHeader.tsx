@@ -170,7 +170,12 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
-                    onKeyDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      // Stop propagation for navigation keys (let Escape bubble to close dropdown)
+                      if (e.key !== "Escape") {
+                        e.stopPropagation();
+                      }
+                    }}
                   />
                 </div>
                 {/* Task list */}
