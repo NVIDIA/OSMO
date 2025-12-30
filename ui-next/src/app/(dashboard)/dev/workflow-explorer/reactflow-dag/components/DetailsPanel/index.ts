@@ -22,4 +22,4 @@ export type {
   GroupDetailsProps,
   TaskDetailsProps,
   DetailsPanelHeaderProps,
-} from "./types";
+} from "../../types/panel";

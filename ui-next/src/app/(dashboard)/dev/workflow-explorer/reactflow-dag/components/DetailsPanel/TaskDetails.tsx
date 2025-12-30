@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../utils/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
-import type { TaskDetailsProps, SiblingTask } from "./types";
+import type { TaskDetailsProps, SiblingTask } from "../../types/panel";
 
 // ============================================================================
 // Component
