@@ -35,10 +35,10 @@ import {
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/lib/hooks";
-import { GPU_STYLES, TABLE_ROW_HEIGHT } from "../../constants";
+import { TABLE_ROW_HEIGHT } from "../../constants";
 import { formatDuration } from "../../../workflow-types";
 import { getStatusIconCompact } from "../../utils/status";
-import type { TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn } from "./types";
+import type { TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn } from "../../types/table";
 import { COLUMN_MAP, MANDATORY_COLUMNS, getGridTemplate, getMinTableWidth } from "./column-config";
 
 // ============================================================================
@@ -120,8 +120,6 @@ const TaskRow = memo(function TaskRow({
   visibleColumnIds: ColumnId[];
 }) {
   const rowStyle = useMemo(() => ({
-    ...GPU_STYLES.accelerated,
-    contain: "layout style paint",
     gridTemplateColumns: gridTemplate,
     minWidth,
   }), [gridTemplate, minWidth]);
@@ -130,7 +128,7 @@ const TaskRow = memo(function TaskRow({
     <div
       onClick={onSelect}
       className={cn(
-        "grid cursor-pointer items-center gap-6 border-b border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
+        "dag-contained grid cursor-pointer items-center gap-6 border-b border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
         isSelected ? "bg-blue-900/30" : "hover:bg-zinc-800/50",
       )}
       style={rowStyle}
@@ -254,8 +252,8 @@ const TaskTableHeader = memo(function TaskTableHeader({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictHorizontal]}>
       <div
-        className="grid items-center gap-6 border-b border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-400"
-        style={{ gridTemplateColumns: gridTemplate, minWidth, ...GPU_STYLES.accelerated }}
+        className="dag-gpu-accelerated grid items-center gap-6 border-b border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-400"
+        style={{ gridTemplateColumns: gridTemplate, minWidth }}
       >
         {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
           <div key={col.id} className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
@@ -336,9 +334,9 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain" style={GPU_STYLES.accelerated}>
+    <div ref={scrollRef} className="dag-table-container flex-1 overflow-auto overscroll-contain">
       <div style={{ minWidth }}>
-        <div className="sticky top-0 z-10 bg-zinc-900" style={GPU_STYLES.contained}>
+        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-zinc-900">
           <TaskTableHeader
             columns={columns}
             gridTemplate={gridTemplate}
@@ -350,20 +348,16 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
           />
         </div>
 
-        <div style={{ height: totalSize, position: "relative", ...GPU_STYLES.accelerated }}>
+        <div className="dag-table-virtual-container relative" style={{ height: totalSize }}>
           {virtualItems.map((virtualRow) => {
             const task = tasks[virtualRow.index];
             return (
               <div
                 key={task.name}
+                className="dag-virtual-item absolute left-0 top-0 w-full"
                 style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
                   height: TABLE_ROW_HEIGHT,
                   transform: `translate3d(0, ${virtualRow.start}px, 0)`,
-                  ...GPU_STYLES.virtualItem,
                 }}
               >
                 <TaskRow
