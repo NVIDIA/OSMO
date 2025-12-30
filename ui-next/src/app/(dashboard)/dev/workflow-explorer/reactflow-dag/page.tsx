@@ -14,40 +14,38 @@
  * Architecture:
  * - /constants.ts - Dimensions, styling, thresholds
  * - /types.ts - TypeScript types
- * - /components/ - React components (GroupNode, DetailPanel, GroupPanel, etc.)
+ * - /components/ - React components (GroupNode, DetailsPanel, etc.)
  * - /layout/ - ELK.js layout logic
  * - /hooks/ - State management (useDAGState, useResizablePanel)
  * - /utils/ - Status helpers, icons
  *
  * Navigation Flow:
- * - Click GROUP node (multi-task) → Opens GroupPanel
- * - Click task in GroupPanel → Opens DetailPanel
- * - Click SINGLE-TASK node → Opens DetailPanel directly
+ * - Click GROUP node (multi-task) → Opens DetailsPanel with GroupDetails
+ * - Click task in GroupDetails → Transitions to TaskDetails (same panel)
+ * - Click SINGLE-TASK node → Opens DetailsPanel with TaskDetails directly
+ * - Sibling navigation in TaskDetails → Jump between tasks in same group
  */
 
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
 import { ReactFlow, ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
-import { GripVertical } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 import "@xyflow/react/dist/style.css";
 import "./dag.css";
 
 // Local modules
 import type { LayoutDirection, GroupNodeData } from "./types";
-import { DEFAULT_ZOOM, MAX_ZOOM, STATUS_STYLES, GPU_STYLES } from "./constants";
+import { DEFAULT_ZOOM, MAX_ZOOM, STATUS_STYLES } from "./constants";
 import {
   nodeTypes,
-  DetailPanel,
   MiniMapNode,
   FitViewOnLayoutChange,
   DAGErrorBoundary,
   DAGHeader,
   DAGToolbar,
   DAGControls,
-  GroupPanel,
+  DetailsPanel,
 } from "./components";
 import { useDAGState, useResizablePanel } from "./hooks";
 import { getStatusCategory } from "./utils";
@@ -92,7 +90,7 @@ function ReactFlowDagPageInner() {
     initialDirection: "TB",
   });
 
-  // Resizable panel (for GroupPanel)
+  // Resizable panel
   const { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef } = useResizablePanel();
 
   // Pattern change handler
@@ -128,8 +126,8 @@ function ReactFlowDagPageInner() {
     return STATUS_STYLES[category].strokeColor;
   }, []);
 
-  // Determine if any panel is open
-  const isPanelOpen = panelView !== "none";
+  // Determine if panel is open
+  const isPanelOpen = panelView !== "none" && selectedGroup !== null;
 
   return (
     <DAGErrorBoundary>
@@ -235,58 +233,19 @@ function ReactFlowDagPageInner() {
             </DAGProvider>
           </main>
 
-          {/* Resize Handle (only visible when GroupPanel is open) */}
-          {panelView === "group" && selectedGroup && (
-            <div
-              className={cn(
-                "group absolute top-0 z-20 h-full w-1 cursor-ew-resize",
-                isDragging ? "bg-blue-500" : "bg-transparent hover:bg-zinc-300 dark:hover:bg-zinc-600",
-              )}
-              style={{
-                left: `${100 - panelPct}%`,
-                transform: "translateX(-50%)",
-                willChange: isDragging ? "left" : "auto",
-              }}
-              onMouseDown={handleMouseDown}
-            >
-              <div
-                className={cn(
-                  "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-200 px-0.5 py-1 shadow-md dark:bg-zinc-700",
-                  isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-                )}
-                style={{
-                  transition: "opacity 150ms ease-out",
-                  ...GPU_STYLES.accelerated,
-                }}
-              >
-                <GripVertical className="size-4 text-zinc-600 dark:text-zinc-300" />
-              </div>
-            </div>
-          )}
-
-          {/* GroupPanel - Shows task list for multi-task groups */}
-          {panelView === "group" && selectedGroup && (
-            <div
-              className="absolute inset-y-0 right-0 z-10"
-              style={{ width: `${panelPct}%`, ...GPU_STYLES.accelerated }}
-            >
-              <GroupPanel
-                group={selectedGroup}
-                onClose={handleClosePanel}
-                onSelectTask={handleSelectTask}
-                panelPct={panelPct}
-                onPanelResize={setPanelPct}
-              />
-            </div>
-          )}
-
-          {/* DetailPanel - Shows single task details */}
-          {panelView === "task" && selectedGroup && selectedTask && (
-            <DetailPanel
+          {/* Unified Details Panel */}
+          {isPanelOpen && selectedGroup && (
+            <DetailsPanel
+              view={panelView as "group" | "task"}
               group={selectedGroup}
               task={selectedTask}
               onClose={handleClosePanel}
-              onBack={(selectedGroup.tasks?.length ?? 0) > 1 ? handleBackToGroup : undefined}
+              onBackToGroup={handleBackToGroup}
+              onSelectTask={handleSelectTask}
+              panelPct={panelPct}
+              onPanelResize={setPanelPct}
+              isDragging={isDragging}
+              onResizeMouseDown={handleMouseDown}
             />
           )}
         </div>
@@ -299,22 +258,22 @@ function ReactFlowDagPageInner() {
             </summary>
             <ul className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-500">
               <li>
+                ✅ <strong>Unified DetailsPanel</strong>: Seamless group ↔ task navigation
+              </li>
+              <li>
                 ✅ <strong>ELK.js layout</strong>: Better algorithms, web worker ready
               </li>
               <li>
                 ✅ <strong>Virtualized task lists</strong>: Handles 200+ tasks efficiently
               </li>
               <li>
-                ✅ <strong>WCAG 2.1 AA</strong>: ARIA labels, keyboard nav, focus indicators
+                ✅ <strong>Sibling navigation</strong>: Jump between tasks in same group
               </li>
               <li>
-                ✅ <strong>GroupPanel integration</strong>: Smart search, sortable columns
+                ✅ <strong>Smart search</strong>: Chip-based filters, NLP time parsing
               </li>
               <li>
-                ✅ <strong>Optimized re-renders</strong>: Selection doesn&apos;t trigger layout
-              </li>
-              <li>
-                ✅ <strong>Reduced motion</strong>: Respects prefers-reduced-motion
+                ✅ <strong>WCAG 2.1 AA</strong>: ARIA labels, keyboard nav, reduced motion
               </li>
             </ul>
           </details>
