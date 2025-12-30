@@ -55,6 +55,10 @@ export interface DetailsPanelProps {
   isDragging: boolean;
   /** Mouse down handler for resize handle */
   onResizeMouseDown: (e: React.MouseEvent) => void;
+  /** Whether the header details section is expanded */
+  isDetailsExpanded: boolean;
+  /** Toggle the details expansion state */
+  onToggleDetailsExpanded: () => void;
 }
 
 /**
@@ -135,4 +139,8 @@ export interface DetailsPanelHeaderProps {
   onSelectSibling?: (name: string, retryId: number) => void;
   /** Expandable details content (collapsed by default) */
   expandableContent?: React.ReactNode;
+  /** Whether the expandable section is currently expanded */
+  isExpanded?: boolean;
+  /** Toggle the expanded state */
+  onToggleExpand?: () => void;
 }
