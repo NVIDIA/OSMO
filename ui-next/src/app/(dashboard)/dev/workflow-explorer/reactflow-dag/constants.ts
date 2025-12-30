@@ -135,6 +135,36 @@ export const ESTIMATED_VIEWPORT_WIDTH = VIEWPORT.ESTIMATED_WIDTH;
 export const ESTIMATED_VIEWPORT_HEIGHT = VIEWPORT.ESTIMATED_HEIGHT;
 
 // ============================================================================
+// ReactFlow Components Configuration
+// ============================================================================
+
+/** MiniMap dimensions */
+export const MINIMAP = {
+  /** Width in pixels */
+  WIDTH: 120,
+  /** Height in pixels */
+  HEIGHT: 80,
+  /** Node stroke width */
+  NODE_STROKE_WIDTH: 1,
+} as const;
+
+/** Background grid configuration */
+export const BACKGROUND = {
+  /** Gap between grid dots in pixels */
+  GAP: 20,
+  /** Size of grid dots in pixels */
+  DOT_SIZE: 1,
+  /** Color of grid dots */
+  COLOR: "#27272a",
+} as const;
+
+/** Handle positioning (offset from node edge) */
+export const HANDLE_OFFSET = 6; // pixels
+
+/** Node border width for dimension calculations */
+export const NODE_BORDER_WIDTH = 4; // 2px border * 2 sides
+
+// ============================================================================
 // Status Category Types
 // ============================================================================
 
@@ -309,6 +339,14 @@ export const ANIMATION = {
   INITIAL_DURATION: 500,
   /** Delay before initial zoom animation (ms) */
   DELAY: 100,
+  /** Duration for centering on a node (ms) */
+  NODE_CENTER: 300,
+  /** Duration for boundary enforcement during resize (ms) */
+  BOUNDARY_ENFORCE: 100,
+  /** Duration for move end cleanup (ms) */
+  MOVE_END: 150,
+  /** Duration for row hover transitions (ms) */
+  ROW_HOVER: 75,
 } as const;
 
 // Legacy exports
@@ -343,29 +381,13 @@ export const PERSISTENCE = {
 } as const;
 
 // ============================================================================
-// GPU Acceleration Styles (reusable across components)
+// GPU Acceleration - Now handled via CSS classes in dag.css
 // ============================================================================
-
-/**
- * GPU-accelerated CSS styles for smooth animations.
- * Uses composite layer promotion for silky smooth transforms.
- */
-export const GPU_STYLES = {
-  /** Base GPU acceleration */
-  accelerated: {
-    willChange: "transform",
-    transform: "translate3d(0, 0, 0)",
-    backfaceVisibility: "hidden",
-  } as React.CSSProperties,
-
-  /** Strict containment for maximum layout isolation */
-  contained: {
-    contain: "layout style paint",
-  } as React.CSSProperties,
-
-  /** For virtual list items - maximum isolation */
-  virtualItem: {
-    contain: "strict",
-    contentVisibility: "auto",
-  } as React.CSSProperties,
-} as const;
+// All GPU acceleration and containment is now in CSS for consistency:
+// - .dag-gpu-accelerated: Base GPU acceleration (transform, will-change)
+// - .dag-contained: Strict containment (layout style paint)
+// - .dag-virtual-item: Virtual list items (strict containment + content-visibility)
+// - .dag-contained-layout: Layout + style containment only
+// - .dag-details-panel: Panel container with GPU acceleration
+// - .dag-table-container: Table scroll container
+// - .dag-dropdown: Dropdown/popover containers

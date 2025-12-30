@@ -7,12 +7,12 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * GroupPanel Types
+ * Table Types
  *
- * Type definitions for the GroupPanel component and its sub-components.
+ * Type definitions for task tables, columns, sorting, and search.
  */
 
-import type { TaskQueryResponse } from "../../../workflow-types";
+import type { TaskQueryResponse } from "../../workflow-types";
 
 // ============================================================================
 // Task Types
@@ -31,7 +31,16 @@ export interface TaskWithDuration extends TaskQueryResponse {
 // Column Types
 // ============================================================================
 
-export type ColumnId = "status" | "name" | "duration" | "node" | "podIp" | "exitCode" | "startTime" | "endTime" | "retry";
+export type ColumnId =
+  | "status"
+  | "name"
+  | "duration"
+  | "node"
+  | "podIp"
+  | "exitCode"
+  | "startTime"
+  | "endTime"
+  | "retry";
 
 /**
  * Column width specification.
@@ -42,8 +51,8 @@ export type ColumnWidth = number | { min: number; share: number };
 
 export interface ColumnDef {
   id: ColumnId;
-  label: string;        // Short label for table header
-  menuLabel: string;    // Full label for dropdown menu
+  label: string; // Short label for table header
+  menuLabel: string; // Full label for dropdown menu
   width: ColumnWidth;
   align: "left" | "right";
   sortable: boolean;

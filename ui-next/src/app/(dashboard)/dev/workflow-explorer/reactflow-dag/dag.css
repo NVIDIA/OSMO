@@ -393,3 +393,90 @@
   position: absolute;
   inset: -0.5rem;
 }
+
+/* ==========================================================================
+   GPU Acceleration Utility Classes
+   ========================================================================== */
+
+/**
+ * Base GPU acceleration - promotes element to its own composite layer.
+ * Use for elements that will be animated or frequently transformed.
+ */
+.dag-gpu-accelerated {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/**
+ * Strict containment - maximum layout isolation.
+ * Use for table rows, list items, cards that don't affect siblings.
+ */
+.dag-contained {
+  contain: layout style paint;
+}
+
+/**
+ * Strict containment for virtual list items.
+ * Maximum isolation + content-visibility optimization.
+ */
+.dag-virtual-item {
+  contain: strict;
+  content-visibility: auto;
+}
+
+/**
+ * Layout + style containment only (allows paint overflow).
+ * Use for panels, dropdowns, modals.
+ */
+.dag-contained-layout {
+  contain: layout style;
+}
+
+/* ==========================================================================
+   Panel Containers with GPU Acceleration
+   ========================================================================== */
+
+.dag-details-panel {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  contain: layout style;
+}
+
+.dag-details-panel-handle {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ==========================================================================
+   Table Components
+   ========================================================================== */
+
+.dag-table-container {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.dag-table-header-wrapper {
+  contain: layout style paint;
+}
+
+.dag-table-virtual-container {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ==========================================================================
+   Dropdown/Popover Components
+   ========================================================================== */
+
+.dag-dropdown {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  contain: layout style;
+}

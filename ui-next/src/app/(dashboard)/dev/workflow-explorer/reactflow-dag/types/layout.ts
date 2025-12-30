@@ -7,13 +7,13 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * DAG Visualizer Types
+ * DAG Layout Types
  *
- * Type definitions for the ReactFlow DAG visualization.
+ * Type definitions for the ReactFlow DAG visualization layout.
  */
 
 import type { Node, Edge } from "@xyflow/react";
-import type { GroupWithLayout, TaskQueryResponse } from "../workflow-types";
+import type { GroupWithLayout } from "../../workflow-types";
 
 // ============================================================================
 // Layout Types
