@@ -13,6 +13,8 @@
  * - Resizable width with drag handle
  * - Width snap presets
  * - Seamless navigation between group and task views
+ * - Focus trap for keyboard accessibility
+ * - Screen reader announcements
  *
  * Architecture:
  * - DetailsPanel (container): Resize handle, width management, view switching
@@ -22,12 +24,18 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useRef, useEffect, useCallback } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GroupDetails } from "./GroupDetails";
 import { TaskDetails } from "./TaskDetails";
 import type { DetailsPanelProps } from "../../types/panel";
+import { useAnnouncer } from "../../hooks";
+
+// NOTE: We intentionally do NOT use a focus trap here.
+// This is a non-modal side panel (role="complementary"), not a dialog.
+// Users should be able to Tab freely between the panel and the DAG.
+// Focus traps are only appropriate for modal dialogs that block interaction.
 
 // ============================================================================
 // Component
@@ -45,6 +53,31 @@ export const DetailsPanel = memo(function DetailsPanel({
   isDragging,
   onResizeMouseDown,
 }: DetailsPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const announce = useAnnouncer();
+
+  // Handle Escape key to close panel (without focus trap)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      // Only close if no dropdown/popover is open (they handle their own Escape)
+      const target = e.target as HTMLElement;
+      const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
+      if (!isInDropdown) {
+        onClose();
+      }
+    }
+  }, [onClose]);
+
+  // Announce panel state changes to screen readers
+  useEffect(() => {
+    if (view === "group" && group) {
+      const taskCount = group.tasks?.length ?? 0;
+      announce(`Group details panel opened. ${group.name}, ${taskCount} tasks.`);
+    } else if (view === "task" && task) {
+      announce(`Task details panel opened. ${task.name}.`);
+    }
+  }, [view, group, task, announce]);
+
   return (
     <>
       {/* Resize Handle */}
@@ -59,23 +92,32 @@ export const DetailsPanel = memo(function DetailsPanel({
           willChange: isDragging ? "left" : "auto",
         }}
         onMouseDown={onResizeMouseDown}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        aria-valuenow={panelPct}
+        aria-valuemin={20}
+        aria-valuemax={80}
       >
         <div
           className={cn(
             "dag-details-panel-handle absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 px-0.5 py-1 shadow-md transition-opacity duration-150",
             isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
+          aria-hidden="true"
         >
           <GripVertical className="size-4 text-zinc-300" />
         </div>
       </div>
 
       {/* Panel Container */}
-      <div
+      <aside
+        ref={panelRef}
         className="dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-zinc-800 bg-zinc-900/95 backdrop-blur"
         style={{ width: `${panelPct}%` }}
         role="complementary"
-        aria-label={view === "group" ? "Group details" : "Task details"}
+        aria-label={view === "group" ? `Group details: ${group.name}` : `Task details: ${task?.name}`}
+        onKeyDown={handleKeyDown}
       >
         {view === "group" && (
           <GroupDetails
@@ -96,7 +138,7 @@ export const DetailsPanel = memo(function DetailsPanel({
             onPanelResize={onPanelResize}
           />
         )}
-      </div>
+      </aside>
     </>
   );
 });
