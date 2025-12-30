@@ -23,6 +23,7 @@ import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_SORT_ORDER } from "../../constants";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
+import type { GroupWithLayout } from "../../../workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../utils/status";
 import { usePersistedState } from "../../hooks";
 import type { GroupDetailsProps } from "../../types/panel";
@@ -31,6 +32,8 @@ import { MANDATORY_COLUMNS, OPTIONAL_COLUMNS_ALPHABETICAL, OPTIONAL_COLUMN_MAP, 
 import { SmartSearch, filterTasksByChips } from "../GroupPanel/SmartSearch";
 import { VirtualizedTaskList } from "../GroupPanel/TaskTable";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
+import { GroupTimeline } from "./GroupTimeline";
+import { DependencyPills } from "./DependencyPills";
 
 // ============================================================================
 // Component
@@ -43,7 +46,9 @@ interface GroupDetailsInternalProps extends GroupDetailsProps {
 
 export const GroupDetails = memo(function GroupDetails({
   group,
+  allGroups,
   onSelectTask,
+  onSelectGroup,
   onClose,
   onPanelResize,
 }: GroupDetailsInternalProps) {
@@ -145,7 +150,17 @@ export const GroupDetails = memo(function GroupDetails({
     setSearchChips([]);
   }, []);
 
-  // Status content for header (Row 3)
+  // Handle dependency pill click
+  const handleSelectGroupByName = useCallback((groupName: string) => {
+    if (onSelectGroup) {
+      const targetGroup = allGroups.find((g) => g.name === groupName);
+      if (targetGroup) {
+        onSelectGroup(targetGroup);
+      }
+    }
+  }, [allGroups, onSelectGroup]);
+
+  // Status content for header (Row 2) - clean, no error message here
   const statusContent = (
     <div className="flex items-center gap-1.5 text-xs">
       <span
@@ -181,9 +196,44 @@ export const GroupDetails = memo(function GroupDetails({
     />
   );
 
+  // Compute upstream/downstream groups for dependencies
+  const upstreamGroups = allGroups.filter(
+    (g) => g.downstream_groups?.includes(group.name)
+  );
+  const downstreamGroups = allGroups.filter(
+    (g) => group.downstream_groups?.includes(g.name)
+  );
+
+  // Check if we have any expandable content
+  const hasFailureMessage = !!group.failure_message;
+  const hasTimeline = group.scheduling_start_time || group.start_time;
+  const hasDependencies = upstreamGroups.length > 0 || downstreamGroups.length > 0;
+  const hasExpandableContent = hasFailureMessage || hasTimeline || hasDependencies;
+
+  // Expandable content for header (failure message first, then timeline, then dependencies)
+  const expandableContent = hasExpandableContent ? (
+    <div className="space-y-3">
+      {/* Failure message - first item when present */}
+      {hasFailureMessage && (
+        <div className="flex items-start gap-1.5 text-xs text-red-400">
+          <AlertCircle className="mt-0.5 size-3 shrink-0" />
+          <span>{group.failure_message}</span>
+        </div>
+      )}
+      {hasTimeline && <GroupTimeline group={group} />}
+      {hasDependencies && (
+        <DependencyPills
+          upstreamGroups={upstreamGroups}
+          downstreamGroups={downstreamGroups}
+          onSelectGroup={handleSelectGroupByName}
+        />
+      )}
+    </div>
+  ) : undefined;
+
   return (
     <>
-      {/* Header */}
+      {/* Header with expandable details */}
       <DetailsPanelHeader
         viewType="group"
         title={group.name}
@@ -192,6 +242,7 @@ export const GroupDetails = memo(function GroupDetails({
         onClose={onClose}
         onPanelResize={onPanelResize}
         menuContent={menuContent}
+        expandableContent={expandableContent}
       />
 
       {/* Search */}

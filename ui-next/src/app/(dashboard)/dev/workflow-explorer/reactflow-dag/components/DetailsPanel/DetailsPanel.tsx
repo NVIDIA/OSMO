@@ -44,10 +44,12 @@ import { useAnnouncer } from "../../hooks";
 export const DetailsPanel = memo(function DetailsPanel({
   view,
   group,
+  allGroups,
   task,
   onClose,
   onBackToGroup,
   onSelectTask,
+  onSelectGroup,
   panelPct,
   onPanelResize,
   isDragging,
@@ -122,7 +124,9 @@ export const DetailsPanel = memo(function DetailsPanel({
         {view === "group" && (
           <GroupDetails
             group={group}
+            allGroups={allGroups}
             onSelectTask={onSelectTask}
+            onSelectGroup={onSelectGroup}
             onClose={onClose}
             onPanelResize={onPanelResize}
           />

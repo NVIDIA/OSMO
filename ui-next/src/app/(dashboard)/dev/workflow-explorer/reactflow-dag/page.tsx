@@ -248,10 +248,12 @@ function ReactFlowDagPageInner() {
             <DetailsPanel
               view={panelView as "group" | "task"}
               group={selectedGroup}
+              allGroups={groupsWithLayout}
               task={selectedTask}
               onClose={handleClosePanel}
               onBackToGroup={handleBackToGroup}
               onSelectTask={handleSelectTask}
+              onSelectGroup={handleSelectGroup}
               panelPct={panelPct}
               onPanelResize={setPanelPct}
               isDragging={isDragging}
