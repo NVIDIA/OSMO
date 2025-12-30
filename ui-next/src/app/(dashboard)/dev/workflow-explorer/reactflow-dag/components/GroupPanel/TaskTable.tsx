@@ -254,7 +254,7 @@ const TaskTableHeader = memo(function TaskTableHeader({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictHorizontal]}>
       <div
-        className="grid items-center gap-6 border-b border-zinc-700 bg-zinc-800/80 px-3 py-2 text-xs font-medium text-zinc-400"
+        className="grid items-center gap-6 border-b border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-400"
         style={{ gridTemplateColumns: gridTemplate, minWidth, ...GPU_STYLES.accelerated }}
       >
         {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
@@ -338,7 +338,7 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain" style={GPU_STYLES.accelerated}>
       <div style={{ minWidth }}>
-        <div className="sticky top-0 z-10" style={GPU_STYLES.contained}>
+        <div className="sticky top-0 z-10 bg-zinc-900" style={GPU_STYLES.contained}>
           <TaskTableHeader
             columns={columns}
             gridTemplate={gridTemplate}
