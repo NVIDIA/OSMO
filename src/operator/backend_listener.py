@@ -65,7 +65,8 @@ WAITING_REASON_ERROR_CODE = {
     'ImagePullBackOff' : 301,
     'ErrImagePull' : 302,
     'ContainerCreateConfigError' : 303,
-    'CrashLoopBackOff': 304
+    'CrashLoopBackOff': 304,
+    'ContainerStatusUnknown': 305,
 }
 
 DEFAULT_AVAILABLE_CONDITION = {'Ready': 'True'}
@@ -335,7 +336,8 @@ def get_container_waiting_error_info(pod: kubernetes.client.models.v1_pod.V1Pod)
     Returns:
         A PodWaitingStatus object that stores error information about the waiting pod
     """
-    waiting_reasons = ['Failed', 'BackOff', 'Error', 'ErrImagePull', 'ImagePullBackOff']
+    waiting_reasons = ['Failed', 'BackOff', 'Error', 'ErrImagePull', 'ImagePullBackOff',
+                       'ContainerStatusUnknown']
     exit_codes = {}
     # container_statuses or init_container_statuses can be None
     for container_status in itertools.chain(
@@ -848,9 +850,19 @@ def check_preemption_by_scheduler(pod: Any) -> Tuple[bool, str]:
     return False, ''
 
 
-def calculate_pod_status(pod: Any) \
-    -> Tuple[task.TaskGroupStatus, str, Optional[int]]:
-    """ Determines Pod Status """
+def calculate_pod_status(pod: Any) -> Tuple[task.TaskGroupStatus, str, Optional[int]]:
+    """
+    Determines Pod Status.
+
+    Args:
+        pod: The Kubernetes pod object
+
+    Returns:
+        Tuple containing:
+        - status: TaskGroupStatus
+        - message: Error/status message
+        - exit_code: Exit code if applicable
+    """
     is_preempted, message = check_preemption_by_scheduler(pod)
     if is_preempted:
         return (task.TaskGroupStatus.FAILED_PREEMPTED,
@@ -925,6 +937,25 @@ def calculate_pod_status(pod: Any) \
                             # If the container is stuck in this state for more than 10 minutes,
                             # then we mark it as failed.
                             if time_diff > datetime.timedelta(minutes=10):
+                                status = task.TaskGroupStatus.FAILED_BACKEND_ERROR
+                                exit_code = task.ExitCode.FAILED_BACKEND_ERROR.value
+                                break
+        elif pod_waiting_status.waiting_reason in ['ContainerStatusUnknown']:
+            # ContainerStatusUnknown typically occurs when a node becomes unreachable
+            # and the kubelet stops reporting container status. Mark as scheduling
+            # initially, then as FAILED_BACKEND_ERROR after timeout to trigger cleanup.
+            status = task.TaskGroupStatus.SCHEDULING
+            exit_code = None
+            if pod.status.conditions:
+                for condition in pod.status.conditions:
+                    if condition.type == 'Ready' and condition.status == 'False':
+                        now = datetime.datetime.now(datetime.timezone.utc)
+                        last_transition_time = condition.last_transition_time
+                        if last_transition_time:
+                            time_diff = now - last_transition_time
+                            # If the container is stuck in this state for more than 30 minutes,
+                            # then we mark it as failed.
+                            if time_diff > datetime.timedelta(minutes=30):
                                 status = task.TaskGroupStatus.FAILED_BACKEND_ERROR
                                 exit_code = task.ExitCode.FAILED_BACKEND_ERROR.value
                                 break
@@ -1165,7 +1196,7 @@ def watch_pod_events(progress_writer: progress.ProgressWriter,
                     update_resource_usage(
                         node_send_queue, pod.spec.node_name, current_pods, config.namespace)
 
-                # Ignore unknown status, which usually dues to temproary connection issue.
+                # Ignore pods with Unknown phase status (usually due to temporary connection issue)
                 if pod.status.phase == 'Unknown':
                     continue
 
