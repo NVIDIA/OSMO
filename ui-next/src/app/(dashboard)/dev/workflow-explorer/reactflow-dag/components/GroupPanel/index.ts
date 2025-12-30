@@ -7,12 +7,12 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * GroupPanel Index
+ * GroupPanel Utilities
  *
- * Re-exports GroupPanel components and utilities.
+ * Shared utilities for task tables: search, virtualization, columns.
+ * The main GroupPanel component has been consolidated into DetailsPanel/GroupDetails.
  */
 
-export { GroupPanel } from "./GroupPanel";
 export { SmartSearch, filterTasksByChips } from "./SmartSearch";
 export { VirtualizedTaskList } from "./TaskTable";
-export type { GroupPanelProps, TaskWithDuration, SearchChip, ColumnId, SortState } from "./types";
+export type { TaskWithDuration, SearchChip, ColumnId, SortState, SortColumn, ColumnDef } from "./types";
