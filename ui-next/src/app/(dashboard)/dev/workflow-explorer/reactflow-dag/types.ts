@@ -72,25 +72,6 @@ export interface LayoutResult {
   edges: Edge[];
 }
 
-/** Bounds of the graph for pan/zoom limits */
-export interface GraphBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  fitAllZoom: number;
-}
-
-// ============================================================================
-// Selection State Types
-// ============================================================================
-
-/** Current selection state */
-export interface SelectionState {
-  selectedGroup: GroupWithLayout | null;
-  selectedTask: TaskQueryResponse | null;
-}
-
 // ============================================================================
 // ELK Layout Types
 // ============================================================================

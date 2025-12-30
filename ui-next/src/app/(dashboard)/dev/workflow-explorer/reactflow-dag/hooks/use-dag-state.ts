@@ -29,7 +29,7 @@ import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../../workflow-types";
 import { computeTopologicalLevelsFromGraph } from "../../workflow-types";
-import type { LayoutDirection, GraphBounds, GroupNodeData } from "../types";
+import type { LayoutDirection, GroupNodeData } from "../types";
 import { calculateLayout, computeInitialExpandedGroups } from "../layout/elk-layout";
 import {
   ESTIMATED_VIEWPORT_WIDTH,
@@ -81,11 +81,8 @@ interface UseDAGStateReturn {
   handleClosePanel: () => void;
   handleBackToGroup: () => void;
 
-  // Legacy (for backwards compatibility)
-  handleCloseDetail: () => void;
-
-  // Bounds for viewport
-  nodeBounds: GraphBounds;
+  // Node bounds (actual min/max positions) with computed fit-all zoom
+  nodeBounds: { minX: number; maxX: number; minY: number; maxY: number; fitAllZoom: number };
 
   // Loading state
   isLayouting: boolean;
@@ -169,9 +166,6 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     setPanelView("group");
   }, []);
 
-  // Legacy alias for backwards compatibility
-  const handleCloseDetail = handleClosePanel;
-
   // ReactFlow state - typed for our node data
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
@@ -205,8 +199,8 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     };
   }, [groupsWithLayout, expandedGroups, layoutDirection, setNodes, setEdges]);
 
-  // Calculate bounds for viewport
-  const nodeBounds = useMemo((): GraphBounds => {
+  // Calculate node bounds and fit-all zoom
+  const nodeBounds = useMemo(() => {
     if (nodes.length === 0) {
       return { minX: 0, maxX: 1000, minY: 0, maxY: 1000, fitAllZoom: 0.5 };
     }
@@ -226,21 +220,14 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
       maxY = Math.max(maxY, node.position.y + height);
     });
 
-    const paddingX = ESTIMATED_VIEWPORT_WIDTH / 2;
-    const paddingY = ESTIMATED_VIEWPORT_HEIGHT / 2;
+    // Calculate zoom that fits all content
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
     const fitZoomX = ESTIMATED_VIEWPORT_WIDTH / (contentWidth + 100);
     const fitZoomY = ESTIMATED_VIEWPORT_HEIGHT / (contentHeight + 100);
-    const fitAllZoom = Math.min(fitZoomX, fitZoomY, 1);
+    const fitAllZoom = Math.max(0.1, Math.min(fitZoomX, fitZoomY, 1));
 
-    return {
-      minX: minX - paddingX,
-      maxX: maxX + paddingX,
-      minY: minY - paddingY,
-      maxY: maxY + paddingY,
-      fitAllZoom: Math.max(0.1, fitAllZoom),
-    };
+    return { minX, maxX, minY, maxY, fitAllZoom };
   }, [nodes]);
 
   return {
@@ -261,7 +248,6 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     handleSelectTask,
     handleClosePanel,
     handleBackToGroup,
-    handleCloseDetail,
     nodeBounds,
     isLayouting,
   };

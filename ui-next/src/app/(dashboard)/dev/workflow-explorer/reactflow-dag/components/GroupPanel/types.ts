@@ -12,7 +12,7 @@
  * Type definitions for the GroupPanel component and its sub-components.
  */
 
-import type { TaskQueryResponse, GroupWithLayout } from "../../../workflow-types";
+import type { TaskQueryResponse } from "../../../workflow-types";
 
 // ============================================================================
 // Task Types
@@ -81,21 +81,4 @@ export interface SearchField {
   prefix: string;
   getValues: (tasks: TaskWithDuration[]) => string[];
   match: (task: TaskWithDuration, value: string) => boolean;
-}
-
-// ============================================================================
-// Panel Props
-// ============================================================================
-
-export interface GroupPanelProps {
-  /** The group to display */
-  group: GroupWithLayout;
-  /** Callback when panel is closed */
-  onClose: () => void;
-  /** Callback when a task is selected */
-  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
-  /** Current panel width percentage (optional, for resize handle) */
-  panelPct?: number;
-  /** Callback to resize panel (optional) */
-  onPanelResize?: (pct: number) => void;
 }
