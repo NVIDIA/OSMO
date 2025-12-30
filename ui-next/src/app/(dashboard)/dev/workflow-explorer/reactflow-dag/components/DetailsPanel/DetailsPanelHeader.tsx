@@ -85,9 +85,11 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   viewType,
   siblingTasks,
   onSelectSibling,
+  expandableContent,
 }: ExtendedHeaderProps) {
   const badge = viewType ? VIEW_TYPE_BADGE[viewType] : null;
   const [searchQuery, setSearchQuery] = useState("");
+  const [isExpanded, setIsExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   
@@ -285,8 +287,33 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
         </div>
       </div>
 
-      {/* Row 2: Status */}
-      {statusContent && <div className="mt-1.5">{statusContent}</div>}
+      {/* Row 2: Status + inline "more/less" toggle */}
+      <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+        {statusContent}
+        {expandableContent && (
+          <>
+            <span className="text-zinc-600">·</span>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-zinc-500 transition-colors hover:text-zinc-300"
+              aria-expanded={isExpanded}
+              aria-controls="header-expandable-content"
+            >
+              {isExpanded ? "show less" : "show more"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Expandable Details */}
+      {expandableContent && isExpanded && (
+        <div
+          id="header-expandable-content"
+          className="mt-3 space-y-3 border-t border-zinc-800 pt-3"
+        >
+          {expandableContent}
+        </div>
+      )}
     </div>
   );
 });
