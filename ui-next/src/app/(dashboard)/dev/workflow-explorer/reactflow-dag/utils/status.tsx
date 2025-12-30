@@ -325,3 +325,32 @@ export function computeGroupDuration(stats: TaskStats): number | null {
   if (endTime === null) return null;
   return Math.floor((endTime - stats.earliestStart) / 1000);
 }
+
+// =============================================================================
+// MiniMap Color Helpers (pure functions for ReactFlow MiniMap)
+// =============================================================================
+
+// Import type for node data
+import type { GroupNodeData } from "../types/layout";
+
+/**
+ * Get node fill color for MiniMap based on status.
+ * Pure function extracted outside component for performance.
+ */
+export function getMiniMapNodeColor(node: { data: unknown }): string {
+  const data = node.data as GroupNodeData;
+  if (!data?.group) return "#52525b";
+  const category = getStatusCategory(data.group.status);
+  return STATUS_STYLES[category].color;
+}
+
+/**
+ * Get node stroke color for MiniMap based on status.
+ * Pure function extracted outside component for performance.
+ */
+export function getMiniMapStrokeColor(node: { data: unknown }): string {
+  const data = node.data as GroupNodeData;
+  if (!data?.group) return "#3f3f46";
+  const category = getStatusCategory(data.group.status);
+  return STATUS_STYLES[category].strokeColor;
+}

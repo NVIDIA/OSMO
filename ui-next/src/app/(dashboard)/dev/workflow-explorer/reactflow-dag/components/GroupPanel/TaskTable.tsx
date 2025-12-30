@@ -39,7 +39,7 @@ import { TABLE_ROW_HEIGHT } from "../../constants";
 import { formatDuration } from "../../../workflow-types";
 import { getStatusIconCompact } from "../../utils/status";
 import type { TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn } from "../../types/table";
-import { COLUMN_MAP, MANDATORY_COLUMNS, getGridTemplate, getMinTableWidth } from "./column-config";
+import { COLUMN_MAP, MANDATORY_COLUMNS, MANDATORY_COLUMN_IDS, getGridTemplate, getMinTableWidth } from "./column-config";
 
 // ============================================================================
 // Helpers
@@ -124,11 +124,23 @@ const TaskRow = memo(function TaskRow({
     minWidth,
   }), [gridTemplate, minWidth]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelect();
+    }
+  }, [onSelect]);
+
   return (
     <div
+      role="row"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={handleKeyDown}
+      aria-selected={isSelected}
       className={cn(
         "dag-contained grid cursor-pointer items-center gap-6 border-b border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
         isSelected ? "bg-blue-900/30" : "hover:bg-zinc-800/50",
       )}
       style={rowStyle}
@@ -136,7 +148,7 @@ const TaskRow = memo(function TaskRow({
       {visibleColumnIds.map((colId) => {
         const col = COLUMN_MAP.get(colId)!;
         return (
-          <div key={colId} className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
+          <div key={colId} role="cell" className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
             <TaskCell task={task} columnId={colId} />
           </div>
         );
@@ -183,6 +195,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   return (
     <div
       ref={setNodeRef}
+      role="columnheader"
       style={style}
       className={cn(
         "flex cursor-grab items-center active:cursor-grabbing",
@@ -195,14 +208,15 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
       <button
         onClick={handleClick}
         disabled={!col.sortable}
+        aria-sort={sort.column === col.id ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
         className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-white")}
       >
         <span className="truncate">{col.label}</span>
         {col.sortable && (
           sort.column === col.id ? (
-            sort.direction === "asc" ? <ChevronUp className="size-3 shrink-0" /> : <ChevronDown className="size-3 shrink-0" />
+            sort.direction === "asc" ? <ChevronUp className="size-3 shrink-0" aria-hidden="true" /> : <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
           ) : (
-            <ChevronsUpDown className="size-3 shrink-0 opacity-30" />
+            <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
           )
         )}
       </button>
@@ -247,27 +261,30 @@ const TaskTableHeader = memo(function TaskTableHeader({
     }
   }, [optionalColumnIds, onReorder]);
 
-  const mandatoryIds = useMemo(() => new Set(MANDATORY_COLUMNS.map((c) => c.id)), []);
+  // Use pre-computed constant instead of useMemo
+  const mandatoryIds = MANDATORY_COLUMN_IDS;
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictHorizontal]}>
       <div
+        role="row"
         className="dag-gpu-accelerated grid items-center gap-6 border-b border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-400"
         style={{ gridTemplateColumns: gridTemplate, minWidth }}
       >
         {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
-          <div key={col.id} className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
+          <div key={col.id} role="columnheader" className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
             <button
               onClick={() => col.sortable && onSort(col.id)}
               disabled={!col.sortable}
+              aria-sort={sort.column === col.id ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
               className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-white")}
             >
               <span className="truncate">{col.label}</span>
               {col.sortable && (
                 sort.column === col.id ? (
-                  sort.direction === "asc" ? <ChevronUp className="size-3 shrink-0" /> : <ChevronDown className="size-3 shrink-0" />
+                  sort.direction === "asc" ? <ChevronUp className="size-3 shrink-0" aria-hidden="true" /> : <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
                 ) : (
-                  <ChevronsUpDown className="size-3 shrink-0 opacity-30" />
+                  <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
                 )
               )}
             </button>
@@ -334,9 +351,15 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
   }
 
   return (
-    <div ref={scrollRef} className="dag-table-container flex-1 overflow-auto overscroll-contain">
+    <div
+      ref={scrollRef}
+      className="dag-table-container flex-1 overflow-auto overscroll-contain"
+      role="table"
+      aria-label="Task list"
+      aria-rowcount={tasks.length}
+    >
       <div style={{ minWidth }}>
-        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-zinc-900">
+        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-zinc-900" role="rowgroup">
           <TaskTableHeader
             columns={columns}
             gridTemplate={gridTemplate}
@@ -348,7 +371,7 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
           />
         </div>
 
-        <div className="dag-table-virtual-container relative" style={{ height: totalSize }}>
+        <div className="dag-table-virtual-container relative" role="rowgroup" style={{ height: totalSize }}>
           {virtualItems.map((virtualRow) => {
             const task = tasks[virtualRow.index];
             return (
