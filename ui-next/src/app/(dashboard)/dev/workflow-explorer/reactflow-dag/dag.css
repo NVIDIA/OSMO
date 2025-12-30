@@ -480,3 +480,62 @@
   backface-visibility: hidden;
   contain: layout style;
 }
+
+/* ==========================================================================
+   Group Details - Timeline Styles
+   ========================================================================== */
+
+/* Active timeline segment with gradient animation */
+.timeline-active-segment {
+  background: linear-gradient(
+    90deg,
+    oklch(0.55 0.15 250) 0%,
+    oklch(0.45 0.12 250) 50%,
+    oklch(0.55 0.15 250) 100%
+  );
+  background-size: 200% 100%;
+  animation: timeline-pulse 2s ease-in-out infinite;
+}
+
+@keyframes timeline-pulse {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .timeline-active-segment {
+    animation: none;
+    background: oklch(0.55 0.15 250);
+  }
+}
+
+/* ==========================================================================
+   Group Details - Dependency Pills
+   ========================================================================== */
+
+/* Dependency pill row container */
+.dependency-pills-row {
+  contain: layout style;
+}
+
+/* Pill hover effect */
+.dependency-pill:hover {
+  filter: brightness(1.1);
+}
+
+/* Pill transition for smooth interactions */
+.dependency-pill {
+  transition:
+    filter var(--dag-transition-fast),
+    transform var(--dag-transition-fast);
+}
+
+.dependency-pill:active {
+  transform: scale(0.98);
+}

@@ -35,6 +35,8 @@ export interface DetailsPanelProps {
   view: DetailsPanelView;
   /** The selected group */
   group: GroupWithLayout;
+  /** All groups in the workflow (for dependency display) */
+  allGroups: GroupWithLayout[];
   /** The selected task (only for task view) */
   task: TaskQueryResponse | null;
   /** Callback when panel is closed */
@@ -43,6 +45,8 @@ export interface DetailsPanelProps {
   onBackToGroup: () => void;
   /** Callback when selecting a task */
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
+  /** Callback when selecting a different group (for dependency navigation) */
+  onSelectGroup?: (group: GroupWithLayout) => void;
   /** Current panel width percentage */
   panelPct: number;
   /** Callback to resize panel */
@@ -59,8 +63,12 @@ export interface DetailsPanelProps {
 export interface GroupDetailsProps {
   /** The group to display */
   group: GroupWithLayout;
+  /** All groups in the workflow (for dependency display) */
+  allGroups: GroupWithLayout[];
   /** Callback when selecting a task */
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
+  /** Callback when selecting a different group (for dependency navigation) */
+  onSelectGroup?: (group: GroupWithLayout) => void;
 }
 
 /**
@@ -100,6 +108,7 @@ export interface SiblingTask {
  * Layout structure (consistent across views):
  * - Row 1: [Back] [Icon] Breadcrumb / Title · Subtitle    [Menu] [Close]
  * - Row 2: Status · Additional info
+ * - Row 3 (optional): Expandable details section
  */
 export interface DetailsPanelHeaderProps {
   /** Title text */
@@ -124,4 +133,6 @@ export interface DetailsPanelHeaderProps {
   siblingTasks?: SiblingTask[];
   /** Callback when selecting a sibling task */
   onSelectSibling?: (name: string, retryId: number) => void;
+  /** Expandable details content (collapsed by default) */
+  expandableContent?: React.ReactNode;
 }
