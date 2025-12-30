@@ -25,8 +25,3 @@ export { DAGSkeleton } from "./DAGSkeleton";
 // Unified details panel
 export { DetailsPanel, GroupDetails, TaskDetails } from "./DetailsPanel";
 export type { DetailsPanelProps, DetailsPanelView } from "./DetailsPanel";
-
-// Legacy exports (for backwards compatibility - can be removed later)
-export { DetailPanel } from "./DetailPanel";
-export { GroupPanel } from "./GroupPanel";
-export type { GroupPanelProps } from "./GroupPanel";

@@ -20,8 +20,6 @@
  * - Animation: Timing and easing
  */
 
-import type { TaskGroupStatus } from "../workflow-types";
-
 // ============================================================================
 // Layout Dimensions (in rem for scalability)
 // ============================================================================
@@ -144,7 +142,7 @@ export type StatusCategory = "waiting" | "running" | "completed" | "failed";
 
 /**
  * Pre-computed status category lookup for O(1) access.
- * Maps TaskGroupStatus enum values to their category.
+ * Maps status string values to their category.
  */
 export const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {
   // Waiting states
