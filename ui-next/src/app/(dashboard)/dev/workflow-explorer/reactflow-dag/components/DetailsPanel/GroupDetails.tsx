@@ -7,66 +7,45 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * GroupPanel Component
+ * GroupDetails Component
  *
- * Displays a group's tasks in a searchable, sortable, virtualized table.
- * Serves as the intermediate view between DAG overview and task details.
- *
+ * Content component for displaying group details within DetailsPanel.
  * Features:
  * - Smart search with chip-based filters
- * - Virtualized task list for large groups
+ * - Virtualized task table
  * - Sortable and reorderable columns
- * - Column visibility customization
- * - GPU-accelerated rendering
  */
 
 "use client";
 
 import { useState, useMemo, useCallback, memo } from "react";
-import { X, MoreVertical, Columns, Check, Loader2, AlertCircle, Clock, PanelLeftClose, Columns2, PanelLeft } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from "@/components/ui/dropdown-menu";
+import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GPU_STYLES, PANEL, STATUS_SORT_ORDER } from "../../constants";
+import { STATUS_SORT_ORDER } from "../../constants";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../utils/status";
 import { usePersistedState } from "../../hooks";
-import type { TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn, SearchChip, GroupPanelProps } from "./types";
-import { MANDATORY_COLUMNS, OPTIONAL_COLUMNS_ALPHABETICAL, OPTIONAL_COLUMN_MAP, DEFAULT_VISIBLE_OPTIONAL } from "./column-config";
-import { SmartSearch, filterTasksByChips } from "./SmartSearch";
-import { VirtualizedTaskList } from "./TaskTable";
+import type { GroupDetailsProps, TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn, SearchChip } from "./types";
+import { MANDATORY_COLUMNS, OPTIONAL_COLUMNS_ALPHABETICAL, OPTIONAL_COLUMN_MAP, DEFAULT_VISIBLE_OPTIONAL } from "../GroupPanel/column-config";
+import { SmartSearch, filterTasksByChips } from "../GroupPanel/SmartSearch";
+import { VirtualizedTaskList } from "../GroupPanel/TaskTable";
+import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
 
 // ============================================================================
-// Width Preset Icons
+// Component
 // ============================================================================
 
-const WIDTH_PRESET_ICONS = {
-  33: PanelLeftClose,
-  50: Columns2,
-  75: PanelLeft,
-} as const;
+interface GroupDetailsInternalProps extends GroupDetailsProps {
+  onClose: () => void;
+  onPanelResize: (pct: number) => void;
+}
 
-// ============================================================================
-// GroupPanel Component
-// ============================================================================
-
-export const GroupPanel = memo(function GroupPanel({
+export const GroupDetails = memo(function GroupDetails({
   group,
-  onClose,
   onSelectTask,
-  panelPct,
+  onClose,
   onPanelResize,
-}: GroupPanelProps) {
+}: GroupDetailsInternalProps) {
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
@@ -132,10 +111,10 @@ export const GroupPanel = memo(function GroupPanel({
   }, [tasksWithDuration, searchChips, sortComparator]);
 
   // Callbacks
-  const toggleColumn = useCallback((columnId: ColumnId) => {
+  const toggleColumn = useCallback((columnId: string) => {
     setVisibleOptionalIds((prev) => {
       const prevIds = prev as ColumnId[];
-      if (prevIds.includes(columnId)) {
+      if (prevIds.includes(columnId as ColumnId)) {
         return prevIds.filter((id) => id !== columnId);
       }
       return [...prevIds, columnId];
@@ -165,97 +144,54 @@ export const GroupPanel = memo(function GroupPanel({
     setSearchChips([]);
   }, []);
 
+  // Status content for header (Row 3)
+  const statusContent = (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span
+        className={cn(
+          "flex items-center gap-1.5",
+          groupStatus.status === "completed" && "text-emerald-400",
+          groupStatus.status === "running" && "text-blue-400",
+          groupStatus.status === "failed" && "text-red-400",
+          groupStatus.status === "pending" && "text-zinc-400",
+        )}
+      >
+        {groupStatus.status === "completed" && <Check className="size-3" />}
+        {groupStatus.status === "running" && <Loader2 className="size-3 animate-spin" />}
+        {groupStatus.status === "failed" && <AlertCircle className="size-3" />}
+        {groupStatus.status === "pending" && <Clock className="size-3" />}
+        <span className="font-medium">{groupStatus.label}</span>
+      </span>
+      {groupDuration !== null && (
+        <>
+          <span className="text-zinc-600">·</span>
+          <span className="text-zinc-400">{formatDuration(groupDuration)}</span>
+        </>
+      )}
+    </div>
+  );
+
+  // Menu content
+  const menuContent = (
+    <ColumnMenuContent
+      columns={OPTIONAL_COLUMNS_ALPHABETICAL}
+      visibleColumnIds={visibleOptionalIds}
+      onToggleColumn={toggleColumn}
+    />
+  );
+
   return (
-    <div
-      className="flex h-full flex-col overflow-hidden border-l border-zinc-800 bg-zinc-900/95 backdrop-blur"
-      style={GPU_STYLES.contained}
-    >
+    <>
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 py-2.5 backdrop-blur">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-sm font-semibold text-zinc-100">{group.name}</h2>
-            <span className="text-zinc-600">·</span>
-            <span className="shrink-0 text-sm text-zinc-400">{stats.total} tasks</span>
-          </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs">
-            <span
-              className={cn(
-                "flex items-center gap-1.5",
-                groupStatus.status === "completed" && "text-emerald-400",
-                groupStatus.status === "running" && "text-blue-400",
-                groupStatus.status === "failed" && "text-red-400",
-                groupStatus.status === "pending" && "text-zinc-400",
-              )}
-            >
-              {groupStatus.status === "completed" && <Check className="size-3" />}
-              {groupStatus.status === "running" && <Loader2 className="size-3 animate-spin" />}
-              {groupStatus.status === "failed" && <AlertCircle className="size-3" />}
-              {groupStatus.status === "pending" && <Clock className="size-3" />}
-              <span className="font-medium">{groupStatus.label}</span>
-            </span>
-            {groupDuration !== null && (
-              <>
-                <span className="text-zinc-600">·</span>
-                <span className="text-zinc-400">{formatDuration(groupDuration)}</span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="ml-2 flex shrink-0 items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300">
-                <MoreVertical className="size-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Columns className="mr-2 size-4" />
-                  Columns
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-36">
-                  {OPTIONAL_COLUMNS_ALPHABETICAL.map((col) => (
-                    <DropdownMenuCheckboxItem
-                      key={col.id}
-                      checked={(visibleOptionalIds as ColumnId[]).includes(col.id)}
-                      onCheckedChange={() => toggleColumn(col.id)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      {col.menuLabel}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              {onPanelResize && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-zinc-500">Snap to</DropdownMenuLabel>
-                  {PANEL.WIDTH_PRESETS.map((pct) => {
-                    const Icon = WIDTH_PRESET_ICONS[pct];
-                    return (
-                      <DropdownMenuItem key={pct} onClick={() => onPanelResize(pct)}>
-                        <Icon className="mr-2 size-4" />
-                        <span>{pct}%</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      </div>
+      <DetailsPanelHeader
+        viewType="group"
+        title={group.name}
+        subtitle={`${stats.total} tasks`}
+        statusContent={statusContent}
+        onClose={onClose}
+        onPanelResize={onPanelResize}
+        menuContent={menuContent}
+      />
 
       {/* Search */}
       <div className="space-y-2 border-b border-zinc-800 px-4 py-3">
@@ -286,6 +222,6 @@ export const GroupPanel = memo(function GroupPanel({
         optionalColumnIds={visibleOptionalIds as ColumnId[]}
         onReorderColumns={reorderColumns}
       />
-    </div>
+    </>
   );
 });
