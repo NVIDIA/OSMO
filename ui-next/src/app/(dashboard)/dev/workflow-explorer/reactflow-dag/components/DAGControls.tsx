@@ -17,7 +17,7 @@
 
 import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { ZoomIn, ZoomOut, Maximize, ArrowDown, ArrowRight, Map } from "lucide-react";
+import { ZoomIn, ZoomOut, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LayoutDirection } from "../types/layout";
@@ -33,8 +33,13 @@ interface DAGControlsProps {
   onToggleMinimap: () => void;
 }
 
-export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onToggleMinimap }: DAGControlsProps) {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
+export function DAGControls({
+  layoutDirection,
+  onLayoutChange,
+  showMinimap,
+  onToggleMinimap,
+}: DAGControlsProps) {
+  const { zoomIn, zoomOut } = useReactFlow();
 
   const handleZoomIn = useCallback(() => {
     zoomIn({ duration: 200 });
@@ -43,10 +48,6 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
   const handleZoomOut = useCallback(() => {
     zoomOut({ duration: 200 });
   }, [zoomOut]);
-
-  const handleFitView = useCallback(() => {
-    fitView({ duration: 300, padding: 0.1 });
-  }, [fitView]);
 
   const handleToggleLayout = useCallback(() => {
     onLayoutChange(layoutDirection === "TB" ? "LR" : "TB");
@@ -74,14 +75,6 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
           aria-label="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
-        </ControlButton>
-
-        <ControlButton
-          onClick={handleFitView}
-          tooltip="Fit All"
-          aria-label="Fit all nodes to view"
-        >
-          <Maximize className="h-4 w-4" />
         </ControlButton>
 
         {/* Divider */}
