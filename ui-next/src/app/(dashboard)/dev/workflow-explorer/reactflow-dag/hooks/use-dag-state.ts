@@ -147,8 +147,14 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
   // Panel navigation callbacks
   const handleSelectGroup = useCallback((group: GroupWithLayout) => {
     setSelectedGroup(group);
-    setSelectedTask(null);
-    setPanelView("group");
+    // Single-task groups go directly to task details (consistent with node click behavior)
+    if (group.tasks && group.tasks.length === 1) {
+      setSelectedTask(group.tasks[0]);
+      setPanelView("task");
+    } else {
+      setSelectedTask(null);
+      setPanelView("group");
+    }
   }, []);
 
   const handleSelectTask = useCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
