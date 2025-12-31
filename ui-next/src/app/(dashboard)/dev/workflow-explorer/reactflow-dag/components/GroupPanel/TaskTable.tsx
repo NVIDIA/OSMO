@@ -57,10 +57,12 @@ function formatTime(dateStr: string | null | undefined): string {
   return `${month}/${day} ${hour12}:${minutes}${ampm}`;
 }
 
-// Simple horizontal-only modifier
-const restrictHorizontal = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
+// Horizontal-only modifier - locks Y axis completely
+const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
   ...transform,
   y: 0,
+  scaleX: 1,
+  scaleY: 1,
 });
 
 // ============================================================================
@@ -265,7 +267,7 @@ const TaskTableHeader = memo(function TaskTableHeader({
   const mandatoryIds = MANDATORY_COLUMN_IDS;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictHorizontal]}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis]} autoScroll={false}>
       <div
         role="row"
         className="dag-gpu-accelerated grid items-center gap-6 border-b border-gray-200 bg-gray-100 dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-xs font-medium text-gray-500 dark:text-zinc-400"
@@ -359,7 +361,7 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
       aria-rowcount={tasks.length}
     >
       <div style={{ minWidth }}>
-        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-white dark:bg-zinc-900" role="rowgroup">
+        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-white dark:bg-zinc-900 touch-none" role="rowgroup">
           <TaskTableHeader
             columns={columns}
             gridTemplate={gridTemplate}

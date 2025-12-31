@@ -376,7 +376,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
           "cursor-pointer select-none px-3 flex-shrink-0 flex flex-col justify-center",
           !isExpanded && !hasManyTasks && "py-3 flex-1",
           !isExpanded && hasManyTasks && "pt-3 pb-1.5",
-          isExpanded && hasManyTasks && "py-3",
+          isExpanded && hasManyTasks && "py-3 dag-node-header-expanded",
         )}
         style={isExpanded && hasManyTasks ? { height: NODE_HEADER_HEIGHT } : undefined}
         onClick={handleNodeClick}
@@ -447,15 +447,15 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
         </div>
       )}
 
-      {/* Collapse bar - shown when expanded and has many tasks */}
+      {/* Collapse lip - shown when expanded and has many tasks */}
       {isExpanded && hasManyTasks && (
         <button
           onClick={handleExpandClick}
-          className="flex-shrink-0 flex items-center justify-center border-t border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 py-1 text-gray-400 dark:text-zinc-500 transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-600 dark:hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-lg"
+          className="dag-collapse-lip flex-shrink-0 flex items-center justify-center border-t border-gray-200/50 dark:border-zinc-600/50 h-5 text-gray-500 dark:text-zinc-400 transition-colors hover:text-gray-700 dark:hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
           aria-label="Collapse task list"
           aria-expanded={true}
         >
-          <ChevronUp className="size-4" aria-hidden="true" />
+          <ChevronUp className="size-3" aria-hidden="true" />
           <span className="sr-only">Hide tasks</span>
         </button>
       )}
