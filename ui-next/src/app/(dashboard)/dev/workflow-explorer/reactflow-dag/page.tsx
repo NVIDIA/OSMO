@@ -30,6 +30,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { ReactFlow, ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
+import { useTheme } from "next-themes";
 
 import "@xyflow/react/dist/style.css";
 import "./dag.css";
@@ -70,6 +71,10 @@ function ReactFlowDagPageInner() {
   const [workflowPattern, setWorkflowPattern] = useState<WorkflowPattern>("complex");
   const [showMinimap, setShowMinimap] = useState(true);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const { resolvedTheme } = useTheme();
+
+  // Determine background color based on theme
+  const backgroundDotColor = resolvedTheme === "dark" ? BACKGROUND.COLOR_DARK : BACKGROUND.COLOR_LIGHT;
 
   // Generate workflow from mock
   const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
@@ -144,11 +149,11 @@ function ReactFlowDagPageInner() {
 
   return (
     <DAGErrorBoundary>
-      <div className="flex h-full flex-col bg-zinc-950">
+      <div className="flex h-full flex-col bg-gray-50 dark:bg-zinc-950">
         {/* Skip link for accessibility */}
         <a
           href="#dag-canvas"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-zinc-800 focus:px-4 focus:py-2 focus:text-zinc-100"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-gray-100 focus:px-4 focus:py-2 focus:text-gray-900 dark:focus:bg-zinc-800 dark:focus:text-zinc-100"
         >
           Skip to DAG visualization
         </a>
@@ -217,7 +222,7 @@ function ReactFlowDagPageInner() {
                   variant={BackgroundVariant.Dots}
                   gap={BACKGROUND.GAP}
                   size={BACKGROUND.DOT_SIZE}
-                  color={BACKGROUND.COLOR}
+                  color={backgroundDotColor}
                 />
                 {/* Unified controls panel */}
                 <DAGControls
@@ -226,18 +231,16 @@ function ReactFlowDagPageInner() {
                   showMinimap={showMinimap}
                   onToggleMinimap={handleToggleMinimap}
                 />
-                {/* Conditional minimap */}
+                {/* Conditional minimap - styled via CSS variables in dag.css */}
                 {showMinimap && (
                   <MiniMap
                     pannable
                     zoomable
                     position="top-left"
                     style={{
-                      background: "#18181b",
                       width: MINIMAP.WIDTH,
                       height: MINIMAP.HEIGHT,
                     }}
-                    maskColor="rgba(0, 0, 0, 0.6)"
                     nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
                     nodeComponent={MiniMapNode}
                     nodeColor={getMiniMapNodeColor}
@@ -271,12 +274,12 @@ function ReactFlowDagPageInner() {
         </div>
 
         {/* Footer */}
-        <footer className="border-t border-zinc-800 bg-zinc-900/50 p-4">
+        <footer className="border-t border-gray-200 bg-gray-100/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
           <details>
-            <summary className="cursor-pointer text-sm font-medium text-zinc-400 hover:text-zinc-300">
+            <summary className="cursor-pointer text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300">
               🎨 Implementation Notes
             </summary>
-            <ul className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-500">
+            <ul className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-zinc-500">
               <li>
                 ✅ <strong>Unified DetailsPanel</strong>: Seamless group ↔ task navigation
               </li>

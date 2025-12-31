@@ -27,7 +27,7 @@
 
 import { useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/lib/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
@@ -335,9 +335,8 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
   return (
     <div
       className={cn(
-        "dag-node flex flex-col rounded-lg border-2 backdrop-blur-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
-        selected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-zinc-950",
+        "dag-node flex flex-col rounded-lg border-[1.5px]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950",
       )}
       style={{ width: nodeWidth, height: nodeHeight }}
       data-status={category}
@@ -375,39 +374,40 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       <div
         className={cn(
           "cursor-pointer select-none px-3 flex-shrink-0 flex flex-col justify-center",
-          !isExpanded && "h-full",
+          !isExpanded && !hasManyTasks && "py-3 flex-1",
+          !isExpanded && hasManyTasks && "pt-3 pb-1.5",
+          isExpanded && hasManyTasks && "py-3",
         )}
-        style={{ height: isExpanded ? NODE_HEADER_HEIGHT : undefined }}
+        style={isExpanded && hasManyTasks ? { height: NODE_HEADER_HEIGHT } : undefined}
         onClick={handleNodeClick}
       >
         <div className="flex items-center gap-2">
-          {hasManyTasks && (
-            <button
-              onClick={handleExpandClick}
-              className="rounded p-0.5 transition-colors hover:bg-zinc-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-              aria-label={expandLabel}
-              aria-expanded={isExpanded}
-            >
-              {isExpanded ? (
-                <ChevronDown className="size-4 text-zinc-400" aria-hidden="true" />
-              ) : (
-                <ChevronRight className="size-4 text-zinc-400" aria-hidden="true" />
-              )}
-            </button>
-          )}
           {getStatusIcon(displayStatus, "size-4")}
-          <span className="flex-1 truncate text-sm font-medium text-zinc-100">{displayName}</span>
+          <span className="flex-1 truncate text-sm font-medium text-gray-900 dark:text-zinc-100">{displayName}</span>
         </div>
 
-        {/* Always show hint below name */}
-        <div className={cn("dag-node-hint mt-1 truncate text-xs", hasManyTasks && "ml-7")}>{hintText}</div>
+        {/* Hint below name */}
+        <div className="dag-node-hint mt-1 truncate text-xs">{hintText}</div>
       </div>
+
+      {/* Expand lip - shown when collapsed and has many tasks */}
+      {!isExpanded && hasManyTasks && (
+        <button
+          onClick={handleExpandClick}
+          className="mt-auto flex-shrink-0 flex items-center justify-center h-5 text-gray-400 dark:text-zinc-500 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-600 dark:hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
+          aria-label={`Expand to show ${tasks.length} tasks`}
+          aria-expanded={false}
+        >
+          <ChevronDown className="size-3" aria-hidden="true" />
+          <span className="sr-only">Show {tasks.length} tasks</span>
+        </button>
+      )}
 
       {/* Virtualized task list */}
       {isExpanded && hasManyTasks && (
         <div
           ref={scrollContainerRef}
-          className="dag-scroll-container flex-1 min-h-0 overflow-y-auto border-t border-zinc-700/50 px-2 py-2"
+          className="dag-scroll-container flex-1 min-h-0 overflow-y-auto border-t border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
           role="list"
           aria-label={`Tasks in ${group.name}`}
         >
@@ -426,7 +426,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
               return (
                 <button
                   key={`${task.name}-${task.retry_id}`}
-                  className="dag-task-row absolute left-0 flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-zinc-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset"
+                  className="dag-task-row absolute left-0 flex w-full cursor-pointer items-center gap-2 border-b border-gray-100 dark:border-zinc-800 px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
                   style={{
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
@@ -438,13 +438,26 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
                   aria-label={`${task.name}, ${getStatusLabel(task.status)}`}
                 >
                   {getStatusIcon(task.status, "size-3")}
-                  <span className="flex-1 truncate text-zinc-300">{task.name}</span>
+                  <span className="flex-1 truncate text-gray-700 dark:text-zinc-300">{task.name}</span>
                   <span className="dag-task-duration tabular-nums">{formatDuration(taskDuration)}</span>
                 </button>
               );
             })}
           </div>
         </div>
+      )}
+
+      {/* Collapse bar - shown when expanded and has many tasks */}
+      {isExpanded && hasManyTasks && (
+        <button
+          onClick={handleExpandClick}
+          className="flex-shrink-0 flex items-center justify-center border-t border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 py-1 text-gray-400 dark:text-zinc-500 transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-600 dark:hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-lg"
+          aria-label="Collapse task list"
+          aria-expanded={true}
+        >
+          <ChevronUp className="size-4" aria-hidden="true" />
+          <span className="sr-only">Hide tasks</span>
+        </button>
       )}
     </div>
   );
