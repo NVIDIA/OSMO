@@ -63,8 +63,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
       serviceAccountName: {{ .Values.services.service.serviceAccountName | default "default" }}
       {{- with .Values.services.service.initContainers }}
       initContainers:

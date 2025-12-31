@@ -60,8 +60,10 @@ spec:
         {{- end}}
       tolerations:
       {{ toYaml .Values.services.ui.tolerations | nindent 8 }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
       {{- if .Values.services.ui.initContainers }}
       initContainers:
         {{- toYaml .Values.services.ui.initContainers | nindent 6 }}
