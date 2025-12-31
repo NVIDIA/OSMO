@@ -335,7 +335,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
   return (
     <div
       className={cn(
-        "dag-node flex flex-col rounded-lg border-[1.5px]",
+        "dag-node relative flex flex-col rounded-lg border-[1.5px]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950",
       )}
       style={{ width: nodeWidth, height: nodeHeight }}
@@ -348,6 +348,16 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
+      {/* Task count badge for multi-task groups */}
+      {hasManyTasks && (
+        <span
+          className="dag-count-badge"
+          aria-label={`${totalCount} tasks`}
+        >
+          {totalCount}
+        </span>
+      )}
+
       {/* Handles */}
       {hasIncomingEdges && (
         <Handle
@@ -438,7 +448,14 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
                   aria-label={`${task.name}, ${getStatusLabel(task.status)}`}
                 >
                   {getStatusIcon(task.status, "size-3")}
-                  <span className="flex-1 truncate text-gray-700 dark:text-zinc-300">{task.name}</span>
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0">
+                    <span className="truncate text-gray-700 dark:text-zinc-300">{task.name}</span>
+                    {task.lead && (
+                      <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
+                        Lead
+                      </span>
+                    )}
+                  </div>
                   <span className="dag-task-duration tabular-nums">{formatDuration(taskDuration)}</span>
                 </button>
               );
