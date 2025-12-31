@@ -72,26 +72,26 @@ const TaskCell = memo(function TaskCell({ task, columnId }: { task: TaskWithDura
     case "status":
       return getStatusIconCompact(task.status);
     case "name":
-      return <span className="truncate font-medium text-zinc-100">{task.name}</span>;
+      return <span className="truncate font-medium text-gray-900 dark:text-zinc-100">{task.name}</span>;
     case "duration":
-      return <span className="whitespace-nowrap tabular-nums text-zinc-400">{formatDuration(task.duration)}</span>;
+      return <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">{formatDuration(task.duration)}</span>;
     case "node":
-      return <span className="truncate text-zinc-400">{task.node_name ?? "—"}</span>;
+      return <span className="truncate text-gray-500 dark:text-zinc-400">{task.node_name ?? "—"}</span>;
     case "podIp":
-      return <span className="truncate whitespace-nowrap font-mono text-xs text-zinc-400">{task.pod_ip ?? "—"}</span>;
+      return <span className="truncate whitespace-nowrap font-mono text-xs text-gray-500 dark:text-zinc-400">{task.pod_ip ?? "—"}</span>;
     case "exitCode":
       return (
-        <span className={cn("whitespace-nowrap tabular-nums", task.exit_code === 0 ? "text-zinc-400" : task.exit_code !== undefined ? "text-red-400" : "text-zinc-500")}>
+        <span className={cn("whitespace-nowrap tabular-nums", task.exit_code === 0 ? "text-gray-500 dark:text-zinc-400" : task.exit_code !== undefined ? "text-red-600 dark:text-red-400" : "text-gray-400 dark:text-zinc-500")}>
           {task.exit_code ?? "—"}
         </span>
       );
     case "startTime":
-      return <span className="whitespace-nowrap tabular-nums text-zinc-400">{formatTime(task.start_time)}</span>;
+      return <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">{formatTime(task.start_time)}</span>;
     case "endTime":
-      return <span className="whitespace-nowrap tabular-nums text-zinc-400">{formatTime(task.end_time)}</span>;
+      return <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">{formatTime(task.end_time)}</span>;
     case "retry":
       return (
-        <span className={cn("whitespace-nowrap tabular-nums", task.retry_id > 0 ? "text-amber-400" : "text-zinc-500")}>
+        <span className={cn("whitespace-nowrap tabular-nums", task.retry_id > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400 dark:text-zinc-500")}>
           {task.retry_id > 0 ? task.retry_id : "—"}
         </span>
       );
@@ -139,9 +139,9 @@ const TaskRow = memo(function TaskRow({
       onKeyDown={handleKeyDown}
       aria-selected={isSelected}
       className={cn(
-        "dag-contained grid cursor-pointer items-center gap-6 border-b border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
+        "dag-contained grid cursor-pointer items-center gap-6 border-b border-gray-200 dark:border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
-        isSelected ? "bg-blue-900/30" : "hover:bg-zinc-800/50",
+        isSelected ? "bg-blue-100 dark:bg-blue-900/30" : "hover:bg-gray-100 dark:hover:bg-zinc-800/50",
       )}
       style={rowStyle}
     >
@@ -199,7 +199,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
       style={style}
       className={cn(
         "flex cursor-grab items-center active:cursor-grabbing",
-        isDragging && "rounded bg-zinc-700 px-2 shadow-md ring-1 ring-zinc-600",
+        isDragging && "rounded bg-gray-200 dark:bg-zinc-700 px-2 shadow-md ring-1 ring-gray-300 dark:ring-zinc-600",
         col.align === "right" && "justify-end",
       )}
       {...attributes}
@@ -268,7 +268,7 @@ const TaskTableHeader = memo(function TaskTableHeader({
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictHorizontal]}>
       <div
         role="row"
-        className="dag-gpu-accelerated grid items-center gap-6 border-b border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-400"
+        className="dag-gpu-accelerated grid items-center gap-6 border-b border-gray-200 bg-gray-100 dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-xs font-medium text-gray-500 dark:text-zinc-400"
         style={{ gridTemplateColumns: gridTemplate, minWidth }}
       >
         {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
@@ -344,7 +344,7 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
 
   if (tasks.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-zinc-400">
+      <div className="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-zinc-400">
         No tasks match your filters
       </div>
     );
@@ -359,7 +359,7 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
       aria-rowcount={tasks.length}
     >
       <div style={{ minWidth }}>
-        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-zinc-900" role="rowgroup">
+        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-white dark:bg-zinc-900" role="rowgroup">
           <TaskTableHeader
             columns={columns}
             gridTemplate={gridTemplate}

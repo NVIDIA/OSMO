@@ -12,10 +12,16 @@
  *
  * This stylesheet provides:
  * - CSS custom properties for theming (status colors, dimensions)
+ * - Light/dark mode support via .dark class (next-themes compatible)
  * - GPU-accelerated styling via transform/will-change
  * - Data-attribute styling for status (avoids JS style recalculation)
- * - ReactFlow overrides for dark mode
+ * - ReactFlow overrides
  * - Relative units (rem/em) for scalability
+ *
+ * THEMING:
+ * - Uses CSS custom properties that change based on .dark class
+ * - Components should use these variables for consistent theming
+ * - Tailwind classes should use dark: prefix for mode-specific styles
  *
  * PERFORMANCE NOTES:
  * - Uses CSS containment (contain: layout style) to isolate calculations
@@ -25,11 +31,131 @@
  */
 
 /* ==========================================================================
-   CSS Custom Properties - Single source of truth for theming
+   CSS Custom Properties - Light mode (default)
    ========================================================================== */
 
 :root {
-  /* Status colors */
+  /* Canvas colors */
+  --dag-canvas-bg: oklch(0.985 0 0);
+  --dag-canvas-dots: oklch(0.85 0 0);
+
+  /* Surface colors */
+  --dag-surface: oklch(1 0 0);
+  --dag-surface-elevated: oklch(0.98 0 0);
+  --dag-surface-hover: oklch(0.96 0 0);
+  --dag-surface-selected: oklch(0.94 0 0);
+
+  /* Border colors */
+  --dag-border: oklch(0.9 0 0);
+  --dag-border-subtle: oklch(0.92 0 0);
+  --dag-border-strong: oklch(0.8 0 0);
+
+  /* Text colors */
+  --dag-text: oklch(0.2 0 0);
+  --dag-text-secondary: oklch(0.45 0 0);
+  --dag-text-tertiary: oklch(0.6 0 0);
+  --dag-text-inverted: oklch(0.98 0 0);
+
+  /* Status colors - Light mode (more vibrant) */
+  --dag-status-waiting-bg: oklch(0.96 0 0);
+  --dag-status-waiting-border: oklch(0.8 0 0);
+  --dag-status-waiting-text: oklch(0.5 0 0);
+  --dag-status-waiting-color: oklch(0.6 0 0);
+
+  --dag-status-running-bg: oklch(0.95 0.04 250);
+  --dag-status-running-border: oklch(0.6 0.15 250);
+  --dag-status-running-text: oklch(0.45 0.15 250);
+  --dag-status-running-color: oklch(0.55 0.18 250);
+
+  --dag-status-completed-bg: oklch(0.95 0.04 160);
+  --dag-status-completed-border: oklch(0.6 0.12 160);
+  --dag-status-completed-text: oklch(0.4 0.12 160);
+  --dag-status-completed-color: oklch(0.55 0.15 160);
+
+  --dag-status-failed-bg: oklch(0.95 0.04 25);
+  --dag-status-failed-border: oklch(0.6 0.18 25);
+  --dag-status-failed-text: oklch(0.45 0.18 25);
+  --dag-status-failed-color: oklch(0.55 0.2 25);
+
+  /* Handle colors */
+  --dag-handle-bg: oklch(0.7 0 0);
+  --dag-handle-border: oklch(0.6 0 0);
+
+  /* Selection */
+  --dag-selection-ring: oklch(0.6 0.15 250);
+
+  /* Scrollbar */
+  --dag-scrollbar-thumb: oklch(0.75 0 0);
+  --dag-scrollbar-thumb-hover: oklch(0.65 0 0);
+
+  /* Controls */
+  --dag-controls-bg: oklch(0.98 0 0);
+  --dag-controls-border: oklch(0.9 0 0);
+  --dag-controls-text: oklch(0.4 0 0);
+  --dag-controls-hover: oklch(0.94 0 0);
+
+  /* Minimap */
+  --dag-minimap-bg: oklch(0.96 0 0);
+  --dag-minimap-mask: oklch(0.5 0 0 / 0.2);
+
+  /* Node dimensions (rem-based for scalability) */
+  --dag-node-collapsed-width: 11.25rem;
+  --dag-node-collapsed-height: 4.5rem;
+  --dag-node-expanded-width: 15rem;
+  --dag-node-max-height: 20rem;
+  --dag-node-header-height: 3.5rem;
+  --dag-task-row-height: 1.75rem;
+
+  /* Edge styling */
+  --dag-edge-stroke-width: 0.125rem;
+  --dag-edge-dash-array: 5 3;
+
+  /* Panel dimensions */
+  --dag-panel-min-width: 20rem;
+  --dag-panel-max-width: 30rem;
+  --dag-panel-shadow: -0.25rem 0 1rem -0.25rem rgba(0, 0, 0, 0.1);
+
+  /* Handle sizes */
+  --dag-handle-size: 0.5rem;
+
+  /* Transitions */
+  --dag-transition-fast: 75ms ease-out;
+  --dag-transition-normal: 150ms ease-out;
+  --dag-transition-slow: 300ms ease-out;
+
+  /* Border radius */
+  --dag-radius-sm: 0.25rem;
+  --dag-radius-md: 0.5rem;
+  --dag-radius-lg: 0.75rem;
+}
+
+/* ==========================================================================
+   CSS Custom Properties - Dark mode
+   ========================================================================== */
+
+.dark {
+  /* Canvas colors */
+  --dag-canvas-bg: oklch(0.12 0 0);
+  --dag-canvas-dots: oklch(0.25 0 0);
+
+  /* Surface colors */
+  --dag-surface: oklch(0.16 0 0);
+  --dag-surface-elevated: oklch(0.2 0 0);
+  --dag-surface-hover: oklch(0.22 0 0);
+  --dag-surface-selected: oklch(0.25 0 0);
+
+  /* Border colors */
+  --dag-border: oklch(0.28 0 0);
+  --dag-border-subtle: oklch(0.24 0 0);
+  --dag-border-strong: oklch(0.35 0 0);
+
+  /* Text colors */
+  --dag-text: oklch(0.95 0 0);
+  --dag-text-secondary: oklch(0.7 0 0);
+  --dag-text-tertiary: oklch(0.5 0 0);
+  --dag-text-inverted: oklch(0.1 0 0);
+
+  /* Status colors - Dark mode */
   --dag-status-waiting-bg: oklch(0.27 0 0 / 0.6);
   --dag-status-waiting-border: oklch(0.37 0 0);
   --dag-status-waiting-text: oklch(0.64 0 0);
@@ -50,35 +176,29 @@
   --dag-status-failed-text: oklch(0.7 0.18 25);
   --dag-status-failed-color: oklch(0.55 0.2 25);
 
-  /* Node dimensions (rem-based for scalability) */
-  --dag-node-collapsed-width: 11.25rem;
-  --dag-node-collapsed-height: 4.5rem;
-  --dag-node-expanded-width: 15rem;
-  --dag-node-max-height: 20rem;
-  --dag-node-header-height: 3.5rem;
-  --dag-task-row-height: 1.75rem;
+  /* Handle colors */
+  --dag-handle-bg: oklch(0.4 0 0);
+  --dag-handle-border: oklch(0.5 0 0);
 
-  /* Edge styling */
-  --dag-edge-stroke-width: 0.125rem;
-  --dag-edge-dash-array: 5 3;
+  /* Selection */
+  --dag-selection-ring: oklch(0.7 0.15 195);
 
-  /* Panel dimensions */
-  --dag-panel-min-width: 20rem;
-  --dag-panel-max-width: 30rem;
+  /* Scrollbar */
+  --dag-scrollbar-thumb: oklch(0.4 0 0);
+  --dag-scrollbar-thumb-hover: oklch(0.5 0 0);
+
+  /* Controls */
+  --dag-controls-bg: oklch(0.2 0 0);
+  --dag-controls-border: oklch(0.3 0 0);
+  --dag-controls-text: oklch(0.64 0 0);
+  --dag-controls-hover: oklch(0.3 0 0);
+
+  /* Minimap */
+  --dag-minimap-bg: oklch(0.13 0 0);
+  --dag-minimap-mask: oklch(0 0 0 / 0.6);
+
+  /* Panel shadow - darker in dark mode */
   --dag-panel-shadow: -0.25rem 0 1rem -0.25rem rgba(0, 0, 0, 0.3);
-
-  /* Handle sizes */
-  --dag-handle-size: 0.5rem;
-
-  /* Transitions */
-  --dag-transition-fast: 75ms ease-out;
-  --dag-transition-normal: 150ms ease-out;
-  --dag-transition-slow: 300ms ease-out;
-
-  /* Border radius */
-  --dag-radius-sm: 0.25rem;
-  --dag-radius-md: 0.5rem;
-  --dag-radius-lg: 0.75rem;
 }
 
 /* ==========================================================================
@@ -93,10 +213,21 @@
   /* Allow handles to overflow outside the node */
   overflow: visible;
 
+  /* Card-like shadow for depth */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.06);
+
   /* Smooth transitions using GPU-accelerated properties only */
   transition:
     box-shadow var(--dag-transition-normal),
     border-color var(--dag-transition-normal);
+}
+
+.dark .dag-node {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .dag-node[data-status="waiting"] {
@@ -107,7 +238,6 @@
 .dag-node[data-status="running"] {
   background: var(--dag-status-running-bg);
   border-color: var(--dag-status-running-border);
-  box-shadow: 0 0 1.25rem oklch(0.55 0.15 250 / 0.3);
 }
 
 .dag-node[data-status="completed"] {
@@ -118,7 +248,6 @@
 .dag-node[data-status="failed"] {
   background: var(--dag-status-failed-bg);
   border-color: var(--dag-status-failed-border);
-  box-shadow: 0 0 1.25rem oklch(0.55 0.2 25 / 0.3);
 }
 
 /* Status text colors for node hints */
@@ -165,7 +294,7 @@
   /* Optimize scroll performance */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: oklch(0.4 0 0) transparent;
+  scrollbar-color: var(--dag-scrollbar-thumb) transparent;
 }
 
 .dag-scroll-container::-webkit-scrollbar {
@@ -177,18 +306,28 @@
 }
 
 .dag-scroll-container::-webkit-scrollbar-thumb {
-  background: oklch(0.4 0 0);
+  background: var(--dag-scrollbar-thumb);
   border-radius: var(--dag-radius-sm);
 }
 
 .dag-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.5 0 0);
+  background: var(--dag-scrollbar-thumb-hover);
 }
+
 
 /* Selection state - pure CSS, no JS re-render needed */
 .dag-node[data-selected="true"] {
-  outline: 2px solid oklch(0.7 0.15 195);
+  outline: 2px solid var(--dag-selection-ring);
   outline-offset: 2px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dark .dag-node[data-selected="true"] {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.25),
+    0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* ==========================================================================
@@ -203,8 +342,8 @@
   min-height: var(--dag-handle-size) !important;
 
   /* Appearance */
-  background: oklch(0.4 0 0) !important;
-  border: 1.5px solid oklch(0.5 0 0) !important;
+  background: var(--dag-handle-bg) !important;
+  border: 1.5px solid var(--dag-handle-border) !important;
   border-radius: 50% !important;
 
   /* GPU layer */
@@ -292,27 +431,31 @@
 }
 
 /* ==========================================================================
-   Dark mode overrides for React Flow controls and minimap
+   ReactFlow Controls and Minimap - Theme-aware
    ========================================================================== */
 
 /* Controls panel */
 .react-flow__controls {
-  background: oklch(0.2 0 0);
-  border: 1px solid oklch(0.3 0 0);
+  background: var(--dag-controls-bg);
+  border: 1px solid var(--dag-controls-border);
   border-radius: var(--dag-radius-md);
+  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1);
+}
+
+.dark .react-flow__controls {
   box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.3);
 }
 
 .react-flow__controls-button {
-  background: oklch(0.2 0 0);
+  background: var(--dag-controls-bg);
   border: none;
-  border-bottom: 1px solid oklch(0.3 0 0);
-  fill: oklch(0.64 0 0);
-  color: oklch(0.64 0 0);
+  border-bottom: 1px solid var(--dag-controls-border);
+  fill: var(--dag-controls-text);
+  color: var(--dag-controls-text);
 }
 
 .react-flow__controls-button:hover {
-  background: oklch(0.3 0 0);
+  background: var(--dag-controls-hover);
 }
 
 .react-flow__controls-button:last-child {
@@ -325,14 +468,18 @@
 
 /* Minimap */
 .react-flow__minimap {
-  background: oklch(0.13 0 0);
-  border: 1px solid oklch(0.3 0 0);
+  background: var(--dag-minimap-bg);
+  border: 1px solid var(--dag-controls-border);
   border-radius: var(--dag-radius-md);
+  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1);
+}
+
+.dark .react-flow__minimap {
   box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.3);
 }
 
 .react-flow__minimap-mask {
-  fill: oklch(0.2 0 0 / 0.7);
+  fill: var(--dag-minimap-mask);
 }
 
 /* Attribution - hide or style */
@@ -341,7 +488,7 @@
 }
 
 .react-flow__attribution a {
-  color: oklch(0.37 0 0);
+  color: var(--dag-text-tertiary);
 }
 
 /* ==========================================================================
@@ -370,13 +517,7 @@
 }
 
 .dag-table-row:hover {
-  background-color: oklch(0.95 0 0);
-}
-
-@media (prefers-color-scheme: dark) {
-  .dag-table-row:hover {
-    background-color: oklch(0.15 0 0);
-  }
+  background-color: var(--dag-surface-hover);
 }
 
 /* ==========================================================================
@@ -485,13 +626,39 @@
    Group Details - Timeline Styles
    ========================================================================== */
 
-/* Active timeline segment with gradient animation */
+/* Timeline markers - use status colors for consistency */
+.timeline-marker-completed {
+  background-color: var(--dag-status-completed-color);
+  border-color: var(--dag-status-completed-color);
+}
+
+.timeline-marker-running {
+  background-color: var(--dag-status-running-color);
+  border-color: var(--dag-status-running-color);
+}
+
+.timeline-marker-failed {
+  background-color: var(--dag-status-failed-color);
+  border-color: var(--dag-status-failed-color);
+}
+
+.timeline-marker-pending {
+  background-color: var(--dag-surface-elevated);
+  border-color: var(--dag-border-strong);
+}
+
+/* Timeline segments */
+.timeline-segment-completed {
+  background-color: var(--dag-status-completed-color);
+}
+
+/* Active timeline segment with gradient animation using running status color */
 .timeline-active-segment {
   background: linear-gradient(
     90deg,
-    oklch(0.55 0.15 250) 0%,
-    oklch(0.45 0.12 250) 50%,
-    oklch(0.55 0.15 250) 100%
+    var(--dag-status-running-color) 0%,
+    var(--dag-status-running-border) 50%,
+    var(--dag-status-running-color) 100%
   );
   background-size: 200% 100%;
   animation: timeline-pulse 2s ease-in-out infinite;
@@ -507,11 +674,28 @@
   }
 }
 
+/* Timeline text labels */
+.timeline-text-completed {
+  color: var(--dag-status-completed-text);
+}
+
+.timeline-text-running {
+  color: var(--dag-status-running-text);
+}
+
+.timeline-text-failed {
+  color: var(--dag-status-failed-text);
+}
+
+.timeline-text-pending {
+  color: var(--dag-text-tertiary);
+}
+
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   .timeline-active-segment {
     animation: none;
-    background: oklch(0.55 0.15 250);
+    background: var(--dag-status-running-color);
   }
 }
 
@@ -524,18 +708,50 @@
   contain: layout style;
 }
 
-/* Pill hover effect */
-.dependency-pill:hover {
-  filter: brightness(1.1);
-}
-
-/* Pill transition for smooth interactions */
+/* Pill base styles */
 .dependency-pill {
   transition:
     filter var(--dag-transition-fast),
     transform var(--dag-transition-fast);
 }
 
+/* Pill hover effect */
+.dependency-pill:hover {
+  filter: brightness(1.1);
+}
+
 .dependency-pill:active {
   transform: scale(0.98);
+}
+
+/* Status-specific pill styling using CSS variables */
+.dependency-pill-completed {
+  background-color: var(--dag-status-completed-bg);
+  border-color: var(--dag-status-completed-border);
+  color: var(--dag-status-completed-text);
+}
+
+.dependency-pill-running {
+  background-color: var(--dag-status-running-bg);
+  border-color: var(--dag-status-running-border);
+  color: var(--dag-status-running-text);
+}
+
+.dependency-pill-waiting {
+  background-color: var(--dag-status-waiting-bg);
+  border-color: var(--dag-status-waiting-border);
+  color: var(--dag-status-waiting-text);
+}
+
+.dependency-pill-failed {
+  background-color: var(--dag-status-failed-bg);
+  border-color: var(--dag-status-failed-border);
+  color: var(--dag-status-failed-text);
+}
+
+.dependency-pill-blocked {
+  background-color: var(--dag-status-waiting-bg);
+  border-color: var(--dag-status-waiting-border);
+  color: var(--dag-text-tertiary);
+  opacity: 0.7;
 }
