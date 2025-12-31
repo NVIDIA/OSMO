@@ -143,7 +143,7 @@ export const StatusDisplay: Record<
   waiting: {
     Icon: Clock,
     label: "Waiting",
-    iconClass: "text-zinc-400",
+    iconClass: "text-gray-400 dark:text-zinc-400",
   },
   running: {
     Icon: Loader2,
@@ -199,9 +199,9 @@ const StatusIconCompact = memo(function StatusIconCompact({ status, size = "h-3.
     case "failed":
       return <AlertCircle className={cn(size, "text-red-500", className)} aria-hidden="true" />;
     case "waiting":
-      return <Clock className={cn(size, "text-zinc-400", className)} aria-hidden="true" />;
+      return <Clock className={cn(size, "text-gray-400 dark:text-zinc-400", className)} aria-hidden="true" />;
     default:
-      return <Circle className={cn(size, "text-zinc-400", className)} aria-hidden="true" />;
+      return <Circle className={cn(size, "text-gray-400 dark:text-zinc-400", className)} aria-hidden="true" />;
   }
 });
 

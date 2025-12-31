@@ -675,12 +675,12 @@ export const SmartSearch = memo(function SmartSearch({
       <div
         className={cn(
           "flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 text-sm",
-          "border-zinc-700 bg-zinc-800/50",
+          "border-gray-300 bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800/50",
           "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
         )}
         onClick={() => { inputRef.current?.focus(); setShowDropdown(true); }}
       >
-        <Search className="size-4 shrink-0 text-zinc-400" />
+        <Search className="size-4 shrink-0 text-gray-400 dark:text-zinc-400" />
 
         {chips.map((chip, index) => (
           <span
@@ -705,17 +705,17 @@ export const SmartSearch = memo(function SmartSearch({
           onFocus={() => { ensureChronoLoaded(); }}
           onKeyDown={handleKeyDown}
           placeholder={chips.length === 0 ? placeholder : "Add filter..."}
-          className="min-w-[7.5rem] flex-1 bg-transparent text-zinc-200 outline-none placeholder:text-zinc-500"
+          className="min-w-[7.5rem] flex-1 bg-transparent text-gray-900 dark:text-zinc-200 outline-none placeholder:text-gray-400 dark:placeholder:text-zinc-500"
         />
       </div>
 
       {showDropdown && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="dag-dropdown absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-auto overscroll-contain rounded-md border border-zinc-700 bg-zinc-800 shadow-lg"
+          className="dag-dropdown absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-auto overscroll-contain rounded-md border border-gray-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
         >
           {inputValue === "" && (
-            <div className="border-b border-zinc-700 p-2">
+            <div className="border-b border-gray-200 dark:border-zinc-700 p-2">
               <div className="flex flex-wrap gap-1.5">
                 {STATE_CATEGORY_NAMES.map((state) => {
                   const statusesInCategory = [...STATE_CATEGORIES[state]];
@@ -740,7 +740,7 @@ export const SmartSearch = memo(function SmartSearch({
                       }}
                       className={cn(
                         "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
-                        "bg-zinc-700 text-zinc-300 hover:bg-zinc-600",
+                        "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600",
                       )}
                     >
                       <span className={cn(
@@ -748,10 +748,10 @@ export const SmartSearch = memo(function SmartSearch({
                         state === "completed" && "bg-emerald-500",
                         state === "running" && "bg-blue-500",
                         state === "failed" && "bg-red-500",
-                        state === "pending" && "bg-zinc-400",
+                        state === "pending" && "bg-gray-400 dark:bg-zinc-400",
                       )} />
                       <span>{state}</span>
-                      <span className="text-zinc-400">{count}</span>
+                      <span className="text-gray-400 dark:text-zinc-400">{count}</span>
                     </button>
                   );
                 })}
@@ -761,7 +761,7 @@ export const SmartSearch = memo(function SmartSearch({
 
           {suggestions.map((item, index) =>
             item.type === "hint" ? (
-              <div key={`${item.type}-${index}`} className="px-3 py-2 text-sm italic text-zinc-400">
+              <div key={`${item.type}-${index}`} className="px-3 py-2 text-sm italic text-gray-500 dark:text-zinc-400">
                 {item.display}
               </div>
             ) : (
@@ -773,14 +773,14 @@ export const SmartSearch = memo(function SmartSearch({
                   "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
                   item.indent && "pl-6",
                   item.type === "state-parent" && "font-medium",
-                  item.type === "state-child" && "text-zinc-400",
+                  item.type === "state-child" && "text-gray-500 dark:text-zinc-400",
                   index === highlightedIndex
-                    ? "bg-blue-900/30 text-blue-100"
-                    : "text-zinc-300 hover:bg-zinc-700",
+                    ? "bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100"
+                    : "text-gray-700 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-700",
                 )}
               >
                 <span className={cn(
-                  item.type === "field" && "text-zinc-400",
+                  item.type === "field" && "text-gray-500 dark:text-zinc-400",
                   item.type === "state-parent" && "flex items-center gap-2",
                 )}>
                   {item.type === "state-parent" && (
@@ -789,21 +789,21 @@ export const SmartSearch = memo(function SmartSearch({
                       item.value === "completed" && "bg-emerald-500",
                       item.value === "running" && "bg-blue-500",
                       item.value === "failed" && "bg-red-500",
-                      item.value === "pending" && "bg-zinc-400",
+                      item.value === "pending" && "bg-gray-400 dark:bg-zinc-400",
                     )} />
                   )}
                   {item.display}
                 </span>
                 {(item.type === "value" || item.type === "state-parent" || item.type === "state-child") && item.count > 0 && (
-                  <span className="text-xs text-zinc-500">{item.count}</span>
+                  <span className="text-xs text-gray-400 dark:text-zinc-500">{item.count}</span>
                 )}
               </button>
             )
           )}
           {inputValue && (
-            <div className="border-t border-zinc-700 px-3 py-2 text-xs text-zinc-400">
-              Press <kbd className="rounded bg-zinc-700 px-1">Enter</kbd> to add filter,{" "}
-              <kbd className="rounded bg-zinc-700 px-1">Esc</kbd> to close
+            <div className="border-t border-gray-200 dark:border-zinc-700 px-3 py-2 text-xs text-gray-500 dark:text-zinc-400">
+              Press <kbd className="rounded bg-gray-200 dark:bg-zinc-700 px-1">Enter</kbd> to add filter,{" "}
+              <kbd className="rounded bg-gray-200 dark:bg-zinc-700 px-1">Esc</kbd> to close
             </div>
           )}
         </div>

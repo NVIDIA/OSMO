@@ -119,13 +119,25 @@ export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): 
   const hasManyTasks = tasks.length > 1;
 
   if (isExpanded && hasManyTasks) {
-    // Task list height: tasks + padding (py-2 = 16px) + task list border (1px)
-    const taskListHeight = tasks.length * TASK_ROW_HEIGHT + TASK_LIST_PADDING + 1;
-    // Total height capped at max, plus node border (border-2 = 2px * 2 sides)
-    const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + NODE_BORDER_WIDTH;
+    // Task list height: tasks * row height + border-t (1px)
+    const taskListHeight = tasks.length * TASK_ROW_HEIGHT + 1;
+    // Collapse bar height (chevron only): border-t (1px) + py-1 (8px) + icon (16px)
+    const collapseBarHeight = 25;
+    // Total height capped at max, plus node border (border-[1.5px] = 1.5px * 2 sides)
+    const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + collapseBarHeight + NODE_BORDER_WIDTH;
     return {
       width: NODE_EXPANDED_WIDTH,
       height: Math.min(totalHeight, NODE_MAX_EXPANDED_HEIGHT),
+    };
+  }
+
+  // Collapsed multi-task groups are taller to accommodate expand lip
+  if (hasManyTasks) {
+    // Expand lip height: h-5 (20px) - reduced header bottom padding (6px saved)
+    const expandLipHeight = 14;
+    return {
+      width: NODE_COLLAPSED_WIDTH,
+      height: NODE_COLLAPSED_HEIGHT + expandLipHeight,
     };
   }
 

@@ -28,60 +28,60 @@ interface DAGToolbarProps {
 export function DAGToolbar({ workflowPattern, onPatternChange }: DAGToolbarProps) {
   return (
     <nav
-      className="flex items-center px-6 py-3 border-b border-zinc-800"
+      className="flex items-center px-6 py-3 border-b border-gray-200 dark:border-zinc-800"
       aria-label="Workflow pattern selector"
     >
-      <span className="text-xs text-zinc-500 mr-3">Demo Pattern:</span>
+      <span className="text-xs text-gray-500 dark:text-zinc-500 mr-3">Demo Pattern:</span>
       <Tabs
         value={workflowPattern}
         onValueChange={(v) => onPatternChange(v as WorkflowPattern)}
       >
-        <TabsList className="bg-zinc-800/50">
+        <TabsList className="bg-gray-100/50 dark:bg-zinc-800/50">
           <TabsTrigger
             value="linear"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             Linear
           </TabsTrigger>
           <TabsTrigger
             value="diamond"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             Diamond
           </TabsTrigger>
           <TabsTrigger
             value="parallel"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             Parallel
           </TabsTrigger>
           <TabsTrigger
             value="complex"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             Complex
           </TabsTrigger>
           <TabsTrigger
             value="massiveParallel"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             200 Tasks
           </TabsTrigger>
           <TabsTrigger
             value="manyGroups"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             100 Groups
           </TabsTrigger>
           <TabsTrigger
             value="multiRoot"
-            className="data-[state=active]:bg-zinc-700"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700"
           >
             Multi-Root
           </TabsTrigger>
           <TabsTrigger
             value="showcase"
-            className="data-[state=active]:bg-zinc-700 data-[state=active]:bg-amber-700"
+            className="data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-700"
           >
             Showcase
           </TabsTrigger>

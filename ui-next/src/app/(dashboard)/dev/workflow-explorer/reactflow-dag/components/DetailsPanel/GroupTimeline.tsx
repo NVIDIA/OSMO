@@ -149,8 +149,8 @@ export const GroupTimeline = memo(function GroupTimeline({
   if (phases.length === 0) {
     if (isPending) {
       return (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <span className="inline-block size-2 rounded-full border border-dashed border-zinc-600" />
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-500">
+          <span className="inline-block size-2 rounded-full border border-dashed border-gray-400 dark:border-zinc-600" />
           <span>Waiting for upstream dependencies</span>
         </div>
       );
@@ -202,17 +202,17 @@ export const GroupTimeline = memo(function GroupTimeline({
                         type="button"
                         aria-label={markerLabel}
                         className={cn(
-                          "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-zinc-900",
-                          phase.status === "completed" && "border-emerald-500 bg-emerald-500",
-                          phase.status === "active" && "border-blue-500 bg-blue-500 animate-pulse",
-                          phase.status === "pending" && "border-zinc-600 bg-zinc-800 border-dashed"
+                          "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
+                          phase.status === "completed" && "timeline-marker-completed",
+                          phase.status === "active" && "timeline-marker-running animate-pulse",
+                          phase.status === "pending" && "timeline-marker-pending border-dashed"
                         )}
                       />
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
                       <div className="font-medium">{phase.label}</div>
                       {phase.startTime && (
-                        <div className="text-zinc-400">{formatTimeFull(phase.startTime)}</div>
+                        <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(phase.startTime)}</div>
                       )}
                     </TooltipContent>
                   </Tooltip>
@@ -221,9 +221,9 @@ export const GroupTimeline = memo(function GroupTimeline({
                   <div
                     className={cn(
                       "h-1 flex-1",
-                      phase.status === "completed" && "bg-emerald-600",
+                      phase.status === "completed" && "timeline-segment-completed",
                       phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && "border-t border-dashed border-zinc-600"
+                      phase.status === "pending" && "border-t border-dashed border-gray-400 dark:border-zinc-600"
                     )}
                   />
 
@@ -235,16 +235,16 @@ export const GroupTimeline = memo(function GroupTimeline({
                           type="button"
                           aria-label={`${isCompleted ? "Completed" : "Failed"}${endTime ? `: ${formatTimeFull(endTime)}` : ""}`}
                           className={cn(
-                            "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-zinc-900",
-                            isCompleted && "border-emerald-500 bg-emerald-500",
-                            isFailed && "border-red-500 bg-red-500"
+                            "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
+                            isCompleted && "timeline-marker-completed",
+                            isFailed && "timeline-marker-failed"
                           )}
                         />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
                         <div className="font-medium">{isCompleted ? "Completed" : "Failed"}</div>
                         {endTime && (
-                          <div className="text-zinc-400">{formatTimeFull(endTime)}</div>
+                          <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(endTime)}</div>
                         )}
                       </TooltipContent>
                     </Tooltip>
@@ -256,7 +256,7 @@ export const GroupTimeline = memo(function GroupTimeline({
             {/* Running indicator (animated end) - no tooltip needed, "now" label below is clear */}
             {isRunning && (
               <div
-                className="relative z-10 size-2.5 shrink-0 rounded-full border-2 border-blue-500 bg-blue-500 animate-pulse"
+                className="relative z-10 size-2.5 shrink-0 rounded-full border-2 timeline-marker-running animate-pulse"
                 aria-hidden="true"
               />
             )}
@@ -279,9 +279,9 @@ export const GroupTimeline = memo(function GroupTimeline({
                   <span
                     className={cn(
                       "text-[10px] font-medium",
-                      phase.status === "completed" && "text-emerald-400",
-                      phase.status === "active" && "text-blue-400",
-                      phase.status === "pending" && "text-zinc-500"
+                      phase.status === "completed" && "timeline-text-completed",
+                      phase.status === "active" && "timeline-text-running",
+                      phase.status === "pending" && "timeline-text-pending"
                     )}
                   >
                     {phase.shortLabel}
@@ -289,8 +289,8 @@ export const GroupTimeline = memo(function GroupTimeline({
                   {phase.duration !== null && (
                     <span
                       className={cn(
-                        "text-[10px]",
-                        phase.status === "active" ? "text-blue-400/70" : "text-zinc-500"
+                        "text-[10px] opacity-70",
+                        phase.status === "active" ? "timeline-text-running" : "timeline-text-pending"
                       )}
                     >
                       {formatDuration(phase.duration)}
@@ -302,8 +302,8 @@ export const GroupTimeline = memo(function GroupTimeline({
                     <span
                       className={cn(
                         "absolute right-0 text-[10px] font-medium",
-                        isCompleted && "text-emerald-400",
-                        isFailed && "text-red-400"
+                        isCompleted && "timeline-text-completed",
+                        isFailed && "timeline-text-failed"
                       )}
                     >
                       {isCompleted ? "Done" : "Failed"}
@@ -314,7 +314,7 @@ export const GroupTimeline = memo(function GroupTimeline({
             })}
             {isRunning && (
               <div className="flex flex-col">
-                <span className="text-[10px] font-medium text-blue-400">now</span>
+                <span className="text-[10px] font-medium timeline-text-running">now</span>
               </div>
             )}
           </div>

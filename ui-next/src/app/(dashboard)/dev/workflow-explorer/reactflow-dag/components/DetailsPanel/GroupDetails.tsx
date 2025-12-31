@@ -172,8 +172,8 @@ export const GroupDetails = memo(function GroupDetails({
           "flex items-center gap-1.5",
           groupStatus.status === "completed" && "text-emerald-400",
           groupStatus.status === "running" && "text-blue-400",
-          groupStatus.status === "failed" && "text-red-400",
-          groupStatus.status === "pending" && "text-zinc-400",
+          groupStatus.status === "failed" && "text-red-600 dark:text-red-400",
+          groupStatus.status === "pending" && "text-gray-500 dark:text-zinc-400",
         )}
       >
         {groupStatus.status === "completed" && <Check className="size-3" />}
@@ -184,8 +184,8 @@ export const GroupDetails = memo(function GroupDetails({
       </span>
       {groupDuration !== null && (
         <>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-400">{formatDuration(groupDuration)}</span>
+          <span className="text-gray-400 dark:text-zinc-600">·</span>
+          <span className="text-gray-500 dark:text-zinc-400">{formatDuration(groupDuration)}</span>
         </>
       )}
     </div>
@@ -252,7 +252,7 @@ export const GroupDetails = memo(function GroupDetails({
       />
 
       {/* Search */}
-      <div className="space-y-2 border-b border-zinc-800 px-4 py-3">
+      <div className="space-y-2 border-b border-gray-200 dark:border-zinc-800 px-4 py-3">
         <SmartSearch
           tasks={tasksWithDuration}
           chips={searchChips}
@@ -260,7 +260,7 @@ export const GroupDetails = memo(function GroupDetails({
           placeholder="Filter by name, status:, ip:, duration:, and more..."
         />
         {searchChips.length > 0 && (
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400">
             <span>Showing {filteredTasks.length} of {stats.total} tasks</span>
             <button onClick={handleClearFilters} className="text-blue-400 hover:text-blue-300">
               Clear filters

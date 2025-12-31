@@ -50,37 +50,27 @@ interface PillRowProps {
 
 const STATUS_PILL_STYLES = {
   completed: {
-    bg: "bg-emerald-900/30",
-    border: "border-emerald-700",
-    text: "text-emerald-400",
+    pillClass: "dependency-pill-completed",
     icon: Check,
     iconClass: "",
   },
   running: {
-    bg: "bg-blue-900/30",
-    border: "border-blue-700",
-    text: "text-blue-400",
+    pillClass: "dependency-pill-running",
     icon: Loader2,
     iconClass: "animate-spin",
   },
   waiting: {
-    bg: "bg-zinc-800/50",
-    border: "border-zinc-700",
-    text: "text-zinc-400",
+    pillClass: "dependency-pill-waiting",
     icon: Clock,
     iconClass: "",
   },
   failed: {
-    bg: "bg-red-900/30",
-    border: "border-red-700",
-    text: "text-red-400",
+    pillClass: "dependency-pill-failed",
     icon: AlertCircle,
     iconClass: "",
   },
   blocked: {
-    bg: "bg-zinc-800/30",
-    border: "border-zinc-700/50",
-    text: "text-zinc-500",
+    pillClass: "dependency-pill-blocked",
     icon: Pause,
     iconClass: "",
   },
@@ -107,11 +97,9 @@ const DependencyPill = memo(function DependencyPill({
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-all",
-        "hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-zinc-900",
-        style.bg,
-        style.border,
-        style.text,
+        "dependency-pill inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
+        "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
+        style.pillClass,
         onClick && "cursor-pointer"
       )}
     >
@@ -206,7 +194,7 @@ const PillRow = memo(function PillRow({
         ))}
       </div>
 
-      <span className="w-24 shrink-0 py-1 text-xs text-zinc-500">{label}</span>
+      <span className="w-24 shrink-0 py-1 text-xs text-gray-500 dark:text-zinc-500">{label}</span>
       <div className="flex flex-1 flex-wrap items-center gap-2">
         {/* When collapsed: show visibleCount pills; when expanded: show all */}
         {(isExpanded ? groups : groups.slice(0, visibleCount)).map((group) => (
@@ -220,7 +208,7 @@ const PillRow = memo(function PillRow({
         {!isExpanded && hiddenCount > 0 && (
           <button
             onClick={() => setIsExpanded(true)}
-            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-400 transition-colors hover:bg-zinc-800 hover:text-blue-300"
+            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-gray-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-zinc-800 dark:hover:text-blue-300"
           >
             +{hiddenCount}
           </button>
@@ -229,7 +217,7 @@ const PillRow = memo(function PillRow({
         {isExpanded && hiddenCount > 0 && (
           <button
             onClick={() => setIsExpanded(false)}
-            className="inline-flex items-center rounded-md px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            className="inline-flex items-center rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             show less
           </button>
