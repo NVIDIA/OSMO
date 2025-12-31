@@ -109,14 +109,14 @@ export const TaskDetails = memo(function TaskDetails({
       <span className="font-medium">{getStatusLabel(task.status)}</span>
       {duration !== null && (
         <>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-400">{formatDuration(duration)}</span>
+          <span className="text-gray-400 dark:text-zinc-600">·</span>
+          <span className="text-gray-500 dark:text-zinc-400">{formatDuration(duration)}</span>
         </>
       )}
       {task.retry_id > 0 && (
         <>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-400">Retry #{task.retry_id}</span>
+          <span className="text-gray-400 dark:text-zinc-600">·</span>
+          <span className="text-gray-500 dark:text-zinc-400">Retry #{task.retry_id}</span>
         </>
       )}
     </div>
@@ -172,29 +172,29 @@ export const TaskDetails = memo(function TaskDetails({
 
         {/* Task details */}
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400">Task Details</h3>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-zinc-400">Task Details</h3>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-zinc-400">Group</dt>
+              <dt className="text-gray-500 dark:text-zinc-400">Group</dt>
               <dd
-                className="max-w-40 truncate font-mono text-xs text-zinc-200"
+                className="max-w-40 truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
                 title={group.name}
               >
                 {group.name}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-zinc-400">Duration</dt>
-              <dd className="text-zinc-200">{formatDuration(calculateDuration(task.start_time, task.end_time))}</dd>
+              <dt className="text-gray-500 dark:text-zinc-400">Duration</dt>
+              <dd className="text-gray-700 dark:text-zinc-200">{formatDuration(calculateDuration(task.start_time, task.end_time))}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-zinc-400">Node</dt>
-              <dd className="font-mono text-xs text-zinc-200">{task.node_name || "—"}</dd>
+              <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
+              <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name || "—"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-zinc-400">Pod</dt>
+              <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
               <dd
-                className="max-w-40 truncate font-mono text-xs text-zinc-200"
+                className="max-w-40 truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
                 title={task.pod_name}
               >
                 {task.pod_name || "—"}
@@ -202,26 +202,26 @@ export const TaskDetails = memo(function TaskDetails({
             </div>
             {task.pod_ip && (
               <div className="flex justify-between">
-                <dt className="text-zinc-400">Pod IP</dt>
-                <dd className="font-mono text-xs text-zinc-200">{task.pod_ip}</dd>
+                <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
+                <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</dd>
               </div>
             )}
             {task.start_time && (
               <div className="flex justify-between">
-                <dt className="text-zinc-400">Started</dt>
-                <dd className="text-xs text-zinc-200">{new Date(task.start_time).toLocaleString()}</dd>
+                <dt className="text-gray-500 dark:text-zinc-400">Started</dt>
+                <dd className="text-xs text-gray-700 dark:text-zinc-200">{new Date(task.start_time).toLocaleString()}</dd>
               </div>
             )}
             {task.end_time && (
               <div className="flex justify-between">
-                <dt className="text-zinc-400">Ended</dt>
-                <dd className="text-xs text-zinc-200">{new Date(task.end_time).toLocaleString()}</dd>
+                <dt className="text-gray-500 dark:text-zinc-400">Ended</dt>
+                <dd className="text-xs text-gray-700 dark:text-zinc-200">{new Date(task.end_time).toLocaleString()}</dd>
               </div>
             )}
             {task.exit_code !== undefined && task.exit_code !== null && (
               <div className="flex justify-between">
-                <dt className="text-zinc-400">Exit Code</dt>
-                <dd className={cn("font-mono text-xs", task.exit_code === 0 ? "text-zinc-200" : "text-red-400")}>
+                <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
+                <dd className={cn("font-mono text-xs", task.exit_code === 0 ? "text-gray-700 dark:text-zinc-200" : "text-red-600 dark:text-red-400")}>
                   {task.exit_code}
                 </dd>
               </div>
@@ -234,7 +234,7 @@ export const TaskDetails = memo(function TaskDetails({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 flex-1 border-zinc-700 bg-zinc-800/50 text-xs text-zinc-200 hover:bg-zinc-700 hover:text-white"
+            className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
             asChild
           >
             <a
@@ -251,7 +251,7 @@ export const TaskDetails = memo(function TaskDetails({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 flex-1 border-zinc-700 bg-zinc-800/50 text-xs text-zinc-200 hover:bg-zinc-700 hover:text-white"
+              className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
               aria-label={`Open shell for ${task.name}`}
             >
               <Terminal className="mr-1.5 size-3.5" aria-hidden="true" />
