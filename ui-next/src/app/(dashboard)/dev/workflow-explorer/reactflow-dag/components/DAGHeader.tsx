@@ -56,12 +56,12 @@ export function DAGHeader({
   }, [groups]);
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur">
+    <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="sm"
-          className="text-zinc-400 hover:text-zinc-100"
+          className="text-gray-500 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           asChild
         >
           <a href={backUrl}>
@@ -73,13 +73,13 @@ export function DAGHeader({
           </a>
         </Button>
         <div
-          className="h-6 w-px bg-zinc-700"
+          className="h-6 w-px bg-gray-300 dark:bg-zinc-700"
           aria-hidden="true"
         />
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">React Flow + ELK DAG</h1>
-          <div className="flex items-center gap-2 text-sm text-zinc-400">
-            <span className="text-emerald-400 flex items-center gap-1">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">React Flow + ELK DAG</h1>
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
+            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               {getStatusIcon(status, "h-3.5 w-3.5")}
               {status}
             </span>
@@ -93,7 +93,7 @@ export function DAGHeader({
               <>
                 <span aria-hidden="true">•</span>
                 <Loader2
-                  className="h-3.5 w-3.5 animate-spin text-blue-400"
+                  className="h-3.5 w-3.5 animate-spin text-blue-600 dark:text-blue-400"
                   aria-label="Calculating layout"
                 />
                 {/* Live region for screen readers */}

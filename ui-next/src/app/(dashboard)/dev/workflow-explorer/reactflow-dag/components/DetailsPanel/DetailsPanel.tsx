@@ -88,7 +88,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       <div
         className={cn(
           "group absolute top-0 z-20 h-full w-1 cursor-ew-resize",
-          isDragging ? "bg-blue-500" : "bg-transparent hover:bg-zinc-600",
+          isDragging ? "bg-blue-500" : "bg-transparent hover:bg-gray-400 dark:hover:bg-zinc-600",
         )}
         style={{
           left: `${100 - panelPct}%`,
@@ -105,19 +105,19 @@ export const DetailsPanel = memo(function DetailsPanel({
       >
         <div
           className={cn(
-            "dag-details-panel-handle absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 px-0.5 py-1 shadow-md transition-opacity duration-150",
+            "dag-details-panel-handle absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-gray-300 dark:bg-zinc-700 px-0.5 py-1 shadow-md transition-opacity duration-150",
             isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
           aria-hidden="true"
         >
-          <GripVertical className="size-4 text-zinc-300" />
+          <GripVertical className="size-4 text-gray-600 dark:text-zinc-300" />
         </div>
       </div>
 
       {/* Panel Container */}
       <aside
         ref={panelRef}
-        className="dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-zinc-800 bg-zinc-900/95 backdrop-blur"
+        className="dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-gray-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/95 backdrop-blur"
         style={{ width: `${panelPct}%` }}
         role="complementary"
         aria-label={view === "group" ? `Group details: ${group.name}` : `Task details: ${task?.name}`}
