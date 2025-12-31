@@ -59,6 +59,7 @@ function generateTask(
   startTime: Date | null,
   endTime: Date | null,
   retryId: number = 0,
+  isLead: boolean = false,
 ): TaskQueryResponse {
   const taskUuid = faker.string.uuid();
   const podName = `${workflowUuid.slice(0, 8)}-${taskUuid.slice(0, 8)}`;
@@ -89,7 +90,7 @@ function generateTask(
       statusStr !== Status.WAITING
         ? `${faker.helpers.arrayElement(["dgx", "gpu", "node"])}-${faker.helpers.arrayElement(["a100", "h100", "l40s"])}-${faker.number.int({ min: 100, max: 999 })}`
         : undefined,
-    lead: false,
+    lead: isLead,
   };
 }
 
@@ -379,6 +380,8 @@ function generateComplexPattern(
         baseUrl,
         i < 3 ? currentTime : null,
         i === 0 ? new Date(currentTime.getTime() + 3600000) : null,
+        0,
+        i === 0, // First task is the lead
       ),
     );
   }
@@ -508,6 +511,8 @@ function generateManyGroupsPattern(
             baseUrl,
             taskStatus !== Status.WAITING ? groupStartTime : null,
             taskStatus === Status.COMPLETED ? groupEndTime : null,
+            0,
+            t === 0, // First task is the lead
           ),
         );
       }
@@ -596,6 +601,8 @@ function generateMassiveParallelPattern(
         taskStatus === Status.COMPLETED
           ? new Date(trainStart.getTime() + faker.number.int({ min: 1800000, max: 7200000 }))
           : null,
+        0,
+        i === 0, // First task is the lead
       ),
     );
   }
@@ -697,6 +704,8 @@ function generateMultiRootPattern(
         baseUrl,
         taskStatus !== Status.WAITING ? trainStart : null,
         taskStatus === Status.COMPLETED ? new Date(trainStart.getTime() + (i + 1) * 600000) : null,
+        0,
+        i === 0, // First task is the lead
       ),
     );
   }
@@ -715,6 +724,8 @@ function generateMultiRootPattern(
         baseUrl,
         taskStatus !== Status.WAITING ? trainStart : null,
         taskStatus === Status.COMPLETED ? new Date(trainStart.getTime() + (i + 1) * 900000) : null,
+        0,
+        i === 0, // First task is the lead
       ),
     );
   }
@@ -826,6 +837,8 @@ function generateShowcasePattern(
         baseUrl,
         completedSingleEnd,
         new Date(completedGroupEnd.getTime() - (3 - i) * 10000),
+        0,
+        i === 0, // First task is the lead
       ),
     );
   }
@@ -869,6 +882,8 @@ function generateShowcasePattern(
         baseUrl,
         taskStatus !== Status.WAITING ? runningGroupStart : null,
         taskStatus === Status.COMPLETED ? new Date(runningGroupStart.getTime() + (i + 1) * 600000) : null,
+        0,
+        i === 0, // First task is the lead
       ),
     );
   }
@@ -992,6 +1007,8 @@ function generateShowcasePattern(
       baseUrl,
       preemptedStart,
       new Date(preemptedStart.getTime() + (i + 1) * 300000),
+      0,
+      i === 0, // First task is the lead
     );
     if (taskStatus === Status.FAILED_PREEMPTED) {
       task.failure_message = "Preempted by higher priority job";

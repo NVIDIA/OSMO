@@ -68,6 +68,12 @@ const VIEW_TYPE_BADGE = {
   },
 } as const;
 
+/** Lead badge styling */
+const LEAD_BADGE = {
+  label: "Lead",
+  className: "bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30",
+};
+
 interface ExtendedHeaderProps extends DetailsPanelHeaderProps {
   /** Panel resize callback (for width presets menu) */
   onPanelResize?: (pct: number) => void;
@@ -83,6 +89,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   onPanelResize,
   breadcrumb,
   viewType,
+  isLead,
   siblingTasks,
   onSelectSibling,
   expandableContent,
@@ -216,6 +223,12 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                             <span className="ml-1.5 text-gray-400 dark:text-zinc-500">#{task.retryId}</span>
                           )}
                         </span>
+                        {/* Lead badge */}
+                        {task.isLead && (
+                          <span className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
+                            Lead
+                          </span>
+                        )}
                         {/* Current indicator */}
                         {task.isCurrent && (
                           <Check className="size-4 shrink-0 text-emerald-500 dark:text-emerald-400" />
@@ -240,6 +253,18 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
 
         {/* Actions */}
         <div className="-mr-1.5 flex shrink-0 items-center gap-1.5">
+          {/* Lead badge (shown before view type badge for tasks) */}
+          {isLead && (
+            <span
+              className={cn(
+                "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide ring-1 ring-inset",
+                LEAD_BADGE.className,
+              )}
+              title="Leader task for distributed training"
+            >
+              {LEAD_BADGE.label}
+            </span>
+          )}
           {/* View type badge */}
           {badge && (
             <span

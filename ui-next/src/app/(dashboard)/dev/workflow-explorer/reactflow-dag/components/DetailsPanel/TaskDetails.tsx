@@ -70,6 +70,7 @@ export const TaskDetails = memo(function TaskDetails({
       retryId: t.retry_id,
       status: t.status,
       isCurrent: t.name === task.name && t.retry_id === task.retry_id,
+      isLead: t.lead,
     }));
   }, [tasks, task.name, task.retry_id]);
 
@@ -154,6 +155,7 @@ export const TaskDetails = memo(function TaskDetails({
       {/* Header - aligned with GroupDetails layout */}
       <DetailsPanelHeader
         viewType="task"
+        isLead={task.lead}
         breadcrumb={isFromGroup ? group.name : undefined}
         title={task.name}
         statusContent={statusContent}
@@ -226,6 +228,15 @@ export const TaskDetails = memo(function TaskDetails({
                 </dd>
               </div>
             )}
+            <div className="flex justify-between">
+              <dt className="text-gray-500 dark:text-zinc-400">Task UUID</dt>
+              <dd
+                className="max-w-40 truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
+                title={task.task_uuid}
+              >
+                {task.task_uuid}
+              </dd>
+            </div>
           </dl>
         </div>
 
