@@ -104,6 +104,8 @@ export interface SiblingTask {
   status: string;
   /** Whether this is the currently selected task */
   isCurrent: boolean;
+  /** Whether this task is the leader */
+  isLead?: boolean;
 }
 
 /**
@@ -133,6 +135,8 @@ export interface DetailsPanelHeaderProps {
   menuContent?: React.ReactNode;
   /** View type for visual differentiation (shows colored icon) */
   viewType?: HeaderViewType;
+  /** Whether the task is a leader (for distributed training) */
+  isLead?: boolean;
   /** Sibling tasks for inline task switcher (task view only) */
   siblingTasks?: SiblingTask[];
   /** Callback when selecting a sibling task */
