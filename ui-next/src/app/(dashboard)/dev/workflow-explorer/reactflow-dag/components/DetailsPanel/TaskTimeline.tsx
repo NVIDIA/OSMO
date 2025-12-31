@@ -86,8 +86,11 @@ export const TaskTimeline = memo(function TaskTimeline({
   // Parse timestamps
   const schedulingStart = parseTime(task.scheduling_start_time);
   const initializingStart = parseTime(task.initializing_start_time);
+  const inputDownloadStart = parseTime(task.input_download_start_time);
+  const inputDownloadEnd = parseTime(task.input_download_end_time);
   const processingStart = parseTime(task.processing_start_time);
   const startTime = parseTime(task.start_time);
+  const outputUploadStart = parseTime(task.output_upload_start_time);
   const endTime = parseTime(task.end_time);
 
   // Compute phases
@@ -96,7 +99,7 @@ export const TaskTimeline = memo(function TaskTimeline({
 
     // Scheduling phase
     if (schedulingStart) {
-      const schedEnd = initializingStart || processingStart || startTime;
+      const schedEnd = initializingStart || inputDownloadStart || processingStart || startTime;
       result.push({
         id: "scheduling",
         label: "Scheduling",
@@ -110,8 +113,8 @@ export const TaskTimeline = memo(function TaskTimeline({
 
     // Initializing phase
     if (initializingStart) {
-      const initEnd = processingStart || startTime;
-      const initActive = !initEnd && !processingStart && isRunning;
+      const initEnd = inputDownloadStart || processingStart || startTime;
+      const initActive = !initEnd && isRunning;
       result.push({
         id: "initializing",
         label: "Initializing",
@@ -123,23 +126,54 @@ export const TaskTimeline = memo(function TaskTimeline({
       });
     }
 
+    // Input Download phase
+    if (inputDownloadStart) {
+      const dlEnd = inputDownloadEnd || processingStart || startTime;
+      const dlActive = !dlEnd && isRunning;
+      result.push({
+        id: "input-download",
+        label: "Input Download",
+        shortLabel: "Input",
+        startTime: inputDownloadStart,
+        endTime: dlEnd,
+        duration: calculatePhaseDuration(inputDownloadStart, dlEnd),
+        status: dlActive ? "active" : dlEnd ? "completed" : "pending",
+      });
+    }
+
     // Processing phase
     const procStart = processingStart || startTime;
     if (procStart) {
-      const isActive = isRunning && !endTime;
+      const procEnd = outputUploadStart || endTime;
+      const isActive = isRunning && !procEnd;
       result.push({
         id: "processing",
         label: "Processing",
         shortLabel: "Proc",
         startTime: procStart,
-        endTime: endTime,
-        duration: calculatePhaseDuration(procStart, endTime),
-        status: isActive ? "active" : endTime ? "completed" : "pending",
+        endTime: procEnd,
+        duration: calculatePhaseDuration(procStart, procEnd),
+        status: isActive ? "active" : procEnd ? "completed" : "pending",
+      });
+    }
+
+    // Output Upload phase
+    if (outputUploadStart) {
+      const uploadEnd = endTime;
+      const uploadActive = !uploadEnd && isRunning;
+      result.push({
+        id: "output-upload",
+        label: "Output Upload",
+        shortLabel: "Output",
+        startTime: outputUploadStart,
+        endTime: uploadEnd,
+        duration: calculatePhaseDuration(outputUploadStart, uploadEnd),
+        status: uploadActive ? "active" : uploadEnd ? "completed" : "pending",
       });
     }
 
     return result;
-  }, [schedulingStart, initializingStart, processingStart, startTime, endTime, isRunning]);
+  }, [schedulingStart, initializingStart, inputDownloadStart, inputDownloadEnd, processingStart, startTime, outputUploadStart, endTime, isRunning]);
 
   // No timeline data
   if (phases.length === 0) {
