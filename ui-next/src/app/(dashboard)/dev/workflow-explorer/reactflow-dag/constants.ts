@@ -70,8 +70,11 @@ export const TABLE_ROW_HEIGHT = 40;
 /** Padding for task list container (pixels) */
 export const TASK_LIST_PADDING = 16;
 
-/** Header height for expanded nodes (pixels) */
-export const NODE_HEADER_HEIGHT = 56;
+/** Header height for expanded nodes (pixels) - py-3 (24px) + name (~20px) + hint (~20px) + buffer */
+export const NODE_HEADER_HEIGHT = 68;
+
+/** Action bar height (Show/Hide tasks bar) in pixels - py-1.5 (12px) + text + border */
+export const NODE_ACTION_BAR_HEIGHT = 28;
 
 // ============================================================================
 // Layout Spacing
@@ -154,15 +157,17 @@ export const BACKGROUND = {
   GAP: 20,
   /** Size of grid dots in pixels */
   DOT_SIZE: 1,
-  /** Color of grid dots */
-  COLOR: "#27272a",
+  /** Color of grid dots - light mode */
+  COLOR_LIGHT: "#d4d4d8", // zinc-300
+  /** Color of grid dots - dark mode */
+  COLOR_DARK: "#27272a", // zinc-800
 } as const;
 
 /** Handle positioning (offset from node edge) */
 export const HANDLE_OFFSET = 6; // pixels
 
 /** Node border width for dimension calculations */
-export const NODE_BORDER_WIDTH = 4; // 2px border * 2 sides
+export const NODE_BORDER_WIDTH = 3; // 1.5px border * 2 sides
 
 // ============================================================================
 // Status Category Types
@@ -265,36 +270,40 @@ export const STATUS_LABELS: Record<string, string> = {
  * - Running: Blue
  * - Completed: Green
  * - Failed: Red
+ *
+ * Uses dark: prefix for dark mode variants.
+ * Text colors use semantic naming for accessibility.
  */
 export const STATUS_STYLES = {
   waiting: {
-    bg: "bg-zinc-800/60",
-    border: "border-zinc-600",
-    text: "text-zinc-400",
-    dot: "bg-zinc-500",
+    bg: "bg-gray-100 dark:bg-zinc-800/60",
+    border: "border-gray-300 dark:border-zinc-600",
+    text: "text-gray-500 dark:text-zinc-400",
+    dot: "bg-gray-400 dark:bg-zinc-500",
+    // Raw colors for programmatic use (minimap, edges)
     color: "#71717a", // zinc-500
     strokeColor: "#52525b", // zinc-600
   },
   running: {
-    bg: "bg-blue-950/60",
-    border: "border-blue-500",
-    text: "text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-950/60",
+    border: "border-blue-400 dark:border-blue-500",
+    text: "text-blue-600 dark:text-blue-400",
     dot: "bg-blue-500",
     color: "#3b82f6", // blue-500
     strokeColor: "#1d4ed8", // blue-700
   },
   completed: {
-    bg: "bg-emerald-950/60",
-    border: "border-emerald-600",
-    text: "text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-950/60",
+    border: "border-emerald-400 dark:border-emerald-600",
+    text: "text-emerald-600 dark:text-emerald-400",
     dot: "bg-emerald-500",
     color: "#10b981", // emerald-500
     strokeColor: "#047857", // emerald-700
   },
   failed: {
-    bg: "bg-red-950/60",
-    border: "border-red-500",
-    text: "text-red-400",
+    bg: "bg-red-50 dark:bg-red-950/60",
+    border: "border-red-400 dark:border-red-500",
+    text: "text-red-600 dark:text-red-400",
     dot: "bg-red-500",
     color: "#ef4444", // red-500
     strokeColor: "#b91c1c", // red-700
