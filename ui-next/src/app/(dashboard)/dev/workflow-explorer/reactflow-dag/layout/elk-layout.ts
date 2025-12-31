@@ -119,10 +119,10 @@ export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): 
   const hasManyTasks = tasks.length > 1;
 
   if (isExpanded && hasManyTasks) {
-    // Task list height: tasks * row height + border-t (1px)
-    const taskListHeight = tasks.length * TASK_ROW_HEIGHT + 1;
-    // Collapse lip height: h-5 (20px) + border-t (1px)
-    const collapseLipHeight = 21;
+    // Task list height: tasks * row height (borders are inside elements with box-sizing: border-box)
+    const taskListHeight = tasks.length * TASK_ROW_HEIGHT;
+    // Collapse lip height: h-5 (20px) - border-t is inside with box-sizing: border-box
+    const collapseLipHeight = 20;
     // Total height capped at max, plus node border (border-[1.5px] = 1.5px * 2 sides)
     const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + collapseLipHeight + NODE_BORDER_WIDTH;
     return {

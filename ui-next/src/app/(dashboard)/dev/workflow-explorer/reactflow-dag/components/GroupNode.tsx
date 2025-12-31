@@ -468,7 +468,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {isExpanded && hasManyTasks && (
         <button
           onClick={handleExpandClick}
-          className="dag-collapse-lip flex-shrink-0 flex items-center justify-center border-t border-gray-200/50 dark:border-zinc-600/50 h-5 text-gray-500 dark:text-zinc-400 transition-colors hover:text-gray-700 dark:hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
+          className="dag-collapse-lip flex-shrink-0 flex items-center justify-center h-5 text-gray-500 dark:text-zinc-400 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-700 dark:hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
           aria-label="Collapse task list"
           aria-expanded={true}
         >
