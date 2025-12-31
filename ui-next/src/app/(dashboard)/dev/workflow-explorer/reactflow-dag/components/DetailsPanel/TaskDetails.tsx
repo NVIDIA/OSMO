@@ -19,8 +19,8 @@
 
 "use client";
 
-import { useMemo, useCallback, memo } from "react";
-import { FileText, Terminal, AlertCircle } from "lucide-react";
+import { useMemo, useCallback, memo, useState } from "react";
+import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
@@ -30,6 +30,47 @@ import { DetailsPanelHeader } from "./DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "./DependencyPills";
 import type { TaskDetailsProps, SiblingTask } from "../../types/panel";
+
+// ============================================================================
+// Copy Button Component
+// ============================================================================
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = value;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [value]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-1.5 shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 transition-colors"
+      aria-label={`Copy ${label}`}
+      title={copied ? "Copied!" : `Copy ${label}`}
+    >
+      {copied ? (
+        <Check className="size-3 text-emerald-500" />
+      ) : (
+        <Copy className="size-3" />
+      )}
+    </button>
+  );
+}
 
 // ============================================================================
 // Component
@@ -172,73 +213,83 @@ export const TaskDetails = memo(function TaskDetails({
       {/* Content */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
 
-        {/* Task details */}
-        <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-zinc-400">Task Details</h3>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-gray-500 dark:text-zinc-400">Group</dt>
-              <dd
-                className="max-w-40 truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-                title={group.name}
-              >
-                {group.name}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-gray-500 dark:text-zinc-400">Duration</dt>
-              <dd className="text-gray-700 dark:text-zinc-200">{formatDuration(calculateDuration(task.start_time, task.end_time))}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
-              <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name || "—"}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
-              <dd
-                className="max-w-40 truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-                title={task.pod_name}
-              >
-                {task.pod_name || "—"}
-              </dd>
-            </div>
-            {task.pod_ip && (
-              <div className="flex justify-between">
-                <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
-                <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</dd>
+        {/* Exit status - special treatment at top when non-zero */}
+        {task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0 && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
+            <div className="flex items-start gap-2">
+              <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
+                  Exit Code: {task.exit_code}
+                </div>
+                {task.failure_message && (
+                  <p className="mt-1 text-xs text-red-700 dark:text-red-400 break-words">
+                    {task.failure_message}
+                  </p>
+                )}
               </div>
-            )}
-            {task.start_time && (
-              <div className="flex justify-between">
-                <dt className="text-gray-500 dark:text-zinc-400">Started</dt>
-                <dd className="text-xs text-gray-700 dark:text-zinc-200">{new Date(task.start_time).toLocaleString()}</dd>
-              </div>
-            )}
-            {task.end_time && (
-              <div className="flex justify-between">
-                <dt className="text-gray-500 dark:text-zinc-400">Ended</dt>
-                <dd className="text-xs text-gray-700 dark:text-zinc-200">{new Date(task.end_time).toLocaleString()}</dd>
-              </div>
-            )}
-            {task.exit_code !== undefined && task.exit_code !== null && (
-              <div className="flex justify-between">
-                <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
-                <dd className={cn("font-mono text-xs", task.exit_code === 0 ? "text-gray-700 dark:text-zinc-200" : "text-red-600 dark:text-red-400")}>
-                  {task.exit_code}
-                </dd>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <dt className="text-gray-500 dark:text-zinc-400">Task UUID</dt>
-              <dd
-                className="max-w-40 truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-                title={task.task_uuid}
-              >
+            </div>
+          </div>
+        )}
+
+        {/* Task details - Option D layout */}
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
+            {/* Task UUID - first */}
+            <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
+            <dd className="flex items-center min-w-0">
+              <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200" title={task.task_uuid}>
                 {task.task_uuid}
-              </dd>
-            </div>
+              </span>
+              <CopyButton value={task.task_uuid} label="Task UUID" />
+            </dd>
+
+            {/* Node */}
+            {task.node_name && (
+              <>
+                <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
+                <dd className="flex items-center min-w-0">
+                  <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">
+                    {task.node_name}
+                  </span>
+                  <CopyButton value={task.node_name} label="Node" />
+                </dd>
+              </>
+            )}
+
+            {/* Pod */}
+            {task.pod_name && (
+              <>
+                <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
+                <dd className="flex items-center min-w-0">
+                  <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200" title={task.pod_name}>
+                    {task.pod_name}
+                  </span>
+                  <CopyButton value={task.pod_name} label="Pod" />
+                </dd>
+              </>
+            )}
+
+            {/* Pod IP */}
+            {task.pod_ip && (
+              <>
+                <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
+                <dd className="flex items-center min-w-0">
+                  <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">
+                    {task.pod_ip}
+                  </span>
+                  <CopyButton value={task.pod_ip} label="Pod IP" />
+                </dd>
+              </>
+            )}
+
+            {/* Exit code - only show if success (0), failures shown above */}
+            {task.exit_code === 0 && (
+              <>
+                <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
+                <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">0</dd>
+              </>
+            )}
           </dl>
-        </div>
 
         {/* Actions */}
         <div className="flex gap-2" role="group" aria-label="Task actions">
