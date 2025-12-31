@@ -13,7 +13,6 @@
  * This stylesheet provides:
  * - CSS custom properties for theming (status colors, dimensions)
  * - Light/dark mode support via .dark class (next-themes compatible)
- * - GPU-accelerated styling via transform/will-change
  * - Data-attribute styling for status (avoids JS style recalculation)
  * - ReactFlow overrides
  * - Relative units (rem/em) for scalability
@@ -25,7 +24,7 @@
  *
  * PERFORMANCE NOTES:
  * - Uses CSS containment (contain: layout style) to isolate calculations
- * - GPU layers via translateZ(0) for smooth transforms
+ * - Avoids static will-change/translateZ(0) to prevent blurry text at zoom
  * - Prefers data-attribute selectors over JS-driven className changes
  * - Respects prefers-reduced-motion for accessibility
  */
@@ -94,9 +93,11 @@
   --dag-controls-text: oklch(0.4 0 0);
   --dag-controls-hover: oklch(0.94 0 0);
 
-  /* Minimap */
-  --dag-minimap-bg: oklch(0.96 0 0);
-  --dag-minimap-mask: oklch(0.5 0 0 / 0.2);
+  /* Minimap - warm ivory tint for pleasant distinction */
+  --dag-minimap-bg: oklch(0.97 0.008 80);
+  --dag-minimap-mask: oklch(0.45 0.02 250 / 0.15);
+  --dag-minimap-border: oklch(0.88 0.01 80);
+  --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
 
   /* Node dimensions (rem-based for scalability) */
   --dag-node-collapsed-width: 11.25rem;
@@ -193,9 +194,11 @@
   --dag-controls-text: oklch(0.64 0 0);
   --dag-controls-hover: oklch(0.3 0 0);
 
-  /* Minimap */
-  --dag-minimap-bg: oklch(0.13 0 0);
-  --dag-minimap-mask: oklch(0 0 0 / 0.6);
+  /* Minimap - elevated slate with blue undertone for clear distinction from canvas */
+  --dag-minimap-bg: oklch(0.24 0.018 250);
+  --dag-minimap-mask: oklch(0.08 0.015 250 / 0.55);
+  --dag-minimap-border: oklch(0.32 0.02 250);
+  --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
 
   /* Panel shadow - darker in dark mode */
   --dag-panel-shadow: -0.25rem 0 1rem -0.25rem rgba(0, 0, 0, 0.3);
@@ -206,10 +209,6 @@
    ========================================================================== */
 
 .dag-node {
-  /* GPU acceleration - composite layer */
-  transform: translateZ(0);
-  will-change: transform;
-
   /* Allow handles to overflow outside the node */
   overflow: visible;
 
@@ -218,7 +217,7 @@
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 2px 4px rgba(0, 0, 0, 0.06);
 
-  /* Smooth transitions using GPU-accelerated properties only */
+  /* Smooth transitions */
   transition:
     box-shadow var(--dag-transition-normal),
     border-color var(--dag-transition-normal);
@@ -278,9 +277,8 @@
   color: var(--dag-status-failed-text);
 }
 
-/* Task rows - GPU-accelerated positioning */
+/* Task rows */
 .dag-task-row {
-  will-change: transform;
   isolation: isolate;
 }
 
@@ -289,8 +287,6 @@
    ========================================================================== */
 
 .dag-scroll-container {
-  /* GPU layer for smooth scrolling */
-  transform: translateZ(0);
   /* Optimize scroll performance */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -406,28 +402,14 @@
   background: var(--dag-handle-bg) !important;
   border: 1.5px solid var(--dag-handle-border) !important;
   border-radius: 50% !important;
-
-  /* GPU layer */
-  transform: translateZ(0);
 }
 
 /* ==========================================================================
    ReactFlow Canvas Optimization
    ========================================================================== */
 
-/* GPU-accelerate the entire canvas */
-.react-flow__viewport {
-  will-change: transform;
-}
-
-/* Nodes container - GPU layer */
-.react-flow__nodes {
-  will-change: transform;
-}
-
-/* Individual node wrappers */
+/* Individual node wrappers - containment for layout isolation */
 .react-flow__node {
-  will-change: transform;
   contain: layout style;
 }
 
@@ -527,16 +509,23 @@
   fill: currentColor;
 }
 
-/* Minimap */
+/* Minimap - card-like appearance floating over canvas */
 .react-flow__minimap {
   background: var(--dag-minimap-bg);
-  border: 1px solid var(--dag-controls-border);
+  border: 1px solid var(--dag-minimap-border);
   border-radius: var(--dag-radius-md);
-  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1);
+  box-shadow:
+    var(--dag-minimap-inner-shadow),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .dark .react-flow__minimap {
-  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.3);
+  box-shadow:
+    var(--dag-minimap-inner-shadow),
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .react-flow__minimap-mask {
@@ -601,13 +590,12 @@
    ========================================================================== */
 
 /**
- * Base GPU acceleration - promotes element to its own composite layer.
- * Use for elements that will be animated or frequently transformed.
+ * GPU acceleration - promotes element to its own composite layer.
+ * WARNING: Only use during active animations, not statically.
+ * Static use causes blurry text/edges at different zoom levels.
  */
 .dag-gpu-accelerated {
-  transform: translate3d(0, 0, 0);
   will-change: transform;
-  backface-visibility: hidden;
 }
 
 /**
@@ -636,40 +624,19 @@
 }
 
 /* ==========================================================================
-   Panel Containers with GPU Acceleration
+   Panel Containers
    ========================================================================== */
 
 .dag-details-panel {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
   contain: layout style;
-}
-
-.dag-details-panel-handle {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
 }
 
 /* ==========================================================================
    Table Components
    ========================================================================== */
 
-.dag-table-container {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
-}
-
 .dag-table-header-wrapper {
   contain: layout style paint;
-}
-
-.dag-table-virtual-container {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
 }
 
 /* ==========================================================================
@@ -677,9 +644,6 @@
    ========================================================================== */
 
 .dag-dropdown {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
   contain: layout style;
 }
 
