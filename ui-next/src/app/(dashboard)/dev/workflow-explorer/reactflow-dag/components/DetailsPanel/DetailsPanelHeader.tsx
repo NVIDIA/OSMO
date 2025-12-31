@@ -56,15 +56,15 @@ const WIDTH_PRESET_ICONS = {
 /** View type for visual differentiation */
 export type HeaderViewType = "group" | "task";
 
-/** Badge configuration for each view type */
+/** Badge configuration for each view type - outline only, neutral */
 const VIEW_TYPE_BADGE = {
   group: {
     label: "Group",
-    className: "bg-blue-100 text-blue-700 ring-blue-600/20 dark:bg-blue-500/20 dark:text-blue-400 dark:ring-blue-500/30",
+    className: "bg-transparent text-gray-500 ring-gray-300 dark:text-zinc-400 dark:ring-zinc-600",
   },
   task: {
     label: "Task",
-    className: "bg-emerald-100 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/20 dark:text-emerald-400 dark:ring-emerald-500/30",
+    className: "bg-transparent text-gray-500 ring-gray-300 dark:text-zinc-400 dark:ring-zinc-600",
   },
 } as const;
 
