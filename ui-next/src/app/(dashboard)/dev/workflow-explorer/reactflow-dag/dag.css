@@ -314,6 +314,27 @@
   background: var(--dag-scrollbar-thumb-hover);
 }
 
+/* ==========================================================================
+   Expanded node depth shadows
+   ========================================================================== */
+
+/* Header shadow casting down onto task list */
+.dag-node-header-expanded {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+}
+
+.dark .dag-node-header-expanded {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.25);
+}
+
+/* Collapse lip shadow casting up onto task list */
+.dag-collapse-lip {
+  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.dark .dag-collapse-lip {
+  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.2);
+}
 
 /* Selection state - pure CSS, no JS re-render needed */
 .dag-node[data-selected="true"] {
