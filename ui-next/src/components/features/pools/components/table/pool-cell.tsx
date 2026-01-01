@@ -56,7 +56,7 @@ export function PoolCell({ pool, columnId, displayMode, compact, isShared }: Poo
         />
       );
     case "platforms":
-      return <PlatformPills platforms={pool.platforms} maxVisible={compact ? 1 : 2} />;
+      return <PlatformPills platforms={pool.platforms} />;
     case "backend":
       return (
         <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">

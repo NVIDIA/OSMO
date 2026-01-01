@@ -10,7 +10,7 @@
 
 /* =============================================================================
    CSS Custom Properties - Single source of truth for all dimensions
-   
+
    Using semantic HTML <table> for natural column sizing and alignment.
    ============================================================================= */
 :root {
@@ -18,7 +18,6 @@
   --pools-surface-elevated: #fafafa;
   --pools-surface-hover: #f4f4f5;
   --pools-surface-selected: #eff6ff;
-  --pools-text-tertiary: #a1a1aa;
   --pools-text-secondary: #71717a;
   --pools-status-online-border: #34d399;
   --pools-status-maintenance-border: #fbbf24;
@@ -37,7 +36,6 @@
   --pools-surface-elevated: #18181b;
   --pools-surface-hover: #27272a;
   --pools-surface-selected: rgba(59, 130, 246, 0.15);
-  --pools-text-tertiary: #71717a;
   --pools-text-secondary: #a1a1aa;
   --pools-status-online-border: #059669;
   --pools-status-maintenance-border: #facc15;
