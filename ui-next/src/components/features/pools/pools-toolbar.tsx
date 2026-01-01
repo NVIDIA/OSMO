@@ -10,7 +10,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { MonitorCheck, MonitorX, Rows3, Rows4, Columns } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,13 +24,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { Pool } from "@/lib/api/adapter";
 import { SmartSearch } from "@/components/ui/smart-search";
 import { usePoolsTableStore, usePoolsExtendedStore } from "./stores/pools-table-store";
-import { OPTIONAL_COLUMNS, POOL_SEARCH_FIELDS } from "./lib";
+import { OPTIONAL_COLUMNS, createPoolSearchFields } from "./lib";
 
 export interface PoolsToolbarProps {
   pools: Pool[];
+  sharingGroups?: string[][];
 }
 
-export const PoolsToolbar = memo(function PoolsToolbar({ pools }: PoolsToolbarProps) {
+export const PoolsToolbar = memo(function PoolsToolbar({ pools, sharingGroups = [] }: PoolsToolbarProps) {
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
   const compactMode = usePoolsTableStore((s) => s.compactMode);
   const searchChips = usePoolsTableStore((s) => s.searchChips);
@@ -40,15 +41,21 @@ export const PoolsToolbar = memo(function PoolsToolbar({ pools }: PoolsToolbarPr
   const displayMode = usePoolsExtendedStore((s) => s.displayMode);
   const toggleDisplayMode = usePoolsExtendedStore((s) => s.toggleDisplayMode);
 
+  // Create search fields with sharing context (memoized to avoid recreation)
+  const searchFields = useMemo(
+    () => createPoolSearchFields(sharingGroups),
+    [sharingGroups],
+  );
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="min-w-[300px] flex-1">
         <SmartSearch
           data={pools}
-          fields={POOL_SEARCH_FIELDS}
+          fields={searchFields}
           chips={searchChips}
           onChipsChange={setSearchChips}
-          placeholder="Search pools... (try 'status:online' or 'platform:dgx')"
+          placeholder="Search pools... (try 'pool:', 'platform:', 'shared:')"
         />
       </div>
 
@@ -80,7 +87,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({ pools }: PoolsToolbarPr
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="rounded p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               <Columns className="size-4" />
             </button>
