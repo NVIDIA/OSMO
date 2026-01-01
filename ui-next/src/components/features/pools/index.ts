@@ -8,41 +8,19 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-/**
- * Pool Feature Components
- *
- * Themed components for displaying pools and pool-specific UI.
- * Uses the generic DataTable component with pools-specific configuration.
- */
-
-// Legacy exports (for backwards compatibility during migration)
+// Main components
+export { PoolsTable, type PoolsTableProps } from "./components/table";
+export { PoolPanelLayout, type PoolPanelProps } from "./components/panel";
+export { GpuProgressCell, PlatformPills } from "./components/cells";
+export { PoolsToolbar, type PoolsToolbarProps } from "./pools-toolbar";
+export { PoolsLoading, type PoolsLoadingProps } from "./pools-loading";
 export { QuotaBar } from "./quota-bar";
 
-// Table-based components
-export { PoolsTable } from "./pools-table";
-export { PoolsToolbar } from "./pools-toolbar";
-export { PoolPanelLayout } from "./pool-panel";
-export { GpuProgressCell } from "./gpu-progress-cell";
-export { PlatformPills } from "./platform-pills";
-export { PoolsLoading } from "./pools-loading";
+// Lib exports
+export * from "./lib";
 
-// Column definitions
-export {
-  MANDATORY_COLUMNS,
-  OPTIONAL_COLUMNS,
-  ALL_COLUMNS,
-  COLUMN_MAP,
-  MANDATORY_COLUMN_IDS,
-  DEFAULT_VISIBLE_COLUMNS,
-  DEFAULT_COLUMN_ORDER,
-} from "./pool-columns";
-export type { PoolColumnId } from "./pool-columns";
-
-// Search fields
-export { POOL_SEARCH_FIELDS } from "./pool-search-fields";
-
-// Constants
-export * from "./constants";
+// Hooks
+export { usePoolSections, useSectionScroll, useLayoutDimensions, type StatusSection } from "./hooks";
 
 // Stores
 export { usePoolsTableStore, usePoolsExtendedStore } from "./stores/pools-table-store";

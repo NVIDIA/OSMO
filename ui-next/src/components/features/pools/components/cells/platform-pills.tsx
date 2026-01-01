@@ -8,21 +8,12 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-/**
- * Platform Pills Component
- *
- * Displays platform names as pills with responsive overflow:
- * - Shows as many pills as fit
- * - Shows "+N" for overflow
- * - Alphabetically sorted
- */
-
 "use client";
 
 import { memo, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { chip } from "@/lib/styles";
-import { PLATFORM } from "./constants";
+import { PLATFORM } from "../../lib";
 
 export interface PlatformPillsProps {
   /** List of platform names */

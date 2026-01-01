@@ -8,393 +8,119 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-/**
- * Pools Table Styles
- *
- * This stylesheet provides:
- * - CSS custom properties for theming
- * - Light/dark mode support via .dark class
- * - Data-attribute styling for status (avoids JS recalculation)
- * - CSS containment for performance
- *
- * THEMING:
- * - Uses CSS custom properties that change based on .dark class
- * - Components should use these variables for consistent theming
- * - Tailwind classes should use dark: prefix for mode-specific styles
- */
-
-/* ==========================================================================
-   CSS Custom Properties - Light mode (default)
-   ========================================================================== */
-
+/* CSS Custom Properties */
 :root {
-  /* Surfaces */
-  --pools-surface: #ffffff;
   --pools-surface-elevated: #fafafa;
   --pools-surface-hover: #f4f4f5;
   --pools-surface-selected: #eff6ff;
-
-  /* Borders */
-  --pools-border: #e4e4e7;
-  --pools-border-subtle: #f4f4f5;
-
-  /* Text */
-  --pools-text-primary: #18181b;
-  --pools-text-secondary: #71717a;
   --pools-text-tertiary: #a1a1aa;
-
-  /* Status: Online (emerald) */
-  --pools-status-online-bg: #ecfdf5;
+  --pools-text-secondary: #71717a;
   --pools-status-online-border: #34d399;
-  --pools-status-online-text: #059669;
-  --pools-status-online-dot: #10b981;
-
-  /* Status: Maintenance (amber) */
-  --pools-status-maintenance-bg: #fffbeb;
   --pools-status-maintenance-border: #fbbf24;
-  --pools-status-maintenance-text: #d97706;
-  --pools-status-maintenance-dot: #f59e0b;
-
-  /* Status: Offline (red) */
-  --pools-status-offline-bg: #fef2f2;
   --pools-status-offline-border: #f87171;
-  --pools-status-offline-text: #dc2626;
-  --pools-status-offline-dot: #ef4444;
-
-  /* Layout - rem-based for accessibility (scales with user font size) */
-  --pools-row-height: 3rem;           /* 48px at 16px base */
-  --pools-row-height-compact: 2rem;   /* 32px at 16px base */
-  --pools-section-height: 2.25rem;    /* 36px at 16px base */
-  --pools-header-height: 2.25rem;     /* 36px at 16px base */
-  --pools-table-min-height: 25rem;    /* 400px at 16px base */
-  --pools-border-width: 0.1875rem;    /* 3px at 16px base */
-
-  /* Panel */
-  --pools-panel-shadow: -4px 0 16px -4px rgba(0, 0, 0, 0.1);
+  --pools-row-height: 3rem;
+  --pools-row-height-compact: 2rem;
+  --pools-section-height: 2.25rem;
+  --pools-header-height: 2.25rem;
+  --pools-table-min-height: 25rem;
+  --pools-border-width: 0.1875rem;
 }
 
-/* ==========================================================================
-   CSS Custom Properties - Dark mode
-   ========================================================================== */
-
 .dark {
-  /* Surfaces */
-  --pools-surface: #09090b;
   --pools-surface-elevated: #18181b;
   --pools-surface-hover: #27272a;
   --pools-surface-selected: rgba(59, 130, 246, 0.15);
-
-  /* Borders */
-  --pools-border: #27272a;
-  --pools-border-subtle: #3f3f46;
-
-  /* Text */
-  --pools-text-primary: #fafafa;
-  --pools-text-secondary: #a1a1aa;
   --pools-text-tertiary: #71717a;
-
-  /* Status: Online (emerald) - with alpha */
-  --pools-status-online-bg: rgba(6, 78, 59, 0.6);
+  --pools-text-secondary: #a1a1aa;
   --pools-status-online-border: #059669;
-  --pools-status-online-text: #34d399;
-  --pools-status-online-dot: #10b981;
-
-  /* Status: Maintenance (amber) - with alpha */
-  --pools-status-maintenance-bg: rgba(120, 53, 15, 0.6);
   --pools-status-maintenance-border: #d97706;
-  --pools-status-maintenance-text: #fbbf24;
-  --pools-status-maintenance-dot: #f59e0b;
-
-  /* Status: Offline (red) - with alpha */
-  --pools-status-offline-bg: rgba(127, 29, 29, 0.6);
   --pools-status-offline-border: #dc2626;
-  --pools-status-offline-text: #f87171;
-  --pools-status-offline-dot: #ef4444;
-
-  /* Panel - heavier shadow in dark */
-  --pools-panel-shadow: -4px 0 16px -4px rgba(0, 0, 0, 0.4);
 }
 
-/* ==========================================================================
-   Data-Attribute Status Styling (no JS recalculation)
-   ========================================================================== */
+/* Status styling via data attributes */
+.pools-row[data-status="online"] { border-left: var(--pools-border-width) solid var(--pools-status-online-border); }
+.pools-row[data-status="maintenance"] { border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border); }
+.pools-row[data-status="offline"] { border-left: var(--pools-border-width) solid var(--pools-status-offline-border); }
+.pools-row[data-selected="true"] { background: var(--pools-surface-selected); }
 
-.pools-row[data-status="online"] {
-  border-left: var(--pools-border-width) solid var(--pools-status-online-border);
-}
-
-.pools-row[data-status="maintenance"] {
-  border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
-}
-
-.pools-row[data-status="offline"] {
-  border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-}
-
-.pools-row[data-selected="true"] {
-  background: var(--pools-surface-selected);
-}
-
-/* Status dot */
-.pools-status-dot[data-status="online"] {
-  background: var(--pools-status-online-dot);
-}
-
-.pools-status-dot[data-status="maintenance"] {
-  background: var(--pools-status-maintenance-dot);
-}
-
-.pools-status-dot[data-status="offline"] {
-  background: var(--pools-status-offline-dot);
-}
-
-/* ==========================================================================
-   CSS Containment Classes
-   ========================================================================== */
-
-/**
- * Strict containment - maximum layout isolation.
- * Use for table rows that don't affect siblings.
- */
-.pools-contained {
-  contain: layout style paint;
-}
-
-/**
- * Virtual list items - maximum isolation.
- */
-.pools-virtual-item {
-  contain: strict;
-  content-visibility: auto;
-}
-
-/**
- * Panel containers - layout + style containment.
- */
-.pools-panel {
-  contain: layout style;
-}
-
-/* ==========================================================================
-   GPU Acceleration (only during animation)
-   ========================================================================== */
-
-.pools-gpu-accelerated {
-  will-change: transform;
-}
-
-/* ==========================================================================
-   Reduced Motion Support
-   ========================================================================== */
+/* Panel containment */
+.pools-panel { contain: layout style; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pools-row,
-  .pools-progress-bar,
-  .pools-panel {
-    transition: none;
-  }
+  .pools-row, .pools-section-row, .pools-bottom-section { transition: none; }
 }
 
-/* ==========================================================================
-   Unified Table Layout
-   ========================================================================== */
-
-/**
- * Main table container - contains the sticky header and scroll area.
- * Uses flex layout to fill available height from parent.
- */
+/* Table layout */
 .pools-table-container {
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: var(--pools-table-min-height);
-  /* Height comes from parent via h-full */
 }
 
-/**
- * Table header - always sticky at top of container.
- */
-.pools-table-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  height: var(--pools-header-height);
-  background: var(--pools-surface-elevated);
-  /* border handled by Tailwind in the component */
-}
-
-/**
- * Scroll area for table content.
- * Uses CSS scroll-behavior for smooth scrolling (with scroll-padding for sticky headers).
- */
-.pools-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-  /* Account for sticky header when scrolling to anchors */
-  scroll-padding-top: calc(var(--pools-header-height) + var(--pools-section-height) * 3);
-}
-
-/* Reduce motion: instant scroll */
-@media (prefers-reduced-motion: reduce) {
-  .pools-scroll-area {
-    scroll-behavior: auto;
-  }
-}
-
-/**
- * Section header rows - sticky below the main header.
- * Uses CSS custom properties for positioning based on data-section-index attribute.
- * This allows CSS to handle the stacking math instead of JavaScript.
- */
 .pools-section-row {
   position: sticky;
   height: var(--pools-section-height);
   background: var(--pools-surface-elevated);
-  /* Default z-index, overridden by data attribute */
   z-index: 10;
 }
 
-/* CSS-based section stacking using data attributes */
-.pools-section-row[data-section-index="0"] {
-  top: var(--pools-header-height);
-  z-index: 13;
-}
-.pools-section-row[data-section-index="1"] {
-  top: calc(var(--pools-header-height) + var(--pools-section-height));
-  z-index: 12;
-}
-.pools-section-row[data-section-index="2"] {
-  top: calc(var(--pools-header-height) + var(--pools-section-height) * 2);
-  z-index: 11;
-}
+.pools-section-row[data-section-index="0"] { top: var(--pools-header-height); z-index: 13; }
+.pools-section-row[data-section-index="1"] { top: calc(var(--pools-header-height) + var(--pools-section-height)); z-index: 12; }
+.pools-section-row[data-section-index="2"] { top: calc(var(--pools-header-height) + var(--pools-section-height) * 2); z-index: 11; }
 
-/* Bottom stack section rows */
 .pools-bottom-section {
   position: absolute;
   height: var(--pools-section-height);
   background: var(--pools-surface-elevated);
 }
 
-.pools-bottom-section[data-stack-index="0"] {
-  bottom: 0;
-  z-index: 13;
-}
-.pools-bottom-section[data-stack-index="1"] {
-  bottom: var(--pools-section-height);
-  z-index: 12;
-}
-.pools-bottom-section[data-stack-index="2"] {
-  bottom: calc(var(--pools-section-height) * 2);
-  z-index: 11;
-}
+.pools-bottom-section[data-stack-index="0"] { bottom: 0; z-index: 13; }
+.pools-bottom-section[data-stack-index="1"] { bottom: var(--pools-section-height); z-index: 12; }
+.pools-bottom-section[data-stack-index="2"] { bottom: calc(var(--pools-section-height) * 2); z-index: 11; }
 
-/**
- * Pool row height - controlled via CSS custom property and data attribute.
- */
 .pools-row {
   height: var(--pools-row-height);
   contain: layout style;
-}
-
-.pools-row[data-compact="true"] {
-  height: var(--pools-row-height-compact);
-}
-
-/**
- * Hover states via CSS (no JS re-render needed).
- */
-.pools-row:not([data-selected="true"]):hover {
-  background: var(--pools-surface-hover);
-}
-
-.pools-section-row:hover,
-.pools-bottom-section:hover {
-  background: var(--pools-surface-hover);
-}
-
-/* ==========================================================================
-   Performance Optimizations
-   ========================================================================== */
-
-/**
- * Use content-visibility for off-screen rows.
- * This allows the browser to skip rendering until the row is near viewport.
- * contain-intrinsic-size provides estimated dimensions to prevent layout shift.
- */
-.pools-row {
   content-visibility: auto;
   contain-intrinsic-size: auto 100% auto var(--pools-row-height);
 }
 
 .pools-row[data-compact="true"] {
+  height: var(--pools-row-height-compact);
   contain-intrinsic-size: auto 100% auto var(--pools-row-height-compact);
 }
 
-/**
- * Hardware acceleration hints for animated elements.
- * Only applied during transitions to avoid memory overhead.
- */
-.pools-row,
-.pools-section-row,
-.pools-bottom-section {
+/* Hover states */
+.pools-row:not([data-selected="true"]):hover,
+.pools-section-row:hover,
+.pools-bottom-section:hover {
+  background: var(--pools-surface-hover);
+}
+
+.pools-row, .pools-section-row, .pools-bottom-section {
   transition: background-color 75ms ease-out;
 }
 
-/**
- * Focus-visible optimization: only show focus ring for keyboard navigation.
- */
-.pools-row:focus-visible,
-.pools-section-row:focus-visible,
-.pools-bottom-section:focus-visible {
+.pools-row:focus-visible, .pools-section-row:focus-visible, .pools-bottom-section:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--pools-status-online-border);
 }
 
-/* ==========================================================================
-   Grid Cell Optimization
-   ========================================================================== */
-
-/**
- * Prevent text overflow from breaking layout.
- */
 .pools-row > [role="cell"] {
-  min-width: 0; /* Allow flex/grid children to shrink below content size */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ==========================================================================
-   Scrollbar Styling
-   ========================================================================== */
-
-.pools-scroll-area,
+/* Scrollbar */
 .pools-scroll-container {
   scrollbar-width: thin;
   scrollbar-color: var(--pools-text-tertiary) transparent;
 }
 
-.pools-scroll-area::-webkit-scrollbar,
-.pools-scroll-container::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.pools-scroll-area::-webkit-scrollbar-track,
-.pools-scroll-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.pools-scroll-area::-webkit-scrollbar-thumb,
-.pools-scroll-container::-webkit-scrollbar-thumb {
-  background: var(--pools-text-tertiary);
-  border-radius: 4px;
-}
-
-.pools-scroll-area::-webkit-scrollbar-thumb:hover,
-.pools-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: var(--pools-text-secondary);
-}
+.pools-scroll-container::-webkit-scrollbar { width: 8px; height: 8px; }
+.pools-scroll-container::-webkit-scrollbar-track { background: transparent; }
+.pools-scroll-container::-webkit-scrollbar-thumb { background: var(--pools-text-tertiary); border-radius: 4px; }
+.pools-scroll-container::-webkit-scrollbar-thumb:hover { background: var(--pools-text-secondary); }
