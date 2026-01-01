@@ -118,16 +118,44 @@ export class PoolGenerator {
       { value: PoolStatus.MAINTENANCE, weight: 0.07 },
     ]);
 
-    // Platform configuration
-    const platforms: Record<string, PlatformMinimal> = {
-      [platform]: {
-        description: `${gpuType} platform in ${region}`,
-        host_network_allowed: false,
-        privileged_allowed: false,
-        allowed_mounts: ["/data", "/models", "/scratch"],
-        default_mounts: ["/data"],
-      },
+    // Platform configuration - some pools have multiple platforms
+    const platforms: Record<string, PlatformMinimal> = {};
+    
+    // Always include the primary platform
+    platforms[platform] = {
+      description: `${gpuType} platform in ${region}`,
+      host_network_allowed: false,
+      privileged_allowed: false,
+      allowed_mounts: ["/data", "/models", "/scratch"],
+      default_mounts: ["/data"],
     };
+
+    // ~40% of pools have 2+ platforms, ~20% have 3+, ~10% have 4+
+    const platformCount = faker.helpers.weightedArrayElement([
+      { value: 1, weight: 0.4 },
+      { value: 2, weight: 0.25 },
+      { value: 3, weight: 0.15 },
+      { value: 4, weight: 0.1 },
+      { value: 5, weight: 0.05 },
+      { value: 6, weight: 0.03 },
+      { value: 7, weight: 0.02 },
+    ]);
+
+    if (platformCount > 1) {
+      const additionalPlatforms = faker.helpers.arrayElements(
+        this.config.patterns.platforms.filter((p) => p !== platform),
+        Math.min(platformCount - 1, this.config.patterns.platforms.length - 1)
+      );
+      for (const addPlatform of additionalPlatforms) {
+        platforms[addPlatform] = {
+          description: `${faker.helpers.arrayElement(this.config.patterns.gpuTypes)} platform`,
+          host_network_allowed: faker.datatype.boolean(),
+          privileged_allowed: false,
+          allowed_mounts: ["/data", "/models"],
+          default_mounts: ["/data"],
+        };
+      }
+    }
 
     return {
       name,
