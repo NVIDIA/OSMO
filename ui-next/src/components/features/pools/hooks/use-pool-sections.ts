@@ -22,7 +22,7 @@ export interface StatusSection {
   pools: Pool[];
 }
 
-function sortPools(pools: Pool[], sort: SortState<PoolColumnId>): Pool[] {
+function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "used" | "free"): Pool[] {
   if (!sort.column) return pools;
 
   return [...pools].sort((a, b) => {
@@ -31,21 +31,22 @@ function sortPools(pools: Pool[], sort: SortState<PoolColumnId>): Pool[] {
       case "name":
         cmp = a.name.localeCompare(b.name);
         break;
-      case "description":
-        cmp = (a.description ?? "").localeCompare(b.description ?? "");
-        break;
-      case "quota":
-        cmp = a.quota.used - b.quota.used;
-        break;
-      case "capacity":
-        cmp = a.quota.totalUsage - b.quota.totalUsage;
-        break;
-      case "platforms":
-        cmp = a.platforms.length - b.platforms.length;
-        break;
       case "backend":
         cmp = a.backend.localeCompare(b.backend);
         break;
+      case "quota":
+        // Sort by available (free) or used based on displayMode
+        cmp = displayMode === "free"
+          ? a.quota.free - b.quota.free
+          : a.quota.used - b.quota.used;
+        break;
+      case "capacity":
+        // Sort by total available (totalFree) or totalUsage based on displayMode
+        cmp = displayMode === "free"
+          ? a.quota.totalFree - b.quota.totalFree
+          : a.quota.totalUsage - b.quota.totalUsage;
+        break;
+      // "platforms" and "description" are not sortable - no case needed
     }
     return sort.direction === "asc" ? cmp : -cmp;
   });
@@ -56,9 +57,10 @@ interface UsePoolSectionsOptions {
   searchChips: SearchChip[];
   sort: SortState<PoolColumnId>;
   sharingGroups: string[][];
+  displayMode: "used" | "free";
 }
 
-export function usePoolSections({ pools, searchChips, sort, sharingGroups }: UsePoolSectionsOptions) {
+export function usePoolSections({ pools, searchChips, sort, sharingGroups, displayMode }: UsePoolSectionsOptions) {
   const filteredPools = useMemo(() => {
     if (searchChips.length === 0) return pools;
     return filterByChips(pools, searchChips, POOL_SEARCH_FIELDS);
@@ -76,10 +78,10 @@ export function usePoolSections({ pools, searchChips, sort, sharingGroups }: Use
       return {
         status: display.category,
         label: display.label,
-        pools: sortPools(grouped.get(status) ?? [], sort),
+        pools: sortPools(grouped.get(status) ?? [], sort, displayMode),
       };
     }).filter((s) => s.pools.length > 0);
-  }, [filteredPools, sort]);
+  }, [filteredPools, sort, displayMode]);
 
   const sharingMap = useMemo(() => {
     const map = new Map<string, boolean>();
