@@ -12,29 +12,31 @@
  * Pool Feature Components
  *
  * Themed components for displaying pools and pool-specific UI.
- * These components use the headless hooks for behavior.
- *
- * Note: Resource components (ResourceTable, ResourcePanel, AdaptiveSummary)
- * have been moved to @/components/features/resources as they are
- * resource-domain components used across multiple pages.
+ * Uses the generic DataTable component with pools-specific configuration.
  */
 
 // Legacy exports (for backwards compatibility during migration)
-export { PoolRow, PoolRowSkeleton } from "./pool-row";
 export { QuotaBar } from "./quota-bar";
 
-// New table-based components
+// Table-based components
 export { PoolsTable } from "./pools-table";
 export { PoolsToolbar } from "./pools-toolbar";
 export { PoolPanelLayout } from "./pool-panel";
-export { PoolsTableRow } from "./pools-table-row";
 export { GpuProgressCell } from "./gpu-progress-cell";
 export { PlatformPills } from "./platform-pills";
 export { PoolsLoading } from "./pools-loading";
 
-// Column definitions and configuration
-export { POOL_COLUMNS, getGridTemplate, getMinTableWidth } from "./pool-columns";
-export type { PoolColumnDef } from "./pool-columns";
+// Column definitions
+export {
+  MANDATORY_COLUMNS,
+  OPTIONAL_COLUMNS,
+  ALL_COLUMNS,
+  COLUMN_MAP,
+  MANDATORY_COLUMN_IDS,
+  DEFAULT_VISIBLE_COLUMNS,
+  DEFAULT_COLUMN_ORDER,
+} from "./pool-columns";
+export type { PoolColumnId } from "./pool-columns";
 
 // Search fields
 export { POOL_SEARCH_FIELDS } from "./pool-search-fields";

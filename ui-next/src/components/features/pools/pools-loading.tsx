@@ -169,8 +169,11 @@ export function PoolsLoading({ compact = false, className }: PoolsLoadingProps) 
         </div>
       </div>
 
-      {/* Unified table card - fills remaining space with min height */}
-      <div className={cn(card.base, "min-h-[400px] flex-1 overflow-hidden")}>
+      {/* Unified table card - fills remaining space with min height from CSS */}
+      <div
+        className={cn(card.base, "flex-1 overflow-hidden")}
+        style={{ minHeight: "var(--pools-table-min-height, 25rem)" }}
+      >
         {/* Table header skeleton */}
         <div
           className="grid items-center gap-6 border-b border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/50"
