@@ -12,8 +12,11 @@ import { Cpu, Box, Layers } from "lucide-react";
 import { ResourceTable, AdaptiveSummary } from "@/components/features/resources";
 import { FilterBar, ApiError } from "@/components/shared";
 import { useResources } from "@/headless";
+import { usePage } from "@/components/shell";
 
 export default function ResourcesPage() {
+  usePage({ title: "Resources" });
+
   const {
     pools,
     platforms,
@@ -48,13 +51,7 @@ export default function ResourcesPage() {
   } = useResources();
 
   return (
-    <div className="flex h-full flex-col gap-6">
-      {/* Page header */}
-      <div className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">View and filter resources across all pools</p>
-      </div>
-
+    <div className="flex h-full flex-col">
       {/* Resources section with integrated filter bar */}
       <section className="flex min-h-0 flex-1 flex-col gap-4">
         {/* API Error - shown outside table container */}

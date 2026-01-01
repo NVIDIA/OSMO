@@ -1,3 +1,11 @@
+// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
 "use client";
 
 import { Search, ChevronDown, X } from "lucide-react";
@@ -7,8 +15,11 @@ import { card, section, heading, clearButton } from "@/lib/styles";
 import { PoolRow, PoolRowSkeleton } from "@/components/features/pools";
 import { ApiError } from "@/components/shared";
 import { usePoolsList } from "@/headless";
+import { usePage } from "@/components/shell";
 
 export default function PoolsPage() {
+  usePage({ title: "Pools" });
+
   const {
     groupedPools,
     defaultPool,
@@ -26,14 +37,8 @@ export default function PoolsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pools</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Compute pools and GPU quota allocation</p>
-        </div>
-
-        {/* Search */}
+      {/* Search */}
+      <div className="flex justify-end">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
@@ -53,6 +58,7 @@ export default function PoolsPage() {
           )}
         </div>
       </div>
+
 
       {/* Default pool (pinned) */}
       {defaultPool && (

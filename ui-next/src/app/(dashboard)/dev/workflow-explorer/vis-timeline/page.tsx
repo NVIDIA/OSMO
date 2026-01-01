@@ -26,6 +26,7 @@ import {
   Maximize2,
   Minimize2,
 } from "lucide-react";
+import { usePage } from "@/components/shell";
 
 // Import vis-timeline CSS
 import "vis-timeline/styles/vis-timeline-graph2d.css";
@@ -326,6 +327,14 @@ function DetailPanel({
 // ============================================================================
 
 export default function VisTimelinePage() {
+  usePage({
+    title: "vis-timeline Gantt",
+    breadcrumbs: [
+      { label: "Dev", href: "/dev" },
+      { label: "Workflow Explorer", href: "/dev/workflow-explorer" },
+    ],
+  });
+
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<Timeline | null>(null);
 
