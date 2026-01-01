@@ -75,7 +75,7 @@ export default function PoolsPage() {
         {/* Toolbar with search and controls */}
         <div className="shrink-0">
           <InlineErrorBoundary title="Toolbar error" compact>
-            <PoolsToolbar pools={pools} />
+            <PoolsToolbar pools={pools} sharingGroups={sharingGroups} />
           </InlineErrorBoundary>
         </div>
 

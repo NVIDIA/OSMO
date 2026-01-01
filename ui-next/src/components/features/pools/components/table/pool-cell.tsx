@@ -20,9 +20,10 @@ interface PoolCellProps {
   displayMode: "used" | "free";
   compact: boolean;
   isShared: boolean;
+  onFilterBySharedPools?: () => void;
 }
 
-export function PoolCell({ pool, columnId, displayMode, compact, isShared }: PoolCellProps) {
+export function PoolCell({ pool, columnId, displayMode, compact, isShared, onFilterBySharedPools }: PoolCellProps) {
   switch (columnId) {
     case "name":
       return (
@@ -53,6 +54,7 @@ export function PoolCell({ pool, columnId, displayMode, compact, isShared }: Poo
           displayMode={displayMode}
           compact={compact}
           isShared={isShared}
+          onFilterBySharedPools={onFilterBySharedPools}
         />
       );
     case "platforms":
