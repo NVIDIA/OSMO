@@ -12,16 +12,20 @@ import type { ColumnDef, OptionalColumnDef } from "@/lib/table";
 
 export type PoolColumnId = "name" | "description" | "quota" | "capacity" | "platforms" | "backend";
 
+// Column widths:
+// - { fit, share }: content-sized minimum, share controls grow/shrink
+// - { min, share }: rem-based minimum floor, share controls grow/shrink
+// - number: fixed width in rem (no grow/shrink)
 export const MANDATORY_COLUMNS: ColumnDef<PoolColumnId>[] = [
-  { id: "name", label: "Pool", menuLabel: "Pool Name", width: { min: 100, share: 1.5 }, align: "left", sortable: true },
+  { id: "name", label: "Pool", menuLabel: "Pool Name", width: { fit: true, share: 1.5 }, align: "left", sortable: true },
 ];
 
 export const OPTIONAL_COLUMNS: OptionalColumnDef<PoolColumnId>[] = [
-  { id: "description", label: "Description", menuLabel: "Description", width: { min: 120, share: 3 }, align: "left", sortable: false, defaultVisible: true },
-  { id: "quota", label: "Quota (GPU)", menuLabel: "GPU Quota", width: { min: 110, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "capacity", label: "Capacity (GPU)", menuLabel: "GPU Capacity", width: { min: 130, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "platforms", label: "Platforms", menuLabel: "Platforms", width: { min: 100, share: 1.5 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "backend", label: "Backend", menuLabel: "Backend", width: { min: 80, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
+  { id: "description", label: "Description", menuLabel: "Description", width: { min: 2, share: 2 }, align: "left", sortable: false, defaultVisible: true },
+  { id: "quota", label: "Quota (GPU)", menuLabel: "GPU Quota", width: { fit: true, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "capacity", label: "Capacity (GPU)", menuLabel: "GPU Capacity", width: { fit: true, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "platforms", label: "Platforms", menuLabel: "Platforms", width: { min: 6, share: 1.5 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "backend", label: "Backend", menuLabel: "Backend", width: { fit: true, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
 ];
 
 export const ALL_COLUMNS: ColumnDef<PoolColumnId>[] = [

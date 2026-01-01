@@ -15,6 +15,7 @@ interface LayoutDimensions {
   sectionHeight: number;
   rowHeight: number;
   rowHeightCompact: number;
+  gap: number;
 }
 
 const DEFAULTS: LayoutDimensions = {
@@ -22,6 +23,7 @@ const DEFAULTS: LayoutDimensions = {
   sectionHeight: 36,
   rowHeight: 48,
   rowHeightCompact: 32,
+  gap: 24,
 };
 
 function parseCssValue(value: string, rootFontSize: number): number {
@@ -47,6 +49,7 @@ export function useLayoutDimensions(): LayoutDimensions {
       sectionHeight: getCssVar("--pools-section-height", "2.25rem"),
       rowHeight: getCssVar("--pools-row-height", "3rem"),
       rowHeightCompact: getCssVar("--pools-row-height-compact", "2rem"),
+      gap: getCssVar("--pools-gap", "1.5rem"),
     });
   }, []);
 
