@@ -11,9 +11,10 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { Share2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { progressTrack, getProgressColor, badge as badgeStyles } from "@/lib/styles";
+import { progressTrack, getProgressColor } from "@/lib/styles";
 import type { Pool } from "@/lib/api/adapter";
 import { getSharingInfo } from "@/lib/api/adapter/transforms";
 
@@ -68,8 +69,9 @@ export const PanelContent = memo(function PanelContent({ pool, sharingGroups }: 
           <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
             GPU Capacity
             {sharedWith && (
-              <span className={badgeStyles.info} title={`Shared with: ${sharedWith.join(", ")}`}>
-                🔗 Shared
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-inset ring-violet-500/20 dark:text-violet-300 dark:ring-violet-400/30">
+                <span className="h-1.5 w-1.5 rounded-full bg-violet-500 dark:bg-violet-400" />
+                Shared
               </span>
             )}
           </h3>
@@ -82,7 +84,10 @@ export const PanelContent = memo(function PanelContent({ pool, sharingGroups }: 
             </div>
             <div className={cn(progressTrack, "h-2")}>
               <div
-                className={cn("h-full rounded-full transition-all", getProgressColor(capacityPercent))}
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  sharedWith ? "pools-shared-capacity-bar" : getProgressColor(capacityPercent)
+                )}
                 style={{ width: `${Math.min(capacityPercent, 100)}%` }}
               />
             </div>
@@ -93,10 +98,21 @@ export const PanelContent = memo(function PanelContent({ pool, sharingGroups }: 
           </div>
 
           {sharedWith && sharedWith.length > 0 && (
-            <div className="mt-3 rounded-md bg-blue-50 p-3 dark:bg-blue-950/30">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Shares capacity with:</strong> {sharedWith.join(", ")}
-              </p>
+            <div className="mt-3 rounded-lg bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.05] p-3 ring-1 ring-inset ring-violet-500/15 dark:ring-violet-400/20">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-300">
+                <Share2 className="h-3.5 w-3.5" />
+                Shares capacity with
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {sharedWith.map((poolName) => (
+                  <span
+                    key={poolName}
+                    className="inline-flex items-center rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700"
+                  >
+                    {poolName}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </section>

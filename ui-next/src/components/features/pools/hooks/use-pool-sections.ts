@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
 import type { SortState } from "@/lib/table";
 import { filterByChips, type SearchChip } from "@/components/ui/smart-search";
-import { POOL_SEARCH_FIELDS } from "../lib/pool-search-fields";
+import { createPoolSearchFields } from "../lib/pool-search-fields";
 import { STATUS_ORDER, getStatusDisplay } from "../lib/constants";
 import type { PoolColumnId } from "../lib/pool-columns";
 
@@ -61,10 +61,16 @@ interface UsePoolSectionsOptions {
 }
 
 export function usePoolSections({ pools, searchChips, sort, sharingGroups, displayMode }: UsePoolSectionsOptions) {
+  // Create search fields with sharing context
+  const searchFields = useMemo(
+    () => createPoolSearchFields(sharingGroups),
+    [sharingGroups],
+  );
+
   const filteredPools = useMemo(() => {
     if (searchChips.length === 0) return pools;
-    return filterByChips(pools, searchChips, POOL_SEARCH_FIELDS);
-  }, [pools, searchChips]);
+    return filterByChips(pools, searchChips, searchFields);
+  }, [pools, searchChips, searchFields]);
 
   const sections: StatusSection[] = useMemo(() => {
     const grouped = new Map<string, Pool[]>();
