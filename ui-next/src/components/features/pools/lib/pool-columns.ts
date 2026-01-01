@@ -24,7 +24,7 @@ export const OPTIONAL_COLUMNS: OptionalColumnDef<PoolColumnId>[] = [
   { id: "description", label: "Description", menuLabel: "Description", width: { min: 2, share: 2 }, align: "left", sortable: false, defaultVisible: true },
   { id: "quota", label: "Quota (GPU)", menuLabel: "GPU Quota", width: { fit: true, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
   { id: "capacity", label: "Capacity (GPU)", menuLabel: "GPU Capacity", width: { fit: true, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "platforms", label: "Platforms", menuLabel: "Platforms", width: { min: 6, share: 1.5 }, align: "left", sortable: true, defaultVisible: true },
+  { id: "platforms", label: "Platforms", menuLabel: "Platforms", width: { min: 6, share: 1.5 }, align: "left", sortable: false, defaultVisible: true },
   { id: "backend", label: "Backend", menuLabel: "Backend", width: { fit: true, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
 ];
 
