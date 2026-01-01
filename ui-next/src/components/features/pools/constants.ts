@@ -21,24 +21,33 @@ import { PoolStatus } from "@/lib/api/generated";
 // Layout Dimensions
 // =============================================================================
 
+/**
+ * Layout dimensions - these are reference values.
+ * The actual values are defined as CSS custom properties in pools.css
+ * and read at runtime via the useLayoutDimensions hook for responsiveness.
+ *
+ * CSS Custom Properties (in pools.css):
+ * - --pools-row-height: 3rem (48px at 16px base)
+ * - --pools-row-height-compact: 2rem (32px at 16px base)
+ * - --pools-section-height: 2.25rem (36px at 16px base)
+ * - --pools-header-height: 2.25rem (36px at 16px base)
+ * - --pools-table-min-height: 25rem (400px at 16px base)
+ * - --pools-border-width: 0.1875rem (3px at 16px base)
+ */
 export const LAYOUT = {
-  /** Default row height in pixels */
-  ROW_HEIGHT: 48,
-  /** Compact row height in pixels */
-  ROW_HEIGHT_COMPACT: 32,
-  /** Section header row height in pixels */
-  SECTION_ROW_HEIGHT: 36,
-  /** Table header height in pixels */
-  HEADER_HEIGHT: 40,
-  /** Toolbar height in pixels (search + controls) */
-  TOOLBAR_HEIGHT: 56,
-  /** Page padding in pixels */
-  PAGE_PADDING: 24,
-  /** Minimum table height in pixels */
-  TABLE_MIN_HEIGHT: 400,
-  /** Gap between columns in pixels */
+  /** Default row height in rem units (source: --pools-row-height) */
+  ROW_HEIGHT_REM: "3rem",
+  /** Compact row height in rem units (source: --pools-row-height-compact) */
+  ROW_HEIGHT_COMPACT_REM: "2rem",
+  /** Section header row height in rem units (source: --pools-section-height) */
+  SECTION_ROW_HEIGHT_REM: "2.25rem",
+  /** Table header height in rem units (source: --pools-header-height) */
+  HEADER_HEIGHT_REM: "2.25rem",
+  /** Minimum table height in rem units (source: --pools-table-min-height) */
+  TABLE_MIN_HEIGHT_REM: "25rem",
+  /** Gap between columns in pixels (design constant, not user-scalable) */
   COLUMN_GAP: 24,
-  /** Padding for cells */
+  /** Padding for cells in pixels (design constant) */
   CELL_PADDING_X: 12,
 } as const;
 
