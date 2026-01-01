@@ -30,6 +30,12 @@ export interface SearchField<T> {
   getValues: (data: T[]) => string[];
   /** Check if an item matches this field's value */
   match: (item: T, value: string) => boolean;
+  /** If true, field only supports free-text search (no dropdown suggestions) */
+  freeTextOnly?: boolean;
+  /** If true, only values from getValues are valid - free text not allowed */
+  requiresValidValue?: boolean;
+  /** Custom hint text shown in dropdown (defaults to label) */
+  hint?: string;
 }
 
 /**
