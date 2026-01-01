@@ -29,15 +29,13 @@
 
 import { useMemo } from "react";
 import { usePools } from "@/lib/api/adapter";
-import { ApiError, InlineErrorBoundary } from "@/components/shared";
+import { InlineErrorBoundary } from "@/components/shared";
 import { usePage } from "@/components/shell";
 import {
   PoolsTable,
   PoolsToolbar,
   PoolPanelLayout,
-  PoolsLoading,
   usePoolsExtendedStore,
-  usePoolsTableStore,
 } from "@/components/features/pools";
 
 // =============================================================================
@@ -46,9 +44,6 @@ import {
 
 export default function PoolsPage() {
   usePage({ title: "Pools" });
-
-  // Compact mode from store
-  const compactMode = usePoolsTableStore((s) => s.compactMode);
 
   // Fetch pools data
   const { pools, sharingGroups, isLoading, error, refetch } = usePools();
@@ -63,29 +58,13 @@ export default function PoolsPage() {
     [pools, selectedPoolName],
   );
 
-  // Pools data for table
-  const poolsData = useMemo(() => ({ pools, sharingGroups }), [pools, sharingGroups]);
+  // Pools data for table (null when loading or error)
+  const poolsData = useMemo(
+    () => (pools.length > 0 || !isLoading ? { pools, sharingGroups } : null),
+    [pools, sharingGroups, isLoading],
+  );
 
-  // Loading state - show skeleton that matches final layout
-  if (isLoading) {
-    return <PoolsLoading compact={compactMode} />;
-  }
-
-  // Error state - fills available space
-  if (error) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <ApiError
-          error={error}
-          onRetry={refetch}
-          title="Unable to load pools"
-          authAware
-          loginMessage="You need to log in to view pools."
-        />
-      </div>
-    );
-  }
-
+  // Always render the shell - loading/error/empty handled inline
   return (
     <PoolPanelLayout
       pool={selectedPool}
@@ -93,21 +72,26 @@ export default function PoolsPage() {
       onClose={() => setSelectedPool(null)}
     >
       <div className="flex h-full flex-col gap-4">
-        {/* Toolbar with search and controls - wrapped in error boundary */}
+        {/* Toolbar with search and controls */}
         <div className="shrink-0">
           <InlineErrorBoundary title="Toolbar error" compact>
             <PoolsToolbar pools={pools} />
           </InlineErrorBoundary>
         </div>
 
-        {/* Main pools table - fills remaining space */}
+        {/* Main pools table - handles loading/error/empty internally */}
         <div className="min-h-0 flex-1">
           <InlineErrorBoundary
             title="Unable to display pools table"
             resetKeys={[pools.length]}
             onReset={refetch}
           >
-            <PoolsTable poolsData={poolsData} isLoading={isLoading} />
+            <PoolsTable
+              poolsData={poolsData}
+              isLoading={isLoading}
+              error={error ?? undefined}
+              onRetry={refetch}
+            />
           </InlineErrorBoundary>
         </div>
       </div>
