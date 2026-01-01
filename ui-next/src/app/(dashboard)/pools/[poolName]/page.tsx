@@ -1,5 +1,3 @@
-"use client";
-
 // Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -8,16 +6,16 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
-import Link from "next/link";
+"use client";
+
 import { useParams } from "next/navigation";
-import { ArrowLeft, Server, Cpu, Box } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Server, Cpu, Box } from "lucide-react";
 import { ResourceTable, AdaptiveSummary } from "@/components/features/resources";
 import { QuotaBar } from "@/components/features/pools";
 import { FilterBar, ApiError } from "@/components/shared";
 import { usePoolDetail } from "@/headless";
-import { getPoolStatusDisplay } from "@/lib/constants/ui";
 import { heading } from "@/lib/styles";
+import { usePage } from "@/components/shell";
 
 export default function PoolDetailPage() {
   const params = useParams();
@@ -52,35 +50,14 @@ export default function PoolDetailPage() {
   // Combine errors - show pool error first, then resources error
   const error = poolError || resourcesError;
 
-  const status = getPoolStatusDisplay(pool?.status);
+  // Set page header with breadcrumbs
+  usePage({
+    title: poolName,
+    breadcrumbs: [{ label: "Pools", href: "/pools" }],
+  });
 
   return (
     <div className="flex h-full flex-col gap-6">
-      {/* Header with breadcrumb */}
-      <div className="shrink-0 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/pools"
-            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Pools
-          </Link>
-          <span className="text-zinc-300 dark:text-zinc-700">/</span>
-          <h1 className="text-2xl font-bold tracking-tight">{poolName}</h1>
-        </div>
-
-        {pool && (
-          <div className={cn("flex items-center gap-2 text-sm font-medium", status.className)}>
-            <span>{status.icon}</span>
-            <span>{status.label}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Description */}
-      {pool?.description && <p className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">{pool.description}</p>}
-
       {/* API Error */}
       {error && (
         <ApiError

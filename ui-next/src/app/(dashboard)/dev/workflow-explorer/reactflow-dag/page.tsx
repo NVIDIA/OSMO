@@ -43,6 +43,7 @@ import {
   MINIMAP,
   BACKGROUND,
 } from "./constants";
+import { usePage } from "@/components/shell";
 
 import {
   nodeTypes,
@@ -68,6 +69,14 @@ import { EXAMPLE_WORKFLOWS, type WorkflowPattern } from "../mock-workflow-v2";
 // ============================================================================
 
 function ReactFlowDagPageInner() {
+  usePage({
+    title: "ReactFlow DAG",
+    breadcrumbs: [
+      { label: "Dev", href: "/dev" },
+      { label: "Workflow Explorer", href: "/dev/workflow-explorer" },
+    ],
+  });
+
   const [workflowPattern, setWorkflowPattern] = useState<WorkflowPattern>("complex");
   const [showMinimap, setShowMinimap] = useState(true);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);

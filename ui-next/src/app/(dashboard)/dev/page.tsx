@@ -6,8 +6,11 @@
 // distribution of this software and related documentation without an express
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
+"use client";
+
 import Link from "next/link";
 import { FlaskConical, GitBranch, HelpCircle, LayoutList, BarChart3, Workflow } from "lucide-react";
+import { usePage } from "@/components/shell";
 
 /**
  * Development Pages Index
@@ -32,6 +35,8 @@ const devPages = [
 ];
 
 export default function DevIndexPage() {
+  usePage({ title: "Dev" });
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       {/* Header */}
@@ -39,10 +44,7 @@ export default function DevIndexPage() {
         <div className="p-2 rounded-lg bg-purple-500/10">
           <FlaskConical className="h-6 w-6 text-purple-400" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Development Pages</h1>
-          <p className="text-sm text-muted-foreground">Design exploration, prototypes, and experimental features</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Design exploration, prototypes, and experimental features</p>
       </div>
 
       {/* Warning */}

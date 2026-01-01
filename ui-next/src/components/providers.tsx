@@ -15,6 +15,7 @@ import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 import { SidebarProvider } from "@/components/shell/sidebar-context";
+import { PageProvider } from "@/components/shell/page-context";
 import { AuthProvider, UserProvider } from "@/lib/auth";
 import { MockProvider } from "@/mocks/MockProvider";
 import { isApiError } from "@/lib/api/fetcher";
@@ -88,7 +89,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
           >
             <AuthProvider>
               <UserProvider>
-                <SidebarProvider>{children}</SidebarProvider>
+                <SidebarProvider>
+                  <PageProvider>{children}</PageProvider>
+                </SidebarProvider>
               </UserProvider>
             </AuthProvider>
           </ThemeProvider>

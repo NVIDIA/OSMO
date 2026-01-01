@@ -1,14 +1,20 @@
+// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
 "use client";
 
+import { usePage } from "@/components/shell";
+
 export default function DashboardPage() {
+  usePage({ title: "Dashboard" });
+
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Overview of your workflows and resources</p>
-      </div>
-
       {/* Stats cards - TODO: Wire to real API endpoints */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Active Workflows" />
