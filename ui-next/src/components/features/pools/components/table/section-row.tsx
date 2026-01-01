@@ -15,37 +15,43 @@ import { cn } from "@/lib/utils";
 
 export interface SectionRowProps {
   label: string;
-  icon: string;
+  status: string;
   count: number;
   sectionIndex: number;
+  columnCount: number;
   onJumpTo: () => void;
 }
 
 export const SectionRow = memo(function SectionRow({
   label,
-  icon,
+  status,
   count,
   sectionIndex,
+  columnCount,
   onJumpTo,
 }: SectionRowProps) {
   return (
-    <button
-      type="button"
-      onClick={onJumpTo}
+    <tr
       data-section-index={sectionIndex}
-      className={cn(
-        "pools-section-row",
-        "flex w-full items-center gap-2 px-3",
-        "border-b border-zinc-200 dark:border-zinc-700",
-        "text-left text-sm font-medium",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset",
-        "transition-shadow duration-150",
-      )}
-      aria-label={`Jump to ${label} section`}
+      data-status={status}
+      className="pools-section-row"
     >
-      <span>{icon}</span>
-      <span className="text-zinc-900 dark:text-zinc-100">{label}</span>
-      <span className="text-zinc-500 dark:text-zinc-400">({count})</span>
-    </button>
+      <td colSpan={columnCount} className="p-0">
+        <button
+          type="button"
+          onClick={onJumpTo}
+          className={cn(
+            "flex w-full items-center gap-2 px-3",
+            "text-left text-xs font-semibold uppercase tracking-wider",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset",
+          )}
+          style={{ height: "var(--pools-section-height)" }}
+          aria-label={`Jump to ${label} section`}
+        >
+          <span className="pools-section-label">{label}</span>
+          <span className="pools-section-count">{count}</span>
+        </button>
+      </td>
+    </tr>
   );
 });
