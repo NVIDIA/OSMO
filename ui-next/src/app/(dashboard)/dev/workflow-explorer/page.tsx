@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GitBranch, BarChart3, Clock, Loader2, CheckCircle, XCircle, ArrowRight, Workflow } from "lucide-react";
+import { usePage } from "@/components/shell";
 
 import {
   EXAMPLE_WORKFLOWS,
@@ -148,24 +149,21 @@ const visualizations = [
 // ============================================================================
 
 export default function WorkflowExplorerPage() {
+  usePage({
+    title: "Workflow Explorer",
+    breadcrumbs: [{ label: "Dev", href: "/dev" }],
+  });
+
   const [workflowPattern, setWorkflowPattern] = useState<WorkflowPattern>("complex");
 
   const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 rounded-lg bg-cyan-500/10">
-          <Workflow className="h-6 w-6 text-cyan-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Workflow Visualization Explorer</h1>
-          <p className="text-sm text-muted-foreground">
-            Explore different approaches for visualizing workflow DAGs and timelines
-          </p>
-        </div>
-      </div>
+      {/* Description */}
+      <p className="text-sm text-muted-foreground mb-8">
+        Explore different approaches for visualizing workflow DAGs and timelines
+      </p>
 
       {/* Workflow Pattern Selector */}
       <div className="mb-8 p-6 rounded-lg border border-zinc-800 bg-zinc-900/30">
