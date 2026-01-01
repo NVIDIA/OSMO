@@ -11,192 +11,120 @@
 /**
  * Pool Column Definitions
  *
- * Defines the columns for the pools table including:
- * - Width specifications (min/share for responsive layout)
- * - Sortability
- * - Visibility defaults
+ * Defines the columns for the pools table using the generic table types.
  */
 
-import type { ColumnUserWidths } from "@/lib/stores";
+import type { ColumnDef, OptionalColumnDef } from "@/lib/table";
 
 // =============================================================================
-// Column Width Types
+// Column ID Type
 // =============================================================================
 
-/**
- * Column width specification.
- * - number: fixed width in pixels
- * - object: flexible width with min floor and share proportion
- */
-export type ColumnWidth = number | { min: number; share: number };
-
-// =============================================================================
-// Column Definition
-// =============================================================================
-
-export interface PoolColumnDef {
-  /** Unique column identifier */
-  id: string;
-  /** Header label */
-  header: string;
-  /** Menu label (for show/hide dropdown) */
-  menuLabel?: string;
-  /** Width specification */
-  width: ColumnWidth;
-  /** Is this column sortable? */
-  sortable?: boolean;
-  /** Is this column mandatory (can't be hidden)? */
-  mandatory?: boolean;
-  /** Default visibility */
-  defaultVisible?: boolean;
-  /** Column alignment */
-  align?: "left" | "center" | "right";
-}
+export type PoolColumnId = "name" | "description" | "quota" | "capacity" | "platforms" | "backend";
 
 // =============================================================================
 // Column Definitions
 // =============================================================================
 
-export const POOL_COLUMNS: PoolColumnDef[] = [
+/**
+ * Mandatory columns that are always visible.
+ */
+export const MANDATORY_COLUMNS: ColumnDef<PoolColumnId>[] = [
   {
     id: "name",
-    header: "Pool",
+    label: "Pool",
     menuLabel: "Pool Name",
-    width: { min: 180, share: 2 },
+    width: { min: 100, share: 1.5 },
+    align: "left",
     sortable: true,
-    mandatory: true,
-    defaultVisible: true,
-    align: "left",
-  },
-  {
-    id: "description",
-    header: "Description",
-    width: { min: 150, share: 2.5 },
-    sortable: false,
-    defaultVisible: true,
-    align: "left",
-  },
-  {
-    id: "quota",
-    header: "Quota (GPU)",
-    menuLabel: "GPU Quota",
-    width: { min: 140, share: 1 },
-    sortable: true,
-    defaultVisible: true,
-    align: "left",
-  },
-  {
-    id: "capacity",
-    header: "Capacity (GPU)",
-    menuLabel: "GPU Capacity",
-    width: { min: 150, share: 1 },
-    sortable: true,
-    defaultVisible: true,
-    align: "left",
-  },
-  {
-    id: "platforms",
-    header: "Platforms",
-    width: { min: 120, share: 1.5 },
-    sortable: true,
-    defaultVisible: true,
-    align: "left",
-  },
-  {
-    id: "backend",
-    header: "Backend",
-    width: { min: 80, share: 0 },
-    sortable: true,
-    defaultVisible: false,
-    align: "left",
   },
 ];
 
-// Pre-computed lookup map for O(1) access
-export const POOL_COLUMN_MAP = new Map(POOL_COLUMNS.map((c) => [c.id, c]));
-
-// Mandatory column IDs (can't be hidden or reordered)
-export const MANDATORY_COLUMN_IDS = new Set(POOL_COLUMNS.filter((c) => c.mandatory).map((c) => c.id));
-
-// Default visible column IDs
-export const DEFAULT_VISIBLE_COLUMNS = POOL_COLUMNS.filter((c) => c.defaultVisible !== false).map((c) => c.id);
-
-// Default column order
-export const DEFAULT_COLUMN_ORDER = POOL_COLUMNS.map((c) => c.id);
-
-// =============================================================================
-// Grid Template Generation
-// =============================================================================
+/**
+ * Optional columns that can be toggled by the user.
+ */
+export const OPTIONAL_COLUMNS: OptionalColumnDef<PoolColumnId>[] = [
+  {
+    id: "description",
+    label: "Description",
+    menuLabel: "Description",
+    width: { min: 120, share: 3 },
+    align: "left",
+    sortable: false,
+    defaultVisible: true,
+  },
+  {
+    id: "quota",
+    label: "Quota (GPU)",
+    menuLabel: "GPU Quota",
+    width: { min: 110, share: 0.8 },
+    align: "left",
+    sortable: true,
+    defaultVisible: true,
+  },
+  {
+    id: "capacity",
+    label: "Capacity (GPU)",
+    menuLabel: "GPU Capacity",
+    width: { min: 130, share: 0.8 },
+    align: "left",
+    sortable: true,
+    defaultVisible: true,
+  },
+  {
+    id: "platforms",
+    label: "Platforms",
+    menuLabel: "Platforms",
+    width: { min: 100, share: 1.5 },
+    align: "left",
+    sortable: true,
+    defaultVisible: true,
+  },
+  {
+    id: "backend",
+    label: "Backend",
+    menuLabel: "Backend",
+    width: { min: 80, share: 0.5 },
+    align: "left",
+    sortable: true,
+    defaultVisible: false,
+  },
+];
 
 /**
- * Cache for grid templates to avoid recomputation.
+ * All columns combined.
  */
-const gridTemplateCache = new Map<string, string>();
+export const ALL_COLUMNS: ColumnDef<PoolColumnId>[] = [
+  ...MANDATORY_COLUMNS,
+  ...OPTIONAL_COLUMNS.map(({ defaultVisible, ...rest }) => rest),
+];
 
 /**
- * Generate CSS grid template from column definitions.
- * Respects user overrides for manual column resizing.
- *
- * @param visibleColumnIds - Currently visible columns
- * @param columnOrder - Current column order
- * @param userWidths - User overrides from manual resize
+ * Default visible optional column IDs.
  */
-export function getGridTemplate(
-  visibleColumnIds: string[],
-  columnOrder: string[],
-  userWidths: ColumnUserWidths = {},
-): string {
-  // Build ordered visible columns
-  const orderedColumns = columnOrder
-    .filter((id) => visibleColumnIds.includes(id))
-    .map((id) => POOL_COLUMN_MAP.get(id))
-    .filter((col): col is PoolColumnDef => col !== undefined);
-
-  // Create cache key
-  const key = orderedColumns
-    .map((c) => {
-      const user = userWidths[c.id];
-      return user ? `${c.id}:${user.value}:${user.mode}` : c.id;
-    })
-    .join(",");
-
-  let cached = gridTemplateCache.get(key);
-  if (cached) return cached;
-
-  // Build template
-  cached = orderedColumns
-    .map((col) => {
-      const user = userWidths[col.id];
-
-      // User override exists
-      if (user) {
-        if (user.mode === "fixed") return `${user.value}px`;
-        // min mode: user value as floor, share preserved
-        const share = typeof col.width === "number" ? 0 : col.width.share;
-        return share > 0 ? `minmax(${user.value}px, ${share}fr)` : `${user.value}px`;
-      }
-
-      // No override: use config
-      if (typeof col.width === "number") return `${col.width}px`;
-      return col.width.share > 0 ? `minmax(${col.width.min}px, ${col.width.share}fr)` : `${col.width.min}px`;
-    })
-    .join(" ");
-
-  gridTemplateCache.set(key, cached);
-  return cached;
-}
+export const DEFAULT_VISIBLE_OPTIONAL: PoolColumnId[] = OPTIONAL_COLUMNS
+  .filter((c) => c.defaultVisible)
+  .map((c) => c.id);
 
 /**
- * Calculate minimum table width based on column definitions.
+ * All default visible column IDs.
  */
-export function getMinTableWidth(visibleColumnIds: string[], columnOrder: string[]): number {
-  const orderedColumns = columnOrder
-    .filter((id) => visibleColumnIds.includes(id))
-    .map((id) => POOL_COLUMN_MAP.get(id))
-    .filter((col): col is PoolColumnDef => col !== undefined);
+export const DEFAULT_VISIBLE_COLUMNS: PoolColumnId[] = [
+  ...MANDATORY_COLUMNS.map((c) => c.id),
+  ...DEFAULT_VISIBLE_OPTIONAL,
+];
 
-  return orderedColumns.reduce((sum, col) => {
-    const min = typeof col.width === "number" ? col.width : col.width.min;
-    return sum + min;
-  }, 0);
-}
+/**
+ * Default column order.
+ */
+export const DEFAULT_COLUMN_ORDER: PoolColumnId[] = ALL_COLUMNS.map((c) => c.id);
+
+/**
+ * Pre-computed column lookup maps for O(1) access.
+ */
+export const COLUMN_MAP = new Map(ALL_COLUMNS.map((c) => [c.id, c]));
+
+/**
+ * Pre-computed set of mandatory column IDs.
+ */
+export const MANDATORY_COLUMN_IDS: ReadonlySet<PoolColumnId> = new Set(MANDATORY_COLUMNS.map((c) => c.id));
