@@ -36,17 +36,19 @@ import type { PaginationParams } from "@/lib/pagination";
 /**
  * Fetch all pools.
  * Returns ideal Pool[] type with proper numbers and typed fields.
+ * Also includes sharingGroups for pools that share physical capacity.
  */
 export function usePools() {
   const query = useGetPoolQuotasApiPoolQuotaGet({ all_pools: true });
 
-  const pools = useMemo(() => {
-    if (!query.data) return [];
-    return transformPoolsResponse(query.data).pools;
+  const result = useMemo(() => {
+    if (!query.data) return { pools: [], sharingGroups: [] };
+    return transformPoolsResponse(query.data);
   }, [query.data]);
 
   return {
-    pools,
+    pools: result.pools,
+    sharingGroups: result.sharingGroups,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
