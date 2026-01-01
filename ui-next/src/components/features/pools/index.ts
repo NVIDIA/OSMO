@@ -13,7 +13,6 @@ export { PoolsTable, type PoolsTableProps } from "./components/table";
 export { PoolPanelLayout, type PoolPanelProps } from "./components/panel";
 export { GpuProgressCell, PlatformPills } from "./components/cells";
 export { PoolsToolbar, type PoolsToolbarProps } from "./pools-toolbar";
-export { PoolsLoading, type PoolsLoadingProps } from "./pools-loading";
 export { QuotaBar } from "./quota-bar";
 
 // Lib exports
