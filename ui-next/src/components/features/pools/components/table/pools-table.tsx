@@ -73,6 +73,7 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
     searchChips,
     sort,
     sharingGroups,
+    displayMode,
   });
 
   const rowHeight = compactMode ? layout.rowHeightCompact : layout.rowHeight;
