@@ -34,7 +34,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { Pool } from "@/lib/api/adapter";
 import { SmartSearch } from "@/components/ui/smart-search";
 import { usePoolsTableStore, usePoolsExtendedStore } from "./stores/pools-table-store";
-import { POOL_COLUMNS, MANDATORY_COLUMN_IDS } from "./pool-columns";
+import { OPTIONAL_COLUMNS } from "./pool-columns";
 import { POOL_SEARCH_FIELDS } from "./pool-search-fields";
 
 export interface PoolsToolbarProps {
@@ -54,8 +54,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({ pools }: PoolsToolbarPr
   const displayMode = usePoolsExtendedStore((s) => s.displayMode);
   const toggleDisplayMode = usePoolsExtendedStore((s) => s.toggleDisplayMode);
 
-  // Optional columns (can be toggled)
-  const optionalColumns = POOL_COLUMNS.filter((c) => !MANDATORY_COLUMN_IDS.has(c.id));
+  // Use the pre-computed optional columns list
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -116,13 +115,13 @@ export const PoolsToolbar = memo(function PoolsToolbar({ pools }: PoolsToolbarPr
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel>Columns</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {optionalColumns.map((column) => (
+            {OPTIONAL_COLUMNS.map((column) => (
               <DropdownMenuCheckboxItem
                 key={column.id}
                 checked={visibleColumnIds.includes(column.id)}
                 onCheckedChange={() => toggleColumn(column.id)}
               >
-                {column.menuLabel ?? column.header}
+                {column.menuLabel ?? column.label}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
