@@ -19,7 +19,6 @@ import type { PoolColumnId } from "../lib/pool-columns";
 export interface StatusSection {
   status: string;
   label: string;
-  icon: string;
   pools: Pool[];
 }
 
@@ -77,7 +76,6 @@ export function usePoolSections({ pools, searchChips, sort, sharingGroups }: Use
       return {
         status: display.category,
         label: display.label,
-        icon: display.icon,
         pools: sortPools(grouped.get(status) ?? [], sort),
       };
     }).filter((s) => s.pools.length > 0);

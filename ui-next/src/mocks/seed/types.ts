@@ -257,7 +257,7 @@ export interface PoolPatterns {
 
 export const DEFAULT_POOL_PATTERNS: PoolPatterns = {
   names: DEFAULT_WORKFLOW_PATTERNS.pools,
-  platforms: ["kubernetes", "slurm", "dgx-cloud"],
+  platforms: ["kubernetes", "slurm", "dgx-cloud", "aws-batch", "azure-ml", "gcp-vertex", "on-prem", "hybrid-cloud"],
   regions: ["us-west-2", "us-east-1", "eu-west-1", "ap-northeast-1"],
   gpuTypes: [
     "NVIDIA-H100-80GB-HBM3",
