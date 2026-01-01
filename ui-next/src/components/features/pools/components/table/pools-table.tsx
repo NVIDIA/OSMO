@@ -11,7 +11,17 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { getGridTemplate, getMinTableWidth, getOrderedColumns, type SortState } from "@/lib/table";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { getOrderedColumns, type SortState } from "@/lib/table";
 import type { PoolsResponse } from "@/lib/api/adapter";
 import { usePoolsTableStore, usePoolsExtendedStore } from "../../stores/pools-table-store";
 import { usePoolSections, useSectionScroll, useLayoutDimensions } from "../../hooks";
@@ -22,7 +32,13 @@ import { PoolRow } from "./pool-row";
 import { TableHeader } from "./table-header";
 import "../../pools.css";
 
-const DEFAULT_GAP = 24;
+const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
+  ...transform,
+  y: 0,
+  scaleX: 1,
+  scaleY: 1,
+});
+
 
 export interface PoolsTableProps {
   poolsData: PoolsResponse | null;
@@ -74,24 +90,35 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
     [columnOrder, visibleColumnIds],
   );
 
-  const gridTemplate = useMemo(() => getGridTemplate(columns), [columns]);
-  const minWidth = useMemo(() => getMinTableWidth(columns, DEFAULT_GAP), [columns]);
-
   const optionalColumnIds = useMemo(
     () => columnOrder.filter((id) => !MANDATORY_COLUMN_IDS.has(id) && visibleColumnIds.includes(id)),
     [columnOrder, visibleColumnIds],
   );
 
+  // DnD sensors and handlers
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        const oldIndex = optionalColumnIds.indexOf(active.id as PoolColumnId);
+        const newIndex = optionalColumnIds.indexOf(over.id as PoolColumnId);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newOptionalOrder = arrayMove(optionalColumnIds, oldIndex, newIndex);
+          const mandatoryIds = columnOrder.filter((id) => MANDATORY_COLUMN_IDS.has(id));
+          setColumnOrder([...mandatoryIds, ...newOptionalOrder]);
+        }
+      }
+    },
+    [optionalColumnIds, columnOrder, setColumnOrder],
+  );
+
   // Event handlers
   const handleSort = useCallback((column: PoolColumnId) => setSort(column as string), [setSort]);
-
-  const handleReorderColumns = useCallback(
-    (newOptionalOrder: PoolColumnId[]) => {
-      const mandatoryIds = columnOrder.filter((id) => MANDATORY_COLUMN_IDS.has(id));
-      setColumnOrder([...mandatoryIds, ...newOptionalOrder]);
-    },
-    [columnOrder, setColumnOrder],
-  );
 
   // Inline state rendering
   if (isLoading) {
@@ -125,42 +152,45 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
     );
   }
 
+  const columnCount = columns.length;
+
   return (
-    <div className="pools-table-container h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div
-        ref={scrollRef}
-        className="pools-scroll-container flex-1 overflow-auto overscroll-contain"
-        role="table"
-        aria-label="Pools table"
-      >
-        <div style={{ minWidth }}>
-          <div className="sticky top-0 z-20 touch-none" role="rowgroup">
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+      modifiers={[restrictToHorizontalAxis]}
+      autoScroll={false}
+    >
+      <div className="pools-table-container h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div
+          ref={scrollRef}
+          className="pools-scroll-container flex-1 overflow-auto overscroll-contain"
+        >
+          <table className="pools-table w-full border-collapse">
             <TableHeader
               columns={columns}
-              gridTemplate={gridTemplate}
-              minWidth={minWidth}
-              gap={DEFAULT_GAP}
-              headerHeight={headerHeight}
               sort={sort}
               onSort={handleSort}
               optionalColumnIds={optionalColumnIds}
-              onReorder={handleReorderColumns}
             />
-          </div>
 
-          {sections.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">
-              {searchChips.length > 0 ? "No pools match your filters" : "No pools available"}
-            </div>
-          ) : (
-            <div role="rowgroup">
-              {sections.flatMap((section, sectionIndex) => [
+          <tbody>
+            {sections.length === 0 ? (
+              <tr>
+                <td colSpan={columnCount} className="p-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  {searchChips.length > 0 ? "No pools match your filters" : "No pools available"}
+                </td>
+              </tr>
+            ) : (
+              sections.flatMap((section, sectionIndex) => [
                 <SectionRow
                   key={`section-${section.status}`}
                   label={section.label}
-                  icon={section.icon}
+                  status={section.status}
                   count={section.pools.length}
                   sectionIndex={sectionIndex}
+                  columnCount={columnCount}
                   onJumpTo={() => scrollToSection(sectionIndex)}
                 />,
                 ...section.pools.map((pool) => (
@@ -168,9 +198,6 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
                     key={pool.name}
                     pool={pool}
                     columns={columns}
-                    gridTemplate={gridTemplate}
-                    minWidth={minWidth}
-                    gap={DEFAULT_GAP}
                     isSelected={selectedPoolName === pool.name}
                     onSelect={() => setSelectedPool(pool.name)}
                     displayMode={displayMode}
@@ -178,20 +205,22 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
                     isShared={sharingMap.has(pool.name)}
                   />
                 )),
-              ])}
-            </div>
-          )}
+              ])
+            )}
+          </tbody>
+
+            {sections.length > 1 && hiddenSectionIndices.length > 0 && (
+              <BottomSectionStack
+                sections={sections}
+                hiddenSectionIndices={hiddenSectionIndices}
+                columnCount={columnCount}
+                onJumpTo={scrollToSection}
+              />
+            )}
+          </table>
         </div>
       </div>
-
-      {sections.length > 1 && (
-        <BottomSectionStack
-          sections={sections}
-          hiddenSectionIndices={hiddenSectionIndices}
-          onJumpTo={scrollToSection}
-        />
-      )}
-    </div>
+    </DndContext>
   );
 }
 
