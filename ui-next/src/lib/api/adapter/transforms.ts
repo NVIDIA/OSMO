@@ -162,6 +162,9 @@ function transformPool(backendPool: PoolResourceUsage): Pool {
  * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
  * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
  *
+ * Also extracts sharing groups: pools in the same node_set share physical
+ * GPU capacity (totalCapacity, totalFree).
+ *
  * @param rawResponse - The raw API response (typed as unknown by orval)
  */
 export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
@@ -169,12 +172,40 @@ export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
   const response = rawResponse as PoolResponse | undefined;
 
   if (!response?.node_sets) {
-    return { pools: [] };
+    return { pools: [], sharingGroups: [] };
   }
 
-  const pools = response.node_sets.flatMap((nodeSet) => (nodeSet.pools ?? []).map(transformPool));
+  const pools: Pool[] = [];
+  const sharingGroups: string[][] = [];
 
-  return { pools };
+  for (const nodeSet of response.node_sets) {
+    const nodeSetPools = nodeSet.pools ?? [];
+    const poolNames = nodeSetPools.map((p) => p.name ?? "").filter(Boolean);
+
+    // Track sharing if multiple pools in node_set
+    if (poolNames.length > 1) {
+      sharingGroups.push(poolNames);
+    }
+
+    for (const backendPool of nodeSetPools) {
+      pools.push(transformPool(backendPool));
+    }
+  }
+
+  return { pools, sharingGroups };
+}
+
+/**
+ * Get pools that share capacity with a given pool.
+ *
+ * @param poolName - The pool to check
+ * @param sharingGroups - Sharing groups from PoolsResponse
+ * @returns Array of pool names that share capacity, or null if not sharing
+ */
+export function getSharingInfo(poolName: string, sharingGroups: string[][]): string[] | null {
+  const group = sharingGroups.find((g) => g.includes(poolName));
+  if (!group || group.length <= 1) return null;
+  return group.filter((name) => name !== poolName);
 }
 
 /**
