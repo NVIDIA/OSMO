@@ -59,6 +59,7 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
   const searchChips = usePoolsTableStore((s) => s.searchChips);
   const setSort = usePoolsTableStore((s) => s.setSort);
   const setColumnOrder = usePoolsTableStore((s) => s.setColumnOrder);
+  const setSearchChips = usePoolsTableStore((s) => s.setSearchChips);
 
   const displayMode = usePoolsExtendedStore((s) => s.displayMode);
   const selectedPoolName = usePoolsExtendedStore((s) => s.selectedPoolName);
@@ -66,6 +67,25 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
 
   const pools = poolsData?.pools ?? [];
   const sharingGroups = poolsData?.sharingGroups ?? [];
+
+  // Create a callback to filter by shared pools using the shared: filter
+  const createFilterBySharedPools = useCallback(
+    (poolName: string) => {
+      // Find the sharing group that contains this pool
+      const group = sharingGroups.find((g) => g.includes(poolName));
+      if (!group || group.length <= 1) return undefined;
+
+      // Return a callback that sets a single shared: filter
+      return () => {
+        setSearchChips([{
+          field: "shared",
+          value: poolName,
+          label: `Shared: ${poolName}`,
+        }]);
+      };
+    },
+    [sharingGroups, setSearchChips],
+  );
 
   // Business logic hooks
   const { sections, sharingMap } = usePoolSections({
@@ -204,6 +224,7 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
                     displayMode={displayMode}
                     compact={compactMode}
                     isShared={sharingMap.has(pool.name)}
+                    onFilterBySharedPools={createFilterBySharedPools(pool.name)}
                   />
                 )),
               ])
