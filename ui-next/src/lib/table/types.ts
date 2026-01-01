@@ -26,10 +26,14 @@
 
 /**
  * Column width specification.
- * - number: fixed width in pixels
- * - object: flexible width with min floor and share proportion (CSS Grid minmax)
+ * - number: fixed width in rem (no grow/shrink)
+ * - { min, share }: flexible with min floor (rem), share controls grow/shrink proportion
+ * - { fit, share }: content-sized minimum (max-content), share controls grow/shrink proportion
  */
-export type ColumnWidth = number | { min: number; share: number };
+export type ColumnWidth =
+  | number
+  | { min: number; share: number }
+  | { fit: true; share: number };
 
 /**
  * Base column definition.

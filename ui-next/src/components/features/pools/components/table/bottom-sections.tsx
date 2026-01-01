@@ -17,45 +17,49 @@ import type { StatusSection } from "../../hooks";
 export interface BottomSectionStackProps {
   sections: StatusSection[];
   hiddenSectionIndices: number[];
+  columnCount: number;
   onJumpTo: (index: number) => void;
 }
 
 export const BottomSectionStack = memo(function BottomSectionStack({
   sections,
   hiddenSectionIndices,
+  columnCount,
   onJumpTo,
 }: BottomSectionStackProps) {
   if (hiddenSectionIndices.length === 0) return null;
 
-  const reversedIndices = [...hiddenSectionIndices].reverse();
-
   return (
-    <div className="absolute inset-x-0 bottom-0 z-20 pointer-events-none">
-      {reversedIndices.map((sectionIndex, stackIndex) => {
+    <tfoot className="pools-tfoot sticky bottom-0 z-20">
+      {hiddenSectionIndices.map((sectionIndex) => {
         const section = sections[sectionIndex];
 
         return (
-          <button
+          <tr
             key={section.status}
-            type="button"
-            onClick={() => onJumpTo(sectionIndex)}
-            data-stack-index={stackIndex}
-            className={cn(
-              "pools-bottom-section absolute inset-x-0 pointer-events-auto",
-              "flex w-full items-center gap-2 px-3",
-              "border-t border-zinc-200 dark:border-zinc-700",
-              "text-left text-sm font-medium",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset",
-            )}
-            style={{ height: "var(--pools-section-height)" }}
-            aria-label={`Jump to ${section.label} section`}
+            data-status={section.status}
+            className="pools-bottom-section-row"
           >
-            <span>{section.icon}</span>
-            <span className="text-zinc-900 dark:text-zinc-100">{section.label}</span>
-            <span className="text-zinc-500 dark:text-zinc-400">({section.pools.length})</span>
-          </button>
+            <td colSpan={columnCount} className="p-0">
+              <button
+                type="button"
+                onClick={() => onJumpTo(sectionIndex)}
+                className={cn(
+                  "pools-bottom-section-item",
+                  "flex w-full items-center gap-2 px-3",
+                  "text-left text-xs font-semibold uppercase tracking-wider",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset",
+                )}
+                style={{ height: "var(--pools-section-height)" }}
+                aria-label={`Jump to ${section.label} section`}
+              >
+                <span className="pools-section-label">{section.label}</span>
+                <span className="pools-section-count">{section.pools.length}</span>
+              </button>
+            </td>
+          </tr>
         );
       })}
-    </div>
+    </tfoot>
   );
 });
