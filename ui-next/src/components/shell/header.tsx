@@ -1,7 +1,15 @@
+// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
 "use client";
 
 import Link from "next/link";
-import { Search, Command, LogIn } from "lucide-react";
+import { Search, Command, LogIn, Home, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,18 +21,42 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth, useUser } from "@/lib/auth";
 import { useVersion } from "@/lib/api/adapter";
+import { usePageConfig, type BreadcrumbSegment } from "./page-context";
 
 export function Header() {
   const { isAuthenticated, isSkipped, login, logout } = useAuth();
   const { user, isLoading } = useUser();
   const { version } = useVersion();
+  const pageConfig = usePageConfig();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
-      {/* Left: Breadcrumbs placeholder */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-zinc-500">Dashboard</span>
-      </div>
+      {/* Left: Breadcrumbs and Title */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 min-w-0">
+        {/* Home link */}
+        <Link
+          href="/"
+          className="flex items-center justify-center rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Home"
+        >
+          <Home className="h-4 w-4" />
+        </Link>
+
+        {/* Breadcrumb segments */}
+        {pageConfig?.breadcrumbs?.map((segment, index) => (
+          <BreadcrumbItem key={`${segment.label}-${index}`} segment={segment} />
+        ))}
+
+        {/* Current page title */}
+        {pageConfig?.title && (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+            <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              {pageConfig.title}
+            </span>
+          </>
+        )}
+      </nav>
 
       {/* Right: Search, Theme, User */}
       <div className="flex items-center gap-2">
@@ -42,11 +74,7 @@ export function Header() {
         </Button>
 
         {/* Mobile search button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-        >
+        <Button variant="ghost" size="icon" className="md:hidden">
           <Search className="h-4 w-4" />
           <span className="sr-only">Search</span>
         </Button>
@@ -57,21 +85,14 @@ export function Header() {
         {isAuthenticated && user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full"
-              >
+              <Button variant="ghost" size="icon" className="rounded-full">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--nvidia-green)] text-sm font-medium text-black">
                   {user.initials}
                 </div>
                 <span className="sr-only">User menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-56"
-            >
+            <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5">
                 <p className="text-sm font-medium">{user.name}</p>
                 <p className="text-xs text-zinc-500">{user.email}</p>
@@ -110,12 +131,7 @@ export function Header() {
             <span className="h-4 w-4 animate-pulse rounded-full bg-zinc-300 dark:bg-zinc-700" />
           </div>
         ) : isSkipped ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={login}
-            className="gap-1.5 text-zinc-500"
-          >
+          <Button variant="ghost" size="sm" onClick={login} className="gap-1.5 text-zinc-500">
             <LogIn className="h-4 w-4" />
             <span className="hidden sm:inline">Log in</span>
           </Button>
@@ -126,5 +142,23 @@ export function Header() {
         )}
       </div>
     </header>
+  );
+}
+
+function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
+  return (
+    <>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true" />
+      {segment.href ? (
+        <Link
+          href={segment.href}
+          className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          {segment.label}
+        </Link>
+      ) : (
+        <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">{segment.label}</span>
+      )}
+    </>
   );
 }
