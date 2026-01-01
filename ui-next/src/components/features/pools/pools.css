@@ -309,3 +309,21 @@
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
+/* =============================================================================
+   Progress Track - More visible in dark mode
+   ============================================================================= */
+.pools-progress-track {
+  background: #e4e4e7; /* zinc-200 */
+}
+
+.dark .pools-progress-track {
+  background: #3f3f46; /* zinc-700 - lighter than zinc-800 for better visibility on hover */
+}
+
+/* =============================================================================
+   Shared Capacity Progress Bar
+   ============================================================================= */
+.pools-shared-capacity-bar {
+  background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+}

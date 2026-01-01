@@ -25,6 +25,7 @@ export interface PoolRowProps {
   displayMode: "used" | "free";
   compact: boolean;
   isShared: boolean;
+  onFilterBySharedPools?: () => void;
 }
 
 export const PoolRow = memo(function PoolRow({
@@ -35,6 +36,7 @@ export const PoolRow = memo(function PoolRow({
   displayMode,
   compact,
   isShared,
+  onFilterBySharedPools,
 }: PoolRowProps) {
   const { category } = getStatusDisplay(pool.status);
 
@@ -76,6 +78,7 @@ export const PoolRow = memo(function PoolRow({
             displayMode={displayMode}
             compact={compact}
             isShared={isShared}
+            onFilterBySharedPools={onFilterBySharedPools}
           />
         </td>
       ))}
