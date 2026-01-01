@@ -48,3 +48,6 @@ export type { PaginatedResourcesResult } from "./pagination";
 
 // Utilities
 export { deriveResourceTypes } from "./utils";
+
+// Transform utilities
+export { getSharingInfo } from "./transforms";
