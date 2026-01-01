@@ -13,31 +13,13 @@
 import { memo, useCallback } from "react";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   useSortable,
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import type { ColumnDef, SortState } from "@/lib/table";
 import { MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
-
-const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
-  ...transform,
-  y: 0,
-  scaleX: 1,
-  scaleY: 1,
-});
 
 interface SortableHeaderCellProps {
   col: ColumnDef<PoolColumnId>;
@@ -66,16 +48,16 @@ function SortableHeaderCell({ col, sort, onSort }: SortableHeaderCellProps) {
   );
 
   return (
-    <div
+    <th
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      role="columnheader"
+      scope="col"
       style={style}
       className={cn(
-        "flex cursor-grab items-center active:cursor-grabbing",
-        isDragging && "rounded bg-zinc-200 px-2 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-700 dark:ring-zinc-600",
-        col.align === "right" && "justify-end",
+        "pools-th cursor-grab px-3 py-2 text-left text-xs font-medium text-zinc-500 active:cursor-grabbing dark:text-zinc-400",
+        isDragging && "rounded bg-zinc-200 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-700 dark:ring-zinc-600",
+        col.align === "right" && "text-right",
       )}
     >
       <button
@@ -85,6 +67,7 @@ function SortableHeaderCell({ col, sort, onSort }: SortableHeaderCellProps) {
         className={cn(
           "flex items-center gap-1 truncate transition-colors",
           col.sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
+          col.align === "right" && "ml-auto",
         )}
       >
         <span className="truncate">{col.label}</span>
@@ -99,7 +82,7 @@ function SortableHeaderCell({ col, sort, onSort }: SortableHeaderCellProps) {
             <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
           ))}
       </button>
-    </div>
+    </th>
   );
 }
 
@@ -107,66 +90,30 @@ const MemoizedSortableHeaderCell = memo(SortableHeaderCell);
 
 export interface TableHeaderProps {
   columns: ColumnDef<PoolColumnId>[];
-  gridTemplate: string;
-  minWidth: number;
-  gap: number;
-  headerHeight: number;
   sort: SortState<PoolColumnId>;
   onSort: (column: PoolColumnId) => void;
   optionalColumnIds: PoolColumnId[];
-  onReorder: (newOrder: PoolColumnId[]) => void;
 }
 
 export const TableHeader = memo(function TableHeader({
   columns,
-  gridTemplate,
-  minWidth,
-  gap,
-  headerHeight,
   sort,
   onSort,
   optionalColumnIds,
-  onReorder,
 }: TableHeaderProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (over && active.id !== over.id) {
-        const oldIndex = optionalColumnIds.indexOf(active.id as PoolColumnId);
-        const newIndex = optionalColumnIds.indexOf(over.id as PoolColumnId);
-        if (oldIndex !== -1 && newIndex !== -1) {
-          onReorder(arrayMove(optionalColumnIds, oldIndex, newIndex));
-        }
-      }
-    },
-    [optionalColumnIds, onReorder],
-  );
-
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-      modifiers={[restrictToHorizontalAxis]}
-      autoScroll={false}
-    >
-      <div
-        role="row"
-        className="grid items-center border-b border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
-        style={{ gridTemplateColumns: gridTemplate, minWidth, gap, height: headerHeight }}
-      >
+    <thead className="pools-thead sticky top-0 z-20 border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+      <tr>
         {columns
           .filter((c) => MANDATORY_COLUMN_IDS.has(c.id))
           .map((col) => (
-            <div
+            <th
               key={col.id}
-              role="columnheader"
-              className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
+              scope="col"
+              className={cn(
+                "pools-th px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400",
+                col.align === "right" && "text-right",
+              )}
             >
               <button
                 onClick={() => col.sortable && onSort(col.id)}
@@ -175,6 +122,7 @@ export const TableHeader = memo(function TableHeader({
                 className={cn(
                   "flex items-center gap-1 truncate transition-colors",
                   col.sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
+                  col.align === "right" && "ml-auto",
                 )}
               >
                 <span className="truncate">{col.label}</span>
@@ -189,7 +137,7 @@ export const TableHeader = memo(function TableHeader({
                     <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
                   ))}
               </button>
-            </div>
+            </th>
           ))}
 
         <SortableContext items={optionalColumnIds} strategy={horizontalListSortingStrategy}>
@@ -199,7 +147,7 @@ export const TableHeader = memo(function TableHeader({
               <MemoizedSortableHeaderCell key={col.id} col={col} sort={sort} onSort={onSort} />
             ))}
         </SortableContext>
-      </div>
-    </DndContext>
+      </tr>
+    </thead>
   );
 });

@@ -20,9 +20,6 @@ import { PoolCell } from "./pool-cell";
 export interface PoolRowProps {
   pool: Pool;
   columns: ColumnDef<PoolColumnId>[];
-  gridTemplate: string;
-  minWidth: number;
-  gap: number;
   isSelected: boolean;
   onSelect: () => void;
   displayMode: "used" | "free";
@@ -33,9 +30,6 @@ export interface PoolRowProps {
 export const PoolRow = memo(function PoolRow({
   pool,
   columns,
-  gridTemplate,
-  minWidth,
-  gap,
   isSelected,
   onSelect,
   displayMode,
@@ -55,8 +49,7 @@ export const PoolRow = memo(function PoolRow({
   );
 
   return (
-    <div
-      role="row"
+    <tr
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
@@ -65,16 +58,17 @@ export const PoolRow = memo(function PoolRow({
       data-selected={isSelected}
       data-compact={compact}
       className={cn(
-        "pools-row grid cursor-pointer items-center border-b border-zinc-200 px-3 text-sm dark:border-zinc-800",
+        "pools-row cursor-pointer border-b border-zinc-200 text-sm dark:border-zinc-800",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
       )}
-      style={{ gridTemplateColumns: gridTemplate, minWidth, gap }}
     >
       {columns.map((col) => (
-        <div
+        <td
           key={col.id}
-          role="cell"
-          className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
+          className={cn(
+            "pools-td px-3",
+            col.align === "right" && "text-right",
+          )}
         >
           <PoolCell
             pool={pool}
@@ -83,8 +77,8 @@ export const PoolRow = memo(function PoolRow({
             compact={compact}
             isShared={isShared}
           />
-        </div>
+        </td>
       ))}
-    </div>
+    </tr>
   );
 });
