@@ -27,3 +27,6 @@ export { ApiError, type ApiErrorProps } from "./api-error";
 
 // Error details (message + collapsible stack)
 export { ErrorDetails } from "./error-details";
+
+// Inline error boundary (uses react-error-boundary)
+export { InlineErrorBoundary, InlineFallback, type InlineErrorBoundaryProps } from "./inline-error-boundary";

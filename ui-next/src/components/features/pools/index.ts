@@ -19,5 +19,28 @@
  * resource-domain components used across multiple pages.
  */
 
+// Legacy exports (for backwards compatibility during migration)
 export { PoolRow, PoolRowSkeleton } from "./pool-row";
 export { QuotaBar } from "./quota-bar";
+
+// New table-based components
+export { PoolsTable } from "./pools-table";
+export { PoolsToolbar } from "./pools-toolbar";
+export { PoolPanelLayout } from "./pool-panel";
+export { PoolsTableRow } from "./pools-table-row";
+export { GpuProgressCell } from "./gpu-progress-cell";
+export { PlatformPills } from "./platform-pills";
+export { PoolsLoading } from "./pools-loading";
+
+// Column definitions and configuration
+export { POOL_COLUMNS, getGridTemplate, getMinTableWidth } from "./pool-columns";
+export type { PoolColumnDef } from "./pool-columns";
+
+// Search fields
+export { POOL_SEARCH_FIELDS } from "./pool-search-fields";
+
+// Constants
+export * from "./constants";
+
+// Stores
+export { usePoolsTableStore, usePoolsExtendedStore } from "./stores/pools-table-store";

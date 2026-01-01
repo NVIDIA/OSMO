@@ -62,6 +62,7 @@
     "nuqs": "^2.8.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-error-boundary": "^6.0.1",
     "react-hook-form": "^7.69.0",
     "react-imask": "^7.6.1",
     "react-resizable-panels": "^4.1.1",
