@@ -13,6 +13,7 @@
  *
  * Generate responsive grid templates from column definitions.
  * Uses minmax(min, share fr) for flexible, aligned columns.
+ * All dimensions use rem for accessibility (scales with user font preferences).
  *
  * Pattern borrowed from workflow-explorer's GroupPanel.
  */
@@ -24,10 +25,10 @@ import type { ColumnDef, ColumnWidth } from "./types";
 // =============================================================================
 
 const gridTemplateCache = new Map<string, string>();
-const minWidthCache = new Map<string, number>();
 
 /**
  * Generate CSS grid-template-columns from column definitions.
+ * Uses rem units for accessibility.
  *
  * @param columns - Array of visible column definitions
  * @returns CSS grid-template-columns value
@@ -35,10 +36,10 @@ const minWidthCache = new Map<string, number>();
  * @example
  * ```tsx
  * const columns = [
- *   { id: 'name', width: { min: 150, share: 2.8 } },
- *   { id: 'status', width: 80 },
+ *   { id: 'name', width: { min: 10, share: 2.8 } },
+ *   { id: 'status', width: 5 },
  * ];
- * getGridTemplate(columns); // "minmax(150px, 2.8fr) 80px"
+ * getGridTemplate(columns); // "minmax(10rem, 2.8fr) 5rem"
  * ```
  */
 export function getGridTemplate<TColumnId extends string>(columns: ColumnDef<TColumnId>[]): string {
@@ -48,8 +49,9 @@ export function getGridTemplate<TColumnId extends string>(columns: ColumnDef<TCo
 
   cached = columns
     .map((col) => {
-      if (typeof col.width === "number") return `${col.width}px`;
-      return `minmax(${col.width.min}px, ${col.width.share}fr)`;
+      if (typeof col.width === "number") return `${col.width}rem`;
+      if ("fit" in col.width) return `minmax(max-content, ${col.width.share}fr)`;
+      return `minmax(${col.width.min}rem, ${col.width.share}fr)`;
     })
     .join(" ");
 
@@ -59,29 +61,24 @@ export function getGridTemplate<TColumnId extends string>(columns: ColumnDef<TCo
 
 /**
  * Calculate minimum table width from column definitions.
+ * Returns value in rem for use with CSS.
  *
  * @param columns - Array of visible column definitions
- * @param gap - Gap between columns in pixels (default 24)
- * @returns Minimum width in pixels
+ * @param gapRem - Gap between columns in rem (default 0)
+ * @returns Minimum width in rem
  */
 export function getMinTableWidth<TColumnId extends string>(
   columns: ColumnDef<TColumnId>[],
-  gap: number = 0,
+  gapRem: number = 0,
 ): number {
-  const key = `${columns.map((c) => c.id).join(",")}-${gap}`;
-  let cached = minWidthCache.get(key);
-  if (cached) return cached;
-
   const fixedWidth = columns.reduce((sum, col) => {
     if (typeof col.width === "number") return sum + col.width;
+    if ("fit" in col.width) return sum; // fit columns are content-sized
     return sum + col.width.min;
   }, 0);
 
   // Add gap spacing
-  cached = fixedWidth + (columns.length - 1) * gap;
-
-  minWidthCache.set(key, cached);
-  return cached;
+  return fixedWidth + (columns.length - 1) * gapRem;
 }
 
 /**
@@ -104,27 +101,28 @@ export function getOrderedColumns<TColumnId extends string>(
 }
 
 // =============================================================================
-// Recommended Widths
+// Recommended Widths (in rem)
 // =============================================================================
 
 /**
- * Recommended minimum widths for common content types.
+ * Recommended minimum widths for common content types (in rem).
+ * These scale with user font preferences for accessibility.
  */
 export const MIN_WIDTHS = {
   /** Text that truncates (names, descriptions) */
-  TEXT_TRUNCATE: 140,
+  TEXT_TRUNCATE: 9,
   /** Short text labels (status, type) */
-  TEXT_SHORT: 80,
+  TEXT_SHORT: 5,
   /** Short numbers: "128/256" */
-  NUMBER_SHORT: 80,
+  NUMBER_SHORT: 5,
   /** Numbers with units: "512/1,024 Gi" */
-  NUMBER_WITH_UNIT: 115,
+  NUMBER_WITH_UNIT: 7,
   /** Timestamps */
-  TIMESTAMP: 140,
+  TIMESTAMP: 9,
   /** Icon-only column */
-  ICON: 24,
+  ICON: 1.5,
   /** Small actions */
-  ACTIONS_SMALL: 50,
+  ACTIONS_SMALL: 3,
 } as const;
 
 /**

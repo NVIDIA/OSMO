@@ -253,7 +253,6 @@ export function createTableStore(options: CreateTableStoreOptions) {
     devtools(
       persist(immer(stateCreator), {
         name: storageKey,
-        version: 1,
         storage: createJSONStorage(() => localStorage),
         // Only persist these fields (exclude ephemeral state)
         partialize: (state) => ({
@@ -266,13 +265,25 @@ export function createTableStore(options: CreateTableStoreOptions) {
           panelWidth: state.panelWidth,
           // searchChips intentionally excluded - ephemeral
         }),
-        // Migration function for version changes
-        migrate: (persistedState, version) => {
-          if (version === 0) {
-            // Example migration from v0 to v1
-            return { ...persistedState, panelWidth: defaultPanelWidth };
-          }
-          return persistedState as TableState;
+        // Simple passthrough for any old versioned state
+        migrate: (state) => state as TableState,
+        // Merge persisted state with defaults on every hydration
+        // Ensures new columns are always added without versioning
+        merge: (persisted, current) => {
+          const p = persisted as Partial<TableState>;
+          const existingVisible = p.visibleColumnIds ?? [];
+          const existingOrder = p.columnOrder ?? [];
+          
+          // Add any missing default columns
+          const missingVisible = defaultVisibleColumns.filter((c) => !existingVisible.includes(c));
+          const missingOrder = defaultColumnOrder.filter((c) => !existingOrder.includes(c));
+          
+          return {
+            ...current,
+            ...p,
+            visibleColumnIds: [...existingVisible, ...missingVisible],
+            columnOrder: [...existingOrder, ...missingOrder],
+          };
         },
       }),
       {
