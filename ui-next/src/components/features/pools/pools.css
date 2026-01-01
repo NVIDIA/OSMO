@@ -1,0 +1,272 @@
+/**
+ * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
+/**
+ * Pools Table Styles
+ *
+ * This stylesheet provides:
+ * - CSS custom properties for theming
+ * - Light/dark mode support via .dark class
+ * - Data-attribute styling for status (avoids JS recalculation)
+ * - CSS containment for performance
+ *
+ * THEMING:
+ * - Uses CSS custom properties that change based on .dark class
+ * - Components should use these variables for consistent theming
+ * - Tailwind classes should use dark: prefix for mode-specific styles
+ */
+
+/* ==========================================================================
+   CSS Custom Properties - Light mode (default)
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --pools-surface: #ffffff;
+  --pools-surface-elevated: #fafafa;
+  --pools-surface-hover: #f4f4f5;
+  --pools-surface-selected: #eff6ff;
+
+  /* Borders */
+  --pools-border: #e4e4e7;
+  --pools-border-subtle: #f4f4f5;
+
+  /* Text */
+  --pools-text-primary: #18181b;
+  --pools-text-secondary: #71717a;
+  --pools-text-tertiary: #a1a1aa;
+
+  /* Status: Online (emerald) */
+  --pools-status-online-bg: #ecfdf5;
+  --pools-status-online-border: #34d399;
+  --pools-status-online-text: #059669;
+  --pools-status-online-dot: #10b981;
+
+  /* Status: Maintenance (amber) */
+  --pools-status-maintenance-bg: #fffbeb;
+  --pools-status-maintenance-border: #fbbf24;
+  --pools-status-maintenance-text: #d97706;
+  --pools-status-maintenance-dot: #f59e0b;
+
+  /* Status: Offline (red) */
+  --pools-status-offline-bg: #fef2f2;
+  --pools-status-offline-border: #f87171;
+  --pools-status-offline-text: #dc2626;
+  --pools-status-offline-dot: #ef4444;
+
+  /* Layout */
+  --pools-row-height: 3rem;
+  --pools-row-height-compact: 2rem;
+  --pools-header-height: 2.5rem;
+
+  /* Panel */
+  --pools-panel-shadow: -4px 0 16px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================================================
+   CSS Custom Properties - Dark mode
+   ========================================================================== */
+
+.dark {
+  /* Surfaces */
+  --pools-surface: #09090b;
+  --pools-surface-elevated: #18181b;
+  --pools-surface-hover: #27272a;
+  --pools-surface-selected: rgba(59, 130, 246, 0.15);
+
+  /* Borders */
+  --pools-border: #27272a;
+  --pools-border-subtle: #3f3f46;
+
+  /* Text */
+  --pools-text-primary: #fafafa;
+  --pools-text-secondary: #a1a1aa;
+  --pools-text-tertiary: #71717a;
+
+  /* Status: Online (emerald) - with alpha */
+  --pools-status-online-bg: rgba(6, 78, 59, 0.6);
+  --pools-status-online-border: #059669;
+  --pools-status-online-text: #34d399;
+  --pools-status-online-dot: #10b981;
+
+  /* Status: Maintenance (amber) - with alpha */
+  --pools-status-maintenance-bg: rgba(120, 53, 15, 0.6);
+  --pools-status-maintenance-border: #d97706;
+  --pools-status-maintenance-text: #fbbf24;
+  --pools-status-maintenance-dot: #f59e0b;
+
+  /* Status: Offline (red) - with alpha */
+  --pools-status-offline-bg: rgba(127, 29, 29, 0.6);
+  --pools-status-offline-border: #dc2626;
+  --pools-status-offline-text: #f87171;
+  --pools-status-offline-dot: #ef4444;
+
+  /* Panel - heavier shadow in dark */
+  --pools-panel-shadow: -4px 0 16px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   Data-Attribute Status Styling (no JS recalculation)
+   ========================================================================== */
+
+.pools-row[data-status="online"] {
+  border-left: 3px solid var(--pools-status-online-border);
+}
+
+.pools-row[data-status="maintenance"] {
+  border-left: 3px solid var(--pools-status-maintenance-border);
+}
+
+.pools-row[data-status="offline"] {
+  border-left: 3px solid var(--pools-status-offline-border);
+}
+
+.pools-row[data-selected="true"] {
+  background: var(--pools-surface-selected);
+}
+
+/* Status dot */
+.pools-status-dot[data-status="online"] {
+  background: var(--pools-status-online-dot);
+}
+
+.pools-status-dot[data-status="maintenance"] {
+  background: var(--pools-status-maintenance-dot);
+}
+
+.pools-status-dot[data-status="offline"] {
+  background: var(--pools-status-offline-dot);
+}
+
+/* ==========================================================================
+   CSS Containment Classes
+   ========================================================================== */
+
+/**
+ * Strict containment - maximum layout isolation.
+ * Use for table rows that don't affect siblings.
+ */
+.pools-contained {
+  contain: layout style paint;
+}
+
+/**
+ * Virtual list items - maximum isolation.
+ */
+.pools-virtual-item {
+  contain: strict;
+  content-visibility: auto;
+}
+
+/**
+ * Panel containers - layout + style containment.
+ */
+.pools-panel {
+  contain: layout style;
+}
+
+/* ==========================================================================
+   GPU Acceleration (only during animation)
+   ========================================================================== */
+
+.pools-gpu-accelerated {
+  will-change: transform;
+}
+
+/* ==========================================================================
+   Reduced Motion Support
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .pools-row,
+  .pools-progress-bar,
+  .pools-panel {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   Unified Table Layout
+   ========================================================================== */
+
+/**
+ * Main table container - contains the sticky header and scroll area.
+ * Uses flex layout to fill available height from parent.
+ */
+.pools-table-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Height comes from parent via h-full */
+}
+
+/**
+ * Table header - always sticky at top of container.
+ */
+.pools-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--pools-surface-elevated);
+  /* border handled by Tailwind in the component */
+}
+
+/**
+ * Scroll area for table content.
+ */
+.pools-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/**
+ * Section header rows - sticky below the main header.
+ * They stack naturally and push each other as you scroll.
+ */
+.pools-section-row {
+  position: sticky;
+  top: 0; /* Stick at top of scroll container (header is outside the scroll area) */
+  z-index: 10;
+  background: var(--pools-surface-elevated);
+}
+
+/* ==========================================================================
+   Scrollbar Styling
+   ========================================================================== */
+
+.pools-scroll-area,
+.pools-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pools-text-tertiary) transparent;
+}
+
+.pools-scroll-area::-webkit-scrollbar,
+.pools-scroll-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.pools-scroll-area::-webkit-scrollbar-track,
+.pools-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pools-scroll-area::-webkit-scrollbar-thumb,
+.pools-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--pools-text-tertiary);
+  border-radius: 4px;
+}
+
+.pools-scroll-area::-webkit-scrollbar-thumb:hover,
+.pools-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--pools-text-secondary);
+}

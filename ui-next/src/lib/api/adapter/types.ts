@@ -54,6 +54,12 @@ export interface Pool {
  */
 export interface PoolsResponse {
   pools: Pool[];
+  /**
+   * Groups of pool names that share physical GPU capacity.
+   * Pools in the same node_set share totalCapacity/totalFree.
+   * Example: [["pool-a", "pool-b"], ["pool-c", "pool-d"]]
+   */
+  sharingGroups: string[][];
 }
 
 // =============================================================================
