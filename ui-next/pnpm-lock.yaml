@@ -56,9 +56,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.12
         version: 5.90.12(react@19.2.3)
-      '@tanstack/react-table':
-        specifier: ^8.21.3
-        version: 8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/react-virtual':
         specifier: ^3.13.13
         version: 3.13.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -171,9 +168,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.1.2
         version: 5.1.2(vite@7.3.0(@types/node@20.19.27)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.8.2))
-      beasties:
-        specifier: ^0.3.5
-        version: 0.3.5
+      critters:
+        specifier: ^0.0.25
+        version: 0.0.25
       eslint:
         specifier: ^9
         version: 9.39.2(jiti@2.6.1)
@@ -1880,22 +1877,11 @@ packages:
     peerDependencies:
       react: ^18 || ^19
 
-  '@tanstack/react-table@8.21.3':
-    resolution: {integrity: sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==}
-    engines: {node: '>=12'}
-    peerDependencies:
-      react: '>=16.8'
-      react-dom: '>=16.8'
-
   '@tanstack/react-virtual@3.13.13':
     resolution: {integrity: sha512-4o6oPMDvQv+9gMi8rE6gWmsOjtUZUYIJHv7EB+GblyYdi8U6OqLl8rhHWIUZSL1dUU2dPwTdTgybCKf9EjIrQg==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@tanstack/table-core@8.21.3':
-    resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
-    engines: {node: '>=12'}
 
   '@tanstack/virtual-core@3.13.13':
     resolution: {integrity: sha512-uQFoSdKKf5S8k51W5t7b2qpfkyIbdHMzAn+AMQvHPxKUPeo1SsGaA4JRISQT87jm28b7z8OEqPcg1IOZagQHcA==}
@@ -2322,10 +2308,6 @@ packages:
     resolution: {integrity: sha512-Sg0xJUNDU1sJNGdfGWhVHX0kkZ+HWcvmVymJbj6NSgZZmW/8S9Y2HQ5euytnIgakgxN6papOAWiwDo1ctFDcoQ==}
     hasBin: true
 
-  beasties@0.3.5:
-    resolution: {integrity: sha512-NaWu+f4YrJxEttJSm16AzMIFtVldCvaJ68b1L098KpqXmxt9xOLtKoLkKxb8ekhOrLqEJAbvT6n6SEvB/sac7A==}
-    engines: {node: '>=14.0.0'}
-
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
 
@@ -2449,19 +2431,23 @@ packages:
   core-js-pure@3.47.0:
     resolution: {integrity: sha512-BcxeDbzUrRnXGYIVAGFtcGQVNpFcUhVjr6W7F8XktvQW2iJP9e66GP6xdKotCRFlrxBvNIBrhwKteRXqMV86Nw==}
 
+  critters@0.0.25:
+    resolution: {integrity: sha512-ROF/tjJyyRdM8/6W0VqoN5Ql05xAGnkf5b7f3sTEl1bI5jTQQf8O918RD/V9tEb9pRY/TKcvJekDbJtniHyPtQ==}
+    deprecated: Ownership of Critters has moved to the Nuxt team, who will be maintaining the project going forward. If you'd like to keep using Critters, please switch to the actively-maintained fork at https://github.com/danielroe/beasties
+
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
 
-  css-select@6.0.0:
-    resolution: {integrity: sha512-rZZVSLle8v0+EY8QAkDWrKhpgt6SA5OtHsgBnsj6ZaLb5dmDVOWUDtQitd9ydxxvEjhewNudS6eTVU7uOyzvXw==}
+  css-select@5.2.2:
+    resolution: {integrity: sha512-TizTzUddG/xYLA3NXodFM0fSbNizXjOKhqiQQwvhlspadZokn1KDy0NZFS0wuEubIYAV5/c1/lAr0TaaFXEXzw==}
 
   css-tree@3.1.0:
     resolution: {integrity: sha512-0eW44TGN5SQXU1mWSkKwFstI/22X2bG1nYzZTYMAWjylYURhse752YgbE4Cx46AC+bAvI+/dYTPRk1LqSUnu6w==}
     engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0}
 
-  css-what@7.0.0:
-    resolution: {integrity: sha512-wD5oz5xibMOPHzy13CyGmogB3phdvcDaB5t0W/Nr5Z2O/agcB8YwOz6e2Lsp10pNDzBoDO9nVa3RGs/2BttpHQ==}
+  css-what@6.2.2:
+    resolution: {integrity: sha512-u/O3vwbptzhMs3L1fQE82ZSLHQQfto5gyZzwteVIEyeaY5Fc7R4dapF/BvRoSYFeqfBk4m0V1Vafq5Pjv25wvA==}
     engines: {node: '>= 6'}
 
   cssfilter@0.0.10:
@@ -3100,8 +3086,8 @@ packages:
     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
     engines: {node: '>=18'}
 
-  htmlparser2@10.0.0:
-    resolution: {integrity: sha512-TwAZM+zE5Tq3lrEHvOlvwgj1XLWQCtaaibSN11Q+gGBAS7Y1uZSWwXXRe4iF6OXnaq1riyQAPFOBtYc77Mxq0g==}
+  htmlparser2@8.0.2:
+    resolution: {integrity: sha512-GYdjWKDkbRLkZ5geuHs5NY1puJ+PXwP7+fHPRz06Eirsb9ugf6d8kkXav6ADhcODhFFPMIXyxkxSuMf3D6NCFA==}
 
   http-proxy-agent@7.0.2:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
@@ -6269,19 +6255,11 @@ snapshots:
       '@tanstack/query-core': 5.90.12
       react: 19.2.3
 
-  '@tanstack/react-table@8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      '@tanstack/table-core': 8.21.3
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
-
   '@tanstack/react-virtual@3.13.13(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@tanstack/virtual-core': 3.13.13
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
-
-  '@tanstack/table-core@8.21.3': {}
 
   '@tanstack/virtual-core@3.13.13': {}
 
@@ -6747,17 +6725,6 @@ snapshots:
 
   baseline-browser-mapping@2.9.11: {}
 
-  beasties@0.3.5:
-    dependencies:
-      css-select: 6.0.0
-      css-what: 7.0.0
-      dom-serializer: 2.0.0
-      domhandler: 5.0.3
-      htmlparser2: 10.0.0
-      picocolors: 1.1.1
-      postcss: 8.5.6
-      postcss-media-query-parser: 0.2.3
-
   bidi-js@1.0.3:
     dependencies:
       require-from-string: 2.0.2
@@ -6875,16 +6842,26 @@ snapshots:
 
   core-js-pure@3.47.0: {}
 
+  critters@0.0.25:
+    dependencies:
+      chalk: 4.1.2
+      css-select: 5.2.2
+      dom-serializer: 2.0.0
+      domhandler: 5.0.3
+      htmlparser2: 8.0.2
+      postcss: 8.5.6
+      postcss-media-query-parser: 0.2.3
+
   cross-spawn@7.0.6:
     dependencies:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
 
-  css-select@6.0.0:
+  css-select@5.2.2:
     dependencies:
       boolbase: 1.0.0
-      css-what: 7.0.0
+      css-what: 6.2.2
       domhandler: 5.0.3
       domutils: 3.2.2
       nth-check: 2.1.1
@@ -6894,7 +6871,7 @@ snapshots:
       mdn-data: 2.12.2
       source-map-js: 1.2.1
 
-  css-what@7.0.0: {}
+  css-what@6.2.2: {}
 
   cssfilter@0.0.10: {}
 
@@ -7753,12 +7730,12 @@ snapshots:
     dependencies:
       whatwg-encoding: 3.1.1
 
-  htmlparser2@10.0.0:
+  htmlparser2@8.0.2:
     dependencies:
       domelementtype: 2.3.0
       domhandler: 5.0.3
       domutils: 3.2.2
-      entities: 6.0.1
+      entities: 4.5.0
 
   http-proxy-agent@7.0.2:
     dependencies:
