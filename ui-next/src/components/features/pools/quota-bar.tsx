@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
 import { cn } from "@/lib/utils";
 import { card, skeleton, progressTrack, getProgressColor, text } from "@/lib/styles";
 
@@ -31,7 +41,6 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         </span>
       </div>
 
-      {/* Progress bar - WCAG 2.1 accessible progressbar with GPU-accelerated scaleX */}
       <div
         role="progressbar"
         aria-valuenow={used}
@@ -42,25 +51,18 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         style={{ contain: "layout paint" }}
       >
         <div
-          className={cn(
-            "h-full w-full rounded-full transition-transform duration-500 origin-left",
-            getProgressColor(percent),
-          )}
+          className={cn("h-full w-full rounded-full transition-transform duration-500 origin-left", getProgressColor(percent))}
           style={{ transform: `scaleX(${Math.min(percent, 100) / 100})` }}
         />
       </div>
 
-      {/* Availability message */}
       <p className={cn("mt-2", text.muted)}>
         {free > 0 ? (
           <>
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">{free} available</span> for HIGH/NORMAL
-            priority workflows
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">{free} available</span> for HIGH/NORMAL priority workflows
           </>
         ) : (
-          <span className="text-amber-600 dark:text-amber-400">
-            No quota available — LOW priority workflows may still run
-          </span>
+          <span className="text-amber-600 dark:text-amber-400">No quota available — LOW priority workflows may still run</span>
         )}
       </p>
     </div>

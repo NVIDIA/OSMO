@@ -8,21 +8,9 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-/**
- * Pool Search Field Definitions
- *
- * Defines searchable fields for the pools smart search:
- * - Field prefixes (e.g., "status:", "platform:")
- * - Autocomplete value extraction
- * - Match functions for filtering
- */
-
 import type { SearchField } from "@/components/ui/smart-search";
 import type { Pool } from "@/lib/api/adapter";
 
-/**
- * Search fields for the pools table.
- */
 export const POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
   {
     id: "name",
@@ -53,8 +41,3 @@ export const POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     match: (pool, value) => pool.backend.toLowerCase() === value.toLowerCase(),
   },
 ];
-
-/**
- * Pre-computed lookup map for O(1) access.
- */
-export const POOL_SEARCH_FIELD_MAP = new Map(POOL_SEARCH_FIELDS.map((f) => [f.id, f]));
