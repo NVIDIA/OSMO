@@ -8,24 +8,8 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-/**
- * Pools Loading Skeleton
- *
- * Matches the unified pools table layout for smooth loading → loaded transition.
- * Layout:
- * - Toolbar skeleton
- * - Single table card with:
- *   - Sticky header (skeleton)
- *   - Section headers (skeleton)
- *   - Pool rows (skeleton with shimmer)
- */
-
 import { cn } from "@/lib/utils";
 import { card } from "@/lib/styles";
-
-// =============================================================================
-// Skeleton Row
-// =============================================================================
 
 interface SkeletonRowProps {
   index: number;
@@ -109,10 +93,6 @@ function SkeletonRow({ index, compact }: SkeletonRowProps) {
   );
 }
 
-// =============================================================================
-// Section Header Skeleton
-// =============================================================================
-
 interface SectionHeaderSkeletonProps {
   icon: string;
   label: string;
@@ -137,14 +117,8 @@ function SectionHeaderSkeleton({ icon, label, index }: SectionHeaderSkeletonProp
   );
 }
 
-// =============================================================================
-// Main Component
-// =============================================================================
-
 export interface PoolsLoadingProps {
-  /** Use compact mode for rows */
   compact?: boolean;
-  /** Custom className */
   className?: string;
 }
 
