@@ -16,7 +16,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
   {
     id: "pool",
     label: "Pool",
-    hint: "Pool",
+    hint: "pool name",
     prefix: "pool:",
     getValues: (pools) => pools.map((p) => p.name).slice(0, 20),
     match: (pool, value) => pool.name.toLowerCase().includes(value.toLowerCase()),
@@ -24,7 +24,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
   {
     id: "platform",
     label: "Platform",
-    hint: "Platform",
+    hint: "platform name",
     prefix: "platform:",
     getValues: (pools) => [...new Set(pools.flatMap((p) => p.platforms))].sort(),
     match: (pool, value) => pool.platforms.some((p) => p.toLowerCase().includes(value.toLowerCase())),
@@ -32,7 +32,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
   {
     id: "backend",
     label: "Backend",
-    hint: "Backend",
+    hint: "backend name",
     prefix: "backend:",
     getValues: (pools) => [...new Set(pools.map((p) => p.backend))].sort(),
     match: (pool, value) => pool.backend.toLowerCase().includes(value.toLowerCase()),
@@ -40,7 +40,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
   {
     id: "description",
     label: "Description",
-    hint: "Description text",
+    hint: "description text",
     prefix: "description:",
     // Description field: no autocomplete values, only free-text substring search
     getValues: () => [],
@@ -71,7 +71,7 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
   const sharedField: SearchField<Pool> = {
     id: "shared",
     label: "Shared",
-    hint: "Pools sharing capacity",
+    hint: "all pools sharing capacity",
     prefix: "shared:",
     // Only show pools that are actually shared
     getValues: () => sharedPoolNames,
