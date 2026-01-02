@@ -284,57 +284,63 @@
 }
 
 /* =============================================================================
-   Scroll Container - macOS-style scrollbars
+   Scroll Container - Subtle, elegant scrollbars
    ============================================================================= */
 @layer pools.scrollbar {
   .pools-scroll-container {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+    /* Firefox: thumb color, track color */
+    scrollbar-color: rgba(161, 161, 170, 0.5) rgba(244, 244, 245, 0.5);
   }
 
   .dark .pools-scroll-container {
-    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+    scrollbar-color: rgba(161, 161, 170, 0.4) rgba(39, 39, 42, 0.5);
   }
 
   /* Webkit (Chrome, Safari, Edge) */
   .pools-scroll-container::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-    background: transparent;
+    width: 10px;
+    height: 10px;
   }
 
   .pools-scroll-container::-webkit-scrollbar-track {
-    background: transparent;
-    border-radius: 4px;
+    background: rgba(244, 244, 245, 0.6);
+    border-radius: 5px;
+    margin: 2px;
   }
 
   .pools-scroll-container::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
-    border: 2px solid transparent;
-    background-clip: content-box;
+    background: rgba(161, 161, 170, 0.5);
+    border-radius: 5px;
+    border: 2px solid rgba(244, 244, 245, 0.6);
+    transition: background 0.15s ease;
   }
 
   .pools-scroll-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
-    border: 2px solid transparent;
-    background-clip: content-box;
+    background: rgba(113, 113, 122, 0.7);
   }
 
   .pools-scroll-container::-webkit-scrollbar-corner {
-    background: transparent;
+    background: rgba(244, 244, 245, 0.6);
+    border-radius: 5px;
+  }
+
+  /* Dark mode */
+  .dark .pools-scroll-container::-webkit-scrollbar-track {
+    background: rgba(39, 39, 42, 0.6);
   }
 
   .dark .pools-scroll-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border: 2px solid transparent;
-    background-clip: content-box;
+    background: rgba(113, 113, 122, 0.5);
+    border-color: rgba(39, 39, 42, 0.6);
   }
 
   .dark .pools-scroll-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-    border: 2px solid transparent;
-    background-clip: content-box;
+    background: rgba(161, 161, 170, 0.6);
+  }
+
+  .dark .pools-scroll-container::-webkit-scrollbar-corner {
+    background: rgba(39, 39, 42, 0.6);
   }
 
   /* Progress Track - More visible in dark mode */
