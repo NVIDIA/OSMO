@@ -23,6 +23,7 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { getOrderedColumns, type SortState } from "@/lib/table";
 import type { PoolsResponse } from "@/lib/api/adapter";
+import type { SearchChip } from "@/lib/stores";
 import { usePoolsTableStore, usePoolsExtendedStore } from "../../stores/pools-table-store";
 import { usePoolSections, useSectionScroll, useLayoutDimensions } from "../../hooks";
 import { COLUMN_MAP, MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
@@ -45,25 +46,38 @@ export interface PoolsTableProps {
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
+  /** Callback when a pool is selected (for URL sync) */
+  onPoolSelect?: (poolName: string) => void;
+  /** Currently selected pool name (for row highlighting) */
+  selectedPoolName?: string | null;
+  /** Filter chips (URL-synced) */
+  searchChips: SearchChip[];
+  /** Callback when chips change */
+  onSearchChipsChange: (chips: SearchChip[]) => void;
 }
 
-export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableProps) {
+export function PoolsTable({
+  poolsData,
+  isLoading,
+  error,
+  onRetry,
+  onPoolSelect,
+  selectedPoolName,
+  searchChips,
+  onSearchChipsChange,
+}: PoolsTableProps) {
   const layout = useLayoutDimensions();
   const { headerHeight, sectionHeight } = layout;
 
-  // Store state
+  // Store state (non-URL synced preferences)
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds) as PoolColumnId[];
   const columnOrder = usePoolsTableStore((s) => s.columnOrder) as PoolColumnId[];
   const sort = usePoolsTableStore((s) => s.sort) as SortState<PoolColumnId>;
   const compactMode = usePoolsTableStore((s) => s.compactMode);
-  const searchChips = usePoolsTableStore((s) => s.searchChips);
   const setSort = usePoolsTableStore((s) => s.setSort);
   const setColumnOrder = usePoolsTableStore((s) => s.setColumnOrder);
-  const setSearchChips = usePoolsTableStore((s) => s.setSearchChips);
 
   const displayMode = usePoolsExtendedStore((s) => s.displayMode);
-  const selectedPoolName = usePoolsExtendedStore((s) => s.selectedPoolName);
-  const setSelectedPool = usePoolsExtendedStore((s) => s.setSelectedPool);
 
   const pools = poolsData?.pools ?? [];
   const sharingGroups = poolsData?.sharingGroups ?? [];
@@ -77,14 +91,14 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
 
       // Return a callback that sets a single shared: filter
       return () => {
-        setSearchChips([{
+        onSearchChipsChange([{
           field: "shared",
           value: poolName,
           label: `Shared: ${poolName}`,
         }]);
       };
     },
-    [sharingGroups, setSearchChips],
+    [sharingGroups, onSearchChipsChange],
   );
 
   // Business logic hooks
@@ -220,7 +234,7 @@ export function PoolsTable({ poolsData, isLoading, error, onRetry }: PoolsTableP
                     pool={pool}
                     columns={columns}
                     isSelected={selectedPoolName === pool.name}
-                    onSelect={() => setSelectedPool(pool.name)}
+                    onSelect={onPoolSelect ? () => onPoolSelect(pool.name) : undefined}
                     displayMode={displayMode}
                     compact={compactMode}
                     isShared={sharingMap.has(pool.name)}

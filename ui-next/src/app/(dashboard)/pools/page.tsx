@@ -27,7 +27,8 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
+import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import { usePools } from "@/lib/api/adapter";
 import { InlineErrorBoundary } from "@/components/shared";
 import { usePage } from "@/components/shell";
@@ -35,8 +36,8 @@ import {
   PoolsTable,
   PoolsToolbar,
   PoolPanelLayout,
-  usePoolsExtendedStore,
 } from "@/components/features/pools";
+import type { SearchChip } from "@/lib/stores";
 
 // =============================================================================
 // Main Page Component
@@ -48,9 +49,74 @@ export default function PoolsPage() {
   // Fetch pools data
   const { pools, sharingGroups, isLoading, error, refetch } = usePools();
 
-  // Panel state - use individual selectors for stable hook ordering
-  const selectedPoolName = usePoolsExtendedStore((s) => s.selectedPoolName);
-  const setSelectedPool = usePoolsExtendedStore((s) => s.setSelectedPool);
+  // ==========================================================================
+  // URL State - All state is URL-synced for shareable deep links
+  // URL: /pools?view=my-pool&config=dgx&f=status:ONLINE&f=platform:dgx
+  // ==========================================================================
+
+  // Panel state
+  const [selectedPoolName, setSelectedPoolName] = useQueryState(
+    "view",
+    parseAsString.withOptions({
+      shallow: true,
+      history: "push",
+      clearOnDefault: true,
+    })
+  );
+
+  const [selectedPlatform, setSelectedPlatform] = useQueryState(
+    "config",
+    parseAsString.withOptions({
+      shallow: true,
+      history: "replace",
+      clearOnDefault: true,
+    })
+  );
+
+  // Filter chips - repeated f params: ?f=status:ONLINE&f=platform:dgx
+  const [filterStrings, setFilterStrings] = useQueryState(
+    "f",
+    parseAsArrayOf(parseAsString).withOptions({
+      shallow: true,
+      history: "push",
+      clearOnDefault: true,
+    })
+  );
+
+  // Parse filter strings to SearchChip format
+  const searchChips = useMemo<SearchChip[]>(() => {
+    if (!filterStrings || filterStrings.length === 0) return [];
+    return filterStrings
+      .map((str) => {
+        const colonIndex = str.indexOf(":");
+        if (colonIndex === -1) return null;
+        const field = str.slice(0, colonIndex);
+        const value = str.slice(colonIndex + 1);
+        if (!field || !value) return null;
+        // Derive label from field:value
+        const label = `${field}: ${value}`;
+        return { field, value, label };
+      })
+      .filter((chip): chip is SearchChip => chip !== null);
+  }, [filterStrings]);
+
+  // Convert chips back to filter strings for URL
+  const setSearchChips = useCallback(
+    (chips: SearchChip[]) => {
+      if (chips.length === 0) {
+        setFilterStrings(null);
+      } else {
+        setFilterStrings(chips.map((c) => `${c.field}:${c.value}`));
+      }
+    },
+    [setFilterStrings]
+  );
+
+  // Clear panel and optionally platform
+  const clearSelectedPool = useCallback(() => {
+    setSelectedPoolName(null);
+    setSelectedPlatform(null);
+  }, [setSelectedPoolName, setSelectedPlatform]);
 
   // Find selected pool
   const selectedPool = useMemo(
@@ -69,13 +135,21 @@ export default function PoolsPage() {
     <PoolPanelLayout
       pool={selectedPool}
       sharingGroups={sharingGroups}
-      onClose={() => setSelectedPool(null)}
+      onClose={clearSelectedPool}
+      onPoolSelect={setSelectedPoolName}
+      selectedPlatform={selectedPlatform}
+      onPlatformSelect={setSelectedPlatform}
     >
       <div className="flex h-full flex-col gap-4">
         {/* Toolbar with search and controls */}
         <div className="shrink-0">
           <InlineErrorBoundary title="Toolbar error" compact>
-            <PoolsToolbar pools={pools} sharingGroups={sharingGroups} />
+            <PoolsToolbar
+              pools={pools}
+              sharingGroups={sharingGroups}
+              searchChips={searchChips}
+              onSearchChipsChange={setSearchChips}
+            />
           </InlineErrorBoundary>
         </div>
 
@@ -91,6 +165,10 @@ export default function PoolsPage() {
               isLoading={isLoading}
               error={error ?? undefined}
               onRetry={refetch}
+              onPoolSelect={setSelectedPoolName}
+              selectedPoolName={selectedPoolName}
+              searchChips={searchChips}
+              onSearchChipsChange={setSearchChips}
             />
           </InlineErrorBoundary>
         </div>
