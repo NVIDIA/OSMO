@@ -169,11 +169,11 @@ export function ResourcePanelLayout({
         />
       )}
 
-      {/* Overlay panel */}
+      {/* Overlay panel - overflow-visible to allow resize handle to extend outside */}
       <aside
         ref={panelRef}
         className={cn(
-          "fixed bottom-0 right-0 z-50 flex flex-col overflow-hidden border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
+          "fixed bottom-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
           resource ? "translate-x-0" : "translate-x-full",
         )}
         style={{
@@ -187,11 +187,15 @@ export function ResourcePanelLayout({
         aria-hidden={!resource}
         onKeyDown={handleKeyDown}
       >
-        {/* Resize Handle */}
+        {/* Resize Handle - wide hit area, thin visible border */}
         <div
           className={cn(
-            "group absolute inset-y-0 left-0 z-20 w-2 -translate-x-1/2 cursor-ew-resize",
-            isDragging ? "bg-blue-500" : "bg-transparent hover:bg-zinc-400 dark:hover:bg-zinc-600",
+            "group absolute inset-y-0 left-0 z-[60] w-4 -translate-x-1/2 cursor-ew-resize",
+            // Thin 2px border in the center of the hit area
+            "before:absolute before:inset-y-0 before:left-1/2 before:w-0.5 before:-translate-x-1/2 before:transition-colors",
+            isDragging
+              ? "before:bg-blue-500"
+              : "before:bg-transparent hover:before:bg-zinc-300 dark:hover:before:bg-zinc-600",
           )}
           onMouseDown={handleResizeMouseDown}
           role="separator"
@@ -203,17 +207,18 @@ export function ResourcePanelLayout({
         >
           <div
             className={cn(
-              "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-300 px-0.5 py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-700",
+              "absolute left-1/2 top-1/2 z-[70] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-800",
               isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
             )}
             aria-hidden="true"
           >
-            <GripVertical className="size-4 text-zinc-600 dark:text-zinc-300" />
+            <GripVertical className="size-3 text-zinc-400 dark:text-zinc-500" strokeWidth={1.5} />
           </div>
         </div>
 
+        {/* Panel content - overflow hidden here */}
         {resource && (
-          <>
+          <div className="flex h-full flex-col overflow-hidden">
             <ResourcePanelHeader
               resource={resource}
               onClose={onClose}
@@ -224,7 +229,7 @@ export function ResourcePanelLayout({
               selectedPool={selectedPool}
               onPoolSelect={onPoolSelect}
             />
-          </>
+          </div>
         )}
       </aside>
     </div>
