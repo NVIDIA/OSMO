@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Pool } from "@/lib/api/adapter";
+import type { SearchChip } from "@/lib/stores";
 import { SmartSearch } from "@/components/ui/smart-search";
 import { usePoolsTableStore, usePoolsExtendedStore } from "./stores/pools-table-store";
 import { OPTIONAL_COLUMNS, createPoolSearchFields } from "./lib";
@@ -29,15 +30,22 @@ import { OPTIONAL_COLUMNS, createPoolSearchFields } from "./lib";
 export interface PoolsToolbarProps {
   pools: Pool[];
   sharingGroups?: string[][];
+  /** Filter chips (URL-synced) */
+  searchChips: SearchChip[];
+  /** Callback when chips change */
+  onSearchChipsChange: (chips: SearchChip[]) => void;
 }
 
-export const PoolsToolbar = memo(function PoolsToolbar({ pools, sharingGroups = [] }: PoolsToolbarProps) {
+export const PoolsToolbar = memo(function PoolsToolbar({
+  pools,
+  sharingGroups = [],
+  searchChips,
+  onSearchChipsChange,
+}: PoolsToolbarProps) {
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
   const compactMode = usePoolsTableStore((s) => s.compactMode);
-  const searchChips = usePoolsTableStore((s) => s.searchChips);
   const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
   const toggleCompactMode = usePoolsTableStore((s) => s.toggleCompactMode);
-  const setSearchChips = usePoolsTableStore((s) => s.setSearchChips);
   const displayMode = usePoolsExtendedStore((s) => s.displayMode);
   const toggleDisplayMode = usePoolsExtendedStore((s) => s.toggleDisplayMode);
 
@@ -54,7 +62,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({ pools, sharingGroups = 
           data={pools}
           fields={searchFields}
           chips={searchChips}
-          onChipsChange={setSearchChips}
+          onChipsChange={onSearchChipsChange}
           placeholder="Search pools... (try 'pool:', 'platform:', 'shared:')"
         />
       </div>
