@@ -228,57 +228,6 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
 ];
 
 // ============================================================================
-// Shorthand Fields (Resolve Based on Display Mode)
-// ============================================================================
-
-/**
- * Shorthand quota/capacity fields that resolve based on display mode.
- * These accept values directly and resolve to the explicit field.
- */
-const SHORTHAND_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
-  {
-    id: "quota",
-    label: "Quota",
-    prefix: "quota:",
-    hint: "guaranteed GPUs (based on display mode - free or used)",
-    freeFormHint: "<, <=, =, >, >=, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    freeTextOnly: true,
-    validate: (v) => validateNumericFilter(v),  // Accepts both
-    match: (pool, value) => {
-      // Fallback behavior - defaults to "free"
-      const parsed = parseNumericFilter(value);
-      if (!parsed) return false;
-      const actual = parsed.isPercent
-        ? (pool.quota.limit > 0 ? (pool.quota.free / pool.quota.limit) * 100 : 0)
-        : pool.quota.free;
-      return compareNumeric(actual, parsed.operator, parsed.value, parsed.isPercent);
-    },
-    resolveTo: ({ displayMode }) => displayMode === "used" ? "quota-used" : "quota-free",
-  },
-  {
-    id: "capacity",
-    label: "Capacity",
-    prefix: "capacity:",
-    hint: "pool GPUs (based on display mode - free or used)",
-    freeFormHint: "<, <=, =, >, >=, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    freeTextOnly: true,
-    validate: (v) => validateNumericFilter(v),
-    match: (pool, value) => {
-      // Fallback behavior - defaults to "free"
-      const parsed = parseNumericFilter(value);
-      if (!parsed) return false;
-      const actual = parsed.isPercent
-        ? (pool.quota.totalCapacity > 0 ? (pool.quota.totalFree / pool.quota.totalCapacity) * 100 : 0)
-        : pool.quota.totalFree;
-      return compareNumeric(actual, parsed.operator, parsed.value, parsed.isPercent);
-    },
-    resolveTo: ({ displayMode }) => displayMode === "used" ? "capacity-used" : "capacity-free",
-  },
-];
-
-// ============================================================================
 // Exports
 // ============================================================================
 
@@ -303,7 +252,7 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
   const sharedField: SearchField<Pool> = {
     id: "shared",
     label: "Shared",
-    hint: "all pools sharing capacity",
+    hint: "pools sharing capacity",
     prefix: "shared:",
     // Only show pools that are actually shared
     getValues: () => sharedPoolNames,
@@ -319,18 +268,10 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
 
   return [
     ...BASE_POOL_SEARCH_FIELDS,
-    ...SHORTHAND_POOL_SEARCH_FIELDS,
-    ...NUMERIC_POOL_SEARCH_FIELDS,
     sharedField,
+    ...NUMERIC_POOL_SEARCH_FIELDS,
   ];
 }
-
-/** Default search fields without sharing context (for backwards compatibility) */
-export const POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
-  ...BASE_POOL_SEARCH_FIELDS,
-  ...SHORTHAND_POOL_SEARCH_FIELDS,
-  ...NUMERIC_POOL_SEARCH_FIELDS,
-];
 
 /** Export numeric filter utilities for testing */
 export { parseNumericFilter, validateNumericFilter, compareNumeric };
