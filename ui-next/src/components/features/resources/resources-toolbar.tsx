@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -21,30 +21,28 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Pool } from "@/lib/api/adapter";
+import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences, type SearchChip } from "@/lib/stores";
 import { SmartSearch } from "@/components/ui/smart-search";
-import { usePoolsTableStore } from "./stores/pools-table-store";
-import { OPTIONAL_COLUMNS, createPoolSearchFields } from "./lib";
+import { useResourcesTableStore } from "./stores/resources-table-store";
+import { OPTIONAL_COLUMNS, createResourceSearchFields } from "./lib";
 
-export interface PoolsToolbarProps {
-  pools: Pool[];
-  sharingGroups?: string[][];
+export interface ResourcesToolbarProps {
+  resources: Resource[];
   /** Filter chips (URL-synced) */
   searchChips: SearchChip[];
   /** Callback when chips change */
   onSearchChipsChange: (chips: SearchChip[]) => void;
 }
 
-export const PoolsToolbar = memo(function PoolsToolbar({
-  pools,
-  sharingGroups = [],
+export const ResourcesToolbar = memo(function ResourcesToolbar({
+  resources,
   searchChips,
   onSearchChipsChange,
-}: PoolsToolbarProps) {
+}: ResourcesToolbarProps) {
   // Table-specific settings
-  const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
-  const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
+  const visibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds);
+  const toggleColumn = useResourcesTableStore((s) => s.toggleColumn);
 
   // Shared preferences (across pools & resources)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -52,21 +50,18 @@ export const PoolsToolbar = memo(function PoolsToolbar({
   const displayMode = useSharedPreferences((s) => s.displayMode);
   const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
 
-  // Create search fields with sharing context (memoized to avoid recreation)
-  const searchFields = useMemo(
-    () => createPoolSearchFields(sharingGroups),
-    [sharingGroups],
-  );
+  // Create search fields (memoized to avoid recreation)
+  const searchFields = useMemo(() => createResourceSearchFields(), []);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="min-w-[300px] flex-1">
         <SmartSearch
-          data={pools}
+          data={resources}
           fields={searchFields}
           chips={searchChips}
           onChipsChange={onSearchChipsChange}
-          placeholder="Search pools... (try 'pool:', 'platform:', 'shared:')"
+          placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
         />
       </div>
 

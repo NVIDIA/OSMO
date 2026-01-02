@@ -1,0 +1,82 @@
+/**
+ * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
+/**
+ * Resources feature styles
+ *
+ * Minimal feature-specific styles. Most styling uses Tailwind utilities.
+ * This file is for any CSS that can't be expressed in Tailwind.
+ */
+
+/* Virtual row positioning - used by virtualized table rows */
+.virtual-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+/* Scroll optimization */
+.scroll-optimized {
+  will-change: scroll-position;
+  contain: strict;
+}
+
+/* Focus optimization - reduce repaints on focus changes */
+.focus-optimized {
+  will-change: box-shadow;
+}
+
+/* Skeleton shimmer animation */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    theme('colors.zinc.100') 0%,
+    theme('colors.zinc.200') 50%,
+    theme('colors.zinc.100') 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+:is(.dark .skeleton-shimmer) {
+  background: linear-gradient(
+    90deg,
+    theme('colors.zinc.800') 0%,
+    theme('colors.zinc.700') 50%,
+    theme('colors.zinc.800') 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* CSS Spinner - GPU-accelerated, no React re-renders */
+.css-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
