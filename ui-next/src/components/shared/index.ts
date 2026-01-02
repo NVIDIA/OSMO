@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
 // and proprietary rights in and to this software, related documentation
@@ -11,13 +11,7 @@
  *
  * Reusable UI components used across multiple feature areas.
  * These are domain-agnostic primitives that can be used for any entity type.
- *
- * Note: AdaptiveSummary (resource summary cards) has been moved to
- * @/components/features/resources as it is a resource-domain component.
  */
-
-// Filter bar for filtering lists
-export { FilterBar } from "./filter-bar";
 
 // Capacity/usage visualization (generic progress bar)
 export { CapacityBar, type CapacityBarProps } from "./capacity-bar";
@@ -30,3 +24,6 @@ export { ErrorDetails } from "./error-details";
 
 // Inline error boundary (uses react-error-boundary)
 export { InlineErrorBoundary, InlineFallback, type InlineErrorBoundaryProps } from "./inline-error-boundary";
+
+// Loading indicator for infinite scroll tables
+export { LoadingMoreIndicator } from "./loading-more-indicator";
