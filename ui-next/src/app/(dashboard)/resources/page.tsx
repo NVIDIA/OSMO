@@ -121,6 +121,7 @@ export default function ResourcesPage() {
 
   const {
     resources,
+    allResources,
     filteredCount,
     totalCount,
     isLoading,
@@ -171,7 +172,7 @@ export default function ResourcesPage() {
         <div className="shrink-0">
           <InlineErrorBoundary title="Toolbar error" compact>
             <ResourcesToolbar
-              resources={resources}
+              resources={allResources}
               searchChips={searchChips}
               onSearchChipsChange={setSearchChips}
             />

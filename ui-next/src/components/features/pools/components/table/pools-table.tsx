@@ -21,9 +21,11 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { Check } from "lucide-react";
 import { getOrderedColumns, type SortState } from "@/lib/table";
 import type { PoolsResponse } from "@/lib/api/adapter";
-import { useSharedPreferences, type SearchChip } from "@/lib/stores";
+import { useSharedPreferences } from "@/lib/stores";
+import type { SearchChip } from "@/lib/stores";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { usePoolSections, useSectionScroll, useLayoutDimensions } from "../../hooks";
 import { COLUMN_MAP, MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
@@ -42,6 +44,7 @@ const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: nu
 
 
 export interface PoolsTableProps {
+  /** Pre-filtered pools data from usePoolsData */
   poolsData: PoolsResponse | null;
   isLoading?: boolean;
   error?: Error | null;
@@ -50,10 +53,8 @@ export interface PoolsTableProps {
   onPoolSelect?: (poolName: string) => void;
   /** Currently selected pool name (for row highlighting) */
   selectedPoolName?: string | null;
-  /** Filter chips (URL-synced) */
-  searchChips: SearchChip[];
-  /** Callback when chips change */
-  onSearchChipsChange: (chips: SearchChip[]) => void;
+  /** Callback when chips change (for shared filter feature) */
+  onSearchChipsChange?: (chips: SearchChip[]) => void;
 }
 
 export function PoolsTable({
@@ -63,7 +64,6 @@ export function PoolsTable({
   onRetry,
   onPoolSelect,
   selectedPoolName,
-  searchChips,
   onSearchChipsChange,
 }: PoolsTableProps) {
   const layout = useLayoutDimensions();
@@ -86,6 +86,8 @@ export function PoolsTable({
   // Create a callback to filter by shared pools using the shared: filter
   const createFilterBySharedPools = useCallback(
     (poolName: string) => {
+      if (!onSearchChipsChange) return undefined;
+
       // Find the sharing group that contains this pool
       const group = sharingGroups.find((g) => g.includes(poolName));
       if (!group || group.length <= 1) return undefined;
@@ -102,10 +104,9 @@ export function PoolsTable({
     [sharingGroups, onSearchChipsChange],
   );
 
-  // Business logic hooks
+  // Organize pools into sections (pools are pre-filtered by usePoolsData)
   const { sections, sharingMap } = usePoolSections({
     pools,
-    searchChips,
     sort,
     sharingGroups,
     displayMode,
@@ -215,7 +216,7 @@ export function PoolsTable({
             {sections.length === 0 ? (
               <tr>
                 <td colSpan={columnCount} className="p-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                  {searchChips.length > 0 ? "No pools match your filters" : "No pools available"}
+                  No pools available
                 </td>
               </tr>
             ) : (
@@ -245,6 +246,20 @@ export function PoolsTable({
               ])
             )}
           </tbody>
+
+            {/* End of list marker */}
+            {sections.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={columnCount}>
+                    <div className="flex items-center justify-center gap-1.5 py-4 text-xs text-zinc-400 dark:text-zinc-500">
+                      <Check className="h-3.5 w-3.5" />
+                      <span>You&apos;ve reached the end</span>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            )}
 
             {sections.length > 1 && hiddenSectionIndices.length > 0 && (
               <BottomSectionStack

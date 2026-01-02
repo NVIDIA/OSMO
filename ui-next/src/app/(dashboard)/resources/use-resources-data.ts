@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/adapter";
 import { useDataTable } from "@/lib/pagination";
 import type { SearchChip } from "@/lib/stores";
+import { filterByChips } from "@/components/ui/smart-search";
 import { createResourceSearchFields } from "@/components/features/resources/lib";
 
 // =============================================================================
@@ -36,7 +37,10 @@ interface UseResourcesDataParams {
 }
 
 interface UseResourcesDataReturn {
+  /** Filtered resources (after applying search chips) */
   resources: Resource[];
+  /** All resources (unfiltered, for suggestions) */
+  allResources: Resource[];
   filteredCount?: number;
   totalCount?: number;
   isLoading: boolean;
@@ -91,25 +95,15 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
   });
 
   // Apply SmartSearch chip filtering client-side
-  const filteredResources = useMemo(() => {
-    if (searchChips.length === 0) return allResources;
-
-    return allResources.filter((resource) => {
-      // All chips must match (AND logic)
-      return searchChips.every((chip) => {
-        // Find the field definition
-        const field = searchFields.find((f) => f.id === chip.field || f.prefix === `${chip.field}:`);
-        if (!field) {
-          // Fallback: match against name
-          return resource.name.toLowerCase().includes(chip.value.toLowerCase());
-        }
-        return field.match(resource, chip.value);
-      });
-    });
-  }, [allResources, searchChips, searchFields]);
+  // Uses shared filterByChips: same field = OR, different fields = AND
+  const filteredResources = useMemo(
+    () => filterByChips(allResources, searchChips, searchFields),
+    [allResources, searchChips, searchFields],
+  );
 
   return {
     resources: filteredResources,
+    allResources,
     filteredCount: searchChips.length > 0 ? filteredResources.length : rawFilteredCount,
     totalCount,
     isLoading,

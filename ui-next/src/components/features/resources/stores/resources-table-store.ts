@@ -17,9 +17,9 @@ import { createTableStore } from "@/lib/stores";
  * for consistency across pools and resources pages.
  */
 export const useResourcesTableStore = createTableStore({
-  storageKey: "resources-table-v1",
-  defaultVisibleColumns: ["resource", "platform", "gpu", "cpu", "memory", "storage"],
-  defaultColumnOrder: ["resource", "pools", "platform", "gpu", "cpu", "memory", "storage"],
+  storageKey: "resources-table",
+  defaultVisibleColumns: ["resource", "type", "platform", "backend", "gpu", "cpu", "memory", "storage"],
+  defaultColumnOrder: ["resource", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage"],
   defaultSort: { column: "resource", direction: "asc" },
   defaultPanelWidth: 40,
 });

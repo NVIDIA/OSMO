@@ -434,12 +434,12 @@ function SmartSearchInner<T>({
         // Multiple selectable options and nothing highlighted - Tab does nothing (ambiguous)
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
+        if (showDropdown && highlightedIndex >= 0) {
+          // Prioritize highlighted selection (user explicitly arrowed to it)
+          handleSelect(highlightedIndex);
+        } else if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
           // Add filter when in field prefix mode (e.g., "pool:g" or "pool:gpu-pool-1")
           addChip(parsedInput.field, parsedInput.query.trim());
-        } else if (showDropdown && highlightedIndex >= 0) {
-          // Select highlighted suggestion (for field prefixes like "pool:")
-          handleSelect(highlightedIndex);
         } else if (inputValue.trim()) {
           // No prefix - show error (persists until user types)
           setValidationError("Use a filter prefix (e.g. pool:, platform:, quota:)");

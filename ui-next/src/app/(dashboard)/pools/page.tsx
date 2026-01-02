@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -19,17 +19,16 @@
  * - GPU quota and capacity visualization
  *
  * Architecture:
+ * - usePoolsData encapsulates data fetching and filtering
+ * - UI receives pre-filtered data (ready for server-driven filtering)
  * - Uses Zustand for state persistence
- * - Uses TanStack Virtual for virtualization
- * - Uses react-resizable-panels for panel resizing
- * - Uses react-error-boundary for inline error handling
+ * - Uses nuqs for URL state synchronization
  */
 
 "use client";
 
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
-import { usePools } from "@/lib/api/adapter";
 import { InlineErrorBoundary } from "@/components/shared";
 import { usePage } from "@/components/shell";
 import {
@@ -38,6 +37,7 @@ import {
   PoolPanelLayout,
 } from "@/components/features/pools";
 import type { SearchChip } from "@/lib/stores";
+import { usePoolsData } from "./use-pools-data";
 
 // =============================================================================
 // Main Page Component
@@ -45,9 +45,6 @@ import type { SearchChip } from "@/lib/stores";
 
 export default function PoolsPage() {
   usePage({ title: "Pools" });
-
-  // Fetch pools data
-  const { pools, sharingGroups, isLoading, error, refetch } = usePools();
 
   // ==========================================================================
   // URL State - All state is URL-synced for shareable deep links
@@ -93,7 +90,6 @@ export default function PoolsPage() {
         const field = str.slice(0, colonIndex);
         const value = str.slice(colonIndex + 1);
         if (!field || !value) return null;
-        // Derive label from field:value
         const label = `${field}: ${value}`;
         return { field, value, label };
       })
@@ -112,16 +108,34 @@ export default function PoolsPage() {
     [setFilterStrings]
   );
 
+  // ==========================================================================
+  // Data Fetching with SmartSearch filtering
+  // Filtering encapsulated in hook (ready for server-driven filtering)
+  // ==========================================================================
+
+  const {
+    pools,
+    allPools,
+    sharingGroups,
+    isLoading,
+    error,
+    refetch,
+  } = usePoolsData({ searchChips });
+
+  // ==========================================================================
+  // Pool Selection
+  // ==========================================================================
+
   // Clear panel and optionally platform
   const clearSelectedPool = useCallback(() => {
     setSelectedPoolName(null);
     setSelectedPlatform(null);
   }, [setSelectedPoolName, setSelectedPlatform]);
 
-  // Find selected pool
+  // Find selected pool (search in allPools so selection persists through filtering)
   const selectedPool = useMemo(
-    () => (selectedPoolName ? pools.find((p) => p.name === selectedPoolName) ?? null : null),
-    [pools, selectedPoolName],
+    () => (selectedPoolName ? allPools.find((p) => p.name === selectedPoolName) ?? null : null),
+    [allPools, selectedPoolName],
   );
 
   // Pools data for table (null when loading or error)
@@ -130,7 +144,10 @@ export default function PoolsPage() {
     [pools, sharingGroups, isLoading],
   );
 
-  // Always render the shell - loading/error/empty handled inline
+  // ==========================================================================
+  // Render
+  // ==========================================================================
+
   return (
     <PoolPanelLayout
       pool={selectedPool}
@@ -145,7 +162,7 @@ export default function PoolsPage() {
         <div className="shrink-0">
           <InlineErrorBoundary title="Toolbar error" compact>
             <PoolsToolbar
-              pools={pools}
+              pools={allPools}
               sharingGroups={sharingGroups}
               searchChips={searchChips}
               onSearchChipsChange={setSearchChips}
@@ -153,7 +170,7 @@ export default function PoolsPage() {
           </InlineErrorBoundary>
         </div>
 
-        {/* Main pools table - handles loading/error/empty internally */}
+        {/* Main pools table - receives pre-filtered data */}
         <div className="min-h-0 flex-1">
           <InlineErrorBoundary
             title="Unable to display pools table"
@@ -167,7 +184,6 @@ export default function PoolsPage() {
               onRetry={refetch}
               onPoolSelect={setSelectedPoolName}
               selectedPoolName={selectedPoolName}
-              searchChips={searchChips}
               onSearchChipsChange={setSearchChips}
             />
           </InlineErrorBoundary>
