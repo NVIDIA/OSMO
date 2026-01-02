@@ -13,6 +13,8 @@
 import { memo, useEffect, useCallback } from "react";
 import { useVirtualizerCompat } from "@/lib/hooks";
 import { LoadingMoreIndicator } from "@/components/shared/loading-more-indicator";
+import { cn } from "@/lib/utils";
+import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 import type { Resource } from "@/lib/api/adapter";
 import type { DisplayMode } from "@/lib/stores";
 import type { ResourceColumnId } from "../../lib";
@@ -60,6 +62,21 @@ export const TableContent = memo(function TableContent({
               {resource.name}
             </div>
           );
+        case "type": {
+          const typeDisplay = getResourceAllocationTypeDisplay(resource.resourceType);
+          return (
+            <div key={columnId} className="px-3">
+              <span
+                className={cn(
+                  "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+                  typeDisplay.className,
+                )}
+              >
+                {typeDisplay.label}
+              </span>
+            </div>
+          );
+        }
         case "pools":
           return (
             <div key={columnId} className="truncate px-3 text-zinc-500 dark:text-zinc-400">
@@ -73,6 +90,12 @@ export const TableContent = memo(function TableContent({
           return (
             <div key={columnId} className="truncate px-3 text-zinc-500 dark:text-zinc-400">
               {resource.platform}
+            </div>
+          );
+        case "backend":
+          return (
+            <div key={columnId} className="truncate px-3 text-zinc-500 dark:text-zinc-400">
+              {resource.backend}
             </div>
           );
         case "gpu":
@@ -148,8 +171,10 @@ export const TableContent = memo(function TableContent({
   // Skeleton widths per column type
   const skeletonWidths: Record<ResourceColumnId, string> = {
     resource: "w-40",
+    type: "w-16",
     pools: "w-16",
     platform: "w-16",
+    backend: "w-12",
     gpu: "w-8",
     cpu: "w-8",
     memory: "w-12",

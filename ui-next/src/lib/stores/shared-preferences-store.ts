@@ -111,7 +111,7 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
         reset: () => set(initialState, false, "reset"),
       })),
       {
-        name: "shared-preferences-v1",
+        name: "shared-preferences",
         storage: createJSONStorage(() => localStorage),
       },
     ),

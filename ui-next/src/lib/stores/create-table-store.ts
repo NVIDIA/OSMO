@@ -25,7 +25,7 @@
  * ```ts
  * // Create store instance
  * export const usePoolsTableStore = createTableStore({
- *   storageKey: "pools-table-v1",
+ *   storageKey: "pools-table",
  *   defaultVisibleColumns: ["name", "quota", "capacity"],
  *   defaultColumnOrder: ["name", "quota", "capacity", "platforms"],
  *   defaultSort: { column: "name", direction: "asc" },

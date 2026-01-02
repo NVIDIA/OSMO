@@ -11,13 +11,32 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback, startTransition } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
+
+// Horizontal-only modifier for DND - locks Y axis and prevents scaling
+const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
+  ...transform,
+  y: 0,
+  scaleX: 1,
+  scaleY: 1,
+});
 import { useSharedPreferences, type DisplayMode } from "@/lib/stores";
 import type { Resource } from "@/lib/api/adapter";
-import { getVisibleColumnsConfig, type ResourceColumnId } from "../../lib";
+import { getVisibleColumnsConfig, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 import { TableHeader, type SortState, type SortColumn } from "./table-header";
 import { TableContent } from "./table-content";
+import "../../resources.css";
 
 // =============================================================================
 // Types
@@ -70,8 +89,10 @@ export function ResourcesTable({
   const displayMode = useSharedPreferences((s) => s.displayMode);
   const compactMode = useSharedPreferences((s) => s.compactMode);
 
-  // Table store (column visibility)
+  // Table store (column visibility and order)
   const storeVisibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds) as ResourceColumnId[];
+  const columnOrder = useResourcesTableStore((s) => s.columnOrder) as ResourceColumnId[];
+  const setColumnOrder = useResourcesTableStore((s) => s.setColumnOrder);
 
   // Sort state - includes displayMode to auto-reset when it changes
   const [sortState, setSortState] = useState<{ displayMode: DisplayMode; sort: SortState }>({
@@ -85,27 +106,52 @@ export function ResourcesTable({
   const lastClickedRowRef = useRef<HTMLElement | null>(null);
 
   // Merge showPoolsColumn prop with store visibility
-  // If showPoolsColumn is false, filter out "pools" from visible columns
+  // showPoolsColumn=false means pools is always hidden (single-pool context)
+  // showPoolsColumn=true means pools visibility is controlled by the store
   const effectiveVisibleIds = useMemo(() => {
-    if (showPoolsColumn) {
-      // Ensure pools is included when prop says to show it
-      return storeVisibleColumnIds.includes("pools")
-        ? storeVisibleColumnIds
-        : ["resource", "pools", ...storeVisibleColumnIds.filter((id) => id !== "resource")] as ResourceColumnId[];
-    } else {
-      // Remove pools when prop says to hide it
+    if (!showPoolsColumn) {
+      // Remove pools when prop says to hide it (e.g., single-pool view)
       return storeVisibleColumnIds.filter((id) => id !== "pools");
     }
+    // Otherwise, respect the store's visibility setting
+    return storeVisibleColumnIds;
   }, [storeVisibleColumnIds, showPoolsColumn]);
 
-  // Get column configuration based on visible columns
+  // Get column configuration based on visible columns and their order
   const columnConfig = useMemo(
-    () => getVisibleColumnsConfig(effectiveVisibleIds),
-    [effectiveVisibleIds],
+    () => getVisibleColumnsConfig(effectiveVisibleIds, columnOrder),
+    [effectiveVisibleIds, columnOrder],
   );
   const gridColumns = columnConfig.gridTemplate;
-  const tableMinWidth = columnConfig.minWidth;
   const visibleColumnIds = columnConfig.columnIds;
+
+  // Optional column IDs (draggable) - in order from columnOrder, filtered to visible
+  const optionalColumnIds = useMemo(
+    () => columnOrder.filter((id) => !MANDATORY_COLUMN_IDS.has(id) && visibleColumnIds.includes(id)),
+    [columnOrder, visibleColumnIds],
+  );
+
+  // DnD sensors and handlers
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        const oldIndex = optionalColumnIds.indexOf(active.id as ResourceColumnId);
+        const newIndex = optionalColumnIds.indexOf(over.id as ResourceColumnId);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newOptionalOrder = arrayMove(optionalColumnIds, oldIndex, newIndex);
+          const mandatoryIds = columnOrder.filter((id) => MANDATORY_COLUMN_IDS.has(id));
+          setColumnOrder([...mandatoryIds, ...newOptionalOrder]);
+        }
+      }
+    },
+    [optionalColumnIds, columnOrder, setColumnOrder],
+  );
 
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
@@ -162,6 +208,9 @@ export function ResourcesTable({
         case "resource":
           cmp = a.name.localeCompare(b.name);
           break;
+        case "type":
+          cmp = a.resourceType.localeCompare(b.resourceType);
+          break;
         case "pools": {
           const aPool = a.poolMemberships[0]?.pool ?? "";
           const bPool = b.poolMemberships[0]?.pool ?? "";
@@ -170,6 +219,9 @@ export function ResourcesTable({
         }
         case "platform":
           cmp = a.platform.localeCompare(b.platform);
+          break;
+        case "backend":
+          cmp = a.backend.localeCompare(b.backend);
           break;
         case "gpu":
           cmp =
@@ -230,61 +282,71 @@ export function ResourcesTable({
   }, []);
 
   return (
-    <div
-      className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-      style={{
-        contain: "strict",
-        transform: "translateZ(0)",
-        willChange: "contents",
-      }}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+      modifiers={[restrictToHorizontalAxis]}
+      autoScroll={false}
     >
-      {/* Table - single scroll container with sticky header */}
       <div
-        ref={scrollRef}
-        className="flex-1 overflow-auto focus:outline-none scroll-optimized"
-        role="table"
-        aria-label="Resources"
-        tabIndex={-1}
-        style={
-          {
-            overscrollBehavior: "contain",
-            WebkitOverflowScrolling: "touch",
-            "--table-grid-columns": gridColumns,
-          } as React.CSSProperties
-        }
+        className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+        style={{
+          contain: "strict",
+          transform: "translateZ(0)",
+          willChange: "contents",
+        }}
       >
-        <div style={{ minWidth: tableMinWidth, contain: "layout" }}>
-          {/* Sticky Header */}
-          <div
-            ref={tableHeaderRef}
-            className={cn(
-              "sticky top-0 z-10 transition-shadow",
-              isScrolled && "shadow-md",
-            )}
-          >
-            <TableHeader
-              compact={compactMode}
+        {/* Table - single scroll container with sticky header */}
+        <div
+          ref={scrollRef}
+          className="resources-scroll-container flex-1 overflow-auto overscroll-contain focus:outline-none"
+          role="table"
+          aria-label="Resources"
+          tabIndex={-1}
+          style={
+            {
+              overscrollBehavior: "contain",
+              WebkitOverflowScrolling: "touch",
+              "--table-grid-columns": gridColumns,
+            } as React.CSSProperties
+          }
+        >
+          {/* Content wrapper - no explicit minWidth, let CSS grid handle column widths */}
+          <div style={{ contain: "layout" }}>
+            {/* Sticky Header */}
+            <div
+              ref={tableHeaderRef}
+              className={cn(
+                "sticky top-0 z-10 transition-shadow",
+                isScrolled && "shadow-md",
+              )}
+            >
+              <TableHeader
+                compact={compactMode}
+                visibleColumnIds={visibleColumnIds}
+                optionalColumnIds={optionalColumnIds}
+                sort={sort}
+                onSort={handleSort}
+              />
+            </div>
+            {/* Virtualized Body */}
+            <TableContent
+              resources={sortedResources}
+              isLoading={isLoading}
+              displayMode={displayMode}
               visibleColumnIds={visibleColumnIds}
-              sort={sort}
-              onSort={handleSort}
+              scrollRef={scrollRef}
+              rowHeight={rowHeight}
+              onRowClick={handleRowClick}
+              hasNextPage={hasNextPage}
+              onLoadMore={onLoadMore}
+              isFetchingNextPage={isFetchingNextPage}
+              totalCount={totalCount}
             />
           </div>
-          {/* Virtualized Body */}
-          <TableContent
-            resources={sortedResources}
-            isLoading={isLoading}
-            displayMode={displayMode}
-            visibleColumnIds={visibleColumnIds}
-            scrollRef={scrollRef}
-            rowHeight={rowHeight}
-            onRowClick={handleRowClick}
-            hasNextPage={hasNextPage}
-            onLoadMore={onLoadMore}
-            isFetchingNextPage={isFetchingNextPage}
-            totalCount={totalCount}
-          />
         </div>
       </div>
-    </div>
+    </DndContext>
   );
 }

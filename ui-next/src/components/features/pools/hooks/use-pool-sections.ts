@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -8,11 +8,20 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
+/**
+ * Hook to organize pools into status-based sections.
+ *
+ * This hook receives pre-filtered pools and:
+ * - Groups them by status (Online, Maintenance, Offline)
+ * - Sorts pools within each section
+ * - Builds a sharing map for UI indicators
+ *
+ * Note: Filtering is now handled by usePoolsData, not here.
+ */
+
 import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
 import type { SortState } from "@/lib/table";
-import { filterByChips, type SearchChip } from "@/components/ui/smart-search";
-import { createPoolSearchFields } from "../lib/pool-search-fields";
 import { STATUS_ORDER, getStatusDisplay } from "../lib/constants";
 import type { PoolColumnId } from "../lib/pool-columns";
 
@@ -53,28 +62,18 @@ function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "u
 }
 
 interface UsePoolSectionsOptions {
+  /** Pre-filtered pools from usePoolsData */
   pools: Pool[];
-  searchChips: SearchChip[];
   sort: SortState<PoolColumnId>;
   sharingGroups: string[][];
   displayMode: "used" | "free";
 }
 
-export function usePoolSections({ pools, searchChips, sort, sharingGroups, displayMode }: UsePoolSectionsOptions) {
-  // Create search fields with sharing context
-  const searchFields = useMemo(
-    () => createPoolSearchFields(sharingGroups),
-    [sharingGroups],
-  );
-
-  const filteredPools = useMemo(() => {
-    if (searchChips.length === 0) return pools;
-    return filterByChips(pools, searchChips, searchFields);
-  }, [pools, searchChips, searchFields]);
-
+export function usePoolSections({ pools, sort, sharingGroups, displayMode }: UsePoolSectionsOptions) {
+  // Organize pools into sections by status
   const sections: StatusSection[] = useMemo(() => {
     const grouped = new Map<string, Pool[]>();
-    for (const pool of filteredPools) {
+    for (const pool of pools) {
       if (!grouped.has(pool.status)) grouped.set(pool.status, []);
       grouped.get(pool.status)!.push(pool);
     }
@@ -87,8 +86,9 @@ export function usePoolSections({ pools, searchChips, sort, sharingGroups, displ
         pools: sortPools(grouped.get(status) ?? [], sort, displayMode),
       };
     }).filter((s) => s.pools.length > 0);
-  }, [filteredPools, sort, displayMode]);
+  }, [pools, sort, displayMode]);
 
+  // Build map of pools that are shared (for UI indicators)
   const sharingMap = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const group of sharingGroups) {
@@ -101,5 +101,5 @@ export function usePoolSections({ pools, searchChips, sort, sharingGroups, displ
     return map;
   }, [sharingGroups]);
 
-  return { sections, filteredPools, sharingMap };
+  return { sections, sharingMap };
 }
