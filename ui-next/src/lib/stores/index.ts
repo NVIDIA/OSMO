@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -27,6 +27,7 @@
  * ```
  */
 
+// Table store factory
 export { createTableStore, type CreateTableStoreOptions } from "./create-table-store";
 export type {
   TableState,
@@ -36,3 +37,10 @@ export type {
   ColumnUserWidths,
   SearchChip,
 } from "./types";
+
+// Shared preferences (cross-feature)
+export {
+  useSharedPreferences,
+  type SharedPreferencesStore,
+  type DisplayMode,
+} from "./shared-preferences-store";

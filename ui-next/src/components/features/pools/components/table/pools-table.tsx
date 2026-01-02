@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -23,8 +23,8 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { getOrderedColumns, type SortState } from "@/lib/table";
 import type { PoolsResponse } from "@/lib/api/adapter";
-import type { SearchChip } from "@/lib/stores";
-import { usePoolsTableStore, usePoolsExtendedStore } from "../../stores/pools-table-store";
+import { useSharedPreferences, type SearchChip } from "@/lib/stores";
+import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { usePoolSections, useSectionScroll, useLayoutDimensions } from "../../hooks";
 import { COLUMN_MAP, MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
 import { SectionRow } from "./section-row";
@@ -73,11 +73,12 @@ export function PoolsTable({
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds) as PoolColumnId[];
   const columnOrder = usePoolsTableStore((s) => s.columnOrder) as PoolColumnId[];
   const sort = usePoolsTableStore((s) => s.sort) as SortState<PoolColumnId>;
-  const compactMode = usePoolsTableStore((s) => s.compactMode);
   const setSort = usePoolsTableStore((s) => s.setSort);
   const setColumnOrder = usePoolsTableStore((s) => s.setColumnOrder);
 
-  const displayMode = usePoolsExtendedStore((s) => s.displayMode);
+  // Shared preferences (across pools & resources)
+  const displayMode = useSharedPreferences((s) => s.displayMode);
+  const compactMode = useSharedPreferences((s) => s.compactMode);
 
   const pools = poolsData?.pools ?? [];
   const sharingGroups = poolsData?.sharingGroups ?? [];
