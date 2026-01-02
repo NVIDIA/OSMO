@@ -234,7 +234,7 @@ export function PoolsTable({
                     pool={pool}
                     columns={columns}
                     isSelected={selectedPoolName === pool.name}
-                    onSelect={onPoolSelect ? () => onPoolSelect(pool.name) : undefined}
+                    onSelect={onPoolSelect}
                     displayMode={displayMode}
                     compact={compactMode}
                     isShared={sharingMap.has(pool.name)}
@@ -259,5 +259,3 @@ export function PoolsTable({
     </DndContext>
   );
 }
-
-export default PoolsTable;

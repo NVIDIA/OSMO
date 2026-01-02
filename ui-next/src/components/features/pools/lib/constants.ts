@@ -11,38 +11,10 @@
 import { PoolStatus } from "@/lib/api/generated";
 
 // ============================================================================
-// Display Mode (Free/Used Toggle)
+// Display Mode
 // ============================================================================
 
 export type DisplayMode = "free" | "used";
-
-/**
- * Color styles for display mode toggle and related UI elements.
- * Provides consistent theming across the pools feature.
- */
-export const DISPLAY_MODE_STYLES = {
-  free: {
-    bg: "bg-emerald-50 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-400",
-    textMuted: "text-emerald-600 dark:text-emerald-400",
-    icon: "text-emerald-500",
-    border: "border-emerald-200 dark:border-emerald-800",
-  },
-  used: {
-    bg: "bg-amber-50 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-400",
-    textMuted: "text-amber-600 dark:text-amber-400",
-    icon: "text-amber-500",
-    border: "border-amber-200 dark:border-amber-800",
-  },
-} as const;
-
-/**
- * Get display mode styles by mode
- */
-export function getDisplayModeStyles(mode: DisplayMode) {
-  return DISPLAY_MODE_STYLES[mode];
-}
 
 // Panel snap presets for quick width adjustments
 export const PANEL = {
