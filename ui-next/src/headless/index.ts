@@ -21,7 +21,6 @@
 // Shared types
 export type {
   FilterType,
-  PoolDetailFilterType,
   AllResourcesFilterType,
   ActiveFilter,
   ResourceDisplayMode,
@@ -30,10 +29,6 @@ export type {
 // Pools List
 export { usePoolsList } from "./use-pools-list";
 export type { PoolGroup, UsePoolsListOptions, UsePoolsListReturn } from "./use-pools-list";
-
-// Pool Detail
-export { usePoolDetail } from "./use-pool-detail";
-export type { UsePoolDetailOptions, UsePoolDetailReturn } from "./use-pool-detail";
 
 // Resources (cross-pool view with pagination)
 export { useResources } from "./use-resources";

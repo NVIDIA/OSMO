@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -38,25 +38,10 @@ export type { ActiveFilter } from "@/lib/filters";
 export type FilterType = "search" | "pool" | "platform" | "resourceType";
 
 /**
- * Filter types available on the Pool Detail page.
- * (No pool filter since we're already viewing a specific pool)
- */
-export type PoolDetailFilterType = "search" | "platform" | "resourceType";
-
-/**
  * Filter types available on the All Resources page.
  * (Includes pool filter for cross-pool filtering)
  */
 export type AllResourcesFilterType = "search" | "pool" | "platform" | "resourceType";
-
-// =============================================================================
-// Future Entity Filter Types
-// =============================================================================
-// As new entity types are added (workflows, tasks, pools), define their
-// filter type unions here following the same pattern:
-//
-// export type WorkflowFilterType = "search" | "status" | "pool" | "user";
-// export type TaskFilterType = "search" | "status" | "workflow" | "resource";
 
 // =============================================================================
 // Display Mode Types

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -13,17 +13,25 @@ import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
+/**
+ * Pool-specific extended state.
+ *
+ * Note: displayMode and compactMode are now in useSharedPreferences
+ * for consistency across pools and resources pages.
+ */
 interface PoolsExtendedState {
-  displayMode: "used" | "free";
+  /** Whether the panel header info section is expanded */
   headerExpanded: boolean;
 }
 
 interface PoolsExtendedActions {
-  toggleDisplayMode: () => void;
   setHeaderExpanded: (expanded: boolean) => void;
   toggleHeaderExpanded: () => void;
 }
 
+/**
+ * Pools table store for column/sort/panel preferences.
+ */
 export const usePoolsTableStore = createTableStore({
   storageKey: "pools-table-v1",
   defaultVisibleColumns: ["name", "description", "quota", "capacity", "platforms", "backend"],
@@ -32,14 +40,14 @@ export const usePoolsTableStore = createTableStore({
   defaultPanelWidth: 40,
 });
 
+/**
+ * Pools-specific extended state (not shared with resources).
+ */
 export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedActions>()(
   devtools(
     persist(
       immer((set) => ({
-        displayMode: "free" as const,
         headerExpanded: false,
-        toggleDisplayMode: () =>
-          set((state) => { state.displayMode = state.displayMode === "free" ? "used" : "free"; }, false, "toggleDisplayMode"),
         setHeaderExpanded: (expanded) =>
           set((state) => { state.headerExpanded = expanded; }, false, "setHeaderExpanded"),
         toggleHeaderExpanded: () =>
@@ -47,11 +55,14 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
       })),
       {
         name: "pools-extended-v1",
-        partialize: (state) => ({ displayMode: state.displayMode, headerExpanded: state.headerExpanded }),
+        partialize: (state) => ({ headerExpanded: state.headerExpanded }),
       },
     ),
     { name: "pools-extended-v1", enabled: process.env.NODE_ENV === "development" },
   ),
 );
+
+// Re-export shared preferences for backwards compatibility
+export { useSharedPreferences } from "@/lib/stores";
 
 export type { TableState, TableActions, TableStore, SearchChip } from "@/lib/stores";
