@@ -30,6 +30,8 @@ import type {
   PoolsResponse,
   Quota,
   PlatformConfig,
+  GpuResources,
+  TimeoutConfig,
   Resource,
   PoolResourcesResponse,
   AllResourcesResponse,
@@ -134,6 +136,31 @@ function transformPlatformConfig(
 }
 
 /**
+ * Transform backend GPU resources to ideal GpuResources type.
+ * Backend uses -1 to indicate "no limit", we convert to null for clarity.
+ */
+function transformGpuResources(resources: PoolResourceUsage["resources"]): GpuResources {
+  const gpu = resources?.gpu;
+  return {
+    guarantee: gpu?.guarantee !== undefined && gpu.guarantee !== -1 ? gpu.guarantee : null,
+    maximum: gpu?.maximum !== undefined && gpu.maximum !== -1 ? gpu.maximum : null,
+    weight: gpu?.weight ?? null,
+  };
+}
+
+/**
+ * Transform backend timeout strings to ideal TimeoutConfig type.
+ */
+function transformTimeouts(backendPool: PoolResourceUsage): TimeoutConfig {
+  return {
+    defaultExec: backendPool.default_exec_timeout ?? null,
+    maxExec: backendPool.max_exec_timeout ?? null,
+    defaultQueue: backendPool.default_queue_timeout ?? null,
+    maxQueue: backendPool.max_queue_timeout ?? null,
+  };
+}
+
+/**
  * Transform backend PoolResourceUsage to ideal Pool type.
  */
 function transformPool(backendPool: PoolResourceUsage): Pool {
@@ -153,6 +180,10 @@ function transformPool(backendPool: PoolResourceUsage): Pool {
     platforms: Object.keys(backendPool.platforms ?? {}),
     platformConfigs,
     backend: backendPool.backend ?? "",
+    defaultPlatform: backendPool.default_platform ?? null,
+    gpuResources: transformGpuResources(backendPool.resources),
+    timeouts: transformTimeouts(backendPool),
+    defaultExitActions: backendPool.default_exit_actions ?? {},
   };
 }
 

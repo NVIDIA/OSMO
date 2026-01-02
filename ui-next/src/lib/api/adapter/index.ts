@@ -20,6 +20,8 @@ export type {
   PoolsResponse,
   Quota,
   PlatformConfig,
+  GpuResources,
+  TimeoutConfig,
   Resource,
   PoolResourcesResponse,
   AllResourcesResponse,

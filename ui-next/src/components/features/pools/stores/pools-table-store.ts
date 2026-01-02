@@ -15,12 +15,13 @@ import { immer } from "zustand/middleware/immer";
 
 interface PoolsExtendedState {
   displayMode: "used" | "free";
-  selectedPoolName: string | null;
+  headerExpanded: boolean;
 }
 
 interface PoolsExtendedActions {
   toggleDisplayMode: () => void;
-  setSelectedPool: (name: string | null) => void;
+  setHeaderExpanded: (expanded: boolean) => void;
+  toggleHeaderExpanded: () => void;
 }
 
 export const usePoolsTableStore = createTableStore({
@@ -36,16 +37,17 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
     persist(
       immer((set) => ({
         displayMode: "free" as const,
-        selectedPoolName: null,
+        headerExpanded: false,
         toggleDisplayMode: () =>
           set((state) => { state.displayMode = state.displayMode === "free" ? "used" : "free"; }, false, "toggleDisplayMode"),
-        setSelectedPool: (name) =>
-          set((state) => { state.selectedPoolName = name; }, false, "setSelectedPool"),
+        setHeaderExpanded: (expanded) =>
+          set((state) => { state.headerExpanded = expanded; }, false, "setHeaderExpanded"),
+        toggleHeaderExpanded: () =>
+          set((state) => { state.headerExpanded = !state.headerExpanded; }, false, "toggleHeaderExpanded"),
       })),
       {
         name: "pools-extended-v1",
-        // selectedPoolName excluded from persistence (ephemeral)
-        partialize: (state) => ({ displayMode: state.displayMode }),
+        partialize: (state) => ({ displayMode: state.displayMode, headerExpanded: state.headerExpanded }),
       },
     ),
     { name: "pools-extended-v1", enabled: process.env.NODE_ENV === "development" },
