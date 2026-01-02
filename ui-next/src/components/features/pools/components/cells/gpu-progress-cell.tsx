@@ -10,7 +10,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { progressTrack, getProgressColor } from "@/lib/styles";
@@ -40,28 +40,52 @@ export const GpuProgressCell = memo(function GpuProgressCell({
   const percent = total > 0 ? (used / total) * 100 : 0;
   const displayLabel = displayMode === "used" ? `${used}/${total}` : `${free} ${type === "quota" ? "free" : "idle"}`;
 
-  const handleShareClick = onFilterBySharedPools
-    ? (e: React.MouseEvent) => {
-        e.stopPropagation(); // Don't trigger row selection
-        onFilterBySharedPools();
-      }
-    : undefined;
+  const handleShareClick = useCallback(
+    (e: React.MouseEvent | React.KeyboardEvent) => {
+      e.stopPropagation();
+      onFilterBySharedPools?.();
+    },
+    [onFilterBySharedPools]
+  );
 
-  const shareIconClasses = onFilterBySharedPools
-    ? "cursor-pointer hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
-    : "cursor-help";
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handleShareClick(e);
+      }
+    },
+    [handleShareClick]
+  );
+
+  // Shared icon component for both compact and full modes
+  const ShareIcon = isShared ? (
+    onFilterBySharedPools ? (
+      <button
+        type="button"
+        onClick={handleShareClick}
+        onKeyDown={handleKeyDown}
+        className="inline-flex items-center justify-center rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
+        aria-label="Filter to show only pools sharing capacity with this pool"
+      >
+        <Share2 className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} aria-hidden="true" />
+      </button>
+    ) : (
+      <Share2
+        className={cn(
+          "text-violet-500 dark:text-violet-400",
+          compact ? "h-3 w-3" : "h-3.5 w-3.5"
+        )}
+        aria-label="This pool shares capacity with other pools"
+      />
+    )
+  ) : null;
 
   if (compact) {
     return (
       <div className="flex items-center gap-1.5">
         <span className="tabular-nums text-xs text-zinc-700 dark:text-zinc-300">{displayLabel}</span>
-        {isShared && (
-          <Share2
-            className={cn("h-3 w-3 text-violet-500 dark:text-violet-400", shareIconClasses)}
-            aria-label="Shares capacity with other pools - click to filter"
-            onClick={handleShareClick}
-          />
-        )}
+        {ShareIcon}
       </div>
     );
   }
@@ -75,13 +99,7 @@ export const GpuProgressCell = memo(function GpuProgressCell({
         />
       </div>
       <span className="whitespace-nowrap tabular-nums text-xs text-zinc-600 dark:text-zinc-400">{displayLabel}</span>
-      {isShared && (
-        <Share2
-          className={cn("h-3.5 w-3.5 text-violet-500 dark:text-violet-400", shareIconClasses)}
-          aria-label="Shares capacity with other pools - click to filter"
-          onClick={handleShareClick}
-        />
-      )}
+      {ShareIcon}
     </div>
   );
 });

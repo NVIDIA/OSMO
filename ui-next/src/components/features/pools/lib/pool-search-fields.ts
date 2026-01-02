@@ -215,7 +215,7 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     label: "Capacity Used",
     prefix: "capacity:used:",
     hint: "pool consumption",
-    freeFormHint: "<, <=, =, >, >=, >=, N (count) or N% (percentage)",
+    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
     freeTextOnly: true,
     validate: (v) => validateNumericFilter(v),  // Accepts both
