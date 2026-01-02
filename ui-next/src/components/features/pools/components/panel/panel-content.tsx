@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getChipLayoutSpacious, useExpandableChips } from "../../hooks";
 export interface PanelContentProps {
   pool: Pool;
   sharingGroups: string[][];
@@ -492,90 +493,23 @@ function PlatformConfigContent({ config }: PlatformConfigContentProps) {
 // Expandable Pool Chips Component
 // =============================================================================
 
-/** Approximate width of "+N" button in pixels (includes ring/shadow) */
-const OVERFLOW_BUTTON_WIDTH = 40;
-/** Gap between chips in pixels */
-const CHIP_GAP = 6;
-/** Padding inside chip (px-2 = 8px each side) */
-const CHIP_PADDING = 16;
-/** Approximate character width for chip text */
-const CHAR_WIDTH = 7;
-/** Container internal padding for ring visibility (p-0.5 = 2px each side) */
-const CONTAINER_PADDING = 4;
-
 interface ExpandablePoolChipsProps {
   pools: string[];
   onPoolClick?: (poolName: string) => void;
 }
 
 function ExpandablePoolChips({ pools, onPoolClick }: ExpandablePoolChipsProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(1);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const layout = useMemo(() => getChipLayoutSpacious(), []);
 
-  const sortedPools = useMemo(() => [...pools].sort((a, b) => a.localeCompare(b)), [pools]);
-
-  // Estimate chip width based on text length
-  const estimateChipWidth = useCallback((text: string) => {
-    return text.length * CHAR_WIDTH + CHIP_PADDING;
-  }, []);
-
-  // Calculate how many chips fit in available width
-  const calculateVisibleCount = useCallback(() => {
-    if (!containerRef.current || sortedPools.length === 0) return 1;
-
-    const containerWidth = containerRef.current.offsetWidth;
-    if (containerWidth === 0) return 1;
-
-    // Account for internal padding used to prevent ring clipping
-    const availableWidth = containerWidth - CONTAINER_PADDING;
-
-    let usedWidth = 0;
-    let count = 0;
-    const hasOverflow = sortedPools.length > 1;
-
-    for (let i = 0; i < sortedPools.length; i++) {
-      const chipWidth = estimateChipWidth(sortedPools[i]);
-      const needsOverflowSpace = hasOverflow && i < sortedPools.length - 1;
-      const requiredWidth = usedWidth + chipWidth + (count > 0 ? CHIP_GAP : 0);
-      const reservedForOverflow = needsOverflowSpace ? OVERFLOW_BUTTON_WIDTH + CHIP_GAP : 0;
-
-      if (requiredWidth + reservedForOverflow <= availableWidth) {
-        usedWidth = requiredWidth;
-        count++;
-      } else {
-        break;
-      }
-    }
-
-    // Always show at least 1 chip
-    return Math.max(1, count);
-  }, [sortedPools, estimateChipWidth]);
-
-  // Recalculate on resize
-  useEffect(() => {
-    if (expanded) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver(() => {
-      setVisibleCount(calculateVisibleCount());
-    });
-
-    observer.observe(container);
-    setVisibleCount(calculateVisibleCount());
-
-    return () => observer.disconnect();
-  }, [calculateVisibleCount, expanded, sortedPools]);
-
-  // Reset to collapsed when pools change
-  useEffect(() => {
-    setExpanded(false);
-  }, [pools]);
-
-  const displayedPools = expanded ? sortedPools : sortedPools.slice(0, visibleCount);
-  const overflowCount = sortedPools.length - visibleCount;
+  const {
+    containerRef,
+    expanded,
+    setExpanded,
+    sortedItems,
+    displayedItems,
+    overflowCount,
+    visibleCount,
+  } = useExpandableChips({ items: pools, layout });
 
   return (
     <div
@@ -585,7 +519,7 @@ function ExpandablePoolChips({ pools, onPoolClick }: ExpandablePoolChipsProps) {
         expanded ? "flex-wrap" : "flex-nowrap overflow-hidden"
       )}
     >
-      {displayedPools.map((poolName) => (
+      {displayedItems.map((poolName) => (
         <button
           key={poolName}
           type="button"
@@ -607,14 +541,14 @@ function ExpandablePoolChips({ pools, onPoolClick }: ExpandablePoolChipsProps) {
           type="button"
           onClick={() => setExpanded(true)}
           className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-200 transition-colors hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
-          title={`${overflowCount} more: ${sortedPools.slice(visibleCount).join(", ")}`}
+          title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
         >
           +{overflowCount}
         </button>
       )}
 
       {/* Collapse button */}
-      {expanded && sortedPools.length > 1 && (
+      {expanded && sortedItems.length > 1 && (
         <button
           type="button"
           onClick={() => setExpanded(false)}

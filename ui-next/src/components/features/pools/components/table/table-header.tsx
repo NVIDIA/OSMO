@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -21,6 +21,53 @@ import { cn } from "@/lib/utils";
 import type { ColumnDef, SortState } from "@/lib/table";
 import { MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
 
+// =============================================================================
+// Sort Button Component (shared between mandatory and optional columns)
+// =============================================================================
+
+interface SortButtonProps {
+  column: ColumnDef<PoolColumnId>;
+  sort: SortState<PoolColumnId>;
+  onSort: (column: PoolColumnId) => void;
+}
+
+function SortButton({ column, sort, onSort }: SortButtonProps) {
+  const isActive = sort.column === column.id;
+  const ariaSort = isActive ? (sort.direction === "asc" ? "ascending" : "descending") : undefined;
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        if (column.sortable) onSort(column.id);
+      }}
+      disabled={!column.sortable}
+      aria-sort={ariaSort}
+      className={cn(
+        "flex items-center gap-1 truncate transition-colors",
+        column.sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
+        column.align === "right" && "ml-auto",
+      )}
+    >
+      <span className="truncate">{column.label}</span>
+      {column.sortable &&
+        (isActive ? (
+          sort.direction === "asc" ? (
+            <ChevronUp className="size-3 shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+          )
+        ) : (
+          <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
+        ))}
+    </button>
+  );
+}
+
+// =============================================================================
+// Sortable Header Cell (draggable column header)
+// =============================================================================
+
 interface SortableHeaderCellProps {
   col: ColumnDef<PoolColumnId>;
   sort: SortState<PoolColumnId>;
@@ -39,14 +86,6 @@ function SortableHeaderCell({ col, sort, onSort }: SortableHeaderCellProps) {
     width: isDragging && width ? width : undefined,
   };
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (col.sortable) onSort(col.id);
-    },
-    [col.id, col.sortable, onSort],
-  );
-
   return (
     <th
       ref={setNodeRef}
@@ -60,33 +99,16 @@ function SortableHeaderCell({ col, sort, onSort }: SortableHeaderCellProps) {
         col.align === "right" && "text-right",
       )}
     >
-      <button
-        onClick={handleClick}
-        disabled={!col.sortable}
-        aria-sort={sort.column === col.id ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
-        className={cn(
-          "flex items-center gap-1 truncate transition-colors",
-          col.sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
-          col.align === "right" && "ml-auto",
-        )}
-      >
-        <span className="truncate">{col.label}</span>
-        {col.sortable &&
-          (sort.column === col.id ? (
-            sort.direction === "asc" ? (
-              <ChevronUp className="size-3 shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-            )
-          ) : (
-            <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
-          ))}
-      </button>
+      <SortButton column={col} sort={sort} onSort={onSort} />
     </th>
   );
 }
 
 const MemoizedSortableHeaderCell = memo(SortableHeaderCell);
+
+// =============================================================================
+// Table Header
+// =============================================================================
 
 export interface TableHeaderProps {
   columns: ColumnDef<PoolColumnId>[];
@@ -115,28 +137,7 @@ export const TableHeader = memo(function TableHeader({
                 col.align === "right" && "text-right",
               )}
             >
-              <button
-                onClick={() => col.sortable && onSort(col.id)}
-                disabled={!col.sortable}
-                aria-sort={sort.column === col.id ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
-                className={cn(
-                  "flex items-center gap-1 truncate transition-colors",
-                  col.sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
-                  col.align === "right" && "ml-auto",
-                )}
-              >
-                <span className="truncate">{col.label}</span>
-                {col.sortable &&
-                  (sort.column === col.id ? (
-                    sort.direction === "asc" ? (
-                      <ChevronUp className="size-3 shrink-0" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-                    )
-                  ) : (
-                    <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
-                  ))}
-              </button>
+              <SortButton column={col} sort={sort} onSort={onSort} />
             </th>
           ))}
 
