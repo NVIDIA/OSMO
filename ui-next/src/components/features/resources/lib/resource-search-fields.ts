@@ -10,6 +10,8 @@
 
 import type { SearchField, ChipVariant } from "@/components/ui/smart-search";
 import type { Resource } from "@/lib/api/adapter";
+import { BackendResourceType } from "@/lib/api/generated";
+import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 
 // ============================================================================
 // Numeric Filter Parsing (copied from pools pattern)
@@ -118,8 +120,24 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Name",
     hint: "resource name",
     prefix: "name:",
-    getValues: (resources) => resources.map((r) => r.name).slice(0, 20),
+    getValues: () => [],
+    freeTextOnly: true,
     match: (resource, value) => resource.name.toLowerCase().includes(value.toLowerCase()),
+  },
+  {
+    id: "type",
+    label: "Type",
+    hint: "allocation type",
+    prefix: "type:",
+    getValues: () => Object.values(BackendResourceType),
+    validate: (value) => {
+      const validTypes = Object.values(BackendResourceType).map((t) => t.toLowerCase());
+      if (!validTypes.includes(value.toLowerCase())) {
+        return `Must be one of: ${Object.values(BackendResourceType).join(", ")}`;
+      }
+      return true;
+    },
+    match: (resource, value) => resource.resourceType.toLowerCase() === value.toLowerCase(),
   },
   {
     id: "platform",
@@ -127,7 +145,7 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "platform name",
     prefix: "platform:",
     getValues: (resources) => [...new Set(resources.map((r) => r.platform))].sort(),
-    match: (resource, value) => resource.platform.toLowerCase().includes(value.toLowerCase()),
+    match: (resource, value) => resource.platform.toLowerCase() === value.toLowerCase(),
   },
   {
     id: "pool",
@@ -137,23 +155,25 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     getValues: (resources) => [
       ...new Set(resources.flatMap((r) => r.poolMemberships.map((m) => m.pool))),
     ].sort(),
+    // Case-sensitive exact match for cross-linking from pools page
     match: (resource, value) =>
-      resource.poolMemberships.some((m) => m.pool.toLowerCase().includes(value.toLowerCase())),
+      resource.poolMemberships.some((m) => m.pool === value),
   },
   {
     id: "backend",
     label: "Backend",
-    hint: "backend name",
+    hint: "backend cluster",
     prefix: "backend:",
     getValues: (resources) => [...new Set(resources.map((r) => r.backend))].sort(),
-    match: (resource, value) => resource.backend.toLowerCase().includes(value.toLowerCase()),
+    match: (resource, value) => resource.backend.toLowerCase() === value.toLowerCase(),
   },
   {
     id: "hostname",
     label: "Hostname",
     hint: "hostname",
     prefix: "hostname:",
-    getValues: (resources) => resources.map((r) => r.hostname).slice(0, 20),
+    getValues: () => [],
+    freeTextOnly: true,
     match: (resource, value) => resource.hostname.toLowerCase().includes(value.toLowerCase()),
   },
 ];

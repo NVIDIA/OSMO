@@ -33,7 +33,7 @@ interface PoolsExtendedActions {
  * Pools table store for column/sort/panel preferences.
  */
 export const usePoolsTableStore = createTableStore({
-  storageKey: "pools-table-v1",
+  storageKey: "pools-table",
   defaultVisibleColumns: ["name", "description", "quota", "capacity", "platforms", "backend"],
   defaultColumnOrder: ["name", "description", "quota", "capacity", "platforms", "backend"],
   defaultSort: { column: "name", direction: "asc" },
@@ -54,11 +54,11 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
           set((state) => { state.headerExpanded = !state.headerExpanded; }, false, "toggleHeaderExpanded"),
       })),
       {
-        name: "pools-extended-v1",
+        name: "pools-extended",
         partialize: (state) => ({ headerExpanded: state.headerExpanded }),
       },
     ),
-    { name: "pools-extended-v1", enabled: process.env.NODE_ENV === "development" },
+    { name: "pools-extended", enabled: process.env.NODE_ENV === "development" },
   ),
 );
 

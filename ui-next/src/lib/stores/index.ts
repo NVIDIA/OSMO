@@ -20,7 +20,7 @@
  * import { createTableStore } from "@/lib/stores";
  *
  * export const usePoolsTableStore = createTableStore({
- *   storageKey: "pools-table-v1",
+ *   storageKey: "pools-table",
  *   defaultVisibleColumns: ["name", "quota"],
  *   defaultColumnOrder: ["name", "quota", "capacity"],
  * });
