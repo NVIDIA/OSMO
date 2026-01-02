@@ -8,7 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useRef, useState, useLayoutEffect, useCallback, useMemo } from "react";
 import type { StatusSection } from "./use-pool-sections";
 
 interface UseSectionScrollOptions {
@@ -20,7 +20,7 @@ interface UseSectionScrollOptions {
 
 export function useSectionScroll({ sections, headerHeight, sectionHeight, rowHeight }: UseSectionScrollOptions) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [hiddenSectionIndices, setHiddenSectionIndices] = useState<number[]>([]);
+  const [rawHiddenIndices, setRawHiddenIndices] = useState<number[]>([]);
 
   const sectionStartPositions = useMemo(() => {
     const positions: number[] = [];
@@ -35,31 +35,58 @@ export function useSectionScroll({ sections, headerHeight, sectionHeight, rowHei
     return positions;
   }, [sections, rowHeight, headerHeight, sectionHeight]);
 
-  useEffect(() => {
+  // Calculate hidden indices based on scroll position
+  const calculateHiddenIndices = useCallback(() => {
     const scrollContainer = scrollRef.current;
-    if (!scrollContainer || sections.length === 0) return;
+    if (!scrollContainer || sections.length === 0) return [];
+
+    const scrollTop = scrollContainer.scrollTop;
+    const viewportHeight = scrollContainer.clientHeight;
+    const visualPositions = sectionStartPositions.map((pos) => pos - scrollTop);
+    const hidden: number[] = [];
+
+    for (let i = sections.length - 1; i >= 0; i--) {
+      const sectionVisualTop = visualPositions[i];
+      const stackTopPosition = viewportHeight - (hidden.length + 1) * sectionHeight;
+      if (sectionVisualTop >= stackTopPosition) {
+        hidden.unshift(i);
+      }
+    }
+
+    return hidden;
+  }, [sections.length, sectionStartPositions, sectionHeight]);
+
+  // useLayoutEffect runs synchronously after DOM mutations, before paint
+  // This prevents the flash of stale state that useEffect would cause
+  useLayoutEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) {
+      setRawHiddenIndices([]);
+      return;
+    }
+
+    if (sections.length === 0) {
+      setRawHiddenIndices([]);
+      return;
+    }
 
     const handleScroll = () => {
-      const scrollTop = scrollContainer.scrollTop;
-      const viewportHeight = scrollContainer.clientHeight;
-      const visualPositions = sectionStartPositions.map((pos) => pos - scrollTop);
-      const hidden: number[] = [];
-
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const sectionVisualTop = visualPositions[i];
-        const stackTopPosition = viewportHeight - (hidden.length + 1) * sectionHeight;
-        if (sectionVisualTop >= stackTopPosition) {
-          hidden.unshift(i);
-        }
-      }
-
-      setHiddenSectionIndices(hidden);
+      setRawHiddenIndices(calculateHiddenIndices());
     };
 
+    // Calculate immediately on mount and when sections change
     handleScroll();
+
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [sections.length, sectionStartPositions, sectionHeight]);
+  }, [sections.length, calculateHiddenIndices]);
+
+  // Filter indices to ensure they're always valid for current sections
+  // This is a safety net in case of any timing issues
+  const hiddenSectionIndices = useMemo(
+    () => rawHiddenIndices.filter((i) => i >= 0 && i < sections.length),
+    [rawHiddenIndices, sections.length],
+  );
 
   const smoothScrollTo = useCallback((element: HTMLElement, targetTop: number) => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -87,7 +114,7 @@ export function useSectionScroll({ sections, headerHeight, sectionHeight, rowHei
   const scrollToSection = useCallback(
     (sectionIndex: number) => {
       const scrollContainer = scrollRef.current;
-      if (!scrollContainer) return;
+      if (!scrollContainer || sectionIndex >= sections.length) return;
 
       const stackedHeadersHeight = headerHeight + (sectionIndex + 1) * sectionHeight;
       let contentBeforeFirstRow = headerHeight;
