@@ -10,19 +10,21 @@
 
 import { defineColumns, selectColumns, COLUMN_MIN_WIDTHS, COLUMN_FLEX } from "@/lib/table-columns";
 
-export type ResourceColumnId = "resource" | "pools" | "platform" | "gpu" | "cpu" | "memory" | "storage";
+export type ResourceColumnId = "resource" | "type" | "pools" | "platform" | "backend" | "gpu" | "cpu" | "memory" | "storage";
 
 /**
  * All resource columns with their layout configuration.
  */
 export const ALL_RESOURCE_COLUMNS = defineColumns([
   { id: "resource", minWidth: COLUMN_MIN_WIDTHS.TEXT_TRUNCATE, flex: COLUMN_FLEX.PRIMARY },
+  { id: "type", minWidth: 90, flex: 0.8 },
   { id: "pools", minWidth: COLUMN_MIN_WIDTHS.TEXT_SHORT, flex: COLUMN_FLEX.SECONDARY },
   { id: "platform", minWidth: COLUMN_MIN_WIDTHS.TEXT_SHORT, flex: COLUMN_FLEX.SECONDARY },
+  { id: "backend", minWidth: 70, flex: COLUMN_FLEX.TERTIARY },
   { id: "gpu", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
   { id: "cpu", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
-  { id: "memory", minWidth: COLUMN_MIN_WIDTHS.NUMBER_WITH_UNIT, flex: COLUMN_FLEX.NUMERIC_WIDE },
-  { id: "storage", minWidth: COLUMN_MIN_WIDTHS.NUMBER_WITH_UNIT, flex: COLUMN_FLEX.NUMERIC_WIDE },
+  { id: "memory", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
+  { id: "storage", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
 ]);
 
 /**
@@ -43,8 +45,10 @@ export const COLUMNS_NO_POOLS = selectColumns(
  */
 export const COLUMN_LABELS: Record<ResourceColumnId, string> = {
   resource: "Resource",
+  type: "Type",
   pools: "Pools",
   platform: "Platform",
+  backend: "Backend",
   gpu: "GPU",
   cpu: "CPU",
   memory: "Memory",
@@ -55,10 +59,12 @@ export const COLUMN_LABELS: Record<ResourceColumnId, string> = {
  * Optional columns that can be toggled.
  */
 export const OPTIONAL_COLUMNS: { id: ResourceColumnId; label: string; menuLabel: string }[] = [
-  { id: "pools", label: "Pools", menuLabel: "Pool Membership" },
+  { id: "type", label: "Type", menuLabel: "Type" },
+  { id: "pools", label: "Pools", menuLabel: "Pools" },
   { id: "platform", label: "Platform", menuLabel: "Platform" },
-  { id: "gpu", label: "GPU", menuLabel: "GPU Capacity" },
-  { id: "cpu", label: "CPU", menuLabel: "CPU Capacity" },
+  { id: "backend", label: "Backend", menuLabel: "Backend" },
+  { id: "gpu", label: "GPU", menuLabel: "GPU" },
+  { id: "cpu", label: "CPU", menuLabel: "CPU" },
   { id: "memory", label: "Memory", menuLabel: "Memory" },
   { id: "storage", label: "Storage", menuLabel: "Storage" },
 ];
@@ -68,6 +74,7 @@ export const OPTIONAL_COLUMNS: { id: ResourceColumnId; label: string; menuLabel:
  */
 export const DEFAULT_VISIBLE_COLUMNS: ResourceColumnId[] = [
   "resource",
+  "type",
   "platform",
   "gpu",
   "cpu",
@@ -80,8 +87,10 @@ export const DEFAULT_VISIBLE_COLUMNS: ResourceColumnId[] = [
  */
 export const DEFAULT_COLUMN_ORDER: ResourceColumnId[] = [
   "resource",
+  "type",
   "pools",
   "platform",
+  "backend",
   "gpu",
   "cpu",
   "memory",
@@ -89,21 +98,29 @@ export const DEFAULT_COLUMN_ORDER: ResourceColumnId[] = [
 ];
 
 /**
- * Get column configuration for a given set of visible column IDs.
- * Maintains the order from DEFAULT_COLUMN_ORDER.
+ * Mandatory columns that cannot be reordered (always first).
  */
-export function getVisibleColumnsConfig(visibleIds: string[]): {
+export const MANDATORY_COLUMN_IDS = new Set<ResourceColumnId>(["resource"]);
+
+/**
+ * Get column configuration for a given set of visible column IDs.
+ * Respects the provided column order.
+ */
+export function getVisibleColumnsConfig(
+  visibleIds: string[],
+  columnOrder: ResourceColumnId[] = DEFAULT_COLUMN_ORDER,
+): {
   gridTemplate: string;
   minWidth: number;
   columnIds: ResourceColumnId[];
 } {
-  // Filter to only valid, visible columns in the correct order
-  const orderedVisibleIds = DEFAULT_COLUMN_ORDER.filter(
+  // Filter to only valid, visible columns in the user's order
+  const orderedVisibleIds = columnOrder.filter(
     (id) => id === "resource" || visibleIds.includes(id)
   );
-  
+
   const config = selectColumns(ALL_RESOURCE_COLUMNS, orderedVisibleIds);
-  
+
   return {
     gridTemplate: config.gridTemplate,
     minWidth: config.minWidth,

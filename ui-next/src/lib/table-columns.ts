@@ -176,6 +176,9 @@ export const COLUMN_FLEX = {
   /** Secondary text columns */
   SECONDARY: 1.5,
 
+  /** Tertiary text columns */
+  TERTIARY: 1,
+
   /** Numeric columns with units */
   NUMERIC_WIDE: 1.4,
 
