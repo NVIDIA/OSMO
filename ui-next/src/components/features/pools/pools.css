@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -9,321 +9,345 @@
  */
 
 /* =============================================================================
+   CSS Layers - Cascade management for predictable specificity
+   ============================================================================= */
+@layer pools.base, pools.table, pools.sections, pools.interactions, pools.panel, pools.scrollbar;
+
+/* =============================================================================
    CSS Custom Properties - Single source of truth for all dimensions
-
-   Using semantic HTML <table> for natural column sizing and alignment.
    ============================================================================= */
-:root {
-  /* Colors */
-  --pools-surface-elevated: #fafafa;
-  --pools-surface-hover: #f4f4f5;
-  --pools-surface-selected: #eff6ff;
-  --pools-text-secondary: #71717a;
-  --pools-status-online-border: #34d399;
-  --pools-status-maintenance-border: #fbbf24;
-  --pools-status-offline-border: #f87171;
+@layer pools.base {
+  :root {
+    /* Colors */
+    --pools-surface-elevated: #fafafa;
+    --pools-surface-hover: #f4f4f5;
+    --pools-surface-selected: #eff6ff;
+    --pools-text-secondary: #71717a;
+    --pools-status-online-border: #34d399;
+    --pools-status-maintenance-border: #fbbf24;
+    --pools-status-offline-border: #f87171;
 
-  /* Dimensions */
-  --pools-row-height: 3rem;
-  --pools-row-height-compact: 2rem;
-  --pools-section-height: 2.25rem;
-  --pools-header-height: 2.25rem;
-  --pools-table-min-height: 25rem;
-  --pools-border-width: 0.1875rem;
-}
+    /* Table Dimensions */
+    --pools-row-height: 3rem;
+    --pools-row-height-compact: 2rem;
+    --pools-section-height: 2.25rem;
+    --pools-header-height: 2.25rem;
+    --pools-table-min-height: 25rem;
+    --pools-border-width: 0.1875rem;
 
-.dark {
-  --pools-surface-elevated: #18181b;
-  --pools-surface-hover: #27272a;
-  --pools-surface-selected: rgba(59, 130, 246, 0.15);
-  --pools-text-secondary: #a1a1aa;
-  --pools-status-online-border: #059669;
-  --pools-status-maintenance-border: #facc15;
-  --pools-status-offline-border: #dc2626;
+    /* Chip Layout - Table Context (compact) */
+    --pools-chip-overflow-width: 2rem;
+    --pools-chip-gap: 0.25rem;
+    --pools-chip-padding: 1rem;
+    --pools-chip-char-width: 0.4375rem;
+
+    /* Chip Layout - Panel Context (spacious) */
+    --pools-chip-overflow-width-lg: 2.5rem;
+    --pools-chip-gap-lg: 0.375rem;
+    --pools-chip-container-padding: 0.25rem;
+
+    /* Shell Integration */
+    --pools-shell-header-height: 3.5rem;
+
+    /* Shadows */
+    --pools-shadow-section: 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+    --pools-shadow-section-bottom: 0 -2px 4px -1px rgba(0, 0, 0, 0.15);
+  }
+
+  .dark {
+    --pools-surface-elevated: #18181b;
+    --pools-surface-hover: #27272a;
+    --pools-surface-selected: rgba(59, 130, 246, 0.15);
+    --pools-text-secondary: #a1a1aa;
+    --pools-status-online-border: #059669;
+    --pools-status-maintenance-border: #facc15;
+    --pools-status-offline-border: #dc2626;
+
+    /* Dark mode shadows - more pronounced */
+    --pools-shadow-section: 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+    --pools-shadow-section-bottom: 0 -2px 4px -1px rgba(0, 0, 0, 0.5);
+  }
 }
 
 /* =============================================================================
-   Table Container
+   Table Container & Element Styles
    ============================================================================= */
-.pools-table-container {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: var(--pools-table-min-height);
+@layer pools.table {
+  .pools-table-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: var(--pools-table-min-height);
+  }
+
+  .pools-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+  }
+
+  /* Header */
+  .pools-thead {
+    background: var(--pools-surface-elevated);
+  }
+
+  .pools-thead th {
+    height: var(--pools-header-height);
+    white-space: nowrap;
+  }
+
+  /* Data rows */
+  .pools-row {
+    height: var(--pools-row-height);
+    contain: layout style;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 100% auto var(--pools-row-height);
+  }
+
+  .pools-row[data-compact="true"] {
+    height: var(--pools-row-height-compact);
+    contain-intrinsic-size: auto 100% auto var(--pools-row-height-compact);
+  }
+
+  .pools-td {
+    height: inherit;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 20rem; /* Description column can truncate */
+  }
+
+  /* Status styling - border on first cell since <tr> can't have border-left */
+  .pools-row[data-status="online"] > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-online-border); }
+  .pools-row[data-status="maintenance"] > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border); }
+  .pools-row[data-status="offline"] > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-offline-border); }
+  .pools-row[data-selected="true"] { background: var(--pools-surface-selected); }
 }
 
 /* =============================================================================
-   Table Element Styles
+   Section Rows - Sticky status headers with tinted backgrounds
    ============================================================================= */
-.pools-table {
-  border-collapse: separate;
-  border-spacing: 0;
-  table-layout: auto;
-}
+@layer pools.sections {
+  .pools-section-row {
+    position: sticky;
+    z-index: 10;
+    box-shadow: var(--pools-shadow-section);
+  }
 
-/* Header */
-.pools-thead {
-  background: var(--pools-surface-elevated);
-}
+  .pools-section-row[data-section-index="0"] { top: var(--pools-header-height); z-index: 13; }
+  .pools-section-row[data-section-index="1"] { top: calc(var(--pools-header-height) + var(--pools-section-height)); z-index: 12; }
+  .pools-section-row[data-section-index="2"] { top: calc(var(--pools-header-height) + var(--pools-section-height) * 2); z-index: 11; }
 
-.pools-thead th {
-  height: var(--pools-header-height);
-  white-space: nowrap;
-}
+  /* Status-specific tinted backgrounds (solid colors) */
+  .pools-section-row[data-status="online"],
+  .pools-bottom-section-row[data-status="online"] {
+    background: #dcfce7;
+  }
+  .pools-section-row[data-status="maintenance"],
+  .pools-bottom-section-row[data-status="maintenance"] {
+    background: #fef9c3;
+  }
+  .pools-section-row[data-status="offline"],
+  .pools-bottom-section-row[data-status="offline"] {
+    background: #fee2e2;
+  }
 
-/* Data rows */
-.pools-row {
-  height: var(--pools-row-height);
-  contain: layout style;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 100% auto var(--pools-row-height);
-}
+  .dark .pools-section-row[data-status="online"],
+  .dark .pools-bottom-section-row[data-status="online"] {
+    background: #052e16;
+  }
+  .dark .pools-section-row[data-status="maintenance"],
+  .dark .pools-bottom-section-row[data-status="maintenance"] {
+    background: #4a3f00;
+  }
+  .dark .pools-section-row[data-status="offline"],
+  .dark .pools-bottom-section-row[data-status="offline"] {
+    background: #450a0a;
+  }
 
-.pools-row[data-compact="true"] {
-  height: var(--pools-row-height-compact);
-  contain-intrinsic-size: auto 100% auto var(--pools-row-height-compact);
-}
+  /* Section row left border */
+  .pools-section-row[data-status="online"] > td:first-child,
+  .pools-bottom-section-row[data-status="online"] > td:first-child {
+    border-left: var(--pools-border-width) solid var(--pools-status-online-border);
+  }
+  .pools-section-row[data-status="maintenance"] > td:first-child,
+  .pools-bottom-section-row[data-status="maintenance"] > td:first-child {
+    border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
+  }
+  .pools-section-row[data-status="offline"] > td:first-child,
+  .pools-bottom-section-row[data-status="offline"] > td:first-child {
+    border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
+  }
 
-.pools-td {
-  height: inherit;
-  vertical-align: middle;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 20rem; /* Description column can truncate */
-}
+  /* Section label colors - high contrast */
+  .pools-section-row[data-status="online"] .pools-section-label,
+  .pools-bottom-section-row[data-status="online"] .pools-section-label {
+    color: #047857;
+  }
+  .pools-section-row[data-status="maintenance"] .pools-section-label,
+  .pools-bottom-section-row[data-status="maintenance"] .pools-section-label {
+    color: #a16207;
+  }
+  .pools-section-row[data-status="offline"] .pools-section-label,
+  .pools-bottom-section-row[data-status="offline"] .pools-section-label {
+    color: #b91c1c;
+  }
 
-/* Status styling - border on first cell since <tr> can't have border-left */
-.pools-row[data-status="online"] > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-online-border); }
-.pools-row[data-status="maintenance"] > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border); }
-.pools-row[data-status="offline"] > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-offline-border); }
-.pools-row[data-selected="true"] { background: var(--pools-surface-selected); }
+  .dark .pools-section-row[data-status="online"] .pools-section-label,
+  .dark .pools-bottom-section-row[data-status="online"] .pools-section-label {
+    color: #34d399;
+  }
+  .dark .pools-section-row[data-status="maintenance"] .pools-section-label,
+  .dark .pools-bottom-section-row[data-status="maintenance"] .pools-section-label {
+    color: #fde047;
+  }
+  .dark .pools-section-row[data-status="offline"] .pools-section-label,
+  .dark .pools-bottom-section-row[data-status="offline"] .pools-section-label {
+    color: #f87171;
+  }
 
-/* Section rows - tinted bands with overlay shadow */
-.pools-section-row {
-  position: sticky;
-  z-index: 10;
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.15);
-}
+  /* Section count */
+  .pools-section-count {
+    color: var(--pools-text-secondary);
+    font-weight: 500;
+  }
 
-.dark .pools-section-row {
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-}
+  /* Bottom section stack (tfoot) */
+  .pools-tfoot {
+    background: transparent;
+  }
 
-.pools-section-row[data-section-index="0"] { top: var(--pools-header-height); z-index: 13; }
-.pools-section-row[data-section-index="1"] { top: calc(var(--pools-header-height) + var(--pools-section-height)); z-index: 12; }
-.pools-section-row[data-section-index="2"] { top: calc(var(--pools-header-height) + var(--pools-section-height) * 2); z-index: 11; }
+  .pools-bottom-section-row {
+    box-shadow: var(--pools-shadow-section-bottom);
+  }
 
-/* Status-specific tinted backgrounds (solid colors) */
-.pools-section-row[data-status="online"],
-.pools-bottom-section-row[data-status="online"] {
-  background: #dcfce7;
-}
-.pools-section-row[data-status="maintenance"],
-.pools-bottom-section-row[data-status="maintenance"] {
-  background: #fef9c3;
-}
-.pools-section-row[data-status="offline"],
-.pools-bottom-section-row[data-status="offline"] {
-  background: #fee2e2;
-}
-
-.dark .pools-section-row[data-status="online"],
-.dark .pools-bottom-section-row[data-status="online"] {
-  background: #052e16;
-}
-.dark .pools-section-row[data-status="maintenance"],
-.dark .pools-bottom-section-row[data-status="maintenance"] {
-  background: #4a3f00;
-}
-.dark .pools-section-row[data-status="offline"],
-.dark .pools-bottom-section-row[data-status="offline"] {
-  background: #450a0a;
-}
-
-/* Section row left border */
-.pools-section-row[data-status="online"] > td:first-child,
-.pools-bottom-section-row[data-status="online"] > td:first-child {
-  border-left: var(--pools-border-width) solid var(--pools-status-online-border);
-}
-.pools-section-row[data-status="maintenance"] > td:first-child,
-.pools-bottom-section-row[data-status="maintenance"] > td:first-child {
-  border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
-}
-.pools-section-row[data-status="offline"] > td:first-child,
-.pools-bottom-section-row[data-status="offline"] > td:first-child {
-  border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-}
-
-/* Section label colors - high contrast */
-.pools-section-row[data-status="online"] .pools-section-label,
-.pools-bottom-section-row[data-status="online"] .pools-section-label {
-  color: #047857;
-}
-.pools-section-row[data-status="maintenance"] .pools-section-label,
-.pools-bottom-section-row[data-status="maintenance"] .pools-section-label {
-  color: #a16207;
-}
-.pools-section-row[data-status="offline"] .pools-section-label,
-.pools-bottom-section-row[data-status="offline"] .pools-section-label {
-  color: #b91c1c;
-}
-
-.dark .pools-section-row[data-status="online"] .pools-section-label,
-.dark .pools-bottom-section-row[data-status="online"] .pools-section-label {
-  color: #34d399;
-}
-.dark .pools-section-row[data-status="maintenance"] .pools-section-label,
-.dark .pools-bottom-section-row[data-status="maintenance"] .pools-section-label {
-  color: #fde047;
-}
-.dark .pools-section-row[data-status="offline"] .pools-section-label,
-.dark .pools-bottom-section-row[data-status="offline"] .pools-section-label {
-  color: #f87171;
-}
-
-/* Section count */
-.pools-section-count {
-  color: var(--pools-text-secondary);
-  font-weight: 500;
-}
-
-/* Bottom section stack (tfoot) */
-.pools-tfoot {
-  background: transparent;
-}
-
-.pools-bottom-section-row {
-  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.15);
-}
-
-.dark .pools-bottom-section-row {
-  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.5);
-}
-
-.pools-bottom-section-item {
-  background: transparent;
+  .pools-bottom-section-item {
+    background: transparent;
+  }
 }
 
 /* =============================================================================
    Hover & Focus States
    ============================================================================= */
-.pools-row:not([data-selected="true"]):hover {
-  background: var(--pools-surface-hover);
-}
+@layer pools.interactions {
+  .pools-row:not([data-selected="true"]):hover {
+    background: var(--pools-surface-hover);
+  }
 
-/* Section row hover - slightly darker */
-.pools-section-row[data-status="online"]:hover,
-.pools-bottom-section-row[data-status="online"]:hover {
-  background: #bbf7d0;
-}
-.pools-section-row[data-status="maintenance"]:hover,
-.pools-bottom-section-row[data-status="maintenance"]:hover {
-  background: #fef08a;
-}
-.pools-section-row[data-status="offline"]:hover,
-.pools-bottom-section-row[data-status="offline"]:hover {
-  background: #fecaca;
-}
+  /* Section row hover - slightly darker */
+  .pools-section-row[data-status="online"]:hover,
+  .pools-bottom-section-row[data-status="online"]:hover {
+    background: #bbf7d0;
+  }
+  .pools-section-row[data-status="maintenance"]:hover,
+  .pools-bottom-section-row[data-status="maintenance"]:hover {
+    background: #fef08a;
+  }
+  .pools-section-row[data-status="offline"]:hover,
+  .pools-bottom-section-row[data-status="offline"]:hover {
+    background: #fecaca;
+  }
 
-.dark .pools-section-row[data-status="online"]:hover,
-.dark .pools-bottom-section-row[data-status="online"]:hover {
-  background: #064e3b;
-}
-.dark .pools-section-row[data-status="maintenance"]:hover,
-.dark .pools-bottom-section-row[data-status="maintenance"]:hover {
-  background: #6b5a00;
-}
-.dark .pools-section-row[data-status="offline"]:hover,
-.dark .pools-bottom-section-row[data-status="offline"]:hover {
-  background: #7f1d1d;
-}
+  .dark .pools-section-row[data-status="online"]:hover,
+  .dark .pools-bottom-section-row[data-status="online"]:hover {
+    background: #064e3b;
+  }
+  .dark .pools-section-row[data-status="maintenance"]:hover,
+  .dark .pools-bottom-section-row[data-status="maintenance"]:hover {
+    background: #6b5a00;
+  }
+  .dark .pools-section-row[data-status="offline"]:hover,
+  .dark .pools-bottom-section-row[data-status="offline"]:hover {
+    background: #7f1d1d;
+  }
 
-.pools-row, .pools-section-row, .pools-bottom-section-item {
-  transition: background-color 75ms ease-out;
-}
+  .pools-row, .pools-section-row, .pools-bottom-section-item {
+    transition: background-color 75ms ease-out;
+  }
 
-.pools-row:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px var(--pools-status-online-border);
-}
+  .pools-row:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--pools-status-online-border);
+  }
 
-@media (prefers-reduced-motion: reduce) {
-  .pools-row, .pools-section-row, .pools-bottom-section-item { transition: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .pools-row, .pools-section-row, .pools-bottom-section-item { transition: none; }
+  }
 }
 
 /* =============================================================================
    Panel containment
    ============================================================================= */
-.pools-panel { contain: layout style; }
+@layer pools.panel {
+  .pools-panel { contain: layout style; }
+}
 
 /* =============================================================================
    Scroll Container - macOS-style scrollbars
    ============================================================================= */
-.pools-scroll-container {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
-}
+@layer pools.scrollbar {
+  .pools-scroll-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+  }
 
-.dark .pools-scroll-container {
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-}
+  .dark .pools-scroll-container {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }
 
-/* Webkit (Chrome, Safari, Edge) */
-.pools-scroll-container::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-  background: transparent;
-}
+  /* Webkit (Chrome, Safari, Edge) */
+  .pools-scroll-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
 
-.pools-scroll-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
+  .pools-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
 
-.pools-scroll-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
+  .pools-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
 
-.pools-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
+  .pools-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
 
-.pools-scroll-container::-webkit-scrollbar-corner {
-  background: transparent;
-}
+  .pools-scroll-container::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 
-.dark .pools-scroll-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
+  .dark .pools-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
 
-.dark .pools-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
+  .dark .pools-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
 
-/* =============================================================================
-   Progress Track - More visible in dark mode
-   ============================================================================= */
-.pools-progress-track {
-  background: #e4e4e7; /* zinc-200 */
-}
+  /* Progress Track - More visible in dark mode */
+  .pools-progress-track {
+    background: #e4e4e7; /* zinc-200 */
+  }
 
-.dark .pools-progress-track {
-  background: #3f3f46; /* zinc-700 - lighter than zinc-800 for better visibility on hover */
-}
+  .dark .pools-progress-track {
+    background: #3f3f46; /* zinc-700 - lighter than zinc-800 for better visibility on hover */
+  }
 
-/* =============================================================================
-   Shared Capacity Progress Bar
-   ============================================================================= */
-.pools-shared-capacity-bar {
-  background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+  /* Shared Capacity Progress Bar */
+  .pools-shared-capacity-bar {
+    background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+  }
 }

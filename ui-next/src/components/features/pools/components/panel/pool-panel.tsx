@@ -23,17 +23,14 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { GripVertical } from "lucide-react";
 import type { Pool } from "@/lib/api/adapter";
 import { cn } from "@/lib/utils";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
+import { getShellHeaderHeight } from "../../hooks";
 import { PanelHeader } from "./panel-header";
 import { PanelContent } from "./panel-content";
-
-// Shell layout constants
-// Note: Shell uses contain:layout, so fixed positioning is relative to content column
-const HEADER_HEIGHT = 56; // h-14 = 3.5rem = 56px
 
 export interface PoolPanelProps {
   pool: Pool | null;
@@ -56,6 +53,9 @@ export function PoolPanelLayout({ pool, sharingGroups, onClose, onPoolSelect, se
   const panelWidth = usePoolsTableStore((s) => s.panelWidth);
   const setPanelWidth = usePoolsTableStore((s) => s.setPanelWidth);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Read shell header height from CSS variables (static, read once per mount)
+  const headerHeight = useMemo(() => getShellHeaderHeight(), []);
 
   // Drag state for resize handle
   const [isDragging, setIsDragging] = useState(false);
@@ -161,7 +161,7 @@ export function PoolPanelLayout({ pool, sharingGroups, onClose, onPoolSelect, se
       {pool && (
         <div
           className="fixed inset-0 z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
-          style={{ top: HEADER_HEIGHT }}
+          style={{ top: headerHeight }}
           onClick={() => {
             // Don't close if we're in the middle of a resize drag
             if (!isDragging) {
@@ -181,7 +181,7 @@ export function PoolPanelLayout({ pool, sharingGroups, onClose, onPoolSelect, se
           pool ? "translate-x-0" : "translate-x-full"
         )}
         style={{
-          top: HEADER_HEIGHT,
+          top: headerHeight,
           width: `${panelWidth}%`,
           maxWidth: `${MAX_WIDTH_PCT}%`,
           minWidth: "320px",
