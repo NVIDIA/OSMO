@@ -46,6 +46,15 @@ const mockPoolResponse = {
             },
           },
           backend: "k8s",
+          default_exec_timeout: "4h",
+          max_exec_timeout: "24h",
+          default_queue_timeout: "15m",
+          max_queue_timeout: "1h",
+          default_exit_actions: {
+            "137": "retry",
+            "139": "fail",
+            "255": "retry_different_node",
+          },
         },
         {
           name: "pool-beta",
@@ -207,6 +216,28 @@ describe("transformPoolsResponse", () => {
     expect(dgxConfig.privilegedAllowed).toBe(false);
     expect(dgxConfig.allowedMounts).toEqual(["/data"]);
     expect(dgxConfig.defaultMounts).toEqual(["/home"]);
+  });
+
+  it("transforms timeout configurations", () => {
+    const result = transformPoolsResponse(mockPoolResponse);
+    expect(result.pools[0].timeouts.defaultExec).toBe("4h");
+    expect(result.pools[0].timeouts.maxExec).toBe("24h");
+    expect(result.pools[0].timeouts.defaultQueue).toBe("15m");
+    expect(result.pools[0].timeouts.maxQueue).toBe("1h");
+  });
+
+  it("transforms default exit actions", () => {
+    const result = transformPoolsResponse(mockPoolResponse);
+    expect(result.pools[0].defaultExitActions).toEqual({
+      "137": "retry",
+      "139": "fail",
+      "255": "retry_different_node",
+    });
+  });
+
+  it("handles missing exit actions gracefully", () => {
+    const result = transformPoolsResponse(mockPoolResponse);
+    expect(result.pools[1].defaultExitActions).toEqual({});
   });
 });
 

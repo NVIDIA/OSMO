@@ -11,7 +11,6 @@
 export * from "./constants";
 export * from "./pool-columns";
 export {
-  POOL_SEARCH_FIELDS,
   createPoolSearchFields,
   parseNumericFilter,
   validateNumericFilter,
