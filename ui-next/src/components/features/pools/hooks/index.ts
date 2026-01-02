@@ -10,4 +10,11 @@
 
 export { usePoolSections, type StatusSection } from "./use-pool-sections";
 export { useSectionScroll } from "./use-section-scroll";
-export { useLayoutDimensions } from "./use-layout-dimensions";
+export {
+  useLayoutDimensions,
+  getChipLayoutCompact,
+  getChipLayoutSpacious,
+  getShellHeaderHeight,
+  type ChipLayoutDimensions,
+} from "./use-layout-dimensions";
+export { useExpandableChips, type UseExpandableChipsResult } from "./use-expandable-chips";

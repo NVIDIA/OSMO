@@ -21,7 +21,8 @@ export interface PoolRowProps {
   pool: Pool;
   columns: ColumnDef<PoolColumnId>[];
   isSelected: boolean;
-  onSelect: () => void;
+  /** Stable callback - receives pool name to avoid new function per row */
+  onSelect?: (poolName: string) => void;
   displayMode: "used" | "free";
   compact: boolean;
   isShared: boolean;
@@ -40,20 +41,24 @@ export const PoolRow = memo(function PoolRow({
 }: PoolRowProps) {
   const { category } = getStatusDisplay(pool.status);
 
+  const handleClick = useCallback(() => {
+    onSelect?.(pool.name);
+  }, [onSelect, pool.name]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        onSelect();
+        onSelect?.(pool.name);
       }
     },
-    [onSelect],
+    [onSelect, pool.name],
   );
 
   return (
     <tr
       tabIndex={0}
-      onClick={onSelect}
+      onClick={handleClick}
       onKeyDown={handleKeyDown}
       aria-selected={isSelected}
       data-status={category}
