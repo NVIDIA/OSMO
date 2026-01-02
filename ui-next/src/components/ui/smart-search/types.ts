@@ -16,6 +16,11 @@
  */
 
 /**
+ * Chip variant for styling (e.g., free/used filters)
+ */
+export type ChipVariant = "free" | "used";
+
+/**
  * Definition of a searchable field.
  * @template T - The data item type being searched
  */
@@ -36,6 +41,27 @@ export interface SearchField<T> {
   requiresValidValue?: boolean;
   /** Custom hint text shown in dropdown (defaults to label) */
   hint?: string;
+  /**
+   * Custom validation for the input value.
+   * Returns `true` if valid, or an error message string if invalid.
+   * Called before creating a chip.
+   */
+  validate?: (value: string) => true | string;
+  /**
+   * Hint text for free-form input fields.
+   * Shown in dropdown when no autocomplete suggestions available.
+   */
+  freeFormHint?: string;
+  /**
+   * Variant for chip styling (e.g., "free" or "used").
+   * Applied to chips created from this field.
+   */
+  variant?: ChipVariant;
+  /**
+   * For shorthand fields: function to resolve to an explicit field ID.
+   * Receives current context (like display mode) and returns the target field ID.
+   */
+  resolveTo?: (context: { displayMode?: "free" | "used" }) => string;
 }
 
 /**
@@ -48,6 +74,8 @@ export interface SearchChip {
   value: string;
   /** Display label (e.g., "Status: ONLINE") */
   label: string;
+  /** Optional variant for styling (e.g., "free" or "used") */
+  variant?: ChipVariant;
 }
 
 /**
@@ -69,6 +97,8 @@ export interface SmartSearchProps<T> {
   enableDateParsing?: boolean;
   /** Additional CSS class */
   className?: string;
+  /** Display mode context for resolving shorthand fields */
+  displayMode?: "free" | "used";
 }
 
 /**
