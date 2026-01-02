@@ -56,22 +56,32 @@ export function useSectionScroll({ sections, headerHeight, sectionHeight, rowHei
     return hidden;
   }, [sections.length, sectionStartPositions, sectionHeight]);
 
+  // Helper to compare arrays for equality (avoids unnecessary state updates)
+  const arraysEqual = useCallback((a: number[], b: number[]) => {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }, []);
+
   // useLayoutEffect runs synchronously after DOM mutations, before paint
   // This prevents the flash of stale state that useEffect would cause
   useLayoutEffect(() => {
     const scrollContainer = scrollRef.current;
     if (!scrollContainer) {
-      setRawHiddenIndices([]);
+      setRawHiddenIndices((prev) => (prev.length === 0 ? prev : []));
       return;
     }
 
     if (sections.length === 0) {
-      setRawHiddenIndices([]);
+      setRawHiddenIndices((prev) => (prev.length === 0 ? prev : []));
       return;
     }
 
     const handleScroll = () => {
-      setRawHiddenIndices(calculateHiddenIndices());
+      const newIndices = calculateHiddenIndices();
+      setRawHiddenIndices((prev) => (arraysEqual(prev, newIndices) ? prev : newIndices));
     };
 
     // Calculate immediately on mount and when sections change
@@ -79,7 +89,7 @@ export function useSectionScroll({ sections, headerHeight, sectionHeight, rowHei
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [sections.length, calculateHiddenIndices]);
+  }, [sections.length, calculateHiddenIndices, arraysEqual]);
 
   // Filter indices to ensure they're always valid for current sections
   // This is a safety net in case of any timing issues
