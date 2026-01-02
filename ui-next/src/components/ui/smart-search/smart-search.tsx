@@ -31,15 +31,80 @@ import { cn } from "@/lib/utils";
 import type { SmartSearchProps, SearchField, SearchChip } from "./types";
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/** Display mode color styles for chips and UI elements */
+export const DISPLAY_MODE_COLORS = {
+  free: {
+    bg: "bg-emerald-50 dark:bg-emerald-900/30",
+    text: "text-emerald-700 dark:text-emerald-400",
+    textMuted: "text-emerald-600 dark:text-emerald-400",
+    icon: "text-emerald-500",
+  },
+  used: {
+    bg: "bg-amber-50 dark:bg-amber-900/30",
+    text: "text-amber-700 dark:text-amber-400",
+    textMuted: "text-amber-600 dark:text-amber-400",
+    icon: "text-amber-500",
+  },
+} as const;
+
+// ============================================================================
 // Types
 // ============================================================================
 
 interface Suggestion<T> {
-  type: "field" | "value";
+  type: "field" | "value" | "hint";
   field: SearchField<T>;
   value: string;
   label: string;
   hint?: string;
+}
+
+// ============================================================================
+// Chip Label Component
+// ============================================================================
+
+/** Styles "Free" or "Used" portion of chip labels with appropriate colors */
+function ChipLabel({ chip, onRemove }: { chip: SearchChip; onRemove: () => void }) {
+  // Parse label to find "Free" or "Used" for styling
+  const renderLabel = () => {
+    if (!chip.variant) return chip.label;
+
+    // Match patterns like "Quota Free: >=10" or "Capacity Used: >=80%"
+    const match = chip.label.match(/^(.+?)\s+(Free|Used):\s*(.+)$/);
+    if (!match) return chip.label;
+
+    const [, prefix, freeUsed, value] = match;
+    const variantClass = chip.variant === "free"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-amber-600 dark:text-amber-400";
+
+    return (
+      <>
+        {prefix}{" "}
+        <span className={cn("font-semibold", variantClass)}>{freeUsed}</span>
+        : {value}
+      </>
+    );
+  };
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+      {renderLabel()}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="rounded-full p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800"
+      >
+        <X className="size-3" />
+      </button>
+    </span>
+  );
 }
 
 // ============================================================================
@@ -53,24 +118,37 @@ function SmartSearchInner<T>({
   onChipsChange,
   placeholder = "Search... (try 'pool:' or 'platform:')",
   className,
+  displayMode,
 }: SmartSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1); // -1 = nothing highlighted
-  const [validationError, setValidationError] = useState(false); // Shows invalid value indicator
+  const [validationError, setValidationError] = useState<string | null>(null); // Error message or null
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Parse input for field prefix (e.g., "pool:" → { field, query })
+  // Supports hierarchical prefixes like "quota:free:" - finds longest matching prefix
   const parsedInput = useMemo(() => {
-    const colonIndex = inputValue.indexOf(":");
-    if (colonIndex > 0) {
-      const prefix = inputValue.slice(0, colonIndex + 1);
-      const field = fields.find((f) => f.prefix === prefix);
-      if (field) {
-        return { field, query: inputValue.slice(colonIndex + 1), hasPrefix: true };
+    let bestMatch: { field: SearchField<T>; prefix: string } | null = null;
+
+    // Find the longest prefix that matches the start of input
+    for (const field of fields) {
+      if (field.prefix && inputValue.toLowerCase().startsWith(field.prefix.toLowerCase())) {
+        if (!bestMatch || field.prefix.length > bestMatch.prefix.length) {
+          bestMatch = { field, prefix: field.prefix };
+        }
       }
     }
+
+    if (bestMatch) {
+      return {
+        field: bestMatch.field,
+        query: inputValue.slice(bestMatch.prefix.length),
+        hasPrefix: true,
+      };
+    }
+
     return { field: null, query: inputValue, hasPrefix: false };
   }, [inputValue, fields]);
 
@@ -105,10 +183,46 @@ function SmartSearchInner<T>({
     if (parsedInput.hasPrefix && parsedInput.field) {
       // Show values for the selected field
       const field = parsedInput.field;
+      const currentPrefix = field.prefix;
 
-      // Don't show suggestions for freeTextOnly fields
+      // For freeTextOnly fields, show hint and sub-fields
       if (field.freeTextOnly) {
-        return [];
+        const subQuery = parsedInput.query.toLowerCase();
+
+        // Find sub-fields that extend this prefix and match the query
+        const matchingSubFields = fields.filter((f) => {
+          if (!f.prefix || f.prefix === currentPrefix || !f.prefix.startsWith(currentPrefix)) {
+            return false;
+          }
+          // Get the part after the current prefix (e.g., "free:" from "quota:free:")
+          const suffix = f.prefix.slice(currentPrefix.length).toLowerCase();
+          // Match if user's query starts with or is contained in the suffix
+          return subQuery === "" || suffix.startsWith(subQuery);
+        });
+
+        // Show free-form hint if available (only when no specific sub-field is matched)
+        if (field.freeFormHint && (matchingSubFields.length !== 1 || subQuery === "")) {
+          items.push({
+            type: "hint",
+            field,
+            value: "",
+            label: field.freeFormHint,
+            hint: field.freeFormHint,
+          });
+        }
+
+        // Show matching sub-fields
+        for (const f of matchingSubFields) {
+          items.push({
+            type: "field",
+            field: f,
+            value: f.prefix,
+            label: f.prefix,
+            hint: getFieldHint(f),
+          });
+        }
+
+        return items;
       }
 
       const values = field.getValues(data);
@@ -167,32 +281,59 @@ function SmartSearchInner<T>({
 
   const addChip = useCallback(
     (field: SearchField<T>, value: string) => {
+      // Custom validation function takes precedence
+      if (field.validate) {
+        const result = field.validate(value);
+        if (result !== true) {
+          // Invalid - show error message (persists until user types)
+          setValidationError(typeof result === "string" ? result : "Invalid value");
+          return;
+        }
+      }
       // For fields that require valid values, check if the value is in the allowed list
-      if (field.requiresValidValue) {
+      else if (field.requiresValidValue) {
         const validValues = field.getValues(data);
         const isValid = validValues.some((v) => v.toLowerCase() === value.toLowerCase());
         if (!isValid) {
-          // Invalid value - show error indicator
-          setValidationError(true);
-          // Auto-clear error after animation
-          setTimeout(() => setValidationError(false), 1500);
+          // Invalid value - show error (persists until user types)
+          setValidationError(`"${value}" is not a valid option`);
           return;
         }
       }
 
       // Clear any validation error
-      setValidationError(false);
+      setValidationError(null);
+
+      // Resolve shorthand fields to explicit form
+      let resolvedField = field;
+      let resolvedLabel = `${field.label}: ${value}`;
+      let chipVariant = field.variant;
+
+      if (field.resolveTo && displayMode) {
+        const targetFieldId = field.resolveTo({ displayMode });
+        const targetField = fields.find((f) => f.id === targetFieldId);
+        if (targetField) {
+          resolvedField = targetField;
+          resolvedLabel = `${targetField.label}: ${value}`;
+          chipVariant = targetField.variant;
+        }
+      }
 
       // Don't add duplicate chips
-      const exists = chips.some((c) => c.field === field.id && c.value.toLowerCase() === value.toLowerCase());
+      const exists = chips.some((c) => c.field === resolvedField.id && c.value.toLowerCase() === value.toLowerCase());
       if (!exists) {
-        onChipsChange([...chips, { field: field.id, value, label: `${field.label}: ${value}` }]);
+        onChipsChange([...chips, {
+          field: resolvedField.id,
+          value,
+          label: resolvedLabel,
+          variant: chipVariant,
+        }]);
       }
       setInputValue("");
       setShowDropdown(false);
       inputRef.current?.focus();
     },
-    [chips, onChipsChange, data],
+    [chips, onChipsChange, data, displayMode, fields],
   );
 
   const removeChip = useCallback(
@@ -236,29 +377,61 @@ function SmartSearchInner<T>({
     (e: React.KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        if (!showDropdown && suggestions.length > 0) {
+        // Find selectable indices (skip hints)
+        const selectableIndices = suggestions
+          .map((s, i) => ({ suggestion: s, index: i }))
+          .filter(({ suggestion }) => suggestion.type !== "hint")
+          .map(({ index }) => index);
+
+        if (selectableIndices.length === 0) return;
+
+        if (!showDropdown) {
           setShowDropdown(true);
-          setHighlightedIndex(0);
-        } else if (suggestions.length > 0) {
-          setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+          setHighlightedIndex(selectableIndices[0]);
+        } else {
+          setHighlightedIndex((current) => {
+            const currentPos = selectableIndices.indexOf(current);
+            if (currentPos === -1 || currentPos === selectableIndices.length - 1) {
+              return selectableIndices[0];
+            }
+            return selectableIndices[currentPos + 1];
+          });
         }
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setHighlightedIndex((i) => Math.max(i - 1, 0));
+        const selectableIndices = suggestions
+          .map((s, i) => ({ suggestion: s, index: i }))
+          .filter(({ suggestion }) => suggestion.type !== "hint")
+          .map(({ index }) => index);
+
+        if (selectableIndices.length === 0) return;
+
+        setHighlightedIndex((current) => {
+          const currentPos = selectableIndices.indexOf(current);
+          if (currentPos === -1 || currentPos === 0) {
+            return selectableIndices[selectableIndices.length - 1];
+          }
+          return selectableIndices[currentPos - 1];
+        });
       } else if (e.key === "Tab" && showDropdown && suggestions.length > 0) {
         e.preventDefault();
+        // Filter out hint-type suggestions for Tab cycling
+        const selectableSuggestions = suggestions
+          .map((s, i) => ({ suggestion: s, index: i }))
+          .filter(({ suggestion }) => suggestion.type !== "hint");
+
+        if (selectableSuggestions.length === 0) return;
+
         if (highlightedIndex >= 0) {
-          // Already highlighted - cycle to next, wrapping around
-          const nextIndex = (highlightedIndex + 1) % suggestions.length;
-          tabComplete(nextIndex);
-        } else if (suggestions.length === 1) {
-          // Only one suggestion - auto-complete it
-          tabComplete(0);
-        } else if (parsedInput.hasPrefix && parsedInput.field) {
-          // Multiple value suggestions after a field prefix (e.g., "pool:g") - start cycling
-          tabComplete(0);
+          // Already highlighted - cycle to next selectable, wrapping around
+          const currentSelectableIndex = selectableSuggestions.findIndex(({ index }) => index === highlightedIndex);
+          const nextSelectableIndex = (currentSelectableIndex + 1) % selectableSuggestions.length;
+          tabComplete(selectableSuggestions[nextSelectableIndex].index);
+        } else if (selectableSuggestions.length === 1) {
+          // Only one selectable option - Tab completes it
+          tabComplete(selectableSuggestions[0].index);
         }
-        // Multiple field prefix suggestions (e.g., "p" -> pool:, platform:) - Tab does nothing
+        // Multiple selectable options and nothing highlighted - Tab does nothing (ambiguous)
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
@@ -268,11 +441,8 @@ function SmartSearchInner<T>({
           // Select highlighted suggestion (for field prefixes like "pool:")
           handleSelect(highlightedIndex);
         } else if (inputValue.trim()) {
-          // Try to find a default field for free-text search (pool/name field)
-          const defaultField = fields.find((f) => f.id === "pool" || f.id === "name") ?? fields[0];
-          if (defaultField) {
-            addChip(defaultField, inputValue.trim());
-          }
+          // No prefix - show error (persists until user types)
+          setValidationError("Use a filter prefix (e.g. pool:, platform:, quota:)");
         }
       } else if (e.key === "Backspace" && inputValue === "" && chips.length > 0) {
         removeChip(chips.length - 1);
@@ -292,7 +462,7 @@ function SmartSearchInner<T>({
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     setShowDropdown(true);
-    setValidationError(false); // Clear error when user types
+    setValidationError(null); // Clear error when user types
   }, []);
 
   const handleFocus = useCallback(() => {
@@ -320,22 +490,7 @@ function SmartSearchInner<T>({
         )} />
 
         {chips.map((chip, index) => (
-          <span
-            key={`${chip.field}-${chip.value}-${index}`}
-            className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-          >
-            {chip.label}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeChip(index);
-              }}
-              className="rounded-full p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800"
-            >
-              <X className="size-3" />
-            </button>
-          </span>
+          <ChipLabel key={`${chip.field}-${chip.value}-${index}`} chip={chip} onRemove={() => removeChip(index)} />
         ))}
 
         <input
@@ -365,53 +520,84 @@ function SmartSearchInner<T>({
         )}
       </div>
 
-      {/* Dropdown suggestions */}
-      {shouldShowDropdown && (
+      {/* Dropdown suggestions (includes error messages as hints) */}
+      {(shouldShowDropdown || validationError) && (
         <div
           ref={dropdownRef}
-          className="absolute inset-x-0 top-full z-50 mt-1 max-h-[300px] overflow-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className={cn(
+            "absolute inset-x-0 top-full z-50 mt-1 max-h-[300px] overflow-auto rounded-md border shadow-lg",
+            validationError
+              ? "border-red-200 bg-white dark:border-red-800 dark:bg-zinc-900"
+              : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+          )}
           role="listbox"
         >
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
-              id={`suggestion-${index}`}
-              type="button"
-              onClick={() => handleSelect(index)}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              className={cn(
-                "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
-                index === highlightedIndex
-                  ? "bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100"
-                  : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
-              )}
-              role="option"
-              aria-selected={index === highlightedIndex}
-            >
-              <span className="flex items-center gap-2">
-                {suggestion.type === "field" ? (
-                  <>
-                    <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
-                      {suggestion.label}
-                    </span>
-                    {suggestion.hint && (
-                      <span className="text-zinc-500 dark:text-zinc-400">
-                        {suggestion.hint}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span>{suggestion.label}</span>
+          {/* Error message as a hint */}
+          {validationError && (
+            <div className="px-3 py-2 text-sm text-red-600 dark:text-red-400 border-b border-red-100 dark:border-red-900 select-none pointer-events-none">
+              ⚠ {validationError}
+            </div>
+          )}
+
+          {suggestions.map((suggestion, index) => {
+            // Hint type is display-only, not interactive
+            if (suggestion.type === "hint") {
+              return (
+                <div
+                  key={`hint-${suggestion.field.id}-${index}`}
+                  className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400 italic border-b border-zinc-100 dark:border-zinc-800 select-none pointer-events-none"
+                >
+                  {suggestion.label}
+                </div>
+              );
+            }
+
+            // Count selectable suggestions and find first
+            const selectableSuggestions = suggestions.filter((s) => s.type !== "hint");
+            const firstSelectableIndex = suggestions.findIndex((s) => s.type !== "hint");
+            const showTabHint = selectableSuggestions.length === 1 && index === firstSelectableIndex;
+
+            return (
+              <button
+                key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
+                id={`suggestion-${index}`}
+                type="button"
+                onClick={() => handleSelect(index)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                className={cn(
+                  "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
+                  index === highlightedIndex
+                    ? "bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100"
+                    : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
                 )}
-              </span>
-              {/* Only show Tab hint when Tab actually works: single suggestion or first value after prefix */}
-              {(suggestions.length === 1 || (index === 0 && suggestion.type === "value" && parsedInput.hasPrefix)) && (
-                <kbd className="hidden rounded bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400 sm:inline">
-                  Tab
-                </kbd>
-              )}
-            </button>
-          ))}
+                role="option"
+                aria-selected={index === highlightedIndex}
+              >
+                <span className="flex items-center gap-2">
+                  {suggestion.type === "field" ? (
+                    <>
+                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
+                        {suggestion.label}
+                      </span>
+                      {suggestion.hint && (
+                        <span className="text-zinc-500 dark:text-zinc-400">
+                          {suggestion.hint}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span>{suggestion.label}</span>
+                  )}
+                </span>
+                {/* Show Tab hint only when there's exactly one selectable option */}
+                {showTabHint && (
+                  <kbd className="hidden rounded bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400 sm:inline">
+                    Tab
+                  </kbd>
+                )}
+              </button>
+            );
+          })}
 
           {/* Footer hint */}
           <div className="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
