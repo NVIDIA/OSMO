@@ -36,6 +36,33 @@ export interface PlatformConfig {
 }
 
 /**
+ * GPU scheduling resources for a pool.
+ * Used by schedulers that support resource allocation.
+ */
+export interface GpuResources {
+  /** Guaranteed number of GPUs (-1 means no limit) */
+  guarantee: number | null;
+  /** Maximum number of GPUs (-1 means no limit) */
+  maximum: number | null;
+  /** Scheduling weight for fair-share scheduling */
+  weight: number | null;
+}
+
+/**
+ * Timeout configuration for a pool.
+ */
+export interface TimeoutConfig {
+  /** Default execution timeout (e.g., "24h") */
+  defaultExec: string | null;
+  /** Maximum execution timeout */
+  maxExec: string | null;
+  /** Default queue timeout */
+  defaultQueue: string | null;
+  /** Maximum queue timeout */
+  maxQueue: string | null;
+}
+
+/**
  * A pool with all the information the UI needs to display it.
  */
 export interface Pool {
@@ -47,6 +74,14 @@ export interface Pool {
   /** Platform configurations keyed by platform name */
   platformConfigs: Record<string, PlatformConfig>;
   backend: string;
+  /** Default platform for this pool */
+  defaultPlatform: string | null;
+  /** GPU scheduling resources */
+  gpuResources: GpuResources;
+  /** Timeout configuration */
+  timeouts: TimeoutConfig;
+  /** Default exit actions (e.g., { "error": "retry", "oom": "fail" }) */
+  defaultExitActions: Record<string, string>;
 }
 
 /**
