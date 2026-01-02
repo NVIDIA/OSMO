@@ -8,5 +8,5 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-export { SmartSearch } from "./smart-search";
-export { filterByChips, type SearchField, type SearchChip, type SmartSearchProps } from "./types";
+export { SmartSearch, DISPLAY_MODE_COLORS } from "./smart-search";
+export { filterByChips, type SearchField, type SearchChip, type SmartSearchProps, type ChipVariant } from "./types";
