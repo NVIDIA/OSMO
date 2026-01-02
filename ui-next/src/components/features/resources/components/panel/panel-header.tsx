@@ -119,12 +119,6 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
           <Server className="size-3" />
           {resource.backend}
         </span>
-        {resource.hostname && (
-          <>
-            <span className="text-zinc-400 dark:text-zinc-600">·</span>
-            <span className="font-mono text-zinc-500 dark:text-zinc-400">{resource.hostname}</span>
-          </>
-        )}
         {resource.poolMemberships.length > 0 && (
           <>
             <span className="text-zinc-400 dark:text-zinc-600">·</span>
