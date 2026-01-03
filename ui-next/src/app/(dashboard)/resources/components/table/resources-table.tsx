@@ -14,29 +14,18 @@ import { useState, useRef, useEffect, useMemo, useCallback, startTransition } fr
 import {
   DndContext,
   closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { arrayMove } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
-
-// Horizontal-only modifier for DND - locks Y axis and prevents scaling
-const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
-  ...transform,
-  y: 0,
-  scaleX: 1,
-  scaleY: 1,
-});
+import { useTableDnd } from "@/components/data-table";
 import { useSharedPreferences, type DisplayMode } from "@/lib/stores";
 import type { Resource } from "@/lib/api/adapter";
 import { getVisibleColumnsConfig, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 import { TableHeader, type SortState, type SortColumn } from "./table-header";
 import { TableContent } from "./table-content";
-import "../../resources.css";
+import "../../styles/resources.css";
 
 // =============================================================================
 // Types
@@ -131,11 +120,8 @@ export function ResourcesTable({
     [columnOrder, visibleColumnIds],
   );
 
-  // DnD sensors and handlers
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // DnD sensors and modifiers from shared hook
+  const { sensors, modifiers } = useTableDnd();
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -286,7 +272,7 @@ export function ResourcesTable({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      modifiers={[restrictToHorizontalAxis]}
+      modifiers={modifiers}
       autoScroll={false}
     >
       <div
@@ -300,7 +286,7 @@ export function ResourcesTable({
         {/* Table - single scroll container with sticky header */}
         <div
           ref={scrollRef}
-          className="resources-scroll-container flex-1 overflow-auto overscroll-contain focus:outline-none"
+          className="resources-scroll-container scrollbar-styled flex-1 overflow-auto overscroll-contain focus:outline-none"
           role="table"
           aria-label="Resources"
           tabIndex={-1}
