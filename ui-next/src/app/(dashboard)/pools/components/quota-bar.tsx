@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -8,19 +8,50 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
+import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { card, skeleton, progressTrack, getProgressColor, text } from "@/lib/styles";
+import { card, skeleton, text } from "@/lib/styles";
+import { ProgressBar } from "@/components/progress-bar";
+
+// =============================================================================
+// Types
+// =============================================================================
 
 interface QuotaBarProps {
+  /** Amount of quota used */
   used: number;
+  /** Total quota limit */
   limit: number;
+  /** Amount of quota free (should equal limit - used) */
   free: number;
+  /** Loading state */
   isLoading?: boolean;
 }
 
-export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
-  const percent = limit > 0 ? (used / limit) * 100 : 0;
+// =============================================================================
+// Component
+// =============================================================================
 
+/**
+ * QuotaBar - Card-wrapped quota display with contextual messaging.
+ *
+ * Pool-specific component that shows GPU quota in a prominent card format
+ * with workflow priority guidance.
+ *
+ * Composes from ProgressBar primitive.
+ *
+ * @example
+ * ```tsx
+ * <QuotaBar used={6} limit={8} free={2} />
+ * <QuotaBar used={0} limit={8} free={8} isLoading />
+ * ```
+ */
+export const QuotaBar = memo(function QuotaBar({
+  used,
+  limit,
+  free,
+  isLoading,
+}: QuotaBarProps) {
   if (isLoading) {
     return (
       <div className={cn(card.base, "p-4")}>
@@ -33,6 +64,7 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
 
   return (
     <div className={cn(card.base, "p-4")}>
+      {/* Header: Label + Used/Limit */}
       <div className="flex items-baseline justify-between">
         <span className={text.muted}>GPU Quota</span>
         <span className="text-lg font-semibold tabular-nums">
@@ -41,30 +73,33 @@ export function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
         </span>
       </div>
 
-      <div
-        role="progressbar"
-        aria-valuenow={used}
-        aria-valuemin={0}
-        aria-valuemax={limit}
+      {/* Progress bar */}
+      <div className="mt-3">
+        <ProgressBar
+          value={used}
+          max={limit}
+          size="md"
+          thresholdColors
+          trackClassName="h-3"
         aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
-        className={cn("mt-3 h-3", progressTrack)}
-        style={{ contain: "layout paint" }}
-      >
-        <div
-          className={cn("h-full w-full rounded-full transition-transform duration-500 origin-left", getProgressColor(percent))}
-          style={{ transform: `scaleX(${Math.min(percent, 100) / 100})` }}
         />
       </div>
 
+      {/* Contextual message */}
       <p className={cn("mt-2", text.muted)}>
         {free > 0 ? (
           <>
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">{free} available</span> for HIGH/NORMAL priority workflows
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">
+              {free} available
+            </span>{" "}
+            for HIGH/NORMAL priority workflows
           </>
         ) : (
-          <span className="text-amber-600 dark:text-amber-400">No quota available — LOW priority workflows may still run</span>
+          <span className="text-amber-600 dark:text-amber-400">
+            No quota available — LOW priority workflows may still run
+          </span>
         )}
       </p>
     </div>
   );
-}
+});

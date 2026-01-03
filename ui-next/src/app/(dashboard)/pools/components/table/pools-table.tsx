@@ -11,18 +11,11 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import { Check } from "lucide-react";
 import { getOrderedColumns, type SortState } from "@/lib/table";
+import { useTableDnd } from "@/components/data-table";
 import type { PoolsResponse } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/lib/stores";
 import type { SearchChip } from "@/lib/stores";
@@ -36,13 +29,6 @@ import { BottomSectionStack } from "./bottom-sections";
 import { PoolRow } from "./pool-row";
 import { TableHeader } from "./table-header";
 import "../../styles/pools.css";
-
-const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
-  ...transform,
-  y: 0,
-  scaleX: 1,
-  scaleY: 1,
-});
 
 
 export interface PoolsTableProps {
@@ -85,26 +71,27 @@ export function PoolsTable({
   const pools = poolsData?.pools ?? [];
   const sharingGroups = poolsData?.sharingGroups ?? [];
 
-  // Create a callback to filter by shared pools using the shared: filter
-  const createFilterBySharedPools = useCallback(
-    (poolName: string) => {
-      if (!onSearchChipsChange) return undefined;
+  // Memoize shared pools filter callbacks to preserve PoolRow memo optimization
+  // Key: poolName -> callback (stable references across renders)
+  const filterBySharedPoolsMap = useMemo(() => {
+    if (!onSearchChipsChange) return new Map<string, () => void>();
 
-      // Find the sharing group that contains this pool
-      const group = sharingGroups.find((g) => g.includes(poolName));
-      if (!group || group.length <= 1) return undefined;
-
-      // Return a callback that sets a single shared: filter
-      return () => {
-        onSearchChipsChange([{
-          field: "shared",
-          value: poolName,
-          label: `Shared: ${poolName}`,
-        }]);
-      };
-    },
-    [sharingGroups, onSearchChipsChange],
-  );
+    const map = new Map<string, () => void>();
+    for (const group of sharingGroups) {
+      if (group.length > 1) {
+        for (const poolName of group) {
+          map.set(poolName, () => {
+            onSearchChipsChange([{
+              field: "shared",
+              value: poolName,
+              label: `Shared: ${poolName}`,
+            }]);
+          });
+        }
+      }
+    }
+    return map;
+  }, [sharingGroups, onSearchChipsChange]);
 
   // Organize pools into sections (pools are pre-filtered by usePoolsData)
   const { sections, sharingMap } = usePoolSections({
@@ -134,11 +121,8 @@ export function PoolsTable({
     [columnOrder, visibleColumnIds],
   );
 
-  // DnD sensors and handlers
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // DnD setup from shared hook
+  const { sensors, modifiers } = useTableDnd();
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -198,13 +182,13 @@ export function PoolsTable({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      modifiers={[restrictToHorizontalAxis]}
+      modifiers={modifiers}
       autoScroll={false}
     >
       <div className="pools-table-container h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div
           ref={scrollRef}
-          className="pools-scroll-container flex-1 overflow-auto overscroll-contain"
+          className="scrollbar-styled flex-1 overflow-auto overscroll-contain"
         >
           <table className="pools-table w-full border-collapse">
             <TableHeader
@@ -242,7 +226,7 @@ export function PoolsTable({
                     displayMode={displayMode}
                     compact={compactMode}
                     isShared={sharingMap.has(pool.name)}
-                    onFilterBySharedPools={createFilterBySharedPools(pool.name)}
+                    onFilterBySharedPools={filterBySharedPoolsMap.get(pool.name)}
                   />
                 )),
               ])
