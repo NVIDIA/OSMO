@@ -11,8 +11,9 @@
 "use client";
 
 import type { Pool } from "@/lib/api/adapter";
-import type { PoolColumnId } from "../../lib";
-import { GpuProgressCell, PlatformPills } from "../cells";
+import type { PoolColumnId } from "../../lib/pool-columns";
+import { GpuProgressCell } from "../cells/gpu-progress-cell";
+import { PlatformPills } from "../cells/platform-pills";
 
 interface PoolCellProps {
   pool: Pool;

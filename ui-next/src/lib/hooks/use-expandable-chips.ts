@@ -10,12 +10,27 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { RefObject } from "react";
-import type { ChipLayoutDimensions } from "./use-layout-dimensions";
+
+/**
+ * Layout dimensions for chip width estimation.
+ */
+export interface ChipLayoutDimensions {
+  /** Width of the overflow button (e.g., "+3") */
+  overflowButtonWidth: number;
+  /** Gap between chips */
+  chipGap: number;
+  /** Horizontal padding inside each chip */
+  chipPadding: number;
+  /** Estimated width per character */
+  charWidth: number;
+  /** Padding around the container */
+  containerPadding: number;
+}
 
 export interface UseExpandableChipsOptions {
   /** Array of items to display as chips */
   items: string[];
-  /** Layout dimensions from CSS variables */
+  /** Layout dimensions for width calculation */
   layout: ChipLayoutDimensions;
   /** Whether chips should be sorted alphabetically (default: true) */
   sortAlphabetically?: boolean;
@@ -39,8 +54,24 @@ export interface UseExpandableChipsResult {
 }
 
 /**
- * Shared hook for expandable chip lists.
- * Handles width estimation, ResizeObserver, expand/collapse state, and overflow calculation.
+ * Hook for expandable chip lists.
+ *
+ * Handles width estimation, ResizeObserver, expand/collapse state,
+ * and overflow calculation. Used for displaying tags, platforms,
+ * sharing groups, etc. in constrained spaces.
+ *
+ * @example
+ * ```tsx
+ * const { containerRef, displayedItems, overflowCount, expanded, setExpanded } =
+ *   useExpandableChips({ items: platforms, layout: chipLayout });
+ *
+ * return (
+ *   <div ref={containerRef}>
+ *     {displayedItems.map(item => <Chip key={item}>{item}</Chip>)}
+ *     {overflowCount > 0 && <button onClick={() => setExpanded(!expanded)}>+{overflowCount}</button>}
+ *   </div>
+ * );
+ * ```
  */
 export function useExpandableChips({
   items,

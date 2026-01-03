@@ -24,8 +24,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import type { Pool } from "@/lib/api/adapter";
 import { useSharedPreferences, type SearchChip } from "@/lib/stores";
 import { SmartSearch } from "@/components/smart-search";
-import { usePoolsTableStore } from "./stores/pools-table-store";
-import { OPTIONAL_COLUMNS, createPoolSearchFields } from "./lib";
+import { usePoolsTableStore } from "../stores/pools-table-store";
+import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
+import { createPoolSearchFields } from "../lib/pool-search-fields";
 
 export interface PoolsToolbarProps {
   pools: Pool[];
