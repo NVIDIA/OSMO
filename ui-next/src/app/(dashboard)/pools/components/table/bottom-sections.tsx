@@ -12,7 +12,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { StatusSection } from "../../hooks";
+import type { StatusSection } from "../../hooks/use-pool-sections";
 
 export interface BottomSectionStackProps {
   sections: StatusSection[];

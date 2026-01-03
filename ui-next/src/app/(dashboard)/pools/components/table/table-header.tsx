@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import type { ColumnDef, SortState } from "@/lib/table";
-import { MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
+import { MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib/pool-columns";
 
 // =============================================================================
 // Sort Button Component (shared between mandatory and optional columns)

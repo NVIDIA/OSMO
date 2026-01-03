@@ -13,7 +13,8 @@
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { chip } from "@/lib/styles";
-import { getChipLayoutCompact, useExpandableChips } from "../../hooks";
+import { getChipLayoutCompact } from "../../hooks/use-layout-dimensions";
+import { useExpandableChips } from "@/lib/hooks";
 
 export interface PlatformPillsProps {
   /** List of platform names */
