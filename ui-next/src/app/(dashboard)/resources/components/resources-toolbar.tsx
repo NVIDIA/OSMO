@@ -24,8 +24,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences, type SearchChip } from "@/lib/stores";
 import { SmartSearch } from "@/components/smart-search";
-import { useResourcesTableStore } from "./stores/resources-table-store";
-import { OPTIONAL_COLUMNS, createResourceSearchFields } from "./lib";
+import { useResourcesTableStore } from "../stores/resources-table-store";
+import { OPTIONAL_COLUMNS, createResourceSearchFields } from "../lib";
 
 export interface ResourcesToolbarProps {
   resources: Resource[];
