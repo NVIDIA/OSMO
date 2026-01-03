@@ -26,6 +26,7 @@ export const SortableCell = memo(function SortableCell({
   children,
   className,
   as: Component = "div",
+  width: propWidth,
 }: SortableCellProps) {
   const {
     attributes,
@@ -37,15 +38,18 @@ export const SortableCell = memo(function SortableCell({
     node,
   } = useSortable({ id });
 
-  // Get current width to maintain during drag
-  const width = node.current?.offsetWidth;
+  // Get current width to maintain during drag, or use prop width
+  const currentWidth = node.current?.offsetWidth;
+  const width = isDragging && currentWidth ? currentWidth : propWidth;
 
   const style: React.CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
     transition,
     zIndex: isDragging ? 10 : undefined,
     opacity: isDragging ? 0.8 : 1,
-    width: isDragging && width ? width : undefined,
+    width,
+    minWidth: propWidth,
+    maxWidth: propWidth,
   };
 
   return (
