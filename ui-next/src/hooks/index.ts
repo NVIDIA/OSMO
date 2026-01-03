@@ -29,3 +29,4 @@ export {
   type UseUrlChipsOptions,
   type UseUrlChipsResult,
 } from "./use-url-chips";
+export { useStableCallback, useStableValue } from "./use-stable-callback";

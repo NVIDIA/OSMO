@@ -8,4 +8,14 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
+/**
+ * DataTable Hooks
+ */
+
 export { useTableDnd, restrictToHorizontalAxis } from "./use-table-dnd";
+export {
+  useVirtualizedTable,
+  type UseVirtualizedTableOptions,
+  type UseVirtualizedTableResult,
+  type VirtualizedRow,
+} from "./use-virtualized-table";
