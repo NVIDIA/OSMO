@@ -99,3 +99,20 @@ export function getResourceAllocationTypeDisplay(type: string) {
     ResourceAllocationTypeDisplay.UNUSED
   );
 }
+
+// =============================================================================
+// Panel Constants
+// =============================================================================
+
+/**
+ * Shared panel configuration for resizable detail panels.
+ * Used by both pools and resources panels.
+ */
+export const PANEL = {
+  /** Width presets for snap-to menu (percentage) */
+  WIDTH_PRESETS: [33, 50, 75] as const,
+  /** Minimum width percentage */
+  MIN_WIDTH_PCT: 20,
+  /** Maximum width percentage */
+  MAX_WIDTH_PCT: 80,
+} as const;

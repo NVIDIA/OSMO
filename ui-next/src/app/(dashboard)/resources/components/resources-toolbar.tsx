@@ -11,27 +11,16 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { MonitorCheck, MonitorX, Rows3, Rows4, Columns } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { Resource } from "@/lib/api/adapter";
-import { useSharedPreferences, type SearchChip } from "@/stores";
-import { SmartSearch } from "@/components/smart-search";
+import type { SearchChip } from "@/stores";
+import { TableToolbar } from "@/components/table-toolbar";
 import { useResourcesTableStore } from "../stores/resources-table-store";
-import { OPTIONAL_COLUMNS, createResourceSearchFields } from "../lib";
+import { OPTIONAL_COLUMNS } from "../lib/resource-columns";
+import { createResourceSearchFields } from "../lib/resource-search-fields";
 
 export interface ResourcesToolbarProps {
   resources: Resource[];
-  /** Filter chips (URL-synced) */
   searchChips: SearchChip[];
-  /** Callback when chips change */
   onSearchChipsChange: (chips: SearchChip[]) => void;
 }
 
@@ -40,80 +29,22 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
   searchChips,
   onSearchChipsChange,
 }: ResourcesToolbarProps) {
-  // Table-specific settings
   const visibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useResourcesTableStore((s) => s.toggleColumn);
 
-  // Shared preferences (across pools & resources)
-  const compactMode = useSharedPreferences((s) => s.compactMode);
-  const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
-  const displayMode = useSharedPreferences((s) => s.displayMode);
-  const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
-
-  // Create search fields (memoized to avoid recreation)
+  // Create search fields
   const searchFields = useMemo(() => createResourceSearchFields(), []);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="min-w-[300px] flex-1">
-        <SmartSearch
-          data={resources}
-          fields={searchFields}
-          chips={searchChips}
-          onChipsChange={onSearchChipsChange}
-          placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
-        />
-      </div>
-
-      <div className="flex items-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggleDisplayMode}
-              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggleCompactMode}
-              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
-        </Tooltip>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              <Columns className="size-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>Columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {OPTIONAL_COLUMNS.map((column) => (
-              <DropdownMenuCheckboxItem
-                key={column.id}
-                checked={visibleColumnIds.includes(column.id)}
-                onCheckedChange={() => toggleColumn(column.id)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {column.menuLabel ?? column.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
+    <TableToolbar
+      data={resources}
+      searchFields={searchFields}
+      columns={OPTIONAL_COLUMNS}
+      visibleColumnIds={visibleColumnIds}
+      onToggleColumn={toggleColumn}
+      searchChips={searchChips}
+      onSearchChipsChange={onSearchChipsChange}
+      placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
+    />
   );
 });

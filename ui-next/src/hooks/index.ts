@@ -24,3 +24,8 @@ export {
   type UseExpandableChipsOptions,
   type UseExpandableChipsResult,
 } from "./use-expandable-chips";
+export {
+  useUrlChips,
+  type UseUrlChipsOptions,
+  type UseUrlChipsResult,
+} from "./use-url-chips";

@@ -27,15 +27,15 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
+import { useQueryState, parseAsString } from "nuqs";
 import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/inline-error-boundary";
 import { ApiError, type ApiErrorProps } from "@/components/api-error";
-import type { SearchChip } from "@/stores";
+import { useUrlChips } from "@/hooks";
 import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/stores";
-import { ResourcesTable } from "./components/table";
-import { ResourcePanelLayout } from "./components/panel";
+import { ResourcesTable } from "./components/table/resources-table";
+import { ResourcePanelLayout } from "./components/panel/resource-panel";
 import { ResourcesToolbar } from "./components/resources-toolbar";
 import { AdaptiveSummary } from "./components/resource-summary-card";
 import { useResourcesData } from "./hooks/use-resources-data";
@@ -75,43 +75,8 @@ export default function ResourcesPage() {
     }),
   );
 
-  // Filter chips - repeated f params: ?f=platform:dgx&f=pool:ml-team
-  const [filterStrings, setFilterStrings] = useQueryState(
-    "f",
-    parseAsArrayOf(parseAsString).withOptions({
-      shallow: true,
-      history: "push",
-      clearOnDefault: true,
-    }),
-  );
-
-  // Parse filter strings to SearchChip format
-  const searchChips = useMemo<SearchChip[]>(() => {
-    if (!filterStrings || filterStrings.length === 0) return [];
-    return filterStrings
-      .map((str) => {
-        const colonIndex = str.indexOf(":");
-        if (colonIndex === -1) return null;
-        const field = str.slice(0, colonIndex);
-        const value = str.slice(colonIndex + 1);
-        if (!field || !value) return null;
-        const label = `${field}: ${value}`;
-        return { field, value, label };
-      })
-      .filter((chip): chip is SearchChip => chip !== null);
-  }, [filterStrings]);
-
-  // Convert chips back to filter strings for URL
-  const setSearchChips = useCallback(
-    (chips: SearchChip[]) => {
-      if (chips.length === 0) {
-        setFilterStrings(null);
-      } else {
-        setFilterStrings(chips.map((c) => `${c.field}:${c.value}`));
-      }
-    },
-    [setFilterStrings],
-  );
+  // Filter chips - URL-synced via shared hook
+  const { searchChips, setSearchChips } = useUrlChips();
 
   // ==========================================================================
   // Data Fetching with SmartSearch filtering

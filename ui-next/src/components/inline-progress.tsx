@@ -10,13 +10,11 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
+import type { DisplayMode } from "@/stores";
 import { ProgressBar } from "./progress-bar";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-export type DisplayMode = "used" | "free";
+// Re-export for consumers that import from here
+export type { DisplayMode };
 
 export interface InlineProgressProps {
   /** Current usage value */
