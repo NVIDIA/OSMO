@@ -11,7 +11,7 @@
 import { useEffect } from "react";
 import { RefreshCw, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/shadcn/button";
 import { ErrorDetails } from "@/components/shared";
 import { logError } from "@/lib/logger";
 
