@@ -29,15 +29,13 @@
 
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
-import { InlineErrorBoundary } from "@/components/shared";
+import { InlineErrorBoundary } from "@/components/inline-error-boundary";
 import { usePage } from "@/components/shell";
-import {
-  PoolsTable,
-  PoolsToolbar,
-  PoolPanelLayout,
-} from "@/components/pools";
 import type { SearchChip } from "@/lib/stores";
-import { usePoolsData } from "./use-pools-data";
+import { PoolsTable } from "./components/table/pools-table";
+import { PoolPanelLayout } from "./components/panel/pool-panel";
+import { PoolsToolbar } from "./components/pools-toolbar";
+import { usePoolsData } from "./hooks/use-pools-data";
 
 // =============================================================================
 // Main Page Component

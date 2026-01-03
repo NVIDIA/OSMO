@@ -18,3 +18,9 @@
 
 export { usePersistedState } from "./use-persisted-state";
 export { useVirtualizerCompat } from "./use-virtualizer-compat";
+export {
+  useExpandableChips,
+  type ChipLayoutDimensions,
+  type UseExpandableChipsOptions,
+  type UseExpandableChipsResult,
+} from "./use-expandable-chips";
