@@ -27,13 +27,15 @@ import type { PoolsResponse } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/lib/stores";
 import type { SearchChip } from "@/lib/stores";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
-import { usePoolSections, useSectionScroll, useLayoutDimensions } from "../../hooks";
-import { COLUMN_MAP, MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib";
+import { usePoolSections } from "../../hooks/use-pool-sections";
+import { useSectionScroll } from "../../hooks/use-section-scroll";
+import { useLayoutDimensions } from "../../hooks/use-layout-dimensions";
+import { COLUMN_MAP, MANDATORY_COLUMN_IDS, type PoolColumnId } from "../../lib/pool-columns";
 import { SectionRow } from "./section-row";
 import { BottomSectionStack } from "./bottom-sections";
 import { PoolRow } from "./pool-row";
 import { TableHeader } from "./table-header";
-import "../../pools.css";
+import "../../styles/pools.css";
 
 const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
   ...transform,

@@ -13,27 +13,6 @@ import { useSharedPreferences } from "@/lib/stores";
 import { LAYOUT } from "../lib/constants";
 
 // =============================================================================
-// CSS Variable Parsing Utilities
-// =============================================================================
-
-function parseCssValue(value: string, rootFontSize: number): number {
-  const trimmed = value.trim();
-  if (trimmed.endsWith("rem")) return parseFloat(trimmed) * rootFontSize;
-  if (trimmed.endsWith("px")) return parseFloat(trimmed);
-  return parseFloat(trimmed) || 0;
-}
-
-function getCssVarPx(name: string, fallbackRem: string): number {
-  if (typeof document === "undefined") {
-    return parseFloat(fallbackRem) * 16;
-  }
-  const root = document.documentElement;
-  const rootFontSize = parseFloat(getComputedStyle(root).fontSize) || 16;
-  const val = getComputedStyle(root).getPropertyValue(name).trim() || fallbackRem;
-  return parseCssValue(val, rootFontSize);
-}
-
-// =============================================================================
 // Layout Dimensions
 // =============================================================================
 
@@ -59,11 +38,5 @@ export function useLayoutDimensions(): LayoutDimensions {
   );
 }
 
-/**
- * Get the shell header height for panel positioning.
- * Reads from CSS variable with fallback to 3.5rem (56px).
- */
-export function getShellHeaderHeight(): number {
-  // Use the same CSS variable as pools for consistency
-  return getCssVarPx("--pools-shell-header-height", "3.5rem");
-}
+// Re-export shared function for convenience
+export { getShellHeaderHeight } from "@/lib/css-utils";

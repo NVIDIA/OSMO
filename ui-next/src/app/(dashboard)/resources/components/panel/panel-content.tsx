@@ -14,7 +14,7 @@ import { useState, useCallback } from "react";
 import { Check, Ban, ChevronDown, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CapacityBar } from "@/components/capacity-bar";
-import { ApiError } from "@/components/shared";
+import { ApiError } from "@/components/api-error";
 import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
 import {
   DropdownMenu,
