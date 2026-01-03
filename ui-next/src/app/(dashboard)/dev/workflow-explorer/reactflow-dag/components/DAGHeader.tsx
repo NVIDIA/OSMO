@@ -17,7 +17,7 @@
 
 import { useMemo } from "react";
 import { ChevronLeft, RefreshCw, Maximize2, Minimize2, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/shadcn/button";
 import type { GroupWithLayout } from "../../workflow-types";
 import { formatDuration } from "../../workflow-types";
 import { getStatusIcon } from "../utils/status";

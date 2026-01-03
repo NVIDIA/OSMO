@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Home, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/shadcn/button";
 
 export function NotFoundContent() {
   const router = useRouter();

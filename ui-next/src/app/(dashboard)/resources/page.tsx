@@ -38,7 +38,7 @@ import {
   ResourcesTable,
   ResourcePanelLayout,
   AdaptiveSummary,
-} from "@/components/features/resources";
+} from "@/components/resources";
 import { useSharedPreferences } from "@/lib/stores";
 import { useResourcesData } from "./use-resources-data";
 

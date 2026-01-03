@@ -11,14 +11,14 @@
 import Link from "next/link";
 import { Search, Command, LogIn, Home, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/shadcn/dropdown-menu";
 import { useAuth, useUser } from "@/lib/auth";
 import { useVersion } from "@/lib/api/adapter";
 import { usePageConfig, type BreadcrumbSegment } from "./page-context";

@@ -11,8 +11,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/shadcn/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { GitBranch, BarChart3, Clock, Loader2, CheckCircle, XCircle, ArrowRight, Workflow } from "lucide-react";
 import { usePage } from "@/components/shell";
 

@@ -22,7 +22,7 @@
 import { useMemo, useCallback, memo, useState } from "react";
 import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/shadcn/button";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
 import type { GroupWithLayout } from "../../../workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../utils/status";
