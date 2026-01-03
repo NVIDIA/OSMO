@@ -12,7 +12,7 @@ import { useEffect } from "react";
 import { RefreshCw, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/shadcn/button";
-import { ErrorDetails } from "@/components/api-error";
+import { ErrorDetails } from "@/components/error-details";
 import { logError } from "@/lib/logger";
 
 /**

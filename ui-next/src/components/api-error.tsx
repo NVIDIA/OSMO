@@ -161,5 +161,3 @@ export function ApiError({
     </div>
   );
 }
-
-export { ErrorDetails };

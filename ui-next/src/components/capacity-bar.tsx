@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
 // and proprietary rights in and to this software, related documentation
@@ -10,7 +10,7 @@
 
 import { memo } from "react";
 import { cn, formatCompact, formatBytesPair } from "@/lib/utils";
-import { getProgressColor } from "@/lib/styles";
+import { ProgressBar } from "./progress-bar";
 
 // =============================================================================
 // Types
@@ -36,17 +36,17 @@ export interface CapacityBarProps {
 // =============================================================================
 
 /**
- * Reusable capacity/usage bar component.
+ * CapacityBar - Vertical capacity/usage display for panels.
  *
  * Used across pool detail and resource views to show
  * resource utilization (GPU, CPU, Memory, Storage).
  *
- * Memoized to prevent unnecessary re-renders when values haven't changed.
+ * Composes from ProgressBar primitive.
  *
  * @example
  * ```tsx
  * <CapacityBar label="GPU" used={6} total={8} />
- * <CapacityBar label="Memory" used={256} total={512} unit="Gi" />
+ * <CapacityBar label="Memory" used={256} total={512} isBytes />
  * ```
  */
 export const CapacityBar = memo(function CapacityBar({
@@ -57,10 +57,7 @@ export const CapacityBar = memo(function CapacityBar({
   size = "md",
   showFree = true,
 }: CapacityBarProps) {
-  const percent = total > 0 ? (used / total) * 100 : 0;
-  const barColor = getProgressColor(percent);
-
-  const barHeight = size === "sm" ? "h-1.5" : "h-2";
+  const barSize = size === "sm" ? "sm" : "md";
   const textSize = size === "sm" ? "text-xs" : "text-sm";
 
   // Handle zero total case
@@ -71,7 +68,7 @@ export const CapacityBar = memo(function CapacityBar({
           <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
           <span className="text-zinc-400 dark:text-zinc-500">—</span>
         </div>
-        <div className={cn(barHeight, "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800")} />
+        <ProgressBar value={0} max={1} size={barSize} />
       </div>
     );
   }
@@ -112,24 +109,14 @@ export const CapacityBar = memo(function CapacityBar({
         </div>
       </div>
 
-      {/* Bar - WCAG 2.1 accessible progressbar with GPU-accelerated scaleX */}
-      <div
-        role="progressbar"
-        aria-valuenow={used}
-        aria-valuemin={0}
-        aria-valuemax={total}
+      {/* Progress bar */}
+      <ProgressBar
+        value={used}
+        max={total}
+        size={barSize}
+        thresholdColors
         aria-label={ariaLabel}
-        className={cn(barHeight, "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800")}
-        style={{ contain: "layout paint" }}
-      >
-        {/* Uses scaleX instead of width for GPU-accelerated animation */}
-        <div
-          className={cn("h-full w-full rounded-full transition-transform duration-300 ease-out origin-left", barColor)}
-          style={{
-            transform: `scaleX(${Math.min(percent, 100) / 100})`,
-          }}
         />
-      </div>
 
       {/* Free label */}
       {showFree && (
