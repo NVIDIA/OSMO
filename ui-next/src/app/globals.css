@@ -175,6 +175,66 @@
   display: none; /* Chrome, Safari, Opera */
 }
 
+/* =============================================================================
+   Styled Scrollbars - Subtle, elegant scrollbars for scroll containers
+   ============================================================================= */
+
+.scrollbar-styled {
+  scrollbar-width: thin;
+  /* Firefox: thumb color, track color */
+  scrollbar-color: rgba(161, 161, 170, 0.5) rgba(244, 244, 245, 0.5);
+}
+
+.dark .scrollbar-styled {
+  scrollbar-color: rgba(161, 161, 170, 0.4) rgba(39, 39, 42, 0.5);
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+.scrollbar-styled::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-track {
+  background: rgba(244, 244, 245, 0.6);
+  border-radius: 5px;
+  margin: 2px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.5);
+  border-radius: 5px;
+  border: 2px solid rgba(244, 244, 245, 0.6);
+  transition: background 0.15s ease;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.7);
+}
+
+.scrollbar-styled::-webkit-scrollbar-corner {
+  background: rgba(244, 244, 245, 0.6);
+  border-radius: 5px;
+}
+
+/* Dark mode */
+.dark .scrollbar-styled::-webkit-scrollbar-track {
+  background: rgba(39, 39, 42, 0.6);
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.5);
+  border-color: rgba(39, 39, 42, 0.6);
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.6);
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-corner {
+  background: rgba(39, 39, 42, 0.6);
+}
+
 /* GPU-accelerated transform layer - prevents layout thrashing */
 .gpu-layer {
   transform: translateZ(0);

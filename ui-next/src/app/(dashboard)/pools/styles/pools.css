@@ -284,65 +284,9 @@
 }
 
 /* =============================================================================
-   Scroll Container - Subtle, elegant scrollbars
+   Pool-specific visual styles (scrollbar styling is in globals.css)
    ============================================================================= */
 @layer pools.scrollbar {
-  .pools-scroll-container {
-    scrollbar-width: thin;
-    /* Firefox: thumb color, track color */
-    scrollbar-color: rgba(161, 161, 170, 0.5) rgba(244, 244, 245, 0.5);
-  }
-
-  .dark .pools-scroll-container {
-    scrollbar-color: rgba(161, 161, 170, 0.4) rgba(39, 39, 42, 0.5);
-  }
-
-  /* Webkit (Chrome, Safari, Edge) */
-  .pools-scroll-container::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
-  .pools-scroll-container::-webkit-scrollbar-track {
-    background: rgba(244, 244, 245, 0.6);
-    border-radius: 5px;
-    margin: 2px;
-  }
-
-  .pools-scroll-container::-webkit-scrollbar-thumb {
-    background: rgba(161, 161, 170, 0.5);
-    border-radius: 5px;
-    border: 2px solid rgba(244, 244, 245, 0.6);
-    transition: background 0.15s ease;
-  }
-
-  .pools-scroll-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(113, 113, 122, 0.7);
-  }
-
-  .pools-scroll-container::-webkit-scrollbar-corner {
-    background: rgba(244, 244, 245, 0.6);
-    border-radius: 5px;
-  }
-
-  /* Dark mode */
-  .dark .pools-scroll-container::-webkit-scrollbar-track {
-    background: rgba(39, 39, 42, 0.6);
-  }
-
-  .dark .pools-scroll-container::-webkit-scrollbar-thumb {
-    background: rgba(113, 113, 122, 0.5);
-    border-color: rgba(39, 39, 42, 0.6);
-  }
-
-  .dark .pools-scroll-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(161, 161, 170, 0.6);
-  }
-
-  .dark .pools-scroll-container::-webkit-scrollbar-corner {
-    background: rgba(39, 39, 42, 0.6);
-  }
-
   /* Progress Track - More visible in dark mode */
   .pools-progress-track {
     background: #e4e4e7; /* zinc-200 */

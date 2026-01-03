@@ -8,12 +8,12 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { getCssVarPx } from "@/lib/css-utils";
 import type { ChipLayoutDimensions } from "@/lib/hooks";
 
 // =============================================================================
-// Table Layout Dimensions (hook for reactive updates)
+// Table Layout Dimensions
 // =============================================================================
 
 interface LayoutDimensions {
@@ -23,26 +23,24 @@ interface LayoutDimensions {
   rowHeightCompact: number;
 }
 
-const DEFAULTS: LayoutDimensions = {
-  headerHeight: 36,
-  sectionHeight: 36,
-  rowHeight: 48,
-  rowHeightCompact: 32,
-};
-
+/**
+ * Returns layout dimensions from CSS custom properties.
+ *
+ * Uses useMemo to read values once on mount (no re-render).
+ * Fallbacks ensure correct values even during SSR/initial hydration.
+ *
+ * Note: Values are static per mount. If CSS variables could change at runtime
+ * (e.g., theme switch changes dimensions), use useState + useEffect instead.
+ */
 export function useLayoutDimensions(): LayoutDimensions {
-  const [dimensions, setDimensions] = useState<LayoutDimensions>(DEFAULTS);
-
-  useEffect(() => {
-    setDimensions({
-      headerHeight: getCssVarPx("--pools-header-height", "2.25rem"),
-      sectionHeight: getCssVarPx("--pools-section-height", "2.25rem"),
-      rowHeight: getCssVarPx("--pools-row-height", "3rem"),
-      rowHeightCompact: getCssVarPx("--pools-row-height-compact", "2rem"),
-    });
-  }, []);
-
-  return dimensions;
+  // Read CSS variables once on mount - avoids double render from useEffect
+  // Safe because CSS custom properties are defined in pools.css which loads before components
+  return useMemo(() => ({
+    headerHeight: getCssVarPx("--pools-header-height", "2.25rem"),
+    sectionHeight: getCssVarPx("--pools-section-height", "2.25rem"),
+    rowHeight: getCssVarPx("--pools-row-height", "3rem"),
+    rowHeightCompact: getCssVarPx("--pools-row-height-compact", "2rem"),
+  }), []);
 }
 
 // =============================================================================
