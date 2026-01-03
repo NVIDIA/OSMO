@@ -8,7 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { createTableStore } from "@/lib/stores";
+import { createTableStore } from "@/stores";
 
 /**
  * Resources table store for column/sort/panel preferences.
@@ -25,6 +25,6 @@ export const useResourcesTableStore = createTableStore({
 });
 
 // Re-export shared preferences for convenience
-export { useSharedPreferences } from "@/lib/stores";
+export { useSharedPreferences } from "@/stores";
 
-export type { TableState, TableActions, TableStore, SearchChip } from "@/lib/stores";
+export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";

@@ -31,7 +31,7 @@ import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import { InlineErrorBoundary } from "@/components/inline-error-boundary";
 import { usePage } from "@/components/shell";
-import type { SearchChip } from "@/lib/stores";
+import type { SearchChip } from "@/stores";
 import { PoolsTable } from "./components/table/pools-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";

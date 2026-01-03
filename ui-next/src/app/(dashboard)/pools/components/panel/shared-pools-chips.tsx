@@ -13,7 +13,7 @@
 import { useMemo } from "react";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useExpandableChips } from "@/lib/hooks";
+import { useExpandableChips } from "@/hooks";
 import { getChipLayoutSpacious } from "../../hooks/use-layout-dimensions";
 
 // =============================================================================

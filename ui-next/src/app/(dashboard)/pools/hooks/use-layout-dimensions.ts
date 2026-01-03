@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { getCssVarPx } from "@/lib/css-utils";
-import type { ChipLayoutDimensions } from "@/lib/hooks";
+import type { ChipLayoutDimensions } from "@/hooks";
 
 // =============================================================================
 // Table Layout Dimensions
