@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import { usePersistedState } from "@/lib/hooks";
+import { usePersistedState } from "@/hooks";
 
 interface SidebarContextType {
   collapsed: boolean;

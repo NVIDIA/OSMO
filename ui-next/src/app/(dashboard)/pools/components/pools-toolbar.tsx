@@ -22,7 +22,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { Pool } from "@/lib/api/adapter";
-import { useSharedPreferences, type SearchChip } from "@/lib/stores";
+import { useSharedPreferences, type SearchChip } from "@/stores";
 import { SmartSearch } from "@/components/smart-search";
 import { usePoolsTableStore } from "../stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
