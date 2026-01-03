@@ -17,7 +17,7 @@
  * Usage:
  * ```ts
  * // In feature store file
- * import { createTableStore } from "@/lib/stores";
+ * import { createTableStore } from "@/stores";
  *
  * export const usePoolsTableStore = createTableStore({
  *   storageKey: "pools-table",

@@ -11,7 +11,7 @@
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { chip } from "@/lib/styles";
-import { useExpandableChips, type ChipLayoutDimensions } from "@/lib/hooks";
+import { useExpandableChips, type ChipLayoutDimensions } from "@/hooks";
 
 // =============================================================================
 // Default Layout

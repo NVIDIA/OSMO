@@ -34,7 +34,7 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
-import { useVirtualizerCompat } from "@/lib/hooks";
+import { useVirtualizerCompat } from "@/hooks";
 import { TABLE_ROW_HEIGHT } from "../../constants";
 import { formatDuration } from "../../../workflow-types";
 import { getStatusIconCompact } from "../../utils/status";

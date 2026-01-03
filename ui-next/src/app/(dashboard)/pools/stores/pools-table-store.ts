@@ -8,7 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { createTableStore } from "@/lib/stores";
+import { createTableStore } from "@/stores";
 import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -63,6 +63,6 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
 );
 
 // Re-export shared preferences for backwards compatibility
-export { useSharedPreferences } from "@/lib/stores";
+export { useSharedPreferences } from "@/stores";
 
-export type { TableState, TableActions, TableStore, SearchChip } from "@/lib/stores";
+export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";

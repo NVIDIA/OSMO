@@ -19,7 +19,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { useTableDnd } from "@/components/data-table";
-import { useSharedPreferences, type DisplayMode } from "@/lib/stores";
+import { useSharedPreferences, type DisplayMode } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
 import { getVisibleColumnsConfig, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib";
 import { useResourcesTableStore } from "../../stores/resources-table-store";

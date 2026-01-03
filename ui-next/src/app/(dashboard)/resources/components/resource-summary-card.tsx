@@ -14,13 +14,13 @@ import { useMemo, memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
 import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
-import type { ResourceDisplayMode } from "@/headless";
+import type { DisplayMode } from "@/stores";
 
 interface AdaptiveSummaryProps {
   /** Array of resources to aggregate */
   resources: Resource[];
   /** Display mode: "free" shows available, "used" shows utilization */
-  displayMode?: ResourceDisplayMode;
+  displayMode?: DisplayMode;
   /** Show loading skeleton */
   isLoading?: boolean;
   /** Force compact layout regardless of container width */
