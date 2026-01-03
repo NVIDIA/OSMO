@@ -36,9 +36,9 @@ import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/lib/stores";
 import { ResourcesTable } from "./components/table";
 import { ResourcePanelLayout } from "./components/panel";
-import { ResourcesToolbar } from "./resources-toolbar";
-import { AdaptiveSummary } from "./resource-summary-card";
-import { useResourcesData } from "./use-resources-data";
+import { ResourcesToolbar } from "./components/resources-toolbar";
+import { AdaptiveSummary } from "./components/resource-summary-card";
+import { useResourcesData } from "./hooks/use-resources-data";
 
 // =============================================================================
 // Main Page Component

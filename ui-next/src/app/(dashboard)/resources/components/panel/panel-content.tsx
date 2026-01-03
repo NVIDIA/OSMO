@@ -13,6 +13,7 @@
 import { useState, useCallback } from "react";
 import { Check, Ban, ChevronDown, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { heading, text } from "@/lib/styles";
 import { CapacityBar } from "@/components/capacity-bar";
 import { ApiError } from "@/components/api-error";
 import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
@@ -59,7 +60,7 @@ export function ResourcePanelContent({
       <div className="space-y-6 border-b border-zinc-200 p-6 dark:border-zinc-800">
         {/* Resource Capacity */}
         <section>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          <h3 className={cn("mb-2", heading.section)}>
             Capacity
           </h3>
           <div className="space-y-4">
@@ -91,7 +92,7 @@ export function ResourcePanelContent({
         {/* Conditions if any */}
         {resource.conditions.length > 0 && (
           <section>
-            <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <h3 className={cn("mb-2", heading.section)}>
               Conditions
             </h3>
             <div className="flex flex-wrap gap-2">
@@ -111,7 +112,7 @@ export function ResourcePanelContent({
       {/* Pool-Specific Section */}
       <div className="p-6">
         <section>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          <h3 className={cn("mb-2", heading.section)}>
             Pool Configuration
           </h3>
 
@@ -129,7 +130,7 @@ export function ResourcePanelContent({
               <div className="h-16 rounded bg-zinc-200 dark:bg-zinc-800" />
             </div>
           ) : pools.length === 0 ? (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">This resource is not a member of any pool.</p>
+            <p className={text.muted}>This resource is not a member of any pool.</p>
           ) : (
             <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               {/* Pool Selector Header */}
@@ -146,7 +147,7 @@ export function ResourcePanelContent({
                 {taskConfig ? (
                   <TaskConfigContent config={taskConfig} />
                 ) : (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  <p className={text.muted}>
                     No configuration available for this platform.
                   </p>
                 )}
