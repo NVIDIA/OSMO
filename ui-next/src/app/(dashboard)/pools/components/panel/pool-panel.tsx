@@ -28,7 +28,7 @@ import { GripVertical } from "lucide-react";
 import type { Pool } from "@/lib/api/adapter";
 import { cn } from "@/lib/utils";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
-import { getShellHeaderHeight } from "../../hooks";
+import { getShellHeaderHeight } from "@/lib/css-utils";
 import { PanelHeader } from "./panel-header";
 import { PanelContent } from "./panel-content";
 

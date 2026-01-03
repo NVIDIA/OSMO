@@ -22,7 +22,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { getChipLayoutSpacious, useExpandableChips } from "../../hooks";
+import { getChipLayoutSpacious } from "../../hooks/use-layout-dimensions";
+import { useExpandableChips } from "@/lib/hooks";
 export interface PanelContentProps {
   pool: Pool;
   sharingGroups: string[][];
