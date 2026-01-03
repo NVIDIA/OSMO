@@ -10,16 +10,9 @@
 
 import { PoolStatus } from "@/lib/api/generated";
 
-// ============================================================================
-// Display Mode
-// ============================================================================
-
-export type DisplayMode = "free" | "used";
-
-// Panel snap presets for quick width adjustments
-export const PANEL = {
-  WIDTH_PRESETS: [33, 50, 75] as const,
-} as const;
+// Re-export from canonical locations
+export type { DisplayMode } from "@/stores";
+export { PANEL } from "@/lib/constants/ui";
 
 export type StatusCategory = "online" | "maintenance" | "offline";
 

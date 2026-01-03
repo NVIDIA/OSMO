@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { useTableDnd } from "@/components/data-table";
 import { useSharedPreferences, type DisplayMode } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
-import { getVisibleColumnsConfig, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib";
+import { getVisibleColumnsConfig, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib/resource-columns";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 import { TableHeader, type SortState, type SortColumn } from "./table-header";
 import { TableContent } from "./table-content";
