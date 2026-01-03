@@ -26,7 +26,7 @@
 
 import { useMemo } from "react";
 import { usePools, type Pool } from "@/lib/api/adapter";
-import type { SearchChip } from "@/lib/stores";
+import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";
 import { createPoolSearchFields } from "../lib/pool-search-fields";
 

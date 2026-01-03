@@ -11,12 +11,12 @@
 "use client";
 
 import { memo, useEffect, useCallback } from "react";
-import { useVirtualizerCompat } from "@/lib/hooks";
+import { useVirtualizerCompat } from "@/hooks";
 import { LoadingMoreIndicator } from "@/components/loading-more-indicator";
 import { cn } from "@/lib/utils";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 import type { Resource } from "@/lib/api/adapter";
-import type { DisplayMode } from "@/lib/stores";
+import type { DisplayMode } from "@/stores";
 import type { ResourceColumnId } from "../../lib";
 import { CapacityCell } from "../cells";
 
