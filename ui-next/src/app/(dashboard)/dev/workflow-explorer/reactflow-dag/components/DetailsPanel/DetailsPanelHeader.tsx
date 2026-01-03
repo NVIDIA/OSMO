@@ -34,7 +34,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/shadcn/dropdown-menu";
 import { PANEL } from "../../constants";
 import { getStatusIcon } from "../../utils/status";
 import type { DetailsPanelHeaderProps, SiblingTask } from "../../types/panel";

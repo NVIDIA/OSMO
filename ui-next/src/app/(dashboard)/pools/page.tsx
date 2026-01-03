@@ -35,7 +35,7 @@ import {
   PoolsTable,
   PoolsToolbar,
   PoolPanelLayout,
-} from "@/components/features/pools";
+} from "@/components/pools";
 import type { SearchChip } from "@/lib/stores";
 import { usePoolsData } from "./use-pools-data";
 

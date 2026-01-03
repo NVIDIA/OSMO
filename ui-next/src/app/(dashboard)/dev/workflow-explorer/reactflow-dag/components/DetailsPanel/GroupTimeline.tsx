@@ -23,7 +23,7 @@
 
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { GroupWithLayout } from "../../../workflow-types";
 import { getStatusCategory } from "../../utils/status";
 import { formatDuration } from "../../../workflow-types";
