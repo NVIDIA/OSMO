@@ -24,7 +24,7 @@ import {
   type PaginatedResourcesResult,
 } from "@/lib/api/adapter";
 import { useDataTable } from "@/lib/pagination";
-import type { SearchChip } from "@/lib/stores";
+import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";
 import { createResourceSearchFields } from "../lib/resource-search-fields";
 
