@@ -17,7 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { SortButton, SortableCell } from "@/components/data-table";
-import { COLUMN_LABELS, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib";
+import { COLUMN_LABELS, MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib/resource-columns";
 
 export type SortColumn = ResourceColumnId;
 export type SortDirection = "asc" | "desc";

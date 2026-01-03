@@ -17,8 +17,8 @@ import { cn } from "@/lib/utils";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
 import type { Resource } from "@/lib/api/adapter";
 import type { DisplayMode } from "@/stores";
-import type { ResourceColumnId } from "../../lib";
-import { CapacityCell } from "../cells";
+import type { ResourceColumnId } from "../../lib/resource-columns";
+import { CapacityCell } from "../cells/capacity-cell";
 
 interface TableContentProps {
   resources: Resource[];

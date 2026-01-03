@@ -8,14 +8,10 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-// Panel snap presets for quick width adjustments
-export const PANEL = {
-  WIDTH_PRESETS: [33, 50, 75] as const,
-  MIN_WIDTH_PCT: 20,
-  MAX_WIDTH_PCT: 80,
-} as const;
+// Re-export PANEL from canonical location
+export { PANEL } from "@/lib/constants/ui";
 
-// Layout constants
+// Layout constants specific to resources table
 export const LAYOUT = {
   HEADER_HEIGHT: 41,
   ROW_HEIGHT: 48,

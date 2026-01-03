@@ -73,73 +73,8 @@ export interface SortState<TColumnId extends string = string> {
 }
 
 // =============================================================================
-// Search Types
+// Re-exports from canonical locations
 // =============================================================================
 
-/**
- * A search filter chip.
- */
-export interface SearchChip {
-  /** Field ID this chip filters */
-  field: string;
-  /** Filter value */
-  value: string;
-  /** Display label (what user sees) */
-  label: string;
-}
-
-/**
- * Definition for a searchable field.
- */
-export interface SearchField<TData> {
-  /** Field ID */
-  id: string;
-  /** Display label */
-  label: string;
-  /** Prefix for typed queries (e.g., "status:") */
-  prefix: string;
-  /** Get available values for autocomplete */
-  getValues: (data: TData[]) => string[];
-  /** Check if an item matches the filter value */
-  match: (item: TData, value: string) => boolean;
-}
-
-// =============================================================================
-// Table State Types
-// =============================================================================
-
-/**
- * Complete table UI state.
- */
-export interface TableUIState<TColumnId extends string = string> {
-  /** Currently visible column IDs */
-  visibleColumnIds: TColumnId[];
-  /** Column order (for DND reordering) */
-  columnOrder: TColumnId[];
-  /** Current sort state */
-  sort: SortState<TColumnId>;
-  /** Whether compact mode is enabled */
-  compactMode: boolean;
-  /** Active search chips */
-  searchChips: SearchChip[];
-  /** Collapsed section IDs (for grouped tables) */
-  collapsedSections: string[];
-}
-
-/**
- * Table UI actions.
- */
-export interface TableUIActions<TColumnId extends string = string> {
-  /** Toggle column visibility */
-  toggleColumn: (id: TColumnId) => void;
-  /** Set column order */
-  setColumnOrder: (order: TColumnId[]) => void;
-  /** Set sort (cycles through asc/desc/none) */
-  setSort: (column: TColumnId) => void;
-  /** Toggle compact mode */
-  toggleCompactMode: () => void;
-  /** Set search chips */
-  setSearchChips: (chips: SearchChip[]) => void;
-  /** Toggle section collapse */
-  toggleSection: (id: string) => void;
-}
+// SearchChip: use @/stores
+// SearchField: use @/components/smart-search
