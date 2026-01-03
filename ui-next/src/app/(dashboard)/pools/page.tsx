@@ -28,10 +28,10 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
+import { useQueryState, parseAsString } from "nuqs";
 import { InlineErrorBoundary } from "@/components/inline-error-boundary";
 import { usePage } from "@/components/shell";
-import type { SearchChip } from "@/stores";
+import { useUrlChips } from "@/hooks";
 import { PoolsTable } from "./components/table/pools-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";
@@ -68,43 +68,8 @@ export default function PoolsPage() {
     })
   );
 
-  // Filter chips - repeated f params: ?f=status:ONLINE&f=platform:dgx
-  const [filterStrings, setFilterStrings] = useQueryState(
-    "f",
-    parseAsArrayOf(parseAsString).withOptions({
-      shallow: true,
-      history: "push",
-      clearOnDefault: true,
-    })
-  );
-
-  // Parse filter strings to SearchChip format
-  const searchChips = useMemo<SearchChip[]>(() => {
-    if (!filterStrings || filterStrings.length === 0) return [];
-    return filterStrings
-      .map((str) => {
-        const colonIndex = str.indexOf(":");
-        if (colonIndex === -1) return null;
-        const field = str.slice(0, colonIndex);
-        const value = str.slice(colonIndex + 1);
-        if (!field || !value) return null;
-        const label = `${field}: ${value}`;
-        return { field, value, label };
-      })
-      .filter((chip): chip is SearchChip => chip !== null);
-  }, [filterStrings]);
-
-  // Convert chips back to filter strings for URL
-  const setSearchChips = useCallback(
-    (chips: SearchChip[]) => {
-      if (chips.length === 0) {
-        setFilterStrings(null);
-      } else {
-        setFilterStrings(chips.map((c) => `${c.field}:${c.value}`));
-      }
-    },
-    [setFilterStrings]
-  );
+  // Filter chips - URL-synced via shared hook
+  const { searchChips, setSearchChips } = useUrlChips();
 
   // ==========================================================================
   // Data Fetching with SmartSearch filtering

@@ -13,30 +13,17 @@
  *
  * Two-row header layout:
  * Row 1: Title + Resource type badge                    [Menu] [Close]
- * Row 2: Platform · Backend · Hostname
+ * Row 2: Platform · Backend · Pool count
  */
 
 "use client";
 
-import React, { memo } from "react";
-import { X, MoreVertical, PanelLeft, PanelLeftClose, Columns2, Server, Cpu } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
+import { memo } from "react";
+import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
-import { PANEL } from "../../lib";
-
-const WIDTH_PRESET_ICONS: Record<number, React.FC<{ className?: string }>> = {
-  33: PanelLeftClose,
-  50: Columns2,
-  75: PanelLeft,
-};
+import { PanelHeaderActions } from "@/components/panel-header-controls";
 
 export interface ResourcePanelHeaderProps {
   resource: Resource;
@@ -56,7 +43,9 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
       {/* Row 1: Title row */}
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{resource.name}</h2>
+          <h2 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">
+            {resource.name}
+          </h2>
           <span
             className={cn(
               "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
@@ -66,49 +55,10 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
             {resourceTypeDisplay.label}
           </span>
         </div>
-
-        {/* Actions */}
-        <div className="-mr-1.5 flex shrink-0 items-center gap-1">
-          {/* View type badge */}
-          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-zinc-500 ring-1 ring-inset ring-zinc-300 dark:text-zinc-400 dark:ring-zinc-600">
-            Resource
-          </span>
-
-          {/* Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
-                <MoreVertical className="size-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">
-                Snap to
-              </DropdownMenuLabel>
-              {PANEL.WIDTH_PRESETS.map((pct) => {
-                const Icon = WIDTH_PRESET_ICONS[pct];
-                return (
-                  <DropdownMenuItem key={pct} onClick={() => onWidthPreset(pct)}>
-                    <Icon className="mr-2 size-4" />
-                    <span>{pct}%</span>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Close panel"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+        <PanelHeaderActions badge="Resource" onWidthPreset={onWidthPreset} onClose={onClose} />
       </div>
 
-      {/* Row 2: Platform, Backend, Hostname */}
+      {/* Row 2: Platform, Backend, Pool count */}
       <div className="mt-1.5 flex items-center gap-2 text-xs">
         <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
           <Cpu className="size-3" />
@@ -123,7 +73,8 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
           <>
             <span className="text-zinc-400 dark:text-zinc-600">·</span>
             <span className="text-zinc-500 dark:text-zinc-400">
-              {resource.poolMemberships.length} pool{resource.poolMemberships.length !== 1 ? "s" : ""}
+              {resource.poolMemberships.length} pool
+              {resource.poolMemberships.length !== 1 ? "s" : ""}
             </span>
           </>
         )}
