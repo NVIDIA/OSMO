@@ -19,7 +19,7 @@ import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { ZoomIn, ZoomOut, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { LayoutDirection } from "../types/layout";
 
 interface DAGControlsProps {
