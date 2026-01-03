@@ -26,7 +26,7 @@ import {
 import { useDataTable } from "@/lib/pagination";
 import type { SearchChip } from "@/lib/stores";
 import { filterByChips } from "@/components/smart-search";
-import { createResourceSearchFields } from "@/components/resources/lib";
+import { createResourceSearchFields } from "./lib/resource-search-fields";
 
 // =============================================================================
 // Types

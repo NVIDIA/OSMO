@@ -29,17 +29,15 @@
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import { usePage } from "@/components/shell";
-import { InlineErrorBoundary, ApiError } from "@/components/shared";
+import { InlineErrorBoundary } from "@/components/inline-error-boundary";
+import { ApiError, type ApiErrorProps } from "@/components/api-error";
 import type { SearchChip } from "@/lib/stores";
 import type { Resource } from "@/lib/api/adapter";
-import type { ApiErrorProps } from "@/components/shared";
-import {
-  ResourcesToolbar,
-  ResourcesTable,
-  ResourcePanelLayout,
-  AdaptiveSummary,
-} from "@/components/resources";
 import { useSharedPreferences } from "@/lib/stores";
+import { ResourcesTable } from "./components/table";
+import { ResourcePanelLayout } from "./components/panel";
+import { ResourcesToolbar } from "./resources-toolbar";
+import { AdaptiveSummary } from "./resource-summary-card";
 import { useResourcesData } from "./use-resources-data";
 
 // =============================================================================

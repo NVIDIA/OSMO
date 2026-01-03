@@ -9,27 +9,8 @@
  */
 
 import { useState, useEffect } from "react";
-
-// =============================================================================
-// CSS Variable Parsing Utilities
-// =============================================================================
-
-function parseCssValue(value: string, rootFontSize: number): number {
-  const trimmed = value.trim();
-  if (trimmed.endsWith("rem")) return parseFloat(trimmed) * rootFontSize;
-  if (trimmed.endsWith("px")) return parseFloat(trimmed);
-  return parseFloat(trimmed) || 0;
-}
-
-function getCssVarPx(name: string, fallbackRem: string): number {
-  if (typeof document === "undefined") {
-    return parseFloat(fallbackRem) * 16;
-  }
-  const root = document.documentElement;
-  const rootFontSize = parseFloat(getComputedStyle(root).fontSize) || 16;
-  const val = getComputedStyle(root).getPropertyValue(name).trim() || fallbackRem;
-  return parseCssValue(val, rootFontSize);
-}
+import { getCssVarPx } from "@/lib/css-utils";
+import type { ChipLayoutDimensions } from "@/lib/hooks";
 
 // =============================================================================
 // Table Layout Dimensions (hook for reactive updates)
@@ -69,14 +50,6 @@ export function useLayoutDimensions(): LayoutDimensions {
 // CSS variables ensure single source of truth across components
 // =============================================================================
 
-export interface ChipLayoutDimensions {
-  overflowButtonWidth: number;
-  chipGap: number;
-  chipPadding: number;
-  charWidth: number;
-  containerPadding: number;
-}
-
 /** Chip layout for table cells (compact) */
 export function getChipLayoutCompact(): ChipLayoutDimensions {
   return {
@@ -97,9 +70,4 @@ export function getChipLayoutSpacious(): ChipLayoutDimensions {
     charWidth: getCssVarPx("--pools-chip-char-width", "0.4375rem"),
     containerPadding: getCssVarPx("--pools-chip-container-padding", "0.25rem"),
   };
-}
-
-/** Shell header height for panel positioning */
-export function getShellHeaderHeight(): number {
-  return getCssVarPx("--pools-shell-header-height", "3.5rem");
 }

@@ -31,7 +31,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter";
-import { getStatusDisplay, getStatusStyles, PANEL } from "../../lib";
+import { getStatusDisplay, getStatusStyles, PANEL } from "../../lib/constants";
 import { usePoolsExtendedStore } from "../../stores/pools-table-store";
 
 const WIDTH_PRESET_ICONS: Record<number, React.FC<{ className?: string }>> = {

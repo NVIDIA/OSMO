@@ -14,7 +14,8 @@ import { memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/table";
 import type { Pool } from "@/lib/api/adapter";
-import { getStatusDisplay, type PoolColumnId } from "../../lib";
+import { getStatusDisplay } from "../../lib/constants";
+import type { PoolColumnId } from "../../lib/pool-columns";
 import { PoolCell } from "./pool-cell";
 
 export interface PoolRowProps {

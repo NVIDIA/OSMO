@@ -11,7 +11,7 @@
 import { useEffect } from "react";
 import { RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import { ErrorDetails } from "@/components/shared";
+import { ErrorDetails } from "@/components/api-error";
 import { logError } from "@/lib/logger";
 
 /**
