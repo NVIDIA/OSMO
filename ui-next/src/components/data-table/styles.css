@@ -1,0 +1,139 @@
+/**
+ * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
+/**
+ * DataTable Styles
+ *
+ * CSS for the virtualized data table component.
+ * Uses CSS containment for optimal rendering performance.
+ */
+
+/* Base table styles */
+.data-table {
+  --data-table-row-height: 48px;
+  --data-table-header-height: 44px;
+  --data-table-section-height: 36px;
+  
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Virtualized table body - uses absolute positioning */
+.data-table-body {
+  position: relative;
+  display: block;
+  contain: layout style;
+}
+
+/* Virtualized row - absolutely positioned */
+.data-table-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  contain: layout style paint;
+}
+
+/* Header row */
+.data-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  background: var(--color-zinc-100);
+}
+
+:is(.dark .data-table-header) {
+  background: var(--color-zinc-900);
+}
+
+/* Section header row (sticky within scroll) */
+.data-table-section {
+  position: sticky;
+  z-index: 10;
+  display: flex;
+  background: var(--color-zinc-100);
+}
+
+:is(.dark .data-table-section) {
+  background: var(--color-zinc-900);
+}
+
+/* Cell alignment helpers */
+.data-table-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  overflow: hidden;
+}
+
+.data-table-cell--left {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.data-table-cell--right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.data-table-cell--center {
+  justify-content: center;
+  text-align: center;
+}
+
+/* Row hover state */
+.data-table-row--interactive {
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.data-table-row--interactive:hover {
+  background: var(--color-zinc-50);
+}
+
+:is(.dark .data-table-row--interactive:hover) {
+  background: var(--color-zinc-900);
+}
+
+/* Row selected state */
+.data-table-row--selected {
+  background: var(--color-zinc-100);
+}
+
+:is(.dark .data-table-row--selected) {
+  background: var(--color-zinc-800);
+}
+
+/* Loading state */
+.data-table-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-zinc-500);
+}
+
+/* Empty state */
+.data-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-zinc-500);
+}
+
+/* Scroll container */
+.data-table-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+}

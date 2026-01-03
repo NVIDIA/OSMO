@@ -180,6 +180,7 @@ export default function ResourcesPage() {
                 isLoading={isLoading}
                 showPoolsColumn
                 onResourceClick={handleResourceClick}
+                selectedResourceId={selectedResourceName ?? undefined}
                 hasNextPage={hasNextPage}
                 onLoadMore={fetchNextPage}
                 isFetchingNextPage={isFetchingNextPage}

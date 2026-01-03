@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
 // and proprietary rights in and to this software, related documentation
@@ -92,7 +92,7 @@ export class ResourceGenerator {
     const memTotal = gpuTotal * memPerGpu;
     const memUsed = Math.floor(memTotal * (gpuUsed / gpuTotal));
 
-    // Generate hostname
+    // Generate hostname - use pool hash to ensure uniqueness across pools
     const prefix = faker.helpers.arrayElement(this.config.patterns.nodePatterns.prefixes);
     const gpuShort = gpuType.toLowerCase().includes("h100")
       ? "h100"
@@ -101,7 +101,9 @@ export class ResourceGenerator {
         : gpuType.toLowerCase().includes("l40")
           ? "l40s"
           : "gpu";
-    const hostname = `${prefix}-${gpuShort}-${poolName.slice(0, 4)}-${index.toString().padStart(4, "0")}`;
+    // Use a hash of the pool name (mod 1000) to differentiate pools with similar prefixes
+    const poolHash = Math.abs(this.hashString(poolName) % 1000).toString().padStart(3, "0");
+    const hostname = `${prefix}-${gpuShort}-${poolHash}-${index.toString().padStart(4, "0")}`;
 
     const platform = faker.helpers.arrayElement(MOCK_CONFIG.pools.platforms);
     const region = faker.helpers.arrayElement(MOCK_CONFIG.pools.regions);

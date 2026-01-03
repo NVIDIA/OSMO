@@ -11,69 +11,84 @@
 /**
  * Data Table Components
  *
- * A high-performance, generic table component system that supports:
- * - Virtualized rendering for large datasets
- * - Optional section grouping (e.g., by status)
+ * A high-performance, accessible table component system built on TanStack Table.
+ *
+ * Features:
+ * - Native <table> markup for accessibility
+ * - Virtualized rendering via TanStack Virtual
+ * - Sticky section headers (for grouped data)
  * - Infinite scroll pagination
  * - Drag-and-drop column reordering
  * - Sortable column headers
- * - CSS Grid layout
  *
  * @example
  * ```tsx
- * import {
- *   DataTable,
- *   type ColumnConfig,
- *   type SortState,
- * } from "@/components/data-table";
+ * import { DataTable, type ColumnDef } from "@/components/data-table";
  *
- * const columns: ColumnConfig<"name" | "status">[] = [
- *   { id: "name", label: "Name", minWidth: 140, flex: 2, mandatory: true },
- *   { id: "status", label: "Status", minWidth: 80, flex: 1 },
+ * const columns: ColumnDef<Pool>[] = [
+ *   { accessorKey: "name", header: "Pool Name" },
+ *   { accessorKey: "status", header: "Status" },
  * ];
  *
  * <DataTable
- *   items={data}
- *   getRowKey={(item) => item.id}
+ *   data={pools}
  *   columns={columns}
- *   visibleColumnIds={["name", "status"]}
- *   renderCell={(item, columnId) => <Cell {...} />}
- *   rowHeight={48}
+ *   getRowId={(row) => row.name}
  * />
  * ```
  */
 
-// Main component
-export { DataTable } from "./DataTable";
+// =============================================================================
+// Main DataTable Component
+// =============================================================================
 
-// Sub-components (for advanced customization)
-export { TableHeader } from "./TableHeader";
-export { TableBody } from "./TableBody";
+export { DataTable, type DataTableProps } from "./DataTable";
+
+// =============================================================================
+// Sub-components (for advanced/custom usage)
+// =============================================================================
+
+export { VirtualTableBody, type VirtualTableBodyProps } from "./VirtualTableBody";
 export { SortButton } from "./SortButton";
 export { SortableCell } from "./SortableCell";
 
+// =============================================================================
 // Hooks
-export { useTableDnd, restrictToHorizontalAxis } from "./hooks/use-table-dnd";
+// =============================================================================
 
+export { useTableDnd, restrictToHorizontalAxis } from "./hooks/use-table-dnd";
+export {
+  useVirtualizedTable,
+  type UseVirtualizedTableOptions,
+  type UseVirtualizedTableResult,
+  type VirtualizedRow,
+} from "./hooks/use-virtualized-table";
+
+// =============================================================================
 // Types
+// =============================================================================
+
 export type {
-  ColumnConfig,
+  // Sort types
   SortDirection,
   SortState,
-  Section,
-  VirtualItem,
-  DataTableProps,
-  TableHeaderProps,
   SortButtonProps,
   SortableCellProps,
+  // Section types
+  Section,
 } from "./types";
 
-// Utilities
-export {
-  columnsToGridTemplate,
-  getVisibleColumns,
-  partitionColumns,
-  cycleSortState,
-  sectionsToVirtualItems,
-  itemsToVirtualItems,
-} from "./types";
+// Re-export useful TanStack Table types for consumers
+export type {
+  ColumnDef,
+  SortingState,
+  VisibilityState,
+  ColumnOrderState,
+  Row,
+  Cell,
+  Header,
+  HeaderGroup,
+} from "@tanstack/react-table";
+
+// Export sort state helper
+export { cycleSortState } from "./types";
