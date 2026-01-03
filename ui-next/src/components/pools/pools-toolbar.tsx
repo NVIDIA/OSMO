@@ -1,0 +1,124 @@
+/**
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
+"use client";
+
+import { memo, useMemo } from "react";
+import { MonitorCheck, MonitorX, Rows3, Rows4, Columns } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import type { Pool } from "@/lib/api/adapter";
+import { useSharedPreferences, type SearchChip } from "@/lib/stores";
+import { SmartSearch } from "@/components/smart-search";
+import { usePoolsTableStore } from "./stores/pools-table-store";
+import { OPTIONAL_COLUMNS, createPoolSearchFields } from "./lib";
+
+export interface PoolsToolbarProps {
+  pools: Pool[];
+  sharingGroups?: string[][];
+  /** Filter chips (URL-synced) */
+  searchChips: SearchChip[];
+  /** Callback when chips change */
+  onSearchChipsChange: (chips: SearchChip[]) => void;
+}
+
+export const PoolsToolbar = memo(function PoolsToolbar({
+  pools,
+  sharingGroups = [],
+  searchChips,
+  onSearchChipsChange,
+}: PoolsToolbarProps) {
+  // Table-specific settings
+  const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
+  const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
+
+  // Shared preferences (across pools & resources)
+  const compactMode = useSharedPreferences((s) => s.compactMode);
+  const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
+  const displayMode = useSharedPreferences((s) => s.displayMode);
+  const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
+
+  // Create search fields with sharing context (memoized to avoid recreation)
+  const searchFields = useMemo(
+    () => createPoolSearchFields(sharingGroups),
+    [sharingGroups],
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="min-w-[300px] flex-1">
+        <SmartSearch
+          data={pools}
+          fields={searchFields}
+          chips={searchChips}
+          onChipsChange={onSearchChipsChange}
+          placeholder="Search pools... (try 'pool:', 'platform:', 'shared:')"
+        />
+      </div>
+
+      <div className="flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleDisplayMode}
+              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleCompactMode}
+              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
+        </Tooltip>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <Columns className="size-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {OPTIONAL_COLUMNS.map((column) => (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                checked={visibleColumnIds.includes(column.id)}
+                onCheckedChange={() => toggleColumn(column.id)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {column.menuLabel ?? column.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+});

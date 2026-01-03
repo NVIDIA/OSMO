@@ -15,7 +15,7 @@
 
 "use client";
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import type { WorkflowPattern } from "../../mock-workflow-v2";
 
 interface DAGToolbarProps {
