@@ -29,7 +29,7 @@ import { useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useVirtualizerCompat } from "@/lib/hooks";
+import { useVirtualizerCompat } from "@/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
 import { TaskGroupStatus, isFailedStatus } from "../../workflow-types";
 import type { GroupNodeData } from "../types/layout";

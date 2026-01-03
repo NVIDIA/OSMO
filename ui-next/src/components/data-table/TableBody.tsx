@@ -11,7 +11,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo } from "react";
-import { useVirtualizerCompat } from "@/lib/hooks";
+import { useVirtualizerCompat } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { LoadingMoreIndicator } from "@/components/loading-more-indicator";
 import type { VirtualItem, Section, ColumnConfig } from "./types";

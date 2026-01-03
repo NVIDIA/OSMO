@@ -22,7 +22,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { Resource } from "@/lib/api/adapter";
-import { useSharedPreferences, type SearchChip } from "@/lib/stores";
+import { useSharedPreferences, type SearchChip } from "@/stores";
 import { SmartSearch } from "@/components/smart-search";
 import { useResourcesTableStore } from "../stores/resources-table-store";
 import { OPTIONAL_COLUMNS, createResourceSearchFields } from "../lib";
