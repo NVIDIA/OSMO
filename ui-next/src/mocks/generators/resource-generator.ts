@@ -92,7 +92,7 @@ export class ResourceGenerator {
     const memTotal = gpuTotal * memPerGpu;
     const memUsed = Math.floor(memTotal * (gpuUsed / gpuTotal));
 
-    // Generate hostname - use pool hash to ensure uniqueness across pools
+    // Generate hostname - use pool identifier to ensure uniqueness across pools
     const prefix = faker.helpers.arrayElement(this.config.patterns.nodePatterns.prefixes);
     const gpuShort = gpuType.toLowerCase().includes("h100")
       ? "h100"
@@ -101,10 +101,10 @@ export class ResourceGenerator {
         : gpuType.toLowerCase().includes("l40")
           ? "l40s"
           : "gpu";
-    // Use a hash of the pool name (mod 1000) to differentiate pools with similar prefixes
-    const poolHash = Math.abs(this.hashString(poolName) % 1000).toString().padStart(3, "0");
-    const hostname = `${prefix}-${gpuShort}-${poolHash}-${index.toString().padStart(4, "0")}`;
-
+    // Use 6-character hex hash of pool name for uniqueness (16M possible values)
+    // Previously used hash % 1000 (only 1000 values) which caused collisions
+    const poolId = Math.abs(this.hashString(poolName)).toString(16).padStart(6, "0").slice(0, 6);
+    const hostname = `${prefix}-${gpuShort}-${poolId}-${index.toString().padStart(4, "0")}`;
     const platform = faker.helpers.arrayElement(MOCK_CONFIG.pools.platforms);
     const region = faker.helpers.arrayElement(MOCK_CONFIG.pools.regions);
 

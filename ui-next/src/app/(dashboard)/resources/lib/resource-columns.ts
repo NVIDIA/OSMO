@@ -22,6 +22,21 @@ export type ResourceColumnId =
   | "memory"
   | "storage";
 
+/** Set of all valid resource column IDs for type validation */
+const VALID_COLUMN_IDS = new Set<string>([
+  "resource", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage",
+]);
+
+/** Type guard to check if a string is a valid ResourceColumnId */
+export function isResourceColumnId(id: string): id is ResourceColumnId {
+  return VALID_COLUMN_IDS.has(id);
+}
+
+/** Filter and type an array of strings to ResourceColumnId[] (filters out invalid IDs) */
+export function asResourceColumnIds(ids: string[]): ResourceColumnId[] {
+  return ids.filter(isResourceColumnId);
+}
+
 /**
  * Column labels for header display.
  */
