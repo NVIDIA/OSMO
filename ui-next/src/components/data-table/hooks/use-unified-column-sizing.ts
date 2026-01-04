@@ -48,6 +48,7 @@ import {
   getColumnCSSVariable,
   getColumnCSSValue,
   DEFAULT_MEASUREMENT_PADDING,
+  DRAG_OVERSHOOT_REM,
 } from "../utils/column-sizing";
 
 // =============================================================================
@@ -660,6 +661,12 @@ export function useUnifiedColumnSizing({
       const freshMeasured = measureColumn(columnId);
       const contentMax = freshMeasured > 0 ? freshMeasured : Infinity;
 
+      // For drag operations, allow overshooting content max by a small amount.
+      // This gives users breathing room when manually resizing.
+      // Double-click (auto-fit) still uses exact contentMax.
+      const dragOvershootPx = remToPx(DRAG_OVERSHOOT_REM, baseFontSize.current);
+      const dragMax = contentMax < Infinity ? contentMax + dragOvershootPx : Infinity;
+
       // Update naturalWidths cache with fresh measurement
       if (freshMeasured > 0) {
         dispatch({ type: "SET_NATURAL_WIDTHS", widths: { [columnId]: freshMeasured } });
@@ -678,7 +685,7 @@ export function useUnifiedColumnSizing({
         startWidth,
         currentWidth: startWidth,
         minWidthPx: configMin,
-        maxWidthPx: contentMax,
+        maxWidthPx: dragMax,
         snapshotWidths,
         snapshotMins,
       };
