@@ -26,8 +26,11 @@
 
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+
+/** Resize step in pixels for keyboard navigation */
+const KEYBOARD_RESIZE_STEP = 10;
 
 // =============================================================================
 // Types
@@ -73,22 +76,16 @@ export const ResizeHandle = memo(function ResizeHandle({
   onAutoFit,
   onReset,
 }: ResizeHandleProps) {
-  /**
-   * Handle pointer down - start resize
-   */
+  const [isFocused, setIsFocused] = useState(false);
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // Only respond to primary button (left click / touch)
       if (e.button !== 0) return;
-
       onPointerDown(e, columnId);
     },
     [columnId, onPointerDown],
   );
 
-  /**
-   * Handle double-click - auto-fit or reset
-   */
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -103,6 +100,24 @@ export const ResizeHandle = memo(function ResizeHandle({
     [columnId, onAutoFit, onReset],
   );
 
+  // Keyboard support for accessibility
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      switch (e.key) {
+        case "Enter":
+        case " ":
+          e.preventDefault();
+          if (e.shiftKey) {
+            onReset(columnId);
+          } else {
+            onAutoFit(columnId);
+          }
+          break;
+      }
+    },
+    [columnId, onAutoFit, onReset],
+  );
+
   return (
     <div
       className={cn(
@@ -110,22 +125,28 @@ export const ResizeHandle = memo(function ResizeHandle({
         "absolute right-0 top-0 bottom-0 z-10",
         "w-2 cursor-col-resize",
         "touch-none select-none",
-        // Visual indicator on hover/active
+        // Visual indicator
         "after:absolute after:right-0.5 after:top-1/4 after:bottom-1/4 after:w-0.5",
         "after:rounded-full after:bg-transparent after:transition-colors",
         "hover:after:bg-zinc-400 dark:hover:after:bg-zinc-500",
-        // Active state
-        isResizing && "after:bg-zinc-500 dark:after:bg-zinc-400",
+        // Focus visible ring for keyboard navigation
+        "focus-visible:outline-none focus-visible:after:bg-blue-500",
+        // Active/resizing state
+        (isResizing || isFocused) && "after:bg-zinc-500 dark:after:bg-zinc-400",
       )}
       onPointerDown={handlePointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onDoubleClick={handleDoubleClick}
+      onKeyDown={handleKeyDown}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
       role="separator"
       aria-orientation="vertical"
-      aria-label={`Resize ${columnId} column`}
-      tabIndex={-1}
+      aria-label={`Resize ${columnId} column. Press Enter to auto-fit, Shift+Enter to reset.`}
+      aria-valuenow={undefined}
+      tabIndex={0}
     />
   );
 });
