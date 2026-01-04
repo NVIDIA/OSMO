@@ -36,7 +36,7 @@ export interface TableToolbarProps<T> {
   /** Data for SmartSearch autocomplete */
   data: T[];
   /** Search field definitions */
-  searchFields: SearchField<T>[];
+  searchFields: readonly SearchField<T>[];
   /** Column definitions for visibility dropdown */
   columns: ColumnDefinition[];
   /** Currently visible column IDs */
