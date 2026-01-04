@@ -107,6 +107,15 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       meta: { align: "left" as const },
     },
     {
+      id: "hostname",
+      accessorKey: "hostname",
+      header: COLUMN_LABELS.hostname,
+      size: getColumnMinSize("hostname"),
+      minSize: getColumnMinSize("hostname"),
+      cell: ({ getValue }) => <TextCell value={getValue() as string} />,
+      meta: { align: "left" as const },
+    },
+    {
       id: "type",
       accessorKey: "resourceType",
       header: COLUMN_LABELS.type,
