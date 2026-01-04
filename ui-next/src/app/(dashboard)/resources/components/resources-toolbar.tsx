@@ -10,13 +10,13 @@
 
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import type { Resource } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
 import { TableToolbar } from "@/components/table-toolbar";
 import { useResourcesTableStore } from "../stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/resource-columns";
-import { createResourceSearchFields } from "../lib/resource-search-fields";
+import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
 
 export interface ResourcesToolbarProps {
   resources: Resource[];
@@ -32,13 +32,10 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
   const visibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useResourcesTableStore((s) => s.toggleColumn);
 
-  // Create search fields
-  const searchFields = useMemo(() => createResourceSearchFields(), []);
-
   return (
     <TableToolbar
       data={resources}
-      searchFields={searchFields}
+      searchFields={RESOURCE_SEARCH_FIELDS}
       columns={OPTIONAL_COLUMNS}
       visibleColumnIds={visibleColumnIds}
       onToggleColumn={toggleColumn}

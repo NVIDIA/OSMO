@@ -26,7 +26,6 @@ import { useMemo, useRef, useCallback } from "react";
 import {
   useReactTable,
   getCoreRowModel,
-  getSortedRowModel,
   type ColumnDef,
   type SortingState,
   type OnChangeFn,
@@ -55,6 +54,26 @@ import "./styles.css";
 // Types
 // =============================================================================
 
+/**
+ * DataTable props.
+ *
+ * @template TData - The data item type for rows
+ * @template TSectionMeta - Optional metadata type for section grouping.
+ *   Only needed when using the `sections` prop with custom section headers.
+ *   Defaults to `unknown` for flat data tables without sections.
+ *
+ * @example
+ * // Flat table (no sections) - TSectionMeta defaults to unknown
+ * <DataTable<Pool> data={pools} columns={columns} getRowId={p => p.name} />
+ *
+ * @example
+ * // Sectioned table with custom metadata
+ * interface SectionMeta { priority: number; color: string }
+ * <DataTable<Task, SectionMeta>
+ *   sections={[{ id: 'high', label: 'High Priority', items: tasks, meta: { priority: 1, color: 'red' } }]}
+ *   renderSectionHeader={(section) => <Header color={section.meta.color}>{section.label}</Header>}
+ * />
+ */
 export interface DataTableProps<TData, TSectionMeta = unknown> {
   // === Data ===
   /** Flat data items (used when not using sections) */
@@ -155,7 +174,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
   onLoadMore,
   isFetchingNextPage,
   totalCount,
+  // Row heights in pixels (virtualizer requires px, CSS vars define rem for styling)
+  // 48px = 3rem at 16px base - standard table row height for touch targets
   rowHeight = 48,
+  // 36px = 2.25rem at 16px base - compact section header
   sectionHeight = 36,
   className,
   scrollClassName,
@@ -201,12 +223,12 @@ export function DataTable<TData, TSectionMeta = unknown>({
   }, [controlledColumnOrder, columns]);
 
   // Create TanStack table instance
-  // Use manualSorting to prevent TanStack from sorting - we handle it ourselves
+  // manualSorting: true means we control sorting via props (server-side or external)
+  // No getSortedRowModel needed since we don't use TanStack's sorting
   const table = useReactTable({
     data: allItems,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getRowId,
     state: {
       sorting: tanstackSorting,
@@ -214,7 +236,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
       columnOrder,
     },
     onColumnVisibilityChange,
-    manualSorting: true, // Always manual - we control sorting via props
+    manualSorting: true,
   });
 
   // Get visible column IDs for DnD - derive from props to avoid re-render loops
@@ -346,6 +368,24 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Compute aria-rowcount
   const ariaRowCount = totalCount ?? totalRowCount;
 
+  // Loading state - show skeleton only during actual data loading
+  const showSkeleton = isLoading && allItems.length === 0;
+
+  // Extract header labels for skeleton (memoized)
+  // NOTE: This must be called BEFORE any early returns to comply with React's rules of hooks
+  const headerLabels = useMemo(() => {
+    return visibleColumnIds.map((id) => {
+      const col = columns.find((c) => {
+        const colId = c.id ?? (("accessorKey" in c && c.accessorKey) ? String(c.accessorKey) : "");
+        return colId === id;
+      });
+      const header = col?.header;
+      if (typeof header === "string") return header;
+      if (typeof header === "function") return id;
+      return id;
+    });
+  }, [visibleColumnIds, columns]);
+
   // ==========================================================================
   // Ready State Management
   // ==========================================================================
@@ -360,23 +400,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
       </div>
     );
   }
-
-  // Loading state - show skeleton only during actual data loading
-  const showSkeleton = isLoading && allItems.length === 0;
-
-  // Extract header labels for skeleton (memoized)
-  const headerLabels = useMemo(() => {
-    return visibleColumnIds.map((id) => {
-      const col = columns.find((c) => {
-        const colId = c.id ?? (("accessorKey" in c && c.accessorKey) ? String(c.accessorKey) : "");
-        return colId === id;
-      });
-      const header = col?.header;
-      if (typeof header === "string") return header;
-      if (typeof header === "function") return id;
-      return id;
-    });
-  }, [visibleColumnIds, columns]);
 
   return (
     <DndContext
@@ -425,7 +448,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                   stickyHeaders && "sticky top-0 z-20",
                 )}
               >
-                <tr style={{ display: "flex" }}>
+                <tr className="data-table-header-row">
                   <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
                     {table.getHeaderGroups().map((headerGroup) =>
                       headerGroup.headers.map((header) => {

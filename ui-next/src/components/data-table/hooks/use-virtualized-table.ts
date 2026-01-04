@@ -130,7 +130,10 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     [rowHeight],
   );
   
-  // Get item key - use ref for stable callback
+  // Get item key - stable callback that reads from refs
+  // Empty deps is intentional: refs always provide current values without causing
+  // virtualizer recreation. This is a valid pattern per React docs for callbacks
+  // that need to be stable but access changing data via refs.
   const getItemKey = useCallback(
     (index: number) => {
       const item = virtualItemsRef.current[index];
@@ -138,7 +141,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       if (item.type === "section") return `section-${item.section.id}`;
       return getRowIdRef.current(item.item);
     },
-    [],
+    [], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Create virtualizer with stable callbacks
@@ -184,7 +187,13 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
 
+    // Track if effect is still active to prevent stale callback execution
+    let isActive = true;
+
     const checkLoadMore = () => {
+      // Guard against stale execution after unmount
+      if (!isActive) return;
+      
       const callback = onLoadMoreRef.current;
       if (!callback || loadMoreTriggeredRef.current) return;
       
@@ -192,9 +201,9 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       const lastRow = rows.at(-1);
       if (!lastRow) return;
 
-      // Load more when within 10 items of end
-      const threshold = 10;
-      if (lastRow.index >= virtualItems.length - threshold) {
+      // Trigger load when within threshold items of end (balances UX with network efficiency)
+      const LOAD_MORE_THRESHOLD = 10;
+      if (lastRow.index >= virtualItems.length - LOAD_MORE_THRESHOLD) {
         loadMoreTriggeredRef.current = true;
         callback();
       }
@@ -202,10 +211,12 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
 
     scrollElement.addEventListener("scroll", checkLoadMore, { passive: true });
     
-    // Check on mount after a short delay
-    const timeoutId = setTimeout(checkLoadMore, 100);
+    // Initial check after layout settles (100ms is typical for initial render)
+    const INITIAL_CHECK_DELAY_MS = 100;
+    const timeoutId = setTimeout(checkLoadMore, INITIAL_CHECK_DELAY_MS);
 
     return () => {
+      isActive = false;
       scrollElement.removeEventListener("scroll", checkLoadMore);
       clearTimeout(timeoutId);
     };

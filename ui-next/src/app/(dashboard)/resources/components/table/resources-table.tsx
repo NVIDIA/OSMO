@@ -24,10 +24,18 @@ import type { Resource } from "@/lib/api/adapter";
 import {
   MANDATORY_COLUMN_IDS,
   RESOURCE_COLUMN_SIZE_CONFIG,
+  asResourceColumnIds,
   type ResourceColumnId,
 } from "../../lib/resource-columns";
 import { createResourceColumns } from "../../lib/resource-table-columns";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/** Stable row ID extractor - defined outside component to avoid recreating */
+const getRowId = (resource: Resource) => resource.name;
 
 // =============================================================================
 // Types
@@ -82,8 +90,9 @@ export function ResourcesTable({
   const compactMode = useSharedPreferences((s) => s.compactMode);
 
   // Table store (column visibility, order, and overrides)
-  const storeVisibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds) as ResourceColumnId[];
-  const columnOrder = useResourcesTableStore((s) => s.columnOrder) as ResourceColumnId[];
+  // Use type-safe helper to validate column IDs from store (which stores string[])
+  const storeVisibleColumnIds = asResourceColumnIds(useResourcesTableStore((s) => s.visibleColumnIds));
+  const columnOrder = asResourceColumnIds(useResourcesTableStore((s) => s.columnOrder));
   const setColumnOrder = useResourcesTableStore((s) => s.setColumnOrder);
   const sortState = useResourcesTableStore((s) => s.sort);
   const setSort = useResourcesTableStore((s) => s.setSort);
@@ -155,9 +164,6 @@ export function ResourcesTable({
     },
     [setColumnOrder],
   );
-
-  // Get row ID
-  const getRowId = useCallback((resource: Resource) => resource.name, []);
 
   // Empty state - memoized to prevent re-renders
   const emptyContent = useMemo(

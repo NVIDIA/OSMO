@@ -58,12 +58,6 @@ export {
   type UseUnifiedColumnSizingResult,
 } from "./hooks/use-unified-column-sizing";
 
-export {
-  useOptimizedColumnSizing,
-  type UseOptimizedColumnSizingOptions,
-  type UseOptimizedColumnSizingResult,
-} from "./hooks/use-optimized-column-sizing";
-
 // =============================================================================
 // Types
 // =============================================================================
@@ -108,46 +102,12 @@ export {
   type ResolvedColumn,
   // Core calculation
   calculateColumnWidths,
-  // DOM-based content measurement (native table API)
-  measureColumnByIndex,
+  // DOM-based content measurement
   measureColumnContentWidth,
   measureAllColumns,
   DEFAULT_MEASUREMENT_PADDING,
-  // Data-based content measurement (fast, for text columns)
-  measureTextWidth,
-  measureColumnFromData,
-  measureColumnsFromData,
   // CSS variable helpers
   generateCSSVariables,
   getColumnCSSVariable,
   getColumnCSSValue,
 } from "./utils/column-sizing";
-
-// =============================================================================
-// High-Performance Utilities
-// =============================================================================
-
-// Measurement Cache (Canvas-based, no DOM reflows)
-export {
-  MeasurementCache,
-  getMeasurementCache,
-  clearAllCaches,
-  measureText,
-  measureTexts,
-  type MeasurementCacheConfig,
-  type ColumnMeasurement,
-} from "./utils/measurement-cache";
-
-// Fast Layout Engine (Typed Arrays)
-export {
-  createFastLayout,
-  updateLayoutInputs,
-  calculateFastLayout,
-  updateSingleColumnWidth,
-  getColumnWidth,
-  exportWidths,
-  generateCSSString,
-  applyWidthsToElement,
-  type FastColumnLayout,
-  type LayoutResult,
-} from "./utils/fast-layout";

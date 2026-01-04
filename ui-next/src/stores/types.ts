@@ -42,12 +42,22 @@ export type ColumnOverrides = Record<string, ColumnOverride>;
 // =============================================================================
 
 /**
+ * Chip variant for styling (e.g., free/used filters).
+ */
+export type ChipVariant = "free" | "used";
+
+/**
  * A search filter chip displayed in the search bar.
  */
 export interface SearchChip {
+  /** Field ID this chip filters on (e.g., "status", "platform") */
   field: string;
+  /** The filter value (e.g., "ONLINE", "dgx") */
   value: string;
+  /** Display label (e.g., "Status: ONLINE") */
   label: string;
+  /** Optional variant for styling (e.g., "free" or "used") */
+  variant?: ChipVariant;
 }
 
 // =============================================================================

@@ -26,7 +26,7 @@ import {
 import { useDataTable } from "@/lib/pagination";
 import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";
-import { createResourceSearchFields } from "../lib/resource-search-fields";
+import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
 
 // =============================================================================
 // Types
@@ -56,9 +56,6 @@ interface UseResourcesDataReturn {
 // =============================================================================
 
 export function useResourcesData({ searchChips }: UseResourcesDataParams): UseResourcesDataReturn {
-  // Create search fields for matching
-  const searchFields = useMemo(() => createResourceSearchFields(), []);
-
   // Build query key - any change to chips triggers refetch
   const queryKey = useMemo(
     () => [
@@ -97,8 +94,8 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
   // Apply SmartSearch chip filtering client-side
   // Uses shared filterByChips: same field = OR, different fields = AND
   const filteredResources = useMemo(
-    () => filterByChips(allResources, searchChips, searchFields),
-    [allResources, searchChips, searchFields],
+    () => filterByChips(allResources, searchChips, RESOURCE_SEARCH_FIELDS),
+    [allResources, searchChips],
   );
 
   return {

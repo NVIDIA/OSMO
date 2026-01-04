@@ -283,10 +283,20 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
 // ============================================================================
 
 /**
+ * Pre-built resource search fields (frozen to prevent accidental mutation).
+ * Use this constant directly instead of calling createResourceSearchFields().
+ */
+export const RESOURCE_SEARCH_FIELDS: readonly SearchField<Resource>[] = Object.freeze([
+  ...BASE_RESOURCE_SEARCH_FIELDS,
+  ...NUMERIC_RESOURCE_SEARCH_FIELDS,
+]);
+
+/**
  * Create resource search fields.
+ * @deprecated Use RESOURCE_SEARCH_FIELDS constant instead
  */
 export function createResourceSearchFields(): SearchField<Resource>[] {
-  return [...BASE_RESOURCE_SEARCH_FIELDS, ...NUMERIC_RESOURCE_SEARCH_FIELDS];
+  return [...RESOURCE_SEARCH_FIELDS];
 }
 
 /** Export numeric filter utilities for testing */
