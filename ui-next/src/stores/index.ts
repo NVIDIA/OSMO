@@ -33,8 +33,8 @@ export type {
   TableState,
   TableActions,
   TableStore,
-  ColumnUserWidth,
-  ColumnUserWidths,
+  ColumnOverride,
+  ColumnOverrides,
   SearchChip,
 } from "./types";
 

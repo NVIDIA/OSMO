@@ -40,9 +40,16 @@ import { cn } from "@/lib/utils";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";
 import { VirtualTableBody } from "./VirtualTableBody";
+import { ResizeHandle } from "./ResizeHandle";
+import { TableSkeleton } from "./TableSkeleton";
 import { useVirtualizedTable } from "./hooks/use-virtualized-table";
 import { useTableDnd } from "./hooks/use-table-dnd";
-import type { Section, SortState, SortDirection } from "./types";
+import { useUnifiedColumnSizing } from "./hooks/use-unified-column-sizing";
+import type { Section, SortState, ColumnSizeConfig, ColumnOverride } from "./types";
+import { getColumnCSSValue, pxToRem } from "./utils/column-sizing";
+
+// Component-specific styles (resize handles, table layout, etc.)
+import "./styles.css";
 
 // =============================================================================
 // Types
@@ -116,6 +123,14 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   selectedRowId?: string;
   /** Custom row class name */
   rowClassName?: string | ((item: TData) => string);
+
+  // === Column Sizing ===
+  /** Column size configuration for proportional sizing and resizing (rem-based) */
+  columnSizeConfig?: ColumnSizeConfig[];
+  /** Column overrides from manual resizing (simplified: just share) */
+  columnOverrides?: Record<string, ColumnOverride>;
+  /** Callback when column overrides change (for persistence) */
+  onColumnOverridesChange?: (overrides: Record<string, ColumnOverride>) => void;
 }
 
 // =============================================================================
@@ -149,9 +164,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
   onRowClick,
   selectedRowId,
   rowClassName,
+  columnSizeConfig,
+  columnOverrides,
+  onColumnOverridesChange,
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+  const tableElementRef = useRef<HTMLTableElement>(null);
+
   // Stable callback refs to prevent re-render loops
   const onSortingChangeRef = useRef(onSortingChange);
   onSortingChangeRef.current = onSortingChange;
@@ -206,33 +225,87 @@ export function DataTable<TData, TSectionMeta = unknown>({
     }
     return columnOrder.filter((id) => columnVisibility[id] !== false);
   }, [columnOrder, columnVisibility]);
-  
+
   const sortableColumnIds = useMemo(
     () => visibleColumnIds.filter((id) => !fixedColumns.includes(id)),
     [visibleColumnIds, fixedColumns],
   );
-  
+
   const visibleColumnCount = visibleColumnIds.length;
 
-  // DnD setup
-  const { sensors, modifiers } = useTableDnd();
+  // Build column size config from visible columns (TanStack table is source of truth)
+  // This ensures width calculation only considers actually-rendered columns
+  const effectiveColumnSizeConfig = useMemo<ColumnSizeConfig[]>(() => {
+    // Create a lookup from provided config
+    const configById = new Map(
+      (columnSizeConfig ?? []).map((c) => [c.id, c]),
+    );
+
+    // Build config for each visible column, in order
+    return visibleColumnIds.map((id) => {
+      const provided = configById.get(id);
+      if (provided) {
+        return provided;
+      }
+      // Fallback: find column definition and extract sizing info
+      const colDef = columns.find((c) => {
+        const colId =
+          c.id ?? ("accessorKey" in c && c.accessorKey ? String(c.accessorKey) : "");
+        return colId === id;
+      });
+      // Convert pixel minSize to rem (default 80px = 5rem)
+      const minSizePx = colDef?.minSize ?? 80;
+      return {
+        id,
+        minWidthRem: pxToRem(minSizePx),
+        share: 1,
+      };
+    });
+  }, [visibleColumnIds, columnSizeConfig, columns]);
+
+  // Column sizing - single source of truth for all column widths
+  const columnSizing = useUnifiedColumnSizing({
+    columns: effectiveColumnSizeConfig,
+    containerRef: scrollRef,
+    tableRef: tableElementRef,
+    initialOverrides: columnOverrides,
+    onOverridesChange: onColumnOverridesChange,
+  });
+
+  // DnD setup - with bounds restriction to prevent dragging beyond table width
+  const { sensors, modifiers, autoScrollConfig } = useTableDnd();
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       if (!onColumnOrderChange) return;
-      
+
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
       const oldIndex = columnOrder.indexOf(String(active.id));
       const newIndex = columnOrder.indexOf(String(over.id));
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
-        onColumnOrderChange(newOrder);
+
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      // Find the boundary: fixed columns must stay at the start
+      // Columns cannot be moved before any fixed column
+      const fixedColumnCount = fixedColumns.length;
+      const firstMovableIndex = columnOrder.findIndex(
+        (id) => !fixedColumns.includes(id),
+      );
+
+      // If there are fixed columns, ensure we don't move anything before them
+      if (firstMovableIndex > 0) {
+        // Cannot drop at an index before the first movable column
+        if (newIndex < firstMovableIndex) {
+          return; // Reject this drop
+        }
       }
+
+      const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
+      onColumnOrderChange(newOrder);
     },
-    [columnOrder, onColumnOrderChange],
+    [columnOrder, onColumnOrderChange, fixedColumns],
   );
 
   // Virtualization
@@ -256,13 +329,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Store table ref to avoid dependency issues in callbacks
   const tableRef = useRef(table);
   tableRef.current = table;
-  
+
   // Map virtual row index to TanStack table row
   const getTableRow = useCallback(
     (virtualIndex: number): Row<TData> | undefined => {
       const item = getItem(virtualIndex);
       if (!item || item.type === "section") return undefined;
-      
+
       // Find the row in TanStack table by ID
       const rowId = getRowId(item.item);
       return tableRef.current.getRowModel().rowsById[rowId];
@@ -273,6 +346,12 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Compute aria-rowcount
   const ariaRowCount = totalCount ?? totalRowCount;
 
+  // ==========================================================================
+  // Ready State Management
+  // ==========================================================================
+  // Readiness is simple: we have data or we're loading
+  // Column sizing uses fallbacks, so no "sizing ready" state needed
+
   // Empty state
   if (!isLoading && allItems.length === 0 && emptyContent) {
     return (
@@ -282,14 +361,22 @@ export function DataTable<TData, TSectionMeta = unknown>({
     );
   }
 
-  // Loading state
-  if (isLoading && allItems.length === 0) {
-    return (
-      <div className={cn("flex min-h-[200px] items-center justify-center", className)}>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</span>
-      </div>
-    );
-  }
+  // Loading state - show skeleton only during actual data loading
+  const showSkeleton = isLoading && allItems.length === 0;
+
+  // Extract header labels for skeleton (memoized)
+  const headerLabels = useMemo(() => {
+    return visibleColumnIds.map((id) => {
+      const col = columns.find((c) => {
+        const colId = c.id ?? (("accessorKey" in c && c.accessorKey) ? String(c.accessorKey) : "");
+        return colId === id;
+      });
+      const header = col?.header;
+      if (typeof header === "string") return header;
+      if (typeof header === "function") return id;
+      return id;
+    });
+  }, [visibleColumnIds, columns]);
 
   return (
     <DndContext
@@ -297,138 +384,182 @@ export function DataTable<TData, TSectionMeta = unknown>({
       modifiers={modifiers}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
+      autoScroll={autoScrollConfig}
     >
       <div
         ref={scrollRef}
-        className={cn("overflow-auto", scrollClassName)}
+        className={cn("overflow-auto data-table-scroll", scrollClassName)}
       >
-        <table
-          aria-rowcount={ariaRowCount}
-          className={cn(
-            "w-full border-collapse text-sm",
-            className,
-          )}
-          style={{
-            // CSS containment for performance
-            contain: "layout style",
-          }}
-        >
-          {/* Table Header */}
-          <thead
-            className={cn(
-              "bg-zinc-100 text-left text-xs font-medium uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400",
-              stickyHeaders && "sticky top-0 z-20",
-            )}
-          >
-            <tr style={{ display: "flex" }}>
-              <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
-                {table.getHeaderGroups().map((headerGroup) =>
-                  headerGroup.headers.map((header) => {
-                    const isFixed = fixedColumns.includes(header.id);
-                    const isSortable = header.column.getCanSort();
-                    const isSorted = header.column.getIsSorted();
-                    
-                    // Use our controlled sort handler, not TanStack's toggleSorting
-                    const handleHeaderSort = () => {
-                      const callback = onSortingChangeRef.current;
-                      if (!callback || !isSortable) return;
-                      
-                      // Cycle: none -> asc -> desc -> none
-                      if (!isSorted) {
-                        callback({ column: header.id, direction: "asc" });
-                      } else if (isSorted === "asc") {
-                        callback({ column: header.id, direction: "desc" });
-                      } else {
-                        callback({ column: null, direction: "asc" });
-                      }
-                    };
-                    
-                    const cellContent = (
-                      <SortButton
-                        id={header.id}
-                        label={String(header.column.columnDef.header ?? header.id)}
-                        sortable={isSortable}
-                        isActive={Boolean(isSorted)}
-                        direction={isSorted === "asc" ? "asc" : isSorted === "desc" ? "desc" : undefined}
-                        onSort={handleHeaderSort}
-                      />
-                    );
-
-                    if (isFixed) {
-                      return (
-                        <th
-                          key={header.id}
-                          style={{
-                            width: header.getSize(),
-                            minWidth: header.getSize(),
-                            maxWidth: header.getSize(),
-                          }}
-                          className="flex items-center px-4 py-3"
-                        >
-                          {cellContent}
-                        </th>
-                      );
-                    }
-
-                    return (
-                      <SortableCell
-                        key={header.id}
-                        id={header.id}
-                        as="th"
-                        width={header.getSize()}
-                        className="flex items-center px-4 py-3"
-                      >
-                        {cellContent}
-                      </SortableCell>
-                    );
-                  }),
-                )}
-              </SortableContext>
-            </tr>
-          </thead>
-
-          {/* Virtualized Table Body */}
-          <VirtualTableBody<TData, TSectionMeta>
-            virtualRows={virtualRows}
-            totalHeight={totalHeight}
-            getTableRow={getTableRow}
-            getItem={getItem}
+        {/* Skeleton only during initial data loading */}
+        {showSkeleton && (
+          <TableSkeleton
             columnCount={visibleColumnCount}
-            onRowClick={onRowClick}
-            selectedRowId={selectedRowId}
-            getRowId={getRowId}
-            rowClassName={rowClassName}
-            renderSectionHeader={renderSectionHeader}
+            rowCount={10}
+            rowHeight={rowHeight}
+            headers={headerLabels}
+            className={className}
+            showHeader={stickyHeaders}
           />
-        </table>
-        
-        {/* Floating loading indicator for pagination */}
-        {isFetchingNextPage && (
-          <div className="sticky bottom-0 left-0 right-0 flex items-center justify-center bg-gradient-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
-            <div className="flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-300">
-              <svg
-                className="h-4 w-4 animate-spin"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
+        )}
+        {/* Table renders immediately - sizing uses fallbacks until measured */}
+        {!showSkeleton && (
+          <>
+            <table
+              ref={tableElementRef}
+              aria-rowcount={ariaRowCount}
+              className={cn(
+                "min-w-full border-collapse text-sm data-table",
+                className,
+              )}
+              style={{
+                // CSS containment for performance
+                contain: "layout style",
+                // Column width CSS variables
+                ...columnSizing.cssVariables,
+              }}
+            >
+              {/* Table Header */}
+              <thead
+                className={cn(
+                  "bg-zinc-100 text-left text-xs font-medium uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400",
+                  stickyHeaders && "sticky top-0 z-20",
+                )}
               >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <span>Loading more...</span>
-            </div>
-          </div>
+                <tr style={{ display: "flex" }}>
+                  <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
+                    {table.getHeaderGroups().map((headerGroup) =>
+                      headerGroup.headers.map((header) => {
+                        const isFixed = fixedColumns.includes(header.id);
+                        const isSortable = header.column.getCanSort();
+                        const isSorted = header.column.getIsSorted();
+
+                        // Use our controlled sort handler, not TanStack's toggleSorting
+                        const handleHeaderSort = () => {
+                          const callback = onSortingChangeRef.current;
+                          if (!callback || !isSortable) return;
+
+                          // Cycle: none -> asc -> desc -> none
+                          if (!isSorted) {
+                            callback({ column: header.id, direction: "asc" });
+                          } else if (isSorted === "asc") {
+                            callback({ column: header.id, direction: "desc" });
+                          } else {
+                            callback({ column: null, direction: "asc" });
+                          }
+                        };
+
+                        // Get column width from unified sizing hook
+                        const columnWidth = columnSizing.widths[header.id] ?? header.getSize();
+
+                        const cellContent = (
+                          <>
+                            <SortButton
+                              id={header.id}
+                              label={String(header.column.columnDef.header ?? header.id)}
+                              sortable={isSortable}
+                              isActive={Boolean(isSorted)}
+                              direction={isSorted === "asc" ? "asc" : isSorted === "desc" ? "desc" : undefined}
+                              onSort={handleHeaderSort}
+                            />
+                            {/* Resize handle */}
+                            <ResizeHandle
+                              columnId={header.id}
+                              isResizing={columnSizing.isResizing}
+                              onPointerDown={columnSizing.resize.handlePointerDown}
+                              onPointerMove={columnSizing.resize.handlePointerMove}
+                              onPointerUp={columnSizing.resize.handlePointerUp}
+                              onPointerCancel={columnSizing.resize.handlePointerCancel}
+                              onAutoFit={columnSizing.actions.autoFitColumn}
+                              onReset={columnSizing.actions.resetColumn}
+                            />
+                          </>
+                        );
+
+                        // Style for column width - always use CSS variable
+                        // flexShrink: 0 prevents cells from shrinking below their width
+                        const widthStyle: React.CSSProperties = {
+                          width: getColumnCSSValue(header.id),
+                          minWidth: getColumnCSSValue(header.id),
+                          flexShrink: 0,
+                        };
+
+                        if (isFixed) {
+                          return (
+                            <th
+                              key={header.id}
+                              data-column-id={header.id}
+                              style={widthStyle}
+                              className="relative flex items-center px-4 py-3"
+                            >
+                              {cellContent}
+                            </th>
+                          );
+                        }
+
+                        // For SortableCell, use CSS variable (same as body cells)
+                        const sortableCellWidth = getColumnCSSValue(header.id);
+
+                        return (
+                          <SortableCell
+                            key={header.id}
+                            id={header.id}
+                            as="th"
+                            width={sortableCellWidth}
+                            className="relative flex items-center px-4 py-3"
+                          >
+                            {cellContent}
+                          </SortableCell>
+                        );
+                      }),
+                    )}
+                  </SortableContext>
+                </tr>
+              </thead>
+
+              {/* Virtualized Table Body */}
+              <VirtualTableBody<TData, TSectionMeta>
+                virtualRows={virtualRows}
+                totalHeight={totalHeight}
+                getTableRow={getTableRow}
+                getItem={getItem}
+                columnCount={visibleColumnCount}
+                onRowClick={onRowClick}
+                selectedRowId={selectedRowId}
+                getRowId={getRowId}
+                rowClassName={rowClassName}
+                renderSectionHeader={renderSectionHeader}
+              />
+            </table>
+
+            {/* Floating loading indicator for pagination */}
+            {isFetchingNextPage && (
+              <div className="sticky bottom-0 left-0 right-0 flex items-center justify-center bg-gradient-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
+                <div className="flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-300">
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <span>Loading more...</span>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </DndContext>

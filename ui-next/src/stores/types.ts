@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -19,24 +19,23 @@
 // =============================================================================
 
 /**
- * User override for column width from manual resize.
+ * User override for column sizing from manual resizing.
+ *
+ * When user resizes:
+ * - minWidthPx = the resized width (new floor)
+ * - share = calculated to achieve this width proportionally
  */
-export interface ColumnUserWidth {
-  /** The width user dragged to */
-  value: number;
-  /**
-   * How to interpret the width:
-   * - 'min': New floor, share preserved (column grew)
-   * - 'fixed': Exact pixel width, no share growth (column shrunk)
-   */
-  mode: "min" | "fixed";
+export interface ColumnOverride {
+  /** New minimum width in pixels (resized width becomes the floor) */
+  minWidthPx: number;
+  /** Calculated share to achieve this width */
+  share: number;
 }
 
 /**
- * State shape for column user widths.
- * Key: column ID, Value: user override
+ * State shape for column user overrides.
  */
-export type ColumnUserWidths = Record<string, ColumnUserWidth>;
+export type ColumnOverrides = Record<string, ColumnOverride>;
 
 // =============================================================================
 // Search Types
@@ -46,11 +45,8 @@ export type ColumnUserWidths = Record<string, ColumnUserWidth>;
  * A search filter chip displayed in the search bar.
  */
 export interface SearchChip {
-  /** Field ID this chip filters on (e.g., "status", "platform") */
   field: string;
-  /** The filter value (e.g., "ONLINE", "dgx") */
   value: string;
-  /** Display label (e.g., "Status: ONLINE") */
   label: string;
 }
 
@@ -60,13 +56,13 @@ export interface SearchChip {
 
 /**
  * Base state for table stores.
- * This is the shape of persisted data.
  */
 export interface TableState {
   // Column state
   visibleColumnIds: string[];
   columnOrder: string[];
-  columnUserWidths: ColumnUserWidths;
+  /** Column overrides from manual resizing (simplified: just share) */
+  columnOverrides: ColumnOverrides;
 
   // Sort state
   sort: { column: string; direction: "asc" | "desc" } | null;
@@ -88,9 +84,14 @@ export interface TableActions {
   setVisibleColumns: (ids: string[]) => void;
   toggleColumn: (id: string) => void;
   setColumnOrder: (order: string[]) => void;
-  setColumnWidth: (id: string, value: number, mode: "min" | "fixed") => void;
-  resetColumnWidth: (id: string) => void;
-  resetAllColumnWidths: () => void;
+  /** Set column override (just share) */
+  setColumnOverride: (id: string, override: ColumnOverride) => void;
+  /** Set all column overrides at once */
+  setColumnOverrides: (overrides: ColumnOverrides) => void;
+  /** Reset a single column override */
+  resetColumnOverride: (id: string) => void;
+  /** Reset all column overrides */
+  resetAllColumnOverrides: () => void;
 
   // Sort actions
   setSort: (column: string) => void;
