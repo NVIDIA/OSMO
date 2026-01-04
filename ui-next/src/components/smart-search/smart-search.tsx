@@ -265,18 +265,9 @@ function SmartSearchInner<T>({
     setHighlightedIndex(-1);
   }, [suggestions.length]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-        !inputRef.current?.contains(e.target as Node)
-      ) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+  // Close dropdown handler (called by backdrop click)
+  const closeDropdown = useCallback(() => {
+    setShowDropdown(false);
   }, []);
 
   const addChip = useCallback(
@@ -519,6 +510,18 @@ function SmartSearchInner<T>({
           </button>
         )}
       </div>
+
+      {/* Invisible backdrop to capture outside clicks without triggering underlying elements */}
+      {shouldShowDropdown && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={(e) => {
+            e.stopPropagation();
+            closeDropdown();
+          }}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Dropdown suggestions (includes error messages as hints) */}
       {(shouldShowDropdown || validationError) && (

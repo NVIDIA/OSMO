@@ -19,7 +19,7 @@
 
 import { useMemo, useCallback } from "react";
 import { DataTable, type SortState } from "@/components/data-table";
-import { useSharedPreferences } from "@/stores";
+import { useSharedPreferences, type DisplayMode } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
 import {
   MANDATORY_COLUMN_IDS,
@@ -36,6 +36,63 @@ import { useResourcesTableStore } from "../../stores/resources-table-store";
 
 /** Stable row ID extractor - defined outside component to avoid recreating */
 const getRowId = (resource: Resource) => resource.name;
+
+/**
+ * Sort resources by column and direction.
+ * Numeric columns (gpu, cpu, memory, storage) sort by used or free based on displayMode.
+ */
+function sortResources(
+  resources: Resource[],
+  sort: SortState<string> | null,
+  displayMode: DisplayMode,
+): Resource[] {
+  if (!sort?.column) return resources;
+
+  return [...resources].sort((a, b) => {
+    let cmp = 0;
+    switch (sort.column) {
+      case "resource":
+        cmp = a.name.localeCompare(b.name);
+        break;
+      case "hostname":
+        cmp = a.hostname.localeCompare(b.hostname);
+        break;
+      case "type":
+        cmp = a.resourceType.localeCompare(b.resourceType);
+        break;
+      case "pools":
+        cmp = (a.poolMemberships[0]?.pool ?? "").localeCompare(b.poolMemberships[0]?.pool ?? "");
+        break;
+      case "platform":
+        cmp = a.platform.localeCompare(b.platform);
+        break;
+      case "backend":
+        cmp = a.backend.localeCompare(b.backend);
+        break;
+      case "gpu":
+        cmp = displayMode === "free"
+          ? (a.gpu.total - a.gpu.used) - (b.gpu.total - b.gpu.used)
+          : a.gpu.used - b.gpu.used;
+        break;
+      case "cpu":
+        cmp = displayMode === "free"
+          ? (a.cpu.total - a.cpu.used) - (b.cpu.total - b.cpu.used)
+          : a.cpu.used - b.cpu.used;
+        break;
+      case "memory":
+        cmp = displayMode === "free"
+          ? (a.memory.total - a.memory.used) - (b.memory.total - b.memory.used)
+          : a.memory.used - b.memory.used;
+        break;
+      case "storage":
+        cmp = displayMode === "free"
+          ? (a.storage.total - a.storage.used) - (b.storage.total - b.storage.used)
+          : a.storage.used - b.storage.used;
+        break;
+    }
+    return sort.direction === "asc" ? cmp : -cmp;
+  });
+}
 
 // =============================================================================
 // Types
@@ -121,6 +178,12 @@ export function ResourcesTable({
     return visibility;
   }, [columnOrder, effectiveVisibleIds]);
 
+  // Sort resources based on current sort state
+  const sortedResources = useMemo(
+    () => sortResources(resources, sortState, displayMode),
+    [resources, sortState, displayMode],
+  );
+
   // Create TanStack columns with current display mode
   const columns = useMemo(
     () => createResourceColumns({ displayMode }),
@@ -180,7 +243,7 @@ export function ResourcesTable({
       className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
     >
       <DataTable<Resource>
-        data={resources}
+        data={sortedResources}
         columns={columns}
         getRowId={getRowId}
         // Column management
