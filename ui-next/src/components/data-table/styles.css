@@ -51,15 +51,32 @@
   position: absolute;
   top: 0;
   left: 0;
+  /* Full width ensures row background extends to container edge */
+  width: 100%;
   display: flex;
-  /* Row width expands with cell content (no width: 100%) */
   /* Layout/style/paint containment - NOT size (rows need intrinsic width) */
   contain: layout style paint;
+
+  /* Fill remaining space with pseudo-element to avoid whitespace gap */
+  &::after {
+    content: '';
+    flex: 1 0 0;
+    min-width: 0;
+  }
 }
 
 /* Header row - flex layout for column alignment */
 .data-table-header-row {
   display: flex;
+  /* Full width ensures header background extends to container edge */
+  width: 100%;
+
+  /* Fill remaining space with pseudo-element to avoid whitespace gap */
+  &::after {
+    content: '';
+    flex: 1 0 0;
+    min-width: 0;
+  }
 }
 
 /* Header row - uses CSS custom property for theme consistency */
@@ -129,6 +146,11 @@
 
   :is(.dark &):hover {
     background: var(--color-zinc-900);
+  }
+
+  /* Ensure filler area is also clickable */
+  &::after {
+    cursor: pointer;
   }
 }
 
