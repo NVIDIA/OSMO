@@ -119,7 +119,9 @@ type Action =
   | { type: "SYNC_EXTERNAL_OVERRIDES"; overrides: Record<string, ColumnOverride> }
   | { type: "SET_NATURAL_WIDTHS"; widths: Record<string, number> }
   | { type: "START_RESIZE"; columnId: string }
-  | { type: "END_RESIZE" };
+  | { type: "END_RESIZE" }
+  // Combined action to batch overrides update with resize end (single render)
+  | { type: "COMMIT_RESIZE"; overrides: Record<string, ColumnOverride> };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -162,6 +164,14 @@ function reducer(state: State, action: Action): State {
     case "END_RESIZE":
       if (state.resizingColumnId === null) return state;
       return { ...state, resizingColumnId: null };
+
+    case "COMMIT_RESIZE":
+      // Batched action: set overrides and end resize in single state update
+      return {
+        ...state,
+        overrides: action.overrides,
+        resizingColumnId: null,
+      };
 
     default:
       return state;
@@ -489,8 +499,8 @@ export function useUnifiedColumnSizing({
       drag.snapshotMins,
     );
 
-    dispatch({ type: "SET_ALL_OVERRIDES", overrides: newOverrides });
-    dispatch({ type: "END_RESIZE" });
+    // Batched dispatch: set overrides and end resize in single state update
+    dispatch({ type: "COMMIT_RESIZE", overrides: newOverrides });
 
     // Notify parent
     queueMicrotask(() => {
@@ -686,7 +696,7 @@ export function useUnifiedColumnSizing({
       lockScroll();
       dispatch({ type: "START_RESIZE", columnId });
     },
-    [getConfigMinPx, getContentMaxPx, getActualColumnWidth, lockScroll, addGlobalListeners],
+    [getConfigMinPx, getActualColumnWidth, measureColumn, lockScroll, addGlobalListeners],
   );
 
   // These are still exposed for component API but global listeners do the actual work
