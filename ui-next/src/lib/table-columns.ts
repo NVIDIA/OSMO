@@ -136,34 +136,32 @@ export function selectColumns(config: ColumnConfig, columnIds: string[]): Column
 // =============================================================================
 
 /**
- * Recommended minimum widths for common column content types.
+ * Recommended minimum widths in rem units.
  *
- * These are calculated based on:
- * - Typical content length
- * - 14px font with tabular-nums (~8px per character)
- * - px-4 padding (32px total)
- *
- * Use these as starting points and adjust based on your actual content.
+ * These are accessibility-friendly as they scale with user's font size.
+ * Calculated at 16px base font size (1rem = 16px).
  */
-export const COLUMN_MIN_WIDTHS = {
-  /** Text that truncates with ellipsis (names, descriptions) */
-  TEXT_TRUNCATE: 140,
+export const COLUMN_MIN_WIDTHS_REM = {
+  /** Text that truncates with ellipsis (names, descriptions) - 8.75rem */
+  TEXT_TRUNCATE: 8.75,
 
-  /** Short text labels (status, type) */
-  TEXT_SHORT: 80,
+  /** Short text labels (status, type) - 5rem */
+  TEXT_SHORT: 5,
 
-  /** Short numbers: "128/256", "1.5K/2K" (7 chars) */
-  NUMBER_SHORT: 80,
+  /** Short numbers: "128/256", "1.5K/2K" - 5rem */
+  NUMBER_SHORT: 5,
 
-  /** Numbers with units: "512/1,024 Gi" (12 chars) */
-  NUMBER_WITH_UNIT: 115,
+  /** Numbers with units: "512/1,024 Gi" - 7.25rem */
+  NUMBER_WITH_UNIT: 7.25,
 
-  /** Timestamps: "2024-01-15 14:30" */
-  TIMESTAMP: 140,
+  /** Timestamps: "2024-01-15 14:30" - 8.75rem */
+  TIMESTAMP: 8.75,
 
-  /** Actions column (icon buttons) */
-  ACTIONS_SMALL: 50,
-  ACTIONS_MEDIUM: 80,
+  /** Actions column (icon buttons) - small 3.125rem */
+  ACTIONS_SMALL: 3.125,
+
+  /** Actions column (icon buttons) - medium 5rem */
+  ACTIONS_MEDIUM: 5,
 } as const;
 
 /**

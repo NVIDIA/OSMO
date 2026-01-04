@@ -20,43 +20,31 @@
  * - Infinite scroll pagination
  * - Drag-and-drop column reordering
  * - Sortable column headers
- *
- * @example
- * ```tsx
- * import { DataTable, type ColumnDef } from "@/components/data-table";
- *
- * const columns: ColumnDef<Pool>[] = [
- *   { accessorKey: "name", header: "Pool Name" },
- *   { accessorKey: "status", header: "Status" },
- * ];
- *
- * <DataTable
- *   data={pools}
- *   columns={columns}
- *   getRowId={(row) => row.name}
- * />
- * ```
+ * - Share-based proportional column sizing
  */
 
 // =============================================================================
-// Main DataTable Component
+// Main Components
 // =============================================================================
 
 export { DataTable, type DataTableProps } from "./DataTable";
-
-// =============================================================================
-// Sub-components (for advanced/custom usage)
-// =============================================================================
-
 export { VirtualTableBody, type VirtualTableBodyProps } from "./VirtualTableBody";
+export { TableSkeleton, type TableSkeletonProps } from "./TableSkeleton";
 export { SortButton } from "./SortButton";
 export { SortableCell } from "./SortableCell";
+export { ResizeHandle, type ResizeHandleProps as ResizeHandleComponentProps } from "./ResizeHandle";
 
 // =============================================================================
 // Hooks
 // =============================================================================
 
-export { useTableDnd, restrictToHorizontalAxis } from "./hooks/use-table-dnd";
+export {
+  useTableDnd,
+  restrictToHorizontalAxis,
+  restrictToParentBounds,
+  AUTO_SCROLL_CONFIG,
+} from "./hooks/use-table-dnd";
+
 export {
   useVirtualizedTable,
   type UseVirtualizedTableOptions,
@@ -64,21 +52,37 @@ export {
   type VirtualizedRow,
 } from "./hooks/use-virtualized-table";
 
+export {
+  useUnifiedColumnSizing,
+  type UseUnifiedColumnSizingOptions,
+  type UseUnifiedColumnSizingResult,
+} from "./hooks/use-unified-column-sizing";
+
+export {
+  useOptimizedColumnSizing,
+  type UseOptimizedColumnSizingOptions,
+  type UseOptimizedColumnSizingResult,
+} from "./hooks/use-optimized-column-sizing";
+
 // =============================================================================
 // Types
 // =============================================================================
 
 export type {
-  // Sort types
   SortDirection,
   SortState,
   SortButtonProps,
   SortableCellProps,
-  // Section types
   Section,
+  ColumnSizeConfig,
+  ColumnOverride,
+  ColumnWidthsResult,
+  ResizeHandleProps,
 } from "./types";
 
-// Re-export useful TanStack Table types for consumers
+export { cycleSortState } from "./types";
+
+// Re-export TanStack Table types
 export type {
   ColumnDef,
   SortingState,
@@ -90,5 +94,60 @@ export type {
   HeaderGroup,
 } from "@tanstack/react-table";
 
-// Export sort state helper
-export { cycleSortState } from "./types";
+// =============================================================================
+// Column Sizing Utilities
+// =============================================================================
+
+export {
+  // Rem ↔ Pixel conversion
+  getBaseFontSize,
+  remToPx,
+  pxToRem,
+  // Column resolution
+  resolveColumns,
+  type ResolvedColumn,
+  // Core calculation
+  calculateColumnWidths,
+  // DOM-based content measurement (native table API)
+  measureColumnByIndex,
+  measureColumnContentWidth,
+  measureAllColumns,
+  DEFAULT_MEASUREMENT_PADDING,
+  // Data-based content measurement (fast, for text columns)
+  measureTextWidth,
+  measureColumnFromData,
+  measureColumnsFromData,
+  // CSS variable helpers
+  generateCSSVariables,
+  getColumnCSSVariable,
+  getColumnCSSValue,
+} from "./utils/column-sizing";
+
+// =============================================================================
+// High-Performance Utilities
+// =============================================================================
+
+// Measurement Cache (Canvas-based, no DOM reflows)
+export {
+  MeasurementCache,
+  getMeasurementCache,
+  clearAllCaches,
+  measureText,
+  measureTexts,
+  type MeasurementCacheConfig,
+  type ColumnMeasurement,
+} from "./utils/measurement-cache";
+
+// Fast Layout Engine (Typed Arrays)
+export {
+  createFastLayout,
+  updateLayoutInputs,
+  calculateFastLayout,
+  updateSingleColumnWidth,
+  getColumnWidth,
+  exportWidths,
+  generateCSSString,
+  applyWidthsToElement,
+  type FastColumnLayout,
+  type LayoutResult,
+} from "./utils/fast-layout";
