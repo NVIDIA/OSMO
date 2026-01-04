@@ -72,32 +72,24 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
   return (
     <tbody
-      style={{
-        height: totalHeight,
-        position: "relative",
-        display: "block",
-      }}
+      className="data-table-body"
+      style={{ height: totalHeight }}
     >
       {virtualRows.map((virtualRow) => {
         const item = getItem(virtualRow.index);
 
         if (!item) return null;
 
-        // Section header row
         if (item.type === "section") {
           return (
             <tr
               key={virtualRow.key}
               data-section={item.section.id}
+              className="data-table-section-row sticky bg-zinc-100 dark:bg-zinc-900"
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
                 height: virtualRow.size,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className="sticky bg-zinc-100 dark:bg-zinc-900"
             >
               <td colSpan={columnCount} className="px-0">
                 {renderSectionHeader?.(item.section) ?? (
@@ -113,7 +105,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
           );
         }
 
-        // Data row
         const row = getTableRow(virtualRow.index);
         if (!row) return null;
 
@@ -130,23 +121,18 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
           <tr
             key={virtualRow.key}
             data-row-id={rowId}
-            aria-rowindex={virtualRow.index + 2} // +1 for header, +1 for 1-based
+            aria-rowindex={virtualRow.index + 2}
             onClick={onRowClick ? () => onRowClick(rowData, virtualRow.index) : undefined}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              height: virtualRow.size,
-              transform: `translateY(${virtualRow.start}px)`,
-              display: "flex",
-              // Row width is determined by sum of cell widths (not constrained to container)
-            }}
             className={cn(
-              "border-b border-zinc-200 dark:border-zinc-800",
+              "data-table-row border-b border-zinc-200 dark:border-zinc-800",
               onRowClick && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900",
               isSelected && "bg-zinc-100 dark:bg-zinc-800",
               customClassName,
             )}
+            style={{
+              height: virtualRow.size,
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
           >
             {row.getVisibleCells().map((cell) => (
               <td

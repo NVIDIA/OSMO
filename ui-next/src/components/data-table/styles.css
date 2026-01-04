@@ -22,13 +22,13 @@
 
 /* Base table styles */
 .data-table {
-  --data-table-row-height: 48px;
-  --data-table-header-height: 44px;
-  --data-table-section-height: 36px;
+  --data-table-row-height: 3rem;      /* 48px at 16px base */
+  --data-table-header-height: 2.75rem; /* 44px at 16px base */
+  --data-table-section-height: 2.25rem; /* 36px at 16px base */
 
   border-collapse: collapse;
-  /* Containment: table size doesn't depend on content layout */
-  contain: inline-size;
+  /* Containment: isolates layout recalculation to this subtree */
+  contain: inline-size layout style;
 }
 
 /* Virtualized table body - uses absolute positioning */
@@ -38,6 +38,14 @@
   contain: layout style;
 }
 
+/* Section header row - full width absolute positioned */
+.data-table-section-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
 /* Virtualized row - absolutely positioned */
 .data-table-row {
   position: absolute;
@@ -45,100 +53,91 @@
   left: 0;
   display: flex;
   /* Row width expands with cell content (no width: 100%) */
+  /* Layout/style/paint containment - NOT size (rows need intrinsic width) */
   contain: layout style paint;
 }
 
-/* Header row */
+/* Header row - flex layout for column alignment */
+.data-table-header-row {
+  display: flex;
+}
+
+/* Header row - uses CSS custom property for theme consistency */
 .data-table-header {
+  --dt-header-bg: var(--color-zinc-100);
   position: sticky;
   top: 0;
   z-index: 20;
   display: flex;
-  background: var(--color-zinc-100);
-}
+  background: var(--dt-header-bg);
 
-:is(.dark .data-table-header) {
-  background: var(--color-zinc-900);
+  :is(.dark &) {
+    --dt-header-bg: var(--color-zinc-900);
+  }
 }
 
 /* Section header row (sticky within scroll) */
 .data-table-section {
+  --dt-section-bg: var(--color-zinc-100);
   position: sticky;
   z-index: 10;
   display: flex;
-  background: var(--color-zinc-100);
-}
+  background: var(--dt-section-bg);
 
-:is(.dark .data-table-section) {
-  background: var(--color-zinc-900);
+  :is(.dark &) {
+    --dt-section-bg: var(--color-zinc-900);
+  }
 }
 
 /* Cell alignment helpers */
 .data-table-cell {
   display: flex;
   align-items: center;
-  padding: 0 1rem;
+  /* Use logical properties for RTL support */
+  padding-inline: 1rem;
   overflow: hidden;
   /* Containment: cell layout is self-contained */
   contain: layout style;
   /* Text optimization */
   text-rendering: optimizeLegibility;
+
+  /* Alignment variants using CSS nesting */
+  &.data-table-cell--left {
+    justify-content: flex-start;
+    text-align: start;
+  }
+
+  &.data-table-cell--right {
+    justify-content: flex-end;
+    text-align: end;
+  }
+
+  &.data-table-cell--center {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
-.data-table-cell--left {
-  justify-content: flex-start;
-  text-align: left;
-}
-
-.data-table-cell--right {
-  justify-content: flex-end;
-  text-align: right;
-}
-
-.data-table-cell--center {
-  justify-content: center;
-  text-align: center;
-}
-
-/* Row hover state */
+/* Row states using CSS nesting */
 .data-table-row--interactive {
   cursor: pointer;
   transition: background-color 150ms;
+
+  &:hover {
+    background: var(--color-zinc-50);
+  }
+
+  :is(.dark &):hover {
+    background: var(--color-zinc-900);
+  }
 }
 
-.data-table-row--interactive:hover {
-  background: var(--color-zinc-50);
-}
-
-:is(.dark .data-table-row--interactive:hover) {
-  background: var(--color-zinc-900);
-}
-
-/* Row selected state */
 .data-table-row--selected {
   background: var(--color-zinc-100);
-}
 
-:is(.dark .data-table-row--selected) {
-  background: var(--color-zinc-800);
-}
-
-/* Loading state */
-.data-table-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  color: var(--color-zinc-500);
-}
-
-/* Empty state */
-.data-table-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  color: var(--color-zinc-500);
+  :is(.dark &) {
+    background: var(--color-zinc-800);
+  }
 }
 
 /* Scroll container */
@@ -162,47 +161,46 @@
 /* Resize handle - positioned at right edge of header cell */
 .resize-handle {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0; /* RTL-aware right positioning */
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 0.5rem; /* 8px at 16px base */
   cursor: col-resize;
   user-select: none;
   touch-action: none;
   z-index: 1;
-}
 
-/* Visual indicator line */
-.resize-handle::after {
-  content: '';
-  position: absolute;
-  right: 3px;
-  top: 25%;
-  bottom: 25%;
-  width: 2px;
-  background: transparent;
-  border-radius: 1px;
-  transition: background-color 150ms;
-}
+  /* Visual indicator line */
+  &::after {
+    content: '';
+    position: absolute;
+    inset-inline-end: 0.1875rem; /* 3px */
+    top: 25%;
+    bottom: 25%;
+    width: 0.125rem; /* 2px */
+    background: transparent;
+    border-radius: 0.0625rem; /* 1px */
+    transition: background-color 150ms;
+  }
 
-/* Hover state */
-.resize-handle:hover::after {
-  background: var(--color-zinc-400);
-}
+  /* Hover state */
+  &:hover::after {
+    background: var(--color-zinc-400);
 
-:is(.dark .resize-handle:hover::after) {
-  background: var(--color-zinc-500);
-}
+    :is(.dark &) {
+      background: var(--color-zinc-500);
+    }
+  }
 
-/* Active/dragging state */
-.resize-handle:active::after,
-.resize-handle.is-dragging::after {
-  background: var(--color-zinc-500);
-}
+  /* Active/dragging state */
+  &:active::after,
+  &.is-dragging::after {
+    background: var(--color-zinc-500);
 
-:is(.dark .resize-handle:active::after),
-:is(.dark .resize-handle.is-dragging::after) {
-  background: var(--color-zinc-400);
+    :is(.dark &) {
+      background: var(--color-zinc-400);
+    }
+  }
 }
 
 /* =============================================================================

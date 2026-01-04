@@ -36,6 +36,7 @@ export type {
   ColumnOverride,
   ColumnOverrides,
   SearchChip,
+  ChipVariant,
 } from "./types";
 
 // Shared preferences (cross-feature)
