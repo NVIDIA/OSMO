@@ -20,7 +20,7 @@
  */
 
 // =============================================================================
-// Sort Types (shared with existing tables during migration)
+// Sort Types
 // =============================================================================
 
 export type SortDirection = "asc" | "desc";
@@ -47,65 +47,115 @@ export function cycleSortState<TColumnId extends string>(
 }
 
 // =============================================================================
-// Sort Button Props (shared component)
+// Sort Button Props
 // =============================================================================
 
 export interface SortButtonProps {
-  /** Column identifier */
   id: string;
-  /** Button label */
   label: string;
-  /** Column alignment */
   align?: "left" | "right";
-  /** Is sorting enabled for this column? */
   sortable?: boolean;
-  /** Is this column currently sorted? */
   isActive: boolean;
-  /** Current sort direction (only relevant if active) */
   direction?: SortDirection;
-  /** Click handler */
   onSort: () => void;
 }
 
 // =============================================================================
-// Sortable Cell Props (shared component)
+// Sortable Cell Props
 // =============================================================================
 
 export interface SortableCellProps {
-  /** Column ID (used as DnD item ID) */
   id: string;
-  /** Cell content */
   children: React.ReactNode;
-  /** Additional class names */
   className?: string;
-  /** Render as th or div */
   as?: "th" | "div";
-  /** Column width in pixels */
-  width?: number;
+  width?: string;
 }
 
 // =============================================================================
-// Section Types (for grouped tables like pools)
+// Section Types
 // =============================================================================
 
-/**
- * A section groups items together with a header.
- * Used for status-based grouping in pools table.
- */
 export interface Section<T, TMetadata = unknown> {
-  /** Unique section ID */
   id: string;
-  /** Section header label */
   label: string;
-  /** Items in this section */
   items: T[];
-  /** Optional metadata for styling (e.g., status color) */
   metadata?: TMetadata;
 }
 
 // =============================================================================
-// TanStack Table Types (to be expanded)
+// Column Sizing Types - Simplified Model
 // =============================================================================
 
-// These will be added as we implement the TanStack Table integration.
-// For now, consumers should import types directly from @tanstack/react-table.
+/**
+ * Configuration for a column's sizing behavior.
+ *
+ * Uses rem for design-time (accessibility), converted to px at runtime.
+ */
+export interface ColumnSizeConfig<TData = unknown> {
+  /** Column identifier */
+  id: string;
+
+  /**
+   * Minimum width in rem.
+   * Floor - column cannot shrink below this.
+   */
+  minWidthRem: number;
+
+  /**
+   * Proportional share for space distribution.
+   * Higher = larger share of extra space.
+   * Like CSS flex-grow.
+   */
+  share: number;
+
+  /**
+   * Optional: Extract text value from row data for content width measurement.
+   * If provided, uses fast Canvas measureText() instead of DOM inspection.
+   * For complex cells (icons, badges), omit this and fall back to DOM measurement.
+   */
+  getTextValue?: (row: TData) => string;
+}
+
+/**
+ * User override for a column from manual resizing.
+ *
+ * When user resizes:
+ * - minWidthPx = the resized width (new floor for this column)
+ * - share = preserved from config (for proportional participation)
+ *
+ * maxWidth still comes from content measurement.
+ */
+export interface ColumnOverride {
+  /** New minimum width in pixels (the resized width becomes the floor) */
+  minWidthPx: number;
+  /** Original share preserved (column still participates in proportional growth) */
+  share: number;
+}
+
+/**
+ * Result of column width calculation.
+ */
+export interface ColumnWidthsResult {
+  /** Computed width for each column in pixels */
+  widths: Record<string, number>;
+  /** Total width of all columns */
+  totalWidth: number;
+  /** Whether horizontal scroll is needed (container < total min) */
+  needsScroll: boolean;
+  /** Remaining whitespace on right (0 if scrolling or all columns at max) */
+  whitespace: number;
+}
+
+// =============================================================================
+// Resize Handle Props
+// =============================================================================
+
+export interface ResizeHandleProps {
+  columnId: string;
+  onPointerDown: (e: React.PointerEvent, columnId: string) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onPointerCancel: (e: React.PointerEvent) => void;
+  onDoubleClick: (columnId: string) => void;
+}

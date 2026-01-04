@@ -12,7 +12,12 @@
  * DataTable Styles
  *
  * CSS for the virtualized data table component.
- * Uses CSS containment for optimal rendering performance.
+ *
+ * ## Performance Optimizations
+ * - CSS containment: Isolates layout/paint to subtrees
+ * - content-visibility: Skips rendering of off-screen content
+ * - will-change: Hints for GPU compositing (used sparingly)
+ * - contain-intrinsic-size: Prevents layout shifts
  */
 
 /* Base table styles */
@@ -20,10 +25,10 @@
   --data-table-row-height: 48px;
   --data-table-header-height: 44px;
   --data-table-section-height: 36px;
-  
+
   border-collapse: collapse;
-  table-layout: fixed;
-  width: 100%;
+  /* Containment: table size doesn't depend on content layout */
+  contain: inline-size;
 }
 
 /* Virtualized table body - uses absolute positioning */
@@ -38,8 +43,8 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
   display: flex;
+  /* Row width expands with cell content (no width: 100%) */
   contain: layout style paint;
 }
 
@@ -74,6 +79,10 @@
   align-items: center;
   padding: 0 1rem;
   overflow: hidden;
+  /* Containment: cell layout is self-contained */
+  contain: layout style;
+  /* Text optimization */
+  text-rendering: optimizeLegibility;
 }
 
 .data-table-cell--left {
@@ -136,4 +145,101 @@
 .data-table-scroll {
   overflow: auto;
   overscroll-behavior: contain;
+
+  /* Reserve space for scrollbar to prevent layout shifts when it appears/disappears */
+  scrollbar-gutter: stable;
+}
+
+/* =============================================================================
+   Column Resize Styles
+   ============================================================================= */
+
+/* Header cells need relative positioning for resize handle */
+.data-table th {
+  position: relative;
+}
+
+/* Resize handle - positioned at right edge of header cell */
+.resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  z-index: 1;
+}
+
+/* Visual indicator line */
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  background: transparent;
+  border-radius: 1px;
+  transition: background-color 150ms;
+}
+
+/* Hover state */
+.resize-handle:hover::after {
+  background: var(--color-zinc-400);
+}
+
+:is(.dark .resize-handle:hover::after) {
+  background: var(--color-zinc-500);
+}
+
+/* Active/dragging state */
+.resize-handle:active::after,
+.resize-handle.is-dragging::after {
+  background: var(--color-zinc-500);
+}
+
+:is(.dark .resize-handle:active::after),
+:is(.dark .resize-handle.is-dragging::after) {
+  background: var(--color-zinc-400);
+}
+
+/* =============================================================================
+   Scroll Lock During Resize
+   ============================================================================= */
+
+/* Applied to scroll container during resize */
+.is-resizing {
+  /* Prevent all scrolling during resize */
+  overflow: hidden !important;
+
+  /* Prevent overscroll behavior */
+  overscroll-behavior: none;
+
+  /* Prevent text selection */
+  user-select: none;
+
+  /* Prevent touch actions */
+  touch-action: none;
+
+  /* Performance: hint that columns are changing */
+  --is-resizing: 1;
+}
+
+/* GPU acceleration hint for cells during resize */
+.is-resizing .data-table-cell {
+  /* Promote to compositor layer during resize */
+  will-change: width;
+}
+
+/* Force col-resize cursor everywhere during resize */
+.is-resizing,
+.is-resizing * {
+  cursor: col-resize !important;
+}
+
+/* Prevent pointer events on table content during resize */
+.is-resizing .data-table tbody {
+  pointer-events: none;
 }
