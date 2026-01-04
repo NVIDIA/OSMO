@@ -13,6 +13,7 @@ import type { ColumnSizeConfig } from "@/components/data-table";
 
 export type ResourceColumnId =
   | "resource"
+  | "hostname"
   | "type"
   | "pools"
   | "platform"
@@ -24,7 +25,7 @@ export type ResourceColumnId =
 
 /** Set of all valid resource column IDs for type validation */
 const VALID_COLUMN_IDS = new Set<string>([
-  "resource", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage",
+  "resource", "hostname", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage",
 ]);
 
 /** Type guard to check if a string is a valid ResourceColumnId */
@@ -42,6 +43,7 @@ export function asResourceColumnIds(ids: string[]): ResourceColumnId[] {
  */
 export const COLUMN_LABELS: Record<ResourceColumnId, string> = {
   resource: "Resource",
+  hostname: "Hostname",
   type: "Type",
   pools: "Pools",
   platform: "Platform",
@@ -56,6 +58,7 @@ export const COLUMN_LABELS: Record<ResourceColumnId, string> = {
  * Optional columns that can be toggled.
  */
 export const OPTIONAL_COLUMNS: { id: ResourceColumnId; label: string; menuLabel: string }[] = [
+  { id: "hostname", label: "Hostname", menuLabel: "Hostname" },
   { id: "type", label: "Type", menuLabel: "Type" },
   { id: "pools", label: "Pools", menuLabel: "Pools" },
   { id: "platform", label: "Platform", menuLabel: "Platform" },
@@ -90,6 +93,7 @@ export const DEFAULT_COLUMN_ORDER: ResourceColumnId[] = [
   "pools",
   "platform",
   "backend",
+  "hostname",
   "gpu",
   "cpu",
   "memory",
@@ -122,6 +126,7 @@ export const DEFAULT_PANEL_WIDTH = 40;
  */
 export const RESOURCE_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   { id: "resource", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.PRIMARY },
+  { id: "hostname", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
   { id: "type", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
   { id: "pools", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.SECONDARY },
   { id: "platform", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
