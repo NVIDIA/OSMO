@@ -44,6 +44,13 @@ import type { ColumnSizeConfig, ColumnOverride, ColumnWidthsResult } from "../ty
  */
 export const DEFAULT_MEASUREMENT_PADDING = 48;
 
+/**
+ * Extra padding (in rem) allowing users to drag beyond content max.
+ * This gives breathing room when manually resizing, while double-click
+ * still snaps to the exact content-fit width.
+ */
+export const DRAG_OVERSHOOT_REM = 2;
+
 /** Default base font size in pixels */
 const DEFAULT_BASE_FONT_SIZE = 16;
 
