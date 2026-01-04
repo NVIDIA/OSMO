@@ -13,9 +13,14 @@
  *
  * Provides DnD sensors and modifiers for column reordering.
  * Extracted from pools-table and resources-table implementations.
+ *
+ * Constraints:
+ * - Horizontal movement only (no vertical)
+ * - Bounded to table header (no continuous expansion)
+ * - No auto-scroll (user must manually scroll to access off-screen columns)
  */
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   useSensor,
   useSensors,
@@ -37,10 +42,50 @@ export const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
 });
 
 /**
+ * Modifier that restricts drag to within the parent container bounds.
+ * Prevents dragging columns beyond the table header width.
+ */
+export const restrictToParentBounds: Modifier = ({
+  transform,
+  draggingNodeRect,
+  containerNodeRect,
+}) => {
+  if (!draggingNodeRect || !containerNodeRect) {
+    return transform;
+  }
+
+  // Calculate bounds
+  const minX = containerNodeRect.left - draggingNodeRect.left;
+  const maxX = containerNodeRect.right - draggingNodeRect.right;
+
+  // Clamp transform to bounds
+  return {
+    ...transform,
+    x: Math.min(Math.max(transform.x, minX), maxX),
+    y: 0, // Also enforce horizontal-only
+    scaleX: 1,
+    scaleY: 1,
+  };
+};
+
+/**
+ * Auto-scroll configuration for DndContext.
+ * Set to false to prevent table from auto-scrolling during column drag.
+ *
+ * @example
+ * ```tsx
+ * <DndContext autoScroll={AUTO_SCROLL_CONFIG}>
+ * ```
+ */
+export const AUTO_SCROLL_CONFIG = false;
+
+/**
  * Hook for table column DnD setup.
  *
  * Returns sensors configured for pointer and keyboard interaction,
- * plus the horizontal-only modifier.
+ * plus modifiers that constrain movement to horizontal axis within bounds.
+ *
+ * @param options.enableBoundsRestriction - If true, restricts drag to parent bounds (default: true)
  *
  * @example
  * ```tsx
@@ -51,6 +96,7 @@ export const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
  *   modifiers={modifiers}
  *   collisionDetection={closestCenter}
  *   onDragEnd={handleDragEnd}
+ *   autoScroll={false} // IMPORTANT: Disable auto-scroll
  * >
  *   <SortableContext items={columnIds}>
  *     {columns.map(...)}
@@ -58,7 +104,9 @@ export const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
  * </DndContext>
  * ```
  */
-export function useTableDnd() {
+export function useTableDnd(options?: { enableBoundsRestriction?: boolean }) {
+  const { enableBoundsRestriction = true } = options ?? {};
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -73,10 +121,22 @@ export function useTableDnd() {
   );
 
   // Memoize modifiers array to avoid recreation
-  const modifiers = useMemo(() => [restrictToHorizontalAxis], []);
+  // Use bounds restriction by default to prevent dragging beyond table width
+  const modifiers = useMemo(
+    () =>
+      enableBoundsRestriction
+        ? [restrictToParentBounds] // Includes horizontal restriction
+        : [restrictToHorizontalAxis], // Just horizontal
+    [enableBoundsRestriction],
+  );
 
   return {
     sensors,
     modifiers,
+    /**
+     * Pass this to DndContext autoScroll prop to disable auto-scrolling.
+     * Prevents table from expanding/scrolling when dragging near edges.
+     */
+    autoScrollConfig: AUTO_SCROLL_CONFIG,
   };
 }

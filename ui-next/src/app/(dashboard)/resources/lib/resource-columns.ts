@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -8,37 +8,19 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { defineColumns, selectColumns, COLUMN_MIN_WIDTHS, COLUMN_FLEX } from "@/lib/table-columns";
+import { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "@/lib/table-columns";
+import type { ColumnSizeConfig } from "@/components/data-table";
 
-export type ResourceColumnId = "resource" | "type" | "pools" | "platform" | "backend" | "gpu" | "cpu" | "memory" | "storage";
-
-/**
- * All resource columns with their layout configuration.
- */
-export const ALL_RESOURCE_COLUMNS = defineColumns([
-  { id: "resource", minWidth: COLUMN_MIN_WIDTHS.TEXT_TRUNCATE, flex: COLUMN_FLEX.PRIMARY },
-  { id: "type", minWidth: 90, flex: 0.8 },
-  { id: "pools", minWidth: COLUMN_MIN_WIDTHS.TEXT_SHORT, flex: COLUMN_FLEX.SECONDARY },
-  { id: "platform", minWidth: COLUMN_MIN_WIDTHS.TEXT_SHORT, flex: COLUMN_FLEX.SECONDARY },
-  { id: "backend", minWidth: 70, flex: COLUMN_FLEX.TERTIARY },
-  { id: "gpu", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
-  { id: "cpu", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
-  { id: "memory", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
-  { id: "storage", minWidth: COLUMN_MIN_WIDTHS.NUMBER_SHORT, flex: COLUMN_FLEX.NUMERIC },
-]);
-
-/**
- * Columns when pools column is shown (cross-pool view).
- */
-export const COLUMNS_WITH_POOLS = ALL_RESOURCE_COLUMNS;
-
-/**
- * Columns when pools column is hidden (single pool view).
- */
-export const COLUMNS_NO_POOLS = selectColumns(
-  ALL_RESOURCE_COLUMNS,
-  ["resource", "platform", "gpu", "cpu", "memory", "storage"],
-);
+export type ResourceColumnId =
+  | "resource"
+  | "type"
+  | "pools"
+  | "platform"
+  | "backend"
+  | "gpu"
+  | "cpu"
+  | "memory"
+  | "storage";
 
 /**
  * Column labels for header display.
@@ -75,7 +57,9 @@ export const OPTIONAL_COLUMNS: { id: ResourceColumnId; label: string; menuLabel:
 export const DEFAULT_VISIBLE_COLUMNS: ResourceColumnId[] = [
   "resource",
   "type",
+  "pools",
   "platform",
+  "backend",
   "gpu",
   "cpu",
   "memory",
@@ -103,27 +87,32 @@ export const DEFAULT_COLUMN_ORDER: ResourceColumnId[] = [
 export const MANDATORY_COLUMN_IDS = new Set<ResourceColumnId>(["resource"]);
 
 /**
- * Get column configuration for a given set of visible column IDs.
- * Respects the provided column order.
+ * Default sort configuration.
  */
-export function getVisibleColumnsConfig(
-  visibleIds: string[],
-  columnOrder: ResourceColumnId[] = DEFAULT_COLUMN_ORDER,
-): {
-  gridTemplate: string;
-  minWidth: number;
-  columnIds: ResourceColumnId[];
-} {
-  // Filter to only valid, visible columns in the user's order
-  const orderedVisibleIds = columnOrder.filter(
-    (id) => id === "resource" || visibleIds.includes(id)
-  );
+export const DEFAULT_SORT = { column: "resource" as ResourceColumnId, direction: "asc" as const };
 
-  const config = selectColumns(ALL_RESOURCE_COLUMNS, orderedVisibleIds);
+/**
+ * Default panel width percentage.
+ */
+export const DEFAULT_PANEL_WIDTH = 40;
 
-  return {
-    gridTemplate: config.gridTemplate,
-    minWidth: config.minWidth,
-    columnIds: orderedVisibleIds,
-  };
-}
+/**
+ * Column sizing configuration for the new DataTable.
+ *
+ * Uses rem-based minimum widths for accessibility (scales with user font size).
+ * At 16px base: 1rem = 16px.
+ *
+ * - minWidthRem: Minimum width in rem units
+ * - share: Proportional weight for space distribution (like CSS flex-grow)
+ */
+export const RESOURCE_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
+  { id: "resource", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.PRIMARY },
+  { id: "type", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
+  { id: "pools", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.SECONDARY },
+  { id: "platform", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
+  { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
+  { id: "gpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT, share: COLUMN_FLEX.NUMERIC },
+  { id: "cpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT, share: COLUMN_FLEX.NUMERIC },
+  { id: "memory", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },
+  { id: "storage", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },
+];
