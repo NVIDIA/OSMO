@@ -17,11 +17,12 @@
 
 "use client";
 
-import { memo, Fragment } from "react";
+import { memo } from "react";
 import { flexRender, type Row } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import type { VirtualizedRow } from "./hooks/use-virtualized-table";
 import type { Section } from "./types";
+import { getColumnCSSValue } from "./utils/column-sizing";
 
 // =============================================================================
 // Types
@@ -35,7 +36,7 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   /** Get table row by virtual index */
   getTableRow: (index: number) => Row<TData> | undefined;
   /** Get item info by virtual index (for sections) */
-  getItem: (index: number) => 
+  getItem: (index: number) =>
     | { type: "section"; section: Section<TData, TSectionMeta> }
     | { type: "row"; item: TData }
     | null;
@@ -79,9 +80,9 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
     >
       {virtualRows.map((virtualRow) => {
         const item = getItem(virtualRow.index);
-        
+
         if (!item) return null;
-        
+
         // Section header row
         if (item.type === "section") {
           return (
@@ -111,20 +112,20 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             </tr>
           );
         }
-        
+
         // Data row
         const row = getTableRow(virtualRow.index);
         if (!row) return null;
-        
+
         const rowData = item.item;
         const rowId = getRowId?.(rowData);
         const isSelected = selectedRowId && rowId === selectedRowId;
-        
+
         const customClassName =
           typeof rowClassName === "function"
             ? rowClassName(rowData)
             : rowClassName;
-        
+
         return (
           <tr
             key={virtualRow.key}
@@ -135,10 +136,10 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
               position: "absolute",
               top: 0,
               left: 0,
-              width: "100%",
               height: virtualRow.size,
               transform: `translateY(${virtualRow.start}px)`,
               display: "flex",
+              // Row width is determined by sum of cell widths (not constrained to container)
             }}
             className={cn(
               "border-b border-zinc-200 dark:border-zinc-800",
@@ -150,12 +151,13 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             {row.getVisibleCells().map((cell) => (
               <td
                 key={cell.id}
+                data-column-id={cell.column.id}
                 style={{
-                  width: cell.column.getSize(),
-                  minWidth: cell.column.getSize(),
-                  maxWidth: cell.column.getSize(),
+                  width: getColumnCSSValue(cell.column.id),
+                  minWidth: getColumnCSSValue(cell.column.id),
+                  flexShrink: 0, // Prevent shrinking below specified width
                 }}
-                className="flex items-center px-4"
+                className="flex items-center overflow-hidden px-4"
               >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </td>
@@ -163,7 +165,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
           </tr>
         );
       })}
-      
+
     </tbody>
   );
 }

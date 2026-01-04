@@ -9,19 +9,27 @@
  */
 
 import { createTableStore } from "@/stores";
+import {
+  DEFAULT_VISIBLE_COLUMNS,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_SORT,
+  DEFAULT_PANEL_WIDTH,
+} from "../lib/resource-columns";
 
 /**
  * Resources table store for column/sort/panel preferences.
  *
  * Note: displayMode and compactMode are in useSharedPreferences
  * for consistency across pools and resources pages.
+ *
+ * All defaults are defined in ../lib/resource-columns.ts (single source of truth).
  */
 export const useResourcesTableStore = createTableStore({
   storageKey: "resources-table",
-  defaultVisibleColumns: ["resource", "type", "platform", "backend", "gpu", "cpu", "memory", "storage"],
-  defaultColumnOrder: ["resource", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage"],
-  defaultSort: { column: "resource", direction: "asc" },
-  defaultPanelWidth: 40,
+  defaultVisibleColumns: DEFAULT_VISIBLE_COLUMNS,
+  defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+  defaultSort: DEFAULT_SORT,
+  defaultPanelWidth: DEFAULT_PANEL_WIDTH,
 });
 
 // Re-export shared preferences for convenience

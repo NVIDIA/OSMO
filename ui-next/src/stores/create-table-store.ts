@@ -39,7 +39,7 @@
 import { create, type StateCreator } from "zustand";
 import { persist, createJSONStorage, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import type { TableState, TableActions, TableStore, SearchChip } from "./types";
+import type { TableState, TableActions, TableStore, SearchChip, ColumnOverride, ColumnOverrides } from "./types";
 
 // =============================================================================
 // Factory Options
@@ -75,7 +75,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
   const initialState: TableState = {
     visibleColumnIds: defaultVisibleColumns,
     columnOrder: defaultColumnOrder,
-    columnUserWidths: {},
+    columnOverrides: {},
     sort: defaultSort,
     compactMode: false,
     collapsedSections: [],
@@ -84,14 +84,18 @@ export function createTableStore(options: CreateTableStoreOptions) {
   };
 
   // State creator with immer for immutable updates
-  const stateCreator: StateCreator<
-    TableStore,
-    [["zustand/immer", never], ["zustand/devtools", never], ["zustand/persist", unknown]]
-  > = (set) => ({
+  // Type set as (fn, replace?, action?) to support devtools action names
+  type SetFunction = (
+    fn: (state: TableState) => void,
+    replace?: boolean,
+    actionName?: string,
+  ) => void;
+
+  const stateCreator = (set: SetFunction): TableStore => ({
     ...initialState,
 
     // Column actions
-    setVisibleColumns: (ids) =>
+    setVisibleColumns: (ids: string[]) =>
       set(
         (state) => {
           state.visibleColumnIds = ids;
@@ -100,7 +104,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
         "setVisibleColumns",
       ),
 
-    toggleColumn: (id) =>
+    toggleColumn: (id: string) =>
       set(
         (state) => {
           const idx = state.visibleColumnIds.indexOf(id);
@@ -114,7 +118,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
         "toggleColumn",
       ),
 
-    setColumnOrder: (order) =>
+    setColumnOrder: (order: string[]) =>
       set(
         (state) => {
           state.columnOrder = order;
@@ -123,35 +127,44 @@ export function createTableStore(options: CreateTableStoreOptions) {
         "setColumnOrder",
       ),
 
-    setColumnWidth: (id, value, mode) =>
+    setColumnOverride: (id: string, override: ColumnOverride) =>
       set(
         (state) => {
-          state.columnUserWidths[id] = { value, mode };
+          state.columnOverrides[id] = override;
         },
         false,
-        "setColumnWidth",
+        "setColumnOverride",
       ),
 
-    resetColumnWidth: (id) =>
+    setColumnOverrides: (overrides: ColumnOverrides) =>
       set(
         (state) => {
-          delete state.columnUserWidths[id];
+          state.columnOverrides = overrides;
         },
         false,
-        "resetColumnWidth",
+        "setColumnOverrides",
       ),
 
-    resetAllColumnWidths: () =>
+    resetColumnOverride: (id: string) =>
       set(
         (state) => {
-          state.columnUserWidths = {};
+          delete state.columnOverrides[id];
         },
         false,
-        "resetAllColumnWidths",
+        "resetColumnOverride",
+      ),
+
+    resetAllColumnOverrides: () =>
+      set(
+        (state) => {
+          state.columnOverrides = {};
+        },
+        false,
+        "resetAllColumnOverrides",
       ),
 
     // Sort actions
-    setSort: (column) =>
+    setSort: (column: string) =>
       set(
         (state) => {
           if (state.sort?.column === column) {
@@ -184,7 +197,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
         "toggleCompactMode",
       ),
 
-    toggleSection: (id) =>
+    toggleSection: (id: string) =>
       set(
         (state) => {
           const idx = state.collapsedSections.indexOf(id);
@@ -198,7 +211,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
         "toggleSection",
       ),
 
-    setPanelWidth: (width) =>
+    setPanelWidth: (width: number) =>
       set(
         (state) => {
           state.panelWidth = width;
@@ -208,7 +221,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
       ),
 
     // Search actions (ephemeral)
-    setSearchChips: (chips) =>
+    setSearchChips: (chips: SearchChip[]) =>
       set(
         (state) => {
           state.searchChips = chips;
@@ -226,7 +239,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
         "addSearchChip",
       ),
 
-    removeSearchChip: (index) =>
+    removeSearchChip: (index: number) =>
       set(
         (state) => {
           state.searchChips.splice(index, 1);
@@ -245,20 +258,22 @@ export function createTableStore(options: CreateTableStoreOptions) {
       ),
 
     // Reset
-    reset: () => set(initialState, false, "reset"),
+    // Note: reset needs to set full state, so use type assertion
+    reset: () => set(() => initialState, false, "reset"),
   });
 
   // Create store with middleware stack: devtools → persist → immer
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return create<TableStore>()(
     devtools(
-      persist(immer(stateCreator), {
+      persist(immer(stateCreator as any), {
         name: storageKey,
         storage: createJSONStorage(() => localStorage),
         // Only persist these fields (exclude ephemeral state)
         partialize: (state) => ({
           visibleColumnIds: state.visibleColumnIds,
           columnOrder: state.columnOrder,
-          columnUserWidths: state.columnUserWidths,
+          columnOverrides: state.columnOverrides,
           sort: state.sort,
           compactMode: state.compactMode,
           collapsedSections: state.collapsedSections,
