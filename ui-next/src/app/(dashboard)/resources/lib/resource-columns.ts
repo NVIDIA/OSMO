@@ -58,11 +58,11 @@ export const COLUMN_LABELS: Record<ResourceColumnId, string> = {
  * Optional columns that can be toggled.
  */
 export const OPTIONAL_COLUMNS: { id: ResourceColumnId; label: string; menuLabel: string }[] = [
-  { id: "hostname", label: "Hostname", menuLabel: "Hostname" },
   { id: "type", label: "Type", menuLabel: "Type" },
   { id: "pools", label: "Pools", menuLabel: "Pools" },
   { id: "platform", label: "Platform", menuLabel: "Platform" },
   { id: "backend", label: "Backend", menuLabel: "Backend" },
+  { id: "hostname", label: "Hostname", menuLabel: "Hostname" },
   { id: "gpu", label: "GPU", menuLabel: "GPU" },
   { id: "cpu", label: "CPU", menuLabel: "CPU" },
   { id: "memory", label: "Memory", menuLabel: "Memory" },
@@ -75,7 +75,6 @@ export const OPTIONAL_COLUMNS: { id: ResourceColumnId; label: string; menuLabel:
 export const DEFAULT_VISIBLE_COLUMNS: ResourceColumnId[] = [
   "resource",
   "type",
-  "pools",
   "platform",
   "backend",
   "gpu",
@@ -126,11 +125,11 @@ export const DEFAULT_PANEL_WIDTH = 40;
  */
 export const RESOURCE_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   { id: "resource", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.PRIMARY },
-  { id: "hostname", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
   { id: "type", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
   { id: "pools", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.SECONDARY },
   { id: "platform", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
   { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
+  { id: "hostname", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
   { id: "gpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT, share: COLUMN_FLEX.NUMERIC },
   { id: "cpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT, share: COLUMN_FLEX.NUMERIC },
   { id: "memory", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },

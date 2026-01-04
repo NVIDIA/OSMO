@@ -16,7 +16,7 @@
  */
 
 import { faker } from "@faker-js/faker";
-import type { ResourcesEntry, BackendResourceType } from "@/lib/api/generated";
+import { BackendResourceType, type ResourcesEntry } from "@/lib/api/generated";
 
 import { MOCK_CONFIG, type ResourcePatterns } from "../seed";
 
@@ -108,11 +108,22 @@ export class ResourceGenerator {
     const platform = faker.helpers.arrayElement(MOCK_CONFIG.pools.platforms);
     const region = faker.helpers.arrayElement(MOCK_CONFIG.pools.regions);
 
+    // Determine resource type based on usage status
+    // - Fully used resources are typically RESERVED
+    // - Available resources are SHARED
+    // - Offline/cordoned are UNUSED
+    const resourceType: BackendResourceType =
+      statusKey === "OFFLINE" || statusKey === "CORDONED"
+        ? BackendResourceType.UNUSED
+        : gpuUsed === gpuTotal
+          ? BackendResourceType.RESERVED
+          : BackendResourceType.SHARED;
+
     // Build ResourcesEntry matching the generated type
     const resourceEntry: ResourcesEntry = {
       hostname,
       backend: "kubernetes",
-      resource_type: "gpu" as BackendResourceType,
+      resource_type: resourceType,
 
       // Exposed fields: contains node name and pool/platform mapping
       exposed_fields: {
