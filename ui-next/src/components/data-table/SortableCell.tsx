@@ -26,7 +26,7 @@ export const SortableCell = memo(function SortableCell({
   children,
   className,
   as: Component = "div",
-  width: propWidth,
+  width: cssVarWidth,
 }: SortableCellProps) {
   const {
     attributes,
@@ -38,9 +38,10 @@ export const SortableCell = memo(function SortableCell({
     node,
   } = useSortable({ id });
 
-  // Get current width to maintain during drag, or use prop width
-  const currentWidth = node.current?.offsetWidth;
-  const width = isDragging && currentWidth ? currentWidth : propWidth;
+  // During drag, use measured width (pixels) to prevent size jitter
+  // Otherwise, use the CSS variable for responsive sizing
+  const measuredWidth = node.current?.offsetWidth;
+  const width = isDragging && measuredWidth ? measuredWidth : cssVarWidth;
 
   const style: React.CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
@@ -48,13 +49,14 @@ export const SortableCell = memo(function SortableCell({
     zIndex: isDragging ? 10 : undefined,
     opacity: isDragging ? 0.8 : 1,
     width,
-    minWidth: propWidth,
-    maxWidth: propWidth,
+    minWidth: cssVarWidth,
+    flexShrink: 0, // Prevent shrinking below specified width
   };
 
   return (
     <Component
       ref={setNodeRef}
+      data-column-id={id}
       {...attributes}
       {...listeners}
       role={Component === "th" ? undefined : "columnheader"}

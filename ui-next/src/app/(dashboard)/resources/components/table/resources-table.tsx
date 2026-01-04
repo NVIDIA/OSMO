@@ -21,10 +21,13 @@ import { useMemo, useCallback } from "react";
 import { DataTable, type SortState } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
-import { MANDATORY_COLUMN_IDS, type ResourceColumnId } from "../../lib/resource-columns";
+import {
+  MANDATORY_COLUMN_IDS,
+  RESOURCE_COLUMN_SIZE_CONFIG,
+  type ResourceColumnId,
+} from "../../lib/resource-columns";
 import { createResourceColumns } from "../../lib/resource-table-columns";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
-import "../../styles/resources.css";
 
 // =============================================================================
 // Types
@@ -78,12 +81,14 @@ export function ResourcesTable({
   const displayMode = useSharedPreferences((s) => s.displayMode);
   const compactMode = useSharedPreferences((s) => s.compactMode);
 
-  // Table store (column visibility and order)
+  // Table store (column visibility, order, and overrides)
   const storeVisibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds) as ResourceColumnId[];
   const columnOrder = useResourcesTableStore((s) => s.columnOrder) as ResourceColumnId[];
   const setColumnOrder = useResourcesTableStore((s) => s.setColumnOrder);
   const sortState = useResourcesTableStore((s) => s.sort);
   const setSort = useResourcesTableStore((s) => s.setSort);
+  const columnOverrides = useResourcesTableStore((s) => s.columnOverrides);
+  const setColumnOverrides = useResourcesTableStore((s) => s.setColumnOverrides);
 
   // Merge showPoolsColumn prop with store visibility
   const effectiveVisibleIds = useMemo(() => {
@@ -121,6 +126,15 @@ export function ResourcesTable({
 
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
+
+  // Handle column overrides change from DataTable resize
+  // Receives the full overrides state from the DataTable
+  const handleColumnOverridesChange = useCallback(
+    (overrides: Record<string, { minWidthPx: number; share: number }>) => {
+      setColumnOverrides(overrides);
+    },
+    [setColumnOverrides],
+  );
 
   // Handle sort change - simply pass the column to the store
   // The store handles direction toggle internally
@@ -168,6 +182,10 @@ export function ResourcesTable({
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
+        // Column sizing (enables resizable columns)
+        columnSizeConfig={RESOURCE_COLUMN_SIZE_CONFIG}
+        columnOverrides={columnOverrides}
+        onColumnOverridesChange={handleColumnOverridesChange}
         // Sorting
         sorting={sortState as SortState<string>}
         onSortingChange={handleSortChange}
