@@ -538,7 +538,7 @@ function SmartSearchInner<T>({
       {/* Invisible backdrop to capture outside clicks without triggering underlying elements */}
       {shouldShowDropdown && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed-below-header z-40"
           onClick={(e) => {
             e.stopPropagation();
             closeDropdown();
