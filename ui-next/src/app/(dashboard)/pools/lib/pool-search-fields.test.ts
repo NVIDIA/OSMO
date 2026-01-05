@@ -203,9 +203,7 @@ describe("validateNumericFilter", () => {
 
   describe("options", () => {
     it("rejects percent when allowPercent is false", () => {
-      expect(validateNumericFilter(">=90%", { allowPercent: false })).toBe(
-        "Don't use % for this field"
-      );
+      expect(validateNumericFilter(">=90%", { allowPercent: false })).toBe("Don't use % for this field");
     });
 
     it("allows discrete when allowPercent is false", () => {
@@ -213,9 +211,7 @@ describe("validateNumericFilter", () => {
     });
 
     it("rejects discrete when allowDiscrete is false", () => {
-      expect(validateNumericFilter(">=90", { allowDiscrete: false })).toBe(
-        "Use % (e.g. >=90%)"
-      );
+      expect(validateNumericFilter(">=90", { allowDiscrete: false })).toBe("Use % (e.g. >=90%)");
     });
 
     it("allows percent when allowDiscrete is false", () => {

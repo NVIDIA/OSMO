@@ -29,13 +29,8 @@ import { useMemo, useCallback } from "react";
 import { DataTable, type SortState } from "@/components/data-table";
 import { useSharedPreferences, type DisplayMode } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
-import {
-  MANDATORY_COLUMN_IDS,
-  RESOURCE_COLUMN_SIZE_CONFIG,
-  asResourceColumnIds,
-  type ResourceColumnId,
-} from "../../lib/resource-columns";
-import { createResourceColumns } from "../../lib/resource-table-columns";
+import { MANDATORY_COLUMN_IDS, asResourceColumnIds, type ResourceColumnId } from "../../lib/resource-columns";
+import { createResourceColumns } from "../../lib/resource-column-defs";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 
 // =============================================================================
@@ -149,8 +144,17 @@ export function ResourcesTable({
   const setColumnOrder = useResourcesTableStore((s) => s.setColumnOrder);
   const sortState = useResourcesTableStore((s) => s.sort);
   const setSort = useResourcesTableStore((s) => s.setSort);
-  const columnOverrides = useResourcesTableStore((s) => s.columnOverrides);
+  const storeColumnOverrides = useResourcesTableStore((s) => s.columnOverrides);
   const setColumnOverrides = useResourcesTableStore((s) => s.setColumnOverrides);
+
+  // Convert store's ColumnOverrides to TanStack's ColumnSizingState (just pixel widths)
+  const columnSizing = useMemo(() => {
+    const sizing: Record<string, number> = {};
+    for (const [id, override] of Object.entries(storeColumnOverrides)) {
+      sizing[id] = override.minWidthPx;
+    }
+    return sizing;
+  }, [storeColumnOverrides]);
 
   // Merge showPoolsColumn prop with store visibility
   const effectiveVisibleIds = useMemo(() => {
@@ -189,10 +193,15 @@ export function ResourcesTable({
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
 
-  // Handle column overrides change from DataTable resize
-  // Receives the full overrides state from the DataTable
-  const handleColumnOverridesChange = useCallback(
-    (overrides: Record<string, { minWidthPx: number; share: number }>) => {
+  // Handle column sizing change - convert TanStack's format to store format
+  const handleColumnSizingChange = useCallback(
+    (sizing: Record<string, number>) => {
+      // Convert ColumnSizingState (just widths) to store's ColumnOverrides format
+      const overrides: Record<string, { minWidthPx: number; share: number }> = {};
+      for (const [id, width] of Object.entries(sizing)) {
+        // Store width with a default share (proportional to width / 100)
+        overrides[id] = { minWidthPx: width, share: width / 100 };
+      }
       setColumnOverrides(overrides);
     },
     [setColumnOverrides],
@@ -235,10 +244,9 @@ export function ResourcesTable({
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
-        // Column sizing (enables resizable columns)
-        columnSizeConfig={RESOURCE_COLUMN_SIZE_CONFIG}
-        columnOverrides={columnOverrides}
-        onColumnOverridesChange={handleColumnOverridesChange}
+        // Column sizing - TanStack handles via size/minSize on column defs
+        columnSizing={columnSizing}
+        onColumnSizingChange={handleColumnSizingChange}
         // Sorting
         sorting={sortState as SortState<string>}
         onSortingChange={handleSortChange}

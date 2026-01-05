@@ -84,18 +84,19 @@ export interface CreateColumnsOptions {
  */
 export function createResourceColumns({ displayMode }: CreateColumnsOptions): ColumnDef<Resource, unknown>[] {
   // Get minimum width from rem-based config (converted to pixels)
-  const getColumnMinSize = (id: ResourceColumnId): number => {
+  const getMinSize = (id: ResourceColumnId): number => {
     const col = RESOURCE_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
-    return col ? remToPx(col.minWidthRem) : 100;
+    return col ? remToPx(col.minWidthRem) : 80;
   };
 
+  // TanStack handles initial sizing (defaults to 150px per column)
+  // We only specify minSize to prevent columns from getting too small
   return [
     {
       id: "resource",
       accessorKey: "name",
       header: COLUMN_LABELS.resource,
-      size: getColumnMinSize("resource"),
-      minSize: getColumnMinSize("resource"),
+      minSize: getMinSize("resource"),
       cell: ({ getValue }) => <ResourceNameCell value={getValue() as string} />,
       meta: { align: "left" as const },
     },
@@ -103,8 +104,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "hostname",
       accessorKey: "hostname",
       header: COLUMN_LABELS.hostname,
-      size: getColumnMinSize("hostname"),
-      minSize: getColumnMinSize("hostname"),
+      minSize: getMinSize("hostname"),
       cell: ({ getValue }) => <TextCell value={getValue() as string} />,
       meta: { align: "left" as const },
     },
@@ -112,8 +112,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "type",
       accessorKey: "resourceType",
       header: COLUMN_LABELS.type,
-      size: getColumnMinSize("type"),
-      minSize: getColumnMinSize("type"),
+      minSize: getMinSize("type"),
       cell: ({ getValue }) => <ResourceTypeCell value={getValue() as string} />,
       meta: { align: "left" as const },
     },
@@ -121,8 +120,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "pools",
       accessorFn: (row) => row.poolMemberships[0]?.pool ?? "",
       header: COLUMN_LABELS.pools,
-      size: getColumnMinSize("pools"),
-      minSize: getColumnMinSize("pools"),
+      minSize: getMinSize("pools"),
       cell: ({ row }) => <PoolsCell resource={row.original} />,
       meta: { align: "left" as const },
     },
@@ -130,8 +128,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "platform",
       accessorKey: "platform",
       header: COLUMN_LABELS.platform,
-      size: getColumnMinSize("platform"),
-      minSize: getColumnMinSize("platform"),
+      minSize: getMinSize("platform"),
       cell: ({ getValue }) => <TextCell value={getValue() as string} />,
       meta: { align: "left" as const },
     },
@@ -139,8 +136,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "backend",
       accessorKey: "backend",
       header: COLUMN_LABELS.backend,
-      size: getColumnMinSize("backend"),
-      minSize: getColumnMinSize("backend"),
+      minSize: getMinSize("backend"),
       cell: ({ getValue }) => <TextCell value={getValue() as string} />,
       meta: { align: "left" as const },
     },
@@ -148,8 +144,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "gpu",
       accessorFn: (row) => (displayMode === "free" ? row.gpu.total - row.gpu.used : row.gpu.used),
       header: COLUMN_LABELS.gpu,
-      size: getColumnMinSize("gpu"),
-      minSize: getColumnMinSize("gpu"),
+      minSize: getMinSize("gpu"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
@@ -165,8 +160,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "cpu",
       accessorFn: (row) => (displayMode === "free" ? row.cpu.total - row.cpu.used : row.cpu.used),
       header: COLUMN_LABELS.cpu,
-      size: getColumnMinSize("cpu"),
-      minSize: getColumnMinSize("cpu"),
+      minSize: getMinSize("cpu"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
@@ -182,8 +176,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "memory",
       accessorFn: (row) => (displayMode === "free" ? row.memory.total - row.memory.used : row.memory.used),
       header: COLUMN_LABELS.memory,
-      size: getColumnMinSize("memory"),
-      minSize: getColumnMinSize("memory"),
+      minSize: getMinSize("memory"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
@@ -200,8 +193,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       id: "storage",
       accessorFn: (row) => (displayMode === "free" ? row.storage.total - row.storage.used : row.storage.used),
       header: COLUMN_LABELS.storage,
-      size: getColumnMinSize("storage"),
-      minSize: getColumnMinSize("storage"),
+      minSize: getMinSize("storage"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell

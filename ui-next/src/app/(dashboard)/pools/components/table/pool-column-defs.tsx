@@ -48,13 +48,13 @@ export interface CreatePoolColumnsOptions {
 }
 
 // =============================================================================
-// Helper
+// Helpers
 // =============================================================================
 
 /** Get column minimum size from rem-based config */
-function getColumnMinSize(id: PoolColumnId): number {
+function getMinSize(id: PoolColumnId): number {
   const col = POOL_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
-  return col ? remToPx(col.minWidthRem) : 100;
+  return col ? remToPx(col.minWidthRem) : 80;
 }
 
 // =============================================================================
@@ -75,27 +75,24 @@ export function createPoolColumns({
   sharingMap,
   filterBySharedPoolsMap,
 }: CreatePoolColumnsOptions): ColumnDef<Pool, unknown>[] {
+  // TanStack handles initial sizing (defaults to 150px per column)
+  // We only specify minSize to prevent columns from getting too small
   return [
-    // Name column (mandatory)
     {
       id: "name",
       accessorKey: "name",
       header: COLUMN_LABELS.name,
-      size: getColumnMinSize("name"),
-      minSize: getColumnMinSize("name"),
+      minSize: getMinSize("name"),
       enableSorting: true,
       cell: ({ getValue }) => (
         <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{getValue() as string}</span>
       ),
     },
-
-    // Status column
     {
       id: "status",
       accessorKey: "status",
       header: COLUMN_LABELS.status,
-      size: getColumnMinSize("status"),
-      minSize: getColumnMinSize("status"),
+      minSize: getMinSize("status"),
       enableSorting: true,
       cell: ({ row }) => {
         const { category, label } = getStatusDisplay(row.original.status);
@@ -108,27 +105,21 @@ export function createPoolColumns({
         );
       },
     },
-
-    // Description column
     {
       id: "description",
       accessorKey: "description",
       header: COLUMN_LABELS.description,
-      size: getColumnMinSize("description"),
-      minSize: getColumnMinSize("description"),
+      minSize: getMinSize("description"),
       enableSorting: false,
       cell: ({ getValue }) => (
         <span className="truncate text-zinc-500 dark:text-zinc-400">{(getValue() as string) || "—"}</span>
       ),
     },
-
-    // Quota column (GPU quota)
     {
       id: "quota",
       accessorFn: (row) => row.quota.used,
       header: COLUMN_LABELS.quota,
-      size: getColumnMinSize("quota"),
-      minSize: getColumnMinSize("quota"),
+      minSize: getMinSize("quota"),
       enableSorting: true,
       cell: ({ row }) => (
         <GpuProgressCell
@@ -139,14 +130,11 @@ export function createPoolColumns({
         />
       ),
     },
-
-    // Capacity column (GPU capacity with sharing indicator)
     {
       id: "capacity",
       accessorFn: (row) => row.quota.totalUsage,
       header: COLUMN_LABELS.capacity,
-      size: getColumnMinSize("capacity"),
-      minSize: getColumnMinSize("capacity"),
+      minSize: getMinSize("capacity"),
       enableSorting: true,
       cell: ({ row }) => {
         const pool = row.original;
@@ -165,25 +153,19 @@ export function createPoolColumns({
         );
       },
     },
-
-    // Platforms column
     {
       id: "platforms",
       accessorFn: (row) => row.platforms.join(", "),
       header: COLUMN_LABELS.platforms,
-      size: getColumnMinSize("platforms"),
-      minSize: getColumnMinSize("platforms"),
+      minSize: getMinSize("platforms"),
       enableSorting: false,
       cell: ({ row }) => <PlatformPills platforms={row.original.platforms} />,
     },
-
-    // Backend column
     {
       id: "backend",
       accessorKey: "backend",
       header: COLUMN_LABELS.backend,
-      size: getColumnMinSize("backend"),
-      minSize: getColumnMinSize("backend"),
+      minSize: getMinSize("backend"),
       enableSorting: true,
       cell: ({ getValue }) => (
         <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{getValue() as string}</span>
