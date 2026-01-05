@@ -143,6 +143,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   );
 
   // Create virtualizer with stable callbacks
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns unstable functions by design. React Compiler skips optimization. See: https://github.com/facebook/react/issues/33057
   const virtualizer = useVirtualizer({
     count: virtualItems.length,
     getScrollElement: () => scrollRef.current,
@@ -241,7 +242,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   // Scroll to a specific index
   const scrollToIndex = useCallback(
     (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => {
-      virtualizer.scrollToIndex(index, { 
+      virtualizer.scrollToIndex(index, {
         align: options?.align ?? "auto",
         behavior: "auto", // instant for keyboard nav
       });

@@ -245,6 +245,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Create TanStack table instance
   // manualSorting: true means we control sorting via props (server-side or external)
   // No getSortedRowModel needed since we don't use TanStack's sorting
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design. React Compiler skips optimization. See: https://github.com/facebook/react/issues/33057
   const table = useReactTable({
     data: allItems,
     columns,
