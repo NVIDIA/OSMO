@@ -7,7 +7,7 @@
 
 import { getAuthToken, refreshToken, isTokenExpiringSoon } from "@/lib/auth";
 import { TOKEN_REFRESH_THRESHOLD_SECONDS } from "@/lib/config";
-import { Headers as AuthHeaders } from "@/lib/constants/headers";
+import { Headers as AuthHeaders } from "./headers";
 
 interface RequestConfig {
   url: string;

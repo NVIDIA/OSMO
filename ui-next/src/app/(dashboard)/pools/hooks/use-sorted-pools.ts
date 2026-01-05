@@ -20,7 +20,7 @@
 
 import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
-import type { SortState } from "@/lib/table";
+import type { SortState } from "@/components/data-table";
 import type { PoolColumnId } from "../lib/pool-columns";
 
 // =============================================================================
