@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fetchPaginatedResources, invalidateResourcesCache, _getCacheState } from "@/lib/api/adapter/pagination";
+import { fetchPaginatedResources, invalidateResourcesCache, _getCacheState } from "@/lib/api/adapter/resources-shim";
 
 // =============================================================================
 // Test fixtures

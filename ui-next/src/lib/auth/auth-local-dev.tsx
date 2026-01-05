@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { COPY_FEEDBACK_DURATION_MS, getApiHostname, isSslEnabled } from "@/lib/config";
-import { StorageKeys } from "@/lib/constants/storage";
+import { StorageKeys } from "./storage-keys";
 import { storeTokens, refreshStoredToken } from "./token-storage";
 import { parseJwtClaims, isTokenExpired } from "./token-utils";
 import { ThemeToggle } from "@/components/theme-toggle";

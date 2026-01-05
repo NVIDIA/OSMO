@@ -22,7 +22,7 @@ import { memo } from "react";
 import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
-import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
+import { getResourceAllocationTypeDisplay } from "../../lib/constants";
 import { PanelHeaderActions } from "@/components/panel";
 
 export interface ResourcePanelHeaderProps {

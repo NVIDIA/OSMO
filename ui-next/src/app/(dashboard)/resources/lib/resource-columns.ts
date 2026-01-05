@@ -8,7 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "@/lib/table-columns";
+import { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "@/components/data-table";
 import type { ColumnSizeConfig } from "@/components/data-table";
 
 export type ResourceColumnId =
