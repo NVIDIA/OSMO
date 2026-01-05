@@ -10,7 +10,7 @@
 
 "use client";
 
-import { memo, useLayoutEffect, useState } from "react";
+import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import type { SortableCellProps } from "./types";
@@ -36,30 +36,15 @@ export const SortableCell = memo(function SortableCell({
     transform,
     transition,
     isDragging,
-    node,
   } = useSortable({ id });
 
-  // Track measured width in state to avoid reading refs during render
-  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
-
-  // Measure width before drag starts to prevent size jitter during drag
-  useLayoutEffect(() => {
-    if (isDragging && node.current && !measuredWidth) {
-      setMeasuredWidth(node.current.offsetWidth);
-    } else if (!isDragging && measuredWidth) {
-      setMeasuredWidth(null);
-    }
-  }, [isDragging, node, measuredWidth]);
-
-  // During drag, use measured width (pixels) to prevent size jitter
-  const width = isDragging && measuredWidth ? measuredWidth : cssVarWidth;
-
+  // Style uses CSS variable width; minWidth and flexShrink prevent size jitter during drag
   const style: React.CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
     transition,
     zIndex: isDragging ? 10 : undefined,
     opacity: isDragging ? 0.8 : 1,
-    width,
+    width: cssVarWidth,
     minWidth: cssVarWidth,
     flexShrink: 0, // Prevent shrinking below specified width
   };
