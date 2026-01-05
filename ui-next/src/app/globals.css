@@ -14,6 +14,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Shell layout spacing */
+  --spacing-shell-header: var(--shell-header-height);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -57,6 +60,9 @@
 }
 
 :root {
+  /* Shell Layout */
+  --shell-header-height: 3.5rem;
+
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -240,6 +246,19 @@
   transform: translateZ(0);
   backface-visibility: hidden;
   perspective: 1000px;
+}
+
+/* =============================================================================
+   Shell Layout Utilities
+   Fixed positioning constrained to page area (below header, right of sidebar)
+   ============================================================================= */
+
+/* Fixed overlay that covers only the page content area (not shell header/sidebar) */
+/* Note: Shell uses contain:layout, so fixed is relative to content column */
+.fixed-below-header {
+  position: fixed;
+  inset: 0;
+  top: var(--shell-header-height);
 }
 
 /* CSS Containment - isolate layout/paint calculations */
