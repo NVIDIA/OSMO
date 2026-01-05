@@ -6,7 +6,7 @@
  */
 
 import { isLocalDev } from "@/lib/config";
-import { StorageKeys } from "@/lib/constants/storage";
+import { StorageKeys } from "./storage-keys";
 import { getAuthBackend } from "./auth-backend";
 
 const ID_TOKEN_KEY = StorageKeys.ID_TOKEN;
