@@ -15,6 +15,7 @@
 
 import { setupWorker } from "msw/browser";
 import { handlers } from "./handlers";
+import { MOCK_ENABLED_STORAGE_KEY } from "./MockProvider";
 
 export const worker = setupWorker(...handlers);
 
@@ -25,7 +26,7 @@ export const worker = setupWorker(...handlers);
 export async function initMocking(): Promise<void> {
   const useMock =
     process.env.NEXT_PUBLIC_MOCK_API === "true" ||
-    (typeof window !== "undefined" && localStorage.getItem("osmo_use_mock_data") === "true");
+    (typeof window !== "undefined" && localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true");
 
   if (!useMock) {
     return;

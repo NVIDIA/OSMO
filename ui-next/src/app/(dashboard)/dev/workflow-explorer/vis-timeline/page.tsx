@@ -452,8 +452,6 @@ export default function VisTimelinePage() {
       timeline.destroy();
       timelineRef.current = null;
     };
-    // Use stable deps - items.length and groups.length instead of arrays
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted, items.length, groups.length, showNestedTasks, timeBounds.min.getTime(), timeBounds.max.getTime()]);
 
   // Fit timeline to show all items
