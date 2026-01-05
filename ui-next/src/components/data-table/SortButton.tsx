@@ -22,7 +22,6 @@ import type { SortButtonProps } from "./types";
  * Can be used in both mandatory (static) and optional (draggable) columns.
  */
 export const SortButton = memo(function SortButton({
-  id,
   label,
   align = "left",
   sortable = true,

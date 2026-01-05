@@ -39,7 +39,7 @@ import { TABLE_ROW_HEIGHT } from "../../constants";
 import { formatDuration } from "../../../workflow-types";
 import { getStatusIconCompact } from "../../utils/status";
 import type { TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn } from "../../types/table";
-import { COLUMN_MAP, MANDATORY_COLUMNS, MANDATORY_COLUMN_IDS, getGridTemplate, getMinTableWidth } from "./column-config";
+import { COLUMN_MAP, MANDATORY_COLUMN_IDS, getGridTemplate, getMinTableWidth } from "./column-config";
 
 // ============================================================================
 // Helpers
