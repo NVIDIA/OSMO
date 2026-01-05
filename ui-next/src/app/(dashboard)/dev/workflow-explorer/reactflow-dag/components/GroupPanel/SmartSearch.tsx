@@ -801,7 +801,7 @@ export const SmartSearch = memo(function SmartSearch({
           }}
           onKeyDown={handleKeyDown}
           placeholder={chips.length === 0 ? placeholder : "Add filter..."}
-          className="min-w-[7.5rem] flex-1 bg-transparent text-gray-900 dark:text-zinc-200 outline-none placeholder:text-gray-400 dark:placeholder:text-zinc-500"
+          className="min-w-[7.5rem] flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-zinc-200 dark:placeholder:text-zinc-500"
         />
       </div>
 
@@ -811,7 +811,7 @@ export const SmartSearch = memo(function SmartSearch({
           className="dag-dropdown absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-auto overscroll-contain rounded-md border border-gray-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
         >
           {inputValue === "" && (
-            <div className="border-b border-gray-200 dark:border-zinc-700 p-2">
+            <div className="border-b border-gray-200 p-2 dark:border-zinc-700">
               <div className="flex flex-wrap gap-1.5">
                 {STATE_CATEGORY_NAMES.map((state) => {
                   const statusesInCategory = [...STATE_CATEGORIES[state]];
@@ -861,7 +861,7 @@ export const SmartSearch = memo(function SmartSearch({
             item.type === "hint" ? (
               <div
                 key={`${item.type}-${index}`}
-                className="px-3 py-2 text-sm italic text-gray-500 dark:text-zinc-400"
+                className="px-3 py-2 text-sm text-gray-500 italic dark:text-zinc-400"
               >
                 {item.display}
               </div>
@@ -905,9 +905,9 @@ export const SmartSearch = memo(function SmartSearch({
             ),
           )}
           {inputValue && (
-            <div className="border-t border-gray-200 dark:border-zinc-700 px-3 py-2 text-xs text-gray-500 dark:text-zinc-400">
-              Press <kbd className="rounded bg-gray-200 dark:bg-zinc-700 px-1">Enter</kbd> to add filter,{" "}
-              <kbd className="rounded bg-gray-200 dark:bg-zinc-700 px-1">Esc</kbd> to close
+            <div className="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+              Press <kbd className="rounded bg-gray-200 px-1 dark:bg-zinc-700">Enter</kbd> to add filter,{" "}
+              <kbd className="rounded bg-gray-200 px-1 dark:bg-zinc-700">Esc</kbd> to close
             </div>
           )}
         </div>

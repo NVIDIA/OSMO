@@ -74,7 +74,7 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
             >
               {copied ? (
                 <span data-testid="copy-success">
-                  <Check className="h-3 w-3 text-green-500 inline mr-1" />
+                  <Check className="mr-1 inline h-3 w-3 text-green-500" />
                   <span className="text-green-500">Copied</span>
                 </span>
               ) : (

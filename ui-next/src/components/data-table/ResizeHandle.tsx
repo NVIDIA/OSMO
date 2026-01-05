@@ -119,11 +119,11 @@ export const ResizeHandle = memo(function ResizeHandle({
     <div
       className={cn(
         "resize-handle",
-        "absolute right-0 top-0 bottom-0 z-10",
+        "absolute top-0 right-0 bottom-0 z-10",
         "w-2 cursor-col-resize",
         "touch-none select-none",
         // Visual indicator
-        "after:absolute after:right-0.5 after:top-1/4 after:bottom-1/4 after:w-0.5",
+        "after:absolute after:top-1/4 after:right-0.5 after:bottom-1/4 after:w-0.5",
         "after:rounded-full after:bg-transparent after:transition-colors",
         "hover:after:bg-zinc-400 dark:hover:after:bg-zinc-500",
         // Focus visible ring for keyboard navigation

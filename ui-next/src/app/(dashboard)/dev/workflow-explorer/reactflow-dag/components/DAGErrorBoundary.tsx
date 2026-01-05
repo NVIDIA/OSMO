@@ -52,7 +52,7 @@ export class DAGErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div
-          className="flex-1 flex flex-col items-center justify-center gap-4 p-8 bg-gray-50 dark:bg-zinc-950"
+          className="flex flex-1 flex-col items-center justify-center gap-4 bg-gray-50 p-8 dark:bg-zinc-950"
           role="alert"
           aria-live="assertive"
         >
@@ -63,16 +63,16 @@ export class DAGErrorBoundary extends Component<Props, State> {
             />
             <h2 className="text-xl font-semibold">Visualization Error</h2>
           </div>
-          <p className="text-gray-500 dark:text-zinc-400 text-center max-w-md">
+          <p className="max-w-md text-center text-gray-500 dark:text-zinc-400">
             The DAG visualization encountered an error. This might be due to invalid workflow data or a layout
             calculation failure.
           </p>
           {this.state.error && (
-            <details className="text-sm text-gray-500 dark:text-zinc-500 max-w-lg">
+            <details className="max-w-lg text-sm text-gray-500 dark:text-zinc-500">
               <summary className="cursor-pointer hover:text-gray-700 dark:hover:text-zinc-400">
                 Technical details
               </summary>
-              <pre className="mt-2 p-3 bg-gray-100 dark:bg-zinc-900 rounded-lg overflow-auto text-xs">
+              <pre className="mt-2 overflow-auto rounded-lg bg-gray-100 p-3 text-xs dark:bg-zinc-900">
                 {this.state.error.message}
               </pre>
             </details>
@@ -83,7 +83,7 @@ export class DAGErrorBoundary extends Component<Props, State> {
             className="mt-4"
           >
             <RefreshCw
-              className="h-4 w-4 mr-2"
+              className="mr-2 h-4 w-4"
               aria-hidden="true"
             />
             Try Again

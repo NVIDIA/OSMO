@@ -34,7 +34,7 @@ export function Header() {
       {/* Left: Breadcrumbs and Title */}
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-1.5 min-w-0"
+        className="flex min-w-0 items-center gap-1.5"
       >
         {/* Home link */}
         <Link

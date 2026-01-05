@@ -207,7 +207,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
                         type="button"
                         aria-label={markerLabel}
                         className={cn(
-                          "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
+                          "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
                           phase.status === "completed" && "timeline-marker-completed",
                           phase.status === "active" && "timeline-marker-running animate-pulse",
                           phase.status === "pending" && "timeline-marker-pending border-dashed",
@@ -243,7 +243,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
                           type="button"
                           aria-label={`${isCompleted ? "Completed" : "Failed"}${endTime ? `: ${formatTimeFull(endTime)}` : ""}`}
                           className={cn(
-                            "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
+                            "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
                             isCompleted && "timeline-marker-completed",
                             isFailed && "timeline-marker-failed",
                           )}
@@ -265,7 +265,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
             {/* Running indicator (animated end) - no tooltip needed, "now" label below is clear */}
             {isRunning && (
               <div
-                className="relative z-10 size-2.5 shrink-0 rounded-full border-2 timeline-marker-running animate-pulse"
+                className="timeline-marker-running relative z-10 size-2.5 shrink-0 animate-pulse rounded-full border-2"
                 aria-hidden="true"
               />
             )}
@@ -323,7 +323,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
             })}
             {isRunning && (
               <div className="flex flex-col">
-                <span className="text-[10px] font-medium timeline-text-running">now</span>
+                <span className="timeline-text-running text-[10px] font-medium">now</span>
               </div>
             )}
           </div>
