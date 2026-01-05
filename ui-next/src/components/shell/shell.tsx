@@ -25,17 +25,11 @@ interface ShellProps {
  */
 export const Shell = memo(function Shell({ children }: ShellProps) {
   return (
-    <div
-      className="flex h-screen overflow-hidden bg-white dark:bg-zinc-950"
-      style={{
-        // Prevent layout thrashing from child elements
-        contain: "layout",
-      }}
-    >
+    <div className="flex h-screen overflow-hidden bg-white contain-layout dark:bg-zinc-950">
       {/* Skip to main content link - WCAG 2.1 bypass block */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:bg-[var(--nvidia-green)] focus:px-4 focus:py-2 focus:text-black focus:outline-none"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:bg-nvidia focus:px-4 focus:py-2 focus:text-black focus:outline-none"
       >
         Skip to main content
       </a>
@@ -44,10 +38,7 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
       <Sidebar />
 
       {/* Main area - flex container with isolated layout */}
-      <div
-        className="flex flex-1 flex-col overflow-hidden"
-        style={{ contain: "layout" }}
-      >
+      <div className="flex flex-1 flex-col overflow-hidden contain-layout">
         {/* Header */}
         <Header />
 
@@ -55,13 +46,8 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 overflow-auto bg-zinc-50 p-6 dark:bg-zinc-900 scroll-optimized"
+          className="flex-1 overflow-auto overscroll-contain bg-zinc-50 p-6 scroll-optimized dark:bg-zinc-900"
           aria-label="Main content"
-          style={{
-            // Optimized scrolling
-            overscrollBehavior: "contain",
-            WebkitOverflowScrolling: "touch",
-          }}
         >
           <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
         </main>

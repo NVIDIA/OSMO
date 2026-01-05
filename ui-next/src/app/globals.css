@@ -17,39 +17,80 @@
   /* Shell layout spacing */
   --spacing-shell-header: var(--shell-header-height);
 
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Typography */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+
+  /* ==========================================================================
+     Semantic Design Tokens
+     Use these for consistent theming across components
+     ========================================================================== */
+
+  /* Core semantic colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+
+  /* UI element colors */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Chart colors */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar colors */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ==========================================================================
+     NVIDIA Brand Colors
+     Available as: bg-nvidia, text-nvidia-dark, border-nvidia-light, etc.
+     ========================================================================== */
+  --color-nvidia: var(--nvidia-green);
+  --color-nvidia-dark: var(--nvidia-green-dark);
+  --color-nvidia-light: var(--nvidia-green-light);
+  --color-nvidia-bg: var(--nvidia-green-bg);
+  --color-nvidia-bg-dark: var(--nvidia-green-bg-dark);
+
+  /* ==========================================================================
+     Status Colors (Semantic)
+     Available as: bg-success, text-warning, border-danger, etc.
+     ========================================================================== */
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+  --color-danger: var(--status-danger);
+
+  /* Status background variants (for badges, alerts, etc.) */
+  --color-success-bg: var(--status-success-bg);
+  --color-warning-bg: var(--status-warning-bg);
+  --color-danger-bg: var(--status-danger-bg);
+
+  /* ==========================================================================
+     Border Radius Scale
+     ========================================================================== */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -107,6 +148,11 @@
   --status-success: oklch(0.7 0.15 145);
   --status-warning: oklch(0.75 0.15 75);
   --status-danger: oklch(0.65 0.2 25);
+
+  /* Status background colors (light mode) */
+  --status-success-bg: oklch(0.95 0.05 145);
+  --status-warning-bg: oklch(0.95 0.05 85);
+  --status-danger-bg: oklch(0.95 0.05 25);
 }
 
 .dark {
@@ -148,6 +194,11 @@
   --nvidia-green-light: #9ed439;
   --nvidia-green-bg: #f3f9e8;
   --nvidia-green-bg-dark: #1a2e0a;
+
+  /* Status background colors (dark mode) */
+  --status-success-bg: oklch(0.25 0.05 145);
+  --status-warning-bg: oklch(0.25 0.05 85);
+  --status-danger-bg: oklch(0.25 0.05 25);
 }
 
 @layer base {
@@ -168,129 +219,150 @@
 }
 
 /* =============================================================================
-   PERFORMANCE OPTIMIZATION UTILITIES
-   Minimum reflow, GPU acceleration, CSS containment
+   TAILWIND UTILITY EXTENSIONS
+   Custom utilities integrated with Tailwind's cascade
    ============================================================================= */
 
-/* Utility class to hide scrollbars while maintaining scroll functionality */
-.scrollbar-none {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
+@layer utilities {
+  /* Hide scrollbars while maintaining scroll functionality */
+  .scrollbar-none {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
 
-/* =============================================================================
-   Styled Scrollbars - Subtle, elegant scrollbars for scroll containers
-   ============================================================================= */
-
-.scrollbar-styled {
-  scrollbar-width: thin;
-  /* Firefox: thumb color, track color */
-  scrollbar-color: rgba(161, 161, 170, 0.5) rgba(244, 244, 245, 0.5);
+    &::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+  }
 }
 
-.dark .scrollbar-styled {
-  scrollbar-color: rgba(161, 161, 170, 0.4) rgba(39, 39, 42, 0.5);
+@layer utilities {
+  /* ==========================================================================
+     Styled Scrollbars - Subtle, elegant scrollbars for scroll containers
+     ========================================================================== */
+  .scrollbar-styled {
+    scrollbar-width: thin;
+    /* Firefox: thumb color, track color */
+    scrollbar-color: theme(colors.zinc.400 / 50%) theme(colors.zinc.100 / 60%);
+
+    /* Webkit (Chrome, Safari, Edge) */
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: theme(colors.zinc.100 / 60%);
+      border-radius: 5px;
+      margin: 2px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: theme(colors.zinc.400 / 50%);
+      border-radius: 5px;
+      border: 2px solid theme(colors.zinc.100 / 60%);
+      transition: background 0.15s ease;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: theme(colors.zinc.500 / 70%);
+    }
+
+    &::-webkit-scrollbar-corner {
+      background: theme(colors.zinc.100 / 60%);
+      border-radius: 5px;
+    }
+
+    /* Dark mode variants using Tailwind's dark selector */
+    :is(.dark &) {
+      scrollbar-color: theme(colors.zinc.500 / 40%) theme(colors.zinc.800 / 50%);
+
+      &::-webkit-scrollbar-track {
+        background: theme(colors.zinc.800 / 60%);
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: theme(colors.zinc.500 / 50%);
+        border-color: theme(colors.zinc.800 / 60%);
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: theme(colors.zinc.400 / 60%);
+      }
+
+      &::-webkit-scrollbar-corner {
+        background: theme(colors.zinc.800 / 60%);
+      }
+    }
+  }
+
+  /* GPU-accelerated transform layer - prevents layout thrashing */
+  .gpu-layer {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
 }
 
-/* Webkit (Chrome, Safari, Edge) */
-.scrollbar-styled::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+@layer utilities {
+  /* ==========================================================================
+     Shell Layout Utilities
+     Fixed positioning constrained to page area (below header, right of sidebar)
+     ========================================================================== */
+
+  /* Fixed overlay that covers only the page content area (not shell header/sidebar) */
+  /* Note: Shell uses contain:layout, so fixed is relative to content column */
+  .fixed-below-header {
+    position: fixed;
+    inset: 0;
+    top: var(--shell-header-height);
+  }
+
+  /* ==========================================================================
+     CSS Containment - Isolate layout/paint calculations for performance
+     Use these to prevent layout thrashing from child elements
+     ========================================================================== */
+  .contain-strict {
+    contain: strict;
+  }
+
+  .contain-layout {
+    contain: layout;
+  }
+
+  .contain-layout-style {
+    contain: layout style;
+  }
+
+  .contain-layout-paint {
+    contain: layout paint;
+  }
+
+  .contain-layout-style-paint {
+    contain: layout style paint;
+  }
+
+  .contain-paint {
+    contain: paint;
+  }
+
+  .contain-content {
+    contain: content;
+  }
+
+  /* Content visibility for lazy rendering - massive perf win for off-screen content */
+  .content-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+  }
+
+  /* Optimized animations - use transform/opacity only (no layout triggers) */
+  .animate-gpu {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+  }
 }
 
-.scrollbar-styled::-webkit-scrollbar-track {
-  background: rgba(244, 244, 245, 0.6);
-  border-radius: 5px;
-  margin: 2px;
-}
-
-.scrollbar-styled::-webkit-scrollbar-thumb {
-  background: rgba(161, 161, 170, 0.5);
-  border-radius: 5px;
-  border: 2px solid rgba(244, 244, 245, 0.6);
-  transition: background 0.15s ease;
-}
-
-.scrollbar-styled::-webkit-scrollbar-thumb:hover {
-  background: rgba(113, 113, 122, 0.7);
-}
-
-.scrollbar-styled::-webkit-scrollbar-corner {
-  background: rgba(244, 244, 245, 0.6);
-  border-radius: 5px;
-}
-
-/* Dark mode */
-.dark .scrollbar-styled::-webkit-scrollbar-track {
-  background: rgba(39, 39, 42, 0.6);
-}
-
-.dark .scrollbar-styled::-webkit-scrollbar-thumb {
-  background: rgba(113, 113, 122, 0.5);
-  border-color: rgba(39, 39, 42, 0.6);
-}
-
-.dark .scrollbar-styled::-webkit-scrollbar-thumb:hover {
-  background: rgba(161, 161, 170, 0.6);
-}
-
-.dark .scrollbar-styled::-webkit-scrollbar-corner {
-  background: rgba(39, 39, 42, 0.6);
-}
-
-/* GPU-accelerated transform layer - prevents layout thrashing */
-.gpu-layer {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
-}
-
-/* =============================================================================
-   Shell Layout Utilities
-   Fixed positioning constrained to page area (below header, right of sidebar)
-   ============================================================================= */
-
-/* Fixed overlay that covers only the page content area (not shell header/sidebar) */
-/* Note: Shell uses contain:layout, so fixed is relative to content column */
-.fixed-below-header {
-  position: fixed;
-  inset: 0;
-  top: var(--shell-header-height);
-}
-
-/* CSS Containment - isolate layout/paint calculations */
-.contain-strict {
-  contain: strict;
-}
-
-.contain-layout {
-  contain: layout;
-}
-
-.contain-paint {
-  contain: paint;
-}
-
-.contain-content {
-  contain: content;
-}
-
-/* Content visibility for lazy rendering - massive perf win for off-screen content */
-.content-auto {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 500px;
-}
-
-/* Optimized animations - use transform/opacity only (no layout triggers) */
-.animate-gpu {
-  will-change: transform, opacity;
-  transform: translateZ(0);
-}
-
-/* Skeleton loading with GPU acceleration */
+/* Skeleton shimmer animation - defined outside @layer for keyframes */
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -300,127 +372,109 @@
   }
 }
 
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    theme(colors.zinc.200) 0%,
-    theme(colors.zinc.100) 50%,
-    theme(colors.zinc.200) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite ease-in-out;
-  will-change: background-position;
-}
-
-.dark .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    theme(colors.zinc.800) 0%,
-    theme(colors.zinc.700) 50%,
-    theme(colors.zinc.800) 100%
-  );
-  background-size: 200% 100%;
-}
-
-/* Prevent layout shift during interactions */
-.stable-layout {
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Optimized scrolling container */
-.scroll-optimized {
-  overflow-anchor: none;
-  overscroll-behavior: contain;
-  scroll-behavior: smooth;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scroll-optimized {
-    scroll-behavior: auto;
-  }
+@layer utilities {
+  /* Skeleton loading with GPU acceleration */
   .skeleton-shimmer {
-    animation: none;
+    background: linear-gradient(
+      90deg,
+      theme(colors.zinc.200) 0%,
+      theme(colors.zinc.100) 50%,
+      theme(colors.zinc.200) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite ease-in-out;
+    will-change: background-position;
+
+    :is(.dark &) {
+      background: linear-gradient(
+        90deg,
+        theme(colors.zinc.800) 0%,
+        theme(colors.zinc.700) 50%,
+        theme(colors.zinc.800) 100%
+      );
+      background-size: 200% 100%;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
   }
-}
 
-/* Virtualized list item - optimized for transform positioning */
-.virtual-item {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  contain: layout style;
-  will-change: transform;
-}
-
-/* Prevent text rendering jank on hover */
-.text-stable {
-  font-synthesis: none;
-  text-size-adjust: 100%;
-}
-
-/* Optimized table cells - prevent width recalculation */
-.table-fixed-layout {
-  table-layout: fixed;
-}
-
-/* Reduce paint operations for frequently updated elements */
-.isolate-layer {
-  isolation: isolate;
-}
-
-/* Preload critical interactions */
-@media (hover: hover) {
-  .preload-hover:hover {
-    will-change: background-color, color, border-color;
+  /* Prevent layout shift during interactions */
+  .stable-layout {
+    min-height: 0;
+    overflow: hidden;
   }
-}
 
-/* Focus-visible optimization - only show focus ring for keyboard navigation */
-.focus-optimized:focus {
-  outline: none;
-}
+  /* Optimized scrolling container */
+  .scroll-optimized {
+    overflow-anchor: none;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
 
-.focus-optimized:focus-visible {
-  outline: 2px solid var(--nvidia-green);
-  outline-offset: 2px;
+    @media (prefers-reduced-motion: reduce) {
+      scroll-behavior: auto;
+    }
+  }
+
+  /* Virtualized list item - optimized for transform positioning */
+  .virtual-item {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    contain: layout style;
+    will-change: transform;
+  }
+
+  /* Prevent text rendering jank on hover */
+  .text-stable {
+    font-synthesis: none;
+    text-size-adjust: 100%;
+  }
+
+  /* Optimized table cells - prevent width recalculation */
+  .table-fixed-layout {
+    table-layout: fixed;
+  }
+
+  /* Reduce paint operations for frequently updated elements */
+  .isolate-layer {
+    isolation: isolate;
+  }
+
+  /* Preload critical interactions */
+  @media (hover: hover) {
+    .preload-hover:hover {
+      will-change: background-color, color, border-color;
+    }
+  }
+
+  /* Focus-visible optimization - only show focus ring for keyboard navigation */
+  .focus-nvidia {
+    &:focus {
+      outline: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--nvidia-green);
+      outline-offset: 2px;
+    }
+  }
 }
 
 /* =============================================================================
-   PURE CSS SPINNER
-   GPU-accelerated, no JavaScript, minimal repaints
+   COMPONENT STYLES
+   Reusable CSS components using @layer components
    ============================================================================= */
 
+/* Animation keyframes - defined outside layers for reuse */
 @keyframes css-spinner {
   to {
     transform: rotate(360deg);
   }
 }
 
-.css-spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: css-spinner 0.6s linear infinite;
-  will-change: transform;
-}
-
-.css-spinner-sm {
-  width: 0.75rem;
-  height: 0.75rem;
-  border-width: 1.5px;
-}
-
-.css-spinner-lg {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-width: 3px;
-}
-
-/* Pulsing dot loader - ultra lightweight alternative */
 @keyframes pulse-dot {
   0%,
   100% {
@@ -433,28 +487,6 @@
   }
 }
 
-.pulse-loader {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.pulse-loader > span {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 50%;
-  background: currentColor;
-  animation: pulse-dot 1s ease-in-out infinite;
-}
-
-.pulse-loader > span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.pulse-loader > span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-/* Shake animation for validation errors */
 @keyframes shake {
   0%,
   100% {
@@ -475,6 +507,54 @@
   }
 }
 
-.animate-shake {
-  animation: shake 0.4s ease-in-out;
+@layer components {
+  /* ==========================================================================
+     CSS Spinner - GPU-accelerated, no JavaScript, minimal repaints
+     Usage: <div class="css-spinner" /> or css-spinner-sm/css-spinner-lg
+     ========================================================================== */
+  .css-spinner {
+    @apply size-4 rounded-full;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: css-spinner 0.6s linear infinite;
+    will-change: transform;
+  }
+
+  .css-spinner-sm {
+    @apply size-3;
+    border-width: 1.5px;
+  }
+
+  .css-spinner-lg {
+    @apply size-6;
+    border-width: 3px;
+  }
+
+  /* ==========================================================================
+     Pulse Loader - Ultra lightweight dot loader
+     Usage: <div class="pulse-loader"><span/><span/><span/></div>
+     ========================================================================== */
+  .pulse-loader {
+    @apply flex gap-1;
+
+    & > span {
+      @apply size-1.5 rounded-full bg-current;
+      animation: pulse-dot 1s ease-in-out infinite;
+    }
+
+    & > span:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    & > span:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+@layer utilities {
+  /* Shake animation for validation errors */
+  .animate-shake {
+    animation: shake 0.4s ease-in-out;
+  }
 }

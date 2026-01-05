@@ -17,10 +17,9 @@
 export default function Loading() {
   return (
     <div
-      className="flex h-full flex-col gap-6"
+      className="flex h-full flex-col gap-6 contain-layout"
       role="status"
       aria-label="Loading content"
-      style={{ contain: "layout" }}
     >
       {/* Page header skeleton - matches actual header dimensions */}
       <div className="shrink-0 space-y-2">
@@ -29,10 +28,7 @@ export default function Loading() {
       </div>
 
       {/* Main content skeleton - fills remaining space */}
-      <div
-        className="min-h-0 flex-1 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-        style={{ contain: "layout paint" }}
-      >
+      <div className="min-h-0 flex-1 rounded-lg border border-zinc-200 bg-white contain-layout-paint dark:border-zinc-800 dark:bg-zinc-950">
         {/* Filter bar skeleton */}
         <div className="border-b border-zinc-100 p-4 dark:border-zinc-800/50">
           <div className="flex items-center gap-3">

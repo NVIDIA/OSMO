@@ -90,7 +90,7 @@ export const InlineProgress = memo(function InlineProgress({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className={cn(barWidth, "flex-shrink-0")}>
+      <div className={cn(barWidth, "shrink-0")}>
         <ProgressBar
           value={used}
           max={total}
