@@ -29,7 +29,7 @@ import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../../workflow-types";
 import { transformGroups } from "../adapters";
-import type { LayoutDirection, GroupNodeData } from "../types/layout";
+import type { LayoutDirection, GroupNodeData } from "../types/dag-layout";
 import { calculateLayout, computeInitialExpandedGroups, clearLayoutCache } from "../layout/elk-layout";
 import {
   ESTIMATED_VIEWPORT_WIDTH,

@@ -36,7 +36,7 @@ import "@xyflow/react/dist/style.css";
 import "./dag.css";
 
 // Local modules
-import type { LayoutDirection } from "./types/layout";
+import type { LayoutDirection } from "./types/dag-layout";
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
