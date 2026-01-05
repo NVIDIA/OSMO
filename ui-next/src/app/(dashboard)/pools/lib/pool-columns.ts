@@ -16,12 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  COLUMN_MIN_WIDTHS_REM,
-  COLUMN_FLEX,
-  type ColumnSizeConfig,
-  type ColumnDefinition,
-} from "@/components/data-table";
+import { COLUMN_MIN_WIDTHS_REM, type ColumnSizeConfig, type ColumnDefinition } from "@/components/data-table";
 
 // =============================================================================
 // Column IDs
@@ -107,22 +102,17 @@ export const MANDATORY_COLUMN_IDS: ReadonlySet<PoolColumnId> = new Set(["name"])
 // =============================================================================
 
 /**
- * Column sizing configuration for the DataTable component.
- *
- * Uses rem-based minimum widths for accessibility (scales with user font size).
- * At 16px base: 1rem = 16px.
- *
- * - minWidthRem: Minimum width in rem units
- * - share: Proportional weight for space distribution (like CSS flex-grow)
+ * Column sizing configuration.
+ * Uses rem for accessibility (scales with user font size).
  */
 export const POOL_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
-  { id: "name", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.PRIMARY },
-  { id: "status", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
-  { id: "description", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.SECONDARY },
-  { id: "quota", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },
-  { id: "capacity", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },
-  { id: "platforms", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.SECONDARY },
-  { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
+  { id: "name", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
+  { id: "status", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
+  { id: "description", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
+  { id: "quota", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT },
+  { id: "capacity", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT },
+  { id: "platforms", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
+  { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
 ];
 
 // =============================================================================
@@ -130,3 +120,8 @@ export const POOL_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
 // =============================================================================
 
 export const DEFAULT_SORT = { column: "name" as PoolColumnId, direction: "asc" as const };
+
+/**
+ * Default panel width percentage.
+ */
+export const DEFAULT_PANEL_WIDTH = 40;

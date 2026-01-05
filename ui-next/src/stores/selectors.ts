@@ -167,12 +167,7 @@ export const tableSelectors = {
  * }
  * ```
  */
-export function createTableSelectors<T extends TableStore>(
-  useStore: {
-    (): T;
-    <U>(selector: (state: T) => U): U;
-  },
-) {
+export function createTableSelectors<T extends TableStore>(useStore: { (): T; <U>(selector: (state: T) => U): U }) {
   // Define stable selectors outside the hooks
   const columnStateSelector = (state: T) => ({
     visibleColumnIds: state.visibleColumnIds,
