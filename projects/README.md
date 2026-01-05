@@ -18,6 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Projects Process
 
+foo bar
+
 This directory contains the **projects process** for proposing, designing, and implementing significant changes to this repository. The process is lightweight, async-first, and uses GitHub Issues and Pull Requests.
 
 ```mermaid
