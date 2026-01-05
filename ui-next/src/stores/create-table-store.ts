@@ -56,6 +56,17 @@ export interface CreateTableStoreOptions {
   defaultSort?: TableState["sort"];
   /** Default panel width percentage */
   defaultPanelWidth?: number;
+  /**
+   * Skip automatic hydration from localStorage.
+   *
+   * When true, the store won't hydrate automatically. You must manually
+   * call `store.persist.rehydrate()` after mount. This prevents hydration
+   * mismatches in SSR environments like Next.js.
+   *
+   * @default false
+   * @see https://zustand.docs.pmnd.rs/guides/nextjs
+   */
+  skipHydration?: boolean;
 }
 
 // =============================================================================
@@ -63,7 +74,14 @@ export interface CreateTableStoreOptions {
 // =============================================================================
 
 export function createTableStore(options: CreateTableStoreOptions) {
-  const { storageKey, defaultVisibleColumns, defaultColumnOrder, defaultSort = null, defaultPanelWidth = 40 } = options;
+  const {
+    storageKey,
+    defaultVisibleColumns,
+    defaultColumnOrder,
+    defaultSort = null,
+    defaultPanelWidth = 40,
+    skipHydration = false,
+  } = options;
 
   // Initial state (what gets persisted)
   const initialState: TableState = {
@@ -255,6 +273,10 @@ export function createTableStore(options: CreateTableStoreOptions) {
         {
           name: storageKey,
           storage: createJSONStorage(() => localStorage),
+          // Skip hydration for SSR - prevents hydration mismatches
+          // When true, call store.persist.rehydrate() after mount
+          // @see https://zustand.docs.pmnd.rs/guides/nextjs
+          skipHydration,
           // Only persist these fields (exclude ephemeral state)
           partialize: (state) => ({
             visibleColumnIds: state.visibleColumnIds,
@@ -275,15 +297,29 @@ export function createTableStore(options: CreateTableStoreOptions) {
             const existingVisible = p.visibleColumnIds ?? [];
             const existingOrder = p.columnOrder ?? [];
 
-            // Add any missing default columns
-            const missingVisible = defaultVisibleColumns.filter((c) => !existingVisible.includes(c));
-            const missingOrder = defaultColumnOrder.filter((c) => !existingOrder.includes(c));
+            // Only add columns that are TRULY NEW (not in the persisted column order).
+            // If a column is in defaultColumnOrder but not in existingOrder, it's a new column
+            // that was added to the codebase. If it's in existingOrder but not visibleColumnIds,
+            // the user intentionally hid it - don't re-add it!
+            const newColumns = defaultColumnOrder.filter((c) => !existingOrder.includes(c));
+
+            // Add new columns to visible if they're default-visible
+            const newVisibleColumns = newColumns.filter((c) => defaultVisibleColumns.includes(c));
+
+            // Ensure columnOverrides is always an object (not undefined/null)
+            const columnOverrides = p.columnOverrides && typeof p.columnOverrides === "object" ? p.columnOverrides : {};
 
             return {
               ...current,
               ...p,
-              visibleColumnIds: [...existingVisible, ...missingVisible],
-              columnOrder: [...existingOrder, ...missingOrder],
+              // Only add truly new columns to visible, respect user's hidden columns
+              visibleColumnIds: [...existingVisible, ...newVisibleColumns],
+              // Add new columns to the end of the order
+              columnOrder: [...existingOrder, ...newColumns],
+              columnOverrides,
+              // Ensure arrays are always arrays (defensive)
+              collapsedSections: Array.isArray(p.collapsedSections) ? p.collapsedSections : [],
+              searchChips: [], // Always reset ephemeral state
             };
           },
         },
