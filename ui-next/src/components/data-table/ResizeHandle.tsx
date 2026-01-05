@@ -26,11 +26,8 @@
 
 "use client";
 
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
-
-/** Resize step in pixels for keyboard navigation */
-const KEYBOARD_RESIZE_STEP = 10;
 
 // =============================================================================
 // Types

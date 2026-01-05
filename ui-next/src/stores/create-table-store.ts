@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -36,10 +36,10 @@
  * ```
  */
 
-import { create, type StateCreator } from "zustand";
+import { create } from "zustand";
 import { persist, createJSONStorage, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import type { TableState, TableActions, TableStore, SearchChip, ColumnOverride, ColumnOverrides } from "./types";
+import type { TableState, TableStore, SearchChip, ColumnOverride, ColumnOverrides } from "./types";
 
 // =============================================================================
 // Factory Options
@@ -83,223 +83,217 @@ export function createTableStore(options: CreateTableStoreOptions) {
     searchChips: [], // Ephemeral - not persisted
   };
 
-  // State creator with immer for immutable updates
-  // Type set as (fn, replace?, action?) to support devtools action names
-  type SetFunction = (
-    fn: (state: TableState) => void,
-    replace?: boolean,
-    actionName?: string,
-  ) => void;
-
-  const stateCreator = (set: SetFunction): TableStore => ({
-    ...initialState,
-
-    // Column actions
-    setVisibleColumns: (ids: string[]) =>
-      set(
-        (state) => {
-          state.visibleColumnIds = ids;
-        },
-        false,
-        "setVisibleColumns",
-      ),
-
-    toggleColumn: (id: string) =>
-      set(
-        (state) => {
-          const idx = state.visibleColumnIds.indexOf(id);
-          if (idx === -1) {
-            state.visibleColumnIds.push(id);
-          } else {
-            state.visibleColumnIds.splice(idx, 1);
-          }
-        },
-        false,
-        "toggleColumn",
-      ),
-
-    setColumnOrder: (order: string[]) =>
-      set(
-        (state) => {
-          state.columnOrder = order;
-        },
-        false,
-        "setColumnOrder",
-      ),
-
-    setColumnOverride: (id: string, override: ColumnOverride) =>
-      set(
-        (state) => {
-          state.columnOverrides[id] = override;
-        },
-        false,
-        "setColumnOverride",
-      ),
-
-    setColumnOverrides: (overrides: ColumnOverrides) =>
-      set(
-        (state) => {
-          state.columnOverrides = overrides;
-        },
-        false,
-        "setColumnOverrides",
-      ),
-
-    resetColumnOverride: (id: string) =>
-      set(
-        (state) => {
-          delete state.columnOverrides[id];
-        },
-        false,
-        "resetColumnOverride",
-      ),
-
-    resetAllColumnOverrides: () =>
-      set(
-        (state) => {
-          state.columnOverrides = {};
-        },
-        false,
-        "resetAllColumnOverrides",
-      ),
-
-    // Sort actions
-    setSort: (column: string) =>
-      set(
-        (state) => {
-          if (state.sort?.column === column) {
-            // Toggle direction
-            state.sort.direction = state.sort.direction === "asc" ? "desc" : "asc";
-          } else {
-            state.sort = { column, direction: "asc" };
-          }
-        },
-        false,
-        "setSort",
-      ),
-
-    clearSort: () =>
-      set(
-        (state) => {
-          state.sort = null;
-        },
-        false,
-        "clearSort",
-      ),
-
-    // UI actions
-    toggleCompactMode: () =>
-      set(
-        (state) => {
-          state.compactMode = !state.compactMode;
-        },
-        false,
-        "toggleCompactMode",
-      ),
-
-    toggleSection: (id: string) =>
-      set(
-        (state) => {
-          const idx = state.collapsedSections.indexOf(id);
-          if (idx === -1) {
-            state.collapsedSections.push(id);
-          } else {
-            state.collapsedSections.splice(idx, 1);
-          }
-        },
-        false,
-        "toggleSection",
-      ),
-
-    setPanelWidth: (width: number) =>
-      set(
-        (state) => {
-          state.panelWidth = width;
-        },
-        false,
-        "setPanelWidth",
-      ),
-
-    // Search actions (ephemeral)
-    setSearchChips: (chips: SearchChip[]) =>
-      set(
-        (state) => {
-          state.searchChips = chips;
-        },
-        false,
-        "setSearchChips",
-      ),
-
-    addSearchChip: (chip: SearchChip) =>
-      set(
-        (state) => {
-          state.searchChips.push(chip);
-        },
-        false,
-        "addSearchChip",
-      ),
-
-    removeSearchChip: (index: number) =>
-      set(
-        (state) => {
-          state.searchChips.splice(index, 1);
-        },
-        false,
-        "removeSearchChip",
-      ),
-
-    clearSearch: () =>
-      set(
-        (state) => {
-          state.searchChips = [];
-        },
-        false,
-        "clearSearch",
-      ),
-
-    // Reset
-    // Note: reset needs to set full state, so use type assertion
-    reset: () => set(() => initialState, false, "reset"),
-  });
-
   // Create store with middleware stack: devtools → persist → immer
+  // State creator is defined inline to allow TypeScript to properly infer types
+  // through the middleware chain without any type assertions
   return create<TableStore>()(
     devtools(
-      persist(immer(stateCreator as any), {
-        name: storageKey,
-        storage: createJSONStorage(() => localStorage),
-        // Only persist these fields (exclude ephemeral state)
-        partialize: (state) => ({
-          visibleColumnIds: state.visibleColumnIds,
-          columnOrder: state.columnOrder,
-          columnOverrides: state.columnOverrides,
-          sort: state.sort,
-          compactMode: state.compactMode,
-          collapsedSections: state.collapsedSections,
-          panelWidth: state.panelWidth,
-          // searchChips intentionally excluded - ephemeral
-        }),
-        // Simple passthrough for any old versioned state
-        migrate: (state) => state as TableState,
-        // Merge persisted state with defaults on every hydration
-        // Ensures new columns are always added without versioning
-        merge: (persisted, current) => {
-          const p = persisted as Partial<TableState>;
-          const existingVisible = p.visibleColumnIds ?? [];
-          const existingOrder = p.columnOrder ?? [];
-          
-          // Add any missing default columns
-          const missingVisible = defaultVisibleColumns.filter((c) => !existingVisible.includes(c));
-          const missingOrder = defaultColumnOrder.filter((c) => !existingOrder.includes(c));
-          
-          return {
-            ...current,
-            ...p,
-            visibleColumnIds: [...existingVisible, ...missingVisible],
-            columnOrder: [...existingOrder, ...missingOrder],
-          };
+      persist(
+        immer((set) => ({
+          ...initialState,
+
+          // Column actions
+          setVisibleColumns: (ids: string[]) =>
+            set(
+              (state) => {
+                state.visibleColumnIds = ids;
+              },
+              false,
+              "setVisibleColumns",
+            ),
+
+          toggleColumn: (id: string) =>
+            set(
+              (state) => {
+                const idx = state.visibleColumnIds.indexOf(id);
+                if (idx === -1) {
+                  state.visibleColumnIds.push(id);
+                } else {
+                  state.visibleColumnIds.splice(idx, 1);
+                }
+              },
+              false,
+              "toggleColumn",
+            ),
+
+          setColumnOrder: (order: string[]) =>
+            set(
+              (state) => {
+                state.columnOrder = order;
+              },
+              false,
+              "setColumnOrder",
+            ),
+
+          setColumnOverride: (id: string, override: ColumnOverride) =>
+            set(
+              (state) => {
+                state.columnOverrides[id] = override;
+              },
+              false,
+              "setColumnOverride",
+            ),
+
+          setColumnOverrides: (overrides: ColumnOverrides) =>
+            set(
+              (state) => {
+                state.columnOverrides = overrides;
+              },
+              false,
+              "setColumnOverrides",
+            ),
+
+          resetColumnOverride: (id: string) =>
+            set(
+              (state) => {
+                delete state.columnOverrides[id];
+              },
+              false,
+              "resetColumnOverride",
+            ),
+
+          resetAllColumnOverrides: () =>
+            set(
+              (state) => {
+                state.columnOverrides = {};
+              },
+              false,
+              "resetAllColumnOverrides",
+            ),
+
+          // Sort actions
+          setSort: (column: string) =>
+            set(
+              (state) => {
+                if (state.sort?.column === column) {
+                  // Toggle direction
+                  state.sort.direction = state.sort.direction === "asc" ? "desc" : "asc";
+                } else {
+                  state.sort = { column, direction: "asc" };
+                }
+              },
+              false,
+              "setSort",
+            ),
+
+          clearSort: () =>
+            set(
+              (state) => {
+                state.sort = null;
+              },
+              false,
+              "clearSort",
+            ),
+
+          // UI actions
+          toggleCompactMode: () =>
+            set(
+              (state) => {
+                state.compactMode = !state.compactMode;
+              },
+              false,
+              "toggleCompactMode",
+            ),
+
+          toggleSection: (id: string) =>
+            set(
+              (state) => {
+                const idx = state.collapsedSections.indexOf(id);
+                if (idx === -1) {
+                  state.collapsedSections.push(id);
+                } else {
+                  state.collapsedSections.splice(idx, 1);
+                }
+              },
+              false,
+              "toggleSection",
+            ),
+
+          setPanelWidth: (width: number) =>
+            set(
+              (state) => {
+                state.panelWidth = width;
+              },
+              false,
+              "setPanelWidth",
+            ),
+
+          // Search actions (ephemeral)
+          setSearchChips: (chips: SearchChip[]) =>
+            set(
+              (state) => {
+                state.searchChips = chips;
+              },
+              false,
+              "setSearchChips",
+            ),
+
+          addSearchChip: (chip: SearchChip) =>
+            set(
+              (state) => {
+                state.searchChips.push(chip);
+              },
+              false,
+              "addSearchChip",
+            ),
+
+          removeSearchChip: (index: number) =>
+            set(
+              (state) => {
+                state.searchChips.splice(index, 1);
+              },
+              false,
+              "removeSearchChip",
+            ),
+
+          clearSearch: () =>
+            set(
+              (state) => {
+                state.searchChips = [];
+              },
+              false,
+              "clearSearch",
+            ),
+
+          // Reset - returns full initial state
+          reset: () => set(() => initialState, false, "reset"),
+        })),
+        {
+          name: storageKey,
+          storage: createJSONStorage(() => localStorage),
+          // Only persist these fields (exclude ephemeral state)
+          partialize: (state) => ({
+            visibleColumnIds: state.visibleColumnIds,
+            columnOrder: state.columnOrder,
+            columnOverrides: state.columnOverrides,
+            sort: state.sort,
+            compactMode: state.compactMode,
+            collapsedSections: state.collapsedSections,
+            panelWidth: state.panelWidth,
+            // searchChips intentionally excluded - ephemeral
+          }),
+          // Simple passthrough for any old versioned state
+          migrate: (state) => state as TableState,
+          // Merge persisted state with defaults on every hydration
+          // Ensures new columns are always added without versioning
+          merge: (persisted, current) => {
+            const p = persisted as Partial<TableState>;
+            const existingVisible = p.visibleColumnIds ?? [];
+            const existingOrder = p.columnOrder ?? [];
+
+            // Add any missing default columns
+            const missingVisible = defaultVisibleColumns.filter((c) => !existingVisible.includes(c));
+            const missingOrder = defaultColumnOrder.filter((c) => !existingOrder.includes(c));
+
+            return {
+              ...current,
+              ...p,
+              visibleColumnIds: [...existingVisible, ...missingVisible],
+              columnOrder: [...existingOrder, ...missingOrder],
+            };
+          },
         },
-      }),
+      ),
       {
         name: storageKey,
         enabled: process.env.NODE_ENV === "development",

@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from "react";
 import { DataSet } from "vis-data";
 import { Timeline, TimelineOptions } from "vis-timeline/standalone";
 import { cn } from "@/lib/utils";
@@ -352,11 +352,13 @@ export default function VisTimelinePage() {
     [workflow, showNestedTasks],
   );
 
-  // Track if component is mounted
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  // Track if component is mounted using useSyncExternalStore for React Compiler compatibility
+  // This avoids setState in effect - returns false on server, true on client
+  const isMounted = useSyncExternalStore(
+    () => () => {}, // no-op subscribe - value never changes after hydration
+    () => true,     // client snapshot - always mounted on client
+    () => false     // server snapshot - not mounted during SSR
+  );
 
   // Calculate time bounds from items
   const timeBounds = useMemo(() => {
@@ -459,7 +461,7 @@ export default function VisTimelinePage() {
     if (timelineRef.current && items.length > 0) {
       try {
         timelineRef.current.fit();
-      } catch (e) {
+      } catch {
         // Ignore fit errors
       }
     }

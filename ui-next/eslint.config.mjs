@@ -16,8 +16,8 @@ const eslintConfig = defineConfig([
     "src/lib/api/generated.ts",
     // E2E tests (Playwright, not React)
     "e2e/**",
-    // Vendored/third-party code (copied by postinstall)
-    "public/elk-worker.min.js",
+    // Vendored/third-party code
+    "public/**",
   ]),
   // Custom rules
   {

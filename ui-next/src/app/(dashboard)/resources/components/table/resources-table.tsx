@@ -101,16 +101,12 @@ function sortResources(
 export interface ResourcesTableProps {
   /** Array of resources to display */
   resources: Resource[];
-  /** Count matching current filters (the "X" in "X of Y") */
-  filteredCount?: number;
-  /** Total count before filters (the "Y" in "X of Y") */
+  /** Total count before filters */
   totalCount?: number;
   /** Show loading skeleton */
   isLoading?: boolean;
   /** Show the Pools column (for cross-pool views) */
   showPoolsColumn?: boolean;
-  /** Pool context for ResourcePanel display */
-  poolName?: string;
   /** Custom click handler for row selection */
   onResourceClick?: (resource: Resource) => void;
   /** Currently selected resource ID */
@@ -131,11 +127,9 @@ export interface ResourcesTableProps {
 
 export function ResourcesTable({
   resources,
-  filteredCount,
   totalCount,
   isLoading = false,
   showPoolsColumn = false,
-  poolName,
   onResourceClick,
   selectedResourceId,
   hasNextPage = false,

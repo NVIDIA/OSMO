@@ -164,8 +164,8 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     key: String(row.key),
   }));
 
-  // Infinite scroll detection - stable callback to avoid re-subscribe on every render
-  const stableOnLoadMore = useStableCallback(onLoadMore);
+  // Stable ref for optional load more callback
+  const onLoadMoreRef = useStableValue(onLoadMore);
 
   // Track if we've already triggered load more to prevent duplicate calls
   const loadMoreTriggeredRef = useRef(false);
@@ -200,7 +200,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       const LOAD_MORE_THRESHOLD = 10;
       if (lastRow.index >= virtualItems.length - LOAD_MORE_THRESHOLD) {
         loadMoreTriggeredRef.current = true;
-        stableOnLoadMore?.();
+        onLoadMoreRef.current?.();
       }
     };
 
@@ -215,7 +215,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       scrollElement.removeEventListener("scroll", checkLoadMore);
       clearTimeout(timeoutId);
     };
-  }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer, stableOnLoadMore]);
+  }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer]);
 
   // Get item for a virtual row index
   const getItem = useCallback(

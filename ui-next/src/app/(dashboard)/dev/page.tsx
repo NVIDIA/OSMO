@@ -9,7 +9,7 @@
 "use client";
 
 import Link from "next/link";
-import { FlaskConical, GitBranch, HelpCircle, LayoutList, BarChart3, Workflow } from "lucide-react";
+import { FlaskConical, Workflow } from "lucide-react";
 import { usePage } from "@/components/shell";
 
 /**
