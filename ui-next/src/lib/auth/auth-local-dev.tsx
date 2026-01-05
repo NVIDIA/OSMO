@@ -120,7 +120,7 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
       {/* Instructions */}
       <div className="w-full space-y-4">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
+          <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
             1
           </span>
           <span>Run in browser console (F12):</span>
@@ -139,7 +139,7 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
         </button>
 
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
+          <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
             2
           </span>
           <span>Paste the result:</span>

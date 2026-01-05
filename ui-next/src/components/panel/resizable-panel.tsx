@@ -198,7 +198,7 @@ export function ResizablePanel({
       <aside
         ref={panelRef}
         className={cn(
-          "fixed bottom-0 right-0 z-50 top-shell-header flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
+          "fixed bottom-0 right-0 z-50 top-shell-header flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out contain-layout-style dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
           className,
         )}
@@ -206,7 +206,6 @@ export function ResizablePanel({
           width: `${width}%`,
           maxWidth: `${maxWidth}%`,
           minWidth: `${minWidthPx}px`,
-          contain: "layout style",
         }}
         role="complementary"
         aria-label={ariaLabel}

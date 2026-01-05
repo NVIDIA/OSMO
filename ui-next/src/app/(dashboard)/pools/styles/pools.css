@@ -8,6 +8,15 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
+/**
+ * Pools Feature Styles
+ *
+ * Uses @reference to access Tailwind theme, utilities, and custom properties
+ * from globals.css without duplicating CSS in the bundle.
+ * See: https://tailwindcss.com/docs/upgrade-guide#using-apply-with-vue-svelte-or-css-modules
+ */
+@reference "../../../globals.css";
+
 /* =============================================================================
    CSS Layers - Cascade management for predictable specificity
    ============================================================================= */
@@ -15,17 +24,33 @@
 
 /* =============================================================================
    CSS Custom Properties - Single source of truth for all dimensions
+   Uses Tailwind CSS variables for consistency with design system
    ============================================================================= */
 @layer pools.base {
   :root {
-    /* Colors */
-    --pools-surface-elevated: #fafafa;
-    --pools-surface-hover: #f4f4f5;
-    --pools-surface-selected: #eff6ff;
-    --pools-text-secondary: #71717a;
-    --pools-status-online-border: #34d399;
-    --pools-status-maintenance-border: #fbbf24;
-    --pools-status-offline-border: #f87171;
+    /* Colors - using Tailwind CSS variables (--color-*) */
+    --pools-surface-elevated: var(--color-zinc-50);
+    --pools-surface-hover: var(--color-zinc-100);
+    --pools-surface-selected: var(--color-blue-50);
+    --pools-text-secondary: var(--color-zinc-500);
+
+    /* Status colors - semantic palette */
+    --pools-status-online-border: var(--color-emerald-400);
+    --pools-status-maintenance-border: var(--color-amber-400);
+    --pools-status-offline-border: var(--color-red-400);
+
+    /* Status backgrounds */
+    --pools-status-online-bg: var(--color-green-100);
+    --pools-status-maintenance-bg: var(--color-yellow-100);
+    --pools-status-offline-bg: var(--color-red-100);
+    --pools-status-online-bg-hover: var(--color-green-200);
+    --pools-status-maintenance-bg-hover: var(--color-yellow-200);
+    --pools-status-offline-bg-hover: var(--color-red-200);
+
+    /* Status text colors */
+    --pools-status-online-text: var(--color-emerald-700);
+    --pools-status-maintenance-text: var(--color-amber-700);
+    --pools-status-offline-text: var(--color-red-700);
 
     /* Table Dimensions */
     --pools-row-height: 3rem;
@@ -50,22 +75,37 @@
     --pools-shell-header-height: var(--shell-header-height);
 
     /* Shadows */
-    --pools-shadow-section: 0 2px 4px -1px rgba(0, 0, 0, 0.15);
-    --pools-shadow-section-bottom: 0 -2px 4px -1px rgba(0, 0, 0, 0.15);
+    --pools-shadow-section: 0 2px 4px -1px rgb(0 0 0 / 15%);
+    --pools-shadow-section-bottom: 0 -2px 4px -1px rgb(0 0 0 / 15%);
   }
 
   .dark {
-    --pools-surface-elevated: #18181b;
-    --pools-surface-hover: #27272a;
-    --pools-surface-selected: rgba(59, 130, 246, 0.15);
-    --pools-text-secondary: #a1a1aa;
-    --pools-status-online-border: #059669;
-    --pools-status-maintenance-border: #facc15;
-    --pools-status-offline-border: #dc2626;
+    --pools-surface-elevated: var(--color-zinc-900);
+    --pools-surface-hover: var(--color-zinc-800);
+    --pools-surface-selected: rgb(59 130 246 / 15%);
+    --pools-text-secondary: var(--color-zinc-400);
+
+    /* Status colors - adjusted for dark mode visibility */
+    --pools-status-online-border: var(--color-emerald-600);
+    --pools-status-maintenance-border: var(--color-yellow-400);
+    --pools-status-offline-border: var(--color-red-600);
+
+    /* Status backgrounds - dark variants */
+    --pools-status-online-bg: var(--color-green-950);
+    --pools-status-maintenance-bg: var(--color-yellow-950);
+    --pools-status-offline-bg: var(--color-red-950);
+    --pools-status-online-bg-hover: var(--color-emerald-900);
+    --pools-status-maintenance-bg-hover: var(--color-yellow-900);
+    --pools-status-offline-bg-hover: var(--color-red-900);
+
+    /* Status text colors - lighter for dark mode */
+    --pools-status-online-text: var(--color-emerald-400);
+    --pools-status-maintenance-text: var(--color-yellow-300);
+    --pools-status-offline-text: var(--color-red-400);
 
     /* Dark mode shadows - more pronounced */
-    --pools-shadow-section: 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-    --pools-shadow-section-bottom: 0 -2px 4px -1px rgba(0, 0, 0, 0.5);
+    --pools-shadow-section: 0 2px 4px -1px rgb(0 0 0 / 50%);
+    --pools-shadow-section-bottom: 0 -2px 4px -1px rgb(0 0 0 / 50%);
   }
 }
 
@@ -74,15 +114,12 @@
    ============================================================================= */
 @layer pools.table {
   .pools-table-container {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+    @apply relative flex flex-col;
     min-height: var(--pools-table-min-height);
   }
 
   .pools-table {
-    border-collapse: separate;
-    border-spacing: 0;
+    @apply border-separate border-spacing-0;
     table-layout: auto;
   }
 
@@ -92,8 +129,8 @@
   }
 
   .pools-thead th {
+    @apply whitespace-nowrap;
     height: var(--pools-header-height);
-    white-space: nowrap;
   }
 
   /* Data rows */
@@ -110,11 +147,8 @@
   }
 
   .pools-td {
+    @apply align-middle whitespace-nowrap overflow-hidden truncate;
     height: inherit;
-    vertical-align: middle;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     max-width: 20rem; /* Description column can truncate */
   }
 
@@ -138,49 +172,35 @@
    ============================================================================= */
 @layer pools.sections {
   .pools-section-row {
-    position: sticky;
-    z-index: 10;
+    @apply sticky z-10;
     box-shadow: var(--pools-shadow-section);
   }
 
   .pools-section-row[data-section-index="0"] {
     top: var(--pools-header-height);
-    z-index: 13;
+    @apply z-[13];
   }
   .pools-section-row[data-section-index="1"] {
     top: calc(var(--pools-header-height) + var(--pools-section-height));
-    z-index: 12;
+    @apply z-[12];
   }
   .pools-section-row[data-section-index="2"] {
     top: calc(var(--pools-header-height) + var(--pools-section-height) * 2);
-    z-index: 11;
+    @apply z-[11];
   }
 
-  /* Status-specific tinted backgrounds (solid colors) */
+  /* Status-specific tinted backgrounds using CSS custom properties */
   .pools-section-row[data-status="online"],
   .pools-bottom-section-row[data-status="online"] {
-    background: #dcfce7;
+    background: var(--pools-status-online-bg);
   }
   .pools-section-row[data-status="maintenance"],
   .pools-bottom-section-row[data-status="maintenance"] {
-    background: #fef9c3;
+    background: var(--pools-status-maintenance-bg);
   }
   .pools-section-row[data-status="offline"],
   .pools-bottom-section-row[data-status="offline"] {
-    background: #fee2e2;
-  }
-
-  .dark .pools-section-row[data-status="online"],
-  .dark .pools-bottom-section-row[data-status="online"] {
-    background: #052e16;
-  }
-  .dark .pools-section-row[data-status="maintenance"],
-  .dark .pools-bottom-section-row[data-status="maintenance"] {
-    background: #4a3f00;
-  }
-  .dark .pools-section-row[data-status="offline"],
-  .dark .pools-bottom-section-row[data-status="offline"] {
-    background: #450a0a;
+    background: var(--pools-status-offline-bg);
   }
 
   /* Section row left border */
@@ -197,42 +217,32 @@
     border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
   }
 
-  /* Section label colors - high contrast */
-  .pools-section-row[data-status="online"] .pools-section-label,
-  .pools-bottom-section-row[data-status="online"] .pools-section-label {
-    color: #047857;
-  }
-  .pools-section-row[data-status="maintenance"] .pools-section-label,
-  .pools-bottom-section-row[data-status="maintenance"] .pools-section-label {
-    color: #a16207;
-  }
-  .pools-section-row[data-status="offline"] .pools-section-label,
-  .pools-bottom-section-row[data-status="offline"] .pools-section-label {
-    color: #b91c1c;
-  }
-
-  .dark .pools-section-row[data-status="online"] .pools-section-label,
-  .dark .pools-bottom-section-row[data-status="online"] .pools-section-label {
-    color: #34d399;
-  }
-  .dark .pools-section-row[data-status="maintenance"] .pools-section-label,
-  .dark .pools-bottom-section-row[data-status="maintenance"] .pools-section-label {
-    color: #fde047;
-  }
-  .dark .pools-section-row[data-status="offline"] .pools-section-label,
-  .dark .pools-bottom-section-row[data-status="offline"] .pools-section-label {
-    color: #f87171;
+  /* Section label colors - using CSS custom properties for theme awareness */
+  .pools-section-row .pools-section-label,
+  .pools-bottom-section-row .pools-section-label {
+    &[data-status="online"],
+    :is([data-status="online"] &) {
+      color: var(--pools-status-online-text);
+    }
+    &[data-status="maintenance"],
+    :is([data-status="maintenance"] &) {
+      color: var(--pools-status-maintenance-text);
+    }
+    &[data-status="offline"],
+    :is([data-status="offline"] &) {
+      color: var(--pools-status-offline-text);
+    }
   }
 
   /* Section count */
   .pools-section-count {
+    @apply font-medium;
     color: var(--pools-text-secondary);
-    font-weight: 500;
   }
 
-  /* Bottom section stack (tfoot) - legacy */
+  /* Bottom section stack (tfoot) */
   .pools-tfoot {
-    background: transparent;
+    @apply bg-transparent;
   }
 
   .pools-bottom-section-row {
@@ -240,7 +250,7 @@
   }
 
   .pools-bottom-section-item {
-    background: transparent;
+    @apply bg-transparent;
   }
 
   /* ==========================================================================
@@ -249,110 +259,71 @@
 
   /* Section header button (inside DataTable section rows) */
   .pools-section-header[data-status="online"] {
-    background: #dcfce7;
+    background: var(--pools-status-online-bg);
   }
   .pools-section-header[data-status="maintenance"] {
-    background: #fef9c3;
+    background: var(--pools-status-maintenance-bg);
   }
   .pools-section-header[data-status="offline"] {
-    background: #fee2e2;
+    background: var(--pools-status-offline-bg);
   }
 
-  .dark .pools-section-header[data-status="online"] {
-    background: #052e16;
-  }
-  .dark .pools-section-header[data-status="maintenance"] {
-    background: #4a3f00;
-  }
-  .dark .pools-section-header[data-status="offline"] {
-    background: #450a0a;
-  }
-
-  .pools-section-header[data-status="online"] .pools-section-label {
-    color: #047857;
-  }
-  .pools-section-header[data-status="maintenance"] .pools-section-label {
-    color: #a16207;
-  }
-  .pools-section-header[data-status="offline"] .pools-section-label {
-    color: #b91c1c;
-  }
-
-  .dark .pools-section-header[data-status="online"] .pools-section-label {
-    color: #34d399;
-  }
-  .dark .pools-section-header[data-status="maintenance"] .pools-section-label {
-    color: #fde047;
-  }
-  .dark .pools-section-header[data-status="offline"] .pools-section-label {
-    color: #f87171;
+  .pools-section-header .pools-section-label {
+    &[data-status="online"],
+    :is([data-status="online"] &) {
+      color: var(--pools-status-online-text);
+    }
+    &[data-status="maintenance"],
+    :is([data-status="maintenance"] &) {
+      color: var(--pools-status-maintenance-text);
+    }
+    &[data-status="offline"],
+    :is([data-status="offline"] &) {
+      color: var(--pools-status-offline-text);
+    }
   }
 
   /* ==========================================================================
-     Section Nav Stack Items - New component styles
+     Section Nav Stack Items - Using CSS custom properties for theme awareness
      ========================================================================== */
 
   .pools-nav-item--online {
-    background: #dcfce7;
+    background: var(--pools-status-online-bg);
     border-left: var(--pools-border-width) solid var(--pools-status-online-border);
+
+    .section-nav-label {
+      color: var(--pools-status-online-text);
+    }
+
+    &:hover {
+      background: var(--pools-status-online-bg-hover);
+    }
   }
+
   .pools-nav-item--maintenance {
-    background: #fef9c3;
+    background: var(--pools-status-maintenance-bg);
     border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
+
+    .section-nav-label {
+      color: var(--pools-status-maintenance-text);
+    }
+
+    &:hover {
+      background: var(--pools-status-maintenance-bg-hover);
+    }
   }
+
   .pools-nav-item--offline {
-    background: #fee2e2;
+    background: var(--pools-status-offline-bg);
     border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-  }
 
-  .dark .pools-nav-item--online {
-    background: #052e16;
-  }
-  .dark .pools-nav-item--maintenance {
-    background: #4a3f00;
-  }
-  .dark .pools-nav-item--offline {
-    background: #450a0a;
-  }
+    .section-nav-label {
+      color: var(--pools-status-offline-text);
+    }
 
-  .pools-nav-item--online .section-nav-label {
-    color: #047857;
-  }
-  .pools-nav-item--maintenance .section-nav-label {
-    color: #a16207;
-  }
-  .pools-nav-item--offline .section-nav-label {
-    color: #b91c1c;
-  }
-
-  .dark .pools-nav-item--online .section-nav-label {
-    color: #34d399;
-  }
-  .dark .pools-nav-item--maintenance .section-nav-label {
-    color: #fde047;
-  }
-  .dark .pools-nav-item--offline .section-nav-label {
-    color: #f87171;
-  }
-
-  .pools-nav-item--online:hover {
-    background: #bbf7d0;
-  }
-  .pools-nav-item--maintenance:hover {
-    background: #fef08a;
-  }
-  .pools-nav-item--offline:hover {
-    background: #fecaca;
-  }
-
-  .dark .pools-nav-item--online:hover {
-    background: #064e3b;
-  }
-  .dark .pools-nav-item--maintenance:hover {
-    background: #6b5a00;
-  }
-  .dark .pools-nav-item--offline:hover {
-    background: #7f1d1d;
+    &:hover {
+      background: var(--pools-status-offline-bg-hover);
+    }
   }
 
   /* ==========================================================================
@@ -381,41 +352,28 @@
     background: var(--pools-surface-hover);
   }
 
-  /* Section row hover - slightly darker */
+  /* Section row hover - using CSS custom properties */
   .pools-section-row[data-status="online"]:hover,
   .pools-bottom-section-row[data-status="online"]:hover {
-    background: #bbf7d0;
+    background: var(--pools-status-online-bg-hover);
   }
   .pools-section-row[data-status="maintenance"]:hover,
   .pools-bottom-section-row[data-status="maintenance"]:hover {
-    background: #fef08a;
+    background: var(--pools-status-maintenance-bg-hover);
   }
   .pools-section-row[data-status="offline"]:hover,
   .pools-bottom-section-row[data-status="offline"]:hover {
-    background: #fecaca;
-  }
-
-  .dark .pools-section-row[data-status="online"]:hover,
-  .dark .pools-bottom-section-row[data-status="online"]:hover {
-    background: #064e3b;
-  }
-  .dark .pools-section-row[data-status="maintenance"]:hover,
-  .dark .pools-bottom-section-row[data-status="maintenance"]:hover {
-    background: #6b5a00;
-  }
-  .dark .pools-section-row[data-status="offline"]:hover,
-  .dark .pools-bottom-section-row[data-status="offline"]:hover {
-    background: #7f1d1d;
+    background: var(--pools-status-offline-bg-hover);
   }
 
   .pools-row,
   .pools-section-row,
   .pools-bottom-section-item {
-    transition: background-color 75ms ease-out;
+    @apply transition-colors duration-75 ease-out;
   }
 
   .pools-row:focus-visible {
-    outline: none;
+    @apply outline-none;
     box-shadow: inset 0 0 0 2px var(--pools-status-online-border);
   }
 
@@ -423,7 +381,7 @@
     .pools-row,
     .pools-section-row,
     .pools-bottom-section-item {
-      transition: none;
+      @apply transition-none;
     }
   }
 }
@@ -441,17 +399,22 @@
    Pool-specific visual styles (scrollbar styling is in globals.css)
    ============================================================================= */
 @layer pools.scrollbar {
-  /* Progress Track - More visible in dark mode */
+  /* Progress Track - using Tailwind theme colors */
   .pools-progress-track {
-    background: #e4e4e7; /* zinc-200 */
+    @apply bg-zinc-200;
+
+    :is(.dark &) {
+      @apply bg-zinc-700;
+    }
   }
 
-  .dark .pools-progress-track {
-    background: #3f3f46; /* zinc-700 - lighter than zinc-800 for better visibility on hover */
-  }
-
-  /* Shared Capacity Progress Bar */
+  /* Shared Capacity Progress Bar - gradient from indigo to pink */
   .pools-shared-capacity-bar {
-    background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+    background: linear-gradient(
+      90deg,
+      var(--color-indigo-400),
+      var(--color-purple-400),
+      var(--color-pink-400)
+    );
   }
 }

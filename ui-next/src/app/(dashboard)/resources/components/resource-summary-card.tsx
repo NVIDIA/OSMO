@@ -109,10 +109,7 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
     // Container query wrapper - @container queries check this element's width
     // Compact mode still uses container queries to progressively show more details
     // Containment isolates layout/style calculations for better perf
-    <div
-      className="@container"
-      style={{ contain: "layout style" }}
-    >
+    <div className="@container contain-layout-style">
       {/* Grid: 2 col (narrow) → 4 col (wide or compact) */}
       <div
         className={cn(
