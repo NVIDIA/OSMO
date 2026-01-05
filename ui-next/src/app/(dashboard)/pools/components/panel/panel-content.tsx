@@ -15,6 +15,7 @@ import { Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { heading, text } from "@/lib/styles";
 import { ProgressBar } from "@/components/progress-bar";
+import { PlaceholderSection } from "@/components/placeholder-section";
 import type { Pool } from "@/lib/api/adapter";
 import { getSharingInfo } from "@/lib/api/adapter/transforms";
 import { PlatformSelector } from "./platform-selector";
@@ -238,24 +239,6 @@ function QuotaSection({ title, used, total, free, percent, freeLabel }: QuotaSec
           <span>{free} {freeLabel}</span>
           <span>{Math.round(percent)}% utilized</span>
         </div>
-      </div>
-    </section>
-  );
-}
-
-interface PlaceholderSectionProps {
-  title: string;
-  description: string;
-  note: string;
-}
-
-function PlaceholderSection({ title, description, note }: PlaceholderSectionProps) {
-  return (
-    <section className="opacity-50">
-      <h3 className={cn(heading.section, "mb-2")}>{title}</h3>
-      <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-        <p className={cn(text.muted, "text-center")}>{description}</p>
-        <p className={cn(text.hint, "mt-1 text-center")}>{note}</p>
       </div>
     </section>
   );

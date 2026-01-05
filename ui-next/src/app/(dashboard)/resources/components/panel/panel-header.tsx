@@ -23,7 +23,7 @@ import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
-import { PanelHeaderActions } from "@/components/panel-header-controls";
+import { PanelHeaderActions } from "@/components/panel";
 
 export interface ResourcePanelHeaderProps {
   resource: Resource;

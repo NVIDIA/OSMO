@@ -9,11 +9,13 @@
  */
 
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
   useGetVersionApiVersionGet,
   getResourcesApiResourcesGet,
+  getPoolQuotasApiPoolQuotaGet,
 } from "../generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS } from "@/lib/config";
 
@@ -27,6 +29,13 @@ import {
 
 import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
 import { fetchPaginatedResources, invalidateResourcesCache, getResourceFilterOptions } from "./pagination";
+import {
+  fetchFilteredPools,
+  hasActiveFilters,
+  type PoolFilterParams,
+  type FilteredPoolsResult,
+  type PoolMetadata,
+} from "./pools-shim";
 import type { PaginationParams } from "@/lib/pagination";
 
 // =============================================================================
@@ -54,6 +63,68 @@ export function usePools() {
     refetch: query.refetch,
   };
 }
+
+// =============================================================================
+// Filtered Pools Hook (with shim for server-side filtering)
+// =============================================================================
+
+/**
+ * Fetch pools with filtering support.
+ *
+ * CURRENT: Uses client-side filtering shim (pools-shim.ts)
+ * FUTURE: When backend supports filtering, pass params to API directly
+ *
+ * Issue: BACKEND_TODOS.md#12
+ *
+ * @param params - Filter parameters (status, platform, backend, search, sharedWith)
+ */
+export function useFilteredPools(params: PoolFilterParams = {}) {
+  // Build stable query key from filter params
+  // Sorting ensures consistent key regardless of property order
+  const queryKey = useMemo(
+    () => [
+      "pools",
+      "filtered",
+      {
+        statuses: params.statuses?.sort().join(",") ?? "",
+        platforms: params.platforms?.sort().join(",") ?? "",
+        backends: params.backends?.sort().join(",") ?? "",
+        search: params.search ?? "",
+        sharedWith: params.sharedWith ?? "",
+      },
+    ],
+    [params.statuses, params.platforms, params.backends, params.search, params.sharedWith],
+  );
+
+  const query = useQuery({
+    queryKey,
+    queryFn: async (): Promise<FilteredPoolsResult> => {
+      // SHIM: Fetch all pools and filter client-side
+      // When backend supports filtering, this becomes a direct API call with params
+      return fetchFilteredPools(params, async () => {
+        const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
+        return transformPoolsResponse(rawResponse);
+      });
+    },
+    staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
+  });
+
+  return {
+    pools: query.data?.pools ?? [],
+    allPools: query.data?.allPools ?? [],
+    sharingGroups: query.data?.sharingGroups ?? [],
+    metadata: query.data?.metadata ?? null,
+    total: query.data?.total ?? 0,
+    filteredTotal: query.data?.filteredTotal ?? 0,
+    hasActiveFilters: hasActiveFilters(params),
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+// Re-export types for consumers
+export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
 
 /**
  * Fetch a single pool by name.

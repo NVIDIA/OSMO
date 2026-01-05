@@ -8,7 +8,7 @@
 
 "use client";
 
-import { RouteError } from "@/components/route-error";
+import { RouteError } from "@/components/error";
 
 /**
  * Resources page error boundary.

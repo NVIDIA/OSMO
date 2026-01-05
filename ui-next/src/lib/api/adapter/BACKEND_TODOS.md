@@ -469,6 +469,79 @@ const summary = serverSummary ?? aggregateLoadedResources(resources);
 
 ---
 
+### 13. Pools API Needs Server-Side Filtering
+
+**Priority:** Medium  
+**Status:** Active workaround in `pools-shim.ts`
+
+The `/api/pools` endpoint currently returns all pools at once with no filtering. While pool counts are typically smaller than resources (10-100 vs 1000+), server-side filtering would improve consistency and prepare for scale.
+
+**Current behavior:**
+```
+GET /api/pool_quota?all_pools=true
+→ Returns ALL pools
+→ UI filters client-side (works but not ideal)
+```
+
+**Ideal API behavior:**
+```
+GET /api/pools?status=online,maintenance&platform=dgx&search=ml-team
+→ Returns filtered response:
+{
+  "pools": [...filtered pools...],
+  "metadata": {
+    "status_counts": { "online": 15, "maintenance": 3, "offline": 2 },
+    "platforms": ["dgx", "base", "cpu"],
+    "backends": ["slurm", "kubernetes"]
+  },
+  "sharing_groups": [["pool-a", "pool-b"], ["pool-c", "pool-d"]],
+  "total": 20,
+  "filtered_total": 18
+}
+```
+
+**Required API changes:**
+
+1. **Filtering parameters:**
+   - `status`: Filter by pool status (comma-separated: online,maintenance,offline)
+   - `platform`: Filter by platform (comma-separated)
+   - `backend`: Filter by backend (comma-separated)
+   - `search`: Text search across pool name and description
+   - `shared_with`: Filter to pools sharing capacity with given pool name
+
+2. **Response fields:**
+   - `metadata.status_counts`: Count of pools per status (for section headers in UI)
+   - `metadata.platforms`: Available platforms (for filter dropdown)
+   - `metadata.backends`: Available backends (for filter dropdown)
+   - `sharing_groups`: Groups of pool names that share physical capacity
+   - `total`: Total pools before filtering
+   - `filtered_total`: Total pools after filtering
+
+**Current UI workarounds:**
+
+| Workaround | Location | Description |
+|------------|----------|-------------|
+| Client-side filtering | `pools-shim.ts` | Fetches all pools, filters in browser |
+| Client-side metadata | `pools-shim.ts` | Computes status counts, platforms, backends from loaded data |
+| Chip-to-params mapping | `use-pools-data.ts` | Converts SmartSearch chips to filter params |
+
+**When fixed:**
+
+1. Delete `pools-shim.ts` entirely
+2. Update `useFilteredPools()` in `hooks.ts` to pass filters directly to API
+3. Remove client-side filtering logic
+4. Use `metadata` from response for filter dropdowns
+5. Regenerate types with `pnpm generate-api`
+6. UI components and `usePoolsData` hook work unchanged
+
+**Benefits of backend fix:**
+- **Consistency**: Same filtering approach as resources API
+- **Performance**: Less data transferred when filters are active
+- **Accuracy**: Server returns exact status counts for section headers
+- **Scalability**: Ready for clusters with many pools
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -485,6 +558,7 @@ const summary = serverSummary ?? aggregateLoadedResources(resources);
 | #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
 | #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
 | #12 Server-side summary aggregates | **High** | resource-summary-card.tsx | Use server summary |
+| #13 Pools server-side filtering | Medium | pools-shim.ts | Delete shim, pass filters to API |
 
 ### Priority Guide
 

@@ -162,6 +162,53 @@
   }
 }
 
+/* =============================================================================
+   Focus States - Keyboard Navigation
+   ============================================================================= */
+
+/* Focus visible on rows - subtle outline */
+.data-table-row:focus-visible {
+  outline: 2px solid var(--color-blue-500);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+/* Focus visible on cells - for grid navigation */
+.data-table-row td:focus-visible,
+.data-table-row [role="gridcell"]:focus-visible {
+  outline: 2px solid var(--color-blue-500);
+  outline-offset: -2px;
+  background: var(--color-blue-50);
+
+  :is(.dark &) {
+    background: rgba(59, 130, 246, 0.15);
+  }
+}
+
+/* Focus visible on header cells */
+.data-table th:focus-visible,
+.data-table [role="columnheader"]:focus-visible {
+  outline: 2px solid var(--color-blue-500);
+  outline-offset: -2px;
+}
+
+/* Skip link for accessibility - visually hidden until focused */
+.data-table-skip-link {
+  position: absolute;
+  left: -9999px;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  background: var(--color-zinc-900);
+  color: white;
+  text-decoration: none;
+  border-radius: 0.25rem;
+
+  &:focus {
+    left: 0.5rem;
+    top: 0.5rem;
+  }
+}
+
 /* Scroll container */
 .data-table-scroll {
   overflow: auto;
