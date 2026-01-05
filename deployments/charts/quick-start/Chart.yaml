@@ -26,10 +26,10 @@ dependencies:
   version: 4.13.2
   repository: https://kubernetes.github.io/ingress-nginx
 - name: service
-  version: 1.0.2
+  version: 1.0.1
   repository: file://../service
 - name: web-ui
-  version: 1.0.2
+  version: 1.0.1
   repository: file://../web-ui
 - name: router
   version: 1.0.1
