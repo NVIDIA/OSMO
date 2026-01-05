@@ -61,9 +61,7 @@ export interface PanelWidthMenuProps {
  * Dropdown menu for panel width presets.
  * Provides "snap to" options for 33%, 50%, 75% widths.
  */
-export const PanelWidthMenu = memo(function PanelWidthMenu({
-  onWidthPreset,
-}: PanelWidthMenuProps) {
+export const PanelWidthMenu = memo(function PanelWidthMenu({ onWidthPreset }: PanelWidthMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -71,14 +69,18 @@ export const PanelWidthMenu = memo(function PanelWidthMenu({
           <MoreVertical className="size-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">
-          Snap to
-        </DropdownMenuLabel>
+      <DropdownMenuContent
+        align="end"
+        className="w-44"
+      >
+        <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">Snap to</DropdownMenuLabel>
         {PANEL.WIDTH_PRESETS.map((pct) => {
           const Icon = WIDTH_PRESET_ICONS[pct];
           return (
-            <DropdownMenuItem key={pct} onClick={() => onWidthPreset(pct)}>
+            <DropdownMenuItem
+              key={pct}
+              onClick={() => onWidthPreset(pct)}
+            >
               <Icon className="mr-2 size-4" />
               <span>{pct}%</span>
             </DropdownMenuItem>
@@ -100,9 +102,7 @@ export interface PanelCloseButtonProps {
 /**
  * Close button for panel headers.
  */
-export const PanelCloseButton = memo(function PanelCloseButton({
-  onClose,
-}: PanelCloseButtonProps) {
+export const PanelCloseButton = memo(function PanelCloseButton({ onClose }: PanelCloseButtonProps) {
   return (
     <button
       onClick={onClose}

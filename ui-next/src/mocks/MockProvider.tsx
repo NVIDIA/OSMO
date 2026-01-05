@@ -87,7 +87,8 @@ export function MockProvider({ children }: MockProviderProps) {
   useEffect(() => {
     async function init() {
       // Check if we should enable mocking
-      const shouldMock = process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
+      const shouldMock =
+        process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
       if (shouldMock && typeof window !== "undefined") {
         try {

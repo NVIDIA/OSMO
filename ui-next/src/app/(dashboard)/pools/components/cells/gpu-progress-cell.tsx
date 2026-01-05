@@ -64,7 +64,10 @@ const ShareIcon = memo(function ShareIcon({ compact, interactive, onClick }: Sha
         className="inline-flex items-center justify-center rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
         aria-label="Filter to show only pools sharing capacity with this pool"
       >
-        <Share2 className={iconSize} aria-hidden="true" />
+        <Share2
+          className={iconSize}
+          aria-hidden="true"
+        />
       </button>
     );
   }
@@ -110,7 +113,7 @@ export const GpuProgressCell = memo(function GpuProgressCell({
       e.stopPropagation();
       onFilterBySharedPools?.();
     },
-    [onFilterBySharedPools]
+    [onFilterBySharedPools],
   );
 
   return (

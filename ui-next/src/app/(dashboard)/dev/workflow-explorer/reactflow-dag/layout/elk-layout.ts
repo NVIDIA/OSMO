@@ -50,11 +50,7 @@ import { elkWorker } from "./elk-worker-client";
  * Cache key for layout results.
  * Uses a stable string representation of the input parameters.
  */
-function getLayoutCacheKey(
-  groups: GroupWithLayout[],
-  expandedGroups: Set<string>,
-  direction: LayoutDirection,
-): string {
+function getLayoutCacheKey(groups: GroupWithLayout[], expandedGroups: Set<string>, direction: LayoutDirection): string {
   // Group names + task counts (task count affects node dimensions)
   const groupKey = groups.map((g) => `${g.name}:${g.tasks?.length || 0}`).join("|");
   // Expanded groups (sorted for stable key)
@@ -273,7 +269,7 @@ export async function calculatePositions(
   });
 
   const result = { positions, dimensions: dimensionsMap };
-  
+
   // Store in cache
   addToCache(cacheKey, result);
 

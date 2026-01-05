@@ -116,16 +116,10 @@ function TableToolbarInner<T>({
               onClick={toggleDisplayMode}
               className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
-              {displayMode === "free" ? (
-                <MonitorCheck className="size-4" />
-              ) : (
-                <MonitorX className="size-4" />
-              )}
+              {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            {displayMode === "free" ? "Show used" : "Show available"}
-          </TooltipContent>
+          <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -146,7 +140,10 @@ function TableToolbarInner<T>({
               <Columns className="size-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent
+            align="end"
+            className="w-48"
+          >
             <DropdownMenuLabel>Columns</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {columns.map((column) => (

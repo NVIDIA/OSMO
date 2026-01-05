@@ -356,8 +356,8 @@ export default function VisTimelinePage() {
   // This avoids setState in effect - returns false on server, true on client
   const isMounted = useSyncExternalStore(
     () => () => {}, // no-op subscribe - value never changes after hydration
-    () => true,     // client snapshot - always mounted on client
-    () => false     // server snapshot - not mounted during SSR
+    () => true, // client snapshot - always mounted on client
+    () => false, // server snapshot - not mounted during SSR
   );
 
   // Calculate time bounds from items

@@ -63,11 +63,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       aria-label={`Copy ${label}`}
       title={copied ? "Copied!" : `Copy ${label}`}
     >
-      {copied ? (
-        <Check className="size-3 text-emerald-500" />
-      ) : (
-        <Copy className="size-3" />
-      )}
+      {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
     </button>
   );
 }
@@ -117,22 +113,28 @@ export const TaskDetails = memo(function TaskDetails({
   }, [tasks, task.name, task.retry_id]);
 
   // Handle sibling selection from dropdown
-  const handleSelectSibling = useCallback((name: string, retryId: number) => {
-    const selectedTask = tasks.find((t) => t.name === name && t.retry_id === retryId);
-    if (selectedTask) {
-      onSelectTask(selectedTask, group);
-    }
-  }, [tasks, group, onSelectTask]);
+  const handleSelectSibling = useCallback(
+    (name: string, retryId: number) => {
+      const selectedTask = tasks.find((t) => t.name === name && t.retry_id === retryId);
+      if (selectedTask) {
+        onSelectTask(selectedTask, group);
+      }
+    },
+    [tasks, group, onSelectTask],
+  );
 
   // Handle dependency pill click (for standalone tasks)
-  const handleSelectGroupByName = useCallback((groupName: string) => {
-    if (onSelectGroup) {
-      const targetGroup = allGroups.find((g) => g.name === groupName);
-      if (targetGroup) {
-        onSelectGroup(targetGroup);
+  const handleSelectGroupByName = useCallback(
+    (groupName: string) => {
+      if (onSelectGroup) {
+        const targetGroup = allGroups.find((g) => g.name === groupName);
+        if (targetGroup) {
+          onSelectGroup(targetGroup);
+        }
       }
-    }
-  }, [allGroups, onSelectGroup]);
+    },
+    [allGroups, onSelectGroup],
+  );
 
   // Compute upstream/downstream groups (only for standalone tasks)
   const upstreamGroups = useMemo(() => {
@@ -213,7 +215,6 @@ export const TaskDetails = memo(function TaskDetails({
 
       {/* Content */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-
         {/* Exit status - special treatment at top when non-zero */}
         {task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0 && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
@@ -224,9 +225,7 @@ export const TaskDetails = memo(function TaskDetails({
                   Exit Code: {task.exit_code}
                 </div>
                 {task.failure_message && (
-                  <p className="mt-1 text-xs text-red-700 dark:text-red-400 break-words">
-                    {task.failure_message}
-                  </p>
+                  <p className="mt-1 text-xs text-red-700 dark:text-red-400 break-words">{task.failure_message}</p>
                 )}
               </div>
             </div>
@@ -235,65 +234,83 @@ export const TaskDetails = memo(function TaskDetails({
 
         {/* Task details - Option D layout */}
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
-            {/* Task UUID - first */}
-            <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
-            <dd className="flex items-center min-w-0">
-              <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200" title={task.task_uuid}>
-                {task.task_uuid}
-              </span>
-              <CopyButton value={task.task_uuid} label="Task UUID" />
-            </dd>
+          {/* Task UUID - first */}
+          <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
+          <dd className="flex items-center min-w-0">
+            <span
+              className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
+              title={task.task_uuid}
+            >
+              {task.task_uuid}
+            </span>
+            <CopyButton
+              value={task.task_uuid}
+              label="Task UUID"
+            />
+          </dd>
 
-            {/* Node */}
-            {task.node_name && (
-              <>
-                <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
-                <dd className="flex items-center min-w-0">
-                  <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">
-                    {task.node_name}
-                  </span>
-                  <CopyButton value={task.node_name} label="Node" />
-                </dd>
-              </>
-            )}
+          {/* Node */}
+          {task.node_name && (
+            <>
+              <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
+              <dd className="flex items-center min-w-0">
+                <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name}</span>
+                <CopyButton
+                  value={task.node_name}
+                  label="Node"
+                />
+              </dd>
+            </>
+          )}
 
-            {/* Pod */}
-            {task.pod_name && (
-              <>
-                <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
-                <dd className="flex items-center min-w-0">
-                  <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200" title={task.pod_name}>
-                    {task.pod_name}
-                  </span>
-                  <CopyButton value={task.pod_name} label="Pod" />
-                </dd>
-              </>
-            )}
+          {/* Pod */}
+          {task.pod_name && (
+            <>
+              <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
+              <dd className="flex items-center min-w-0">
+                <span
+                  className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
+                  title={task.pod_name}
+                >
+                  {task.pod_name}
+                </span>
+                <CopyButton
+                  value={task.pod_name}
+                  label="Pod"
+                />
+              </dd>
+            </>
+          )}
 
-            {/* Pod IP */}
-            {task.pod_ip && (
-              <>
-                <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
-                <dd className="flex items-center min-w-0">
-                  <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">
-                    {task.pod_ip}
-                  </span>
-                  <CopyButton value={task.pod_ip} label="Pod IP" />
-                </dd>
-              </>
-            )}
+          {/* Pod IP */}
+          {task.pod_ip && (
+            <>
+              <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
+              <dd className="flex items-center min-w-0">
+                <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</span>
+                <CopyButton
+                  value={task.pod_ip}
+                  label="Pod IP"
+                />
+              </dd>
+            </>
+          )}
 
-            {/* Exit code - only show if success (0), failures shown above */}
-            {task.exit_code === 0 && (
-              <>
-                <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
-                <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">0</dd>
-              </>
-            )}
-          </dl>
+          {/* Exit code - only show if success (0), failures shown above */}
+          {task.exit_code === 0 && (
+            <>
+              <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
+              <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">0</dd>
+            </>
+          )}
+        </dl>
 
         {/* Actions */}
-        <div className="flex gap-2" role="group" aria-label="Task actions">
+        <div
+          className="flex gap-2"
+          role="group"
+          aria-label="Task actions"
+        >
           <Button
             variant="outline"
             size="sm"
@@ -306,7 +323,10 @@ export const TaskDetails = memo(function TaskDetails({
               rel="noopener noreferrer"
               aria-label={`View logs for ${task.name}`}
             >
-              <FileText className="mr-1.5 size-3.5" aria-hidden="true" />
+              <FileText
+                className="mr-1.5 size-3.5"
+                aria-hidden="true"
+              />
               View Logs
             </a>
           </Button>
@@ -317,7 +337,10 @@ export const TaskDetails = memo(function TaskDetails({
               className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
               aria-label={`Open shell for ${task.name}`}
             >
-              <Terminal className="mr-1.5 size-3.5" aria-hidden="true" />
+              <Terminal
+                className="mr-1.5 size-3.5"
+                aria-hidden="true"
+              />
               Shell
             </Button>
           )}

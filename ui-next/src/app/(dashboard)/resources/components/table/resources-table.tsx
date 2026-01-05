@@ -41,11 +41,7 @@ const getRowId = (resource: Resource) => resource.name;
  * Sort resources by column and direction.
  * Numeric columns (gpu, cpu, memory, storage) sort by used or free based on displayMode.
  */
-function sortResources(
-  resources: Resource[],
-  sort: SortState<string> | null,
-  displayMode: DisplayMode,
-): Resource[] {
+function sortResources(resources: Resource[], sort: SortState<string> | null, displayMode: DisplayMode): Resource[] {
   if (!sort?.column) return resources;
 
   return [...resources].sort((a, b) => {
@@ -70,24 +66,22 @@ function sortResources(
         cmp = a.backend.localeCompare(b.backend);
         break;
       case "gpu":
-        cmp = displayMode === "free"
-          ? (a.gpu.total - a.gpu.used) - (b.gpu.total - b.gpu.used)
-          : a.gpu.used - b.gpu.used;
+        cmp = displayMode === "free" ? a.gpu.total - a.gpu.used - (b.gpu.total - b.gpu.used) : a.gpu.used - b.gpu.used;
         break;
       case "cpu":
-        cmp = displayMode === "free"
-          ? (a.cpu.total - a.cpu.used) - (b.cpu.total - b.cpu.used)
-          : a.cpu.used - b.cpu.used;
+        cmp = displayMode === "free" ? a.cpu.total - a.cpu.used - (b.cpu.total - b.cpu.used) : a.cpu.used - b.cpu.used;
         break;
       case "memory":
-        cmp = displayMode === "free"
-          ? (a.memory.total - a.memory.used) - (b.memory.total - b.memory.used)
-          : a.memory.used - b.memory.used;
+        cmp =
+          displayMode === "free"
+            ? a.memory.total - a.memory.used - (b.memory.total - b.memory.used)
+            : a.memory.used - b.memory.used;
         break;
       case "storage":
-        cmp = displayMode === "free"
-          ? (a.storage.total - a.storage.used) - (b.storage.total - b.storage.used)
-          : a.storage.used - b.storage.used;
+        cmp =
+          displayMode === "free"
+            ? a.storage.total - a.storage.used - (b.storage.total - b.storage.used)
+            : a.storage.used - b.storage.used;
         break;
     }
     return sort.direction === "asc" ? cmp : -cmp;
@@ -179,16 +173,10 @@ export function ResourcesTable({
   );
 
   // Create TanStack columns with current display mode
-  const columns = useMemo(
-    () => createResourceColumns({ displayMode }),
-    [displayMode],
-  );
+  const columns = useMemo(() => createResourceColumns({ displayMode }), [displayMode]);
 
   // Fixed columns (not draggable)
-  const fixedColumns = useMemo(
-    () => Array.from(MANDATORY_COLUMN_IDS),
-    [],
-  );
+  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
@@ -224,18 +212,12 @@ export function ResourcesTable({
 
   // Empty state - memoized to prevent re-renders
   const emptyContent = useMemo(
-    () => (
-      <div className="text-sm text-zinc-500 dark:text-zinc-400">
-        No resources found
-      </div>
-    ),
+    () => <div className="text-sm text-zinc-500 dark:text-zinc-400">No resources found</div>,
     [],
   );
 
   return (
-    <div
-      className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-    >
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <DataTable<Resource>
         data={sortedResources}
         columns={columns}

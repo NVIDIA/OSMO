@@ -43,19 +43,16 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
       {/* Row 1: Title row */}
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">
-            {resource.name}
-          </h2>
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-              resourceTypeDisplay.className,
-            )}
-          >
+          <h2 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{resource.name}</h2>
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", resourceTypeDisplay.className)}>
             {resourceTypeDisplay.label}
           </span>
         </div>
-        <PanelHeaderActions badge="Resource" onWidthPreset={onWidthPreset} onClose={onClose} />
+        <PanelHeaderActions
+          badge="Resource"
+          onWidthPreset={onWidthPreset}
+          onClose={onClose}
+        />
       </div>
 
       {/* Row 2: Platform, Backend, Pool count */}

@@ -189,16 +189,7 @@ export function useGridNavigation({
           return;
       }
     },
-    [
-      disabled,
-      rowCount,
-      columnCount,
-      focusedPosition,
-      moveFocus,
-      setFocusedPosition,
-      visibleRowCount,
-      onCellActivate,
-    ],
+    [disabled, rowCount, columnCount, focusedPosition, moveFocus, setFocusedPosition, visibleRowCount, onCellActivate],
   );
 
   // Handle cell focus (when clicking or tabbing into a cell)
@@ -244,13 +235,6 @@ export function useGridNavigation({
       handleCellFocus,
       gridRef,
     }),
-    [
-      focusedPosition,
-      setFocusedPosition,
-      getTabIndex,
-      isFocused,
-      handleKeyDown,
-      handleCellFocus,
-    ],
+    [focusedPosition, setFocusedPosition, getTabIndex, isFocused, handleKeyDown, handleCellFocus],
   );
 }
