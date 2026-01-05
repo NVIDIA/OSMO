@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -9,15 +9,15 @@
  */
 
 /**
- * Hook for state that persists to localStorage.
+ * Hook for boolean state that persists to localStorage.
  *
  * This is the ONLY place localStorage read/write should happen for
- * user preference state. All other localStorage access should go
- * through domain-specific modules (e.g., token-storage.ts for auth).
+ * simple boolean user preferences. For complex typed settings, use
+ * domain-specific hooks (e.g., usePersistedSettings in workflow-explorer).
  *
  * @example
  * ```tsx
- * const [collapsed, setCollapsed] = usePersistedState("sidebar-collapsed", false);
+ * const [collapsed, setCollapsed] = usePersistedBoolean("sidebar-collapsed", false);
  * ```
  */
 
@@ -27,13 +27,14 @@ import { useState, useCallback } from "react";
  * React hook for boolean state persisted to localStorage.
  *
  * - SSR-safe: Returns defaultValue during server render
- * - Single callsite: All localStorage access for this key goes through here
+ * - Simple API: Just like useState but persisted
+ * - Prefixed keys: All keys are prefixed with "osmo-" to avoid collisions
  *
  * @param key - localStorage key (will be prefixed with "osmo-")
  * @param defaultValue - Default value if nothing stored
  * @returns Tuple of [value, setValue] like useState
  */
-export function usePersistedState(key: string, defaultValue: boolean): [boolean, (value: boolean) => void] {
+export function usePersistedBoolean(key: string, defaultValue: boolean): [boolean, (value: boolean) => void] {
   const storageKey = `osmo-${key}`;
 
   // Lazy initializer reads from localStorage (client-side only)

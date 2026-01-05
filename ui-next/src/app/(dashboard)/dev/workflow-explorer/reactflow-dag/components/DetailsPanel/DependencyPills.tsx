@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
 // and proprietary rights in and to this software, related documentation
@@ -19,9 +19,10 @@
 
 "use client";
 
-import { memo, useState, useRef, useCallback, useLayoutEffect } from "react";
+import { memo, useRef } from "react";
 import { Check, Loader2, Clock, AlertCircle, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useExpandableChips } from "@/hooks";
 import type { GroupWithLayout } from "../../../workflow-types";
 import { getStatusCategory } from "../../utils/status";
 
@@ -110,7 +111,7 @@ const DependencyPill = memo(function DependencyPill({
 });
 
 // ============================================================================
-// Pill Row Component (handles responsive +N / show less)
+// Pill Row Component (uses useExpandableChips in measured mode)
 // ============================================================================
 
 const PillRow = memo(function PillRow({
@@ -118,66 +119,29 @@ const PillRow = memo(function PillRow({
   groups,
   onSelectGroup,
 }: PillRowProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState(groups.length);
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  // Measure how many pills fit on one line using hidden measurement container
-  const measureVisiblePills = useCallback(() => {
-    if (!containerRef.current || !measureRef.current || groups.length === 0) return;
-
-    const container = containerRef.current;
-    const measureContainer = measureRef.current;
-    const pills = measureContainer.querySelectorAll("[data-measure-pill]");
-    if (pills.length === 0) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const labelWidth = 100; // Approximate label width + gap
-    const availableWidth = containerRect.width - labelWidth - 60; // Reserve space for +N
-
-    let totalWidth = 0;
-    let count = 0;
-
-    pills.forEach((pill, index) => {
-      const pillRect = pill.getBoundingClientRect();
-      const pillWidth = pillRect.width + 8; // Include gap
-
-      if (totalWidth + pillWidth <= availableWidth) {
-        totalWidth += pillWidth;
-        count = index + 1;
-      }
-    });
-
-    // Always show at least 1 pill
-    setVisibleCount(Math.max(1, count));
-  }, [groups.length]);
-
-  // Measure on mount and resize
-  useLayoutEffect(() => {
-    if (!isExpanded) {
-      measureVisiblePills();
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (!isExpanded) {
-        measureVisiblePills();
-      }
-    });
-
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return () => resizeObserver.disconnect();
-  }, [isExpanded, measureVisiblePills]);
+  const {
+    containerRef,
+    expanded,
+    setExpanded,
+    displayedItems,
+    overflowCount,
+  } = useExpandableChips<GroupWithLayout>({
+    items: groups,
+    measured: {
+      measureRef,
+      itemSelector: "[data-measure-pill]",
+      reservedWidth: 100, // Label width + gap
+    },
+    sortAlphabetically: false, // Keep original order for dependencies
+    getKey: (g) => g.name,
+  });
 
   // Don't render empty rows
   if (groups.length === 0) {
     return null;
   }
-
-  const hiddenCount = groups.length - visibleCount;
 
   return (
     <div ref={containerRef} className="flex flex-wrap items-start gap-2">
@@ -197,7 +161,7 @@ const PillRow = memo(function PillRow({
       <span className="w-24 shrink-0 py-1 text-xs text-gray-500 dark:text-zinc-500">{label}</span>
       <div className="flex flex-1 flex-wrap items-center gap-2">
         {/* When collapsed: show visibleCount pills; when expanded: show all */}
-        {(isExpanded ? groups : groups.slice(0, visibleCount)).map((group) => (
+        {displayedItems.map((group) => (
           <DependencyPill
             key={group.name}
             group={group}
@@ -205,18 +169,18 @@ const PillRow = memo(function PillRow({
           />
         ))}
         {/* +N button (collapsed state) */}
-        {!isExpanded && hiddenCount > 0 && (
+        {!expanded && overflowCount > 0 && (
           <button
-            onClick={() => setIsExpanded(true)}
+            onClick={() => setExpanded(true)}
             className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-gray-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-zinc-800 dark:hover:text-blue-300"
           >
-            +{hiddenCount}
+            +{overflowCount}
           </button>
         )}
         {/* Show less button (expanded state) - inline with pills */}
-        {isExpanded && hiddenCount > 0 && (
+        {expanded && overflowCount > 0 && (
           <button
-            onClick={() => setIsExpanded(false)}
+            onClick={() => setExpanded(false)}
             className="inline-flex items-center rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             show less

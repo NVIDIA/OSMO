@@ -25,7 +25,7 @@ import { STATUS_SORT_ORDER } from "../../constants";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
 import type { GroupWithLayout } from "../../../workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../utils/status";
-import { usePersistedState } from "../../hooks";
+import { usePersistedSettings } from "../../hooks";
 import type { GroupDetailsProps } from "../../types/panel";
 import type { TaskWithDuration, ColumnDef, ColumnId, SortState, SortColumn, SearchChip } from "../../types/table";
 import { MANDATORY_COLUMNS, OPTIONAL_COLUMNS_ALPHABETICAL, OPTIONAL_COLUMN_MAP, DEFAULT_VISIBLE_OPTIONAL } from "../GroupPanel/column-config";
@@ -60,8 +60,8 @@ export const GroupDetails = memo(function GroupDetails({
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
   // Persisted settings
-  const [sort, setSort] = usePersistedState<SortState>("sort", { column: "status", direction: "asc" });
-  const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedState<string[]>("visibleColumnIds", DEFAULT_VISIBLE_OPTIONAL);
+  const [sort, setSort] = usePersistedSettings("sort", { column: "status", direction: "asc" } as SortState);
+  const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedSettings("visibleColumnIds", DEFAULT_VISIBLE_OPTIONAL);
 
   // Compute tasks with duration
   const tasksWithDuration: TaskWithDuration[] = useMemo(() => {
