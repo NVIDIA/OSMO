@@ -51,7 +51,7 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className="absolute bottom-4 left-4 z-10 flex flex-col gap-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border border-gray-200 dark:border-zinc-700 rounded-lg p-1 shadow-lg"
+        className="absolute bottom-4 left-4 z-10 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95"
         role="toolbar"
         aria-label="DAG controls"
       >
@@ -74,7 +74,7 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
 
         {/* Divider */}
         <div
-          className="h-px bg-gray-200 dark:bg-zinc-700 my-1"
+          className="my-1 h-px bg-gray-200 dark:bg-zinc-700"
           aria-hidden="true"
         />
 
@@ -129,10 +129,10 @@ function ControlButton({
         <button
           onClick={onClick}
           className={cn(
-            "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
-            "text-gray-500 hover:text-gray-900 hover:bg-gray-100",
-            "dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-inset",
+            "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+            "text-gray-500 hover:bg-gray-100 hover:text-gray-900",
+            "dark:text-zinc-400 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-100",
+            "focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none focus-visible:ring-inset",
             active && "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-zinc-100",
           )}
           aria-label={ariaLabel}

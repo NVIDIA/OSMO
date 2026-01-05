@@ -335,7 +335,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
     <div
       className={cn(
         "dag-node relative flex flex-col rounded-lg border-[1.5px]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950",
+        "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white focus-visible:outline-none dark:focus-visible:ring-offset-zinc-950",
       )}
       style={{ width: nodeWidth, height: nodeHeight }}
       data-status={category}
@@ -382,10 +382,10 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {/* Header */}
       <div
         className={cn(
-          "cursor-pointer select-none px-3 shrink-0 flex flex-col justify-center",
-          !isExpanded && !hasManyTasks && "py-3 flex-1",
+          "flex shrink-0 cursor-pointer flex-col justify-center px-3 select-none",
+          !isExpanded && !hasManyTasks && "flex-1 py-3",
           !isExpanded && hasManyTasks && "pt-3 pb-1.5",
-          isExpanded && hasManyTasks && "py-3 dag-node-header-expanded",
+          isExpanded && hasManyTasks && "dag-node-header-expanded py-3",
         )}
         style={isExpanded && hasManyTasks ? { height: NODE_HEADER_HEIGHT } : undefined}
         onClick={handleNodeClick}
@@ -403,7 +403,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {!isExpanded && hasManyTasks && (
         <button
           onClick={handleExpandClick}
-          className="mt-auto shrink-0 flex items-center justify-center h-5 text-gray-400 dark:text-zinc-500 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-600 dark:hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
+          className="mt-auto flex h-5 shrink-0 items-center justify-center rounded-b-[6.5px] text-gray-400 transition-colors hover:bg-gray-100/50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none focus-visible:ring-inset dark:text-zinc-500 dark:hover:bg-zinc-700/30 dark:hover:text-zinc-300"
           aria-label={`Expand to show ${tasks.length} tasks`}
           aria-expanded={false}
         >
@@ -419,7 +419,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {isExpanded && hasManyTasks && (
         <div
           ref={scrollContainerRef}
-          className="dag-scroll-container flex-1 min-h-0 overflow-y-auto border-t border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
+          className="dag-scroll-container min-h-0 flex-1 overflow-y-auto border-t border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
           role="list"
           aria-label={`Tasks in ${group.name}`}
         >
@@ -438,7 +438,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
               return (
                 <button
                   key={`${task.name}-${task.retry_id}`}
-                  className="dag-task-row absolute left-0 flex w-full cursor-pointer items-center gap-2 border-b border-gray-100 dark:border-zinc-800 px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
+                  className="dag-task-row absolute left-0 flex w-full cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-1.5 text-left text-xs transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none focus-visible:ring-inset dark:border-zinc-800 dark:hover:bg-zinc-800/50"
                   style={{
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
@@ -450,10 +450,10 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
                   aria-label={`${task.name}, ${getStatusLabel(task.status)}`}
                 >
                   {getStatusIcon(task.status, "size-3")}
-                  <div className="flex flex-1 items-center gap-1.5 min-w-0">
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
                     <span className="truncate text-gray-700 dark:text-zinc-300">{task.name}</span>
                     {task.lead && (
-                      <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
+                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium tracking-wide text-amber-700 uppercase ring-1 ring-amber-600/20 ring-inset dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
                         Lead
                       </span>
                     )}
@@ -470,7 +470,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {isExpanded && hasManyTasks && (
         <button
           onClick={handleExpandClick}
-          className="dag-collapse-lip shrink-0 flex items-center justify-center h-5 text-gray-500 dark:text-zinc-400 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-700 dark:hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
+          className="dag-collapse-lip flex h-5 shrink-0 items-center justify-center rounded-b-[6.5px] text-gray-500 transition-colors hover:bg-gray-100/50 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none focus-visible:ring-inset dark:text-zinc-400 dark:hover:bg-zinc-700/30 dark:hover:text-zinc-200"
           aria-label="Collapse task list"
           aria-expanded={true}
         >

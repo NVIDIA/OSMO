@@ -109,14 +109,14 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
     // Container query wrapper - @container queries check this element's width
     // Compact mode still uses container queries to progressively show more details
     // Containment isolates layout/style calculations for better perf
-    <div className="@container contain-layout-style">
+    <div className="contain-layout-style @container">
       {/* Grid: 2 col (narrow) → 4 col (wide or compact) */}
       <div
         className={cn(
           "grid gap-2 transition-all duration-200",
           forceCompact
             ? "grid-cols-4" // Forced compact: always 4 col inline layout
-            : "grid-cols-2 @[500px]:gap-3 @[500px]:grid-cols-4", // Responsive
+            : "grid-cols-2 @[500px]:grid-cols-4 @[500px]:gap-3", // Responsive
         )}
       >
         {metrics.map((item, i) => {
@@ -127,7 +127,7 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
             <div
               key={i}
               className={cn(
-                "group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 transition-all duration-200",
+                "group rounded-lg border border-zinc-200 bg-white transition-all duration-200 dark:border-zinc-800 dark:bg-zinc-950",
                 forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3",
               )}
             >
@@ -144,21 +144,21 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
                   <item.Icon className={cn("h-4 w-4 shrink-0", item.color)} />
                   {/* In compact mode, show label at wider widths; in full mode, show at @[500px] */}
                   {forceCompact ? (
-                    <span className="hidden @[800px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    <span className="hidden text-xs font-medium tracking-wider text-zinc-500 uppercase @[800px]:inline dark:text-zinc-400">
                       {item.label}
                     </span>
                   ) : (
-                    <span className="hidden @[500px]:inline text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    <span className="hidden text-xs font-medium tracking-wider text-zinc-500 uppercase @[500px]:inline dark:text-zinc-400">
                       {item.label}
                     </span>
                   )}
                 </div>
 
                 {/* Value with progressive detail based on available space */}
-                <div className="flex items-baseline gap-1 flex-wrap">
+                <div className="flex flex-wrap items-baseline gap-1">
                   <span
                     className={cn(
-                      "font-semibold tabular-nums text-zinc-900 dark:text-zinc-100",
+                      "font-semibold text-zinc-900 tabular-nums dark:text-zinc-100",
                       forceCompact ? "text-sm @[700px]:text-base" : "text-xl",
                     )}
                   >
@@ -177,12 +177,12 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
                   )}
                   {/* Unit */}
                   {formatted.unit && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-0.5">{formatted.unit}</span>
+                    <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{formatted.unit}</span>
                   )}
                   {/* "free"/"used" label: always show in full mode, show at @[700px] in compact */}
                   <span
                     className={cn(
-                      "text-xs text-zinc-400 dark:text-zinc-500 ml-1",
+                      "ml-1 text-xs text-zinc-400 dark:text-zinc-500",
                       forceCompact && "hidden @[700px]:inline",
                     )}
                   >

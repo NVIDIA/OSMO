@@ -28,10 +28,10 @@ interface DAGToolbarProps {
 export function DAGToolbar({ workflowPattern, onPatternChange }: DAGToolbarProps) {
   return (
     <nav
-      className="flex items-center px-6 py-3 border-b border-gray-200 dark:border-zinc-800"
+      className="flex items-center border-b border-gray-200 px-6 py-3 dark:border-zinc-800"
       aria-label="Workflow pattern selector"
     >
-      <span className="text-xs text-gray-500 dark:text-zinc-500 mr-3">Demo Pattern:</span>
+      <span className="mr-3 text-xs text-gray-500 dark:text-zinc-500">Demo Pattern:</span>
       <Tabs
         value={workflowPattern}
         onValueChange={(v) => onPatternChange(v as WorkflowPattern)}

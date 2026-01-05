@@ -179,7 +179,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div className="bg-background flex h-screen items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
       </div>
     );
@@ -187,9 +187,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   if (authEnabled && !isAuthenticated && !isSkipped) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-background">
+      <div className="bg-background flex h-screen flex-col items-center justify-center gap-6">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-foreground mb-2">OSMO</h1>
+          <h1 className="text-foreground mb-2 text-2xl font-semibold">OSMO</h1>
           <p className="text-muted-foreground">Authentication required</p>
         </div>
 
@@ -202,13 +202,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={login}
-              className="rounded-lg bg-[var(--nvidia-green)] px-6 py-2.5 text-sm font-medium text-black hover:bg-[var(--nvidia-green-light)] transition-colors"
+              className="rounded-lg bg-[var(--nvidia-green)] px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-[var(--nvidia-green-light)]"
             >
               Log in with SSO
             </button>
             <button
               onClick={skipAuth}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
             >
               Continue without login →
             </button>

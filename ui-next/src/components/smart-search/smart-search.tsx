@@ -562,7 +562,7 @@ function SmartSearchInner<T>({
         >
           {/* Error message as a hint */}
           {validationError && (
-            <div className="px-3 py-2 text-sm text-red-600 dark:text-red-400 border-b border-red-100 dark:border-red-900 select-none pointer-events-none">
+            <div className="pointer-events-none border-b border-red-100 px-3 py-2 text-sm text-red-600 select-none dark:border-red-900 dark:text-red-400">
               ⚠ {validationError}
             </div>
           )}
@@ -573,7 +573,7 @@ function SmartSearchInner<T>({
               return (
                 <div
                   key={`hint-${suggestion.field.id}-${index}`}
-                  className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400 italic border-b border-zinc-100 dark:border-zinc-800 select-none pointer-events-none"
+                  className="pointer-events-none border-b border-zinc-100 px-3 py-2 text-sm text-zinc-500 italic select-none dark:border-zinc-800 dark:text-zinc-400"
                 >
                   {suggestion.label}
                 </div>
@@ -613,7 +613,7 @@ function SmartSearchInner<T>({
                 </span>
                 {/* Show Tab hint only when there's exactly one selectable option */}
                 {showTabHint && (
-                  <kbd className="hidden rounded bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400 sm:inline">
+                  <kbd className="hidden rounded bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-500 sm:inline dark:bg-zinc-700 dark:text-zinc-400">
                     Tab
                   </kbd>
                 )}

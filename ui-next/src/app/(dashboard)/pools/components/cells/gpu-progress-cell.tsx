@@ -61,7 +61,7 @@ const ShareIcon = memo(function ShareIcon({ compact, interactive, onClick }: Sha
         type="button"
         onClick={onClick}
         onKeyDown={handleKeyDown}
-        className="inline-flex items-center justify-center rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
+        className="inline-flex items-center justify-center rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
         aria-label="Filter to show only pools sharing capacity with this pool"
       >
         <Share2
