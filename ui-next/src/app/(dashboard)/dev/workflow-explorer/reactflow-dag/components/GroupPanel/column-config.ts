@@ -13,7 +13,7 @@
  * Uses flexible widths with min/share for responsive layouts.
  */
 
-import type { ColumnDef, OptionalColumnDef, ColumnId, ColumnWidth } from "../../types/table";
+import type { ColumnDef, OptionalColumnDef, ColumnId } from "../../types/table";
 
 // ============================================================================
 // Column Definitions
@@ -53,7 +53,7 @@ export const OPTIONAL_COLUMNS_ALPHABETICAL = [...OPTIONAL_COLUMNS].sort((a, b) =
  */
 export const ALL_COLUMNS: ColumnDef[] = [
   ...MANDATORY_COLUMNS,
-  ...OPTIONAL_COLUMNS.map(({ defaultVisible, ...rest }) => rest),
+  ...OPTIONAL_COLUMNS.map(({ defaultVisible: _defaultVisible, ...rest }) => rest),
 ];
 
 /**

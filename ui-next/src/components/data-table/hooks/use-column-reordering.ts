@@ -20,7 +20,7 @@
  * - No auto-scroll (user must manually scroll to access off-screen columns)
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import {
   useSensor,
   useSensors,

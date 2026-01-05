@@ -52,8 +52,6 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   rowClassName?: string | ((item: TData) => string);
   /** Render section header */
   renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
-  /** Currently focused row index (for keyboard navigation) */
-  focusedRowIndex?: number | null;
   /** Get tabIndex for a row (roving tabindex pattern) */
   getRowTabIndex?: (index: number) => 0 | -1;
   /** Row focus handler */
@@ -77,7 +75,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   getRowId,
   rowClassName,
   renderSectionHeader,
-  focusedRowIndex,
   getRowTabIndex,
   onRowFocus,
   onRowKeyDown,

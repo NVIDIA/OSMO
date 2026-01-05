@@ -11,7 +11,6 @@
 import type { SearchField, ChipVariant } from "@/components/smart-search";
 import type { Resource } from "@/lib/api/adapter";
 import { BackendResourceType } from "@/lib/api/generated";
-import { getResourceAllocationTypeDisplay } from "./constants";
 
 // ============================================================================
 // Numeric Filter Parsing (copied from pools pattern)

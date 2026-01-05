@@ -330,7 +330,6 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
   const ariaLabel = isSingleTask
     ? `${displayName}, ${getStatusLabel(displayStatus)}`
     : `${displayName}, ${getStatusLabel(displayStatus)}, ${totalCount} tasks`;
-  const expandLabel = isExpanded ? "Collapse task list" : "Expand task list";
 
   return (
     <div

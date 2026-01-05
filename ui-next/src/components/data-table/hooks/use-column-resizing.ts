@@ -35,8 +35,8 @@
  * - **Result**: Column floor is set, but proportional growth continues
  */
 
-import { useCallback, useRef, useMemo, useReducer, useLayoutEffect, useEffect } from "react";
-import { useStableCallback, useStableValue } from "@/hooks";
+import { useCallback, useRef, useMemo, useReducer, useLayoutEffect, useEffect, useState } from "react";
+import { useStableValue } from "@/hooks";
 import type { ColumnSizeConfig, ColumnOverride } from "../types";
 import {
   getBaseFontSize,
@@ -224,9 +224,11 @@ export function useUnifiedColumnSizing({
   // ===== Stable Refs =====
   const columnsRef = useStableValue(columns);
   const stateRef = useStableValue(state);
-  const stableOnOverridesChange = useStableCallback(onOverridesChange);
+  const onOverridesChangeRef = useStableValue(onOverridesChange);
 
-  const baseFontSize = useRef(getBaseFontSize());
+  // baseFontSize is computed once and stored in state (not ref) so it can be read during render
+  // This is the React-recommended pattern: refs cannot be read during render, but state can
+  const [baseFontSize] = useState(() => getBaseFontSize());
   const dragRef = useRef<DragState | null>(null);
 
   // ===== Container Width Observation =====
@@ -302,8 +304,8 @@ export function useUnifiedColumnSizing({
 
   // ===== Derived: Resolved Columns & Widths =====
   const resolved = useMemo(
-    () => resolveColumns(columns, state.overrides, state.naturalWidths, baseFontSize.current),
-    [columns, state.overrides, state.naturalWidths],
+    () => resolveColumns(columns, state.overrides, state.naturalWidths, baseFontSize),
+    [columns, state.overrides, state.naturalWidths, baseFontSize],
   );
 
   const widthsResult = useMemo(() => {
@@ -333,10 +335,10 @@ export function useUnifiedColumnSizing({
     const mins: Record<string, number> = {};
     for (const col of columns) {
       const override = state.overrides[col.id];
-      mins[col.id] = override?.minWidthPx ?? remToPx(col.minWidthRem, baseFontSize.current);
+      mins[col.id] = override?.minWidthPx ?? remToPx(col.minWidthRem, baseFontSize);
     }
     return mins;
-  }, [columns, state.overrides]);
+  }, [columns, state.overrides, baseFontSize]);
 
   const effectiveMinsRef = useStableValue(effectiveMins);
 
@@ -347,17 +349,8 @@ export function useUnifiedColumnSizing({
   /** Get config min (absolute floor from code) */
   const getConfigMinPx = useCallback((columnId: string): number => {
     const col = columnsRef.current.find((c) => c.id === columnId);
-    return col ? remToPx(col.minWidthRem, baseFontSize.current) : 0;
-  }, []);
-
-  /** Get content max (natural width from measurement) */
-  const getContentMaxPx = useCallback((columnId: string): number => {
-    const cached = stateRef.current.naturalWidths[columnId];
-    if (cached != null && cached > 0) return cached;
-    // Fallback: current width (content must fit)
-    const current = widthsRef.current[columnId] ?? 0;
-    return current > 0 ? current : 500;
-  }, []);
+    return col ? remToPx(col.minWidthRem, baseFontSize) : 0;
+  }, [baseFontSize, columnsRef]);
 
   /** Measure a single column's content width */
   const measureColumn = useCallback(
@@ -381,7 +374,7 @@ export function useUnifiedColumnSizing({
 
       return headerCell?.offsetWidth || widthsRef.current[columnId] || 0;
     },
-    [tableRef],
+    [tableRef, widthsRef],
   );
 
   /** Update CSS variable directly on table element */
@@ -499,9 +492,9 @@ export function useUnifiedColumnSizing({
 
     // Notify parent
     queueMicrotask(() => {
-      stableOnOverridesChange?.(newOverrides);
+      onOverridesChangeRef.current?.(newOverrides);
     });
-  }, [unlockScroll, calculateResizeOverrides]);
+  }, [unlockScroll, calculateResizeOverrides, onOverridesChangeRef]);
 
   /** Cancel the resize and restore original width */
   const cancelResize = useCallback(() => {
@@ -658,7 +651,7 @@ export function useUnifiedColumnSizing({
       // For drag operations, allow overshooting content max by a small amount.
       // This gives users breathing room when manually resizing.
       // Double-click (auto-fit) still uses exact contentMax.
-      const dragOvershootPx = remToPx(DRAG_OVERSHOOT_REM, baseFontSize.current);
+      const dragOvershootPx = remToPx(DRAG_OVERSHOOT_REM, baseFontSize);
       const dragMax = contentMax < Infinity ? contentMax + dragOvershootPx : Infinity;
 
       // Update naturalWidths cache with fresh measurement
@@ -697,7 +690,7 @@ export function useUnifiedColumnSizing({
       lockScroll();
       dispatch({ type: "START_RESIZE", columnId });
     },
-    [getConfigMinPx, getActualColumnWidth, measureColumn, lockScroll, addGlobalListeners],
+    [getConfigMinPx, getActualColumnWidth, measureColumn, lockScroll, addGlobalListeners, baseFontSize, widthsRef, effectiveMinsRef],
   );
 
   // These are still exposed for component API but global listeners do the actual work
@@ -762,10 +755,10 @@ export function useUnifiedColumnSizing({
 
       // Notify parent
       queueMicrotask(() => {
-        stableOnOverridesChange?.(newOverrides);
+        onOverridesChangeRef.current?.(newOverrides);
       });
     },
-    [measureColumn, getConfigMinPx, calculateResizeOverrides, updateCSSVariable],
+    [measureColumn, getConfigMinPx, calculateResizeOverrides, updateCSSVariable, widthsRef, effectiveMinsRef, onOverridesChangeRef],
   );
 
   // ===== Actions =====
@@ -775,16 +768,16 @@ export function useUnifiedColumnSizing({
     // because shares are interdependent - going back to proportional mode
     dispatch({ type: "CLEAR_ALL_OVERRIDES" });
     queueMicrotask(() => {
-      stableOnOverridesChange?.({});
+      onOverridesChangeRef.current?.({});
     });
-  }, []);
+  }, [onOverridesChangeRef]);
 
   const resetAllColumns = useCallback(() => {
     dispatch({ type: "CLEAR_ALL_OVERRIDES" });
     queueMicrotask(() => {
-      stableOnOverridesChange?.({});
+      onOverridesChangeRef.current?.({});
     });
-  }, []);
+  }, [onOverridesChangeRef]);
 
   const measureNaturalWidths = useCallback(() => {
     const table = tableRef.current;
@@ -797,7 +790,7 @@ export function useUnifiedColumnSizing({
     if (Object.keys(measured).length > 0) {
       dispatch({ type: "SET_NATURAL_WIDTHS", widths: measured });
     }
-  }, [tableRef, measurementPadding]);
+  }, [tableRef, measurementPadding, columnsRef]);
 
   // ===== Return =====
 

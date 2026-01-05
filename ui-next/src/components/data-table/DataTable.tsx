@@ -23,7 +23,7 @@
 "use client";
 
 import { useMemo, useRef, useCallback } from "react";
-import { useStableCallback, useStableValue } from "@/hooks";
+import { useStableValue } from "@/hooks";
 import {
   useReactTable,
   getCoreRowModel,
@@ -40,7 +40,6 @@ import { cn } from "@/lib/utils";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";
 import { VirtualTableBody } from "./VirtualTableBody";
-import { SectionedTableBody } from "./SectionedTableBody";
 import { ResizeHandle } from "./ResizeHandle";
 import { TableSkeleton } from "./TableSkeleton";
 import { useVirtualizedTable } from "./hooks/use-virtualized-table";
@@ -213,8 +212,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
 
-  // Stable callback to prevent re-render loops
-  const stableOnSortingChange = useStableCallback(onSortingChange);
+  // Stable refs for optional callbacks to prevent re-render loops
+  const onSortingChangeRef = useStableValue(onSortingChange);
+  const onRowClickRef = useStableValue(onRowClick);
+  const onLoadMoreRef = useStableValue(onLoadMore);
 
   // Get all data items (from sections or flat data)
   const allItems = useMemo(() => {
@@ -329,8 +330,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
       if (oldIndex === -1 || newIndex === -1) return;
 
       // Find the boundary: fixed columns must stay at the start
-      // Columns cannot be moved before any fixed column
-      const fixedColumnCount = fixedColumns.length;
       const firstMovableIndex = columnOrder.findIndex(
         (id) => !fixedColumns.includes(id),
       );
@@ -388,9 +387,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Compute aria-rowcount
   const ariaRowCount = totalCount ?? totalRowCount;
 
-  // Stable row click callback for keyboard activation
-  const stableOnRowClick = useStableCallback(onRowClick);
-  const stableOnLoadMore = useStableCallback(onLoadMore);
+  // Row click and load more are accessed via refs (set above)
 
   // Keyboard navigation for rows (uses virtual indices which include sections)
   const rowNavigation = useRowNavigation({
@@ -400,11 +397,11 @@ export function DataTable<TData, TSectionMeta = unknown>({
       (virtualIndex: number) => {
         const item = getItem(virtualIndex);
         if (item?.type === "row") {
-          stableOnRowClick?.(item.item);
+          onRowClickRef.current?.(item.item);
         }
         // If it's a section, do nothing (or could expand/collapse)
       },
-      [getItem, stableOnRowClick],
+      [getItem],
     ),
     onScrollToRow: useCallback(
       (virtualIndex: number, align: "start" | "end" | "center") => {
@@ -413,10 +410,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
         // Trigger pagination if near the end
         if (hasNextPage && !isFetchingNextPage && virtualIndex >= virtualItemCount - 5) {
-          stableOnLoadMore?.();
+          onLoadMoreRef.current?.();
         }
       },
-      [scrollToIndex, hasNextPage, isFetchingNextPage, virtualItemCount, stableOnLoadMore],
+      [scrollToIndex, hasNextPage, isFetchingNextPage, virtualItemCount],
     ),
     disabled: !onRowClick, // Only enable if rows are clickable
     containerRef: scrollRef, // For finding and focusing row elements
@@ -519,21 +516,17 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
                           // Cycle: none -> asc -> desc -> none
                           if (!isSorted) {
-                            stableOnSortingChange?.({ column: header.id, direction: "asc" });
+                            onSortingChangeRef.current?.({ column: header.id, direction: "asc" });
                           } else if (isSorted === "asc") {
-                            stableOnSortingChange?.({ column: header.id, direction: "desc" });
+                            onSortingChangeRef.current?.({ column: header.id, direction: "desc" });
                           } else {
-                            stableOnSortingChange?.({ column: null, direction: "asc" });
+                            onSortingChangeRef.current?.({ column: null, direction: "asc" });
                           }
                         };
-
-                        // Get column width from unified sizing hook
-                        const columnWidth = columnSizing.widths[header.id] ?? header.getSize();
 
                         const cellContent = (
                           <>
                             <SortButton
-                              id={header.id}
                               label={String(header.column.columnDef.header ?? header.id)}
                               sortable={isSortable}
                               isActive={Boolean(isSorted)}
@@ -611,7 +604,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 getRowId={getRowId}
                 rowClassName={rowClassName}
                 renderSectionHeader={renderSectionHeader}
-                focusedRowIndex={rowNavigation.focusedRowIndex}
                 getRowTabIndex={rowNavigation.getRowTabIndex}
                 onRowFocus={rowNavigation.handleRowFocus}
                 onRowKeyDown={rowNavigation.handleRowKeyDown}
