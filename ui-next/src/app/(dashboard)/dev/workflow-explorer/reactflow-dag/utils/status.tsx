@@ -331,7 +331,7 @@ export function computeGroupDuration(stats: TaskStats): number | null {
 // =============================================================================
 
 // Import type for node data
-import type { GroupNodeData } from "../types/layout";
+import type { GroupNodeData } from "../types/dag-layout";
 
 /**
  * Get node fill color for MiniMap based on status.

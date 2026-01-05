@@ -60,7 +60,7 @@ export const GroupDetails = memo(function GroupDetails({
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
   // Persisted settings
-  const [sort, setSort] = usePersistedSettings("sort", { column: "status", direction: "asc" } as SortState);
+  const [sort, setSort] = usePersistedSettings("sort", { column: "status", direction: "asc" });
   const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedSettings("visibleColumnIds", DEFAULT_VISIBLE_OPTIONAL);
 
   // Compute tasks with duration
@@ -121,13 +121,12 @@ export const GroupDetails = memo(function GroupDetails({
   }, [tasksWithDuration, searchChips, sortComparator]);
 
   // Callbacks
-  const toggleColumn = useCallback((columnId: string) => {
+  const toggleColumn = useCallback((columnId: ColumnId) => {
     setVisibleOptionalIds((prev) => {
-      const prevIds = prev as ColumnId[];
-      if (prevIds.includes(columnId as ColumnId)) {
-        return prevIds.filter((id) => id !== columnId);
+      if (prev.includes(columnId)) {
+        return prev.filter((id) => id !== columnId);
       }
-      return [...prevIds, columnId];
+      return [...prev, columnId];
     });
   }, [setVisibleOptionalIds]);
 

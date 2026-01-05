@@ -19,6 +19,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { PERSISTENCE } from "../constants";
+import type { SortState, ColumnId } from "../types/table";
 
 // ============================================================================
 // Types
@@ -27,12 +28,9 @@ import { PERSISTENCE } from "../constants";
 /** Settings that can be persisted for the workflow explorer */
 export interface PersistedSettings {
   panelPct: number;
-  visibleColumnIds: string[];
-  columnOrder: string[];
-  sort: {
-    column: string | null;
-    direction: "asc" | "desc";
-  };
+  visibleColumnIds: ColumnId[];
+  columnOrder: ColumnId[];
+  sort: SortState;
 }
 
 // ============================================================================

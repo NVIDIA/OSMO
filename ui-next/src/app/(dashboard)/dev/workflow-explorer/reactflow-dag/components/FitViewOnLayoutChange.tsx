@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { LayoutDirection, GroupNodeData } from "../types/layout";
+import type { LayoutDirection, GroupNodeData } from "../types/dag-layout";
 import {
   VIEWPORT_ANIMATION_DURATION,
   INITIAL_ANIMATION_DURATION,

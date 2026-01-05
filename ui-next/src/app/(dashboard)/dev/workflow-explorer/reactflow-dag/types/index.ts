@@ -47,7 +47,7 @@ export type {
   ElkGraph,
   ElkLayoutNode,
   ElkLayoutResult,
-} from "./layout";
+} from "./dag-layout";
 
 // ============================================================================
 // Panel Types
