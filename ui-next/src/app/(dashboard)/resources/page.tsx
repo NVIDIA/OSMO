@@ -99,7 +99,7 @@ export default function ResourcesPage() {
 
   // Find selected resource
   const selectedResource = useMemo<Resource | null>(
-    () => (selectedResourceName ? resources.find((r) => r.name === selectedResourceName) ?? null : null),
+    () => (selectedResourceName ? (resources.find((r) => r.name === selectedResourceName) ?? null) : null),
     [resources, selectedResourceName],
   );
 
@@ -131,7 +131,10 @@ export default function ResourcesPage() {
       <div className="flex h-full flex-col gap-4">
         {/* Toolbar with SmartSearch */}
         <div className="shrink-0">
-          <InlineErrorBoundary title="Toolbar error" compact>
+          <InlineErrorBoundary
+            title="Toolbar error"
+            compact
+          >
             <ResourcesToolbar
               resources={allResources}
               searchChips={searchChips}

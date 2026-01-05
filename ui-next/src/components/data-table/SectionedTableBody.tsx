@@ -79,15 +79,17 @@ function DefaultSectionHeader<TData>({
   sectionHeight: number;
 }) {
   return (
-    <td role="gridcell" colSpan={columnCount} className="px-0">
+    <td
+      role="gridcell"
+      colSpan={columnCount}
+      className="px-0"
+    >
       <div
         className="flex items-center gap-2 px-4 font-medium text-xs uppercase tracking-wider"
         style={{ height: sectionHeight }}
       >
         <span>{section.label}</span>
-        <span className="text-zinc-500 dark:text-zinc-400">
-          ({section.items.length})
-        </span>
+        <span className="text-zinc-500 dark:text-zinc-400">({section.items.length})</span>
       </div>
     </td>
   );
@@ -124,9 +126,7 @@ function SectionedTableBodyInner<TData, TSectionMeta = unknown>({
 
         // Get section row class
         const sectionClass =
-          typeof sectionRowClassName === "function"
-            ? sectionRowClassName(section, sectionIndex)
-            : sectionRowClassName;
+          typeof sectionRowClassName === "function" ? sectionRowClassName(section, sectionIndex) : sectionRowClassName;
 
         return (
           <SectionGroup<TData, TSectionMeta>
@@ -207,10 +207,7 @@ function SectionGroupInner<TData, TSectionMeta>({
         aria-rowindex={startRowIndex + 2}
         data-section={section.id}
         data-section-index={sectionIndex}
-        className={cn(
-          "sectioned-table-section-row",
-          sectionRowClassName,
-        )}
+        className={cn("sectioned-table-section-row", sectionRowClassName)}
         style={{
           position: "sticky",
           top: stickyTop,
@@ -238,10 +235,7 @@ function SectionGroupInner<TData, TSectionMeta>({
         const isSelected = selectedRowId && rowId === selectedRowId;
         const globalIndex = startRowIndex + itemIndex;
 
-        const customClassName =
-          typeof rowClassName === "function"
-            ? rowClassName(item)
-            : rowClassName;
+        const customClassName = typeof rowClassName === "function" ? rowClassName(item) : rowClassName;
 
         return (
           <tr

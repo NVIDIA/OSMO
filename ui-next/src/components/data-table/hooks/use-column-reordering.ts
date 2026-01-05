@@ -21,13 +21,7 @@
  */
 
 import { useMemo } from "react";
-import {
-  useSensor,
-  useSensors,
-  PointerSensor,
-  KeyboardSensor,
-  type Modifier,
-} from "@dnd-kit/core";
+import { useSensor, useSensors, PointerSensor, KeyboardSensor, type Modifier } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 /**
@@ -45,11 +39,7 @@ export const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
  * Modifier that restricts drag to within the parent container bounds.
  * Prevents dragging columns beyond the table header width.
  */
-export const restrictToParentBounds: Modifier = ({
-  transform,
-  draggingNodeRect,
-  containerNodeRect,
-}) => {
+export const restrictToParentBounds: Modifier = ({ transform, draggingNodeRect, containerNodeRect }) => {
   if (!draggingNodeRect || !containerNodeRect) {
     return transform;
   }

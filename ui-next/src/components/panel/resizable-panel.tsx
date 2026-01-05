@@ -106,7 +106,7 @@ export function ResizablePanel({
         }
       }
     },
-    [onClose]
+    [onClose],
   );
 
   // Global escape key handler when panel is open
@@ -115,9 +115,7 @@ export function ResizablePanel({
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        const isInDropdown = (e.target as HTMLElement)?.closest(
-          "[data-radix-popper-content-wrapper]"
-        );
+        const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
         if (!isInDropdown) {
           onClose();
         }
@@ -137,7 +135,7 @@ export function ResizablePanel({
       const containerWidth = containerRef.current?.offsetWidth ?? window.innerWidth;
       dragStartRef.current = { x: e.clientX, startWidth: width, containerWidth };
     },
-    [width]
+    [width],
   );
 
   useEffect(() => {
@@ -149,10 +147,7 @@ export function ResizablePanel({
       const { containerWidth } = dragStartRef.current;
       const deltaX = dragStartRef.current.x - e.clientX;
       const deltaPct = (deltaX / containerWidth) * 100;
-      const newWidth = Math.min(
-        maxWidth,
-        Math.max(minWidth, dragStartRef.current.startWidth + deltaPct)
-      );
+      const newWidth = Math.min(maxWidth, Math.max(minWidth, dragStartRef.current.startWidth + deltaPct));
       onWidthChange(newWidth);
     };
 
@@ -182,7 +177,10 @@ export function ResizablePanel({
   }, [isDragging]);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full"
+    >
       {/* Main content - always full width */}
       <div className="h-full w-full">{mainContent}</div>
 
@@ -209,7 +207,7 @@ export function ResizablePanel({
         className={cn(
           "fixed bottom-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
-          className
+          className,
         )}
         style={{
           top: headerHeight,
@@ -231,7 +229,7 @@ export function ResizablePanel({
             "before:absolute before:inset-y-0 before:left-1/2 before:w-0.5 before:-translate-x-1/2 before:transition-colors",
             isDragging
               ? "before:bg-blue-500"
-              : "before:bg-transparent hover:before:bg-zinc-300 dark:hover:before:bg-zinc-600"
+              : "before:bg-transparent hover:before:bg-zinc-300 dark:hover:before:bg-zinc-600",
           )}
           onMouseDown={handleResizeMouseDown}
           role="separator"
@@ -244,20 +242,19 @@ export function ResizablePanel({
           <div
             className={cn(
               "absolute left-1/2 top-1/2 z-[70] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-800",
-              isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
             )}
             aria-hidden="true"
           >
-            <GripVertical className="size-3 text-zinc-400 dark:text-zinc-500" strokeWidth={1.5} />
+            <GripVertical
+              className="size-3 text-zinc-400 dark:text-zinc-500"
+              strokeWidth={1.5}
+            />
           </div>
         </div>
 
         {/* Panel content - overflow hidden here */}
-        {open && (
-          <div className="flex h-full flex-col overflow-hidden">
-            {children}
-          </div>
-        )}
+        {open && <div className="flex h-full flex-col overflow-hidden">{children}</div>}
       </aside>
     </div>
   );

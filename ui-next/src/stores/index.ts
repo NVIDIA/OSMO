@@ -40,8 +40,4 @@ export type {
 } from "./types";
 
 // Shared preferences (cross-feature)
-export {
-  useSharedPreferences,
-  type SharedPreferencesStore,
-  type DisplayMode,
-} from "./shared-preferences-store";
+export { useSharedPreferences, type SharedPreferencesStore, type DisplayMode } from "./shared-preferences-store";

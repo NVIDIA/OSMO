@@ -55,23 +55,21 @@ import { useCallback, useLayoutEffect, useRef } from "react";
  * ```
  */
 export function useStableCallback<TReturn>(callback: () => TReturn): () => TReturn;
-export function useStableCallback<TArg1, TReturn>(
-  callback: (arg1: TArg1) => TReturn
-): (arg1: TArg1) => TReturn;
+export function useStableCallback<TArg1, TReturn>(callback: (arg1: TArg1) => TReturn): (arg1: TArg1) => TReturn;
 export function useStableCallback<TArg1, TArg2, TReturn>(
-  callback: (arg1: TArg1, arg2: TArg2) => TReturn
+  callback: (arg1: TArg1, arg2: TArg2) => TReturn,
 ): (arg1: TArg1, arg2: TArg2) => TReturn;
 export function useStableCallback<TArg1, TArg2, TArg3, TReturn>(
-  callback: (arg1: TArg1, arg2: TArg2, arg3: TArg3) => TReturn
+  callback: (arg1: TArg1, arg2: TArg2, arg3: TArg3) => TReturn,
 ): (arg1: TArg1, arg2: TArg2, arg3: TArg3) => TReturn;
 export function useStableCallback<TArg1, TArg2, TArg3, TArg4, TReturn>(
-  callback: (arg1: TArg1, arg2: TArg2, arg3: TArg3, arg4: TArg4) => TReturn
+  callback: (arg1: TArg1, arg2: TArg2, arg3: TArg3, arg4: TArg4) => TReturn,
 ): (arg1: TArg1, arg2: TArg2, arg3: TArg3, arg4: TArg4) => TReturn;
 export function useStableCallback<TArg1, TArg2, TArg3, TArg4, TArg5, TReturn>(
-  callback: (arg1: TArg1, arg2: TArg2, arg3: TArg3, arg4: TArg4, arg5: TArg5) => TReturn
+  callback: (arg1: TArg1, arg2: TArg2, arg3: TArg3, arg4: TArg4, arg5: TArg5) => TReturn,
 ): (arg1: TArg1, arg2: TArg2, arg3: TArg3, arg4: TArg4, arg5: TArg5) => TReturn;
 export function useStableCallback<TArgs extends [], TReturn>(
-  callback: (...args: TArgs) => TReturn
+  callback: (...args: TArgs) => TReturn,
 ): (...args: TArgs) => TReturn {
   const callbackRef = useRef(callback);
   useLayoutEffect(() => {

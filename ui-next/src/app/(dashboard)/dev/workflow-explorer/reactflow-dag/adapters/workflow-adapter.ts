@@ -51,9 +51,7 @@ export interface TopologicalLevelOptions {
  * @param groups - Array of groups from the backend
  * @returns Map of group name → list of upstream group names
  */
-export function computeFullUpstreamDependencies(
-  groups: GroupQueryResponse[],
-): Map<string, string[]> {
+export function computeFullUpstreamDependencies(groups: GroupQueryResponse[]): Map<string, string[]> {
   const upstreamMap = new Map<string, string[]>();
 
   // Initialize with empty arrays

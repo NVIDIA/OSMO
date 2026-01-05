@@ -63,13 +63,7 @@ export interface CreateTableStoreOptions {
 // =============================================================================
 
 export function createTableStore(options: CreateTableStoreOptions) {
-  const {
-    storageKey,
-    defaultVisibleColumns,
-    defaultColumnOrder,
-    defaultSort = null,
-    defaultPanelWidth = 40,
-  } = options;
+  const { storageKey, defaultVisibleColumns, defaultColumnOrder, defaultSort = null, defaultPanelWidth = 40 } = options;
 
   // Initial state (what gets persisted)
   const initialState: TableState = {

@@ -56,17 +56,13 @@ export function ResourcePanelContent({
       <div className="space-y-6 border-b border-zinc-200 p-6 dark:border-zinc-800">
         {/* Hostname */}
         <section>
-          <h3 className={cn("mb-2", heading.section)}>
-            Hostname
-          </h3>
+          <h3 className={cn("mb-2", heading.section)}>Hostname</h3>
           <CopyableValue value={resource.hostname} />
         </section>
 
         {/* Resource Capacity */}
         <section>
-          <h3 className={cn("mb-2", heading.section)}>
-            Capacity
-          </h3>
+          <h3 className={cn("mb-2", heading.section)}>Capacity</h3>
           <div className="space-y-4">
             <CapacityBar
               label="GPU"
@@ -96,9 +92,7 @@ export function ResourcePanelContent({
         {/* Conditions if any */}
         {resource.conditions.length > 0 && (
           <section>
-            <h3 className={cn("mb-2", heading.section)}>
-              Conditions
-            </h3>
+            <h3 className={cn("mb-2", heading.section)}>Conditions</h3>
             <div className="flex flex-wrap gap-2">
               {resource.conditions.map((condition, idx) => (
                 <span
@@ -116,9 +110,7 @@ export function ResourcePanelContent({
       {/* Pool-Specific Section */}
       <div className="p-6">
         <section>
-          <h3 className={cn("mb-2", heading.section)}>
-            Pool Configuration
-          </h3>
+          <h3 className={cn("mb-2", heading.section)}>Pool Configuration</h3>
 
           {error ? (
             <ApiError
@@ -152,9 +144,7 @@ export function ResourcePanelContent({
                 {taskConfig ? (
                   <TaskConfigContent config={taskConfig} />
                 ) : (
-                  <p className={text.muted}>
-                    No configuration available for this platform.
-                  </p>
+                  <p className={text.muted}>No configuration available for this platform.</p>
                 )}
               </div>
             </div>
@@ -194,7 +184,10 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
           <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">Default Mounts</div>
           <div className="flex flex-col gap-1">
             {config.defaultMounts.map((mount, idx) => (
-              <CopyableBlock key={idx} value={mount} />
+              <CopyableBlock
+                key={idx}
+                value={mount}
+              />
             ))}
           </div>
         </div>
@@ -206,7 +199,10 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
           <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">Allowed Mounts</div>
           <div className="flex flex-col gap-1">
             {config.allowedMounts.map((mount, idx) => (
-              <CopyableBlock key={idx} value={mount} />
+              <CopyableBlock
+                key={idx}
+                value={mount}
+              />
             ))}
           </div>
         </div>

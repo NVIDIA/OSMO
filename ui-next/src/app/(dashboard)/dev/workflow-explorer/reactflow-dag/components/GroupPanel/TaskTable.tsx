@@ -58,7 +58,11 @@ function formatTime(dateStr: string | null | undefined): string {
 }
 
 // Horizontal-only modifier - locks Y axis completely
-const restrictToHorizontalAxis = ({ transform }: { transform: { x: number; y: number; scaleX: number; scaleY: number } }) => ({
+const restrictToHorizontalAxis = ({
+  transform,
+}: {
+  transform: { x: number; y: number; scaleX: number; scaleY: number };
+}) => ({
   ...transform,
   y: 0,
   scaleX: 1,
@@ -85,24 +89,54 @@ const TaskCell = memo(function TaskCell({ task, columnId }: { task: TaskWithDura
         </div>
       );
     case "duration":
-      return <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">{formatDuration(task.duration)}</span>;
+      return (
+        <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">
+          {formatDuration(task.duration)}
+        </span>
+      );
     case "node":
       return <span className="truncate text-gray-500 dark:text-zinc-400">{task.node_name ?? "—"}</span>;
     case "podIp":
-      return <span className="truncate whitespace-nowrap font-mono text-xs text-gray-500 dark:text-zinc-400">{task.pod_ip ?? "—"}</span>;
+      return (
+        <span className="truncate whitespace-nowrap font-mono text-xs text-gray-500 dark:text-zinc-400">
+          {task.pod_ip ?? "—"}
+        </span>
+      );
     case "exitCode":
       return (
-        <span className={cn("whitespace-nowrap tabular-nums", task.exit_code === 0 ? "text-gray-500 dark:text-zinc-400" : task.exit_code !== undefined ? "text-red-600 dark:text-red-400" : "text-gray-400 dark:text-zinc-500")}>
+        <span
+          className={cn(
+            "whitespace-nowrap tabular-nums",
+            task.exit_code === 0
+              ? "text-gray-500 dark:text-zinc-400"
+              : task.exit_code !== undefined
+                ? "text-red-600 dark:text-red-400"
+                : "text-gray-400 dark:text-zinc-500",
+          )}
+        >
           {task.exit_code ?? "—"}
         </span>
       );
     case "startTime":
-      return <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">{formatTime(task.start_time)}</span>;
+      return (
+        <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">
+          {formatTime(task.start_time)}
+        </span>
+      );
     case "endTime":
-      return <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">{formatTime(task.end_time)}</span>;
+      return (
+        <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-zinc-400">
+          {formatTime(task.end_time)}
+        </span>
+      );
     case "retry":
       return (
-        <span className={cn("whitespace-nowrap tabular-nums", task.retry_id > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400 dark:text-zinc-500")}>
+        <span
+          className={cn(
+            "whitespace-nowrap tabular-nums",
+            task.retry_id > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400 dark:text-zinc-500",
+          )}
+        >
           {task.retry_id > 0 ? task.retry_id : "—"}
         </span>
       );
@@ -115,64 +149,79 @@ const TaskCell = memo(function TaskCell({ task, columnId }: { task: TaskWithDura
 // TaskRow Component
 // ============================================================================
 
-const TaskRow = memo(function TaskRow({
-  task,
-  gridTemplate,
-  minWidth,
-  isSelected,
-  onSelect,
-  visibleColumnIds,
-}: {
-  task: TaskWithDuration;
-  gridTemplate: string;
-  minWidth: number;
-  isSelected: boolean;
-  onSelect: () => void;
-  visibleColumnIds: ColumnId[];
-}) {
-  const rowStyle = useMemo(() => ({
-    gridTemplateColumns: gridTemplate,
+const TaskRow = memo(
+  function TaskRow({
+    task,
+    gridTemplate,
     minWidth,
-  }), [gridTemplate, minWidth]);
+    isSelected,
+    onSelect,
+    visibleColumnIds,
+  }: {
+    task: TaskWithDuration;
+    gridTemplate: string;
+    minWidth: number;
+    isSelected: boolean;
+    onSelect: () => void;
+    visibleColumnIds: ColumnId[];
+  }) {
+    const rowStyle = useMemo(
+      () => ({
+        gridTemplateColumns: gridTemplate,
+        minWidth,
+      }),
+      [gridTemplate, minWidth],
+    );
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onSelect();
-    }
-  }, [onSelect]);
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      },
+      [onSelect],
+    );
 
-  return (
-    <div
-      role="row"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={handleKeyDown}
-      aria-selected={isSelected}
-      className={cn(
-        "dag-contained grid cursor-pointer items-center gap-6 border-b border-gray-200 dark:border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
-        isSelected ? "bg-blue-100 dark:bg-blue-900/30" : "hover:bg-gray-100 dark:hover:bg-zinc-800/50",
-      )}
-      style={rowStyle}
-    >
-      {visibleColumnIds.map((colId) => {
-        const col = COLUMN_MAP.get(colId)!;
-        return (
-          <div key={colId} role="cell" className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
-            <TaskCell task={task} columnId={colId} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}, (prev, next) => (
-  prev.task === next.task &&
-  prev.gridTemplate === next.gridTemplate &&
-  prev.minWidth === next.minWidth &&
-  prev.isSelected === next.isSelected &&
-  prev.visibleColumnIds === next.visibleColumnIds
-));
+    return (
+      <div
+        role="row"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={handleKeyDown}
+        aria-selected={isSelected}
+        className={cn(
+          "dag-contained grid cursor-pointer items-center gap-6 border-b border-gray-200 dark:border-zinc-800 px-3 py-2 text-sm transition-colors duration-75",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
+          isSelected ? "bg-blue-100 dark:bg-blue-900/30" : "hover:bg-gray-100 dark:hover:bg-zinc-800/50",
+        )}
+        style={rowStyle}
+      >
+        {visibleColumnIds.map((colId) => {
+          const col = COLUMN_MAP.get(colId)!;
+          return (
+            <div
+              key={colId}
+              role="cell"
+              className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
+            >
+              <TaskCell
+                task={task}
+                columnId={colId}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.task === next.task &&
+    prev.gridTemplate === next.gridTemplate &&
+    prev.minWidth === next.minWidth &&
+    prev.isSelected === next.isSelected &&
+    prev.visibleColumnIds === next.visibleColumnIds,
+);
 
 // ============================================================================
 // SortableHeaderCell Component
@@ -198,10 +247,13 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
     width: isDragging && width ? width : undefined,
   };
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (col.sortable) onSort(col.id);
-  }, [col.id, col.sortable, onSort]);
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (col.sortable) onSort(col.id);
+    },
+    [col.id, col.sortable, onSort],
+  );
 
   return (
     <div
@@ -223,13 +275,25 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
         className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-white")}
       >
         <span className="truncate">{col.label}</span>
-        {col.sortable && (
-          sort.column === col.id ? (
-            sort.direction === "asc" ? <ChevronUp className="size-3 shrink-0" aria-hidden="true" /> : <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+        {col.sortable &&
+          (sort.column === col.id ? (
+            sort.direction === "asc" ? (
+              <ChevronUp
+                className="size-3 shrink-0"
+                aria-hidden="true"
+              />
+            ) : (
+              <ChevronDown
+                className="size-3 shrink-0"
+                aria-hidden="true"
+              />
+            )
           ) : (
-            <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
-          )
-        )}
+            <ChevronsUpDown
+              className="size-3 shrink-0 opacity-30"
+              aria-hidden="true"
+            />
+          ))}
       </button>
     </div>
   );
@@ -258,54 +322,91 @@ const TaskTableHeader = memo(function TaskTableHeader({
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = optionalColumnIds.indexOf(active.id as ColumnId);
-      const newIndex = optionalColumnIds.indexOf(over.id as ColumnId);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onReorder(arrayMove(optionalColumnIds, oldIndex, newIndex));
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        const oldIndex = optionalColumnIds.indexOf(active.id as ColumnId);
+        const newIndex = optionalColumnIds.indexOf(over.id as ColumnId);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          onReorder(arrayMove(optionalColumnIds, oldIndex, newIndex));
+        }
       }
-    }
-  }, [optionalColumnIds, onReorder]);
+    },
+    [optionalColumnIds, onReorder],
+  );
 
   // Use pre-computed constant instead of useMemo
   const mandatoryIds = MANDATORY_COLUMN_IDS;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis]} autoScroll={false}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+      modifiers={[restrictToHorizontalAxis]}
+      autoScroll={false}
+    >
       <div
         role="row"
         className="dag-gpu-accelerated grid items-center gap-6 border-b border-gray-200 bg-gray-100 dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-xs font-medium text-gray-500 dark:text-zinc-400"
         style={{ gridTemplateColumns: gridTemplate, minWidth }}
       >
-        {columns.filter((c) => mandatoryIds.has(c.id)).map((col) => (
-          <div key={col.id} role="columnheader" className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}>
-            <button
-              onClick={() => col.sortable && onSort(col.id)}
-              disabled={!col.sortable}
-              aria-sort={sort.column === col.id ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
-              className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-white")}
+        {columns
+          .filter((c) => mandatoryIds.has(c.id))
+          .map((col) => (
+            <div
+              key={col.id}
+              role="columnheader"
+              className={cn("flex items-center overflow-hidden", col.align === "right" && "justify-end")}
             >
-              <span className="truncate">{col.label}</span>
-              {col.sortable && (
-                sort.column === col.id ? (
-                  sort.direction === "asc" ? <ChevronUp className="size-3 shrink-0" aria-hidden="true" /> : <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-                ) : (
-                  <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
-                )
-              )}
-            </button>
-          </div>
-        ))}
-
-        <SortableContext items={optionalColumnIds} strategy={horizontalListSortingStrategy}>
-          {columns.filter((c) => !mandatoryIds.has(c.id)).map((col) => (
-            <SortableHeaderCell key={col.id} col={col} sort={sort} onSort={onSort} />
+              <button
+                onClick={() => col.sortable && onSort(col.id)}
+                disabled={!col.sortable}
+                aria-sort={sort.column === col.id ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
+                className={cn("flex items-center gap-1 truncate transition-colors", col.sortable && "hover:text-white")}
+              >
+                <span className="truncate">{col.label}</span>
+                {col.sortable &&
+                  (sort.column === col.id ? (
+                    sort.direction === "asc" ? (
+                      <ChevronUp
+                        className="size-3 shrink-0"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ChevronDown
+                        className="size-3 shrink-0"
+                        aria-hidden="true"
+                      />
+                    )
+                  ) : (
+                    <ChevronsUpDown
+                      className="size-3 shrink-0 opacity-30"
+                      aria-hidden="true"
+                    />
+                  ))}
+              </button>
+            </div>
           ))}
+
+        <SortableContext
+          items={optionalColumnIds}
+          strategy={horizontalListSortingStrategy}
+        >
+          {columns
+            .filter((c) => !mandatoryIds.has(c.id))
+            .map((col) => (
+              <SortableHeaderCell
+                key={col.id}
+                col={col}
+                sort={sort}
+                onSort={onSort}
+              />
+            ))}
         </SortableContext>
       </div>
     </DndContext>
@@ -370,7 +471,10 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
       aria-rowcount={tasks.length}
     >
       <div style={{ minWidth }}>
-        <div className="dag-table-header-wrapper sticky top-0 z-10 bg-white dark:bg-zinc-900 touch-none" role="rowgroup">
+        <div
+          className="dag-table-header-wrapper sticky top-0 z-10 bg-white dark:bg-zinc-900 touch-none"
+          role="rowgroup"
+        >
           <TaskTableHeader
             columns={columns}
             gridTemplate={gridTemplate}
@@ -382,7 +486,11 @@ export const VirtualizedTaskList = memo(function VirtualizedTaskList({
           />
         </div>
 
-        <div className="dag-table-virtual-container relative" role="rowgroup" style={{ height: totalSize }}>
+        <div
+          className="dag-table-virtual-container relative"
+          role="rowgroup"
+          style={{ height: totalSize }}
+        >
           {virtualItems.map((virtualRow) => {
             const task = tasks[virtualRow.index];
             return (

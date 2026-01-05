@@ -49,9 +49,21 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
       immer((set) => ({
         headerExpanded: false,
         setHeaderExpanded: (expanded) =>
-          set((state) => { state.headerExpanded = expanded; }, false, "setHeaderExpanded"),
+          set(
+            (state) => {
+              state.headerExpanded = expanded;
+            },
+            false,
+            "setHeaderExpanded",
+          ),
         toggleHeaderExpanded: () =>
-          set((state) => { state.headerExpanded = !state.headerExpanded; }, false, "toggleHeaderExpanded"),
+          set(
+            (state) => {
+              state.headerExpanded = !state.headerExpanded;
+            },
+            false,
+            "toggleHeaderExpanded",
+          ),
       })),
       {
         name: "pools-extended",

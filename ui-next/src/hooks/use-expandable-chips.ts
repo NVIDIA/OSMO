@@ -47,7 +47,7 @@ export interface MeasuredModeOptions {
 export interface UseExpandableChipsOptions<T = string> {
   /** Array of items to display */
   items: T[];
-  /** 
+  /**
    * Layout dimensions for width estimation.
    * Required when NOT using measured mode.
    */
@@ -142,24 +142,22 @@ export function useExpandableChips<T = string>({
   const isMeasuredMode = measured !== undefined;
 
   // Default sort behavior: true for strings, false for objects
-  const shouldSort = sortAlphabetically ?? (typeof items[0] === "string");
+  const shouldSort = sortAlphabetically ?? typeof items[0] === "string";
 
   // Sort items if requested
   const sortedItems = useMemo(() => {
     if (!shouldSort || items.length === 0) return items;
-    
+
     // For strings, use localeCompare directly
     if (typeof items[0] === "string") {
-      return [...items].sort((a, b) => 
-        (a as unknown as string).localeCompare(b as unknown as string)
-      );
+      return [...items].sort((a, b) => (a as unknown as string).localeCompare(b as unknown as string));
     }
-    
+
     // For objects, sort by key if getKey is provided
     if (getKey) {
       return [...items].sort((a, b) => getKey(a).localeCompare(getKey(b)));
     }
-    
+
     return items;
   }, [items, shouldSort, getKey]);
 
@@ -172,7 +170,7 @@ export function useExpandableChips<T = string>({
       if (!layout) return 0;
       return text.length * layout.charWidth + layout.chipPadding;
     },
-    [layout]
+    [layout],
   );
 
   const calculateVisibleCountEstimated = useCallback(() => {
@@ -193,9 +191,7 @@ export function useExpandableChips<T = string>({
       const chipWidth = estimateChipWidth(text);
       const needsOverflowSpace = hasOverflow && i < sortedItems.length - 1;
       const requiredWidth = usedWidth + chipWidth + (count > 0 ? layout.chipGap : 0);
-      const reservedForOverflow = needsOverflowSpace
-        ? layout.overflowButtonWidth + layout.chipGap
-        : 0;
+      const reservedForOverflow = needsOverflowSpace ? layout.overflowButtonWidth + layout.chipGap : 0;
 
       if (requiredWidth + reservedForOverflow <= availableWidth) {
         usedWidth = requiredWidth;
@@ -221,7 +217,7 @@ export function useExpandableChips<T = string>({
     const measureContainer = measured.measureRef.current;
     const selector = measured.itemSelector ?? "[data-measure-item]";
     const pills = measureContainer.querySelectorAll(selector);
-    
+
     if (pills.length === 0) return 1;
 
     const containerRect = container.getBoundingClientRect();
@@ -250,9 +246,7 @@ export function useExpandableChips<T = string>({
   // Unified Calculation
   // ==========================================================================
 
-  const calculateVisibleCount = isMeasuredMode
-    ? calculateVisibleCountMeasured
-    : calculateVisibleCountEstimated;
+  const calculateVisibleCount = isMeasuredMode ? calculateVisibleCountMeasured : calculateVisibleCountEstimated;
 
   // Use useLayoutEffect for measured mode (needs DOM to be painted)
   // Use useEffect for estimation mode (no DOM dependency)

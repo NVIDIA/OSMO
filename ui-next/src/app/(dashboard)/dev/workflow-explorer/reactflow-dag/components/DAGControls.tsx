@@ -33,12 +33,7 @@ interface DAGControlsProps {
   onToggleMinimap: () => void;
 }
 
-export function DAGControls({
-  layoutDirection,
-  onLayoutChange,
-  showMinimap,
-  onToggleMinimap,
-}: DAGControlsProps) {
+export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onToggleMinimap }: DAGControlsProps) {
   const { zoomIn, zoomOut } = useReactFlow();
 
   const handleZoomIn = useCallback(() => {

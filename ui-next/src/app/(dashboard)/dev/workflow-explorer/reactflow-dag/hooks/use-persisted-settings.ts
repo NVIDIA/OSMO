@@ -101,7 +101,10 @@ function savePersistedSettings(settings: Partial<PersistedSettings>): void {
 export function usePersistedSettings<K extends keyof PersistedSettings>(
   key: K,
   defaultValue: PersistedSettings[K],
-): [PersistedSettings[K], (value: PersistedSettings[K] | ((prev: PersistedSettings[K]) => PersistedSettings[K])) => void] {
+): [
+  PersistedSettings[K],
+  (value: PersistedSettings[K] | ((prev: PersistedSettings[K]) => PersistedSettings[K])) => void,
+] {
   const [value, setValue] = useState<PersistedSettings[K]>(() => {
     const persisted = loadPersistedSettings();
     return (persisted[key] as PersistedSettings[K]) ?? defaultValue;

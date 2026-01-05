@@ -69,16 +69,14 @@ export function usePage(config: PageConfig) {
   const { setConfig } = context;
 
   // Serialize breadcrumbs for stable dependency comparison
-  const breadcrumbsKey = config.breadcrumbs
-    ?.map((b) => `${b.label}:${b.href ?? ""}`)
-    .join("|") ?? "";
+  const breadcrumbsKey = config.breadcrumbs?.map((b) => `${b.label}:${b.href ?? ""}`).join("|") ?? "";
 
   // Memoize config to create stable reference based on actual content
   const stableConfig = useMemo(
     () => config,
     // Only recreate when actual content changes (primitives, not object reference)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config.title, breadcrumbsKey]
+    [config.title, breadcrumbsKey],
   );
 
   useLayoutEffect(() => {

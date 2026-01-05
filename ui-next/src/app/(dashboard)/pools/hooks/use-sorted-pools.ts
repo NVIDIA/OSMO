@@ -27,11 +27,7 @@ import type { PoolColumnId } from "../lib/pool-columns";
 // Sorting
 // =============================================================================
 
-function sortPools(
-  pools: Pool[],
-  sort: SortState<PoolColumnId>,
-  displayMode: "used" | "free",
-): Pool[] {
+function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "used" | "free"): Pool[] {
   if (!sort.column) return pools;
 
   return [...pools].sort((a, b) => {
@@ -48,15 +44,11 @@ function sortPools(
         break;
       case "quota":
         // Sort by available (free) or used based on displayMode
-        cmp = displayMode === "free"
-          ? a.quota.free - b.quota.free
-          : a.quota.used - b.quota.used;
+        cmp = displayMode === "free" ? a.quota.free - b.quota.free : a.quota.used - b.quota.used;
         break;
       case "capacity":
         // Sort by total available (totalFree) or totalUsage based on displayMode
-        cmp = displayMode === "free"
-          ? a.quota.totalFree - b.quota.totalFree
-          : a.quota.totalUsage - b.quota.totalUsage;
+        cmp = displayMode === "free" ? a.quota.totalFree - b.quota.totalFree : a.quota.totalUsage - b.quota.totalUsage;
         break;
       // "platforms" and "description" are not sortable - no case needed
     }
@@ -93,10 +85,7 @@ export function useSortedPools({
   displayMode,
 }: UseSortedPoolsOptions): UseSortedPoolsResult {
   // Sort pools
-  const sortedPools = useMemo(
-    () => sortPools(pools, sort, displayMode),
-    [pools, sort, displayMode],
-  );
+  const sortedPools = useMemo(() => sortPools(pools, sort, displayMode), [pools, sort, displayMode]);
 
   // Build map of pools that are shared (for UI indicators)
   const sharingMap = useMemo(() => {

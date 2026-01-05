@@ -18,13 +18,7 @@ import { RouteError } from "@/components/error";
  *
  * The Shell/layout remains visible - only the page content is replaced.
  */
-export default function DashboardError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <RouteError
       error={error}

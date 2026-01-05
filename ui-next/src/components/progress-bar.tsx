@@ -95,18 +95,14 @@ export const ProgressBar = memo(function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={max}
       aria-label={ariaLabel}
-      className={cn(
-        SIZE_CLASSES[size],
-        "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",
-        trackClassName
-      )}
+      className={cn(SIZE_CLASSES[size], "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800", trackClassName)}
       style={{ contain: "layout paint" }}
     >
       <div
         className={cn(
           "h-full w-full rounded-full transition-transform duration-300 ease-out origin-left",
           fillColor,
-          fillClassName
+          fillClassName,
         )}
         style={{ transform: `scaleX(${clampedPercent / 100})` }}
       />

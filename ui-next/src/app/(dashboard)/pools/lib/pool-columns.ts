@@ -23,7 +23,13 @@ export type PoolColumnId = "name" | "status" | "description" | "quota" | "capaci
 
 /** Set of all valid pool column IDs for type validation */
 const VALID_COLUMN_IDS = new Set<string>([
-  "name", "status", "description", "quota", "capacity", "platforms", "backend",
+  "name",
+  "status",
+  "description",
+  "quota",
+  "capacity",
+  "platforms",
+  "backend",
 ]);
 
 /** Type guard to check if a string is a valid PoolColumnId */
@@ -66,12 +72,23 @@ export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
 
 /** Default visible columns (excludes backend) */
 export const DEFAULT_VISIBLE_COLUMNS: PoolColumnId[] = [
-  "name", "status", "description", "quota", "capacity", "platforms",
+  "name",
+  "status",
+  "description",
+  "quota",
+  "capacity",
+  "platforms",
 ];
 
 /** Default column order */
 export const DEFAULT_COLUMN_ORDER: PoolColumnId[] = [
-  "name", "status", "description", "quota", "capacity", "platforms", "backend",
+  "name",
+  "status",
+  "description",
+  "quota",
+  "capacity",
+  "platforms",
+  "backend",
 ];
 
 /** Columns that cannot be hidden */

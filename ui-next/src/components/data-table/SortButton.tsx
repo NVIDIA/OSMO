@@ -53,12 +53,21 @@ export const SortButton = memo(function SortButton({
       {sortable &&
         (isActive ? (
           direction === "asc" ? (
-            <ChevronUp className="size-3 shrink-0" aria-hidden="true" />
+            <ChevronUp
+              className="size-3 shrink-0"
+              aria-hidden="true"
+            />
           ) : (
-            <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+            <ChevronDown
+              className="size-3 shrink-0"
+              aria-hidden="true"
+            />
           )
         ) : (
-          <ChevronsUpDown className="size-3 shrink-0 opacity-30" aria-hidden="true" />
+          <ChevronsUpDown
+            className="size-3 shrink-0 opacity-30"
+            aria-hidden="true"
+          />
         ))}
     </button>
   );

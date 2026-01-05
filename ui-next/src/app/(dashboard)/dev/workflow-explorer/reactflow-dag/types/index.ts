@@ -22,11 +22,7 @@
 // Backend Types (from generated API)
 // ============================================================================
 
-export type {
-  GroupQueryResponse,
-  TaskQueryResponse,
-  WorkflowQueryResponse,
-} from "@/lib/api/generated";
+export type { GroupQueryResponse, TaskQueryResponse, WorkflowQueryResponse } from "@/lib/api/generated";
 
 export { TaskGroupStatus } from "@/lib/api/generated";
 

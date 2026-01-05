@@ -51,10 +51,7 @@ export interface SectionNavStackProps<TMeta = unknown> {
   /** Callback when a section is clicked */
   onNavigate: (sectionIndex: number) => void;
   /** Custom render function for each section item */
-  renderItem?: (
-    section: SectionNavStackItem<TMeta>,
-    sectionIndex: number,
-  ) => React.ReactNode;
+  renderItem?: (section: SectionNavStackItem<TMeta>, sectionIndex: number) => React.ReactNode;
   /** Container className */
   className?: string;
   /** Item className or function for dynamic styling based on section */
@@ -80,20 +77,14 @@ function SectionNavStackInner<TMeta = unknown>({
 
   return (
     <div
-      className={cn(
-        "pointer-events-none absolute bottom-0 left-0 right-0 z-20",
-        className,
-      )}
+      className={cn("pointer-events-none absolute bottom-0 left-0 right-0 z-20", className)}
       aria-label="Section navigation"
     >
       {hiddenSectionIndices.map((sectionIndex, stackIndex) => {
         const section = sections[sectionIndex];
         if (!section) return null;
 
-        const resolvedItemClassName =
-          typeof itemClassName === "function"
-            ? itemClassName(section)
-            : itemClassName;
+        const resolvedItemClassName = typeof itemClassName === "function" ? itemClassName(section) : itemClassName;
 
         // Calculate position from bottom
         const bottomOffset = (hiddenSectionIndices.length - 1 - stackIndex) * itemHeight;
@@ -122,9 +113,7 @@ function SectionNavStackInner<TMeta = unknown>({
             ) : (
               <>
                 <span className="section-nav-label">{section.label}</span>
-                <span className="section-nav-count text-zinc-500 dark:text-zinc-400">
-                  {section.itemCount}
-                </span>
+                <span className="section-nav-count text-zinc-500 dark:text-zinc-400">{section.itemCount}</span>
               </>
             )}
           </button>

@@ -112,7 +112,7 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
   useEffect(() => {
     // Clear layout cache when workflow fundamentally changes
     clearLayoutCache();
-    
+
     setExpandedGroups(
       computeInitialExpandedGroups(groupsWithLayout, AUTO_COLLAPSE_TASK_THRESHOLD, AUTO_COLLAPSE_GROUP_THRESHOLD),
     );

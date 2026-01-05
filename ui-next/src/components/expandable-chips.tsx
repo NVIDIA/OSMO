@@ -83,15 +83,8 @@ export const ExpandableChips = memo(function ExpandableChips({
   emptyText = "—",
   collapseLabel = "show less",
 }: ExpandableChipsProps) {
-  const {
-    containerRef,
-    expanded,
-    setExpanded,
-    sortedItems,
-    displayedItems,
-    overflowCount,
-    visibleCount,
-  } = useExpandableChips({ items, layout });
+  const { containerRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
+    useExpandableChips({ items, layout });
 
   if (sortedItems.length === 0) {
     return <span className="text-xs text-zinc-400 dark:text-zinc-500">{emptyText}</span>;
@@ -103,26 +96,28 @@ export const ExpandableChips = memo(function ExpandableChips({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "flex items-center gap-1",
-        expanded ? "flex-wrap" : "flex-nowrap overflow-hidden"
-      )}
+      className={cn("flex items-center gap-1", expanded ? "flex-wrap" : "flex-nowrap overflow-hidden")}
     >
       {displayedItems.map((item) => (
         <ChipComponent
           key={item}
           type={isClickable ? "button" : undefined}
-          onClick={isClickable ? (e) => {
-            e.stopPropagation();
-            onItemClick(item);
-          } : undefined}
+          onClick={
+            isClickable
+              ? (e) => {
+                  e.stopPropagation();
+                  onItemClick(item);
+                }
+              : undefined
+          }
           className={cn(
             "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
             "whitespace-nowrap",
             chip.unselected,
-            isClickable && "cursor-pointer hover:border-zinc-300 hover:text-zinc-600 dark:hover:border-zinc-600 dark:hover:text-zinc-300",
+            isClickable &&
+              "cursor-pointer hover:border-zinc-300 hover:text-zinc-600 dark:hover:border-zinc-600 dark:hover:text-zinc-300",
             expanded && "max-w-full truncate",
-            chipClassName
+            chipClassName,
           )}
           title={item}
         >
@@ -141,7 +136,7 @@ export const ExpandableChips = memo(function ExpandableChips({
           className={cn(
             "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
             chip.action,
-            expandable && "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            expandable && "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800",
           )}
           title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
           disabled={!expandable}
@@ -163,7 +158,7 @@ export const ExpandableChips = memo(function ExpandableChips({
           className={cn(
             "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
             chip.action,
-            "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800",
           )}
           aria-expanded={true}
           aria-label="Show fewer items"
