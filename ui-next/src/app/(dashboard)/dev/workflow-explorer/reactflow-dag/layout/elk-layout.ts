@@ -19,7 +19,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import type { GroupWithLayout } from "../../workflow-types";
-import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph } from "../types/layout";
+import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph } from "../types/dag-layout";
 import { getStatusCategory } from "../utils/status";
 import {
   NODE_COLLAPSED_WIDTH,
