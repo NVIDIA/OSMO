@@ -385,6 +385,10 @@ export default function VisTimelinePage() {
     };
   }, [items]);
 
+  // Extract time values for stable dependency array (avoids complex expressions in deps)
+  const timeBoundsMinTime = timeBounds.min.getTime();
+  const timeBoundsMaxTime = timeBounds.max.getTime();
+
   // Initialize timeline
   useEffect(() => {
     if (!isMounted || !containerRef.current) return;
@@ -454,7 +458,7 @@ export default function VisTimelinePage() {
       timeline.destroy();
       timelineRef.current = null;
     };
-  }, [isMounted, items.length, groups.length, showNestedTasks, timeBounds.min.getTime(), timeBounds.max.getTime()]);
+  }, [isMounted, items, groups, workflow.groups, showNestedTasks, timeBounds, timeBoundsMinTime, timeBoundsMaxTime]);
 
   // Fit timeline to show all items
   const handleFit = useCallback(() => {

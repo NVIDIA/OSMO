@@ -451,7 +451,7 @@ function SmartSearchInner<T>({
         }
       }
     },
-    [suggestions, highlightedIndex, showDropdown, handleSelect, tabComplete, parsedInput, inputValue, chips, fields, addChip, removeChip],
+    [suggestions, highlightedIndex, showDropdown, handleSelect, tabComplete, parsedInput, inputValue, chips, addChip, removeChip],
   );
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -499,6 +499,7 @@ function SmartSearchInner<T>({
           className="min-w-[150px] flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-zinc-400 focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           role="combobox"
           aria-expanded={shouldShowDropdown}
+          aria-controls="smart-search-listbox"
           aria-haspopup="listbox"
           aria-activedescendant={shouldShowDropdown && highlightedIndex >= 0 ? `suggestion-${highlightedIndex}` : undefined}
         />
@@ -531,6 +532,7 @@ function SmartSearchInner<T>({
       {(shouldShowDropdown || validationError) && (
         <div
           ref={dropdownRef}
+          id="smart-search-listbox"
           className={cn(
             "absolute inset-x-0 top-full z-50 mt-1 max-h-[300px] overflow-auto rounded-md border shadow-lg",
             validationError

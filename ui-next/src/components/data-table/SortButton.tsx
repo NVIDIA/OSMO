@@ -29,11 +29,11 @@ export const SortButton = memo(function SortButton({
   direction,
   onSort,
 }: SortButtonProps) {
-  const ariaSort = isActive
-    ? direction === "asc"
-      ? "ascending"
-      : "descending"
-    : undefined;
+  // Note: aria-sort belongs on the parent <th> element, not on the button.
+  // The parent SortableCell or DataTable header cell should handle this.
+  const ariaLabel = isActive
+    ? `Sort by ${label}, currently ${direction === "asc" ? "ascending" : "descending"}`
+    : `Sort by ${label}`;
 
   return (
     <button
@@ -42,7 +42,7 @@ export const SortButton = memo(function SortButton({
         if (sortable) onSort();
       }}
       disabled={!sortable}
-      aria-sort={ariaSort}
+      aria-label={sortable ? ariaLabel : undefined}
       className={cn(
         "flex items-center gap-1 whitespace-nowrap transition-colors",
         sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
