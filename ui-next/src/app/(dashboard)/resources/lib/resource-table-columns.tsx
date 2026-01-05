@@ -16,7 +16,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
-import { getResourceAllocationTypeDisplay } from "@/lib/constants/ui";
+import { getResourceAllocationTypeDisplay } from "./constants";
 import type { Resource } from "@/lib/api/adapter";
 import type { DisplayMode } from "@/stores";
 import { CapacityCell } from "../components/cells/capacity-cell";

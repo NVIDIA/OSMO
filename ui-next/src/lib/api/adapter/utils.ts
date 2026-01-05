@@ -14,9 +14,14 @@
  * Shared utility functions for working with resources and pools.
  */
 
-import type { BackendResourceType } from "@/lib/api/generated";
-import { ALL_RESOURCE_TYPES } from "@/lib/constants/ui";
+import { BackendResourceType } from "@/lib/api/generated";
 import type { Resource } from "./types";
+
+/**
+ * All possible resource allocation types as an array.
+ * Use this instead of hardcoding ["SHARED", "RESERVED", "UNUSED"].
+ */
+export const ALL_RESOURCE_TYPES = Object.values(BackendResourceType) as BackendResourceType[];
 
 /**
  * Derive unique resource types from a list of resources.

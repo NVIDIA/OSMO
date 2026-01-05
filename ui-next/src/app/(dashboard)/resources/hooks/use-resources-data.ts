@@ -23,7 +23,7 @@ import {
   type Resource,
   type PaginatedResourcesResult,
 } from "@/lib/api/adapter";
-import { useDataTable } from "@/lib/pagination";
+import { usePaginatedData } from "@/lib/api/pagination";
 import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";
 import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
@@ -78,7 +78,7 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     isLoading,
     error,
     refetch,
-  } = useDataTable<Resource, Record<string, never>>({
+  } = usePaginatedData<Resource, Record<string, never>>({
     queryKey,
     queryFn: async (params): Promise<PaginatedResourcesResult> => {
       // Fetch all resources (adapter handles pagination)

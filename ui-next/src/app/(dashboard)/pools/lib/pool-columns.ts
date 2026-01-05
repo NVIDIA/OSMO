@@ -8,9 +8,12 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import type { ColumnDef, OptionalColumnDef } from "@/lib/table";
-import { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "@/lib/table-columns";
-import type { ColumnSizeConfig } from "@/components/data-table";
+import {
+  COLUMN_MIN_WIDTHS_REM,
+  COLUMN_FLEX,
+  type ColumnSizeConfig,
+  type ColumnDefinition,
+} from "@/components/data-table";
 
 // =============================================================================
 // Column IDs
@@ -48,36 +51,31 @@ export const COLUMN_LABELS: Record<PoolColumnId, string> = {
 };
 
 // =============================================================================
-// Legacy Column Definitions (for backwards compatibility)
+// Column Definitions (for toolbar column visibility menu)
 // =============================================================================
 
-// Column widths:
-// - { fit, share }: content-sized minimum, share controls grow/shrink
-// - { min, share }: rem-based minimum floor, share controls grow/shrink
-// - number: fixed width in rem (no grow/shrink)
-export const MANDATORY_COLUMNS: ColumnDef<PoolColumnId>[] = [
-  { id: "name", label: "Pool", menuLabel: "Pool Name", width: { fit: true, share: 1.5 }, align: "left", sortable: true },
+/** Columns that can be toggled in the column visibility menu */
+export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
+  { id: "status", label: "Status", menuLabel: "Status" },
+  { id: "description", label: "Description", menuLabel: "Description" },
+  { id: "quota", label: "Quota (GPU)", menuLabel: "GPU Quota" },
+  { id: "capacity", label: "Capacity (GPU)", menuLabel: "GPU Capacity" },
+  { id: "platforms", label: "Platforms", menuLabel: "Platforms" },
+  { id: "backend", label: "Backend", menuLabel: "Backend" },
 ];
 
-export const OPTIONAL_COLUMNS: OptionalColumnDef<PoolColumnId>[] = [
-  { id: "status", label: "Status", menuLabel: "Status", width: { fit: true, share: 0.5 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "description", label: "Description", menuLabel: "Description", width: { min: 2, share: 2 }, align: "left", sortable: false, defaultVisible: true },
-  { id: "quota", label: "Quota (GPU)", menuLabel: "GPU Quota", width: { fit: true, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "capacity", label: "Capacity (GPU)", menuLabel: "GPU Capacity", width: { fit: true, share: 0.8 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "platforms", label: "Platforms", menuLabel: "Platforms", width: { min: 6, share: 1.5 }, align: "left", sortable: false, defaultVisible: true },
-  { id: "backend", label: "Backend", menuLabel: "Backend", width: { fit: true, share: 0.5 }, align: "left", sortable: true, defaultVisible: false },
+/** Default visible columns (excludes backend) */
+export const DEFAULT_VISIBLE_COLUMNS: PoolColumnId[] = [
+  "name", "status", "description", "quota", "capacity", "platforms",
 ];
 
-export const ALL_COLUMNS: ColumnDef<PoolColumnId>[] = [
-  ...MANDATORY_COLUMNS,
-  ...OPTIONAL_COLUMNS.map(({ defaultVisible, ...rest }) => rest),
+/** Default column order */
+export const DEFAULT_COLUMN_ORDER: PoolColumnId[] = [
+  "name", "status", "description", "quota", "capacity", "platforms", "backend",
 ];
 
-export const DEFAULT_VISIBLE_OPTIONAL: PoolColumnId[] = OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id);
-export const DEFAULT_VISIBLE_COLUMNS: PoolColumnId[] = [...MANDATORY_COLUMNS.map((c) => c.id), ...DEFAULT_VISIBLE_OPTIONAL];
-export const DEFAULT_COLUMN_ORDER: PoolColumnId[] = ALL_COLUMNS.map((c) => c.id);
-export const COLUMN_MAP = new Map(ALL_COLUMNS.map((c) => [c.id, c]));
-export const MANDATORY_COLUMN_IDS: ReadonlySet<PoolColumnId> = new Set(MANDATORY_COLUMNS.map((c) => c.id));
+/** Columns that cannot be hidden */
+export const MANDATORY_COLUMN_IDS: ReadonlySet<PoolColumnId> = new Set(["name"]);
 
 // =============================================================================
 // Column Size Configuration (for DataTable)
