@@ -213,7 +213,7 @@
     font-weight: 500;
   }
 
-  /* Bottom section stack (tfoot) */
+  /* Bottom section stack (tfoot) - legacy */
   .pools-tfoot {
     background: transparent;
   }
@@ -225,6 +225,64 @@
   .pools-bottom-section-item {
     background: transparent;
   }
+
+  /* ==========================================================================
+     DataTable Section Headers - New component styles
+     ========================================================================== */
+
+  /* Section header button (inside DataTable section rows) */
+  .pools-section-header[data-status="online"] { background: #dcfce7; }
+  .pools-section-header[data-status="maintenance"] { background: #fef9c3; }
+  .pools-section-header[data-status="offline"] { background: #fee2e2; }
+
+  .dark .pools-section-header[data-status="online"] { background: #052e16; }
+  .dark .pools-section-header[data-status="maintenance"] { background: #4a3f00; }
+  .dark .pools-section-header[data-status="offline"] { background: #450a0a; }
+
+  .pools-section-header[data-status="online"] .pools-section-label { color: #047857; }
+  .pools-section-header[data-status="maintenance"] .pools-section-label { color: #a16207; }
+  .pools-section-header[data-status="offline"] .pools-section-label { color: #b91c1c; }
+
+  .dark .pools-section-header[data-status="online"] .pools-section-label { color: #34d399; }
+  .dark .pools-section-header[data-status="maintenance"] .pools-section-label { color: #fde047; }
+  .dark .pools-section-header[data-status="offline"] .pools-section-label { color: #f87171; }
+
+  /* ==========================================================================
+     Section Nav Stack Items - New component styles
+     ========================================================================== */
+
+  .pools-nav-item--online { background: #dcfce7; border-left: var(--pools-border-width) solid var(--pools-status-online-border); }
+  .pools-nav-item--maintenance { background: #fef9c3; border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border); }
+  .pools-nav-item--offline { background: #fee2e2; border-left: var(--pools-border-width) solid var(--pools-status-offline-border); }
+
+  .dark .pools-nav-item--online { background: #052e16; }
+  .dark .pools-nav-item--maintenance { background: #4a3f00; }
+  .dark .pools-nav-item--offline { background: #450a0a; }
+
+  .pools-nav-item--online .section-nav-label { color: #047857; }
+  .pools-nav-item--maintenance .section-nav-label { color: #a16207; }
+  .pools-nav-item--offline .section-nav-label { color: #b91c1c; }
+
+  .dark .pools-nav-item--online .section-nav-label { color: #34d399; }
+  .dark .pools-nav-item--maintenance .section-nav-label { color: #fde047; }
+  .dark .pools-nav-item--offline .section-nav-label { color: #f87171; }
+
+  .pools-nav-item--online:hover { background: #bbf7d0; }
+  .pools-nav-item--maintenance:hover { background: #fef08a; }
+  .pools-nav-item--offline:hover { background: #fecaca; }
+
+  .dark .pools-nav-item--online:hover { background: #064e3b; }
+  .dark .pools-nav-item--maintenance:hover { background: #6b5a00; }
+  .dark .pools-nav-item--offline:hover { background: #7f1d1d; }
+
+  /* ==========================================================================
+     DataTable Row Styles - Status borders via class instead of data attribute
+     ========================================================================== */
+
+  .pools-row--online > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-online-border); }
+  .pools-row--maintenance > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border); }
+  .pools-row--offline > td:first-child { border-left: var(--pools-border-width) solid var(--pools-status-offline-border); }
+  .pools-row--selected { background: var(--pools-surface-selected); }
 }
 
 /* =============================================================================
