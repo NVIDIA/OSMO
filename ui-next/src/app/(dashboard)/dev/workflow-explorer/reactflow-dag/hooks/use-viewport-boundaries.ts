@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { VIEWPORT, NODE_COLLAPSED, ANIMATION } from "../constants";
-import type { GroupNodeData } from "../types/layout";
+import type { GroupNodeData } from "../types/dag-layout";
 import type { Node } from "@xyflow/react";
 
 // ============================================================================

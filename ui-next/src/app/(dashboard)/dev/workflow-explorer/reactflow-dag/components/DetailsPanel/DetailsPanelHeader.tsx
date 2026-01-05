@@ -38,6 +38,7 @@ import {
 import { PANEL } from "../../constants";
 import { getStatusIcon } from "../../utils/status";
 import type { DetailsPanelHeaderProps, SiblingTask } from "../../types/panel";
+import type { ColumnId } from "../../types/table";
 
 // ============================================================================
 // Width Preset Configuration
@@ -353,9 +354,9 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
 // ============================================================================
 
 interface ColumnMenuProps {
-  columns: Array<{ id: string; menuLabel: string }>;
-  visibleColumnIds: string[];
-  onToggleColumn: (columnId: string) => void;
+  columns: Array<{ id: ColumnId; menuLabel: string }>;
+  visibleColumnIds: ColumnId[];
+  onToggleColumn: (columnId: ColumnId) => void;
 }
 
 export const ColumnMenuContent = memo(function ColumnMenuContent({
