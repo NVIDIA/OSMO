@@ -40,11 +40,13 @@ import { cn } from "@/lib/utils";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";
 import { VirtualTableBody } from "./VirtualTableBody";
+import { SectionedTableBody } from "./SectionedTableBody";
 import { ResizeHandle } from "./ResizeHandle";
 import { TableSkeleton } from "./TableSkeleton";
 import { useVirtualizedTable } from "./hooks/use-virtualized-table";
 import { useTableDnd } from "./hooks/use-column-reordering";
 import { useUnifiedColumnSizing } from "./hooks/use-column-resizing";
+import { useRowNavigation } from "./hooks/use-row-navigation";
 import type { Section, SortState, ColumnSizeConfig, ColumnOverride } from "./types";
 import { getColumnCSSValue, pxToRem } from "./utils/column-sizing";
 
@@ -87,10 +89,27 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   // === Sections (optional) ===
   /** Sectioned data (overrides data prop if provided) */
   sections?: Section<TData, TSectionMeta>[];
-  /** Render custom section header */
-  renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
+  /** Render custom section header (index and stickyTop only available in non-virtualized mode) */
+  renderSectionHeader?: (
+    section: Section<TData, TSectionMeta>,
+    sectionIndex?: number,
+    stickyTop?: number,
+  ) => React.ReactNode;
   /** Enable sticky section headers */
   stickyHeaders?: boolean;
+  /**
+   * CSS class for section rows (non-virtualized mode only).
+   * Used to apply status-specific styling.
+   */
+  sectionRowClassName?: string | ((section: Section<TData, TSectionMeta>, sectionIndex: number) => string);
+
+  // === Virtualization ===
+  /**
+   * Enable virtualization (default: true).
+   * Set to false for small datasets (<100 items) that need CSS sticky section headers.
+   * When false, all rows are rendered in normal document flow, enabling CSS sticky.
+   */
+  virtualized?: boolean;
 
   // === Column Management ===
   /** Column order (controlled) */
@@ -335,7 +354,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
     virtualRows,
     totalHeight,
     totalRowCount,
+    virtualItemCount,
     getItem,
+    scrollToIndex,
   } = useVirtualizedTable<TData, TSectionMeta>({
     items: sections ? undefined : data,
     sections,
@@ -366,6 +387,40 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   // Compute aria-rowcount
   const ariaRowCount = totalCount ?? totalRowCount;
+
+  // Stable row click callback for keyboard activation
+  const stableOnRowClick = useStableCallback(onRowClick);
+  const stableOnLoadMore = useStableCallback(onLoadMore);
+
+  // Keyboard navigation for rows (uses virtual indices which include sections)
+  const rowNavigation = useRowNavigation({
+    rowCount: virtualItemCount, // Use virtual count (sections + data rows)
+    visibleRowCount: Math.floor(600 / rowHeight), // Approximate visible rows
+    onRowActivate: useCallback(
+      (virtualIndex: number) => {
+        const item = getItem(virtualIndex);
+        if (item?.type === "row") {
+          stableOnRowClick?.(item.item);
+        }
+        // If it's a section, do nothing (or could expand/collapse)
+      },
+      [getItem, stableOnRowClick],
+    ),
+    onScrollToRow: useCallback(
+      (virtualIndex: number, align: "start" | "end" | "center") => {
+        // Scroll virtualizer to bring row into view with proper alignment
+        scrollToIndex(virtualIndex, { align });
+
+        // Trigger pagination if near the end
+        if (hasNextPage && !isFetchingNextPage && virtualIndex >= virtualItemCount - 5) {
+          stableOnLoadMore?.();
+        }
+      },
+      [scrollToIndex, hasNextPage, isFetchingNextPage, virtualItemCount, stableOnLoadMore],
+    ),
+    disabled: !onRowClick, // Only enable if rows are clickable
+    containerRef: scrollRef, // For finding and focusing row elements
+  });
 
   // Loading state - show skeleton only during actual data loading
   const showSkeleton = isLoading && allItems.length === 0;
@@ -428,7 +483,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
           <>
             <table
               ref={tableElementRef}
+              role="grid"
               aria-rowcount={ariaRowCount}
+              aria-colcount={visibleColumnCount}
               className={cn(
                 "min-w-full border-collapse text-sm data-table",
                 className,
@@ -442,12 +499,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
             >
               {/* Table Header */}
               <thead
+                role="rowgroup"
                 className={cn(
                   "bg-zinc-100 text-left text-xs font-medium uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400",
                   stickyHeaders && "sticky top-0 z-20",
                 )}
               >
-                <tr className="data-table-header-row">
+                <tr role="row" aria-rowindex={1} className="data-table-header-row">
                   <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
                     {table.getHeaderGroups().map((headerGroup) =>
                       headerGroup.headers.map((header) => {
@@ -508,6 +566,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
                           return (
                             <th
                               key={header.id}
+                              role="columnheader"
+                              scope="col"
+                              aria-colindex={headerGroup.headers.indexOf(header) + 1}
                               data-column-id={header.id}
                               style={widthStyle}
                               className="relative flex items-center px-4 py-3"
@@ -526,6 +587,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                             id={header.id}
                             as="th"
                             width={sortableCellWidth}
+                            colIndex={headerGroup.headers.indexOf(header) + 1}
                             className="relative flex items-center px-4 py-3"
                           >
                             {cellContent}
@@ -549,6 +611,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 getRowId={getRowId}
                 rowClassName={rowClassName}
                 renderSectionHeader={renderSectionHeader}
+                focusedRowIndex={rowNavigation.focusedRowIndex}
+                getRowTabIndex={rowNavigation.getRowTabIndex}
+                onRowFocus={rowNavigation.handleRowFocus}
+                onRowKeyDown={rowNavigation.handleRowKeyDown}
               />
             </table>
 
@@ -578,6 +644,28 @@ export function DataTable<TData, TSectionMeta = unknown>({
                   </svg>
                   <span>Loading more...</span>
                 </div>
+              </div>
+            )}
+
+            {/* End of results indicator - show when all data loaded and not fetching */}
+            {!hasNextPage && !isFetchingNextPage && allItems.length > 0 && (
+              <div
+                className="flex items-center justify-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500"
+                style={{ height: rowHeight }}
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>You&apos;ve reached the end</span>
               </div>
             )}
           </>

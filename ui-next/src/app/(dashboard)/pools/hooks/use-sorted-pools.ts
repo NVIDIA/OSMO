@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
  *
  * NVIDIA CORPORATION and its licensors retain all intellectual property
  * and proprietary rights in and to this software, related documentation
@@ -9,29 +9,29 @@
  */
 
 /**
- * Hook to organize pools into status-based sections.
+ * Hook to sort pools and build sharing map.
  *
  * This hook receives pre-filtered pools and:
- * - Groups them by status (Online, Maintenance, Offline)
- * - Sorts pools within each section
+ * - Sorts them by the current sort column
  * - Builds a sharing map for UI indicators
  *
- * Note: Filtering is now handled by usePoolsData, not here.
+ * Simplified from usePoolSections - no status grouping.
  */
 
 import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
 import type { SortState } from "@/lib/table";
-import { STATUS_ORDER, getStatusDisplay } from "../lib/constants";
 import type { PoolColumnId } from "../lib/pool-columns";
 
-export interface StatusSection {
-  status: string;
-  label: string;
-  pools: Pool[];
-}
+// =============================================================================
+// Sorting
+// =============================================================================
 
-function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "used" | "free"): Pool[] {
+function sortPools(
+  pools: Pool[],
+  sort: SortState<PoolColumnId>,
+  displayMode: "used" | "free",
+): Pool[] {
   if (!sort.column) return pools;
 
   return [...pools].sort((a, b) => {
@@ -39,6 +39,9 @@ function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "u
     switch (sort.column) {
       case "name":
         cmp = a.name.localeCompare(b.name);
+        break;
+      case "status":
+        cmp = a.status.localeCompare(b.status);
         break;
       case "backend":
         cmp = a.backend.localeCompare(b.backend);
@@ -61,32 +64,39 @@ function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "u
   });
 }
 
-interface UsePoolSectionsOptions {
+// =============================================================================
+// Hook
+// =============================================================================
+
+interface UseSortedPoolsOptions {
   /** Pre-filtered pools from usePoolsData */
   pools: Pool[];
+  /** Current sort state */
   sort: SortState<PoolColumnId>;
+  /** Sharing groups for building sharing map */
   sharingGroups: string[][];
+  /** Display mode for quota/capacity sorting */
   displayMode: "used" | "free";
 }
 
-export function usePoolSections({ pools, sort, sharingGroups, displayMode }: UsePoolSectionsOptions) {
-  // Organize pools into sections by status
-  const sections: StatusSection[] = useMemo(() => {
-    const grouped = new Map<string, Pool[]>();
-    for (const pool of pools) {
-      if (!grouped.has(pool.status)) grouped.set(pool.status, []);
-      grouped.get(pool.status)!.push(pool);
-    }
+interface UseSortedPoolsResult {
+  /** Sorted pools */
+  sortedPools: Pool[];
+  /** Map of pool names that share resources */
+  sharingMap: Map<string, boolean>;
+}
 
-    return STATUS_ORDER.map((status) => {
-      const display = getStatusDisplay(status);
-      return {
-        status: display.category,
-        label: display.label,
-        pools: sortPools(grouped.get(status) ?? [], sort, displayMode),
-      };
-    }).filter((s) => s.pools.length > 0);
-  }, [pools, sort, displayMode]);
+export function useSortedPools({
+  pools,
+  sort,
+  sharingGroups,
+  displayMode,
+}: UseSortedPoolsOptions): UseSortedPoolsResult {
+  // Sort pools
+  const sortedPools = useMemo(
+    () => sortPools(pools, sort, displayMode),
+    [pools, sort, displayMode],
+  );
 
   // Build map of pools that are shared (for UI indicators)
   const sharingMap = useMemo(() => {
@@ -101,5 +111,5 @@ export function usePoolSections({ pools, sort, sharingGroups, displayMode }: Use
     return map;
   }, [sharingGroups]);
 
-  return { sections, sharingMap };
+  return { sortedPools, sharingMap };
 }

@@ -70,6 +70,8 @@ export interface SortableCellProps {
   className?: string;
   as?: "th" | "div";
   width?: string;
+  /** Column index for aria-colindex (1-based) */
+  colIndex?: number;
 }
 
 // =============================================================================
