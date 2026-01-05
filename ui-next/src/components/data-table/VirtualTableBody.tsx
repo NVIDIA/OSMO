@@ -52,6 +52,14 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   rowClassName?: string | ((item: TData) => string);
   /** Render section header */
   renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
+  /** Currently focused row index (for keyboard navigation) */
+  focusedRowIndex?: number | null;
+  /** Get tabIndex for a row (roving tabindex pattern) */
+  getRowTabIndex?: (index: number) => 0 | -1;
+  /** Row focus handler */
+  onRowFocus?: (index: number) => void;
+  /** Row keydown handler */
+  onRowKeyDown?: (e: React.KeyboardEvent, index: number) => void;
 }
 
 // =============================================================================
@@ -69,9 +77,14 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   getRowId,
   rowClassName,
   renderSectionHeader,
+  focusedRowIndex,
+  getRowTabIndex,
+  onRowFocus,
+  onRowKeyDown,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
   return (
     <tbody
+      role="rowgroup"
       className="data-table-body"
       style={{ height: totalHeight }}
     >
@@ -81,9 +94,12 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         if (!item) return null;
 
         if (item.type === "section") {
+          // Use index in key to guarantee uniqueness in virtualized list
           return (
             <tr
-              key={virtualRow.key}
+              key={`section-${virtualRow.index}`}
+              role="row"
+              aria-rowindex={virtualRow.index + 2}
               data-section={item.section.id}
               className="data-table-section-row sticky bg-zinc-100 dark:bg-zinc-900"
               style={{
@@ -91,7 +107,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              <td colSpan={columnCount} className="px-0">
+              <td role="gridcell" colSpan={columnCount} className="px-0">
                 {renderSectionHeader?.(item.section) ?? (
                   <div className="flex items-center gap-2 px-4 font-medium">
                     <span>{item.section.label}</span>
@@ -117,12 +133,21 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             ? rowClassName(rowData)
             : rowClassName;
 
+        // Keyboard navigation support
+        const tabIndex = getRowTabIndex?.(virtualRow.index) ?? (onRowClick ? 0 : undefined);
+
+        // Use virtual index in key to guarantee uniqueness even with duplicate data
         return (
           <tr
-            key={virtualRow.key}
+            key={`row-${virtualRow.index}`}
+            role="row"
             data-row-id={rowId}
             aria-rowindex={virtualRow.index + 2}
+            aria-selected={isSelected ? true : undefined}
+            tabIndex={tabIndex}
             onClick={onRowClick ? () => onRowClick(rowData, virtualRow.index) : undefined}
+            onFocus={onRowFocus ? () => onRowFocus(virtualRow.index) : undefined}
+            onKeyDown={onRowKeyDown ? (e) => onRowKeyDown(e, virtualRow.index) : undefined}
             className={cn(
               "data-table-row border-b border-zinc-200 dark:border-zinc-800",
               onRowClick && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900",
@@ -134,9 +159,11 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
               transform: `translateY(${virtualRow.start}px)`,
             }}
           >
-            {row.getVisibleCells().map((cell) => (
+            {row.getVisibleCells().map((cell, cellIndex) => (
               <td
                 key={cell.id}
+                role="gridcell"
+                aria-colindex={cellIndex + 1}
                 data-column-id={cell.column.id}
                 style={{
                   width: getColumnCSSValue(cell.column.id),

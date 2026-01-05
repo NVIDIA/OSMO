@@ -68,12 +68,16 @@ export interface UseVirtualizedTableResult<T, TSectionMeta = unknown> {
   virtualRows: VirtualizedRow[];
   /** Total height of all rows */
   totalHeight: number;
-  /** Total row count (for aria-rowcount) */
+  /** Total data row count (excluding section headers, for aria-rowcount) */
   totalRowCount: number;
+  /** Total virtual item count (sections + data rows, for navigation) */
+  virtualItemCount: number;
   /** Get item for a virtual row index */
   getItem: (index: number) => { type: "section"; section: Section<T, TSectionMeta> } | { type: "row"; item: T } | null;
   /** Trigger measurement recalculation */
   measure: () => void;
+  /** Scroll to a specific virtual index */
+  scrollToIndex: (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => void;
 }
 
 // =============================================================================
@@ -235,11 +239,24 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     return items?.length ?? 0;
   }, [items, sections]);
 
+  // Scroll to a specific index
+  const scrollToIndex = useCallback(
+    (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => {
+      virtualizer.scrollToIndex(index, { 
+        align: options?.align ?? "auto",
+        behavior: "auto", // instant for keyboard nav
+      });
+    },
+    [virtualizer],
+  );
+
   return {
     virtualRows,
     totalHeight: virtualizer.getTotalSize(),
     totalRowCount,
+    virtualItemCount: virtualItems.length,
     getItem,
     measure: () => virtualizer.measure(),
+    scrollToIndex,
   };
 }

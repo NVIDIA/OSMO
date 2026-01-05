@@ -35,6 +35,7 @@ export type {
 export {
   usePools,
   usePool,
+  useFilteredPools,
   usePoolResources,
   useAllResources,
   useVersion,
@@ -44,6 +45,9 @@ export {
   invalidateResourcesCache,
   getResourceFilterOptions,
 } from "./hooks";
+
+// Pool filtering types (from shim - will be simplified when backend ready)
+export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata } from "./hooks";
 
 // Pagination types
 export type { PaginatedResourcesResult } from "./pagination";
