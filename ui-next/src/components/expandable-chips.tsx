@@ -8,7 +8,7 @@
 
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { chip } from "@/lib/styles";
 import { useExpandableChips, type ChipLayoutDimensions } from "@/hooks";

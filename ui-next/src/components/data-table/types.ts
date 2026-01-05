@@ -51,7 +51,6 @@ export function cycleSortState<TColumnId extends string>(
 // =============================================================================
 
 export interface SortButtonProps {
-  id: string;
   label: string;
   align?: "left" | "right";
   sortable?: boolean;

@@ -126,13 +126,9 @@ export function useSectionNavigation({
   // Track scroll position and update hidden sections
   useLayoutEffect(() => {
     const scrollContainer = scrollRef.current;
-    if (!scrollContainer) {
-      setRawHiddenIndices((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
-
-    if (sections.length === 0) {
-      setRawHiddenIndices((prev) => (prev.length === 0 ? prev : []));
+    if (!scrollContainer || sections.length === 0) {
+      // Don't call setState synchronously - empty array is the initial state
+      // and the useMemo filter handles any stale indices
       return;
     }
 
@@ -141,11 +137,15 @@ export function useSectionNavigation({
       setRawHiddenIndices((prev) => (arraysEqual(prev, newIndices) ? prev : newIndices));
     };
 
-    // Calculate immediately on mount and when sections change
-    handleScroll();
+    // Defer initial calculation to avoid synchronous setState in effect
+    // requestAnimationFrame ensures we're past the synchronous effect phase
+    const frameId = requestAnimationFrame(handleScroll);
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
-    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+    return () => {
+      cancelAnimationFrame(frameId);
+      scrollContainer.removeEventListener("scroll", handleScroll);
+    };
   }, [sections.length, calculateHiddenIndices, arraysEqual]);
 
   // Filter indices to ensure they're always valid for current sections

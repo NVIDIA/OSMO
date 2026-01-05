@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useState, useMemo, useCallback, memo, useRef, useEffect, useDeferredValue, startTransition } from "react";
+import { useState, useMemo, useCallback, memo, useRef, useDeferredValue, startTransition, useEffect } from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -393,6 +393,7 @@ export const SmartSearch = memo(function SmartSearch({
   const [inputValue, setInputValue] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0); // For render-phase reset
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -410,14 +411,15 @@ export const SmartSearch = memo(function SmartSearch({
     });
   }, [chips, onChipsChange]);
 
-  const parsedInput = useMemo(() => {
+  // Parse input to extract field prefix - lightweight computation, React Compiler handles optimization
+  const parsedInput = (() => {
     for (const field of SEARCH_FIELDS) {
       if (field.prefix && deferredInputValue.toLowerCase().startsWith(field.prefix)) {
         return { field, query: deferredInputValue.slice(field.prefix.length), hasPrefix: true };
       }
     }
     return { field: null, query: deferredInputValue, hasPrefix: false };
-  }, [deferredInputValue]);
+  })();
 
   type SuggestionItem = {
     type: "field" | "value" | "state-parent" | "state-child" | "hint";
@@ -562,9 +564,13 @@ export const SmartSearch = memo(function SmartSearch({
     return items;
   }, [deferredInputValue, parsedInput, deferredTasks]);
 
-  useEffect(() => {
+  // Adjust state during render: reset highlighted index when suggestions change
+  // This is the React-recommended pattern for derived state resets (see react.dev docs)
+  // React will immediately re-render with the updated state without committing the intermediate state
+  if (suggestions.length !== prevSuggestionsLength) {
+    setPrevSuggestionsLength(suggestions.length);
     setHighlightedIndex(0);
-  }, [suggestions.length]);
+  }
 
   const handleSelect = useCallback((index: number) => {
     const selected = suggestions[index];

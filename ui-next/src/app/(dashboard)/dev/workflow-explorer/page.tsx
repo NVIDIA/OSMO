@@ -11,9 +11,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
-import { GitBranch, BarChart3, Clock, Loader2, CheckCircle, XCircle, ArrowRight, Workflow } from "lucide-react";
+import { GitBranch, BarChart3, Clock, Loader2, CheckCircle, XCircle, ArrowRight } from "lucide-react";
 import { usePage } from "@/components/shell";
 
 import {
@@ -56,8 +55,6 @@ function getStatusIcon(status: TaskGroupStatus, size = "h-4 w-4") {
 // ============================================================================
 
 function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
-  const category = getStatusCategory(workflow.status);
-
   return (
     <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/50">
       <div className="flex items-center gap-3 mb-3">
