@@ -452,7 +452,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
     >
       <div
         ref={scrollRef}
-        className={cn("overflow-auto data-table-scroll", scrollClassName)}
+        className={cn("data-table-scroll overflow-auto", scrollClassName)}
       >
         {/* Skeleton only during initial data loading */}
         {showSkeleton && (
@@ -473,14 +473,14 @@ export function DataTable<TData, TSectionMeta = unknown>({
               role="grid"
               aria-rowcount={ariaRowCount}
               aria-colcount={visibleColumnCount}
-              className={cn("min-w-full border-collapse text-sm contain-layout-style data-table", className)}
+              className={cn("contain-layout-style data-table min-w-full border-collapse text-sm", className)}
               style={columnSizing.cssVariables}
             >
               {/* Table Header */}
               <thead
                 role="rowgroup"
                 className={cn(
-                  "bg-zinc-100 text-left text-xs font-medium uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400",
+                  "bg-zinc-100 text-left text-xs font-medium text-zinc-500 uppercase dark:bg-zinc-900 dark:text-zinc-400",
                   stickyHeaders && "sticky top-0 z-20",
                 )}
               >
@@ -601,7 +601,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
             {/* Floating loading indicator for pagination */}
             {isFetchingNextPage && (
-              <div className="sticky bottom-0 left-0 right-0 flex items-center justify-center bg-gradient-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
+              <div className="sticky right-0 bottom-0 left-0 flex items-center justify-center bg-gradient-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
                 <div className="flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-300">
                   <svg
                     className="h-4 w-4 animate-spin"

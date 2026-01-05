@@ -72,7 +72,7 @@ export function InlineFallback({
           <AlertCircle className="size-5 text-red-600 dark:text-red-400" />
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="font-medium text-red-900 dark:text-red-100">{title}</h3>
           <p className="mt-1 text-sm text-red-700 dark:text-red-300">{message}</p>
 

@@ -27,7 +27,7 @@
  *   - Caddy: encode gzip zstd (serves pre-compressed automatically)
  */
 
-import { readdir, readFile, writeFile, stat } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { gzip } from "node:zlib";
 import { promisify } from "node:util";

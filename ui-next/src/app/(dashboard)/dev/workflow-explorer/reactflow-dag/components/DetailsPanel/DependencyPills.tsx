@@ -96,7 +96,7 @@ const DependencyPill = memo(function DependencyPill({ group, onClick }: Dependen
       onClick={onClick}
       className={cn(
         "dependency-pill inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
-        "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
+        "focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
         style.pillClass,
         onClick && "cursor-pointer",
       )}

@@ -28,9 +28,9 @@ export function ThemeToggle() {
           className="relative"
         >
           {/* Sun icon - visible in light mode, hidden in dark */}
-          <Sun className="h-4 w-4 transition-[transform,opacity] duration-200 dark:opacity-0 dark:rotate-90 dark:scale-75" />
+          <Sun className="h-4 w-4 transition-[transform,opacity] duration-200 dark:scale-75 dark:rotate-90 dark:opacity-0" />
           {/* Moon icon - hidden in light mode, visible in dark */}
-          <Moon className="absolute h-4 w-4 opacity-0 rotate-90 scale-75 transition-[transform,opacity] duration-200 dark:opacity-100 dark:rotate-0 dark:scale-100" />
+          <Moon className="absolute h-4 w-4 scale-75 rotate-90 opacity-0 transition-[transform,opacity] duration-200 dark:scale-100 dark:rotate-0 dark:opacity-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>

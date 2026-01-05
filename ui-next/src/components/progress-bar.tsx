@@ -97,13 +97,13 @@ export const ProgressBar = memo(function ProgressBar({
       aria-label={ariaLabel}
       className={cn(
         SIZE_CLASSES[size],
-        "overflow-hidden rounded-full bg-zinc-200 contain-layout-paint dark:bg-zinc-800",
+        "contain-layout-paint overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",
         trackClassName,
       )}
     >
       <div
         className={cn(
-          "h-full w-full rounded-full transition-transform duration-300 ease-out origin-left",
+          "h-full w-full origin-left rounded-full transition-transform duration-300 ease-out",
           fillColor,
           fillClassName,
         )}

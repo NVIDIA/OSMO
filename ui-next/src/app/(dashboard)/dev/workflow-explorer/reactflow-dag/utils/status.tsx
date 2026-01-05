@@ -211,7 +211,7 @@ const StatusIconCompact = memo(function StatusIconCompact({
     case "running":
       return (
         <Loader2
-          className={cn(size, "text-blue-500 animate-spin motion-reduce:animate-none", className)}
+          className={cn(size, "animate-spin text-blue-500 motion-reduce:animate-none", className)}
           aria-hidden="true"
         />
       );

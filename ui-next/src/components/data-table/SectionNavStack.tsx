@@ -77,7 +77,7 @@ function SectionNavStackInner<TMeta = unknown>({
 
   return (
     <div
-      className={cn("pointer-events-none absolute bottom-0 left-0 right-0 z-20", className)}
+      className={cn("pointer-events-none absolute right-0 bottom-0 left-0 z-20", className)}
       aria-label="Section navigation"
     >
       {hiddenSectionIndices.map((sectionIndex, stackIndex) => {
@@ -95,9 +95,9 @@ function SectionNavStackInner<TMeta = unknown>({
             type="button"
             onClick={() => onNavigate(sectionIndex)}
             className={cn(
-              "pointer-events-auto absolute left-0 right-0",
+              "pointer-events-auto absolute right-0 left-0",
               "flex w-full items-center gap-2 px-3",
-              "text-left text-xs font-semibold uppercase tracking-wider",
+              "text-left text-xs font-semibold tracking-wider uppercase",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset",
               "transition-colors duration-75",
               resolvedItemClassName,

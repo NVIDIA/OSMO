@@ -135,7 +135,7 @@ export const PanelHeaderActions = memo(function PanelHeaderActions({
 }: PanelHeaderActionsProps) {
   return (
     <div className="-mr-1.5 flex shrink-0 items-center gap-1">
-      <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-zinc-500 ring-1 ring-inset ring-zinc-300 dark:text-zinc-400 dark:ring-zinc-600">
+      <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide text-zinc-500 uppercase ring-1 ring-zinc-300 ring-inset dark:text-zinc-400 dark:ring-zinc-600">
         {badge}
       </span>
       <PanelWidthMenu onWidthPreset={onWidthPreset} />

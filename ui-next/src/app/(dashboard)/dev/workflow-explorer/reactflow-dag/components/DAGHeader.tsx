@@ -56,7 +56,7 @@ export function DAGHeader({
   }, [groups]);
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
+    <header className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-6 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
@@ -66,7 +66,7 @@ export function DAGHeader({
         >
           <a href={backUrl}>
             <ChevronLeft
-              className="h-4 w-4 mr-1"
+              className="mr-1 h-4 w-4"
               aria-hidden="true"
             />
             Back
@@ -79,7 +79,7 @@ export function DAGHeader({
         <div>
           <h1 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">React Flow + ELK DAG</h1>
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
-            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
               {getStatusIcon(status, "h-3.5 w-3.5")}
               {status}
             </span>
@@ -120,7 +120,7 @@ export function DAGHeader({
           onClick={onExpandAll}
         >
           <Maximize2
-            className="h-4 w-4 mr-2"
+            className="mr-2 h-4 w-4"
             aria-hidden="true"
           />
           Expand All
@@ -131,7 +131,7 @@ export function DAGHeader({
           onClick={onCollapseAll}
         >
           <Minimize2
-            className="h-4 w-4 mr-2"
+            className="mr-2 h-4 w-4"
             aria-hidden="true"
           />
           Collapse All
@@ -141,7 +141,7 @@ export function DAGHeader({
           size="sm"
         >
           <RefreshCw
-            className="h-4 w-4 mr-2"
+            className="mr-2 h-4 w-4"
             aria-hidden="true"
           />
           Refresh

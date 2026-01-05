@@ -198,7 +198,7 @@ export function ResizablePanel({
       <aside
         ref={panelRef}
         className={cn(
-          "fixed bottom-0 right-0 z-50 top-shell-header flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out contain-layout-style dark:border-zinc-700 dark:bg-zinc-900/95",
+          "top-shell-header contain-layout-style fixed right-0 bottom-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
           className,
         )}
@@ -232,7 +232,7 @@ export function ResizablePanel({
         >
           <div
             className={cn(
-              "absolute left-1/2 top-1/2 z-[70] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-800",
+              "absolute top-1/2 left-1/2 z-[70] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-800",
               isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
             )}
             aria-hidden="true"

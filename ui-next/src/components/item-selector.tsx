@@ -107,7 +107,7 @@ export function ItemSelector({
           >
             <span className="text-sm font-medium">{selectedItem}</span>
             {selectedItem === defaultItem && (
-              <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[0.625rem] font-medium uppercase text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+              <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[0.625rem] font-medium text-zinc-500 uppercase dark:bg-zinc-700 dark:text-zinc-400">
                 Default
               </span>
             )}
@@ -130,7 +130,7 @@ export function ItemSelector({
               >
                 <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>{item}</span>
                 {isDefault && (
-                  <span className="text-[0.625rem] uppercase text-zinc-400 dark:text-zinc-500">Default</span>
+                  <span className="text-[0.625rem] text-zinc-400 uppercase dark:text-zinc-500">Default</span>
                 )}
                 {isCurrent && <Check className="size-4 shrink-0 text-emerald-500" />}
               </DropdownMenuItem>
