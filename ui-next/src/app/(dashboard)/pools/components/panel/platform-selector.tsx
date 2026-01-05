@@ -85,9 +85,7 @@ export function PlatformSelector({
   if (platforms.length === 1) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {platforms[0]}
-        </span>
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{platforms[0]}</span>
         {defaultPlatform === platforms[0] && (
           <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[0.625rem] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
             default
@@ -115,7 +113,10 @@ export function PlatformSelector({
             <ChevronDown className="size-3.5 text-zinc-500 dark:text-zinc-400" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent
+          align="start"
+          className="w-56"
+        >
           {sortedPlatforms.map((platform) => {
             const isCurrent = platform === selectedPlatform;
             const isPlatformDefault = platform === defaultPlatform;
@@ -125,14 +126,9 @@ export function PlatformSelector({
                 onSelect={() => {
                   onSelectPlatform(platform);
                 }}
-                className={cn(
-                  "flex items-center gap-2",
-                  isCurrent && "bg-zinc-100 dark:bg-zinc-800"
-                )}
+                className={cn("flex items-center gap-2", isCurrent && "bg-zinc-100 dark:bg-zinc-800")}
               >
-                <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>
-                  {platform}
-                </span>
+                <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>{platform}</span>
                 {isPlatformDefault && (
                   <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[0.625rem] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
                     default
@@ -164,7 +160,10 @@ export function PlatformSelector({
           <ChevronDown className="size-3.5 text-zinc-500 dark:text-zinc-400" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 p-0">
+      <DropdownMenuContent
+        align="start"
+        className="w-64 p-0"
+      >
         {/* Search input */}
         <div className="flex items-center border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
           <Search className="mr-2 size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
@@ -184,11 +183,12 @@ export function PlatformSelector({
           />
         </div>
         {/* Platform list */}
-        <div ref={listContainerRef} className="max-h-60 overflow-y-auto py-1">
+        <div
+          ref={listContainerRef}
+          className="max-h-60 overflow-y-auto py-1"
+        >
           {filteredPlatforms.length === 0 ? (
-            <div className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-500">
-              No platforms found
-            </div>
+            <div className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-500">No platforms found</div>
           ) : (
             filteredPlatforms.map((platform) => {
               const isCurrent = platform === selectedPlatform;
@@ -203,12 +203,10 @@ export function PlatformSelector({
                   }}
                   className={cn(
                     "flex cursor-pointer items-center gap-2 px-3 py-2",
-                    isCurrent && "bg-zinc-100/50 dark:bg-zinc-800/50"
+                    isCurrent && "bg-zinc-100/50 dark:bg-zinc-800/50",
                   )}
                 >
-                  <span className={cn("flex-1 truncate text-sm", isCurrent && "font-medium")}>
-                    {platform}
-                  </span>
+                  <span className={cn("flex-1 truncate text-sm", isCurrent && "font-medium")}>{platform}</span>
                   {isPlatformDefault && (
                     <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[0.625rem] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
                       default

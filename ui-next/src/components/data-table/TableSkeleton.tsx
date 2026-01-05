@@ -52,11 +52,7 @@ interface SkeletonRowProps {
   rowIndex: number;
 }
 
-const SkeletonRow = memo(function SkeletonRow({
-  columnCount,
-  rowHeight,
-  rowIndex,
-}: SkeletonRowProps) {
+const SkeletonRow = memo(function SkeletonRow({ columnCount, rowHeight, rowIndex }: SkeletonRowProps) {
   // Vary cell widths for visual interest
   const cellWidths = useMemo(() => {
     const widths: string[] = [];
@@ -108,9 +104,7 @@ export const TableSkeleton = memo(function TableSkeleton({
   const effectiveHeaders = useMemo(() => {
     if (headers && headers.length > 0) return headers;
     // Generate placeholder headers
-    return Array.from({ length: columnCount }, (_, i) =>
-      i === 0 ? "Name" : `Column ${i + 1}`
-    );
+    return Array.from({ length: columnCount }, (_, i) => (i === 0 ? "Name" : `Column ${i + 1}`));
   }, [headers, columnCount]);
 
   return (

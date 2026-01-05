@@ -77,15 +77,12 @@ export const InlineProgress = memo(function InlineProgress({
   const free = total - used;
 
   // Format display label based on mode
-  const displayLabel =
-    displayMode === "used" ? `${used}/${total}` : `${free} ${freeLabel}`;
+  const displayLabel = displayMode === "used" ? `${used}/${total}` : `${free} ${freeLabel}`;
 
   if (compact) {
     return (
       <div className={cn("flex items-center gap-1.5", className)}>
-        <span className="tabular-nums text-xs text-zinc-700 dark:text-zinc-300">
-          {displayLabel}
-        </span>
+        <span className="tabular-nums text-xs text-zinc-700 dark:text-zinc-300">{displayLabel}</span>
         {children}
       </div>
     );
@@ -101,9 +98,7 @@ export const InlineProgress = memo(function InlineProgress({
           thresholdColors
         />
       </div>
-      <span className="whitespace-nowrap tabular-nums text-xs text-zinc-600 dark:text-zinc-400">
-        {displayLabel}
-      </span>
+      <span className="whitespace-nowrap tabular-nums text-xs text-zinc-600 dark:text-zinc-400">{displayLabel}</span>
       {children}
     </div>
   );

@@ -58,10 +58,7 @@ export const PanelContent = memo(function PanelContent({
   onPlatformSelect,
 }: PanelContentProps) {
   // Derive shared pools
-  const sharedWith = useMemo(
-    () => getSharingInfo(pool.name, sharingGroups),
-    [pool.name, sharingGroups]
-  );
+  const sharedWith = useMemo(() => getSharingInfo(pool.name, sharingGroups), [pool.name, sharingGroups]);
 
   // Derive effective platform: use prop if valid for this pool, else fall back to default
   const defaultPlatform = pool.defaultPlatform ?? pool.platforms[0] ?? null;
@@ -82,7 +79,7 @@ export const PanelContent = memo(function PanelContent({
         onPlatformSelect?.(platform);
       }
     },
-    [onPlatformSelect, defaultPlatform]
+    [onPlatformSelect, defaultPlatform],
   );
 
   // Navigate to another pool when clicking a shared pool chip
@@ -90,7 +87,7 @@ export const PanelContent = memo(function PanelContent({
     (poolName: string) => {
       onPoolSelect?.(poolName);
     },
-    [onPoolSelect]
+    [onPoolSelect],
   );
 
   // Calculate progress percentages
@@ -151,7 +148,10 @@ export const PanelContent = memo(function PanelContent({
                 <Share2 className="h-3.5 w-3.5" />
                 Shares capacity with
               </div>
-              <SharedPoolsChips pools={sharedWith} onPoolClick={handlePoolClick} />
+              <SharedPoolsChips
+                pools={sharedWith}
+                onPoolClick={handlePoolClick}
+              />
             </div>
           )}
         </section>
@@ -236,7 +236,9 @@ function QuotaSection({ title, used, total, free, percent, freeLabel }: QuotaSec
           aria-label={`${title}: ${used} of ${total} used`}
         />
         <div className={cn(text.mutedSmall, "flex items-center justify-between")}>
-          <span>{free} {freeLabel}</span>
+          <span>
+            {free} {freeLabel}
+          </span>
           <span>{Math.round(percent)}% utilized</span>
         </div>
       </div>

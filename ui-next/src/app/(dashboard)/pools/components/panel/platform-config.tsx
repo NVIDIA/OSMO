@@ -40,9 +40,7 @@ export function PlatformConfigContent({ config }: PlatformConfigContentProps) {
   return (
     <div className="space-y-3">
       {/* Description */}
-      {config.description && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{config.description}</p>
-      )}
+      {config.description && <p className="text-sm text-zinc-600 dark:text-zinc-400">{config.description}</p>}
 
       {/* Boolean flags */}
       <div className="space-y-1">
@@ -58,12 +56,18 @@ export function PlatformConfigContent({ config }: PlatformConfigContentProps) {
 
       {/* Default Mounts */}
       {config.defaultMounts.length > 0 && (
-        <MountsList title="Default Mounts" mounts={config.defaultMounts} />
+        <MountsList
+          title="Default Mounts"
+          mounts={config.defaultMounts}
+        />
       )}
 
       {/* Allowed Mounts */}
       {config.allowedMounts.length > 0 && (
-        <MountsList title="Allowed Mounts" mounts={config.allowedMounts} />
+        <MountsList
+          title="Allowed Mounts"
+          mounts={config.allowedMounts}
+        />
       )}
     </div>
   );
@@ -78,7 +82,7 @@ function BooleanIndicator({ value }: { value: boolean }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 text-sm",
-        value ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"
+        value ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500",
       )}
     >
       {value ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
@@ -90,12 +94,13 @@ function BooleanIndicator({ value }: { value: boolean }) {
 function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
   return (
     <div>
-      <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">
-        {title}
-      </div>
+      <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">{title}</div>
       <div className="flex flex-col gap-1">
         {mounts.map((mount, idx) => (
-          <CopyableMount key={idx} value={mount} />
+          <CopyableMount
+            key={idx}
+            value={mount}
+          />
         ))}
       </div>
     </div>
@@ -124,7 +129,7 @@ function CopyableMount({ value }: { value: string }) {
         "group flex w-full items-start justify-between gap-2 rounded-md px-2.5 py-1.5 text-left font-mono text-xs transition-colors",
         copied
           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
       )}
       title={copied ? "Copied!" : `Copy ${value}`}
     >

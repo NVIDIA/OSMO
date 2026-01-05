@@ -86,10 +86,7 @@ export function useRowNavigation({
   }, []);
 
   // Clamp index to valid range
-  const clampIndex = useCallback(
-    (index: number): number => Math.max(0, Math.min(rowCount - 1, index)),
-    [rowCount],
-  );
+  const clampIndex = useCallback((index: number): number => Math.max(0, Math.min(rowCount - 1, index)), [rowCount]);
 
   // Try to focus a row element by aria-rowindex
   const tryFocusRow = useCallback(
@@ -99,9 +96,7 @@ export function useRowNavigation({
 
       // aria-rowindex is 1-based, with header at 1, so data rows start at 2
       const ariaRowIndex = rowIndex + 2;
-      const rowElement = container.querySelector<HTMLElement>(
-        `[aria-rowindex="${ariaRowIndex}"]`
-      );
+      const rowElement = container.querySelector<HTMLElement>(`[aria-rowindex="${ariaRowIndex}"]`);
 
       if (rowElement) {
         rowElement.focus();
@@ -249,10 +244,7 @@ export function useRowNavigation({
   );
 
   // Check if row is focused
-  const isRowFocused = useCallback(
-    (index: number): boolean => focusedRowIndex === index,
-    [focusedRowIndex],
-  );
+  const isRowFocused = useCallback((index: number): boolean => focusedRowIndex === index, [focusedRowIndex]);
 
   return useMemo(
     () => ({
@@ -263,13 +255,6 @@ export function useRowNavigation({
       handleRowFocus,
       handleRowKeyDown,
     }),
-    [
-      focusedRowIndex,
-      setFocusedRowIndex,
-      getRowTabIndex,
-      isRowFocused,
-      handleRowFocus,
-      handleRowKeyDown,
-    ],
+    [focusedRowIndex, setFocusedRowIndex, getRowTabIndex, isRowFocused, handleRowFocus, handleRowKeyDown],
   );
 }

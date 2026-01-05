@@ -27,11 +27,7 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  useFilteredPools,
-  type PoolFilterParams,
-  type PoolMetadata,
-} from "@/lib/api/adapter";
+import { useFilteredPools, type PoolFilterParams, type PoolMetadata } from "@/lib/api/adapter";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
 
@@ -110,10 +106,7 @@ function chipsToFilterParams(chips: SearchChip[]): PoolFilterParams {
 
 export function usePoolsData({ searchChips }: UsePoolsDataParams): UsePoolsDataReturn {
   // Convert chips to filter params
-  const filterParams = useMemo(
-    () => chipsToFilterParams(searchChips),
-    [searchChips],
-  );
+  const filterParams = useMemo(() => chipsToFilterParams(searchChips), [searchChips]);
 
   // Use adapter hook (handles client/server filtering transparently)
   const {

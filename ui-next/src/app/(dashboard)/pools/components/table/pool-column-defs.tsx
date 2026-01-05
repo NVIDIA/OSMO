@@ -77,9 +77,7 @@ export function createPoolColumns({
       minSize: getColumnMinSize("name"),
       enableSorting: true,
       cell: ({ getValue }) => (
-        <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
-          {getValue() as string}
-        </span>
+        <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{getValue() as string}</span>
       ),
     },
 
@@ -112,9 +110,7 @@ export function createPoolColumns({
       minSize: getColumnMinSize("description"),
       enableSorting: false,
       cell: ({ getValue }) => (
-        <span className="truncate text-zinc-500 dark:text-zinc-400">
-          {(getValue() as string) || "—"}
-        </span>
+        <span className="truncate text-zinc-500 dark:text-zinc-400">{(getValue() as string) || "—"}</span>
       ),
     },
 
@@ -182,11 +178,8 @@ export function createPoolColumns({
       minSize: getColumnMinSize("backend"),
       enableSorting: true,
       cell: ({ getValue }) => (
-        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-          {getValue() as string}
-        </span>
+        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{getValue() as string}</span>
       ),
     },
   ];
 }
-

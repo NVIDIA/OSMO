@@ -27,7 +27,12 @@ import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../.
 import { usePersistedSettings } from "../../hooks";
 import type { GroupDetailsProps } from "../../types/panel";
 import type { TaskWithDuration, ColumnDef, ColumnId, SortColumn, SearchChip } from "../../types/table";
-import { MANDATORY_COLUMNS, OPTIONAL_COLUMNS_ALPHABETICAL, OPTIONAL_COLUMN_MAP, DEFAULT_VISIBLE_OPTIONAL } from "../GroupPanel/column-config";
+import {
+  MANDATORY_COLUMNS,
+  OPTIONAL_COLUMNS_ALPHABETICAL,
+  OPTIONAL_COLUMN_MAP,
+  DEFAULT_VISIBLE_OPTIONAL,
+} from "../GroupPanel/column-config";
 import { SmartSearch, filterTasksByChips } from "../GroupPanel/SmartSearch";
 import { VirtualizedTaskList } from "../GroupPanel/TaskTable";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
@@ -60,7 +65,10 @@ export const GroupDetails = memo(function GroupDetails({
 
   // Persisted settings
   const [sort, setSort] = usePersistedSettings("sort", { column: "status", direction: "asc" });
-  const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedSettings("visibleColumnIds", DEFAULT_VISIBLE_OPTIONAL);
+  const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedSettings(
+    "visibleColumnIds",
+    DEFAULT_VISIBLE_OPTIONAL,
+  );
 
   // Compute tasks with duration
   const tasksWithDuration: TaskWithDuration[] = useMemo(() => {
@@ -89,24 +97,35 @@ export const GroupDetails = memo(function GroupDetails({
     const dir = sort.direction === "asc" ? 1 : -1;
 
     switch (sort.column) {
-      case "status": return (a: TaskWithDuration, b: TaskWithDuration) => ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
-      case "name": return (a: TaskWithDuration, b: TaskWithDuration) => a.name.localeCompare(b.name) * dir;
-      case "duration": return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
-      case "node": return (a: TaskWithDuration, b: TaskWithDuration) => (a.node_name ?? "").localeCompare(b.node_name ?? "") * dir;
-      case "podIp": return (a: TaskWithDuration, b: TaskWithDuration) => (a.pod_ip ?? "").localeCompare(b.pod_ip ?? "") * dir;
-      case "exitCode": return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
-      case "startTime": return (a: TaskWithDuration, b: TaskWithDuration) => {
-        const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
-        const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
-        return (aTime - bTime) * dir;
-      };
-      case "endTime": return (a: TaskWithDuration, b: TaskWithDuration) => {
-        const aTime = a.end_time ? new Date(a.end_time).getTime() : 0;
-        const bTime = b.end_time ? new Date(b.end_time).getTime() : 0;
-        return (aTime - bTime) * dir;
-      };
-      case "retry": return (a: TaskWithDuration, b: TaskWithDuration) => (a.retry_id - b.retry_id) * dir;
-      default: return null;
+      case "status":
+        return (a: TaskWithDuration, b: TaskWithDuration) =>
+          ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
+      case "name":
+        return (a: TaskWithDuration, b: TaskWithDuration) => a.name.localeCompare(b.name) * dir;
+      case "duration":
+        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
+      case "node":
+        return (a: TaskWithDuration, b: TaskWithDuration) => (a.node_name ?? "").localeCompare(b.node_name ?? "") * dir;
+      case "podIp":
+        return (a: TaskWithDuration, b: TaskWithDuration) => (a.pod_ip ?? "").localeCompare(b.pod_ip ?? "") * dir;
+      case "exitCode":
+        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
+      case "startTime":
+        return (a: TaskWithDuration, b: TaskWithDuration) => {
+          const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
+          const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
+          return (aTime - bTime) * dir;
+        };
+      case "endTime":
+        return (a: TaskWithDuration, b: TaskWithDuration) => {
+          const aTime = a.end_time ? new Date(a.end_time).getTime() : 0;
+          const bTime = b.end_time ? new Date(b.end_time).getTime() : 0;
+          return (aTime - bTime) * dir;
+        };
+      case "retry":
+        return (a: TaskWithDuration, b: TaskWithDuration) => (a.retry_id - b.retry_id) * dir;
+      default:
+        return null;
     }
   }, [sort.column, sort.direction]);
 
@@ -120,47 +139,62 @@ export const GroupDetails = memo(function GroupDetails({
   }, [tasksWithDuration, searchChips, sortComparator]);
 
   // Callbacks
-  const toggleColumn = useCallback((columnId: ColumnId) => {
-    setVisibleOptionalIds((prev) => {
-      if (prev.includes(columnId)) {
-        return prev.filter((id) => id !== columnId);
-      }
-      return [...prev, columnId];
-    });
-  }, [setVisibleOptionalIds]);
+  const toggleColumn = useCallback(
+    (columnId: ColumnId) => {
+      setVisibleOptionalIds((prev) => {
+        if (prev.includes(columnId)) {
+          return prev.filter((id) => id !== columnId);
+        }
+        return [...prev, columnId];
+      });
+    },
+    [setVisibleOptionalIds],
+  );
 
-  const reorderColumns = useCallback((newOrder: ColumnId[]) => {
-    setVisibleOptionalIds(newOrder);
-  }, [setVisibleOptionalIds]);
+  const reorderColumns = useCallback(
+    (newOrder: ColumnId[]) => {
+      setVisibleOptionalIds(newOrder);
+    },
+    [setVisibleOptionalIds],
+  );
 
-  const handleSort = useCallback((column: SortColumn) => {
-    setSort((prev) => {
-      if (prev.column === column) {
-        if (prev.direction === "asc") return { column, direction: "desc" };
-        return { column: null, direction: "asc" };
-      }
-      return { column, direction: "asc" };
-    });
-  }, [setSort]);
+  const handleSort = useCallback(
+    (column: SortColumn) => {
+      setSort((prev) => {
+        if (prev.column === column) {
+          if (prev.direction === "asc") return { column, direction: "desc" };
+          return { column: null, direction: "asc" };
+        }
+        return { column, direction: "asc" };
+      });
+    },
+    [setSort],
+  );
 
-  const handleSelectTask = useCallback((task: TaskWithDuration) => {
-    setSelectedTaskName(task.name);
-    onSelectTask(task, group);
-  }, [group, onSelectTask]);
+  const handleSelectTask = useCallback(
+    (task: TaskWithDuration) => {
+      setSelectedTaskName(task.name);
+      onSelectTask(task, group);
+    },
+    [group, onSelectTask],
+  );
 
   const handleClearFilters = useCallback(() => {
     setSearchChips([]);
   }, []);
 
   // Handle dependency pill click
-  const handleSelectGroupByName = useCallback((groupName: string) => {
-    if (onSelectGroup) {
-      const targetGroup = allGroups.find((g) => g.name === groupName);
-      if (targetGroup) {
-        onSelectGroup(targetGroup);
+  const handleSelectGroupByName = useCallback(
+    (groupName: string) => {
+      if (onSelectGroup) {
+        const targetGroup = allGroups.find((g) => g.name === groupName);
+        if (targetGroup) {
+          onSelectGroup(targetGroup);
+        }
       }
-    }
-  }, [allGroups, onSelectGroup]);
+    },
+    [allGroups, onSelectGroup],
+  );
 
   // Status content for header (Row 2) - clean, no error message here
   const statusContent = (
@@ -199,12 +233,8 @@ export const GroupDetails = memo(function GroupDetails({
   );
 
   // Compute upstream/downstream groups for dependencies
-  const upstreamGroups = allGroups.filter(
-    (g) => g.downstream_groups?.includes(group.name)
-  );
-  const downstreamGroups = allGroups.filter(
-    (g) => group.downstream_groups?.includes(g.name)
-  );
+  const upstreamGroups = allGroups.filter((g) => g.downstream_groups?.includes(group.name));
+  const downstreamGroups = allGroups.filter((g) => group.downstream_groups?.includes(g.name));
 
   // Check if we have any expandable content
   const hasFailureMessage = !!group.failure_message;
@@ -259,8 +289,13 @@ export const GroupDetails = memo(function GroupDetails({
         />
         {searchChips.length > 0 && (
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400">
-            <span>Showing {filteredTasks.length} of {stats.total} tasks</span>
-            <button onClick={handleClearFilters} className="text-blue-400 hover:text-blue-300">
+            <span>
+              Showing {filteredTasks.length} of {stats.total} tasks
+            </span>
+            <button
+              onClick={handleClearFilters}
+              className="text-blue-400 hover:text-blue-300"
+            >
               Clear filters
             </button>
           </div>

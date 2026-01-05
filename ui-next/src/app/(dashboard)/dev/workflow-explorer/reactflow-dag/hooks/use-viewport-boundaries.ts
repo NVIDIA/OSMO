@@ -124,7 +124,7 @@ export function useViewportBoundaries({
         maxY: visHeight / 2 - nodeBounds.minY * zoom,
       };
     },
-    [nodeBounds]
+    [nodeBounds],
   );
 
   // ---------------------------------------------------------------------------
@@ -164,7 +164,7 @@ export function useViewportBoundaries({
 
         reactFlowInstance.setViewport(
           { x: targetX, y: targetY, zoom: viewport.zoom },
-          { duration: ANIMATION.NODE_CENTER }
+          { duration: ANIMATION.NODE_CENTER },
         );
       });
     });
@@ -204,7 +204,7 @@ export function useViewportBoundaries({
     if (needsUpdate) {
       reactFlowInstance.setViewport(
         { x: newX, y: newY, zoom: viewport.zoom },
-        { duration: ANIMATION.BOUNDARY_ENFORCE }
+        { duration: ANIMATION.BOUNDARY_ENFORCE },
       );
     }
   }, [panelPct, isPanelOpen, reactFlowInstance, getViewportBounds, getVisibleArea]);
@@ -242,7 +242,7 @@ export function useViewportBoundaries({
         reactFlowInstance.setViewport({ x: clampedX, y: clampedY, zoom: viewport.zoom });
       }
     },
-    [reactFlowInstance, getVisibleArea, getViewportBounds]
+    [reactFlowInstance, getVisibleArea, getViewportBounds],
   );
 
   /**
@@ -263,7 +263,7 @@ export function useViewportBoundaries({
     if (Math.abs(clampedX - viewport.x) > 0.5 || Math.abs(clampedY - viewport.y) > 0.5) {
       reactFlowInstance.setViewport(
         { x: clampedX, y: clampedY, zoom: viewport.zoom },
-        { duration: ANIMATION.MOVE_END }
+        { duration: ANIMATION.MOVE_END },
       );
     }
   }, [reactFlowInstance, getVisibleArea, getViewportBounds]);

@@ -89,12 +89,8 @@ export function ItemSelector({
   if (items.length === 1) {
     return (
       <div className={cn("flex items-center gap-2", className)}>
-        {label && (
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
-        )}
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {items[0]}
-        </span>
+        {label && <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>}
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{items[0]}</span>
       </div>
     );
   }
@@ -102,9 +98,7 @@ export function ItemSelector({
   // Multiple items: Dropdown selector
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {label && (
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
-      )}
+      {label && <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -120,7 +114,10 @@ export function ItemSelector({
             <ChevronDown className="size-3.5 text-zinc-500 dark:text-zinc-400" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent
+          align="start"
+          className="w-56"
+        >
           {items.map((item) => {
             const isCurrent = item === selectedItem;
             const isDefault = item === defaultItem;
@@ -129,18 +126,11 @@ export function ItemSelector({
               <DropdownMenuItem
                 key={item}
                 onSelect={() => onSelect(item)}
-                className={cn(
-                  "flex items-center gap-2",
-                  isCurrent && "bg-zinc-100 dark:bg-zinc-800",
-                )}
+                className={cn("flex items-center gap-2", isCurrent && "bg-zinc-100 dark:bg-zinc-800")}
               >
-                <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>
-                  {item}
-                </span>
+                <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>{item}</span>
                 {isDefault && (
-                  <span className="text-[0.625rem] uppercase text-zinc-400 dark:text-zinc-500">
-                    Default
-                  </span>
+                  <span className="text-[0.625rem] uppercase text-zinc-400 dark:text-zinc-500">Default</span>
                 )}
                 {isCurrent && <Check className="size-4 shrink-0 text-emerald-500" />}
               </DropdownMenuItem>

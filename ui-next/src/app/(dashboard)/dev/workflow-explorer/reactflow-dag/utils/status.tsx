@@ -181,27 +181,61 @@ const StatusIconLucide = memo(function StatusIconLucide({ status, size = "h-4 w-
   const category = getStatusCategory(status);
   const { Icon, iconClass, animate } = StatusDisplay[category];
 
-  return <Icon className={cn(size, iconClass, animate, className)} aria-hidden="true" />;
+  return (
+    <Icon
+      className={cn(size, iconClass, animate, className)}
+      aria-hidden="true"
+    />
+  );
 });
 
 /**
  * Compact status icon component for table rows.
  * Uses simpler icons optimized for smaller sizes.
  */
-const StatusIconCompact = memo(function StatusIconCompact({ status, size = "h-3.5 w-3.5", className }: StatusIconProps) {
+const StatusIconCompact = memo(function StatusIconCompact({
+  status,
+  size = "h-3.5 w-3.5",
+  className,
+}: StatusIconProps) {
   const category = getStatusCategory(status);
 
   switch (category) {
     case "completed":
-      return <Check className={cn(size, "text-emerald-500", className)} aria-hidden="true" />;
+      return (
+        <Check
+          className={cn(size, "text-emerald-500", className)}
+          aria-hidden="true"
+        />
+      );
     case "running":
-      return <Loader2 className={cn(size, "text-blue-500 animate-spin motion-reduce:animate-none", className)} aria-hidden="true" />;
+      return (
+        <Loader2
+          className={cn(size, "text-blue-500 animate-spin motion-reduce:animate-none", className)}
+          aria-hidden="true"
+        />
+      );
     case "failed":
-      return <AlertCircle className={cn(size, "text-red-500", className)} aria-hidden="true" />;
+      return (
+        <AlertCircle
+          className={cn(size, "text-red-500", className)}
+          aria-hidden="true"
+        />
+      );
     case "waiting":
-      return <Clock className={cn(size, "text-gray-400 dark:text-zinc-400", className)} aria-hidden="true" />;
+      return (
+        <Clock
+          className={cn(size, "text-gray-400 dark:text-zinc-400", className)}
+          aria-hidden="true"
+        />
+      );
     default:
-      return <Circle className={cn(size, "text-gray-400 dark:text-zinc-400", className)} aria-hidden="true" />;
+      return (
+        <Circle
+          className={cn(size, "text-gray-400 dark:text-zinc-400", className)}
+          aria-hidden="true"
+        />
+      );
   }
 });
 
@@ -218,14 +252,24 @@ const StatusIconCompact = memo(function StatusIconCompact({ status, size = "h-3.
  * ```
  */
 export function getStatusIcon(status: string, size = "h-4 w-4") {
-  return <StatusIconLucide status={status} size={size} />;
+  return (
+    <StatusIconLucide
+      status={status}
+      size={size}
+    />
+  );
 }
 
 /**
  * Get a compact status icon for table rows.
  */
 export function getStatusIconCompact(status: string, size = "h-3.5 w-3.5") {
-  return <StatusIconCompact status={status} size={size} />;
+  return (
+    <StatusIconCompact
+      status={status}
+      size={size}
+    />
+  );
 }
 
 // =============================================================================

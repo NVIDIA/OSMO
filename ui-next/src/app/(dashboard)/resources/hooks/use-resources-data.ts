@@ -18,11 +18,7 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  fetchResources,
-  type Resource,
-  type PaginatedResourcesResult,
-} from "@/lib/api/adapter";
+import { fetchResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
 import { usePaginatedData } from "@/lib/api/pagination";
 import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";

@@ -135,10 +135,7 @@ export function resolveColumns(
  * 3. Distribute extra space by share, cap at max
  * 4. Any remaining space = whitespace on right
  */
-export function calculateColumnWidths(
-  columns: ResolvedColumn[],
-  containerWidth: number,
-): ColumnWidthsResult {
+export function calculateColumnWidths(columns: ResolvedColumn[], containerWidth: number): ColumnWidthsResult {
   if (columns.length === 0) {
     return { widths: {}, totalWidth: 0, needsScroll: false, whitespace: containerWidth };
   }
@@ -166,7 +163,7 @@ export function calculateColumnWidths(
   // Only distribute extra space if we have content measurements (maxWidthPx < Infinity)
   // This prevents columns from growing beyond content before measurement completes
   const hasContentMeasurements = columns.some((c) => c.maxWidthPx < Infinity);
-  
+
   if (!hasContentMeasurements) {
     // No content measurements yet - stay at minimums, leave whitespace on right
     return {

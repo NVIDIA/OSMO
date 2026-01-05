@@ -69,8 +69,12 @@ export class DAGErrorBoundary extends Component<Props, State> {
           </p>
           {this.state.error && (
             <details className="text-sm text-gray-500 dark:text-zinc-500 max-w-lg">
-              <summary className="cursor-pointer hover:text-gray-700 dark:hover:text-zinc-400">Technical details</summary>
-              <pre className="mt-2 p-3 bg-gray-100 dark:bg-zinc-900 rounded-lg overflow-auto text-xs">{this.state.error.message}</pre>
+              <summary className="cursor-pointer hover:text-gray-700 dark:hover:text-zinc-400">
+                Technical details
+              </summary>
+              <pre className="mt-2 p-3 bg-gray-100 dark:bg-zinc-900 rounded-lg overflow-auto text-xs">
+                {this.state.error.message}
+              </pre>
             </details>
           )}
           <Button

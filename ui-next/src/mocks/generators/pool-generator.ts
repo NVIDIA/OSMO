@@ -120,7 +120,7 @@ export class PoolGenerator {
 
     // Platform configuration - some pools have multiple platforms
     const platforms: Record<string, PlatformMinimal> = {};
-    
+
     // Always include the primary platform
     platforms[platform] = {
       description: `${gpuType} platform in ${region}`,
@@ -144,7 +144,7 @@ export class PoolGenerator {
     if (platformCount > 1) {
       const additionalPlatforms = faker.helpers.arrayElements(
         this.config.patterns.platforms.filter((p) => p !== platform),
-        Math.min(platformCount - 1, this.config.patterns.platforms.length - 1)
+        Math.min(platformCount - 1, this.config.patterns.platforms.length - 1),
       );
       for (const addPlatform of additionalPlatforms) {
         platforms[addPlatform] = {

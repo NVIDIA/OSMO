@@ -37,12 +37,7 @@ import "./dag.css";
 
 // Local modules
 import type { LayoutDirection } from "./types/dag-layout";
-import {
-  DEFAULT_ZOOM,
-  MAX_ZOOM,
-  MINIMAP,
-  BACKGROUND,
-} from "./constants";
+import { DEFAULT_ZOOM, MAX_ZOOM, MINIMAP, BACKGROUND } from "./constants";
 import { usePage } from "@/components/shell";
 
 import {
@@ -184,7 +179,10 @@ function ReactFlowDagPageInner() {
         />
 
         {/* Main Content */}
-        <div ref={containerRef} className="relative flex flex-1 overflow-hidden">
+        <div
+          ref={containerRef}
+          className="relative flex flex-1 overflow-hidden"
+        >
           {/* ReactFlow Canvas */}
           <main
             id="dag-canvas"

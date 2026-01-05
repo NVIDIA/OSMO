@@ -40,11 +40,7 @@ export function DAGProvider({
   onSelectTask,
   onToggleExpand,
 }: DAGContextValue & { children: React.ReactNode }) {
-  return (
-    <DAGContext.Provider value={{ onSelectGroup, onSelectTask, onToggleExpand }}>
-      {children}
-    </DAGContext.Provider>
-  );
+  return <DAGContext.Provider value={{ onSelectGroup, onSelectTask, onToggleExpand }}>{children}</DAGContext.Provider>;
 }
 
 export function useDAGContext() {
