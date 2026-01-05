@@ -106,7 +106,7 @@ export const CapacityBar = memo(function CapacityBar({
       <div className={cn("mb-1 flex items-center justify-between", textSize)}>
         <div>
           <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
-          <span className="ml-2 tabular-nums text-zinc-900 dark:text-zinc-100">
+          <span className="ml-2 text-zinc-900 tabular-nums dark:text-zinc-100">
             {usedStr}/{totalStr}
           </span>
           {unit && <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{unit}</span>}
@@ -124,7 +124,7 @@ export const CapacityBar = memo(function CapacityBar({
 
       {/* Free label */}
       {showFree && (
-        <div className="mt-1 flex justify-end text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+        <div className="mt-1 flex justify-end text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
           {freeDisplay} free
         </div>
       )}

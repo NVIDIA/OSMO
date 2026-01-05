@@ -23,18 +23,18 @@ export default function Loading() {
     >
       {/* Page header skeleton - matches actual header dimensions */}
       <div className="shrink-0 space-y-2">
-        <div className="h-8 w-48 skeleton-shimmer rounded" />
-        <div className="h-4 w-72 skeleton-shimmer rounded" />
+        <div className="skeleton-shimmer h-8 w-48 rounded" />
+        <div className="skeleton-shimmer h-4 w-72 rounded" />
       </div>
 
       {/* Main content skeleton - fills remaining space */}
-      <div className="min-h-0 flex-1 rounded-lg border border-zinc-200 bg-white contain-layout-paint dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="contain-layout-paint min-h-0 flex-1 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         {/* Filter bar skeleton */}
         <div className="border-b border-zinc-100 p-4 dark:border-zinc-800/50">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-64 skeleton-shimmer rounded" />
-            <div className="h-9 w-24 skeleton-shimmer rounded" />
-            <div className="h-9 w-24 skeleton-shimmer rounded" />
+            <div className="skeleton-shimmer h-9 w-64 rounded" />
+            <div className="skeleton-shimmer h-9 w-24 rounded" />
+            <div className="skeleton-shimmer h-9 w-24 rounded" />
           </div>
         </div>
 
@@ -45,7 +45,7 @@ export default function Loading() {
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
-                className="h-4 flex-1 skeleton-shimmer rounded"
+                className="skeleton-shimmer h-4 flex-1 rounded"
               />
             ))}
           </div>
@@ -60,7 +60,7 @@ export default function Loading() {
                 {[1, 2, 3, 4, 5, 6].map((j) => (
                   <div
                     key={j}
-                    className="h-6 flex-1 skeleton-shimmer rounded"
+                    className="skeleton-shimmer h-6 flex-1 rounded"
                     style={{ animationDelay: `${(i * 6 + j) * 50}ms` }}
                   />
                 ))}

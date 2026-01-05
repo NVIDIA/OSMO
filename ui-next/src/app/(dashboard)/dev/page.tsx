@@ -38,17 +38,17 @@ export default function DevIndexPage() {
   usePage({ title: "Dev" });
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
+    <div className="mx-auto max-w-4xl px-4 py-8">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 rounded-lg bg-purple-500/10">
+      <div className="mb-8 flex items-center gap-3">
+        <div className="rounded-lg bg-purple-500/10 p-2">
           <FlaskConical className="h-6 w-6 text-purple-400" />
         </div>
-        <p className="text-sm text-muted-foreground">Design exploration, prototypes, and experimental features</p>
+        <p className="text-muted-foreground text-sm">Design exploration, prototypes, and experimental features</p>
       </div>
 
       {/* Warning */}
-      <div className="mb-8 p-4 rounded-lg border border-amber-500/30 bg-amber-500/5">
+      <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
         <p className="text-sm text-amber-200">
           <strong>Note:</strong> These pages are for development only and use mock data. They should be removed or
           hidden in production.
@@ -61,7 +61,7 @@ export default function DevIndexPage() {
           <Link
             key={page.href}
             href={page.href}
-            className={`group p-4 rounded-lg border transition-all ${
+            className={`group rounded-lg border p-4 transition-all ${
               "highlight" in page && page.highlight
                 ? "border-cyan-500/50 bg-cyan-500/5 hover:border-cyan-400 hover:bg-cyan-500/10"
                 : "border-border bg-card hover:border-primary/50 hover:bg-accent/50"
@@ -69,7 +69,7 @@ export default function DevIndexPage() {
           >
             <div className="flex items-start gap-3">
               <div
-                className={`p-2 rounded-lg transition-colors ${
+                className={`rounded-lg p-2 transition-colors ${
                   "highlight" in page && page.highlight
                     ? "bg-cyan-500/10 group-hover:bg-cyan-500/20"
                     : "bg-muted group-hover:bg-primary/10"
@@ -95,12 +95,12 @@ export default function DevIndexPage() {
                     {page.title}
                   </h2>
                   {"highlight" in page && page.highlight && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-medium">
+                    <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400">
                       NEW
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">{page.description}</p>
+                <p className="text-muted-foreground mt-1 text-sm">{page.description}</p>
               </div>
             </div>
           </Link>
@@ -108,11 +108,11 @@ export default function DevIndexPage() {
       </div>
 
       {/* Footer */}
-      <div className="mt-12 pt-8 border-t border-border">
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">Adding New Dev Pages</h3>
-        <p className="text-sm text-muted-foreground">
-          Create a new folder under <code className="bg-muted px-1 py-0.5 rounded">/dev</code> and add it to the{" "}
-          <code className="bg-muted px-1 py-0.5 rounded">devPages</code> array in this file.
+      <div className="border-border mt-12 border-t pt-8">
+        <h3 className="text-muted-foreground mb-2 text-sm font-medium">Adding New Dev Pages</h3>
+        <p className="text-muted-foreground text-sm">
+          Create a new folder under <code className="bg-muted rounded px-1 py-0.5">/dev</code> and add it to the{" "}
+          <code className="bg-muted rounded px-1 py-0.5">devPages</code> array in this file.
         </p>
       </div>
     </div>

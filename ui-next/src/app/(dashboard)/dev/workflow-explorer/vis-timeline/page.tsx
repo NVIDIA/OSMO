@@ -57,7 +57,7 @@ function getStatusIcon(status: TaskGroupStatus, size = "h-4 w-4") {
     case "waiting":
       return <Clock className={cn(size, "text-zinc-400")} />;
     case "running":
-      return <Loader2 className={cn(size, "text-emerald-400 animate-spin")} />;
+      return <Loader2 className={cn(size, "animate-spin text-emerald-400")} />;
     case "completed":
       return <CheckCircle className={cn(size, "text-zinc-500")} />;
     case "failed":
@@ -226,9 +226,9 @@ function DetailPanel({
   }[category];
 
   return (
-    <div className="w-80 border-l border-zinc-800 bg-zinc-900/95 backdrop-blur overflow-y-auto">
+    <div className="w-80 overflow-y-auto border-l border-zinc-800 bg-zinc-900/95 backdrop-blur">
       {/* Header */}
-      <div className="sticky top-0 bg-zinc-900/95 backdrop-blur border-b border-zinc-800 p-4 z-10">
+      <div className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-900/95 p-4 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {getStatusIcon(task.status)}
@@ -243,23 +243,23 @@ function DetailPanel({
             <XCircle className="h-4 w-4 text-zinc-400" />
           </Button>
         </div>
-        <div className={cn("text-xs mt-1", style.text)}>
+        <div className={cn("mt-1 text-xs", style.text)}>
           {task.status} • Group: {group.name}
         </div>
       </div>
 
       {/* Task details */}
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 p-4">
         <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Timing</h4>
+          <h4 className="mb-2 text-xs font-medium tracking-wider text-zinc-400 uppercase">Timing</h4>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-zinc-400">Start</dt>
-              <dd className="text-zinc-200 font-mono text-xs">{formatTime(task.startTime)}</dd>
+              <dd className="font-mono text-xs text-zinc-200">{formatTime(task.startTime)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-400">End</dt>
-              <dd className="text-zinc-200 font-mono text-xs">{formatTime(task.endTime)}</dd>
+              <dd className="font-mono text-xs text-zinc-200">{formatTime(task.endTime)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-400">Duration</dt>
@@ -269,17 +269,17 @@ function DetailPanel({
         </div>
 
         <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Resources</h4>
+          <h4 className="mb-2 text-xs font-medium tracking-wider text-zinc-400 uppercase">Resources</h4>
           <div className="grid grid-cols-3 gap-2">
-            <div className="p-2 rounded bg-zinc-800 text-center">
+            <div className="rounded bg-zinc-800 p-2 text-center">
               <div className="text-lg font-semibold">{task.cpu}</div>
               <div className="text-xs text-zinc-400">CPU</div>
             </div>
-            <div className="p-2 rounded bg-zinc-800 text-center">
+            <div className="rounded bg-zinc-800 p-2 text-center">
               <div className="text-lg font-semibold">{task.gpu}</div>
               <div className="text-xs text-zinc-400">GPU</div>
             </div>
-            <div className="p-2 rounded bg-zinc-800 text-center">
+            <div className="rounded bg-zinc-800 p-2 text-center">
               <div className="text-sm font-semibold">{task.memory}Gi</div>
               <div className="text-xs text-zinc-400">Memory</div>
             </div>
@@ -287,11 +287,11 @@ function DetailPanel({
         </div>
 
         <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Placement</h4>
+          <h4 className="mb-2 text-xs font-medium tracking-wider text-zinc-400 uppercase">Placement</h4>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-zinc-400">Node</dt>
-              <dd className="text-zinc-200 font-mono text-xs">{task.node || "-"}</dd>
+              <dd className="font-mono text-xs text-zinc-200">{task.node || "-"}</dd>
             </div>
           </dl>
         </div>
@@ -301,18 +301,18 @@ function DetailPanel({
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 h-7 text-xs"
+            className="h-7 flex-1 text-xs"
           >
-            <FileText className="h-3 w-3 mr-1" />
+            <FileText className="mr-1 h-3 w-3" />
             Logs
           </Button>
           {category === "running" && (
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 h-7 text-xs"
+              className="h-7 flex-1 text-xs"
             >
-              <Terminal className="h-3 w-3 mr-1" />
+              <Terminal className="mr-1 h-3 w-3" />
               Shell
             </Button>
           )}
@@ -484,9 +484,9 @@ export default function VisTimelinePage() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className="flex h-full flex-col bg-zinc-950">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur">
+      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/80 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -495,7 +495,7 @@ export default function VisTimelinePage() {
             asChild
           >
             <a href="/dev/workflow-explorer">
-              <ChevronLeft className="h-4 w-4 mr-1" />
+              <ChevronLeft className="mr-1 h-4 w-4" />
               Back
             </a>
           </Button>
@@ -503,7 +503,7 @@ export default function VisTimelinePage() {
           <div>
             <h1 className="text-lg font-semibold text-zinc-100">vis-timeline Gantt View</h1>
             <div className="flex items-center gap-2 text-sm text-zinc-400">
-              <span className="text-emerald-400 flex items-center gap-1">
+              <span className="flex items-center gap-1 text-emerald-400">
                 {getStatusIcon(workflow.status, "h-3.5 w-3.5")}
                 {workflow.status}
               </span>
@@ -524,12 +524,12 @@ export default function VisTimelinePage() {
           >
             {showNestedTasks ? (
               <>
-                <Minimize2 className="h-4 w-4 mr-2" />
+                <Minimize2 className="mr-2 h-4 w-4" />
                 Flat View
               </>
             ) : (
               <>
-                <Maximize2 className="h-4 w-4 mr-2" />
+                <Maximize2 className="mr-2 h-4 w-4" />
                 Nested View
               </>
             )}
@@ -538,14 +538,14 @@ export default function VisTimelinePage() {
             variant="outline"
             size="sm"
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-800">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
         <div className="flex items-center gap-4">
           <Tabs
             value={workflowPattern}
@@ -603,25 +603,25 @@ export default function VisTimelinePage() {
             size="sm"
             onClick={handleFit}
           >
-            <Maximize2 className="h-4 w-4 mr-2" />
+            <Maximize2 className="mr-2 h-4 w-4" />
             Fit All
           </Button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="relative flex-1 overflow-hidden">
         {/* Timeline Container */}
         <div className="h-full w-full overflow-hidden">
           <div
             ref={containerRef}
-            className="h-full w-full vis-timeline-container"
+            className="vis-timeline-container h-full w-full"
           />
         </div>
 
         {/* Detail Panel - Overlay */}
         {selectedTask && (
-          <div className="absolute top-0 right-0 h-full z-10">
+          <div className="absolute top-0 right-0 z-10 h-full">
             <DetailPanel
               task={selectedTask}
               group={selectedGroup}
@@ -638,9 +638,9 @@ export default function VisTimelinePage() {
       </div>
 
       {/* Design Notes */}
-      <div className="p-4 border-t border-zinc-800 bg-zinc-900/50">
+      <div className="border-t border-zinc-800 bg-zinc-900/50 p-4">
         <details>
-          <summary className="text-sm font-medium text-zinc-400 cursor-pointer hover:text-zinc-300">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-400 hover:text-zinc-300">
             🎨 Design Notes (click to expand)
           </summary>
           <ul className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-500">

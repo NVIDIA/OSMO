@@ -42,7 +42,7 @@ function getStatusIcon(status: TaskGroupStatus, size = "h-4 w-4") {
     case "waiting":
       return <Clock className={cn(size, "text-zinc-400")} />;
     case "running":
-      return <Loader2 className={cn(size, "text-emerald-400 animate-spin")} />;
+      return <Loader2 className={cn(size, "animate-spin text-emerald-400")} />;
     case "completed":
       return <CheckCircle className={cn(size, "text-zinc-500")} />;
     case "failed":
@@ -56,8 +56,8 @@ function getStatusIcon(status: TaskGroupStatus, size = "h-4 w-4") {
 
 function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
   return (
-    <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/50">
-      <div className="flex items-center gap-3 mb-3">
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+      <div className="mb-3 flex items-center gap-3">
         {getStatusIcon(workflow.status, "h-5 w-5")}
         <div>
           <h3 className="font-mono text-sm font-medium text-zinc-100">{workflow.name}</h3>
@@ -68,7 +68,7 @@ function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
+      <div className="mb-3 grid grid-cols-4 gap-2">
         <div className="text-center">
           <div className="text-lg font-bold text-zinc-100">{workflow.totalTasks}</div>
           <div className="text-xs text-zinc-500">Tasks</div>
@@ -88,20 +88,20 @@ function WorkflowPreview({ workflow }: { workflow: MockComplexWorkflow }) {
       </div>
 
       {/* Progress bar */}
-      <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div className="h-full flex">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+        <div className="flex h-full">
           <div
             className="bg-emerald-500"
             style={{ width: `${(workflow.completedTasks / workflow.totalTasks) * 100}%` }}
           />
           <div
-            className="bg-yellow-500 animate-pulse"
+            className="animate-pulse bg-yellow-500"
             style={{ width: `${(workflow.runningTasks / workflow.totalTasks) * 100}%` }}
           />
         </div>
       </div>
 
-      <div className="mt-2 text-xs text-zinc-500 text-center">Duration: {formatDuration(workflow.duration)}</div>
+      <div className="mt-2 text-center text-xs text-zinc-500">Duration: {formatDuration(workflow.duration)}</div>
     </div>
   );
 }
@@ -156,15 +156,15 @@ export default function WorkflowExplorerPage() {
   const workflow = useMemo(() => EXAMPLE_WORKFLOWS[workflowPattern](), [workflowPattern]);
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4">
+    <div className="mx-auto max-w-6xl px-4 py-8">
       {/* Description */}
-      <p className="text-sm text-muted-foreground mb-8">
+      <p className="text-muted-foreground mb-8 text-sm">
         Explore different approaches for visualizing workflow DAGs and timelines
       </p>
 
       {/* Workflow Pattern Selector */}
-      <div className="mb-8 p-6 rounded-lg border border-zinc-800 bg-zinc-900/30">
-        <div className="flex items-center justify-between mb-4">
+      <div className="mb-8 rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+        <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Sample Workflow</h2>
           <Tabs
             value={workflowPattern}
@@ -229,31 +229,31 @@ export default function WorkflowExplorerPage() {
       </div>
 
       {/* Visualization Options */}
-      <h2 className="text-lg font-semibold mb-4">Visualization Approaches</h2>
+      <h2 className="mb-4 text-lg font-semibold">Visualization Approaches</h2>
       <div className="grid gap-6 md:grid-cols-2">
         {visualizations.map((viz) => (
           <Link
             key={viz.id}
             href={viz.href}
-            className="group p-6 rounded-lg border border-zinc-800 bg-zinc-900/50 hover:border-cyan-500/50 hover:bg-zinc-900 transition-all"
+            className="group rounded-lg border border-zinc-800 bg-zinc-900/50 p-6 transition-all hover:border-cyan-500/50 hover:bg-zinc-900"
           >
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-zinc-800 group-hover:bg-cyan-500/10 transition-colors">
-                <viz.icon className="h-6 w-6 text-zinc-400 group-hover:text-cyan-400 transition-colors" />
+              <div className="rounded-lg bg-zinc-800 p-3 transition-colors group-hover:bg-cyan-500/10">
+                <viz.icon className="h-6 w-6 text-zinc-400 transition-colors group-hover:text-cyan-400" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-zinc-100 group-hover:text-cyan-400 transition-colors">
+                  <h3 className="font-semibold text-zinc-100 transition-colors group-hover:text-cyan-400">
                     {viz.title}
                   </h3>
-                  <ArrowRight className="h-4 w-4 text-zinc-600 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-zinc-600 transition-all group-hover:translate-x-1 group-hover:text-cyan-400" />
                 </div>
-                <p className="text-sm text-zinc-400 mt-1">{viz.description}</p>
+                <p className="mt-1 text-sm text-zinc-400">{viz.description}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {viz.features.map((feature, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-500"
+                      className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-500"
                     >
                       {feature}
                     </span>
@@ -266,9 +266,9 @@ export default function WorkflowExplorerPage() {
       </div>
 
       {/* Info Box */}
-      <div className="mt-8 p-4 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30">
-        <h3 className="text-sm font-medium text-zinc-300 mb-2">📦 Libraries Used</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+      <div className="mt-8 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 p-4">
+        <h3 className="mb-2 text-sm font-medium text-zinc-300">📦 Libraries Used</h3>
+        <div className="grid grid-cols-2 gap-4 text-xs md:grid-cols-4">
           <div>
             <div className="font-medium text-zinc-400">@xyflow/react</div>
             <div className="text-zinc-500">React Flow canvas</div>

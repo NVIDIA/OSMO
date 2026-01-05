@@ -47,7 +47,7 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
     <div
       ref={containerRef}
       className={cn(
-        "flex w-full items-center gap-1.5 -m-0.5 p-0.5",
+        "-m-0.5 flex w-full items-center gap-1.5 p-0.5",
         expanded ? "flex-wrap" : "flex-nowrap overflow-hidden",
       )}
     >
@@ -57,7 +57,7 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
           type="button"
           onClick={() => onPoolClick?.(poolName)}
           className={cn(
-            "group inline-flex shrink-0 items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200 transition-colors hover:bg-violet-100 hover:text-violet-700 hover:ring-violet-300 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-violet-900/50 dark:hover:text-violet-300 dark:hover:ring-violet-600",
+            "group inline-flex shrink-0 items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-zinc-200 transition-colors ring-inset hover:bg-violet-100 hover:text-violet-700 hover:ring-violet-300 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-violet-900/50 dark:hover:text-violet-300 dark:hover:ring-violet-600",
             expanded && "max-w-full",
           )}
           title={`View ${poolName}`}
@@ -72,7 +72,7 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-200 transition-colors hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
+          className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 transition-colors ring-inset hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
           title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
         >
           +{overflowCount}
@@ -84,7 +84,7 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-200 transition-colors hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
+          className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 transition-colors ring-inset hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
         >
           less
         </button>
