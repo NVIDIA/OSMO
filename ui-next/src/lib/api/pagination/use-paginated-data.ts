@@ -20,16 +20,16 @@
 
 import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, type QueryKey } from "@tanstack/react-query";
-import type { PaginatedResponse, PaginationParams, DataTableConfig, DataTableResult, PageParam } from "./types";
+import type { PaginatedResponse, PaginationParams, PaginatedDataConfig, PaginatedDataResult, PageParam } from "./types";
 
-const DEFAULT_CONFIG: Required<DataTableConfig> = {
+const DEFAULT_CONFIG: Required<PaginatedDataConfig> = {
   pageSize: 50,
   staleTime: 60_000, // 1 minute
   gcTime: 300_000, // 5 minutes
   prefetchThreshold: 10, // Fetch next page when 10 items from end
 };
 
-export interface UseDataTableOptions<T, TParams extends object> {
+export interface UsePaginatedDataOptions<T, TParams extends object> {
   /**
    * Unique query key - should include all filter/sort params.
    * Changes to this key reset pagination.
@@ -49,14 +49,14 @@ export interface UseDataTableOptions<T, TParams extends object> {
   params: TParams;
 
   /** Pagination configuration */
-  config?: Partial<DataTableConfig>;
+  config?: Partial<PaginatedDataConfig>;
 
   /** Whether query is enabled (default: true) */
   enabled?: boolean;
 }
 
 /**
- * Generic data table hook with pagination support.
+ * Generic paginated data hook with infinite scroll support.
  *
  * Features:
  * - Automatic page reset on filter/sort change (via queryKey)
@@ -66,14 +66,14 @@ export interface UseDataTableOptions<T, TParams extends object> {
  *
  * @example
  * ```tsx
- * const result = useDataTable({
+ * const result = usePaginatedData({
  *   queryKey: ['resources', filters, sort],
  *   queryFn: (params) => fetchResources(params),
  *   params: { pools, platforms, search, sort },
  * });
  *
- * // Use in table component
- * <ResourceTable
+ * // Use with any list/table component
+ * <List
  *   items={result.items}
  *   hasNextPage={result.hasNextPage}
  *   onLoadMore={result.fetchNextPage}
@@ -81,13 +81,13 @@ export interface UseDataTableOptions<T, TParams extends object> {
  * />
  * ```
  */
-export function useDataTable<T, TParams extends object>({
+export function usePaginatedData<T, TParams extends object>({
   queryKey,
   queryFn,
   params,
   config: userConfig,
   enabled = true,
-}: UseDataTableOptions<T, TParams>): DataTableResult<T> {
+}: UsePaginatedDataOptions<T, TParams>): PaginatedDataResult<T> {
   const config = { ...DEFAULT_CONFIG, ...userConfig };
 
   const query = useInfiniteQuery({
@@ -158,7 +158,7 @@ export function useDataTable<T, TParams extends object>({
 }
 
 /**
- * Default configuration for data table.
+ * Default configuration for paginated data.
  * Exported for testing and customization.
  */
-export { DEFAULT_CONFIG as DATA_TABLE_DEFAULTS };
+export { DEFAULT_CONFIG as PAGINATED_DATA_DEFAULTS };

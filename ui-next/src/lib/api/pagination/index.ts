@@ -17,18 +17,18 @@
  */
 
 /**
- * Pagination module - Generic data table infrastructure.
+ * Pagination module - Generic infinite scroll / paginated data infrastructure.
  *
  * This module provides:
  * - Type-safe pagination types
- * - Generic useDataTable hook for any paginated entity
+ * - Generic usePaginatedData hook for any paginated entity
  * - Consistent interface across different data sources
  *
  * @example
  * ```tsx
- * import { useDataTable, type PaginatedResponse } from "@/lib/pagination";
+ * import { usePaginatedData, type PaginatedResponse } from "@/lib/api/pagination";
  *
- * const result = useDataTable({
+ * const result = usePaginatedData({
  *   queryKey: ['my-data', filters],
  *   queryFn: fetchData,
  *   params: { filters },
@@ -37,4 +37,4 @@
  */
 
 export * from "./types";
-export { useDataTable, DATA_TABLE_DEFAULTS, type UseDataTableOptions } from "./use-data-table";
+export { usePaginatedData, PAGINATED_DATA_DEFAULTS, type UsePaginatedDataOptions } from "./use-paginated-data";

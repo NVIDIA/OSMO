@@ -12,7 +12,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useAuth } from "./auth-provider";
-import { hasAdminRole } from "@/lib/constants/roles";
+import { hasAdminRole } from "./roles";
 import { logWarn } from "@/lib/logger";
 
 export interface User {

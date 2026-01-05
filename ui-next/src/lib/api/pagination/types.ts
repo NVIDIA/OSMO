@@ -53,9 +53,9 @@ export interface PaginationParams {
 }
 
 /**
- * Configuration for data table hook.
+ * Configuration for paginated data hook.
  */
-export interface DataTableConfig {
+export interface PaginatedDataConfig {
   /** Default page size */
   pageSize: number;
   /** Stale time in ms (default: 60000) */
@@ -67,9 +67,9 @@ export interface DataTableConfig {
 }
 
 /**
- * Return type from useDataTable hook.
+ * Return type from usePaginatedData hook.
  */
-export interface DataTableResult<T> {
+export interface PaginatedDataResult<T> {
   /** Flattened items from all loaded pages */
   items: T[];
   /** Count matching current filters (the "X" in "X of Y") */

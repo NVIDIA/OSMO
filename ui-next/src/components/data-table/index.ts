@@ -133,3 +133,5 @@ export {
   getColumnCSSVariable,
   getColumnCSSValue,
 } from "./utils/column-sizing";
+
+export { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "./utils/column-constants";

@@ -12,7 +12,7 @@ import { PoolStatus } from "@/lib/api/generated";
 
 // Re-export from canonical locations
 export type { DisplayMode } from "@/stores";
-export { PANEL } from "@/lib/constants/ui";
+export { PANEL } from "@/components/panel";
 
 export type StatusCategory = "online" | "maintenance" | "offline";
 

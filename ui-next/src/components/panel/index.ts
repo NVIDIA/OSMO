@@ -24,6 +24,7 @@ export {
 } from "./resizable-panel";
 
 export {
+  PANEL,
   PanelHeaderActions,
   PanelWidthMenu,
   PanelCloseButton,
