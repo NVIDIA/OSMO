@@ -36,6 +36,7 @@
  */
 
 import { useCallback, useRef, useMemo, useReducer, useLayoutEffect, useEffect } from "react";
+import { useStableCallback, useStableValue } from "@/hooks";
 import type { ColumnSizeConfig, ColumnOverride } from "../types";
 import {
   getBaseFontSize,
@@ -221,14 +222,9 @@ export function useUnifiedColumnSizing({
   });
 
   // ===== Stable Refs =====
-  const columnsRef = useRef(columns);
-  columnsRef.current = columns;
-
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  const onOverridesChangeRef = useRef(onOverridesChange);
-  onOverridesChangeRef.current = onOverridesChange;
+  const columnsRef = useStableValue(columns);
+  const stateRef = useStableValue(state);
+  const stableOnOverridesChange = useStableCallback(onOverridesChange);
 
   const baseFontSize = useRef(getBaseFontSize());
   const dragRef = useRef<DragState | null>(null);
@@ -329,8 +325,7 @@ export function useUnifiedColumnSizing({
   }, [resolved, state.containerWidth]);
 
   const widths = widthsResult.widths;
-  const widthsRef = useRef(widths);
-  widthsRef.current = widths;
+  const widthsRef = useStableValue(widths);
 
   // Pre-compute effective mins for all columns (used during resize)
   // This avoids expensive calculations during drag start
@@ -343,8 +338,7 @@ export function useUnifiedColumnSizing({
     return mins;
   }, [columns, state.overrides]);
 
-  const effectiveMinsRef = useRef(effectiveMins);
-  effectiveMinsRef.current = effectiveMins;
+  const effectiveMinsRef = useStableValue(effectiveMins);
 
   const cssVariables = useMemo(() => generateCSSVariables(widths), [widths]);
 
@@ -505,7 +499,7 @@ export function useUnifiedColumnSizing({
 
     // Notify parent
     queueMicrotask(() => {
-      onOverridesChangeRef.current?.(newOverrides);
+      stableOnOverridesChange?.(newOverrides);
     });
   }, [unlockScroll, calculateResizeOverrides]);
 
@@ -768,7 +762,7 @@ export function useUnifiedColumnSizing({
 
       // Notify parent
       queueMicrotask(() => {
-        onOverridesChangeRef.current?.(newOverrides);
+        stableOnOverridesChange?.(newOverrides);
       });
     },
     [measureColumn, getConfigMinPx, calculateResizeOverrides, updateCSSVariable],
@@ -781,14 +775,14 @@ export function useUnifiedColumnSizing({
     // because shares are interdependent - going back to proportional mode
     dispatch({ type: "CLEAR_ALL_OVERRIDES" });
     queueMicrotask(() => {
-      onOverridesChangeRef.current?.({});
+      stableOnOverridesChange?.({});
     });
   }, []);
 
   const resetAllColumns = useCallback(() => {
     dispatch({ type: "CLEAR_ALL_OVERRIDES" });
     queueMicrotask(() => {
-      onOverridesChangeRef.current?.({});
+      stableOnOverridesChange?.({});
     });
   }, []);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION. All rights reserved.
 //
 // NVIDIA CORPORATION and its licensors retain all intellectual property
 // and proprietary rights in and to this software, related documentation
@@ -7,10 +7,12 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * usePersistedState Hook
+ * usePersistedSettings Hook
  *
- * A hook for persisting state to localStorage with debounced writes.
+ * A hook for persisting typed settings to localStorage with debounced writes.
  * Provides type-safe storage with automatic serialization/deserialization.
+ *
+ * For simple boolean preferences, use `usePersistedBoolean` from `@/hooks`.
  */
 
 "use client";
@@ -22,7 +24,7 @@ import { PERSISTENCE } from "../constants";
 // Types
 // ============================================================================
 
-/** Settings that can be persisted */
+/** Settings that can be persisted for the workflow explorer */
 export interface PersistedSettings {
   panelPct: number;
   visibleColumnIds: string[];
@@ -80,7 +82,7 @@ function savePersistedSettings(settings: Partial<PersistedSettings>): void {
 // ============================================================================
 
 /**
- * Hook for persisting state to localStorage.
+ * Hook for persisting typed settings to localStorage.
  *
  * Features:
  * - Automatic serialization/deserialization
@@ -94,10 +96,11 @@ function savePersistedSettings(settings: Partial<PersistedSettings>): void {
  *
  * @example
  * ```tsx
- * const [panelWidth, setPanelWidth] = usePersistedState("panelPct", 50);
+ * const [panelWidth, setPanelWidth] = usePersistedSettings("panelPct", 50);
+ * const [sort, setSort] = usePersistedSettings("sort", { column: null, direction: "asc" });
  * ```
  */
-export function usePersistedState<K extends keyof PersistedSettings>(
+export function usePersistedSettings<K extends keyof PersistedSettings>(
   key: K,
   defaultValue: PersistedSettings[K],
 ): [PersistedSettings[K], (value: PersistedSettings[K] | ((prev: PersistedSettings[K]) => PersistedSettings[K])) => void] {
