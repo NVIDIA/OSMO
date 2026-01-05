@@ -29,23 +29,14 @@ import { remToPx } from "@/components/data-table";
 
 /** Resource name cell */
 function ResourceNameCell({ value }: { value: string }) {
-  return (
-    <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">
-      {value}
-    </span>
-  );
+  return <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{value}</span>;
 }
 
 /** Resource type badge cell */
 function ResourceTypeCell({ value }: { value: string }) {
   const typeDisplay = getResourceAllocationTypeDisplay(value);
   return (
-    <span
-      className={cn(
-        "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-        typeDisplay.className,
-      )}
-    >
+    <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", typeDisplay.className)}>
       {typeDisplay.label}
     </span>
   );
@@ -55,24 +46,18 @@ function ResourceTypeCell({ value }: { value: string }) {
 function PoolsCell({ resource }: { resource: Resource }) {
   const pool = resource.poolMemberships[0]?.pool;
   const extra = resource.poolMemberships.length - 1;
-  
+
   return (
     <span className="truncate text-zinc-500 dark:text-zinc-400">
       {pool ?? "—"}
-      {extra > 0 && (
-        <span className="ml-1 text-xs text-zinc-400">+{extra}</span>
-      )}
+      {extra > 0 && <span className="ml-1 text-xs text-zinc-400">+{extra}</span>}
     </span>
   );
 }
 
 /** Text cell (platform, backend) */
 function TextCell({ value }: { value: string }) {
-  return (
-    <span className="truncate text-zinc-500 dark:text-zinc-400">
-      {value}
-    </span>
-  );
+  return <span className="truncate text-zinc-500 dark:text-zinc-400">{value}</span>;
 }
 
 // =============================================================================
@@ -85,7 +70,7 @@ export interface CreateColumnsOptions {
 
 /**
  * Create TanStack column definitions for resources table.
- * 
+ *
  * @param options - Column configuration options
  * @returns Array of column definitions
  */
@@ -153,52 +138,70 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "gpu",
-      accessorFn: (row) => displayMode === "free" ? row.gpu.total - row.gpu.used : row.gpu.used,
+      accessorFn: (row) => (displayMode === "free" ? row.gpu.total - row.gpu.used : row.gpu.used),
       header: COLUMN_LABELS.gpu,
       size: getColumnMinSize("gpu"),
       minSize: getColumnMinSize("gpu"),
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right tabular-nums">
-          <CapacityCell used={row.original.gpu.used} total={row.original.gpu.total} mode={displayMode} />
+          <CapacityCell
+            used={row.original.gpu.used}
+            total={row.original.gpu.total}
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },
     },
     {
       id: "cpu",
-      accessorFn: (row) => displayMode === "free" ? row.cpu.total - row.cpu.used : row.cpu.used,
+      accessorFn: (row) => (displayMode === "free" ? row.cpu.total - row.cpu.used : row.cpu.used),
       header: COLUMN_LABELS.cpu,
       size: getColumnMinSize("cpu"),
       minSize: getColumnMinSize("cpu"),
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right tabular-nums">
-          <CapacityCell used={row.original.cpu.used} total={row.original.cpu.total} mode={displayMode} />
+          <CapacityCell
+            used={row.original.cpu.used}
+            total={row.original.cpu.total}
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },
     },
     {
       id: "memory",
-      accessorFn: (row) => displayMode === "free" ? row.memory.total - row.memory.used : row.memory.used,
+      accessorFn: (row) => (displayMode === "free" ? row.memory.total - row.memory.used : row.memory.used),
       header: COLUMN_LABELS.memory,
       size: getColumnMinSize("memory"),
       minSize: getColumnMinSize("memory"),
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right tabular-nums">
-          <CapacityCell used={row.original.memory.used} total={row.original.memory.total} isBytes mode={displayMode} />
+          <CapacityCell
+            used={row.original.memory.used}
+            total={row.original.memory.total}
+            isBytes
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },
     },
     {
       id: "storage",
-      accessorFn: (row) => displayMode === "free" ? row.storage.total - row.storage.used : row.storage.used,
+      accessorFn: (row) => (displayMode === "free" ? row.storage.total - row.storage.used : row.storage.used),
       header: COLUMN_LABELS.storage,
       size: getColumnMinSize("storage"),
       minSize: getColumnMinSize("storage"),
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right tabular-nums">
-          <CapacityCell used={row.original.storage.used} total={row.original.storage.total} isBytes mode={displayMode} />
+          <CapacityCell
+            used={row.original.storage.used}
+            total={row.original.storage.total}
+            isBytes
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },

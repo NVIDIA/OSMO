@@ -129,11 +129,13 @@ export function PoolsDataTable({
       if (group.length > 1) {
         for (const poolName of group) {
           map.set(poolName, () => {
-            onSearchChipsChange([{
-              field: "shared",
-              value: poolName,
-              label: `Shared: ${poolName}`,
-            }]);
+            onSearchChipsChange([
+              {
+                field: "shared",
+                value: poolName,
+                label: `Shared: ${poolName}`,
+              },
+            ]);
           });
         }
       }
@@ -143,20 +145,18 @@ export function PoolsDataTable({
 
   // Create TanStack columns
   const columns = useMemo(
-    () => createPoolColumns({
-      displayMode,
-      compact: compactMode,
-      sharingMap,
-      filterBySharedPoolsMap,
-    }),
+    () =>
+      createPoolColumns({
+        displayMode,
+        compact: compactMode,
+        sharingMap,
+        filterBySharedPoolsMap,
+      }),
     [displayMode, compactMode, sharingMap, filterBySharedPoolsMap],
   );
 
   // Fixed columns (not draggable)
-  const fixedColumns = useMemo(
-    () => Array.from(MANDATORY_COLUMN_IDS),
-    [],
-  );
+  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 
   // Handle sort change
   const handleSortChange = useCallback(
@@ -197,22 +197,14 @@ export function PoolsDataTable({
     (pool: Pool) => {
       const { category } = getStatusDisplay(pool.status);
       const isSelected = selectedPoolName === pool.name;
-      return [
-        "pools-row",
-        `pools-row--${category}`,
-        isSelected && "pools-row--selected",
-      ].filter(Boolean).join(" ");
+      return ["pools-row", `pools-row--${category}`, isSelected && "pools-row--selected"].filter(Boolean).join(" ");
     },
     [selectedPoolName],
   );
 
   // Empty state
   const emptyContent = useMemo(
-    () => (
-      <div className="text-sm text-zinc-500 dark:text-zinc-400">
-        No pools available
-      </div>
-    ),
+    () => <div className="text-sm text-zinc-500 dark:text-zinc-400">No pools available</div>,
     [],
   );
 
@@ -222,7 +214,10 @@ export function PoolsDataTable({
       <div className="pools-table-container h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-1 flex-col gap-2 p-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-12 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+            <div
+              key={i}
+              className="h-12 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800"
+            />
           ))}
         </div>
       </div>

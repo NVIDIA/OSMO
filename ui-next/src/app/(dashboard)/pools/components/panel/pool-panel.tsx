@@ -79,10 +79,7 @@ export function PoolPanelLayout({
   const panelWidth = usePoolsTableStore((s) => s.panelWidth);
   const setPanelWidth = usePoolsTableStore((s) => s.setPanelWidth);
 
-  const handleWidthPreset = useCallback(
-    (pct: number) => setPanelWidth(pct),
-    [setPanelWidth]
-  );
+  const handleWidthPreset = useCallback((pct: number) => setPanelWidth(pct), [setPanelWidth]);
 
   return (
     <ResizablePanel
@@ -96,7 +93,11 @@ export function PoolPanelLayout({
     >
       {pool && (
         <>
-          <PanelHeader pool={pool} onClose={onClose} onWidthPreset={handleWidthPreset} />
+          <PanelHeader
+            pool={pool}
+            onClose={onClose}
+            onWidthPreset={handleWidthPreset}
+          />
           <PanelContent
             pool={pool}
             sharingGroups={sharingGroups}

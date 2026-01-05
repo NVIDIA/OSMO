@@ -71,30 +71,27 @@ function validateNumericFilter(
 /**
  * Compare a numeric value against a parsed filter
  */
-function compareNumeric(
-  actual: number,
-  op: CompareOp,
-  target: number,
-  isPercent: boolean,
-): boolean {
+function compareNumeric(actual: number, op: CompareOp, target: number, isPercent: boolean): boolean {
   const value = isPercent ? Math.round(actual) : actual;
 
   switch (op) {
-    case ">=": return value >= target;
-    case ">":  return value > target;
-    case "<=": return value <= target;
-    case "<":  return value < target;
-    case "=":  return value === target;
+    case ">=":
+      return value >= target;
+    case ">":
+      return value > target;
+    case "<=":
+      return value <= target;
+    case "<":
+      return value < target;
+    case "=":
+      return value === target;
   }
 }
 
 /**
  * Create a match function for numeric resource filters
  */
-function createNumericMatch(
-  getValue: (resource: Resource) => number,
-  getMax?: (resource: Resource) => number,
-) {
+function createNumericMatch(getValue: (resource: Resource) => number, getMax?: (resource: Resource) => number) {
   return (resource: Resource, value: string): boolean => {
     const parsed = parseNumericFilter(value);
     if (!parsed) return false;
@@ -151,12 +148,9 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Pool",
     hint: "pool membership",
     prefix: "pool:",
-    getValues: (resources) => [
-      ...new Set(resources.flatMap((r) => r.poolMemberships.map((m) => m.pool))),
-    ].sort(),
+    getValues: (resources) => [...new Set(resources.flatMap((r) => r.poolMemberships.map((m) => m.pool)))].sort(),
     // Case-sensitive exact match for cross-linking from pools page
-    match: (resource, value) =>
-      resource.poolMemberships.some((m) => m.pool === value),
+    match: (resource, value) => resource.poolMemberships.some((m) => m.pool === value),
   },
   {
     id: "backend",

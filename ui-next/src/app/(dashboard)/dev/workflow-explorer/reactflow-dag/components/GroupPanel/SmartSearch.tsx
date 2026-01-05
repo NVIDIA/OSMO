@@ -46,7 +46,7 @@ if (typeof window !== "undefined" && "requestIdleCallback" in window) {
         return m;
       });
     },
-    { timeout: 5000 } // Load within 5 seconds even if not idle
+    { timeout: 5000 }, // Load within 5 seconds even if not idle
   );
 } else if (typeof window !== "undefined") {
   // Fallback for browsers without requestIdleCallback (Safari)
@@ -104,10 +104,18 @@ function parseDurationString(str: string): number | null {
       const num = parseFloat(match[1]);
       const unit = match[2];
       switch (unit) {
-        case "h": totalMs += num * 60 * 60 * 1000; break;
-        case "m": totalMs += num * 60 * 1000; break;
-        case "s": totalMs += num * 1000; break;
-        case "ms": totalMs += num; break;
+        case "h":
+          totalMs += num * 60 * 60 * 1000;
+          break;
+        case "m":
+          totalMs += num * 60 * 1000;
+          break;
+        case "s":
+          totalMs += num * 1000;
+          break;
+        case "ms":
+          totalMs += num;
+          break;
       }
       remaining = remaining.slice(match[0].length).trim();
     } else {
@@ -125,31 +133,44 @@ function parseDurationString(str: string): number | null {
 /**
  * Compare a value using operator prefix (>, >=, <, <=, =).
  */
-function compareWithOperator(
-  taskValue: number,
-  filterValue: string,
-  parser: (s: string) => number | null,
-): boolean {
+function compareWithOperator(taskValue: number, filterValue: string, parser: (s: string) => number | null): boolean {
   const trimmed = filterValue.trim();
   let operator = ">=";
   let valueStr = trimmed;
 
-  if (trimmed.startsWith(">=")) { operator = ">="; valueStr = trimmed.slice(2); }
-  else if (trimmed.startsWith("<=")) { operator = "<="; valueStr = trimmed.slice(2); }
-  else if (trimmed.startsWith(">")) { operator = ">"; valueStr = trimmed.slice(1); }
-  else if (trimmed.startsWith("<")) { operator = "<"; valueStr = trimmed.slice(1); }
-  else if (trimmed.startsWith("=")) { operator = "="; valueStr = trimmed.slice(1); }
+  if (trimmed.startsWith(">=")) {
+    operator = ">=";
+    valueStr = trimmed.slice(2);
+  } else if (trimmed.startsWith("<=")) {
+    operator = "<=";
+    valueStr = trimmed.slice(2);
+  } else if (trimmed.startsWith(">")) {
+    operator = ">";
+    valueStr = trimmed.slice(1);
+  } else if (trimmed.startsWith("<")) {
+    operator = "<";
+    valueStr = trimmed.slice(1);
+  } else if (trimmed.startsWith("=")) {
+    operator = "=";
+    valueStr = trimmed.slice(1);
+  }
 
   const compareValue = parser(valueStr.trim());
   if (compareValue === null) return false;
 
   switch (operator) {
-    case ">": return taskValue > compareValue;
-    case ">=": return taskValue >= compareValue;
-    case "<": return taskValue < compareValue;
-    case "<=": return taskValue <= compareValue;
-    case "=": return taskValue === compareValue;
-    default: return false;
+    case ">":
+      return taskValue > compareValue;
+    case ">=":
+      return taskValue >= compareValue;
+    case "<":
+      return taskValue < compareValue;
+    case "<=":
+      return taskValue <= compareValue;
+    case "=":
+      return taskValue === compareValue;
+    default:
+      return false;
   }
 }
 
@@ -184,11 +205,22 @@ function normalizeTimeFilter(input: string): { display: string; value: string; o
   let operator = ">=";
   let dateStr = input.trim();
 
-  if (dateStr.startsWith(">=")) { operator = ">="; dateStr = dateStr.slice(2).trim(); }
-  else if (dateStr.startsWith("<=")) { operator = "<="; dateStr = dateStr.slice(2).trim(); }
-  else if (dateStr.startsWith(">")) { operator = ">"; dateStr = dateStr.slice(1).trim(); }
-  else if (dateStr.startsWith("<")) { operator = "<"; dateStr = dateStr.slice(1).trim(); }
-  else if (dateStr.startsWith("=")) { operator = "="; dateStr = dateStr.slice(1).trim(); }
+  if (dateStr.startsWith(">=")) {
+    operator = ">=";
+    dateStr = dateStr.slice(2).trim();
+  } else if (dateStr.startsWith("<=")) {
+    operator = "<=";
+    dateStr = dateStr.slice(2).trim();
+  } else if (dateStr.startsWith(">")) {
+    operator = ">";
+    dateStr = dateStr.slice(1).trim();
+  } else if (dateStr.startsWith("<")) {
+    operator = "<";
+    dateStr = dateStr.slice(1).trim();
+  } else if (dateStr.startsWith("=")) {
+    operator = "=";
+    dateStr = dateStr.slice(1).trim();
+  }
 
   const lastMatch = dateStr.toLowerCase().match(/^last\s+(\d+)\s*(h|d|m|w|hours?|days?|minutes?|weeks?)$/);
   let parsed: Date | null = null;
@@ -234,22 +266,39 @@ function matchTimeFilter(taskTime: number, filterValue: string): boolean {
   let operator = ">=";
   let isoStr = filterValue;
 
-  if (filterValue.startsWith(">=")) { operator = ">="; isoStr = filterValue.slice(2); }
-  else if (filterValue.startsWith("<=")) { operator = "<="; isoStr = filterValue.slice(2); }
-  else if (filterValue.startsWith(">")) { operator = ">"; isoStr = filterValue.slice(1); }
-  else if (filterValue.startsWith("<")) { operator = "<"; isoStr = filterValue.slice(1); }
-  else if (filterValue.startsWith("=")) { operator = "="; isoStr = filterValue.slice(1); }
+  if (filterValue.startsWith(">=")) {
+    operator = ">=";
+    isoStr = filterValue.slice(2);
+  } else if (filterValue.startsWith("<=")) {
+    operator = "<=";
+    isoStr = filterValue.slice(2);
+  } else if (filterValue.startsWith(">")) {
+    operator = ">";
+    isoStr = filterValue.slice(1);
+  } else if (filterValue.startsWith("<")) {
+    operator = "<";
+    isoStr = filterValue.slice(1);
+  } else if (filterValue.startsWith("=")) {
+    operator = "=";
+    isoStr = filterValue.slice(1);
+  }
 
   const isoDate = new Date(isoStr);
   if (!isNaN(isoDate.getTime())) {
     const compareTime = isoDate.getTime();
     switch (operator) {
-      case ">": return taskTime > compareTime;
-      case ">=": return taskTime >= compareTime;
-      case "<": return taskTime < compareTime;
-      case "<=": return taskTime <= compareTime;
-      case "=": return new Date(taskTime).toDateString() === isoDate.toDateString();
-      default: return taskTime >= compareTime;
+      case ">":
+        return taskTime > compareTime;
+      case ">=":
+        return taskTime >= compareTime;
+      case "<":
+        return taskTime < compareTime;
+      case "<=":
+        return taskTime <= compareTime;
+      case "=":
+        return new Date(taskTime).toDateString() === isoDate.toDateString();
+      default:
+        return taskTime >= compareTime;
     }
   }
 
@@ -257,12 +306,18 @@ function matchTimeFilter(taskTime: number, filterValue: string): boolean {
   if (parsed) {
     const compareTime = parsed.getTime();
     switch (operator) {
-      case ">": return taskTime > compareTime;
-      case ">=": return taskTime >= compareTime;
-      case "<": return taskTime < compareTime;
-      case "<=": return taskTime <= compareTime;
-      case "=": return new Date(taskTime).toDateString() === parsed.toDateString();
-      default: return taskTime >= compareTime;
+      case ">":
+        return taskTime > compareTime;
+      case ">=":
+        return taskTime >= compareTime;
+      case "<":
+        return taskTime < compareTime;
+      case "<=":
+        return taskTime <= compareTime;
+      case "=":
+        return new Date(taskTime).toDateString() === parsed.toDateString();
+      default:
+        return taskTime >= compareTime;
     }
   }
 
@@ -400,16 +455,19 @@ export const SmartSearch = memo(function SmartSearch({
   const deferredInputValue = useDeferredValue(inputValue);
   const deferredTasks = useDeferredValue(tasks);
 
-  const addChip = useCallback((newChip: SearchChip) => {
-    startTransition(() => {
-      if (SINGULAR_FIELDS.has(newChip.field)) {
-        const filtered = chips.filter((c) => c.field !== newChip.field);
-        onChipsChange([...filtered, newChip]);
-      } else {
-        onChipsChange([...chips, newChip]);
-      }
-    });
-  }, [chips, onChipsChange]);
+  const addChip = useCallback(
+    (newChip: SearchChip) => {
+      startTransition(() => {
+        if (SINGULAR_FIELDS.has(newChip.field)) {
+          const filtered = chips.filter((c) => c.field !== newChip.field);
+          onChipsChange([...filtered, newChip]);
+        } else {
+          onChipsChange([...chips, newChip]);
+        }
+      });
+    },
+    [chips, onChipsChange],
+  );
 
   // Parse input to extract field prefix - lightweight computation, React Compiler handles optimization
   const parsedInput = (() => {
@@ -478,16 +536,19 @@ export const SmartSearch = memo(function SmartSearch({
         });
       }
 
-      values.filter((v) => v.toLowerCase().includes(prefixQuery)).slice(0, 8).forEach((value) => {
-        const count = deferredTasks.filter((t) => field.match(t, value)).length;
-        items.push({
-          type: "value",
-          field,
-          value,
-          count,
-          display: `${field.prefix}${value}`,
+      values
+        .filter((v) => v.toLowerCase().includes(prefixQuery))
+        .slice(0, 8)
+        .forEach((value) => {
+          const count = deferredTasks.filter((t) => field.match(t, value)).length;
+          items.push({
+            type: "value",
+            field,
+            value,
+            count,
+            display: `${field.prefix}${value}`,
+          });
         });
-      });
     } else {
       const matchingStates = STATE_CATEGORY_NAMES.filter((s) => s.includes(query));
 
@@ -533,21 +594,29 @@ export const SmartSearch = memo(function SmartSearch({
 
       if (matchingStates.length === 0 || query.length > 3) {
         const nameField = SEARCH_FIELDS_MAP.get("name")!;
-        deferredTasks.filter((t) => t.name.toLowerCase().includes(query)).slice(0, 5).forEach((task) => {
-          items.push({
-            type: "value",
-            field: nameField,
-            value: task.name,
-            count: 1,
-            display: task.name,
+        deferredTasks
+          .filter((t) => t.name.toLowerCase().includes(query))
+          .slice(0, 5)
+          .forEach((task) => {
+            items.push({
+              type: "value",
+              field: nameField,
+              value: task.name,
+              count: 1,
+              display: task.name,
+            });
           });
-        });
       }
 
       const nodeField = SEARCH_FIELDS_MAP.get("node")!;
-      const matchingNodes = [...new Set(
-        deferredTasks.filter((t) => t.node_name?.toLowerCase().includes(query)).map((t) => t.node_name).filter(Boolean) as string[]
-      )].slice(0, 3);
+      const matchingNodes = [
+        ...new Set(
+          deferredTasks
+            .filter((t) => t.node_name?.toLowerCase().includes(query))
+            .map((t) => t.node_name)
+            .filter(Boolean) as string[],
+        ),
+      ].slice(0, 3);
 
       matchingNodes.forEach((node) => {
         const count = deferredTasks.filter((t) => t.node_name === node).length;
@@ -572,100 +641,110 @@ export const SmartSearch = memo(function SmartSearch({
     setHighlightedIndex(0);
   }
 
-  const handleSelect = useCallback((index: number) => {
-    const selected = suggestions[index];
-    if (!selected || selected.type === "hint") return;
+  const handleSelect = useCallback(
+    (index: number) => {
+      const selected = suggestions[index];
+      if (!selected || selected.type === "hint") return;
 
-    if (selected.type === "field") {
-      setInputValue(selected.value);
-      inputRef.current?.focus();
-    } else {
-      const isTimeField = selected.field.id === "started" || selected.field.id === "ended";
-      const normalizedTime = isTimeField ? normalizeTimeFilter(selected.value) : null;
-
-      let chipValue: string;
-      let chipLabel: string;
-
-      if (normalizedTime) {
-        chipValue = normalizedTime.value;
-        chipLabel = `${selected.field.prefix}${normalizedTime.display}`;
-      } else if (selected.type === "state-parent") {
-        chipValue = selected.value;
-        chipLabel = selected.value;
-      } else if (selected.type === "state-child") {
-        chipValue = selected.value;
-        chipLabel = `status:${selected.value}`;
+      if (selected.type === "field") {
+        setInputValue(selected.value);
+        inputRef.current?.focus();
       } else {
-        chipValue = selected.value;
-        chipLabel = selected.display;
-      }
+        const isTimeField = selected.field.id === "started" || selected.field.id === "ended";
+        const normalizedTime = isTimeField ? normalizeTimeFilter(selected.value) : null;
 
-      addChip({ field: selected.field.id, value: chipValue, label: chipLabel });
-      setInputValue("");
-      setShowDropdown(false);
-    }
-  }, [suggestions, addChip]);
+        let chipValue: string;
+        let chipLabel: string;
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      const selectableSuggestions = suggestions.filter((s) => s.type !== "hint");
-      const highlightedItem = suggestions[highlightedIndex];
-
-      if (selectableSuggestions.length > 0 && showDropdown && highlightedItem?.type !== "hint") {
-        e.preventDefault();
-        handleSelect(highlightedIndex);
-      } else if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
-        e.preventDefault();
-        const field = parsedInput.field;
-        const value = parsedInput.query.trim();
-
-        const isValidDuration = field.id === "duration" && parseDurationString(value.replace(/^[><=]+/, "")) !== null;
-        const isTimeField = field.id === "started" || field.id === "ended";
-        const normalizedTime = isTimeField ? normalizeTimeFilter(value) : null;
-        const isValidTime = isTimeField && normalizedTime !== null;
-        const isValidOther = field.id !== "duration" && !isTimeField;
-
-        if (isValidDuration || isValidTime || isValidOther) {
-          const chipValue = normalizedTime ? normalizedTime.value : value;
-          const chipLabel = normalizedTime ? `${field.prefix}${normalizedTime.display}` : `${field.prefix}${value}`;
-
-          addChip({ field: field.id, value: chipValue, label: chipLabel });
-          setInputValue("");
-          setShowDropdown(false);
+        if (normalizedTime) {
+          chipValue = normalizedTime.value;
+          chipLabel = `${selected.field.prefix}${normalizedTime.display}`;
+        } else if (selected.type === "state-parent") {
+          chipValue = selected.value;
+          chipLabel = selected.value;
+        } else if (selected.type === "state-child") {
+          chipValue = selected.value;
+          chipLabel = `status:${selected.value}`;
+        } else {
+          chipValue = selected.value;
+          chipLabel = selected.display;
         }
-      }
-    } else if (e.key === "Backspace" && !inputValue && chips.length > 0) {
-      onChipsChange(chips.slice(0, -1));
-    } else if (e.key === "Escape") {
-      // If dropdown is open, close it and stop propagation (don't close panel)
-      if (showDropdown) {
-        e.preventDefault();
-        e.stopPropagation();
-        // Also stop the native event to prevent document-level listeners
-        e.nativeEvent.stopImmediatePropagation();
+
+        addChip({ field: selected.field.id, value: chipValue, label: chipLabel });
         setInputValue("");
         setShowDropdown(false);
-      } else {
-        // Dropdown already closed, let event bubble to close panel
-        inputRef.current?.blur();
       }
-    }
-  }, [suggestions, highlightedIndex, showDropdown, handleSelect, inputValue, chips, onChipsChange, parsedInput, addChip]);
+    },
+    [suggestions, addChip],
+  );
 
-  const removeChip = useCallback((index: number) => {
-    onChipsChange(chips.filter((_, i) => i !== index));
-  }, [chips, onChipsChange]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        const selectableSuggestions = suggestions.filter((s) => s.type !== "hint");
+        const highlightedItem = suggestions[highlightedIndex];
+
+        if (selectableSuggestions.length > 0 && showDropdown && highlightedItem?.type !== "hint") {
+          e.preventDefault();
+          handleSelect(highlightedIndex);
+        } else if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
+          e.preventDefault();
+          const field = parsedInput.field;
+          const value = parsedInput.query.trim();
+
+          const isValidDuration = field.id === "duration" && parseDurationString(value.replace(/^[><=]+/, "")) !== null;
+          const isTimeField = field.id === "started" || field.id === "ended";
+          const normalizedTime = isTimeField ? normalizeTimeFilter(value) : null;
+          const isValidTime = isTimeField && normalizedTime !== null;
+          const isValidOther = field.id !== "duration" && !isTimeField;
+
+          if (isValidDuration || isValidTime || isValidOther) {
+            const chipValue = normalizedTime ? normalizedTime.value : value;
+            const chipLabel = normalizedTime ? `${field.prefix}${normalizedTime.display}` : `${field.prefix}${value}`;
+
+            addChip({ field: field.id, value: chipValue, label: chipLabel });
+            setInputValue("");
+            setShowDropdown(false);
+          }
+        }
+      } else if (e.key === "Backspace" && !inputValue && chips.length > 0) {
+        onChipsChange(chips.slice(0, -1));
+      } else if (e.key === "Escape") {
+        // If dropdown is open, close it and stop propagation (don't close panel)
+        if (showDropdown) {
+          e.preventDefault();
+          e.stopPropagation();
+          // Also stop the native event to prevent document-level listeners
+          e.nativeEvent.stopImmediatePropagation();
+          setInputValue("");
+          setShowDropdown(false);
+        } else {
+          // Dropdown already closed, let event bubble to close panel
+          inputRef.current?.blur();
+        }
+      }
+    },
+    [suggestions, highlightedIndex, showDropdown, handleSelect, inputValue, chips, onChipsChange, parsedInput, addChip],
+  );
+
+  const removeChip = useCallback(
+    (index: number) => {
+      onChipsChange(chips.filter((_, i) => i !== index));
+    },
+    [chips, onChipsChange],
+  );
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
-        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
         !inputRef.current?.contains(e.target as Node)
       ) {
         setInputValue("");
@@ -684,7 +763,10 @@ export const SmartSearch = memo(function SmartSearch({
           "border-gray-300 bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800/50",
           "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
         )}
-        onClick={() => { inputRef.current?.focus(); setShowDropdown(true); }}
+        onClick={() => {
+          inputRef.current?.focus();
+          setShowDropdown(true);
+        }}
       >
         <Search className="size-4 shrink-0 text-gray-400 dark:text-zinc-400" />
 
@@ -695,7 +777,10 @@ export const SmartSearch = memo(function SmartSearch({
           >
             {chip.label}
             <button
-              onClick={(e) => { e.stopPropagation(); removeChip(index); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeChip(index);
+              }}
               className="hover:text-blue-200"
             >
               <X className="size-3" />
@@ -707,8 +792,13 @@ export const SmartSearch = memo(function SmartSearch({
           ref={inputRef}
           type="text"
           value={inputValue}
-          onChange={(e) => { setInputValue(e.target.value); setShowDropdown(true); }}
-          onFocus={() => { ensureChronoLoaded(); }}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={() => {
+            ensureChronoLoaded();
+          }}
           onKeyDown={handleKeyDown}
           placeholder={chips.length === 0 ? placeholder : "Add filter..."}
           className="min-w-[7.5rem] flex-1 bg-transparent text-gray-900 dark:text-zinc-200 outline-none placeholder:text-gray-400 dark:placeholder:text-zinc-500"
@@ -749,13 +839,15 @@ export const SmartSearch = memo(function SmartSearch({
                         "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600",
                       )}
                     >
-                      <span className={cn(
-                        "size-2 rounded-full",
-                        state === "completed" && "bg-emerald-500",
-                        state === "running" && "bg-blue-500",
-                        state === "failed" && "bg-red-500",
-                        state === "pending" && "bg-gray-400 dark:bg-zinc-400",
-                      )} />
+                      <span
+                        className={cn(
+                          "size-2 rounded-full",
+                          state === "completed" && "bg-emerald-500",
+                          state === "running" && "bg-blue-500",
+                          state === "failed" && "bg-red-500",
+                          state === "pending" && "bg-gray-400 dark:bg-zinc-400",
+                        )}
+                      />
                       <span>{state}</span>
                       <span className="text-gray-400 dark:text-zinc-400">{count}</span>
                     </button>
@@ -767,7 +859,10 @@ export const SmartSearch = memo(function SmartSearch({
 
           {suggestions.map((item, index) =>
             item.type === "hint" ? (
-              <div key={`${item.type}-${index}`} className="px-3 py-2 text-sm italic text-gray-500 dark:text-zinc-400">
+              <div
+                key={`${item.type}-${index}`}
+                className="px-3 py-2 text-sm italic text-gray-500 dark:text-zinc-400"
+              >
                 {item.display}
               </div>
             ) : (
@@ -785,26 +880,29 @@ export const SmartSearch = memo(function SmartSearch({
                     : "text-gray-700 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-700",
                 )}
               >
-                <span className={cn(
-                  item.type === "field" && "text-gray-500 dark:text-zinc-400",
-                  item.type === "state-parent" && "flex items-center gap-2",
-                )}>
+                <span
+                  className={cn(
+                    item.type === "field" && "text-gray-500 dark:text-zinc-400",
+                    item.type === "state-parent" && "flex items-center gap-2",
+                  )}
+                >
                   {item.type === "state-parent" && (
-                    <span className={cn(
-                      "size-2 rounded-full",
-                      item.value === "completed" && "bg-emerald-500",
-                      item.value === "running" && "bg-blue-500",
-                      item.value === "failed" && "bg-red-500",
-                      item.value === "pending" && "bg-gray-400 dark:bg-zinc-400",
-                    )} />
+                    <span
+                      className={cn(
+                        "size-2 rounded-full",
+                        item.value === "completed" && "bg-emerald-500",
+                        item.value === "running" && "bg-blue-500",
+                        item.value === "failed" && "bg-red-500",
+                        item.value === "pending" && "bg-gray-400 dark:bg-zinc-400",
+                      )}
+                    />
                   )}
                   {item.display}
                 </span>
-                {(item.type === "value" || item.type === "state-parent" || item.type === "state-child") && item.count > 0 && (
-                  <span className="text-xs text-gray-400 dark:text-zinc-500">{item.count}</span>
-                )}
+                {(item.type === "value" || item.type === "state-parent" || item.type === "state-child") &&
+                  item.count > 0 && <span className="text-xs text-gray-400 dark:text-zinc-500">{item.count}</span>}
               </button>
-            )
+            ),
           )}
           {inputValue && (
             <div className="border-t border-gray-200 dark:border-zinc-700 px-3 py-2 text-xs text-gray-500 dark:text-zinc-400">

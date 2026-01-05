@@ -31,7 +31,7 @@ const devPages = [
     description: "Compare different DAG and timeline visualization approaches",
     icon: Workflow,
     highlight: true,
-  }
+  },
 ];
 
 export default function DevIndexPage() {

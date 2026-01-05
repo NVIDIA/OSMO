@@ -22,7 +22,7 @@
 
 /* Base table styles */
 .data-table {
-  --data-table-row-height: 3rem;      /* 48px at 16px base */
+  --data-table-row-height: 3rem; /* 48px at 16px base */
   --data-table-header-height: 2.75rem; /* 44px at 16px base */
   --data-table-section-height: 2.25rem; /* 36px at 16px base */
 
@@ -59,7 +59,7 @@
 
   /* Fill remaining space with pseudo-element to avoid whitespace gap */
   &::after {
-    content: '';
+    content: "";
     flex: 1 0 0;
     min-width: 0;
   }
@@ -73,7 +73,7 @@
 
   /* Fill remaining space with pseudo-element to avoid whitespace gap */
   &::after {
-    content: '';
+    content: "";
     flex: 1 0 0;
     min-width: 0;
   }
@@ -241,7 +241,7 @@
 
   /* Visual indicator line */
   &::after {
-    content: '';
+    content: "";
     position: absolute;
     inset-inline-end: 0.1875rem; /* 3px */
     top: 25%;

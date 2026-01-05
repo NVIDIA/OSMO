@@ -407,7 +407,10 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
           aria-label={`Expand to show ${tasks.length} tasks`}
           aria-expanded={false}
         >
-          <ChevronDown className="size-3" aria-hidden="true" />
+          <ChevronDown
+            className="size-3"
+            aria-hidden="true"
+          />
           <span className="sr-only">Show {tasks.length} tasks</span>
         </button>
       )}
@@ -471,7 +474,10 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
           aria-label="Collapse task list"
           aria-expanded={true}
         >
-          <ChevronUp className="size-3" aria-hidden="true" />
+          <ChevronUp
+            className="size-3"
+            aria-hidden="true"
+          />
           <span className="sr-only">Hide tasks</span>
         </button>
       )}

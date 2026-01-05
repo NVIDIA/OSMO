@@ -49,12 +49,7 @@ export interface PlaceholderSectionProps {
  * />
  * ```
  */
-export function PlaceholderSection({
-  title,
-  description,
-  note,
-  className,
-}: PlaceholderSectionProps) {
+export function PlaceholderSection({ title, description, note, className }: PlaceholderSectionProps) {
   return (
     <section className={cn("opacity-50", className)}>
       <h3 className={cn(heading.section, "mb-2")}>{title}</h3>

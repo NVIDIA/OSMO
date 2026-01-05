@@ -15,13 +15,7 @@ import { RouteError } from "@/components/error";
  *
  * Catches errors in /pools and /pools/[poolName].
  */
-export default function PoolsError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function PoolsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <RouteError
       error={error}

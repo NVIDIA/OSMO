@@ -68,7 +68,11 @@ export const CapacityBar = memo(function CapacityBar({
           <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
           <span className="text-zinc-400 dark:text-zinc-500">—</span>
         </div>
-        <ProgressBar value={0} max={1} size={barSize} />
+        <ProgressBar
+          value={0}
+          max={1}
+          size={barSize}
+        />
       </div>
     );
   }
@@ -116,7 +120,7 @@ export const CapacityBar = memo(function CapacityBar({
         size={barSize}
         thresholdColors
         aria-label={ariaLabel}
-        />
+      />
 
       {/* Free label */}
       {showFree && (

@@ -61,16 +61,19 @@ export const DetailsPanel = memo(function DetailsPanel({
   const announce = useAnnouncer();
 
   // Handle Escape key to close panel (without focus trap)
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      // Only close if no dropdown/popover is open (they handle their own Escape)
-      const target = e.target as HTMLElement;
-      const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
-      if (!isInDropdown) {
-        onClose();
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Only close if no dropdown/popover is open (they handle their own Escape)
+        const target = e.target as HTMLElement;
+        const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
+        if (!isInDropdown) {
+          onClose();
+        }
       }
-    }
-  }, [onClose]);
+    },
+    [onClose],
+  );
 
   // Announce panel state changes to screen readers
   useEffect(() => {
