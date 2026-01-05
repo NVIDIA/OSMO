@@ -263,7 +263,6 @@ export function createTableStore(options: CreateTableStoreOptions) {
   });
 
   // Create store with middleware stack: devtools → persist → immer
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return create<TableStore>()(
     devtools(
       persist(immer(stateCreator as any), {
