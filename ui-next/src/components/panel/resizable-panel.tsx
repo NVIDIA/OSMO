@@ -8,10 +8,9 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getShellHeaderHeight } from "@/lib/css-utils";
 
 // =============================================================================
 // Types
@@ -86,9 +85,6 @@ export function ResizablePanel({
 }: ResizablePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Read shell header height from CSS variables (static, read once per mount)
-  const headerHeight = useMemo(() => getShellHeaderHeight(), []);
 
   // Drag state for resize handle
   const [isDragging, setIsDragging] = useState(false);
@@ -185,11 +181,9 @@ export function ResizablePanel({
       <div className="h-full w-full">{mainContent}</div>
 
       {/* Backdrop - fixed to cover content area only (below header, right of sidebar) */}
-      {/* Note: Shell uses contain:layout, so fixed is relative to content column, not viewport */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
-          style={{ top: headerHeight }}
+          className="fixed-below-header z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
           onClick={() => {
             // Don't close if we're in the middle of a resize drag
             if (!isDragging) {
@@ -201,16 +195,14 @@ export function ResizablePanel({
       )}
 
       {/* Overlay panel - fixed to content area */}
-      {/* Note: Shell uses contain:layout, so fixed is relative to content column */}
       <aside
         ref={panelRef}
         className={cn(
-          "fixed bottom-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
+          "fixed bottom-0 right-0 z-50 top-shell-header flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
           className,
         )}
         style={{
-          top: headerHeight,
           width: `${width}%`,
           maxWidth: `${maxWidth}%`,
           minWidth: `${minWidthPx}px`,

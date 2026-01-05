@@ -45,5 +45,5 @@ export function getCssVarPx(name: string, fallbackRem: string): number {
  * Reads from CSS variable with fallback to 3.5rem (56px).
  */
 export function getShellHeaderHeight(): number {
-  return getCssVarPx("--pools-shell-header-height", "3.5rem");
+  return getCssVarPx("--shell-header-height", "3.5rem");
 }
