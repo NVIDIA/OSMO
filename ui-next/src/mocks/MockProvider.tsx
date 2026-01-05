@@ -16,7 +16,7 @@
  *
  * Enable mock mode:
  * - Set NEXT_PUBLIC_MOCK_API=true in environment
- * - Or set localStorage.mockApi = "true"
+ * - Or set localStorage.setItem("osmo_use_mock_data", "true")
  *
  * Configure volumes (browser console):
  * - window.__mockConfig.setWorkflowTotal(100000)
@@ -31,8 +31,9 @@ interface MockProviderProps {
   children: ReactNode;
 }
 
-// LocalStorage key for persisted volume settings
-const VOLUMES_STORAGE_KEY = "mockVolumes";
+// LocalStorage keys for mock settings
+export const MOCK_ENABLED_STORAGE_KEY = "osmo_use_mock_data";
+const VOLUMES_STORAGE_KEY = "osmo_mock_volumes";
 
 interface PersistedVolumes {
   workflows?: number;
@@ -86,7 +87,7 @@ export function MockProvider({ children }: MockProviderProps) {
   useEffect(() => {
     async function init() {
       // Check if we should enable mocking
-      const shouldMock = process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem("mockApi") === "true";
+      const shouldMock = process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
       if (shouldMock && typeof window !== "undefined") {
         try {
