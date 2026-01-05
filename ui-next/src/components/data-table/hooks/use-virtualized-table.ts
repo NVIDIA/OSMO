@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useStableCallback, useStableValue } from "@/hooks";
 import type { Section } from "../types";
 
 // =============================================================================
@@ -116,32 +117,25 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     return [];
   }, [items, sections, rowHeight, sectionHeight]);
 
-  // Store virtualItems in a ref for stable access in callbacks
-  const virtualItemsRef = useRef(virtualItems);
-  virtualItemsRef.current = virtualItems;
-  
-  // Store getRowId in a ref for stable access
-  const getRowIdRef = useRef(getRowId);
-  getRowIdRef.current = getRowId;
+  // Stable refs for accessing changing data in stable callbacks
+  const virtualItemsRef = useStableValue(virtualItems);
+  const stableGetRowId = useStableCallback(getRowId);
 
-  // Estimate size function - use ref for stable callback
+  // Estimate size function - stable callback using ref
   const estimateSize = useCallback(
     (index: number) => virtualItemsRef.current[index]?.height ?? rowHeight,
-    [rowHeight],
+    [virtualItemsRef, rowHeight],
   );
-  
-  // Get item key - stable callback that reads from refs
-  // Empty deps is intentional: refs always provide current values without causing
-  // virtualizer recreation. This is a valid pattern per React docs for callbacks
-  // that need to be stable but access changing data via refs.
+
+  // Get item key - stable callback using refs
   const getItemKey = useCallback(
     (index: number) => {
       const item = virtualItemsRef.current[index];
       if (!item) return index;
       if (item.type === "section") return `section-${item.section.id}`;
-      return getRowIdRef.current(item.item);
+      return stableGetRowId(item.item);
     },
-    [], // eslint-disable-line react-hooks/exhaustive-deps
+    [virtualItemsRef, stableGetRowId],
   );
 
   // Create virtualizer with stable callbacks
@@ -167,13 +161,12 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     key: String(row.key),
   }));
 
-  // Infinite scroll detection - use refs for callbacks to avoid re-subscribe on every render
-  const onLoadMoreRef = useRef(onLoadMore);
-  onLoadMoreRef.current = onLoadMore;
-  
+  // Infinite scroll detection - stable callback to avoid re-subscribe on every render
+  const stableOnLoadMore = useStableCallback(onLoadMore);
+
   // Track if we've already triggered load more to prevent duplicate calls
   const loadMoreTriggeredRef = useRef(false);
-  
+
   // Reset the trigger flag when fetching completes
   useEffect(() => {
     if (!isFetchingNextPage) {
@@ -193,10 +186,9 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     const checkLoadMore = () => {
       // Guard against stale execution after unmount
       if (!isActive) return;
-      
-      const callback = onLoadMoreRef.current;
-      if (!callback || loadMoreTriggeredRef.current) return;
-      
+
+      if (loadMoreTriggeredRef.current) return;
+
       const rows = virtualizer.getVirtualItems();
       const lastRow = rows.at(-1);
       if (!lastRow) return;
@@ -205,12 +197,12 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       const LOAD_MORE_THRESHOLD = 10;
       if (lastRow.index >= virtualItems.length - LOAD_MORE_THRESHOLD) {
         loadMoreTriggeredRef.current = true;
-        callback();
+        stableOnLoadMore?.();
       }
     };
 
     scrollElement.addEventListener("scroll", checkLoadMore, { passive: true });
-    
+
     // Initial check after layout settles (100ms is typical for initial render)
     const INITIAL_CHECK_DELAY_MS = 100;
     const timeoutId = setTimeout(checkLoadMore, INITIAL_CHECK_DELAY_MS);
@@ -220,7 +212,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       scrollElement.removeEventListener("scroll", checkLoadMore);
       clearTimeout(timeoutId);
     };
-  }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer]);
+  }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer, stableOnLoadMore]);
 
   // Get item for a virtual row index
   const getItem = useCallback(

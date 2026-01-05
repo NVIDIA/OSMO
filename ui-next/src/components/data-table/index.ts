@@ -43,7 +43,7 @@ export {
   restrictToHorizontalAxis,
   restrictToParentBounds,
   AUTO_SCROLL_CONFIG,
-} from "./hooks/use-table-dnd";
+} from "./hooks/use-column-reordering";
 
 export {
   useVirtualizedTable,
@@ -56,7 +56,7 @@ export {
   useUnifiedColumnSizing,
   type UseUnifiedColumnSizingOptions,
   type UseUnifiedColumnSizingResult,
-} from "./hooks/use-unified-column-sizing";
+} from "./hooks/use-column-resizing";
 
 // =============================================================================
 // Types
