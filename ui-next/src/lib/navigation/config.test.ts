@@ -38,12 +38,7 @@ describe("buildNavigation", () => {
       const nav = buildNavigation(false);
       const userItems = nav.sections[0].items;
 
-      expect(userItems.map((i) => i.name)).toEqual([
-        "Dashboard",
-        "Workflows",
-        "Pools",
-        "Resources",
-      ]);
+      expect(userItems.map((i) => i.name)).toEqual(["Dashboard", "Workflows", "Pools", "Resources"]);
     });
 
     it("does not include admin section", () => {
@@ -73,11 +68,7 @@ describe("buildNavigation", () => {
       const adminItems = nav.sections[1].items;
 
       expect(adminItems).toHaveLength(3);
-      expect(adminItems.map((i) => i.href)).toEqual([
-        "/admin/settings",
-        "/admin/roles",
-        "/admin/tokens",
-      ]);
+      expect(adminItems.map((i) => i.href)).toEqual(["/admin/settings", "/admin/roles", "/admin/tokens"]);
     });
 
     it("admin section has correct route names", () => {

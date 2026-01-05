@@ -20,6 +20,7 @@ import { createTableStore, createTableSelectors } from "@/stores";
 import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT, DEFAULT_PANEL_WIDTH } from "../lib/pool-columns";
 
 /**
  * Pool-specific extended state.
@@ -39,13 +40,15 @@ interface PoolsExtendedActions {
 
 /**
  * Pools table store for column/sort/panel preferences.
+ *
+ * All defaults are defined in ../lib/pool-columns.ts (single source of truth).
  */
 export const usePoolsTableStore = createTableStore({
   storageKey: "pools-table",
-  defaultVisibleColumns: ["name", "description", "quota", "capacity", "platforms", "backend"],
-  defaultColumnOrder: ["name", "description", "quota", "capacity", "platforms", "backend"],
-  defaultSort: { column: "name", direction: "asc" },
-  defaultPanelWidth: 40,
+  defaultVisibleColumns: DEFAULT_VISIBLE_COLUMNS,
+  defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+  defaultSort: DEFAULT_SORT,
+  defaultPanelWidth: DEFAULT_PANEL_WIDTH,
 });
 
 /**

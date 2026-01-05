@@ -19,20 +19,19 @@
 /**
  * Data Table Components
  *
- * A high-performance, accessible table component system built on TanStack Table.
+ * A high-performance, accessible table component built on TanStack Table.
  *
  * Features:
  * - Native <table> markup for accessibility
  * - Virtualized rendering via TanStack Virtual
- * - Sticky section headers (for grouped data)
+ * - Sticky section headers
  * - Infinite scroll pagination
  * - Drag-and-drop column reordering
- * - Sortable column headers
- * - Share-based proportional column sizing
+ * - Column resizing (TanStack native)
  */
 
 // =============================================================================
-// Main Components
+// Components
 // =============================================================================
 
 export { DataTable, type DataTableProps } from "./DataTable";
@@ -41,7 +40,7 @@ export { TableSkeleton, type TableSkeletonProps } from "./TableSkeleton";
 export { TableToolbar, type TableToolbarProps, type ColumnDefinition } from "./TableToolbar";
 export { SortButton } from "./SortButton";
 export { SortableCell } from "./SortableCell";
-export { ResizeHandle, type ResizeHandleProps as ResizeHandleComponentProps } from "./ResizeHandle";
+export { ResizeHandle, type ResizeHandleProps } from "./ResizeHandle";
 export { SectionNavStack, type SectionNavStackProps, type SectionNavStackItem } from "./SectionNavStack";
 
 // =============================================================================
@@ -62,11 +61,7 @@ export {
   type VirtualizedRow,
 } from "./hooks/use-virtualized-table";
 
-export {
-  useUnifiedColumnSizing,
-  type UseUnifiedColumnSizingOptions,
-  type UseUnifiedColumnSizingResult,
-} from "./hooks/use-column-resizing";
+export { useColumnSizing, type UseColumnSizingOptions, type UseColumnSizingResult } from "./hooks/use-column-sizing";
 
 export {
   useSectionNavigation,
@@ -92,17 +87,7 @@ export {
 // Types
 // =============================================================================
 
-export type {
-  SortDirection,
-  SortState,
-  SortButtonProps,
-  SortableCellProps,
-  Section,
-  ColumnSizeConfig,
-  ColumnOverride,
-  ColumnWidthsResult,
-  ResizeHandleProps,
-} from "./types";
+export type { SortDirection, SortState, SortButtonProps, SortableCellProps, Section, ColumnSizeConfig } from "./types";
 
 export { cycleSortState } from "./types";
 
@@ -112,6 +97,8 @@ export type {
   SortingState,
   VisibilityState,
   ColumnOrderState,
+  ColumnSizingState,
+  ColumnSizingInfoState,
   Row,
   Cell,
   Header,
@@ -119,27 +106,8 @@ export type {
 } from "@tanstack/react-table";
 
 // =============================================================================
-// Column Sizing Utilities
+// Utilities
 // =============================================================================
 
-export {
-  // Rem ↔ Pixel conversion
-  getBaseFontSize,
-  remToPx,
-  pxToRem,
-  // Column resolution
-  resolveColumns,
-  type ResolvedColumn,
-  // Core calculation
-  calculateColumnWidths,
-  // DOM-based content measurement
-  measureColumnContentWidth,
-  measureAllColumns,
-  DEFAULT_MEASUREMENT_PADDING,
-  // CSS variable helpers
-  generateCSSVariables,
-  getColumnCSSVariable,
-  getColumnCSSValue,
-} from "./utils/column-sizing";
-
-export { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "./utils/column-constants";
+export { remToPx, getColumnCSSValue } from "./utils/column-sizing";
+export { COLUMN_MIN_WIDTHS_REM } from "./utils/column-constants";
