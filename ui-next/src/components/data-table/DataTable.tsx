@@ -473,13 +473,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
               role="grid"
               aria-rowcount={ariaRowCount}
               aria-colcount={visibleColumnCount}
-              className={cn("min-w-full border-collapse text-sm data-table", className)}
-              style={{
-                // CSS containment for performance
-                contain: "layout style",
-                // Column width CSS variables
-                ...columnSizing.cssVariables,
-              }}
+              className={cn("min-w-full border-collapse text-sm contain-layout-style data-table", className)}
+              style={columnSizing.cssVariables}
             >
               {/* Table Header */}
               <thead
