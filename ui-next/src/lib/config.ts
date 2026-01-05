@@ -25,6 +25,14 @@ export function isBuildPhase(): boolean {
   return process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export";
 }
 
+/**
+ * Check if mock mode is enabled via environment variable.
+ * This works both client-side and server-side.
+ */
+export function isMockMode(): boolean {
+  return process.env.NEXT_PUBLIC_MOCK_API === "true";
+}
+
 // =============================================================================
 // API Configuration
 // =============================================================================
