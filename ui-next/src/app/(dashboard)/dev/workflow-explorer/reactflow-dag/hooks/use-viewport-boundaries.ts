@@ -143,10 +143,9 @@ export function useViewportBoundaries({
     if (!selectedNode) return;
 
     // Double rAF ensures panel layout is complete before measuring
-    let outerFrameId: number;
     let innerFrameId: number;
 
-    outerFrameId = requestAnimationFrame(() => {
+    const outerFrameId = requestAnimationFrame(() => {
       innerFrameId = requestAnimationFrame(() => {
         const nodeData = selectedNode.data as GroupNodeData;
         const nodeWidth = nodeData?.nodeWidth || NODE_COLLAPSED.width;

@@ -31,9 +31,8 @@
  * @see /src/lib/docs/CALLBACK_STABILITY.md for full documentation
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyFunction = (...args: any[]) => any;
 
 /**
@@ -51,9 +50,10 @@ type AnyFunction = (...args: any[]) => any;
  */
 export function useStableCallback<T extends AnyFunction>(callback: T | undefined): T {
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  useLayoutEffect(() => {
+    callbackRef.current = callback;
+  });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useCallback(
     ((...args: Parameters<T>) => callbackRef.current?.(...args)) as T,
     [],
@@ -81,6 +81,8 @@ export function useStableCallback<T extends AnyFunction>(callback: T | undefined
  */
 export function useStableValue<T>(value: T): React.RefObject<T> {
   const ref = useRef(value);
-  ref.current = value;
+  useLayoutEffect(() => {
+    ref.current = value;
+  });
   return ref;
 }

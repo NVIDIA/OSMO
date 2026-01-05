@@ -154,7 +154,6 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   // Re-measure when heights change
   useEffect(() => {
     virtualizer.measure();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowHeight, sectionHeight]);
 
   // Get virtual items - TanStack Virtual handles reactivity internally
