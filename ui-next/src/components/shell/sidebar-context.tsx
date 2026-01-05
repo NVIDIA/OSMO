@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import { usePersistedState } from "@/hooks";
+import { usePersistedBoolean } from "@/hooks";
 
 interface SidebarContextType {
   collapsed: boolean;
@@ -12,7 +12,7 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = usePersistedState("sidebar-collapsed", false);
+  const [collapsed, setCollapsed] = usePersistedBoolean("sidebar-collapsed", false);
 
   const toggle = () => setCollapsed(!collapsed);
 

@@ -13,14 +13,14 @@
  * - RAF-throttled updates for 60fps smooth dragging
  * - Percentage-based sizing
  * - Min/max constraints
- * - Optional persistence via usePersistedState
+ * - Optional persistence via usePersistedSettings
  */
 
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { PANEL } from "../constants";
-import { usePersistedState } from "./use-persisted-state";
+import { usePersistedSettings } from "./use-persisted-settings";
 
 // ============================================================================
 // Types
@@ -87,7 +87,7 @@ export function useResizablePanel({
   persist = true,
 }: UseResizablePanelOptions = {}): UseResizablePanelReturn {
   // Use persisted state if persistence is enabled, otherwise regular state
-  const [persistedPanelPct, setPersistedPanelPct] = usePersistedState("panelPct", initialPct);
+  const [persistedPanelPct, setPersistedPanelPct] = usePersistedSettings("panelPct", initialPct);
   const [localPanelPct, setLocalPanelPct] = useState(initialPct);
 
   const panelPct = persist ? persistedPanelPct : localPanelPct;

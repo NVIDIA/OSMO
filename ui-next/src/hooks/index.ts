@@ -16,11 +16,12 @@
  * (e.g., headless/ for data fetching, auth/ for authentication).
  */
 
-export { usePersistedState } from "./use-persisted-state";
+export { usePersistedBoolean } from "./use-persisted-boolean";
 export { useVirtualizerCompat } from "./use-virtualizer-compat";
 export {
   useExpandableChips,
   type ChipLayoutDimensions,
+  type MeasuredModeOptions,
   type UseExpandableChipsOptions,
   type UseExpandableChipsResult,
 } from "./use-expandable-chips";

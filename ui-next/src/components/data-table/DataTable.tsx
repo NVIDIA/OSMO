@@ -23,6 +23,7 @@
 "use client";
 
 import { useMemo, useRef, useCallback } from "react";
+import { useStableCallback, useStableValue } from "@/hooks";
 import {
   useReactTable,
   getCoreRowModel,
@@ -42,8 +43,8 @@ import { VirtualTableBody } from "./VirtualTableBody";
 import { ResizeHandle } from "./ResizeHandle";
 import { TableSkeleton } from "./TableSkeleton";
 import { useVirtualizedTable } from "./hooks/use-virtualized-table";
-import { useTableDnd } from "./hooks/use-table-dnd";
-import { useUnifiedColumnSizing } from "./hooks/use-unified-column-sizing";
+import { useTableDnd } from "./hooks/use-column-reordering";
+import { useUnifiedColumnSizing } from "./hooks/use-column-resizing";
 import type { Section, SortState, ColumnSizeConfig, ColumnOverride } from "./types";
 import { getColumnCSSValue, pxToRem } from "./utils/column-sizing";
 
@@ -193,9 +194,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
 
-  // Stable callback refs to prevent re-render loops
-  const onSortingChangeRef = useRef(onSortingChange);
-  onSortingChangeRef.current = onSortingChange;
+  // Stable callback to prevent re-render loops
+  const stableOnSortingChange = useStableCallback(onSortingChange);
 
   // Get all data items (from sections or flat data)
   const allItems = useMemo(() => {
@@ -348,9 +348,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
     isFetchingNextPage,
   });
 
-  // Store table ref to avoid dependency issues in callbacks
-  const tableRef = useRef(table);
-  tableRef.current = table;
+  // Stable access to table instance in callbacks
+  const tableRef = useStableValue(table);
 
   // Map virtual row index to TanStack table row
   const getTableRow = useCallback(
@@ -458,16 +457,15 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
                         // Use our controlled sort handler, not TanStack's toggleSorting
                         const handleHeaderSort = () => {
-                          const callback = onSortingChangeRef.current;
-                          if (!callback || !isSortable) return;
+                          if (!isSortable) return;
 
                           // Cycle: none -> asc -> desc -> none
                           if (!isSorted) {
-                            callback({ column: header.id, direction: "asc" });
+                            stableOnSortingChange?.({ column: header.id, direction: "asc" });
                           } else if (isSorted === "asc") {
-                            callback({ column: header.id, direction: "desc" });
+                            stableOnSortingChange?.({ column: header.id, direction: "desc" });
                           } else {
-                            callback({ column: null, direction: "asc" });
+                            stableOnSortingChange?.({ column: null, direction: "asc" });
                           }
                         };
 
