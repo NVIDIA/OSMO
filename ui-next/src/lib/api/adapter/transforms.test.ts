@@ -161,9 +161,9 @@ const mockAllResourcesResponse = {
 
 describe("transformPoolsResponse", () => {
   it("transforms empty response", () => {
-    expect(transformPoolsResponse(null)).toEqual({ pools: [] });
-    expect(transformPoolsResponse(undefined)).toEqual({ pools: [] });
-    expect(transformPoolsResponse({})).toEqual({ pools: [] });
+    expect(transformPoolsResponse(null)).toEqual({ pools: [], sharingGroups: [] });
+    expect(transformPoolsResponse(undefined)).toEqual({ pools: [], sharingGroups: [] });
+    expect(transformPoolsResponse({})).toEqual({ pools: [], sharingGroups: [] });
   });
 
   it("transforms pools from node_sets", () => {
