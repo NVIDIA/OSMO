@@ -382,7 +382,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {/* Header */}
       <div
         className={cn(
-          "cursor-pointer select-none px-3 flex-shrink-0 flex flex-col justify-center",
+          "cursor-pointer select-none px-3 shrink-0 flex flex-col justify-center",
           !isExpanded && !hasManyTasks && "py-3 flex-1",
           !isExpanded && hasManyTasks && "pt-3 pb-1.5",
           isExpanded && hasManyTasks && "py-3 dag-node-header-expanded",
@@ -403,7 +403,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {!isExpanded && hasManyTasks && (
         <button
           onClick={handleExpandClick}
-          className="mt-auto flex-shrink-0 flex items-center justify-center h-5 text-gray-400 dark:text-zinc-500 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-600 dark:hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
+          className="mt-auto shrink-0 flex items-center justify-center h-5 text-gray-400 dark:text-zinc-500 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-600 dark:hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
           aria-label={`Expand to show ${tasks.length} tasks`}
           aria-expanded={false}
         >
@@ -470,7 +470,7 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       {isExpanded && hasManyTasks && (
         <button
           onClick={handleExpandClick}
-          className="dag-collapse-lip flex-shrink-0 flex items-center justify-center h-5 text-gray-500 dark:text-zinc-400 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-700 dark:hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
+          className="dag-collapse-lip shrink-0 flex items-center justify-center h-5 text-gray-500 dark:text-zinc-400 transition-colors hover:bg-gray-100/50 dark:hover:bg-zinc-700/30 hover:text-gray-700 dark:hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-b-[6.5px]"
           aria-label="Collapse task list"
           aria-expanded={true}
         >
