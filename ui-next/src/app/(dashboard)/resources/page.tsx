@@ -84,7 +84,6 @@ export default function ResourcesPage() {
   const {
     resources,
     allResources,
-    filteredCount,
     totalCount,
     isLoading,
     error,
@@ -174,7 +173,6 @@ export default function ResourcesPage() {
             >
               <ResourcesTable
                 resources={resources}
-                filteredCount={filteredCount}
                 totalCount={totalCount}
                 isLoading={isLoading}
                 showPoolsColumn

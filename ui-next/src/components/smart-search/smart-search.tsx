@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useState, useRef, useMemo, useCallback, useEffect, memo } from "react";
+import { useState, useRef, useMemo, useCallback, memo } from "react";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SmartSearchProps, SearchField, SearchChip } from "./types";
@@ -123,6 +123,7 @@ function SmartSearchInner<T>({
   const [inputValue, setInputValue] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1); // -1 = nothing highlighted
+  const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0); // For render-phase reset
   const [validationError, setValidationError] = useState<string | null>(null); // Error message or null
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -260,10 +261,13 @@ function SmartSearchInner<T>({
     return items;
   }, [inputValue, parsedInput, fields, data]);
 
-  // Reset highlighted index when suggestions change (no auto-select)
-  useEffect(() => {
+  // Adjust state during render: reset highlighted index when suggestions change
+  // This is the React-recommended pattern for derived state resets (see react.dev docs)
+  // React will immediately re-render with the updated state without committing the intermediate state
+  if (suggestions.length !== prevSuggestionsLength) {
+    setPrevSuggestionsLength(suggestions.length);
     setHighlightedIndex(-1);
-  }, [suggestions.length]);
+  }
 
   // Close dropdown handler (called by backdrop click)
   const closeDropdown = useCallback(() => {
