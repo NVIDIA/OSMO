@@ -381,7 +381,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
       const rowId = getRowId(item.item);
       return tableRef.current.getRowModel().rowsById[rowId];
     },
-    [getItem, getRowId],
+    [getItem, getRowId, tableRef],
   );
 
   // Compute aria-rowcount
@@ -401,7 +401,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
         }
         // If it's a section, do nothing (or could expand/collapse)
       },
-      [getItem],
+      [getItem, onRowClickRef],
     ),
     onScrollToRow: useCallback(
       (virtualIndex: number, align: "start" | "end" | "center") => {
@@ -413,7 +413,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
           onLoadMoreRef.current?.();
         }
       },
-      [scrollToIndex, hasNextPage, isFetchingNextPage, virtualItemCount],
+      [scrollToIndex, hasNextPage, isFetchingNextPage, virtualItemCount, onLoadMoreRef],
     ),
     disabled: !onRowClick, // Only enable if rows are clickable
     containerRef: scrollRef, // For finding and focusing row elements

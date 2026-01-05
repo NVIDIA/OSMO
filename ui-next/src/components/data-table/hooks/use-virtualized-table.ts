@@ -154,7 +154,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   // Re-measure when heights change
   useEffect(() => {
     virtualizer.measure();
-  }, [rowHeight, sectionHeight]);
+  }, [rowHeight, sectionHeight, virtualizer]);
 
   // Get virtual items - TanStack Virtual handles reactivity internally
   const virtualRows: VirtualizedRow[] = virtualizer.getVirtualItems().map((row) => ({
@@ -215,7 +215,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       scrollElement.removeEventListener("scroll", checkLoadMore);
       clearTimeout(timeoutId);
     };
-  }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer]);
+  }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer, onLoadMoreRef]);
 
   // Get item for a virtual row index
   const getItem = useCallback(
