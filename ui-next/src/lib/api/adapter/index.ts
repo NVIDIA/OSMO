@@ -49,8 +49,8 @@ export {
 // Pool filtering types (from shim - will be simplified when backend ready)
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata } from "./hooks";
 
-// Pagination types
-export type { PaginatedResourcesResult } from "./pagination";
+// Resource shim types (will be simplified when backend supports pagination)
+export type { PaginatedResourcesResult } from "./resources-shim";
 
 // Utilities
 export { deriveResourceTypes } from "./utils";

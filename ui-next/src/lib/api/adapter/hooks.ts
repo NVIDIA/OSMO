@@ -28,7 +28,7 @@ import {
 } from "./transforms";
 
 import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
-import { fetchPaginatedResources, invalidateResourcesCache, getResourceFilterOptions } from "./pagination";
+import { fetchPaginatedResources, invalidateResourcesCache, getResourceFilterOptions } from "./resources-shim";
 import {
   fetchFilteredPools,
   hasActiveFilters,
@@ -36,7 +36,7 @@ import {
   type FilteredPoolsResult,
   type PoolMetadata,
 } from "./pools-shim";
-import type { PaginationParams } from "@/lib/pagination";
+import type { PaginationParams } from "@/lib/api/pagination";
 
 // =============================================================================
 // Pool Hooks
@@ -230,7 +230,7 @@ export function useVersion() {
 
 import type { PoolMembership, Resource, TaskConfig, Pool } from "./types";
 import type { ResourcesResponse } from "../generated";
-import type { PaginatedResourcesResult } from "./pagination";
+import type { PaginatedResourcesResult } from "./resources-shim";
 
 // =============================================================================
 // Paginated Resource Functions
