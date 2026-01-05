@@ -16,8 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { COLUMN_MIN_WIDTHS_REM, COLUMN_FLEX } from "@/components/data-table";
-import type { ColumnSizeConfig } from "@/components/data-table";
+import { COLUMN_MIN_WIDTHS_REM, type ColumnSizeConfig } from "@/components/data-table";
 
 export type ResourceColumnId =
   | "resource"
@@ -132,23 +131,18 @@ export const DEFAULT_SORT = { column: "resource" as ResourceColumnId, direction:
 export const DEFAULT_PANEL_WIDTH = 40;
 
 /**
- * Column sizing configuration for the new DataTable.
- *
- * Uses rem-based minimum widths for accessibility (scales with user font size).
- * At 16px base: 1rem = 16px.
- *
- * - minWidthRem: Minimum width in rem units
- * - share: Proportional weight for space distribution (like CSS flex-grow)
+ * Column sizing configuration.
+ * Uses rem for accessibility (scales with user font size).
  */
 export const RESOURCE_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
-  { id: "resource", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.PRIMARY },
-  { id: "type", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
-  { id: "pools", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE, share: COLUMN_FLEX.SECONDARY },
-  { id: "platform", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
-  { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.TERTIARY },
-  { id: "hostname", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT, share: COLUMN_FLEX.SECONDARY },
-  { id: "gpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT, share: COLUMN_FLEX.NUMERIC },
-  { id: "cpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT, share: COLUMN_FLEX.NUMERIC },
-  { id: "memory", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },
-  { id: "storage", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT, share: COLUMN_FLEX.NUMERIC_WIDE },
+  { id: "resource", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
+  { id: "type", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
+  { id: "pools", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
+  { id: "platform", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
+  { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
+  { id: "hostname", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
+  { id: "gpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT },
+  { id: "cpu", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT },
+  { id: "memory", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT },
+  { id: "storage", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT },
 ];

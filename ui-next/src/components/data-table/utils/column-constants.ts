@@ -19,19 +19,13 @@
 /**
  * Column sizing constants for DataTable columns.
  *
- * These values are used as defaults/references when defining column configurations.
  * All measurements are in rem units for accessibility (scale with user's font size).
+ * At 16px base font size: 1rem = 16px.
  */
-
-// =============================================================================
-// Minimum Widths
-// =============================================================================
 
 /**
  * Recommended minimum widths in rem units.
- *
- * These are accessibility-friendly as they scale with user's font size.
- * Calculated at 16px base font size (1rem = 16px).
+ * Use with TanStack Table's minSize (convert via remToPx).
  */
 export const COLUMN_MIN_WIDTHS_REM = {
   /** Text that truncates with ellipsis (names, descriptions) */
@@ -57,31 +51,4 @@ export const COLUMN_MIN_WIDTHS_REM = {
 
   /** Status badge column */
   STATUS_BADGE: 6,
-} as const;
-
-// =============================================================================
-// Flex Values
-// =============================================================================
-
-/**
- * Recommended flex values for proportional scaling.
- */
-export const COLUMN_FLEX = {
-  /** Primary/main column (e.g., name) - gets most space */
-  PRIMARY: 3,
-
-  /** Secondary text columns */
-  SECONDARY: 1.5,
-
-  /** Tertiary text columns */
-  TERTIARY: 1,
-
-  /** Numeric columns with units */
-  NUMERIC_WIDE: 1.4,
-
-  /** Short numeric columns */
-  NUMERIC: 1,
-
-  /** Fixed-width columns (actions, icons) */
-  FIXED: 0,
 } as const;

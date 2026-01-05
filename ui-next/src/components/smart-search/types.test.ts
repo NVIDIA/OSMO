@@ -120,11 +120,7 @@ describe("filterByChips", () => {
     });
 
     it("ORs three chips for the same field", () => {
-      const chips = [
-        chip("status", "ONLINE"),
-        chip("status", "OFFLINE"),
-        chip("status", "MAINTENANCE"),
-      ];
+      const chips = [chip("status", "ONLINE"), chip("status", "OFFLINE"), chip("status", "MAINTENANCE")];
       const result = filterByChips(testItems, chips, testFields);
 
       expect(result).toHaveLength(5); // All items
@@ -148,11 +144,7 @@ describe("filterByChips", () => {
     });
 
     it("ANDs three different fields", () => {
-      const chips = [
-        chip("status", "ONLINE"),
-        chip("platform", "dgx"),
-        chip("name", "alpha"),
-      ];
+      const chips = [chip("status", "ONLINE"), chip("platform", "dgx"), chip("name", "alpha")];
       const result = filterByChips(testItems, chips, testFields);
 
       expect(result).toHaveLength(1);
@@ -174,11 +166,7 @@ describe("filterByChips", () => {
   describe("combined OR and AND logic", () => {
     it("ORs within field, ANDs across fields", () => {
       // (ONLINE OR OFFLINE) AND dgx
-      const chips = [
-        chip("status", "ONLINE"),
-        chip("status", "OFFLINE"),
-        chip("platform", "dgx"),
-      ];
+      const chips = [chip("status", "ONLINE"), chip("status", "OFFLINE"), chip("platform", "dgx")];
       const result = filterByChips(testItems, chips, testFields);
 
       // ONLINE+dgx=alpha, OFFLINE+dgx=gamma
@@ -188,11 +176,7 @@ describe("filterByChips", () => {
 
     it("handles complex multi-field OR+AND", () => {
       // (dgx OR base) AND (ONLINE)
-      const chips = [
-        chip("platform", "dgx"),
-        chip("platform", "base"),
-        chip("status", "ONLINE"),
-      ];
+      const chips = [chip("platform", "dgx"), chip("platform", "base"), chip("status", "ONLINE")];
       const result = filterByChips(testItems, chips, testFields);
 
       // Both platforms, but only ONLINE status
