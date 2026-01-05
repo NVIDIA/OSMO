@@ -157,7 +157,7 @@ function ReactFlowDagPageInner() {
         {/* Skip link for accessibility */}
         <a
           href="#dag-canvas"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-gray-100 focus:px-4 focus:py-2 focus:text-gray-900 dark:focus:bg-zinc-800 dark:focus:text-zinc-100"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-gray-100 focus:px-4 focus:py-2 focus:text-gray-900 dark:focus:bg-zinc-800 dark:focus:text-zinc-100"
         >
           Skip to DAG visualization
         </a>

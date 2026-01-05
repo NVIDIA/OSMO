@@ -85,7 +85,7 @@ function DefaultSectionHeader<TData>({
       className="px-0"
     >
       <div
-        className="flex items-center gap-2 px-4 font-medium text-xs uppercase tracking-wider"
+        className="flex items-center gap-2 px-4 text-xs font-medium tracking-wider uppercase"
         style={{ height: sectionHeight }}
       >
         <span>{section.label}</span>

@@ -29,7 +29,7 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
       {/* Skip to main content link - WCAG 2.1 bypass block */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:bg-nvidia focus:px-4 focus:py-2 focus:text-black focus:outline-none"
+        className="focus:bg-nvidia sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:px-4 focus:py-2 focus:text-black focus:outline-none"
       >
         Skip to main content
       </a>
@@ -46,7 +46,7 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 overflow-auto overscroll-contain bg-zinc-50 p-6 scroll-optimized dark:bg-zinc-900"
+          className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 p-6 dark:bg-zinc-900"
           aria-label="Main content"
         >
           <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
@@ -61,11 +61,11 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
  */
 function MainContentSkeleton() {
   return (
-    <div className="flex h-full flex-col gap-6 animate-in fade-in duration-300">
+    <div className="animate-in fade-in flex h-full flex-col gap-6 duration-300">
       {/* Page header skeleton */}
       <div className="shrink-0 space-y-2">
-        <div className="h-8 w-48 skeleton-shimmer rounded" />
-        <div className="h-4 w-72 skeleton-shimmer rounded" />
+        <div className="skeleton-shimmer h-8 w-48 rounded" />
+        <div className="skeleton-shimmer h-4 w-72 rounded" />
       </div>
 
       {/* Content skeleton */}
@@ -76,7 +76,7 @@ function MainContentSkeleton() {
               key={i}
               className="flex items-center gap-4"
             >
-              <div className="h-10 flex-1 skeleton-shimmer rounded" />
+              <div className="skeleton-shimmer h-10 flex-1 rounded" />
             </div>
           ))}
         </div>

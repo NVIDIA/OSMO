@@ -95,21 +95,21 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
   };
 
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-md px-6">
+    <div className="flex w-full max-w-md flex-col items-center gap-8 px-6">
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
 
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-xl font-semibold text-foreground">Local Development</h1>
-        <p className="text-sm text-muted-foreground">
+      <div className="space-y-2 text-center">
+        <h1 className="text-foreground text-xl font-semibold">Local Development</h1>
+        <p className="text-muted-foreground text-sm">
           Transfer your session from{" "}
           <a
             href={backendUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[var(--nvidia-green)] hover:underline inline-flex items-center gap-1"
+            className="inline-flex items-center gap-1 text-[var(--nvidia-green)] hover:underline"
           >
             {host}
             <ExternalLink className="h-3 w-3" />
@@ -119,8 +119,8 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
 
       {/* Instructions */}
       <div className="w-full space-y-4">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
+        <div className="text-muted-foreground flex items-center gap-3 text-sm">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--nvidia-green)] text-xs font-bold text-black">
             1
           </span>
           <span>Run in browser console (F12):</span>
@@ -128,18 +128,18 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
 
         <button
           onClick={copyCommand}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-muted border border-border hover:bg-accent transition-colors group"
+          className="bg-muted border-border hover:bg-accent group flex w-full items-center justify-between rounded-lg border px-4 py-3 transition-colors"
         >
-          <code className="text-sm font-mono text-foreground">document.cookie</code>
+          <code className="text-foreground font-mono text-sm">document.cookie</code>
           {copied ? (
             <Check className="h-4 w-4 text-[var(--nvidia-green)]" />
           ) : (
-            <Copy className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+            <Copy className="text-muted-foreground group-hover:text-foreground h-4 w-4" />
           )}
         </button>
 
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--nvidia-green)] text-black text-xs font-bold flex items-center justify-center">
+        <div className="text-muted-foreground flex items-center gap-3 text-sm">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--nvidia-green)] text-xs font-bold text-black">
             2
           </span>
           <span>Paste the result:</span>
@@ -155,10 +155,10 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
           rows={2}
           autoComplete="off"
           spellCheck={false}
-          className="w-full px-4 py-3 rounded-lg bg-muted border border-border text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[var(--nvidia-green)] resize-none"
+          className="bg-muted border-border text-foreground placeholder:text-muted-foreground w-full resize-none rounded-lg border px-4 py-3 font-mono text-sm focus:ring-2 focus:ring-[var(--nvidia-green)] focus:outline-none"
         />
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-destructive text-sm">{error}</p>}
       </div>
 
       {/* Actions */}
@@ -166,21 +166,21 @@ export function LocalDevLogin({ onLogin, onSkip }: LocalDevLoginProps) {
         <button
           onClick={handleLogin}
           disabled={!tokenInput.trim()}
-          className="px-6 py-2.5 rounded-lg bg-[var(--nvidia-green)] text-sm font-medium text-black hover:bg-[var(--nvidia-green-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-lg bg-[var(--nvidia-green)] px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-[var(--nvidia-green-light)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Log In
         </button>
         <button
           onClick={onSkip}
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="text-muted-foreground hover:text-foreground text-sm transition-colors"
         >
           Skip
         </button>
       </div>
 
       {/* Config hint */}
-      <p className="text-xs text-muted-foreground text-center">
-        Backend: <code className="bg-muted px-1 py-0.5 rounded">.env.local</code> → NEXT_PUBLIC_OSMO_API_HOSTNAME
+      <p className="text-muted-foreground text-center text-xs">
+        Backend: <code className="bg-muted rounded px-1 py-0.5">.env.local</code> → NEXT_PUBLIC_OSMO_API_HOSTNAME
       </p>
     </div>
   );

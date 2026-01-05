@@ -108,7 +108,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       >
         <div
           className={cn(
-            "dag-details-panel-handle absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-gray-300 dark:bg-zinc-700 px-0.5 py-1 shadow-md transition-opacity duration-150",
+            "dag-details-panel-handle absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-gray-300 px-0.5 py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-700",
             isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
           aria-hidden="true"
@@ -120,7 +120,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       {/* Panel Container */}
       <aside
         ref={panelRef}
-        className="dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-gray-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/95 backdrop-blur"
+        className="dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-gray-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
         style={{ width: `${panelPct}%` }}
         role="complementary"
         aria-label={view === "group" ? `Group details: ${group.name}` : `Task details: ${task?.name}`}

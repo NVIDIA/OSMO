@@ -115,7 +115,7 @@ export const PanelContent = memo(function PanelContent({
           <h3 className={cn(heading.section, "mb-2 flex items-center gap-2")}>
             GPU Capacity
             {sharedWith && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-inset ring-violet-500/20 dark:text-violet-300 dark:ring-violet-400/30">
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-violet-500/20 ring-inset dark:text-violet-300 dark:ring-violet-400/30">
                 <Share2 className="h-3 w-3" />
                 Shared
               </span>
@@ -143,7 +143,7 @@ export const PanelContent = memo(function PanelContent({
 
           {/* Shared pools info */}
           {sharedWith && sharedWith.length > 0 && (
-            <div className="mt-3 rounded-lg bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.05] p-3 ring-1 ring-inset ring-violet-500/15 dark:ring-violet-400/20">
+            <div className="mt-3 rounded-lg bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.05] p-3 ring-1 ring-violet-500/15 ring-inset dark:ring-violet-400/20">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-300">
                 <Share2 className="h-3.5 w-3.5" />
                 Shares capacity with

@@ -169,7 +169,7 @@ export function RouteError({
         </div>
 
         {error.digest && (
-          <p className="mt-4 text-center text-xs font-mono text-zinc-400 dark:text-zinc-600">
+          <p className="mt-4 text-center font-mono text-xs text-zinc-400 dark:text-zinc-600">
             Error ID: {error.digest}
           </p>
         )}

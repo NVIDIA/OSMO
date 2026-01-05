@@ -29,7 +29,7 @@ export function NotFoundContent() {
         <h1 className="text-6xl font-black text-[var(--nvidia-green)] sm:text-7xl">404</h1>
 
         {/* OSMO acronym subtitle */}
-        <p className="mb-6 mt-2 text-2xl text-zinc-400 dark:text-zinc-500 sm:text-3xl">
+        <p className="mt-2 mb-6 text-2xl text-zinc-400 sm:text-3xl dark:text-zinc-500">
           <span className="font-bold text-[var(--nvidia-green)]">O</span>ur{" "}
           <span className="font-bold text-[var(--nvidia-green)]">S</span>erver{" "}
           <span className="font-bold text-[var(--nvidia-green)]">M</span>issed{" "}

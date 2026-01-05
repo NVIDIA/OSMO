@@ -112,7 +112,7 @@ export const TableSkeleton = memo(function TableSkeleton({
       <table className="w-full border-collapse text-sm">
         {/* Header */}
         {showHeader && (
-          <thead className="bg-zinc-100 text-left text-xs font-medium uppercase text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+          <thead className="bg-zinc-100 text-left text-xs font-medium text-zinc-500 uppercase dark:bg-zinc-900 dark:text-zinc-400">
             <tr style={{ display: "flex" }}>
               {effectiveHeaders.map((header, i) => (
                 <th

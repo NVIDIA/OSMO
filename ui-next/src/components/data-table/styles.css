@@ -154,7 +154,7 @@
 /* Focus visible on cells - for grid navigation */
 .data-table-row td:focus-visible,
 .data-table-row [role="gridcell"]:focus-visible {
-  @apply outline-2 outline-blue-500 bg-blue-50 dark:bg-blue-500/15;
+  @apply bg-blue-50 outline-2 outline-blue-500 dark:bg-blue-500/15;
   outline-offset: -2px;
 }
 
@@ -170,7 +170,7 @@
   @apply absolute left-[-9999px] z-[100] rounded bg-zinc-900 px-4 py-2 text-white no-underline;
 
   &:focus {
-    @apply left-2 top-2;
+    @apply top-2 left-2;
   }
 }
 
@@ -191,7 +191,7 @@
 
 /* Resize handle - positioned at right edge of header cell */
 .resize-handle {
-  @apply absolute inset-y-0 end-0 z-[1] w-2 cursor-col-resize select-none touch-none;
+  @apply absolute inset-y-0 end-0 z-[1] w-2 cursor-col-resize touch-none select-none;
 
   /* Visual indicator line */
   &::after {

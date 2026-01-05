@@ -147,7 +147,7 @@
   }
 
   .pools-td {
-    @apply align-middle whitespace-nowrap overflow-hidden truncate;
+    @apply truncate overflow-hidden align-middle whitespace-nowrap;
     height: inherit;
     max-width: 20rem; /* Description column can truncate */
   }
@@ -410,11 +410,6 @@
 
   /* Shared Capacity Progress Bar - gradient from indigo to pink */
   .pools-shared-capacity-bar {
-    background: linear-gradient(
-      90deg,
-      var(--color-indigo-400),
-      var(--color-purple-400),
-      var(--color-pink-400)
-    );
+    background: linear-gradient(90deg, var(--color-indigo-400), var(--color-purple-400), var(--color-pink-400));
   }
 }

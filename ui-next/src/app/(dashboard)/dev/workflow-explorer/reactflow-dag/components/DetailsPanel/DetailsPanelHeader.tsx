@@ -158,7 +158,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   }, []);
 
   return (
-    <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/95 px-4 py-3 backdrop-blur">
+    <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
       {/* Row 1: Title row */}
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -167,7 +167,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
             <>
               <button
                 onClick={onBack}
-                className="-ml-1 flex shrink-0 items-center gap-1 rounded-md py-1 pl-1 pr-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                className="-ml-1 flex shrink-0 items-center gap-1 rounded-md py-1 pr-2 pl-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 aria-label={`Back to ${breadcrumb}`}
               >
                 <ChevronLeft
@@ -185,7 +185,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
             <DropdownMenu onOpenChange={handleOpenChange}>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex min-w-0 items-center gap-2 rounded-md py-0.5 pl-1.5 pr-1.5 text-gray-900 transition-colors hover:bg-gray-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                  className="flex min-w-0 items-center gap-2 rounded-md py-0.5 pr-1.5 pl-1.5 text-gray-900 transition-colors hover:bg-gray-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
                   aria-label="Switch task"
                 >
                   <span className="truncate font-semibold">{title}</span>
@@ -197,7 +197,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                 className="w-80 p-0"
               >
                 {/* Search input */}
-                <div className="flex items-center border-b border-gray-200 dark:border-zinc-800 px-3 py-2">
+                <div className="flex items-center border-b border-gray-200 px-3 py-2 dark:border-zinc-800">
                   <Search className="mr-2 size-4 shrink-0 text-gray-400 dark:text-zinc-500" />
                   <input
                     ref={searchInputRef}
@@ -205,7 +205,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                     placeholder="Search tasks..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-gray-900 dark:text-zinc-100 outline-none placeholder:text-gray-400 dark:placeholder:text-zinc-500"
+                    className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                     onKeyDown={(e) => {
                       // Stop propagation for navigation keys (let Escape bubble to close dropdown)
                       if (e.key !== "Escape") {
@@ -250,7 +250,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                         </span>
                         {/* Lead badge */}
                         {task.isLead && (
-                          <span className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
+                          <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium tracking-wide text-amber-700 uppercase ring-1 ring-amber-600/20 ring-inset dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30">
                             Lead
                           </span>
                         )}
@@ -280,7 +280,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           {isLead && (
             <span
               className={cn(
-                "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide ring-1 ring-inset",
+                "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide uppercase ring-1 ring-inset",
                 LEAD_BADGE.className,
               )}
               title="Leader task for distributed training"
@@ -292,7 +292,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           {badge && (
             <span
               className={cn(
-                "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide ring-1 ring-inset",
+                "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide uppercase ring-1 ring-inset",
                 badge.className,
               )}
             >
@@ -368,7 +368,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
       {expandableContent && isExpanded && (
         <div
           id="header-expandable-content"
-          className="mt-3 space-y-3 border-t border-gray-200 dark:border-zinc-800 pt-3"
+          className="mt-3 space-y-3 border-t border-gray-200 pt-3 dark:border-zinc-800"
         >
           {expandableContent}
         </div>

@@ -59,7 +59,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="ml-1.5 shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 transition-colors"
+      className="ml-1.5 shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
       aria-label={`Copy ${label}`}
       title={copied ? "Copied!" : `Copy ${label}`}
     >
@@ -225,7 +225,7 @@ export const TaskDetails = memo(function TaskDetails({
                   Exit Code: {task.exit_code}
                 </div>
                 {task.failure_message && (
-                  <p className="mt-1 text-xs text-red-700 dark:text-red-400 break-words">{task.failure_message}</p>
+                  <p className="mt-1 text-xs break-words text-red-700 dark:text-red-400">{task.failure_message}</p>
                 )}
               </div>
             </div>
@@ -236,7 +236,7 @@ export const TaskDetails = memo(function TaskDetails({
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
           {/* Task UUID - first */}
           <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
-          <dd className="flex items-center min-w-0">
+          <dd className="flex min-w-0 items-center">
             <span
               className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
               title={task.task_uuid}
@@ -253,7 +253,7 @@ export const TaskDetails = memo(function TaskDetails({
           {task.node_name && (
             <>
               <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
-              <dd className="flex items-center min-w-0">
+              <dd className="flex min-w-0 items-center">
                 <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name}</span>
                 <CopyButton
                   value={task.node_name}
@@ -267,7 +267,7 @@ export const TaskDetails = memo(function TaskDetails({
           {task.pod_name && (
             <>
               <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
-              <dd className="flex items-center min-w-0">
+              <dd className="flex min-w-0 items-center">
                 <span
                   className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
                   title={task.pod_name}
@@ -286,7 +286,7 @@ export const TaskDetails = memo(function TaskDetails({
           {task.pod_ip && (
             <>
               <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
-              <dd className="flex items-center min-w-0">
+              <dd className="flex min-w-0 items-center">
                 <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</span>
                 <CopyButton
                   value={task.pod_ip}
