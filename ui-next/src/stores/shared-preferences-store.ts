@@ -57,7 +57,13 @@ export type SharedPreferencesStore = SharedPreferencesState & SharedPreferencesA
 // Initial State
 // =============================================================================
 
-const initialState: SharedPreferencesState = {
+/**
+ * Default initial state for shared preferences.
+ *
+ * Exported for testing purposes - allows resetting store to known state.
+ * @see https://zustand.docs.pmnd.rs/guides/testing
+ */
+export const initialState: SharedPreferencesState = {
   displayMode: "free",
   compactMode: false,
 };
