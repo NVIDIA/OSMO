@@ -45,6 +45,7 @@ import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 
+import type { ColumnSizingState } from "@tanstack/react-table";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";
 import { VirtualTableBody } from "./VirtualTableBody";
@@ -52,10 +53,10 @@ import { ResizeHandle } from "./ResizeHandle";
 import { TableSkeleton } from "./TableSkeleton";
 import { useVirtualizedTable } from "./hooks/use-virtualized-table";
 import { useTableDnd } from "./hooks/use-column-reordering";
-import { useUnifiedColumnSizing } from "./hooks/use-column-resizing";
+import { useColumnSizing } from "./hooks/use-column-sizing";
 import { useRowNavigation } from "./hooks/use-row-navigation";
-import type { Section, SortState, ColumnSizeConfig, ColumnOverride } from "./types";
-import { getColumnCSSValue, pxToRem } from "./utils/column-sizing";
+import type { Section, SortState } from "./types";
+import { getColumnCSSValue } from "./utils/column-sizing";
 
 // Component-specific styles (resize handles, table layout, etc.)
 import "./styles.css";
@@ -171,12 +172,14 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   rowClassName?: string | ((item: TData) => string);
 
   // === Column Sizing ===
-  /** Column size configuration for proportional sizing and resizing (rem-based) */
-  columnSizeConfig?: ColumnSizeConfig[];
-  /** Column overrides from manual resizing (simplified: just share) */
-  columnOverrides?: Record<string, ColumnOverride>;
-  /** Callback when column overrides change (for persistence) */
-  onColumnOverridesChange?: (overrides: Record<string, ColumnOverride>) => void;
+  /**
+   * Persisted column sizing (pixel widths).
+   * Uses TanStack's native ColumnSizingState format: { columnId: pixelWidth }
+   * Initial sizes come from column def's `size` property (or TanStack's 150px default).
+   */
+  columnSizing?: ColumnSizingState;
+  /** Callback when column sizing changes (for persistence) */
+  onColumnSizingChange?: (sizing: ColumnSizingState) => void;
 }
 
 // =============================================================================
@@ -213,9 +216,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
   onRowClick,
   selectedRowId,
   rowClassName,
-  columnSizeConfig,
-  columnOverrides,
-  onColumnOverridesChange,
+  columnSizing: persistedColumnSizing,
+  onColumnSizingChange,
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
@@ -252,26 +254,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
       .filter(Boolean);
   }, [controlledColumnOrder, columns]);
 
-  // Create TanStack table instance
-  // manualSorting: true means we control sorting via props (server-side or external)
-  // No getSortedRowModel needed since we don't use TanStack's sorting
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design. React Compiler skips optimization. See: https://github.com/facebook/react/issues/33057
-  const table = useReactTable({
-    data: allItems,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getRowId,
-    state: {
-      sorting: tanstackSorting,
-      columnVisibility: columnVisibility ?? {},
-      columnOrder,
-    },
-    onColumnVisibilityChange,
-    manualSorting: true,
-  });
-
   // Get visible column IDs for DnD - derive from props to avoid re-render loops
-  // Don't use table.getState() in dependencies as it returns new object each render
   const visibleColumnIds = useMemo(() => {
     if (!columnVisibility) {
       return columnOrder;
@@ -286,40 +269,39 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   const visibleColumnCount = visibleColumnIds.length;
 
-  // Build column size config from visible columns (TanStack table is source of truth)
-  // This ensures width calculation only considers actually-rendered columns
-  const effectiveColumnSizeConfig = useMemo<ColumnSizeConfig[]>(() => {
-    // Create a lookup from provided config
-    const configById = new Map((columnSizeConfig ?? []).map((c) => [c.id, c]));
-
-    // Build config for each visible column, in order
-    return visibleColumnIds.map((id) => {
-      const provided = configById.get(id);
-      if (provided) {
-        return provided;
-      }
-      // Fallback: find column definition and extract sizing info
-      const colDef = columns.find((c) => {
-        const colId = c.id ?? ("accessorKey" in c && c.accessorKey ? String(c.accessorKey) : "");
-        return colId === id;
-      });
-      // Convert pixel minSize to rem (default 80px = 5rem)
-      const minSizePx = colDef?.minSize ?? 80;
-      return {
-        id,
-        minWidthRem: pxToRem(minSizePx),
-        share: 1,
-      };
-    });
-  }, [visibleColumnIds, columnSizeConfig, columns]);
-
-  // Column sizing - single source of truth for all column widths
-  const columnSizing = useUnifiedColumnSizing({
-    columns: effectiveColumnSizeConfig,
+  // Column sizing - minimal wrapper around TanStack's native resize
+  // TanStack handles: drag, min/max enforcement, size state
+  // Hook adds: persistence, CSS variables, proportional container resize
+  const columnSizingHook = useColumnSizing({
+    columnIds: visibleColumnIds,
     containerRef: scrollRef,
-    tableRef: tableElementRef,
-    initialOverrides: columnOverrides,
-    onOverridesChange: onColumnOverridesChange,
+    persistedSizing: persistedColumnSizing,
+    onSizingChange: onColumnSizingChange,
+  });
+
+  // Create TanStack table instance
+  // manualSorting: true means we control sorting via props (server-side or external)
+  // enableColumnResizing: true enables TanStack's native resize handling
+  // columnResizeMode: 'onChange' updates size during drag (smoother UX)
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design. React Compiler skips optimization. See: https://github.com/facebook/react/issues/33057
+  const table = useReactTable({
+    data: allItems,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId,
+    state: {
+      sorting: tanstackSorting,
+      columnVisibility: columnVisibility ?? {},
+      columnOrder,
+      columnSizing: columnSizingHook.columnSizing,
+      columnSizingInfo: columnSizingHook.columnSizingInfo,
+    },
+    onColumnVisibilityChange,
+    onColumnSizingChange: columnSizingHook.onColumnSizingChange,
+    onColumnSizingInfoChange: columnSizingHook.onColumnSizingInfoChange,
+    manualSorting: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
   });
 
   // DnD setup - with bounds restriction to prevent dragging beyond table width
@@ -482,7 +464,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
               aria-rowcount={ariaRowCount}
               aria-colcount={visibleColumnCount}
               className={cn("contain-layout-style data-table min-w-full border-collapse text-sm", className)}
-              style={columnSizing.cssVariables}
+              style={columnSizingHook.cssVariables}
             >
               {/* Table Header */}
               <thead
@@ -530,16 +512,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               direction={isSorted === "asc" ? "asc" : isSorted === "desc" ? "desc" : undefined}
                               onSort={handleHeaderSort}
                             />
-                            {/* Resize handle */}
+                            {/* Resize handle - uses TanStack's native getResizeHandler */}
                             <ResizeHandle
-                              columnId={header.id}
-                              isResizing={columnSizing.isResizing}
-                              onPointerDown={columnSizing.resize.handlePointerDown}
-                              onPointerMove={columnSizing.resize.handlePointerMove}
-                              onPointerUp={columnSizing.resize.handlePointerUp}
-                              onPointerCancel={columnSizing.resize.handlePointerCancel}
-                              onAutoFit={columnSizing.actions.autoFitColumn}
-                              onReset={columnSizing.actions.resetColumn}
+                              header={header}
+                              onResizeEnd={columnSizingHook.handleResizeEnd}
                             />
                           </>
                         );
