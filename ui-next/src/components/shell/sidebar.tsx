@@ -37,7 +37,7 @@ const NavItem = memo(function NavItem({ item, isActive, collapsed }: NavItemProp
       <Icon className="h-4 w-4 shrink-0" />
       <span
         className={cn(
-          "transition-all duration-200 ease-out overflow-hidden whitespace-nowrap",
+          "overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
           collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
         )}
       >
@@ -107,7 +107,7 @@ export function Sidebar() {
             />
             <span
               className={cn(
-                "text-lg font-semibold tracking-tight transition-all duration-200 ease-out overflow-hidden whitespace-nowrap",
+                "overflow-hidden text-lg font-semibold tracking-tight whitespace-nowrap transition-all duration-200 ease-out",
                 collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
               )}
             >
@@ -126,7 +126,7 @@ export function Sidebar() {
                   key={i}
                   className={cn(
                     "h-9 animate-pulse rounded-lg bg-zinc-200 transition-all duration-200 ease-out dark:bg-zinc-800",
-                    collapsed ? "w-9 mx-auto" : "",
+                    collapsed ? "mx-auto w-9" : "",
                   )}
                 />
               ))}
@@ -145,7 +145,7 @@ export function Sidebar() {
                 {section.label && (
                   <div
                     className={cn(
-                      "px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-all duration-200 ease-out overflow-hidden whitespace-nowrap dark:text-zinc-400",
+                      "overflow-hidden px-3 py-2 text-xs font-semibold tracking-wider whitespace-nowrap text-zinc-500 uppercase transition-all duration-200 ease-out dark:text-zinc-400",
                       collapsed ? "h-0 py-0 opacity-0" : "h-auto opacity-100",
                     )}
                   >
@@ -175,7 +175,7 @@ export function Sidebar() {
                 aria-expanded={!collapsed}
                 aria-controls="sidebar-nav"
                 className={cn(
-                  "flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ease-out text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100",
+                  "flex w-full items-center rounded-lg py-2 text-sm font-medium text-zinc-600 transition-all duration-200 ease-out hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100",
                   collapsed ? "justify-center px-2" : "gap-3 px-3",
                 )}
               >
@@ -186,7 +186,7 @@ export function Sidebar() {
                 )}
                 <span
                   className={cn(
-                    "transition-all duration-200 ease-out overflow-hidden whitespace-nowrap",
+                    "overflow-hidden whitespace-nowrap transition-all duration-200 ease-out",
                     collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
                   )}
                 >

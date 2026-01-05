@@ -280,7 +280,7 @@ export const GroupDetails = memo(function GroupDetails({
       />
 
       {/* Search */}
-      <div className="space-y-2 border-b border-gray-200 dark:border-zinc-800 px-4 py-3">
+      <div className="space-y-2 border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
         <SmartSearch
           tasks={tasksWithDuration}
           chips={searchChips}

@@ -143,7 +143,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       size: getColumnMinSize("gpu"),
       minSize: getColumnMinSize("gpu"),
       cell: ({ row }) => (
-        <div className="whitespace-nowrap text-right tabular-nums">
+        <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
             used={row.original.gpu.used}
             total={row.original.gpu.total}
@@ -160,7 +160,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       size: getColumnMinSize("cpu"),
       minSize: getColumnMinSize("cpu"),
       cell: ({ row }) => (
-        <div className="whitespace-nowrap text-right tabular-nums">
+        <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
             used={row.original.cpu.used}
             total={row.original.cpu.total}
@@ -177,7 +177,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       size: getColumnMinSize("memory"),
       minSize: getColumnMinSize("memory"),
       cell: ({ row }) => (
-        <div className="whitespace-nowrap text-right tabular-nums">
+        <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
             used={row.original.memory.used}
             total={row.original.memory.total}
@@ -195,7 +195,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       size: getColumnMinSize("storage"),
       minSize: getColumnMinSize("storage"),
       cell: ({ row }) => (
-        <div className="whitespace-nowrap text-right tabular-nums">
+        <div className="text-right whitespace-nowrap tabular-nums">
           <CapacityCell
             used={row.original.storage.used}
             total={row.original.storage.total}

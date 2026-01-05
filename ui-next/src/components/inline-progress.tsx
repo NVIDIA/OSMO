@@ -82,7 +82,7 @@ export const InlineProgress = memo(function InlineProgress({
   if (compact) {
     return (
       <div className={cn("flex items-center gap-1.5", className)}>
-        <span className="tabular-nums text-xs text-zinc-700 dark:text-zinc-300">{displayLabel}</span>
+        <span className="text-xs text-zinc-700 tabular-nums dark:text-zinc-300">{displayLabel}</span>
         {children}
       </div>
     );
@@ -98,7 +98,7 @@ export const InlineProgress = memo(function InlineProgress({
           thresholdColors
         />
       </div>
-      <span className="whitespace-nowrap tabular-nums text-xs text-zinc-600 dark:text-zinc-400">{displayLabel}</span>
+      <span className="text-xs whitespace-nowrap text-zinc-600 tabular-nums dark:text-zinc-400">{displayLabel}</span>
       {children}
     </div>
   );
