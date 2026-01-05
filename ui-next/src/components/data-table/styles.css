@@ -13,12 +13,17 @@
  *
  * CSS for the virtualized data table component.
  *
+ * Uses @reference to access Tailwind theme and utilities from globals.css
+ * without duplicating CSS in the bundle.
+ * See: https://tailwindcss.com/docs/upgrade-guide#using-apply-with-vue-svelte-or-css-modules
+ *
  * ## Performance Optimizations
  * - CSS containment: Isolates layout/paint to subtrees
  * - content-visibility: Skips rendering of off-screen content
  * - will-change: Hints for GPU compositing (used sparingly)
  * - contain-intrinsic-size: Prevents layout shifts
  */
+@reference "../../app/globals.css";
 
 /* Base table styles */
 .data-table {
@@ -79,31 +84,14 @@
   }
 }
 
-/* Header row - uses CSS custom property for theme consistency */
+/* Header row - uses Tailwind theme values for consistency */
 .data-table-header {
-  --dt-header-bg: var(--color-zinc-100);
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  background: var(--dt-header-bg);
-
-  :is(.dark &) {
-    --dt-header-bg: var(--color-zinc-900);
-  }
+  @apply sticky top-0 z-20 flex bg-zinc-100 dark:bg-zinc-900;
 }
 
 /* Section header row (sticky within scroll) */
 .data-table-section {
-  --dt-section-bg: var(--color-zinc-100);
-  position: sticky;
-  z-index: 10;
-  display: flex;
-  background: var(--dt-section-bg);
-
-  :is(.dark &) {
-    --dt-section-bg: var(--color-zinc-900);
-  }
+  @apply sticky z-10 flex bg-zinc-100 dark:bg-zinc-900;
 }
 
 /* Cell alignment helpers */
@@ -137,29 +125,20 @@
 
 /* Row states using CSS nesting */
 .data-table-row--interactive {
-  cursor: pointer;
-  transition: background-color 150ms;
+  @apply cursor-pointer transition-colors duration-150;
 
   &:hover {
-    background: var(--color-zinc-50);
-  }
-
-  :is(.dark &):hover {
-    background: var(--color-zinc-900);
+    @apply bg-zinc-50 dark:bg-zinc-900;
   }
 
   /* Ensure filler area is also clickable */
   &::after {
-    cursor: pointer;
+    @apply cursor-pointer;
   }
 }
 
 .data-table-row--selected {
-  background: var(--color-zinc-100);
-
-  :is(.dark &) {
-    background: var(--color-zinc-800);
-  }
+  @apply bg-zinc-100 dark:bg-zinc-800;
 }
 
 /* =============================================================================
@@ -168,53 +147,36 @@
 
 /* Focus visible on rows - subtle outline */
 .data-table-row:focus-visible {
-  outline: 2px solid var(--color-blue-500);
+  @apply z-[1] outline-2 outline-blue-500;
   outline-offset: -2px;
-  z-index: 1;
 }
 
 /* Focus visible on cells - for grid navigation */
 .data-table-row td:focus-visible,
 .data-table-row [role="gridcell"]:focus-visible {
-  outline: 2px solid var(--color-blue-500);
+  @apply outline-2 outline-blue-500 bg-blue-50 dark:bg-blue-500/15;
   outline-offset: -2px;
-  background: var(--color-blue-50);
-
-  :is(.dark &) {
-    background: rgba(59, 130, 246, 0.15);
-  }
 }
 
 /* Focus visible on header cells */
 .data-table th:focus-visible,
 .data-table [role="columnheader"]:focus-visible {
-  outline: 2px solid var(--color-blue-500);
+  @apply outline-2 outline-blue-500;
   outline-offset: -2px;
 }
 
 /* Skip link for accessibility - visually hidden until focused */
 .data-table-skip-link {
-  position: absolute;
-  left: -9999px;
-  z-index: 100;
-  padding: 0.5rem 1rem;
-  background: var(--color-zinc-900);
-  color: white;
-  text-decoration: none;
-  border-radius: 0.25rem;
+  @apply absolute left-[-9999px] z-[100] rounded bg-zinc-900 px-4 py-2 text-white no-underline;
 
   &:focus {
-    left: 0.5rem;
-    top: 0.5rem;
+    @apply left-2 top-2;
   }
 }
 
 /* Scroll container */
 .data-table-scroll {
-  overflow: auto;
-  overscroll-behavior: contain;
-
-  /* Reserve space for scrollbar to prevent layout shifts when it appears/disappears */
+  @apply overflow-auto overscroll-contain;
   scrollbar-gutter: stable;
 }
 
@@ -229,46 +191,23 @@
 
 /* Resize handle - positioned at right edge of header cell */
 .resize-handle {
-  position: absolute;
-  inset-inline-end: 0; /* RTL-aware right positioning */
-  top: 0;
-  bottom: 0;
-  width: 0.5rem; /* 8px at 16px base */
-  cursor: col-resize;
-  user-select: none;
-  touch-action: none;
-  z-index: 1;
+  @apply absolute inset-y-0 end-0 z-[1] w-2 cursor-col-resize select-none touch-none;
 
   /* Visual indicator line */
   &::after {
     content: "";
-    position: absolute;
-    inset-inline-end: 0.1875rem; /* 3px */
-    top: 25%;
-    bottom: 25%;
-    width: 0.125rem; /* 2px */
-    background: transparent;
-    border-radius: 0.0625rem; /* 1px */
-    transition: background-color 150ms;
+    @apply absolute end-[3px] top-1/4 bottom-1/4 w-0.5 rounded-sm bg-transparent transition-colors duration-150;
   }
 
   /* Hover state */
   &:hover::after {
-    background: var(--color-zinc-400);
-
-    :is(.dark &) {
-      background: var(--color-zinc-500);
-    }
+    @apply bg-zinc-400 dark:bg-zinc-500;
   }
 
   /* Active/dragging state */
   &:active::after,
   &.is-dragging::after {
-    background: var(--color-zinc-500);
-
-    :is(.dark &) {
-      background: var(--color-zinc-400);
-    }
+    @apply bg-zinc-500 dark:bg-zinc-400;
   }
 }
 
