@@ -76,7 +76,6 @@ export function usePage(config: PageConfig) {
   useLayoutEffect(() => {
     setConfig(config);
     return () => setConfig(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.title, breadcrumbsKey, setConfig]);
 }
 

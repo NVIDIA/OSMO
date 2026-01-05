@@ -111,7 +111,7 @@ function SectionedTableBodyInner<TData, TSectionMeta = unknown>({
   renderSectionHeader,
   sectionRowClassName,
 }: SectionedTableBodyProps<TData, TSectionMeta>) {
-  let globalRowIndex = 0;
+  const globalRowIndex = 0;
 
   return (
     <tbody role="rowgroup">
