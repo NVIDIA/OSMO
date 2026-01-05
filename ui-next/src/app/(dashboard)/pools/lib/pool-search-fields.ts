@@ -51,7 +51,7 @@ function parseNumericFilter(input: string): ParsedNumericFilter | null {
  */
 function validateNumericFilter(
   input: string,
-  opts: { allowPercent?: boolean; allowDiscrete?: boolean } = {}
+  opts: { allowPercent?: boolean; allowDiscrete?: boolean } = {},
 ): true | string {
   const { allowPercent = true, allowDiscrete = true } = opts;
   const trimmed = input.trim();
@@ -74,31 +74,28 @@ function validateNumericFilter(
  * Compare a numeric value against a parsed filter
  * For percentages, rounds to nearest integer before comparing
  */
-function compareNumeric(
-  actual: number,
-  op: CompareOp,
-  target: number,
-  isPercent: boolean
-): boolean {
+function compareNumeric(actual: number, op: CompareOp, target: number, isPercent: boolean): boolean {
   // Round percentages to nearest integer for comparison
   const value = isPercent ? Math.round(actual) : actual;
 
   switch (op) {
-    case ">=": return value >= target;
-    case ">":  return value > target;
-    case "<=": return value <= target;
-    case "<":  return value < target;
-    case "=":  return value === target;
+    case ">=":
+      return value >= target;
+    case ">":
+      return value > target;
+    case "<=":
+      return value <= target;
+    case "<":
+      return value < target;
+    case "=":
+      return value === target;
   }
 }
 
 /**
  * Create a match function for numeric filters
  */
-function createNumericMatch(
-  getValue: (pool: Pool) => number,
-  getMax?: (pool: Pool) => number
-) {
+function createNumericMatch(getValue: (pool: Pool) => number, getMax?: (pool: Pool) => number) {
   return (pool: Pool, value: string): boolean => {
     const parsed = parseNumericFilter(value);
     if (!parsed) return false;
@@ -171,10 +168,10 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
     freeTextOnly: true,
-    validate: (v) => validateNumericFilter(v),  // Accepts both
+    validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.free,
-      (p) => p.quota.limit
+      (p) => p.quota.limit,
     ),
     variant: "free" as ChipVariant,
   },
@@ -186,10 +183,10 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
     freeTextOnly: true,
-    validate: (v) => validateNumericFilter(v),  // Accepts both
+    validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.used,
-      (p) => p.quota.limit
+      (p) => p.quota.limit,
     ),
     variant: "used" as ChipVariant,
   },
@@ -203,10 +200,10 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
     freeTextOnly: true,
-    validate: (v) => validateNumericFilter(v),  // Accepts both
+    validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.totalFree,
-      (p) => p.quota.totalCapacity
+      (p) => p.quota.totalCapacity,
     ),
     variant: "free" as ChipVariant,
   },
@@ -218,10 +215,10 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
     freeTextOnly: true,
-    validate: (v) => validateNumericFilter(v),  // Accepts both
+    validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.totalUsage,
-      (p) => p.quota.totalCapacity
+      (p) => p.quota.totalCapacity,
     ),
     variant: "used" as ChipVariant,
   },
@@ -266,11 +263,7 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
     requiresValidValue: true,
   };
 
-  return [
-    ...BASE_POOL_SEARCH_FIELDS,
-    sharedField,
-    ...NUMERIC_POOL_SEARCH_FIELDS,
-  ];
+  return [...BASE_POOL_SEARCH_FIELDS, sharedField, ...NUMERIC_POOL_SEARCH_FIELDS];
 }
 
 /** Export numeric filter utilities for testing */

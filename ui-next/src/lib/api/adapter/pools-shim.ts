@@ -120,11 +120,7 @@ export interface FilteredPoolsResult {
  *
  * @internal
  */
-function applyPoolFilters(
-  pools: Pool[],
-  params: PoolFilterParams,
-  sharingGroups: string[][],
-): Pool[] {
+function applyPoolFilters(pools: Pool[], params: PoolFilterParams, sharingGroups: string[][]): Pool[] {
   let result = pools;
 
   // SHIM: Filter by status (should be server-side)
@@ -136,9 +132,7 @@ function applyPoolFilters(
   // SHIM: Filter by platform (should be server-side)
   if (params.platforms && params.platforms.length > 0) {
     const platformSet = new Set(params.platforms);
-    result = result.filter((pool) =>
-      pool.platforms.some((platform) => platformSet.has(platform)),
-    );
+    result = result.filter((pool) => pool.platforms.some((platform) => platformSet.has(platform)));
   }
 
   // SHIM: Filter by backend (should be server-side)

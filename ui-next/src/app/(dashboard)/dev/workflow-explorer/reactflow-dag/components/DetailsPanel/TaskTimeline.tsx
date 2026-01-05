@@ -74,9 +74,7 @@ function calculatePhaseDuration(start: Date | null, end: Date | null): number | 
 // Component
 // ============================================================================
 
-export const TaskTimeline = memo(function TaskTimeline({
-  task,
-}: TaskTimelineProps) {
+export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelineProps) {
   const statusCategory = getStatusCategory(task.status);
   const isCompleted = statusCategory === "completed";
   const isFailed = statusCategory === "failed";
@@ -173,7 +171,17 @@ export const TaskTimeline = memo(function TaskTimeline({
     }
 
     return result;
-  }, [schedulingStart, initializingStart, inputDownloadStart, inputDownloadEnd, processingStart, startTime, outputUploadStart, endTime, isRunning]);
+  }, [
+    schedulingStart,
+    initializingStart,
+    inputDownloadStart,
+    inputDownloadEnd,
+    processingStart,
+    startTime,
+    outputUploadStart,
+    endTime,
+    isRunning,
+  ]);
 
   // No timeline data
   if (phases.length === 0) {
@@ -201,12 +209,19 @@ export const TaskTimeline = memo(function TaskTimeline({
     <TooltipProvider delayDuration={200}>
       <div className="space-y-1">
         {/* Screen reader description */}
-        <div className="sr-only" role="img" aria-label={`Timeline: ${accessibleDescription}`}>
+        <div
+          className="sr-only"
+          role="img"
+          aria-label={`Timeline: ${accessibleDescription}`}
+        >
           {accessibleDescription}
         </div>
 
         {/* Timeline visualization */}
-        <div className="relative" aria-hidden="true">
+        <div
+          className="relative"
+          aria-hidden="true"
+        >
           {/* Timeline bar */}
           <div className="flex h-6 items-center gap-0">
             {phases.map((phase, index) => {
@@ -234,11 +249,14 @@ export const TaskTimeline = memo(function TaskTimeline({
                           "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
                           phase.status === "completed" && "timeline-marker-completed",
                           phase.status === "active" && "timeline-marker-running animate-pulse",
-                          phase.status === "pending" && "timeline-marker-pending border-dashed"
+                          phase.status === "pending" && "timeline-marker-pending border-dashed",
                         )}
                       />
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
+                    <TooltipContent
+                      side="top"
+                      className="text-xs"
+                    >
                       <div className="font-medium">{phase.label}</div>
                       {phase.startTime && (
                         <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(phase.startTime)}</div>
@@ -252,7 +270,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                       "h-1 flex-1",
                       phase.status === "completed" && "timeline-segment-completed",
                       phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && "border-t border-dashed border-gray-400 dark:border-zinc-600"
+                      phase.status === "pending" && "border-t border-dashed border-gray-400 dark:border-zinc-600",
                     )}
                   />
 
@@ -266,15 +284,16 @@ export const TaskTimeline = memo(function TaskTimeline({
                           className={cn(
                             "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
                             isCompleted && "timeline-marker-completed",
-                            isFailed && "timeline-marker-failed"
+                            isFailed && "timeline-marker-failed",
                           )}
                         />
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs">
+                      <TooltipContent
+                        side="top"
+                        className="text-xs"
+                      >
                         <div className="font-medium">{isCompleted ? "Completed" : "Failed"}</div>
-                        {endTime && (
-                          <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(endTime)}</div>
-                        )}
+                        {endTime && <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(endTime)}</div>}
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -310,7 +329,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                       "text-[10px] font-medium",
                       phase.status === "completed" && "timeline-text-completed",
                       phase.status === "active" && "timeline-text-running",
-                      phase.status === "pending" && "timeline-text-pending"
+                      phase.status === "pending" && "timeline-text-pending",
                     )}
                   >
                     {phase.shortLabel}
@@ -319,7 +338,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                     <span
                       className={cn(
                         "text-[10px] opacity-70",
-                        phase.status === "active" ? "timeline-text-running" : "timeline-text-pending"
+                        phase.status === "active" ? "timeline-text-running" : "timeline-text-pending",
                       )}
                     >
                       {formatDuration(phase.duration)}
@@ -331,7 +350,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                       className={cn(
                         "absolute right-0 text-[10px] font-medium",
                         isCompleted && "timeline-text-completed",
-                        isFailed && "timeline-text-failed"
+                        isFailed && "timeline-text-failed",
                       )}
                     >
                       {isCompleted ? "Done" : "Failed"}

@@ -82,20 +82,22 @@ export function RouteError({
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="w-full max-w-lg text-center">
-          <h2 className="mb-2 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {title}
-          </h2>
+          <h2 className="mb-2 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{title}</h2>
 
-          <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
-            {description}
-          </p>
+          <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
 
           <div className="mb-6 text-left">
-            <ErrorDetails error={error} className="bg-zinc-50 dark:bg-zinc-900" />
+            <ErrorDetails
+              error={error}
+              className="bg-zinc-50 dark:bg-zinc-900"
+            />
           </div>
 
           <div className="flex justify-center gap-3">
-            <Button onClick={reset} className="gap-2">
+            <Button
+              onClick={reset}
+              className="gap-2"
+            >
               <RefreshCw className="h-4 w-4" />
               Try again
             </Button>
@@ -112,9 +114,7 @@ export function RouteError({
           <p className="mt-6 text-xs text-zinc-400 dark:text-zinc-500">
             If this keeps happening, try refreshing the page
             {error.digest && (
-              <span className="mt-1 block font-mono text-zinc-300 dark:text-zinc-600">
-                Error ID: {error.digest}
-              </span>
+              <span className="mt-1 block font-mono text-zinc-300 dark:text-zinc-600">Error ID: {error.digest}</span>
             )}
           </p>
         </div>
@@ -141,13 +141,9 @@ export function RouteError({
       {/* Error card */}
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-8 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="text-center">
-          <h2 className="mb-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {title}
-          </h2>
+          <h2 className="mb-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{title}</h2>
 
-          <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
-            {description}
-          </p>
+          <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
         </div>
 
         <div className="mx-auto mb-6 max-w-lg">
@@ -155,7 +151,10 @@ export function RouteError({
         </div>
 
         <div className="flex justify-center gap-3">
-          <Button onClick={reset} className="gap-2">
+          <Button
+            onClick={reset}
+            className="gap-2"
+          >
             <RefreshCw className="h-4 w-4" />
             Try again
           </Button>

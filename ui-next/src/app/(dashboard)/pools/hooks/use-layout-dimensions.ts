@@ -35,12 +35,15 @@ interface LayoutDimensions {
 export function useLayoutDimensions(): LayoutDimensions {
   // Read CSS variables once on mount - avoids double render from useEffect
   // Safe because CSS custom properties are defined in pools.css which loads before components
-  return useMemo(() => ({
-    headerHeight: getCssVarPx("--pools-header-height", "2.25rem"),
-    sectionHeight: getCssVarPx("--pools-section-height", "2.25rem"),
-    rowHeight: getCssVarPx("--pools-row-height", "3rem"),
-    rowHeightCompact: getCssVarPx("--pools-row-height-compact", "2rem"),
-  }), []);
+  return useMemo(
+    () => ({
+      headerHeight: getCssVarPx("--pools-header-height", "2.25rem"),
+      sectionHeight: getCssVarPx("--pools-section-height", "2.25rem"),
+      rowHeight: getCssVarPx("--pools-row-height", "3rem"),
+      rowHeightCompact: getCssVarPx("--pools-row-height-compact", "2rem"),
+    }),
+    [],
+  );
 }
 
 // =============================================================================

@@ -61,17 +61,11 @@ export function BooleanIndicator({
     <span
       className={cn(
         "inline-flex items-center gap-1 text-sm",
-        value
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-zinc-400 dark:text-zinc-500",
+        value ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500",
         className,
       )}
     >
-      {value ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <Ban className="h-3.5 w-3.5" />
-      )}
+      {value ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
       {value ? trueLabel : falseLabel}
     </span>
   );

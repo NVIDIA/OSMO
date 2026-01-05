@@ -18,10 +18,7 @@
  * - PanelCloseButton: Close button
  */
 
-export {
-  ResizablePanel,
-  type ResizablePanelProps,
-} from "./resizable-panel";
+export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
 
 export {
   PANEL,

@@ -318,9 +318,7 @@ export function useUnifiedColumnSizing({
     if (effectiveWidth <= 0) {
       const totalMin = resolved.reduce((sum, c) => sum + c.minWidthPx, 0);
       effectiveWidth =
-        typeof window !== "undefined"
-          ? Math.max(window.innerWidth - 100, totalMin)
-          : Math.max(totalMin * 1.5, 1000);
+        typeof window !== "undefined" ? Math.max(window.innerWidth - 100, totalMin) : Math.max(totalMin * 1.5, 1000);
     }
 
     return calculateColumnWidths(resolved, effectiveWidth);
@@ -347,10 +345,13 @@ export function useUnifiedColumnSizing({
   // ===== Helpers =====
 
   /** Get config min (absolute floor from code) */
-  const getConfigMinPx = useCallback((columnId: string): number => {
-    const col = columnsRef.current.find((c) => c.id === columnId);
-    return col ? remToPx(col.minWidthRem, baseFontSize) : 0;
-  }, [baseFontSize, columnsRef]);
+  const getConfigMinPx = useCallback(
+    (columnId: string): number => {
+      const col = columnsRef.current.find((c) => c.id === columnId);
+      return col ? remToPx(col.minWidthRem, baseFontSize) : 0;
+    },
+    [baseFontSize, columnsRef],
+  );
 
   /** Measure a single column's content width */
   const measureColumn = useCallback(
@@ -368,9 +369,7 @@ export function useUnifiedColumnSizing({
       const table = tableRef.current;
       if (!table) return 0;
 
-      const headerCell = table.querySelector(
-        `th[data-column-id="${columnId}"]`,
-      ) as HTMLElement | null;
+      const headerCell = table.querySelector(`th[data-column-id="${columnId}"]`) as HTMLElement | null;
 
       return headerCell?.offsetWidth || widthsRef.current[columnId] || 0;
     },
@@ -480,12 +479,7 @@ export function useUnifiedColumnSizing({
     // Calculate new overrides for ALL columns:
     // - Resized column: minWidthPx = newWidth
     // - All columns: shares recalculated to preserve their pixel widths
-    const newOverrides = calculateResizeOverrides(
-      drag.columnId,
-      newWidth,
-      drag.snapshotWidths,
-      drag.snapshotMins,
-    );
+    const newOverrides = calculateResizeOverrides(drag.columnId, newWidth, drag.snapshotWidths, drag.snapshotMins);
 
     // Batched dispatch: set overrides and end resize in single state update
     dispatch({ type: "COMMIT_RESIZE", overrides: newOverrides });
@@ -617,7 +611,14 @@ export function useUnifiedColumnSizing({
       document.removeEventListener("visibilitychange", onVisibilityChange);
       removeGlobalListenersRef.current = null;
     };
-  }, [onPointerMoveGlobal, onPointerUpGlobal, onPointerCancelGlobal, onLostPointerCapture, onWindowBlur, onVisibilityChange]);
+  }, [
+    onPointerMoveGlobal,
+    onPointerUpGlobal,
+    onPointerCancelGlobal,
+    onLostPointerCapture,
+    onWindowBlur,
+    onVisibilityChange,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -690,7 +691,16 @@ export function useUnifiedColumnSizing({
       lockScroll();
       dispatch({ type: "START_RESIZE", columnId });
     },
-    [getConfigMinPx, getActualColumnWidth, measureColumn, lockScroll, addGlobalListeners, baseFontSize, widthsRef, effectiveMinsRef],
+    [
+      getConfigMinPx,
+      getActualColumnWidth,
+      measureColumn,
+      lockScroll,
+      addGlobalListeners,
+      baseFontSize,
+      widthsRef,
+      effectiveMinsRef,
+    ],
   );
 
   // These are still exposed for component API but global listeners do the actual work
@@ -758,19 +768,30 @@ export function useUnifiedColumnSizing({
         onOverridesChangeRef.current?.(newOverrides);
       });
     },
-    [measureColumn, getConfigMinPx, calculateResizeOverrides, updateCSSVariable, widthsRef, effectiveMinsRef, onOverridesChangeRef],
+    [
+      measureColumn,
+      getConfigMinPx,
+      calculateResizeOverrides,
+      updateCSSVariable,
+      widthsRef,
+      effectiveMinsRef,
+      onOverridesChangeRef,
+    ],
   );
 
   // ===== Actions =====
 
-  const resetColumn = useCallback((_columnId: string) => {
-    // In the new model, resetting any column clears ALL overrides
-    // because shares are interdependent - going back to proportional mode
-    dispatch({ type: "CLEAR_ALL_OVERRIDES" });
-    queueMicrotask(() => {
-      onOverridesChangeRef.current?.({});
-    });
-  }, [onOverridesChangeRef]);
+  const resetColumn = useCallback(
+    (_columnId: string) => {
+      // In the new model, resetting any column clears ALL overrides
+      // because shares are interdependent - going back to proportional mode
+      dispatch({ type: "CLEAR_ALL_OVERRIDES" });
+      queueMicrotask(() => {
+        onOverridesChangeRef.current?.({});
+      });
+    },
+    [onOverridesChangeRef],
+  );
 
   const resetAllColumns = useCallback(() => {
     dispatch({ type: "CLEAR_ALL_OVERRIDES" });
