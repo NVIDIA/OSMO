@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../workflow-types";
 import { TaskGroupStatus, isFailedStatus } from "../../workflow-types";
-import type { GroupNodeData } from "../types/layout";
+import type { GroupNodeData } from "../types/dag-layout";
 import { useDAGContext } from "../context";
 import { getStatusIcon, getStatusCategory, getStatusLabel } from "../utils/status";
 import { calculateDuration, formatDuration } from "../../workflow-types";

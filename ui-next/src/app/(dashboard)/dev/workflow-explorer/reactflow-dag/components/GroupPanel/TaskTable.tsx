@@ -206,7 +206,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   return (
     <div
       ref={setNodeRef}
-      role="columnheader"
       style={style}
       className={cn(
         "flex cursor-grab items-center active:cursor-grabbing",
@@ -215,6 +214,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
       )}
       {...attributes}
       {...listeners}
+      role="columnheader"
     >
       <button
         onClick={handleClick}

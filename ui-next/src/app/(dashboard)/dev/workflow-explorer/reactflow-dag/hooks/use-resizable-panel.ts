@@ -47,7 +47,7 @@ export interface UseResizablePanelReturn {
   /** Event handler for the resize handle's mousedown event */
   handleMouseDown: (e: React.MouseEvent) => void;
   /** Ref to attach to the container element */
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // ============================================================================
