@@ -8,7 +8,7 @@
 
 "use client";
 
-import { createContext, useContext, useState, useLayoutEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useLayoutEffect, useMemo, type ReactNode } from "react";
 
 /**
  * Breadcrumb segment for navigation
@@ -68,15 +68,23 @@ export function usePage(config: PageConfig) {
 
   const { setConfig } = context;
 
-  // Serialize breadcrumbs for stable dependency
+  // Serialize breadcrumbs for stable dependency comparison
   const breadcrumbsKey = config.breadcrumbs
     ?.map((b) => `${b.label}:${b.href ?? ""}`)
     .join("|") ?? "";
 
+  // Memoize config to create stable reference based on actual content
+  const stableConfig = useMemo(
+    () => config,
+    // Only recreate when actual content changes (primitives, not object reference)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config.title, breadcrumbsKey]
+  );
+
   useLayoutEffect(() => {
-    setConfig(config);
+    setConfig(stableConfig);
     return () => setConfig(null);
-  }, [config.title, breadcrumbsKey, setConfig]);
+  }, [stableConfig, setConfig]);
 }
 
 /**
