@@ -86,7 +86,7 @@ export interface SmartSearchProps<T> {
   /** Data to search through (for autocomplete values) */
   data: T[];
   /** Field definitions for this search */
-  fields: SearchField<T>[];
+  fields: readonly SearchField<T>[];
   /** Current chips */
   chips: SearchChip[];
   /** Callback when chips change */
@@ -110,7 +110,7 @@ export interface SmartSearchProps<T> {
  * @param fields - Field definitions with match functions
  * @returns Filtered items
  */
-export function filterByChips<T>(items: T[], chips: SearchChip[], fields: SearchField<T>[]): T[] {
+export function filterByChips<T>(items: T[], chips: SearchChip[], fields: readonly SearchField<T>[]): T[] {
   if (chips.length === 0) return items;
 
   // Group chips by field

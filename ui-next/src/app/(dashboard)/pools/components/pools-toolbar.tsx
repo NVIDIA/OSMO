@@ -13,7 +13,7 @@
 import { memo, useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import { TableToolbar } from "@/components/table-toolbar";
+import { TableToolbar } from "@/components/data-table";
 import { usePoolsTableStore } from "../stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
 import { createPoolSearchFields } from "../lib/pool-search-fields";

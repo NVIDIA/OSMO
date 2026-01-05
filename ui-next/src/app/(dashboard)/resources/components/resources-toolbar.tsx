@@ -13,7 +13,7 @@
 import { memo } from "react";
 import type { Resource } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import { TableToolbar } from "@/components/table-toolbar";
+import { TableToolbar } from "@/components/data-table";
 import { useResourcesTableStore } from "../stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/resource-columns";
 import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";

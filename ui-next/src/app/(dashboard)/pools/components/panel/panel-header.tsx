@@ -24,7 +24,7 @@ import React, { memo } from "react";
 import { Server, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter";
-import { PanelHeaderActions } from "@/components/panel-header-controls";
+import { PanelHeaderActions } from "@/components/panel";
 import { getStatusDisplay, getStatusStyles } from "../../lib/constants";
 import { usePoolsExtendedStore } from "../../stores/pools-table-store";
 

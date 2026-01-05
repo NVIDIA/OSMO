@@ -7,7 +7,7 @@ import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
 import { useNavigation, type NavItem as NavItemType } from "@/lib/navigation";
-import { NvidiaLogo } from "@/components/nvidia-logo";
+import { NvidiaLogo } from "./nvidia-logo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
 
 interface NavItemProps {

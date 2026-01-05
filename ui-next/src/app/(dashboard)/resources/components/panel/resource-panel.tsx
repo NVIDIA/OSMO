@@ -19,7 +19,7 @@
 
 import { useCallback } from "react";
 import type { Resource } from "@/lib/api/adapter";
-import { ResizablePanel } from "@/components/resizable-panel";
+import { ResizablePanel } from "@/components/panel";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 import { PANEL } from "../../lib/constants";
 import { ResourcePanelHeader } from "./panel-header";

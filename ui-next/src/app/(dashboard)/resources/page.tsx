@@ -29,8 +29,7 @@
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsString } from "nuqs";
 import { usePage } from "@/components/shell";
-import { InlineErrorBoundary } from "@/components/inline-error-boundary";
-import { ApiError, type ApiErrorProps } from "@/components/api-error";
+import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
 import { useUrlChips } from "@/hooks";
 import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/stores";
