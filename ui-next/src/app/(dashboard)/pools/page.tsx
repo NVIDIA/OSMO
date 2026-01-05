@@ -29,10 +29,10 @@
 
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsString } from "nuqs";
-import { InlineErrorBoundary } from "@/components/inline-error-boundary";
+import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/shell";
 import { useUrlChips } from "@/hooks";
-import { PoolsTable } from "./components/table/pools-table";
+import { PoolsDataTable } from "./components/table/pools-data-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";
 import { usePoolsData } from "./hooks/use-pools-data";
@@ -101,11 +101,6 @@ export default function PoolsPage() {
     [allPools, selectedPoolName],
   );
 
-  // Pools data for table (null when loading or error)
-  const poolsData = useMemo(
-    () => (pools.length > 0 || !isLoading ? { pools, sharingGroups } : null),
-    [pools, sharingGroups, isLoading],
-  );
 
   // ==========================================================================
   // Render
@@ -140,8 +135,9 @@ export default function PoolsPage() {
             resetKeys={[pools.length]}
             onReset={refetch}
           >
-            <PoolsTable
-              poolsData={poolsData}
+            <PoolsDataTable
+              pools={pools}
+              sharingGroups={sharingGroups}
               isLoading={isLoading}
               error={error ?? undefined}
               onRetry={refetch}

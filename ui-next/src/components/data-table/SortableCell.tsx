@@ -27,6 +27,7 @@ export const SortableCell = memo(function SortableCell({
   className,
   as: Component = "div",
   width: cssVarWidth,
+  colIndex,
 }: SortableCellProps) {
   const {
     attributes,
@@ -63,13 +64,18 @@ export const SortableCell = memo(function SortableCell({
     flexShrink: 0, // Prevent shrinking below specified width
   };
 
+  // Accessibility attributes for header cells
+  const accessibilityProps = Component === "th"
+    ? { scope: "col" as const, "aria-colindex": colIndex }
+    : { role: "columnheader" as const, "aria-colindex": colIndex };
+
   return (
     <Component
       ref={setNodeRef}
       data-column-id={id}
       {...attributes}
       {...listeners}
-      role={Component === "th" ? undefined : "columnheader"}
+      {...accessibilityProps}
       style={style}
       className={cn(
         "cursor-grab active:cursor-grabbing",

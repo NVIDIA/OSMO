@@ -11,24 +11,29 @@
 /**
  * Data hook for pools page with SmartSearch chip filtering.
  *
- * This hook encapsulates all data fetching and filtering logic,
- * preparing for future server-driven filtering. The UI layer
- * receives clean, pre-processed data.
- *
  * Architecture:
- * - Fetches pools and sharingGroups from adapter
- * - Creates context-aware search fields (for shared: filter)
- * - Applies client-side filtering (will become server-side later)
- * - Returns both filtered (for table) and unfiltered (for suggestions) data
+ * - Converts SmartSearch chips to filter params
+ * - Calls adapter (which handles client/server filtering transparently)
+ * - Returns clean data for UI
+ *
+ * SHIM NOTE:
+ * Currently filtering happens client-side in the adapter (pools-shim.ts).
+ * When backend supports filtering, the adapter will pass filters to the API
+ * and this hook remains unchanged.
+ *
+ * See: BACKEND_TODOS.md#12
  */
 
 "use client";
 
 import { useMemo } from "react";
-import { usePools, type Pool } from "@/lib/api/adapter";
+import {
+  useFilteredPools,
+  type PoolFilterParams,
+  type PoolMetadata,
+} from "@/lib/api/adapter";
+import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import { filterByChips } from "@/components/smart-search";
-import { createPoolSearchFields } from "../lib/pool-search-fields";
 
 // =============================================================================
 // Types
@@ -45,6 +50,14 @@ interface UsePoolsDataReturn {
   allPools: Pool[];
   /** Sharing groups for panel and shared: filter */
   sharingGroups: string[][];
+  /** Metadata for filter options (status counts, platforms, backends) */
+  metadata: PoolMetadata | null;
+  /** Whether any filters are active */
+  hasActiveFilters: boolean;
+  /** Total pools before filtering */
+  total: number;
+  /** Total pools after filtering */
+  filteredTotal: number;
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -54,34 +67,76 @@ interface UsePoolsDataReturn {
 }
 
 // =============================================================================
+// Chip to Filter Conversion
+// =============================================================================
+
+/**
+ * Convert SmartSearch chips to pool filter params.
+ *
+ * This mapping stays the same whether filtering is client or server side.
+ * The adapter handles where the filtering actually happens.
+ */
+function chipsToFilterParams(chips: SearchChip[]): PoolFilterParams {
+  const params: PoolFilterParams = {};
+
+  for (const chip of chips) {
+    switch (chip.field) {
+      case "status":
+        params.statuses = [...(params.statuses ?? []), chip.value];
+        break;
+      case "platform":
+        params.platforms = [...(params.platforms ?? []), chip.value];
+        break;
+      case "backend":
+        params.backends = [...(params.backends ?? []), chip.value];
+        break;
+      case "shared":
+        params.sharedWith = chip.value;
+        break;
+      case "search":
+      case "name":
+        // Both search and name fields map to text search
+        params.search = chip.value;
+        break;
+    }
+  }
+
+  return params;
+}
+
+// =============================================================================
 // Hook
 // =============================================================================
 
 export function usePoolsData({ searchChips }: UsePoolsDataParams): UsePoolsDataReturn {
-  // Fetch pools data from adapter
-  // Note: When we move to server-side filtering, we'll pass searchChips here
-  const { pools: allPools, sharingGroups, isLoading, error, refetch } = usePools();
-
-  // Create context-aware search fields (shared: filter needs sharingGroups)
-  const searchFields = useMemo(
-    () => createPoolSearchFields(sharingGroups),
-    [sharingGroups],
+  // Convert chips to filter params
+  const filterParams = useMemo(
+    () => chipsToFilterParams(searchChips),
+    [searchChips],
   );
 
-  // Apply SmartSearch chip filtering client-side
-  // Uses shared filterByChips: same field = OR, different fields = AND
-  //
-  // TODO: When backend supports filtering, move this to the adapter:
-  // const { pools } = usePools({ filters: searchChips });
-  const filteredPools = useMemo(
-    () => filterByChips(allPools, searchChips, searchFields),
-    [allPools, searchChips, searchFields],
-  );
-
-  return {
-    pools: filteredPools,
+  // Use adapter hook (handles client/server filtering transparently)
+  const {
+    pools,
     allPools,
     sharingGroups,
+    metadata,
+    hasActiveFilters,
+    total,
+    filteredTotal,
+    isLoading,
+    error,
+    refetch,
+  } = useFilteredPools(filterParams);
+
+  return {
+    pools,
+    allPools,
+    sharingGroups,
+    metadata,
+    hasActiveFilters,
+    total,
+    filteredTotal,
     isLoading,
     error: error as Error | null,
     refetch,

@@ -30,9 +30,11 @@
 export { DataTable, type DataTableProps } from "./DataTable";
 export { VirtualTableBody, type VirtualTableBodyProps } from "./VirtualTableBody";
 export { TableSkeleton, type TableSkeletonProps } from "./TableSkeleton";
+export { TableToolbar, type TableToolbarProps, type ColumnDefinition } from "./TableToolbar";
 export { SortButton } from "./SortButton";
 export { SortableCell } from "./SortableCell";
 export { ResizeHandle, type ResizeHandleProps as ResizeHandleComponentProps } from "./ResizeHandle";
+export { SectionNavStack, type SectionNavStackProps, type SectionNavStackItem } from "./SectionNavStack";
 
 // =============================================================================
 // Hooks
@@ -57,6 +59,26 @@ export {
   type UseUnifiedColumnSizingOptions,
   type UseUnifiedColumnSizingResult,
 } from "./hooks/use-column-resizing";
+
+export {
+  useSectionNavigation,
+  type UseSectionNavigationOptions,
+  type UseSectionNavigationResult,
+  type SectionNavItem,
+} from "./hooks/use-section-navigation";
+
+export {
+  useGridNavigation,
+  type UseGridNavigationOptions,
+  type UseGridNavigationResult,
+  type GridPosition,
+} from "./hooks/use-grid-navigation";
+
+export {
+  useRowNavigation,
+  type UseRowNavigationOptions,
+  type UseRowNavigationResult,
+} from "./hooks/use-row-navigation";
 
 // =============================================================================
 // Types

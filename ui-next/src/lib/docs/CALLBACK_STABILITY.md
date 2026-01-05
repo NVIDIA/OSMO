@@ -59,70 +59,73 @@ const handleClick = useCallback(
 
 ## Solutions
 
-### ✅ Use Refs for Frequently-Changing Data
+### ✅ Use `useStableValue` for Frequently-Changing Data
 
 ```tsx
-// GOOD: Ref provides stable access, callback stays stable
-const itemsRef = useRef(items);
-itemsRef.current = items;
+import { useStableValue } from "@/hooks";
+
+// GOOD: Stable ref provides access to latest data
+const itemsRef = useStableValue(items);
 
 const estimateSize = useCallback(
   (index: number) => itemsRef.current[index]?.height ?? 48,
-  [],  // ✅ No dependencies - always stable
+  [itemsRef],  // ✅ Stable - won't cause re-renders
 );
 ```
 
-### ✅ Stable Callback Pattern
+### ✅ Use `useStableCallback` for Callback Props
 
 ```tsx
-// GOOD: Create stable callbacks that read from refs
-const onChangeRef = useRef(onChange);
-onChangeRef.current = onChange;
+import { useStableCallback } from "@/hooks";
 
-const stableOnChange = useCallback(
-  (value) => onChangeRef.current?.(value),
-  [],  // ✅ Stable reference
-);
+// GOOD: Stable callback reference that always calls latest version
+const stableOnChange = useStableCallback(onChange);
+
+// Safe to pass to third-party libraries
+const virtualizer = useVirtualizer({
+  onChange: stableOnChange,  // ✅ Won't trigger recreation
+});
 ```
 
 ### ✅ Memoize Derived Data Properly
 
 ```tsx
+import { useStableValue } from "@/hooks";
+
 // GOOD: Memoize the derived data if needed as dependency
 const filteredItems = useMemo(
   () => items.filter(x => x.active),
   [items],
 );
 
-// Or better - use ref pattern
-const itemsRef = useRef(items);
-itemsRef.current = items;
+// Or better - use stable ref pattern
+const itemsRef = useStableValue(items);
 
 const getFilteredItem = useCallback(
   (index) => {
     const filtered = itemsRef.current.filter(x => x.active);
     return filtered[index];
   },
-  [],
+  [itemsRef],
 );
 ```
 
-### ✅ Extract to Custom Hook
+### ✅ Use the Built-in Stable Hooks
 
 ```tsx
-// GOOD: Encapsulate the ref pattern in a reusable hook
-function useStableCallback<T extends (...args: any[]) => any>(callback: T): T {
-  const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+import { useStableCallback, useStableValue } from "@/hooks";
 
-  return useCallback(
-    ((...args) => callbackRef.current?.(...args)) as T,
-    [],
-  );
-}
-
-// Usage
+// GOOD: Stable callback reference
 const stableOnChange = useStableCallback(onChange);
+
+// GOOD: Stable ref to frequently-changing data
+const itemsRef = useStableValue(items);
+
+// Use in callbacks without adding to dependencies
+const getItem = useCallback(
+  (index) => itemsRef.current[index],
+  [itemsRef], // Stable - won't cause re-renders
+);
 ```
 
 ## When to Apply These Patterns
@@ -154,12 +157,14 @@ These libraries are known to trigger updates when options change:
 
 | Pattern | When to Use |
 |---------|-------------|
-| `useRef` + stable callback | Data changes frequently, callback passed to library |
+| `useStableCallback(fn)` | Callback props passed to third-party libraries |
+| `useStableValue(data)` | Access frequently-changing data in stable callbacks |
 | `useMemo` for derived data | Derived data used in multiple places |
 | `useCallback` with primitives | Simple callbacks with primitive dependencies |
-| Custom `useStableCallback` hook | Reusable pattern across codebase |
 
 ## Related Files
 
-- `src/components/data-table/hooks/use-virtualized-table.ts` - Example of ref pattern
-- `src/components/data-table/DataTable.tsx` - Example of stable callback refs
+- `src/hooks/use-stable-callback.ts` - The `useStableCallback` and `useStableValue` hooks
+- `src/components/data-table/hooks/use-virtualized-table.ts` - Example usage with TanStack Virtual
+- `src/components/data-table/hooks/use-unified-column-sizing.ts` - Example usage for resize handlers
+- `src/components/data-table/DataTable.tsx` - Example usage for stable table callbacks

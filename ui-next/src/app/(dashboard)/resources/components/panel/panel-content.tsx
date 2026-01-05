@@ -10,19 +10,15 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
-import { Check, Ban, ChevronDown, Copy } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { heading, text } from "@/lib/styles";
 import { CapacityBar } from "@/components/capacity-bar";
-import { ApiError } from "@/components/api-error";
+import { ApiError } from "@/components/error";
+import { CopyableValue, CopyableBlock } from "@/components/copyable-value";
+import { ItemSelector } from "@/components/item-selector";
+import { BooleanIndicator } from "@/components/boolean-indicator";
 import { useResourceDetail, type Resource, type TaskConfig } from "@/lib/api/adapter";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
 
 interface ResourcePanelContentProps {
   resource: Resource;
@@ -143,10 +139,11 @@ export function ResourcePanelContent({
             <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               {/* Pool Selector Header */}
               <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-100/50 px-4 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/30">
-                <PoolSelector
-                  pools={pools}
-                  selectedPool={selectedPool}
-                  onSelectPool={handlePoolSelect}
+                <ItemSelector
+                  items={pools}
+                  selectedItem={selectedPool}
+                  onSelect={handlePoolSelect}
+                  aria-label="Select pool"
                 />
               </div>
 
@@ -165,64 +162,6 @@ export function ResourcePanelContent({
         </section>
       </div>
     </div>
-  );
-}
-
-// =============================================================================
-// Pool Selector Component
-// =============================================================================
-
-interface PoolSelectorProps {
-  pools: string[];
-  selectedPool: string | null;
-  onSelectPool: (pool: string) => void;
-}
-
-function PoolSelector({ pools, selectedPool, onSelectPool }: PoolSelectorProps) {
-  // Single pool: Static label
-  if (pools.length === 1) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {pools[0]}
-        </span>
-      </div>
-    );
-  }
-
-  // Multiple pools: Dropdown
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="flex items-center gap-2 rounded-md py-0.5 pr-1 text-zinc-900 transition-colors hover:bg-zinc-200/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50"
-          aria-label="Select pool"
-        >
-          <span className="text-sm font-medium">{selectedPool}</span>
-          <ChevronDown className="size-3.5 text-zinc-500 dark:text-zinc-400" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        {pools.map((pool) => {
-          const isCurrent = pool === selectedPool;
-          return (
-            <DropdownMenuItem
-              key={pool}
-              onSelect={() => onSelectPool(pool)}
-              className={cn(
-                "flex items-center gap-2",
-                isCurrent && "bg-zinc-100 dark:bg-zinc-800"
-              )}
-            >
-              <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>
-                {pool}
-              </span>
-              {isCurrent && <Check className="size-4 shrink-0 text-emerald-500" />}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -251,114 +190,27 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
 
       {/* Default Mounts */}
       {config.defaultMounts.length > 0 && (
-        <MountsList title="Default Mounts" mounts={config.defaultMounts} />
+        <div>
+          <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">Default Mounts</div>
+          <div className="flex flex-col gap-1">
+            {config.defaultMounts.map((mount, idx) => (
+              <CopyableBlock key={idx} value={mount} />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Allowed Mounts */}
       {config.allowedMounts.length > 0 && (
-        <MountsList title="Allowed Mounts" mounts={config.allowedMounts} />
+        <div>
+          <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">Allowed Mounts</div>
+          <div className="flex flex-col gap-1">
+            {config.allowedMounts.map((mount, idx) => (
+              <CopyableBlock key={idx} value={mount} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
-  );
-}
-
-// =============================================================================
-// Helper Components
-// =============================================================================
-
-function BooleanIndicator({ value }: { value: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 text-sm",
-        value ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500",
-      )}
-    >
-      {value ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
-      {value ? "Allowed" : "Not allowed"}
-    </span>
-  );
-}
-
-function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
-  return (
-    <div>
-      <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">{title}</div>
-      <div className="flex flex-col gap-1">
-        {mounts.map((mount, idx) => (
-          <CopyableMount key={idx} value={mount} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CopyableValue({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      console.warn("Clipboard API not available");
-    }
-  }, [value]);
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className={cn(
-        "group inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 font-mono text-sm transition-colors",
-        copied
-          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-          : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-      )}
-      title={copied ? "Copied!" : `Copy ${value}`}
-    >
-      <span>{value}</span>
-      {copied ? (
-        <Check className="size-3.5 shrink-0" />
-      ) : (
-        <Copy className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
-      )}
-    </button>
-  );
-}
-
-function CopyableMount({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      console.warn("Clipboard API not available");
-    }
-  }, [value]);
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className={cn(
-        "group flex w-full items-start justify-between gap-2 rounded-md px-2.5 py-1.5 text-left font-mono text-xs transition-colors",
-        copied
-          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-      )}
-      title={copied ? "Copied!" : `Copy ${value}`}
-    >
-      <span className="break-all">{value}</span>
-      {copied ? (
-        <Check className="mt-0.5 size-3 shrink-0" />
-      ) : (
-        <Copy className="mt-0.5 size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
-      )}
-    </button>
   );
 }

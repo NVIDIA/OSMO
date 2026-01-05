@@ -19,7 +19,7 @@
 
 import { useCallback } from "react";
 import type { Pool } from "@/lib/api/adapter";
-import { ResizablePanel } from "@/components/resizable-panel";
+import { ResizablePanel } from "@/components/panel";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { PanelHeader } from "./panel-header";
 import { PanelContent } from "./panel-content";
