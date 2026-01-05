@@ -255,7 +255,7 @@ export function useUnifiedColumnSizing({
     observer.observe(container);
 
     return () => observer.disconnect();
-  }, [containerRef]);
+  }, [containerRef, stateRef]);
 
   // ===== Initial Natural Width Measurement =====
   useLayoutEffect(() => {
@@ -300,7 +300,7 @@ export function useUnifiedColumnSizing({
       // Mark as hydrated to prevent future syncs
       hasHydratedRef.current = true;
     }
-  }, [initialOverrides]);
+  }, [initialOverrides, stateRef]);
 
   // ===== Derived: Resolved Columns & Widths =====
   const resolved = useMemo(

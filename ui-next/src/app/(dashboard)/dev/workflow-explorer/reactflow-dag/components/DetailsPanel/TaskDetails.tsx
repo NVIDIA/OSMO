@@ -99,7 +99,8 @@ export const TaskDetails = memo(function TaskDetails({
 }: TaskDetailsInternalProps) {
   const category = getStatusCategory(task.status);
   const style = getStatusStyle(task.status);
-  const tasks = group.tasks || [];
+  // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
+  const tasks = useMemo(() => group.tasks || [], [group.tasks]);
   const isStandaloneTask = tasks.length <= 1; // Single-task group
   const isFromGroup = tasks.length > 1;
   const duration = calculateDuration(task.start_time, task.end_time);
