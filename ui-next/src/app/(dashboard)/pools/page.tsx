@@ -56,7 +56,7 @@ export default function PoolsPage() {
       shallow: true,
       history: "push",
       clearOnDefault: true,
-    })
+    }),
   );
 
   const [selectedPlatform, setSelectedPlatform] = useQueryState(
@@ -65,7 +65,7 @@ export default function PoolsPage() {
       shallow: true,
       history: "replace",
       clearOnDefault: true,
-    })
+    }),
   );
 
   // Filter chips - URL-synced via shared hook
@@ -76,14 +76,7 @@ export default function PoolsPage() {
   // Filtering encapsulated in hook (ready for server-driven filtering)
   // ==========================================================================
 
-  const {
-    pools,
-    allPools,
-    sharingGroups,
-    isLoading,
-    error,
-    refetch,
-  } = usePoolsData({ searchChips });
+  const { pools, allPools, sharingGroups, isLoading, error, refetch } = usePoolsData({ searchChips });
 
   // ==========================================================================
   // Pool Selection
@@ -97,10 +90,9 @@ export default function PoolsPage() {
 
   // Find selected pool (search in allPools so selection persists through filtering)
   const selectedPool = useMemo(
-    () => (selectedPoolName ? allPools.find((p) => p.name === selectedPoolName) ?? null : null),
+    () => (selectedPoolName ? (allPools.find((p) => p.name === selectedPoolName) ?? null) : null),
     [allPools, selectedPoolName],
   );
-
 
   // ==========================================================================
   // Render
@@ -118,7 +110,10 @@ export default function PoolsPage() {
       <div className="flex h-full flex-col gap-4">
         {/* Toolbar with search and controls */}
         <div className="shrink-0">
-          <InlineErrorBoundary title="Toolbar error" compact>
+          <InlineErrorBoundary
+            title="Toolbar error"
+            compact
+          >
             <PoolsToolbar
               pools={allPools}
               sharingGroups={sharingGroups}

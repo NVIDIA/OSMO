@@ -86,10 +86,7 @@ interface DependencyPillProps {
   onClick?: () => void;
 }
 
-const DependencyPill = memo(function DependencyPill({
-  group,
-  onClick,
-}: DependencyPillProps) {
+const DependencyPill = memo(function DependencyPill({ group, onClick }: DependencyPillProps) {
   const category = getStatusCategory(group.status);
   const style = STATUS_PILL_STYLES[category] || STATUS_PILL_STYLES.waiting;
   const Icon = style.icon;
@@ -101,7 +98,7 @@ const DependencyPill = memo(function DependencyPill({
         "dependency-pill inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
         "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900",
         style.pillClass,
-        onClick && "cursor-pointer"
+        onClick && "cursor-pointer",
       )}
     >
       <Icon className={cn("size-3 shrink-0", style.iconClass)} />
@@ -114,20 +111,10 @@ const DependencyPill = memo(function DependencyPill({
 // Pill Row Component (uses useExpandableChips in measured mode)
 // ============================================================================
 
-const PillRow = memo(function PillRow({
-  label,
-  groups,
-  onSelectGroup,
-}: PillRowProps) {
+const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowProps) {
   const measureRef = useRef<HTMLDivElement>(null);
 
-  const {
-    containerRef,
-    expanded,
-    setExpanded,
-    displayedItems,
-    overflowCount,
-  } = useExpandableChips<GroupWithLayout>({
+  const { containerRef, expanded, setExpanded, displayedItems, overflowCount } = useExpandableChips<GroupWithLayout>({
     items: groups,
     measured: {
       measureRef,
@@ -144,7 +131,10 @@ const PillRow = memo(function PillRow({
   }
 
   return (
-    <div ref={containerRef} className="flex flex-wrap items-start gap-2">
+    <div
+      ref={containerRef}
+      className="flex flex-wrap items-start gap-2"
+    >
       {/* Hidden measurement container - renders all pills to measure their widths */}
       <div
         ref={measureRef}
@@ -152,7 +142,10 @@ const PillRow = memo(function PillRow({
         aria-hidden="true"
       >
         {groups.map((group) => (
-          <div key={`measure-${group.name}`} data-measure-pill>
+          <div
+            key={`measure-${group.name}`}
+            data-measure-pill
+          >
             <DependencyPill group={group} />
           </div>
         ))}

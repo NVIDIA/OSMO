@@ -29,14 +29,7 @@ export const SortableCell = memo(function SortableCell({
   width: cssVarWidth,
   colIndex,
 }: SortableCellProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   // Style uses CSS variable width; minWidth and flexShrink prevent size jitter during drag
   const style: React.CSSProperties = {
@@ -50,9 +43,10 @@ export const SortableCell = memo(function SortableCell({
   };
 
   // Accessibility attributes for header cells
-  const accessibilityProps = Component === "th"
-    ? { scope: "col" as const, "aria-colindex": colIndex }
-    : { role: "columnheader" as const, "aria-colindex": colIndex };
+  const accessibilityProps =
+    Component === "th"
+      ? { scope: "col" as const, "aria-colindex": colIndex }
+      : { role: "columnheader" as const, "aria-colindex": colIndex };
 
   return (
     <Component
@@ -64,8 +58,7 @@ export const SortableCell = memo(function SortableCell({
       style={style}
       className={cn(
         "cursor-grab active:cursor-grabbing",
-        isDragging &&
-          "rounded bg-zinc-200 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-700 dark:ring-zinc-600",
+        isDragging && "rounded bg-zinc-200 shadow-md ring-1 ring-zinc-300 dark:bg-zinc-700 dark:ring-zinc-600",
         className,
       )}
     >

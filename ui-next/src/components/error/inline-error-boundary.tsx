@@ -65,10 +65,7 @@ export function InlineFallback({
 
   return (
     <div
-      className={cn(
-        "rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30",
-        className,
-      )}
+      className={cn("rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30", className)}
     >
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
@@ -151,7 +148,12 @@ export function InlineErrorBoundary({
   return (
     <ReactErrorBoundary
       fallbackRender={(props) => (
-        <InlineFallback {...props} title={title} className={className} compact={compact} />
+        <InlineFallback
+          {...props}
+          title={title}
+          className={className}
+          compact={compact}
+        />
       )}
       onError={handleError}
       onReset={onReset}

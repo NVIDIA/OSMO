@@ -234,12 +234,14 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Column order with fallback
   const columnOrder = useMemo(() => {
     if (controlledColumnOrder) return controlledColumnOrder;
-    return columns.map((c) => {
-      if (typeof c.id === "string") return c.id;
-      // AccessorKeyColumnDef has accessorKey property
-      if ("accessorKey" in c && c.accessorKey) return String(c.accessorKey);
-      return "";
-    }).filter(Boolean);
+    return columns
+      .map((c) => {
+        if (typeof c.id === "string") return c.id;
+        // AccessorKeyColumnDef has accessorKey property
+        if ("accessorKey" in c && c.accessorKey) return String(c.accessorKey);
+        return "";
+      })
+      .filter(Boolean);
   }, [controlledColumnOrder, columns]);
 
   // Create TanStack table instance
@@ -280,9 +282,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // This ensures width calculation only considers actually-rendered columns
   const effectiveColumnSizeConfig = useMemo<ColumnSizeConfig[]>(() => {
     // Create a lookup from provided config
-    const configById = new Map(
-      (columnSizeConfig ?? []).map((c) => [c.id, c]),
-    );
+    const configById = new Map((columnSizeConfig ?? []).map((c) => [c.id, c]));
 
     // Build config for each visible column, in order
     return visibleColumnIds.map((id) => {
@@ -292,8 +292,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
       }
       // Fallback: find column definition and extract sizing info
       const colDef = columns.find((c) => {
-        const colId =
-          c.id ?? ("accessorKey" in c && c.accessorKey ? String(c.accessorKey) : "");
+        const colId = c.id ?? ("accessorKey" in c && c.accessorKey ? String(c.accessorKey) : "");
         return colId === id;
       });
       // Convert pixel minSize to rem (default 80px = 5rem)
@@ -331,9 +330,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
       if (oldIndex === -1 || newIndex === -1) return;
 
       // Find the boundary: fixed columns must stay at the start
-      const firstMovableIndex = columnOrder.findIndex(
-        (id) => !fixedColumns.includes(id),
-      );
+      const firstMovableIndex = columnOrder.findIndex((id) => !fixedColumns.includes(id));
 
       // If there are fixed columns, ensure we don't move anything before them
       if (firstMovableIndex > 0) {
@@ -350,14 +347,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
   );
 
   // Virtualization
-  const {
-    virtualRows,
-    totalHeight,
-    totalRowCount,
-    virtualItemCount,
-    getItem,
-    scrollToIndex,
-  } = useVirtualizedTable<TData, TSectionMeta>({
+  const { virtualRows, totalHeight, totalRowCount, virtualItemCount, getItem, scrollToIndex } = useVirtualizedTable<
+    TData,
+    TSectionMeta
+  >({
     items: sections ? undefined : data,
     sections,
     getRowId,
@@ -428,7 +421,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   const headerLabels = useMemo(() => {
     return visibleColumnIds.map((id) => {
       const col = columns.find((c) => {
-        const colId = c.id ?? (("accessorKey" in c && c.accessorKey) ? String(c.accessorKey) : "");
+        const colId = c.id ?? ("accessorKey" in c && c.accessorKey ? String(c.accessorKey) : "");
         return colId === id;
       });
       const header = col?.header;
@@ -446,11 +439,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   // Empty state
   if (!isLoading && allItems.length === 0 && emptyContent) {
-    return (
-      <div className={cn("flex min-h-[200px] items-center justify-center", className)}>
-        {emptyContent}
-      </div>
-    );
+    return <div className={cn("flex min-h-[200px] items-center justify-center", className)}>{emptyContent}</div>;
   }
 
   return (
@@ -484,10 +473,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
               role="grid"
               aria-rowcount={ariaRowCount}
               aria-colcount={visibleColumnCount}
-              className={cn(
-                "min-w-full border-collapse text-sm data-table",
-                className,
-              )}
+              className={cn("min-w-full border-collapse text-sm data-table", className)}
               style={{
                 // CSS containment for performance
                 contain: "layout style",
@@ -503,8 +489,15 @@ export function DataTable<TData, TSectionMeta = unknown>({
                   stickyHeaders && "sticky top-0 z-20",
                 )}
               >
-                <tr role="row" aria-rowindex={1} className="data-table-header-row">
-                  <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
+                <tr
+                  role="row"
+                  aria-rowindex={1}
+                  className="data-table-header-row"
+                >
+                  <SortableContext
+                    items={sortableColumnIds}
+                    strategy={horizontalListSortingStrategy}
+                  >
                     {table.getHeaderGroups().map((headerGroup) =>
                       headerGroup.headers.map((header) => {
                         const isFixed = fixedColumns.includes(header.id);

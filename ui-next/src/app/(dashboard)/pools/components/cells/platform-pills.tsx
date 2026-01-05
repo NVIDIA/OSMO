@@ -39,10 +39,7 @@ export interface PlatformPillsProps {
  * <PlatformPills platforms={pool.platforms} />
  * ```
  */
-export const PlatformPills = memo(function PlatformPills({
-  platforms,
-  expandable = true,
-}: PlatformPillsProps) {
+export const PlatformPills = memo(function PlatformPills({ platforms, expandable = true }: PlatformPillsProps) {
   const layout = useMemo(() => getChipLayoutCompact(), []);
 
   return (

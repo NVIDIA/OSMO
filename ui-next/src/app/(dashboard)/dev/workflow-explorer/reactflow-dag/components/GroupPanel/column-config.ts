@@ -32,20 +32,76 @@ export const MANDATORY_COLUMNS: ColumnDef[] = [
  * Optional columns that can be toggled by the user.
  */
 export const OPTIONAL_COLUMNS: OptionalColumnDef[] = [
-  { id: "duration", label: "Duration", menuLabel: "Duration", width: { min: 70, share: 0.8 }, align: "right", sortable: true, defaultVisible: true },
-  { id: "node", label: "Node", menuLabel: "Node Name", width: { min: 80, share: 1.2 }, align: "left", sortable: true, defaultVisible: true },
-  { id: "podIp", label: "IP", menuLabel: "IP", width: { min: 95, share: 1.2 }, align: "left", sortable: true, defaultVisible: false },
-  { id: "exitCode", label: "Exit", menuLabel: "Exit Code", width: 55, align: "right", sortable: true, defaultVisible: false },
-  { id: "startTime", label: "Start", menuLabel: "Start Time", width: { min: 85, share: 0.8 }, align: "right", sortable: true, defaultVisible: false },
-  { id: "endTime", label: "End", menuLabel: "End Time", width: { min: 85, share: 0.8 }, align: "right", sortable: true, defaultVisible: false },
-  { id: "retry", label: "Retry", menuLabel: "Retry ID", width: 60, align: "right", sortable: true, defaultVisible: false },
+  {
+    id: "duration",
+    label: "Duration",
+    menuLabel: "Duration",
+    width: { min: 70, share: 0.8 },
+    align: "right",
+    sortable: true,
+    defaultVisible: true,
+  },
+  {
+    id: "node",
+    label: "Node",
+    menuLabel: "Node Name",
+    width: { min: 80, share: 1.2 },
+    align: "left",
+    sortable: true,
+    defaultVisible: true,
+  },
+  {
+    id: "podIp",
+    label: "IP",
+    menuLabel: "IP",
+    width: { min: 95, share: 1.2 },
+    align: "left",
+    sortable: true,
+    defaultVisible: false,
+  },
+  {
+    id: "exitCode",
+    label: "Exit",
+    menuLabel: "Exit Code",
+    width: 55,
+    align: "right",
+    sortable: true,
+    defaultVisible: false,
+  },
+  {
+    id: "startTime",
+    label: "Start",
+    menuLabel: "Start Time",
+    width: { min: 85, share: 0.8 },
+    align: "right",
+    sortable: true,
+    defaultVisible: false,
+  },
+  {
+    id: "endTime",
+    label: "End",
+    menuLabel: "End Time",
+    width: { min: 85, share: 0.8 },
+    align: "right",
+    sortable: true,
+    defaultVisible: false,
+  },
+  {
+    id: "retry",
+    label: "Retry",
+    menuLabel: "Retry ID",
+    width: 60,
+    align: "right",
+    sortable: true,
+    defaultVisible: false,
+  },
 ];
 
 /**
  * Alphabetically sorted column list for stable menu order.
  */
 export const OPTIONAL_COLUMNS_ALPHABETICAL = [...OPTIONAL_COLUMNS].sort((a, b) =>
-  a.menuLabel.localeCompare(b.menuLabel)
+  a.menuLabel.localeCompare(b.menuLabel),
 );
 
 /**
@@ -59,9 +115,7 @@ export const ALL_COLUMNS: ColumnDef[] = [
 /**
  * Default visible optional column IDs.
  */
-export const DEFAULT_VISIBLE_OPTIONAL: ColumnId[] = OPTIONAL_COLUMNS
-  .filter((c) => c.defaultVisible)
-  .map((c) => c.id);
+export const DEFAULT_VISIBLE_OPTIONAL: ColumnId[] = OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id);
 
 /**
  * Pre-computed column lookup maps for O(1) access.

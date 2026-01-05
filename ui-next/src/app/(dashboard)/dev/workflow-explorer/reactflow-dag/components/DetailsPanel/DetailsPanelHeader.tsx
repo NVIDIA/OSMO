@@ -11,17 +11,28 @@
  *
  * Shared header component for both GroupDetails and TaskDetails.
  * Provides consistent 2-row layout:
- * 
+ *
  * Row 1: [Back] Breadcrumb / Title                    [Menu] [Close]
  * Row 2: Status · Additional info
- * 
+ *
  * This structure ensures visual consistency during navigation between views.
  */
 
 "use client";
 
 import { memo, useState, useMemo, useCallback, useRef } from "react";
-import { X, ChevronLeft, ChevronDown, MoreVertical, PanelLeftClose, Columns2, PanelLeft, Columns, Search, Check } from "lucide-react";
+import {
+  X,
+  ChevronLeft,
+  ChevronDown,
+  MoreVertical,
+  PanelLeftClose,
+  Columns2,
+  PanelLeft,
+  Columns,
+  Search,
+  Check,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -72,7 +83,8 @@ const VIEW_TYPE_BADGE = {
 /** Lead badge styling */
 const LEAD_BADGE = {
   label: "Lead",
-  className: "bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30",
+  className:
+    "bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30",
 };
 
 interface ExtendedHeaderProps extends DetailsPanelHeaderProps {
@@ -105,10 +117,10 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   const handleToggleExpand = onToggleExpand ?? (() => setLocalExpanded(!localExpanded));
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // Check if we have siblings to switch between
   const hasSiblings = siblingTasks && siblingTasks.length > 1 && onSelectSibling;
-  
+
   // Filter siblings by search query
   const filteredSiblings = useMemo(() => {
     if (!siblingTasks) return [];
@@ -116,15 +128,18 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
     const q = searchQuery.toLowerCase();
     return siblingTasks.filter((t) => t.name.toLowerCase().includes(q));
   }, [siblingTasks, searchQuery]);
-  
+
   // Handle sibling selection
-  const handleSelectSibling = useCallback((task: SiblingTask) => {
-    if (onSelectSibling && !task.isCurrent) {
-      onSelectSibling(task.name, task.retryId);
-      setSearchQuery("");
-    }
-  }, [onSelectSibling]);
-  
+  const handleSelectSibling = useCallback(
+    (task: SiblingTask) => {
+      if (onSelectSibling && !task.isCurrent) {
+        onSelectSibling(task.name, task.retryId);
+        setSearchQuery("");
+      }
+    },
+    [onSelectSibling],
+  );
+
   // Focus search input and scroll current item into view when dropdown opens
   const handleOpenChange = useCallback((open: boolean) => {
     if (open) {
@@ -155,7 +170,10 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                 className="-ml-1 flex shrink-0 items-center gap-1 rounded-md py-1 pl-1 pr-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 aria-label={`Back to ${breadcrumb}`}
               >
-                <ChevronLeft className="size-4" aria-hidden="true" />
+                <ChevronLeft
+                  className="size-4"
+                  aria-hidden="true"
+                />
                 <span className="text-sm">{breadcrumb}</span>
               </button>
               <span className="shrink-0 text-gray-400 dark:text-zinc-600">/</span>
@@ -174,7 +192,10 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                   <ChevronDown className="size-3.5 shrink-0 text-gray-500 dark:text-zinc-400" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-80 p-0">
+              <DropdownMenuContent
+                align="start"
+                className="w-80 p-0"
+              >
                 {/* Search input */}
                 <div className="flex items-center border-b border-gray-200 dark:border-zinc-800 px-3 py-2">
                   <Search className="mr-2 size-4 shrink-0 text-gray-400 dark:text-zinc-500" />
@@ -194,11 +215,12 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                   />
                 </div>
                 {/* Task list */}
-                <div ref={listContainerRef} className="max-h-60 overflow-y-auto py-1">
+                <div
+                  ref={listContainerRef}
+                  className="max-h-60 overflow-y-auto py-1"
+                >
                   {filteredSiblings.length === 0 ? (
-                    <div className="py-4 text-center text-sm text-gray-500 dark:text-zinc-500">
-                      No tasks found
-                    </div>
+                    <div className="py-4 text-center text-sm text-gray-500 dark:text-zinc-500">No tasks found</div>
                   ) : (
                     filteredSiblings.map((task) => (
                       <DropdownMenuItem
@@ -211,14 +233,16 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                         )}
                       >
                         {/* Status icon */}
-                        <span className="shrink-0">
-                          {getStatusIcon(task.status, "size-4")}
-                        </span>
+                        <span className="shrink-0">{getStatusIcon(task.status, "size-4")}</span>
                         {/* Task name */}
-                        <span className={cn(
-                          "min-w-0 flex-1 truncate text-sm",
-                          task.isCurrent ? "font-medium text-gray-900 dark:text-zinc-100" : "text-gray-600 dark:text-zinc-300",
-                        )}>
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate text-sm",
+                            task.isCurrent
+                              ? "font-medium text-gray-900 dark:text-zinc-100"
+                              : "text-gray-600 dark:text-zinc-300",
+                          )}
+                        >
                           {task.name}
                           {task.retryId > 0 && (
                             <span className="ml-1.5 text-gray-400 dark:text-zinc-500">#{task.retryId}</span>
@@ -231,9 +255,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                           </span>
                         )}
                         {/* Current indicator */}
-                        {task.isCurrent && (
-                          <Check className="size-4 shrink-0 text-emerald-500 dark:text-emerald-400" />
-                        )}
+                        {task.isCurrent && <Check className="size-4 shrink-0 text-emerald-500 dark:text-emerald-400" />}
                       </DropdownMenuItem>
                     ))
                   )}
@@ -243,7 +265,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           ) : (
             <h2 className="truncate font-semibold text-gray-900 dark:text-zinc-100">{title}</h2>
           )}
-          
+
           {subtitle && (
             <>
               <span className="shrink-0 text-gray-400 dark:text-zinc-600">·</span>
@@ -286,7 +308,10 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                   <MoreVertical className="size-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuContent
+                align="end"
+                className="w-44"
+              >
                 {menuContent}
                 {menuContent && onPanelResize && <DropdownMenuSeparator />}
                 {onPanelResize && (
@@ -295,7 +320,10 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
                     {PANEL.WIDTH_PRESETS.map((pct) => {
                       const Icon = WIDTH_PRESET_ICONS[pct];
                       return (
-                        <DropdownMenuItem key={pct} onClick={() => onPanelResize(pct)}>
+                        <DropdownMenuItem
+                          key={pct}
+                          onClick={() => onPanelResize(pct)}
+                        >
                           <Icon className="mr-2 size-4" />
                           <span>{pct}%</span>
                         </DropdownMenuItem>

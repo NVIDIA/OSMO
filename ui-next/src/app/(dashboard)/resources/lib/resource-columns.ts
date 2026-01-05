@@ -25,7 +25,16 @@ export type ResourceColumnId =
 
 /** Set of all valid resource column IDs for type validation */
 const VALID_COLUMN_IDS = new Set<string>([
-  "resource", "hostname", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage",
+  "resource",
+  "hostname",
+  "type",
+  "pools",
+  "platform",
+  "backend",
+  "gpu",
+  "cpu",
+  "memory",
+  "storage",
 ]);
 
 /** Type guard to check if a string is a valid ResourceColumnId */

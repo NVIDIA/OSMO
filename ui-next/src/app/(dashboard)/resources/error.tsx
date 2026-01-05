@@ -15,13 +15,7 @@ import { RouteError } from "@/components/error";
  *
  * Catches errors in /resources.
  */
-export default function ResourcesError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function ResourcesError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <RouteError
       error={error}
@@ -31,9 +25,7 @@ export default function ResourcesError({
       header={
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            View and filter resources across all pools
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">View and filter resources across all pools</p>
         </div>
       }
       logPrefix="Resources error boundary"

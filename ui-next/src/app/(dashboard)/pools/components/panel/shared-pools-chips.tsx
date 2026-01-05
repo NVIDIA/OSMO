@@ -40,22 +40,15 @@ interface SharedPoolsChipsProps {
 export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) {
   const layout = useMemo(() => getChipLayoutSpacious(), []);
 
-  const {
-    containerRef,
-    expanded,
-    setExpanded,
-    sortedItems,
-    displayedItems,
-    overflowCount,
-    visibleCount,
-  } = useExpandableChips({ items: pools, layout });
+  const { containerRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
+    useExpandableChips({ items: pools, layout });
 
   return (
     <div
       ref={containerRef}
       className={cn(
         "flex w-full items-center gap-1.5 -m-0.5 p-0.5",
-        expanded ? "flex-wrap" : "flex-nowrap overflow-hidden"
+        expanded ? "flex-wrap" : "flex-nowrap overflow-hidden",
       )}
     >
       {displayedItems.map((poolName) => (
@@ -65,7 +58,7 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
           onClick={() => onPoolClick?.(poolName)}
           className={cn(
             "group inline-flex shrink-0 items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200 transition-colors hover:bg-violet-100 hover:text-violet-700 hover:ring-violet-300 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-violet-900/50 dark:hover:text-violet-300 dark:hover:ring-violet-600",
-            expanded && "max-w-full"
+            expanded && "max-w-full",
           )}
           title={`View ${poolName}`}
         >

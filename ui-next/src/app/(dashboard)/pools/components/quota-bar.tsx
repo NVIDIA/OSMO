@@ -46,12 +46,7 @@ interface QuotaBarProps {
  * <QuotaBar used={0} limit={8} free={8} isLoading />
  * ```
  */
-export const QuotaBar = memo(function QuotaBar({
-  used,
-  limit,
-  free,
-  isLoading,
-}: QuotaBarProps) {
+export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
   if (isLoading) {
     return (
       <div className={cn(card.base, "p-4")}>
@@ -81,7 +76,7 @@ export const QuotaBar = memo(function QuotaBar({
           size="md"
           thresholdColors
           trackClassName="h-3"
-        aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
+          aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
         />
       </div>
 
@@ -89,10 +84,8 @@ export const QuotaBar = memo(function QuotaBar({
       <p className={cn("mt-2", text.muted)}>
         {free > 0 ? (
           <>
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">
-              {free} available
-            </span>{" "}
-            for HIGH/NORMAL priority workflows
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">{free} available</span> for HIGH/NORMAL
+            priority workflows
           </>
         ) : (
           <span className="text-amber-600 dark:text-amber-400">

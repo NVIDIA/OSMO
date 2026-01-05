@@ -35,10 +35,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
   const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
 
   // Create search fields with sharing context
-  const searchFields = useMemo(
-    () => createPoolSearchFields(sharingGroups),
-    [sharingGroups],
-  );
+  const searchFields = useMemo(() => createPoolSearchFields(sharingGroups), [sharingGroups]);
 
   return (
     <TableToolbar

@@ -36,7 +36,7 @@ export function useAnnouncer() {
   useEffect(() => {
     // Check if region already exists (for StrictMode double-mount)
     let region = document.getElementById("dag-announcer") as HTMLDivElement | null;
-    
+
     if (!region) {
       region = document.createElement("div");
       region.id = "dag-announcer";
@@ -57,7 +57,7 @@ export function useAnnouncer() {
       });
       document.body.appendChild(region);
     }
-    
+
     regionRef.current = region;
 
     return () => {
@@ -80,12 +80,12 @@ export function useAnnouncer() {
 
     // Clear previous message first (forces re-announcement)
     region.textContent = "";
-    
+
     // Set new message after a brief delay (ensures re-announcement)
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    
+
     timeoutRef.current = setTimeout(() => {
       region.textContent = message;
     }, 50);

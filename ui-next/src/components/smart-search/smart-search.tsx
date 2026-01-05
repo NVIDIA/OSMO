@@ -77,15 +77,12 @@ function ChipLabel({ chip, onRemove }: { chip: SearchChip; onRemove: () => void 
     if (!match) return chip.label;
 
     const [, prefix, freeUsed, value] = match;
-    const variantClass = chip.variant === "free"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-amber-600 dark:text-amber-400";
+    const variantClass =
+      chip.variant === "free" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400";
 
     return (
       <>
-        {prefix}{" "}
-        <span className={cn("font-semibold", variantClass)}>{freeUsed}</span>
-        : {value}
+        {prefix} <span className={cn("font-semibold", variantClass)}>{freeUsed}</span>: {value}
       </>
     );
   };
@@ -244,8 +241,7 @@ function SmartSearchInner<T>({
     // Show matching field prefixes only (no value suggestions until after colon)
     for (const field of fields) {
       if (field.prefix) {
-        const prefixMatch = field.prefix.toLowerCase().startsWith(query) ||
-                           field.label.toLowerCase().startsWith(query);
+        const prefixMatch = field.prefix.toLowerCase().startsWith(query) || field.label.toLowerCase().startsWith(query);
         if (prefixMatch) {
           items.push({
             type: "field",
@@ -317,12 +313,15 @@ function SmartSearchInner<T>({
       // Don't add duplicate chips
       const exists = chips.some((c) => c.field === resolvedField.id && c.value.toLowerCase() === value.toLowerCase());
       if (!exists) {
-        onChipsChange([...chips, {
-          field: resolvedField.id,
-          value,
-          label: resolvedLabel,
-          variant: chipVariant,
-        }]);
+        onChipsChange([
+          ...chips,
+          {
+            field: resolvedField.id,
+            value,
+            label: resolvedLabel,
+            variant: chipVariant,
+          },
+        ]);
       }
       setInputValue("");
       setShowDropdown(false);
@@ -451,7 +450,18 @@ function SmartSearchInner<T>({
         }
       }
     },
-    [suggestions, highlightedIndex, showDropdown, handleSelect, tabComplete, parsedInput, inputValue, chips, addChip, removeChip],
+    [
+      suggestions,
+      highlightedIndex,
+      showDropdown,
+      handleSelect,
+      tabComplete,
+      parsedInput,
+      inputValue,
+      chips,
+      addChip,
+      removeChip,
+    ],
   );
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -475,17 +485,24 @@ function SmartSearchInner<T>({
           "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
           "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
           // Validation error state
-          validationError && "animate-shake border-red-500 ring-1 ring-red-500 focus-within:border-red-500 focus-within:ring-red-500",
+          validationError &&
+            "animate-shake border-red-500 ring-1 ring-red-500 focus-within:border-red-500 focus-within:ring-red-500",
         )}
         onClick={() => inputRef.current?.focus()}
       >
-        <Search className={cn(
-          "size-4 shrink-0 transition-colors",
-          validationError ? "text-red-500" : "text-zinc-400 dark:text-zinc-500",
-        )} />
+        <Search
+          className={cn(
+            "size-4 shrink-0 transition-colors",
+            validationError ? "text-red-500" : "text-zinc-400 dark:text-zinc-500",
+          )}
+        />
 
         {chips.map((chip, index) => (
-          <ChipLabel key={`${chip.field}-${chip.value}-${index}`} chip={chip} onRemove={() => removeChip(index)} />
+          <ChipLabel
+            key={`${chip.field}-${chip.value}-${index}`}
+            chip={chip}
+            onRemove={() => removeChip(index)}
+          />
         ))}
 
         <input
@@ -501,7 +518,9 @@ function SmartSearchInner<T>({
           aria-expanded={shouldShowDropdown}
           aria-controls="smart-search-listbox"
           aria-haspopup="listbox"
-          aria-activedescendant={shouldShowDropdown && highlightedIndex >= 0 ? `suggestion-${highlightedIndex}` : undefined}
+          aria-activedescendant={
+            shouldShowDropdown && highlightedIndex >= 0 ? `suggestion-${highlightedIndex}` : undefined
+          }
         />
 
         {chips.length > 0 && (
@@ -537,7 +556,7 @@ function SmartSearchInner<T>({
             "absolute inset-x-0 top-full z-50 mt-1 max-h-[300px] overflow-auto rounded-md border shadow-lg",
             validationError
               ? "border-red-200 bg-white dark:border-red-800 dark:bg-zinc-900"
-              : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+              : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
           )}
           role="listbox"
         >
@@ -585,14 +604,8 @@ function SmartSearchInner<T>({
                 <span className="flex items-center gap-2">
                   {suggestion.type === "field" ? (
                     <>
-                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400">
-                        {suggestion.label}
-                      </span>
-                      {suggestion.hint && (
-                        <span className="text-zinc-500 dark:text-zinc-400">
-                          {suggestion.hint}
-                        </span>
-                      )}
+                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{suggestion.label}</span>
+                      {suggestion.hint && <span className="text-zinc-500 dark:text-zinc-400">{suggestion.hint}</span>}
                     </>
                   ) : (
                     <span>{suggestion.label}</span>
