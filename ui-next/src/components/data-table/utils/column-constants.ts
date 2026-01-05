@@ -34,28 +34,28 @@
  * Calculated at 16px base font size (1rem = 16px).
  */
 export const COLUMN_MIN_WIDTHS_REM = {
-  /** Text that truncates with ellipsis (names, descriptions) - 8.75rem */
+  /** Text that truncates with ellipsis (names, descriptions) */
   TEXT_TRUNCATE: 8.75,
 
-  /** Short text labels (status, type) - 5rem */
-  TEXT_SHORT: 5,
+  /** Short text labels (status, type) */
+  TEXT_SHORT: 6,
 
-  /** Short numbers: "128/256", "1.5K/2K" - 5rem */
+  /** Short numbers: "128/256", "1.5K/2K" */
   NUMBER_SHORT: 5,
 
-  /** Numbers with units: "512/1,024 Gi" - 7.25rem */
+  /** Numbers with units: "512/1,024 Gi" */
   NUMBER_WITH_UNIT: 7.25,
 
-  /** Timestamps: "2024-01-15 14:30" - 8.75rem */
+  /** Timestamps: "2024-01-15 14:30" */
   TIMESTAMP: 8.75,
 
-  /** Actions column (icon buttons) - small 3.125rem */
+  /** Actions column (icon buttons) - small */
   ACTIONS_SMALL: 3.125,
 
-  /** Actions column (icon buttons) - medium 5rem */
+  /** Actions column (icon buttons) - medium */
   ACTIONS_MEDIUM: 5,
 
-  /** Status badge column - 6rem */
+  /** Status badge column */
   STATUS_BADGE: 6,
 } as const;
 
