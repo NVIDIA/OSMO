@@ -8,7 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { createTableStore } from "@/stores";
+import { createTableStore, createTableSelectors } from "@/stores";
 import {
   DEFAULT_VISIBLE_COLUMNS,
   DEFAULT_COLUMN_ORDER,
@@ -31,6 +31,19 @@ export const useResourcesTableStore = createTableStore({
   defaultSort: DEFAULT_SORT,
   defaultPanelWidth: DEFAULT_PANEL_WIDTH,
 });
+
+/**
+ * Pre-bound selector hooks for the resources table store.
+ *
+ * Uses useShallow internally to prevent unnecessary re-renders.
+ *
+ * @example
+ * ```tsx
+ * const { visibleColumnIds, setVisibleColumns } = resourcesTableSelectors.useColumnState();
+ * const { sort, setSort } = resourcesTableSelectors.useSorting();
+ * ```
+ */
+export const resourcesTableSelectors = createTableSelectors(useResourcesTableStore);
 
 // Re-export shared preferences for convenience
 export { useSharedPreferences } from "@/stores";

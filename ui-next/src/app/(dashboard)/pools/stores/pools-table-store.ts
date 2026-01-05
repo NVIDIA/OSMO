@@ -8,7 +8,7 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-import { createTableStore } from "@/stores";
+import { createTableStore, createTableSelectors } from "@/stores";
 import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -39,6 +39,19 @@ export const usePoolsTableStore = createTableStore({
   defaultSort: { column: "name", direction: "asc" },
   defaultPanelWidth: 40,
 });
+
+/**
+ * Pre-bound selector hooks for the pools table store.
+ *
+ * Uses useShallow internally to prevent unnecessary re-renders.
+ *
+ * @example
+ * ```tsx
+ * const { visibleColumnIds, setVisibleColumns } = poolsTableSelectors.useColumnState();
+ * const { sort, setSort } = poolsTableSelectors.useSorting();
+ * ```
+ */
+export const poolsTableSelectors = createTableSelectors(usePoolsTableStore);
 
 /**
  * Pools-specific extended state (not shared with resources).
