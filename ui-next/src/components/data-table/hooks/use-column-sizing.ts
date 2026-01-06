@@ -188,7 +188,7 @@ export function useColumnSizing({
         setColumnSizing(newSizing);
       }
     },
-    [tableRef, minSizesRef], // ← Removed columnSizing dependency
+    [tableRef, minSizesRef, columnSizingRef],
   );
 
   const onColumnSizingInfoChange = useCallback(
@@ -220,17 +220,20 @@ export function useColumnSizing({
         return next;
       });
     },
-    [containerRef], // ← Removed columnSizing dependency
+    [containerRef, columnSizingRef],
   );
 
   // Cleanup RAF on unmount
   useEffect(() => {
+    // Capture ref value at effect start for cleanup
+    const container = containerRef?.current;
+
     return () => {
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
       }
       // Ensure class is removed on unmount
-      containerRef?.current?.classList.remove("is-resizing");
+      container?.classList.remove("is-resizing");
     };
   }, [containerRef]);
 

@@ -39,7 +39,8 @@
  * @see /src/lib/docs/CALLBACK_STABILITY.md for full documentation
  */
 
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
+import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 
 /**
  * Returns a stable callback reference that always invokes the latest version of the callback.
@@ -80,7 +81,7 @@ export function useStableCallback<TArgs extends [], TReturn>(
   callback: (...args: TArgs) => TReturn,
 ): (...args: TArgs) => TReturn {
   const callbackRef = useRef(callback);
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     callbackRef.current = callback;
   });
 
@@ -110,7 +111,7 @@ export function useStableCallback<TArgs extends [], TReturn>(
  */
 export function useStableValue<T>(value: T): React.RefObject<T> {
   const ref = useRef(value);
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     ref.current = value;
   });
   return ref;
