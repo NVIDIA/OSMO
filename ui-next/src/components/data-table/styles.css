@@ -225,6 +225,16 @@
   }
 }
 
+/* Show resize handle when hovering the column header cell */
+.data-table th:hover .resize-handle::after {
+  @apply bg-zinc-300 dark:bg-zinc-700;
+}
+
+/* Ensure direct hover on handle is brighter than cell hover */
+.data-table th:hover .resize-handle:hover::after {
+  @apply bg-zinc-400 dark:bg-zinc-500;
+}
+
 /* =============================================================================
    High-Performance Resize Mode
    Applied during column drag for 60fps smooth resizing
