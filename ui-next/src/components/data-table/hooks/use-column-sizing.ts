@@ -73,6 +73,10 @@ export interface UseColumnSizingResult {
   handleResizeEnd: () => void;
   /** Reset all columns (clears persisted sizing) */
   resetAllColumns: () => void;
+  /** Set a single column's size (respects minSize, persists immediately) */
+  setColumnSize: (columnId: string, size: number) => void;
+  /** Reset a single column to default (removes from sizing state) */
+  resetColumn: (columnId: string) => void;
   /**
    * CSS variables for column widths.
    * Apply to table: `style={cssVariables}`
@@ -202,6 +206,32 @@ export function useColumnSizing({
     queueMicrotask(() => persistSizing({}));
   }, [persistSizing]);
 
+  const setColumnSize = useCallback(
+    (columnId: string, size: number) => {
+      const minWidth = minSizes?.[columnId] ?? 0;
+      const clampedSize = Math.max(size, minWidth);
+
+      setColumnSizing((prev) => {
+        const next = { ...prev, [columnId]: clampedSize };
+        queueMicrotask(() => persistSizing(next));
+        return next;
+      });
+    },
+    [minSizes, persistSizing],
+  );
+
+  const resetColumn = useCallback(
+    (columnId: string) => {
+      setColumnSizing((prev) => {
+        const next = { ...prev };
+        delete next[columnId];
+        queueMicrotask(() => persistSizing(next));
+        return next;
+      });
+    },
+    [persistSizing],
+  );
+
   // =========================================================================
   // CSS Variables (TanStack best practice for performance)
   // @see https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
@@ -230,6 +260,8 @@ export function useColumnSizing({
     onColumnSizingInfoChange,
     handleResizeEnd,
     resetAllColumns,
+    setColumnSize,
+    resetColumn,
     cssVariables,
   };
 }
