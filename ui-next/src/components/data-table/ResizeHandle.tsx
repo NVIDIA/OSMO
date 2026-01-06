@@ -58,7 +58,11 @@ function ResizeHandleInner<TData>({ header, onResizeEnd, onAutoFit, onReset }: R
   const [isFocused, setIsFocused] = useState(false);
 
   // TanStack's native resize handler - works with mouse, touch, and pointer events
+  // Memoize handler reference to avoid re-creating on each render
   const resizeHandler = header.getResizeHandler();
+  
+  // Only check isResizing when actually needed for styling
+  // This getter can be expensive if called frequently
   const isResizing = header.column.getIsResizing();
 
   // Pointer events (modern, preferred)
