@@ -33,9 +33,9 @@
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
  */
 
-import { useCallback, useRef, useMemo, useLayoutEffect, useState } from "react";
+import { useCallback, useRef, useMemo, useLayoutEffect, useState, useEffect } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
-import { useStableCallback } from "@/hooks";
+import { useStableCallback, useStableValue } from "@/hooks";
 
 // =============================================================================
 // Types
@@ -46,6 +46,8 @@ export interface UseColumnSizingOptions {
   columnIds: string[];
   /** Container ref for proportional resize on window changes */
   containerRef?: React.RefObject<HTMLElement | null>;
+  /** Table element ref for direct DOM updates during resize */
+  tableRef?: React.RefObject<HTMLTableElement | null>;
   /** Persisted column sizing from store */
   persistedSizing?: ColumnSizingState;
   /** Callback to persist sizing changes */
@@ -102,6 +104,7 @@ const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
 export function useColumnSizing({
   columnIds,
   containerRef,
+  tableRef,
   persistedSizing,
   onSizingChange,
   minSizes,
@@ -111,11 +114,26 @@ export function useColumnSizing({
   const isInitialMount = useRef(true);
 
   // =========================================================================
+  // Performance: RAF-throttled resize tracking
+  // During drag, we update DOM directly and only sync to React on idle/end
+  // =========================================================================
+  const rafIdRef = useRef<number | null>(null);
+  const pendingSizingRef = useRef<ColumnSizingState | null>(null);
+  const isResizingRef = useRef(false);
+
+  // Stable ref to minSizes for use in callbacks
+  const minSizesRef = useStableValue(minSizes);
+
+  // =========================================================================
   // State
   // Initialize from persisted sizing. TanStack uses 150px default for missing.
   // =========================================================================
 
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => persistedSizing ?? {});
+
+  // Stable ref to columnSizing for use in callbacks (avoids stale closures)
+  // This is critical because TanStack Table may cache callback references
+  const columnSizingRef = useStableValue(columnSizing);
   const [columnSizingInfo, setColumnSizingInfo] = useState<ColumnSizingInfoState>(DEFAULT_COLUMN_SIZING_INFO);
 
   // Stable callback for persistence (doesn't change reference)
@@ -123,25 +141,106 @@ export function useColumnSizing({
     onSizingChange?.(sizing);
   });
 
-  // TanStack-compatible onChange handlers
+  // =========================================================================
+  // RAF-throttled onChange handler for smooth 60fps updates
+  // During drag: update DOM directly, bypass React for performance
+  // After drag: sync final state to React
+  //
+  // IMPORTANT: Uses columnSizingRef.current (not columnSizing) to avoid stale
+  // closures. TanStack Table may cache callback references, so we must always
+  // read the latest state from a ref.
+  // =========================================================================
   const onColumnSizingChange = useCallback(
     (updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => {
-      setColumnSizing((prev) => (typeof updater === "function" ? updater(prev) : updater));
+      // Calculate new sizing using ref for latest value (avoid stale closure)
+      const currentSizing = pendingSizingRef.current ?? columnSizingRef.current;
+      const newSizing = typeof updater === "function"
+        ? updater(currentSizing)
+        : updater;
+
+      // Store pending sizing for next RAF frame
+      pendingSizingRef.current = newSizing;
+
+      // If we're resizing, update DOM directly (RAF-throttled)
+      if (isResizingRef.current) {
+        // Cancel previous RAF to avoid stacking
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+        }
+
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          const pending = pendingSizingRef.current;
+          if (!pending) return;
+
+          // Update CSS variables directly on DOM
+          const table = tableRef?.current;
+          if (table) {
+            for (const [colId, width] of Object.entries(pending)) {
+              const minWidth = minSizesRef.current?.[colId] ?? 0;
+              const clampedWidth = Math.max(width, minWidth);
+              table.style.setProperty(`--col-${colId}`, `${clampedWidth}px`);
+            }
+          }
+        });
+      } else {
+        // Not resizing, update React state normally
+        setColumnSizing(newSizing);
+      }
     },
-    [],
+    [tableRef, minSizesRef], // ← Removed columnSizing dependency
   );
 
   const onColumnSizingInfoChange = useCallback(
     (updater: ColumnSizingInfoState | ((old: ColumnSizingInfoState) => ColumnSizingInfoState)) => {
-      setColumnSizingInfo((prev) => (typeof updater === "function" ? updater(prev) : updater));
+      setColumnSizingInfo((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+
+        // Track resize state for RAF optimization
+        const wasResizing = isResizingRef.current;
+        const isNowResizing = Boolean(next.isResizingColumn);
+
+        if (!wasResizing && isNowResizing) {
+          // Resize started: add is-resizing class, cache current sizing
+          // Use ref for latest value (avoid stale closure)
+          isResizingRef.current = true;
+          pendingSizingRef.current = columnSizingRef.current;
+          containerRef?.current?.classList.add("is-resizing");
+        } else if (wasResizing && !isNowResizing) {
+          // Resize ended: remove class, sync pending to React state
+          isResizingRef.current = false;
+          containerRef?.current?.classList.remove("is-resizing");
+
+          // Sync final sizing to React state
+          if (pendingSizingRef.current) {
+            setColumnSizing(pendingSizingRef.current);
+          }
+        }
+
+        return next;
+      });
     },
-    [],
+    [containerRef], // ← Removed columnSizing dependency
   );
+
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      // Ensure class is removed on unmount
+      containerRef?.current?.classList.remove("is-resizing");
+    };
+  }, [containerRef]);
 
   // =========================================================================
   // Proportional Scaling on Container Resize
   // When the container (window/panel) resizes, scale all columns proportionally
   // =========================================================================
+
+  // Ref for ResizeObserver RAF throttling
+  const resizeRafRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     const container = containerRef?.current;
@@ -167,26 +266,40 @@ export function useColumnSizing({
         return;
       }
 
-      // Scale factor
-      const scale = newWidth / prevWidth;
-      prevContainerWidth.current = newWidth;
+      // RAF-throttle proportional scaling for smooth 60fps during window resize
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
 
-      // Scale all columns proportionally, respecting minSizes
-      setColumnSizing((prev) => {
-        if (Object.keys(prev).length === 0) return prev;
+      resizeRafRef.current = requestAnimationFrame(() => {
+        resizeRafRef.current = null;
 
-        const next: ColumnSizingState = {};
-        for (const [colId, width] of Object.entries(prev)) {
-          const scaledWidth = Math.round(width * scale);
-          const minWidth = minSizes?.[colId] ?? 0;
-          next[colId] = Math.max(scaledWidth, minWidth);
-        }
-        return next;
+        // Scale factor
+        const scale = newWidth / prevWidth;
+        prevContainerWidth.current = newWidth;
+
+        // Scale all columns proportionally, respecting minSizes
+        setColumnSizing((prev) => {
+          if (Object.keys(prev).length === 0) return prev;
+
+          const next: ColumnSizingState = {};
+          for (const [colId, width] of Object.entries(prev)) {
+            const scaledWidth = Math.round(width * scale);
+            const minWidth = minSizes?.[colId] ?? 0;
+            next[colId] = Math.max(scaledWidth, minWidth);
+          }
+          return next;
+        });
       });
     });
 
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+    };
   }, [containerRef, columnSizingInfo.isResizingColumn, minSizes]);
 
   // =========================================================================
@@ -202,34 +315,75 @@ export function useColumnSizing({
   }, [persistSizing]);
 
   const resetAllColumns = useCallback(() => {
+    // CRITICAL: Update pendingSizingRef FIRST to prevent race conditions
+    pendingSizingRef.current = {};
+
+    // Update React state
     setColumnSizing({});
     queueMicrotask(() => persistSizing({}));
-  }, [persistSizing]);
+
+    // Also update DOM directly for immediate visual feedback
+    const table = tableRef?.current;
+    if (table) {
+      for (const colId of columnIds) {
+        table.style.setProperty(`--col-${colId}`, "150px");
+      }
+    }
+  }, [persistSizing, tableRef, columnIds]);
 
   const setColumnSize = useCallback(
     (columnId: string, size: number) => {
-      const minWidth = minSizes?.[columnId] ?? 0;
+      const minWidth = minSizesRef.current?.[columnId] ?? 0;
       const clampedSize = Math.max(size, minWidth);
 
-      setColumnSizing((prev) => {
-        const next = { ...prev, [columnId]: clampedSize };
-        queueMicrotask(() => persistSizing(next));
-        return next;
+      // Calculate the new sizing state using latest available values
+      const currentSizing = pendingSizingRef.current ?? columnSizingRef.current ?? {};
+      const newSizing = { ...currentSizing, [columnId]: clampedSize };
+
+      // CRITICAL: Update pendingSizingRef FIRST so any concurrent resize events
+      // (e.g., pointer events during double-click) use this new value instead
+      // of overwriting it with stale cached state
+      pendingSizingRef.current = newSizing;
+
+      // Update React state
+      setColumnSizing(() => {
+        queueMicrotask(() => persistSizing(newSizing));
+        return newSizing;
       });
+
+      // Also update DOM directly for immediate visual feedback
+      // This ensures the change is visible before React's next render
+      const table = tableRef?.current;
+      if (table) {
+        table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
+      }
     },
-    [minSizes, persistSizing],
+    [minSizesRef, persistSizing, tableRef, columnSizingRef],
   );
 
   const resetColumn = useCallback(
     (columnId: string) => {
-      setColumnSizing((prev) => {
-        const next = { ...prev };
-        delete next[columnId];
-        queueMicrotask(() => persistSizing(next));
-        return next;
+      // Calculate the new sizing state
+      const currentSizing = pendingSizingRef.current ?? columnSizingRef.current ?? {};
+      const newSizing = { ...currentSizing };
+      delete newSizing[columnId];
+
+      // CRITICAL: Update pendingSizingRef FIRST to prevent race conditions
+      pendingSizingRef.current = newSizing;
+
+      // Update React state
+      setColumnSizing(() => {
+        queueMicrotask(() => persistSizing(newSizing));
+        return newSizing;
       });
+
+      // Also update DOM directly for immediate visual feedback
+      const table = tableRef?.current;
+      if (table) {
+        table.style.setProperty(`--col-${columnId}`, "150px");
+      }
     },
-    [persistSizing],
+    [persistSizing, tableRef, columnSizingRef],
   );
 
   // =========================================================================

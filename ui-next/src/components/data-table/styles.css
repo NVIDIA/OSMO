@@ -69,6 +69,10 @@
   display: flex;
   /* Layout/style/paint containment - NOT size (rows need intrinsic width) */
   contain: layout style paint;
+  /* GPU layer hint for transform animations (translate3d) */
+  will-change: transform;
+  /* Prevent subpixel rendering issues */
+  backface-visibility: hidden;
 
   /* Fill remaining space with pseudo-element to avoid whitespace gap */
   &::after {
@@ -111,8 +115,10 @@
   overflow: hidden;
   /* Containment: cell layout is self-contained */
   contain: layout style;
-  /* Text optimization */
+  /* Text optimization - use optimizeSpeed during interactions for perf */
   text-rendering: optimizeLegibility;
+  /* Prevent layout thrashing from width changes */
+  box-sizing: border-box;
 
   /* Alignment variants using CSS nesting */
   &.data-table-cell--left {
@@ -220,7 +226,8 @@
 }
 
 /* =============================================================================
-   Scroll Lock During Resize
+   High-Performance Resize Mode
+   Applied during column drag for 60fps smooth resizing
    ============================================================================= */
 
 /* Applied to scroll container during resize */
@@ -237,14 +244,32 @@
   /* Prevent touch actions */
   touch-action: none;
 
-  /* Performance: hint that columns are changing */
+  /* Performance flag for CSS queries */
   --is-resizing: 1;
 }
 
-/* GPU acceleration hint for cells during resize */
-.is-resizing .data-table-cell {
-  /* Promote to compositor layer during resize */
+/* GPU acceleration for the entire table during resize */
+.is-resizing .data-table {
+  /* Promote table to compositor layer */
+  will-change: contents;
+  /* Stricter containment during resize */
+  contain: strict;
+}
+
+/* Optimize header cells during resize */
+.is-resizing .data-table th,
+.is-resizing .data-table td {
+  /* Disable transitions during drag for instant updates */
+  transition: none !important;
+  /* Promote cells to compositor for GPU rendering */
   will-change: width;
+  /* Contain layout recalculations */
+  contain: layout style;
+}
+
+/* Disable all hover effects during resize to reduce paint */
+.is-resizing .data-table-row:hover {
+  background: inherit !important;
 }
 
 /* Force col-resize cursor everywhere during resize */
@@ -256,4 +281,14 @@
 /* Prevent pointer events on table content during resize */
 .is-resizing .data-table tbody {
   pointer-events: none;
+}
+
+/* Disable text rendering optimizations during resize for speed */
+.is-resizing .data-table-cell {
+  text-rendering: optimizeSpeed;
+}
+
+/* Remove box-shadows and complex effects during resize */
+.is-resizing .data-table * {
+  box-shadow: none !important;
 }

@@ -35,3 +35,13 @@ export {
 } from "./use-expandable-chips";
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
 export { useStableCallback, useStableValue } from "./use-stable-callback";
+export {
+  useRafState,
+  type UseRafStateOptions,
+  type UseRafStateResult,
+} from "./use-raf-state";
+export {
+  useRafCssVar,
+  type UseRafCssVarOptions,
+  type UseRafCssVarResult,
+} from "./use-raf-css-var";
