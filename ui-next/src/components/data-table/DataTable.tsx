@@ -269,14 +269,28 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   const visibleColumnCount = visibleColumnIds.length;
 
+  // Extract minSizes from column definitions for enforcement
+  // TanStack only enforces minSize on read (column.getSize()), not in state
+  const columnMinSizes = useMemo(() => {
+    const sizes: Record<string, number> = {};
+    for (const col of columns) {
+      const colId = col.id ?? ("accessorKey" in col && col.accessorKey ? String(col.accessorKey) : "");
+      if (colId && col.minSize != null) {
+        sizes[colId] = col.minSize;
+      }
+    }
+    return sizes;
+  }, [columns]);
+
   // Column sizing - minimal wrapper around TanStack's native resize
   // TanStack handles: drag, min/max enforcement, size state
-  // Hook adds: persistence, CSS variables, proportional container resize
+  // Hook adds: persistence, CSS variables, proportional container resize, minSize enforcement
   const columnSizingHook = useColumnSizing({
     columnIds: visibleColumnIds,
     containerRef: scrollRef,
     persistedSizing: persistedColumnSizing,
     onSizingChange: onColumnSizingChange,
+    minSizes: columnMinSizes,
   });
 
   // Create TanStack table instance
