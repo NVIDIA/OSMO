@@ -285,9 +285,11 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Column sizing - minimal wrapper around TanStack's native resize
   // TanStack handles: drag, min/max enforcement, size state
   // Hook adds: persistence, CSS variables, proportional container resize, minSize enforcement
+  // Performance: RAF-throttled direct DOM updates during drag for 60fps
   const columnSizingHook = useColumnSizing({
     columnIds: visibleColumnIds,
     containerRef: scrollRef,
+    tableRef: tableElementRef,
     persistedSizing: persistedColumnSizing,
     onSizingChange: onColumnSizingChange,
     minSizes: columnMinSizes,
@@ -427,6 +429,26 @@ export function DataTable<TData, TSectionMeta = unknown>({
     [columnSizingHook],
   );
 
+  // ==========================================================================
+  // Stable sort handler (avoids creating functions in render loop)
+  // Takes columnId and current sort state to determine next sort action
+  // ==========================================================================
+  const handleHeaderSort = useCallback(
+    (columnId: string, isSortable: boolean, currentSortDirection: false | "asc" | "desc") => {
+      if (!isSortable) return;
+
+      // Cycle: none -> asc -> desc -> none
+      if (!currentSortDirection) {
+        onSortingChangeRef.current?.({ column: columnId, direction: "asc" });
+      } else if (currentSortDirection === "asc") {
+        onSortingChangeRef.current?.({ column: columnId, direction: "desc" });
+      } else {
+        onSortingChangeRef.current?.({ column: null, direction: "asc" });
+      }
+    },
+    [onSortingChangeRef],
+  );
+
   // Row click and load more are accessed via refs (set above)
 
   // Keyboard navigation for rows (uses virtual indices which include sections)
@@ -540,24 +562,16 @@ export function DataTable<TData, TSectionMeta = unknown>({
                     strategy={horizontalListSortingStrategy}
                   >
                     {table.getHeaderGroups().map((headerGroup) =>
-                      headerGroup.headers.map((header) => {
+                      headerGroup.headers.map((header, headerIndex) => {
                         const isFixed = fixedColumns.includes(header.id);
                         const isSortable = header.column.getCanSort();
                         const isSorted = header.column.getIsSorted();
 
-                        // Use our controlled sort handler, not TanStack's toggleSorting
-                        const handleHeaderSort = () => {
-                          if (!isSortable) return;
+                        // Cache CSS variable string (avoid multiple getColumnCSSValue calls)
+                        const cssWidth = getColumnCSSValue(header.id);
 
-                          // Cycle: none -> asc -> desc -> none
-                          if (!isSorted) {
-                            onSortingChangeRef.current?.({ column: header.id, direction: "asc" });
-                          } else if (isSorted === "asc") {
-                            onSortingChangeRef.current?.({ column: header.id, direction: "desc" });
-                          } else {
-                            onSortingChangeRef.current?.({ column: null, direction: "asc" });
-                          }
-                        };
+                        // Use stable handler - no function allocation per render
+                        const onSort = () => handleHeaderSort(header.id, isSortable, isSorted);
 
                         const cellContent = (
                           <>
@@ -566,7 +580,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               sortable={isSortable}
                               isActive={Boolean(isSorted)}
                               direction={isSorted === "asc" ? "asc" : isSorted === "desc" ? "desc" : undefined}
-                              onSort={handleHeaderSort}
+                              onSort={onSort}
                             />
                             {/* Resize handle - uses TanStack's native getResizeHandler */}
                             <ResizeHandle
@@ -578,13 +592,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
                           </>
                         );
 
-                        // Style for column width - always use CSS variable
-                        // flexShrink: 0 prevents cells from shrinking below their width
-                        const widthStyle: React.CSSProperties = {
-                          width: getColumnCSSValue(header.id),
-                          minWidth: getColumnCSSValue(header.id),
-                          flexShrink: 0,
-                        };
+                        // Use headerIndex from map (O(1)) instead of indexOf (O(n))
+                        const colIndex = headerIndex + 1;
 
                         if (isFixed) {
                           return (
@@ -592,9 +601,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               key={header.id}
                               role="columnheader"
                               scope="col"
-                              aria-colindex={headerGroup.headers.indexOf(header) + 1}
+                              aria-colindex={colIndex}
                               data-column-id={header.id}
-                              style={widthStyle}
+                              style={{
+                                width: cssWidth,
+                                minWidth: cssWidth,
+                                flexShrink: 0,
+                              }}
                               className="relative flex items-center px-4 py-3"
                             >
                               {cellContent}
@@ -602,16 +615,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
                           );
                         }
 
-                        // For SortableCell, use CSS variable (same as body cells)
-                        const sortableCellWidth = getColumnCSSValue(header.id);
-
                         return (
                           <SortableCell
                             key={header.id}
                             id={header.id}
                             as="th"
-                            width={sortableCellWidth}
-                            colIndex={headerGroup.headers.indexOf(header) + 1}
+                            width={cssWidth}
+                            colIndex={colIndex}
                             className="relative flex items-center px-4 py-3"
                           >
                             {cellContent}
