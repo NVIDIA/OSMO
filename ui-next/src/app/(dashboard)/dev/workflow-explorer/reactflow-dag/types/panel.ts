@@ -61,8 +61,8 @@ export interface DetailsPanelProps {
   onPanelResize: (pct: number) => void;
   /** Whether the panel is being resized */
   isDragging: boolean;
-  /** Mouse down handler for resize handle */
-  onResizeMouseDown: (e: React.MouseEvent) => void;
+  /** Bind function for resize handle (from @use-gesture/react) */
+  bindResizeHandle: () => React.HTMLAttributes<HTMLDivElement>;
   /** Whether the header details section is expanded */
   isDetailsExpanded: boolean;
   /** Toggle the details expansion state */

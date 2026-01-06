@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { cn, formatNumber, formatCompact, formatBytes, formatBytesPair } from "./utils";
+import { cn, formatCompact, formatBytes, formatBytesPair } from "./utils";
 
 // =============================================================================
 // cn (class name utility)
@@ -46,39 +46,6 @@ describe("cn", () => {
 
   it("handles objects", () => {
     expect(cn({ active: true, hidden: false })).toBe("active");
-  });
-});
-
-// =============================================================================
-// formatNumber
-// =============================================================================
-
-describe("formatNumber", () => {
-  it("formats small numbers without commas", () => {
-    expect(formatNumber(0)).toBe("0");
-    expect(formatNumber(1)).toBe("1");
-    expect(formatNumber(999)).toBe("999");
-  });
-
-  it("formats thousands with commas", () => {
-    expect(formatNumber(1000)).toBe("1,000");
-    expect(formatNumber(12345)).toBe("12,345");
-    expect(formatNumber(999999)).toBe("999,999");
-  });
-
-  it("formats millions with commas", () => {
-    expect(formatNumber(1000000)).toBe("1,000,000");
-    expect(formatNumber(1234567890)).toBe("1,234,567,890");
-  });
-
-  it("removes decimal places", () => {
-    expect(formatNumber(1234.5678)).toBe("1,235"); // Rounds
-    expect(formatNumber(1234.1)).toBe("1,234");
-  });
-
-  it("handles negative numbers", () => {
-    expect(formatNumber(-1234)).toBe("-1,234");
-    expect(formatNumber(-999999)).toBe("-999,999");
   });
 });
 

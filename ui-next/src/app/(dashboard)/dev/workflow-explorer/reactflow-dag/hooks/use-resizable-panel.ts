@@ -17,17 +17,21 @@
 /**
  * useResizablePanel Hook
  *
- * Provides drag-to-resize functionality for panels with:
- * - RAF-throttled updates for 60fps smooth dragging
+ * Provides drag-to-resize functionality for panels using @use-gesture/react.
+ *
+ * Features:
+ * - Smooth dragging with RAF-throttled updates
  * - Percentage-based sizing
  * - Min/max constraints
  * - Optional persistence via usePersistedSettings
+ * - Touch support
  */
 
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useStableCallback } from "@/hooks";
+import { useState, useRef } from "react";
+import { useDrag } from "@use-gesture/react";
+import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
 import { PANEL } from "../constants";
 import { usePersistedSettings } from "./use-persisted-settings";
 
@@ -53,8 +57,8 @@ export interface UseResizablePanelReturn {
   setPanelPct: (pct: number) => void;
   /** Whether the panel is currently being dragged */
   isDragging: boolean;
-  /** Event handler for the resize handle's mousedown event */
-  handleMouseDown: (e: React.MouseEvent) => void;
+  /** Bind props for the resize handle element */
+  bindResizeHandle: ReturnType<typeof useDrag>;
   /** Ref to attach to the container element */
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -67,23 +71,21 @@ export interface UseResizablePanelReturn {
  * Hook for creating resizable panels.
  *
  * Features:
- * - RAF-throttled mouse tracking for butter-smooth 60fps dragging
+ * - Smooth drag tracking via @use-gesture/react
+ * - RAF-throttled updates for 60fps performance
  * - Percentage-based sizing for responsive layouts
  * - Configurable min/max constraints
  * - Optional localStorage persistence
- * - Passive event listeners for scroll performance
+ * - Touch support
  *
  * @example
  * ```tsx
- * const { panelPct, isDragging, handleMouseDown, containerRef } = useResizablePanel();
+ * const { panelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel();
  *
  * return (
  *   <div ref={containerRef} className="relative flex">
  *     <div className="flex-1">Main content</div>
- *     <div
- *       className="resize-handle"
- *       onMouseDown={handleMouseDown}
- *     />
+ *     <div {...bindResizeHandle()} className="resize-handle" />
  *     <div style={{ width: `${panelPct}%` }}>Panel</div>
  *   </div>
  * );
@@ -102,70 +104,51 @@ export function useResizablePanel({
   const panelPct = persist ? persistedPanelPct : localPanelPct;
   const setPanelPctInternal = persist ? setPersistedPanelPct : setLocalPanelPct;
 
-  // Stable callback to prevent stale closures in event handlers
+  // Stable callback to prevent stale closures
   const stableSetPanelPct = useStableCallback((pct: number) => setPanelPctInternal(pct));
 
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // RAF reference for throttling
-  const rafRef = useRef<number | null>(null);
-  const pendingPctRef = useRef<number | null>(null);
+  // Stable refs to avoid stale closures in useDrag (which memoizes the handler)
+  const minPctRef = useStableValue(minPct);
+  const maxPctRef = useStableValue(maxPct);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
+  // RAF-throttled panel resize for 60fps smooth dragging
+  const [schedulePanelResize] = useRafCallback(stableSetPanelPct, { throttle: true });
 
-  useEffect(() => {
-    if (!isDragging) return;
-
-    // RAF-throttled resize for 60fps smooth dragging
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      // Panel is on the right side, so width = total - x position
-      const pct = 100 - (x / rect.width) * 100;
-      pendingPctRef.current = Math.min(maxPct, Math.max(minPct, pct));
-
-      if (rafRef.current === null) {
-        rafRef.current = requestAnimationFrame(() => {
-          if (pendingPctRef.current !== null) {
-            stableSetPanelPct(pendingPctRef.current);
-          }
-          rafRef.current = null;
-        });
+  // Drag gesture handler using @use-gesture/react
+  // Uses refs to avoid stale closures (useDrag memoizes the handler internally)
+  const bindResizeHandle = useDrag(
+    ({ active, xy: [x], first, last }) => {
+      if (first) {
+        setIsDragging(true);
       }
-    };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
+      if (active && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const relativeX = x - rect.left;
+        // Panel is on the right side, so width = total - x position
+        const pct = 100 - (relativeX / rect.width) * 100;
+        const clampedPct = Math.min(maxPctRef.current, Math.max(minPctRef.current, pct));
+        schedulePanelResize(clampedPct);
       }
-    };
 
-    // Passive event listeners for better scroll performance
-    document.addEventListener("mousemove", handleMouseMove, { passive: true });
-    document.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
+      if (last) {
+        setIsDragging(false);
       }
-    };
-  }, [isDragging, minPct, maxPct, stableSetPanelPct]);
+    },
+    {
+      // Enable pointer events (handles mouse, touch, pen)
+      pointer: { touch: true },
+    },
+  );
 
   return {
     panelPct,
     setPanelPct: stableSetPanelPct,
     isDragging,
-    handleMouseDown,
+    bindResizeHandle,
     containerRef,
   };
 }
