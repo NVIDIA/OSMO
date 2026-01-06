@@ -154,10 +154,7 @@ export function ResizablePanel({
         // Movement is negative when dragging left (making panel wider)
         // Use startWidth as the base, not current width
         const deltaPct = (-mx / containerWidth) * 100;
-        const newWidth = Math.min(
-          maxWidthRef.current,
-          Math.max(minWidthRef.current, startWidthRef.current + deltaPct),
-        );
+        const newWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, startWidthRef.current + deltaPct));
         stableOnWidthChange(newWidth);
       }
 
