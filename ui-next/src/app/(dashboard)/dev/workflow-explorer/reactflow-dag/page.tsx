@@ -117,7 +117,7 @@ function ReactFlowDagPageInner() {
   });
 
   // Resizable panel
-  const { panelPct, setPanelPct, isDragging, handleMouseDown, containerRef } = useResizablePanel();
+  const { panelPct, setPanelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel();
 
   // Determine if panel is open (needed for viewport boundaries)
   const isPanelOpen = panelView !== "none" && selectedGroup !== null;
@@ -281,7 +281,7 @@ function ReactFlowDagPageInner() {
               panelPct={panelPct}
               onPanelResize={setPanelPct}
               isDragging={isDragging}
-              onResizeMouseDown={handleMouseDown}
+              bindResizeHandle={bindResizeHandle}
               isDetailsExpanded={isDetailsExpanded}
               onToggleDetailsExpanded={handleToggleDetailsExpanded}
             />

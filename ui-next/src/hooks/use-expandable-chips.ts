@@ -18,6 +18,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import type { RefObject } from "react";
+import { useRafCallback } from "./use-raf-callback";
 
 // =============================================================================
 // Types
@@ -256,6 +257,12 @@ export function useExpandableChips<T = string>({
 
   const calculateVisibleCount = isMeasuredMode ? calculateVisibleCountMeasured : calculateVisibleCountEstimated;
 
+  // RAF-throttled recalculation for 60fps during container resize
+  // Using null as signal value since the actual count is computed inside the callback
+  const [scheduleRecalculate] = useRafCallback<null>(() => {
+    setVisibleCount(calculateVisibleCount());
+  });
+
   // Use useLayoutEffect for measured mode (needs DOM to be painted)
   // Use useEffect for estimation mode (no DOM dependency)
   const effectHook = isMeasuredMode ? useLayoutEffect : useEffect;
@@ -266,28 +273,15 @@ export function useExpandableChips<T = string>({
     const container = containerRef.current;
     if (!container) return;
 
-    let rafId: number | null = null;
-
     const observer = new ResizeObserver(() => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
-      rafId = requestAnimationFrame(() => {
-        setVisibleCount(calculateVisibleCount());
-        rafId = null;
-      });
+      scheduleRecalculate(null);
     });
 
     observer.observe(container);
     setVisibleCount(calculateVisibleCount());
 
-    return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
-      observer.disconnect();
-    };
-  }, [calculateVisibleCount, expanded, sortedItems]);
+    return () => observer.disconnect();
+  }, [calculateVisibleCount, expanded, sortedItems, scheduleRecalculate]);
 
   // Reset to collapsed when items change
   useEffect(() => {
