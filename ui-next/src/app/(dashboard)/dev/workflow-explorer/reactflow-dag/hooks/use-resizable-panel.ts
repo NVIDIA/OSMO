@@ -27,6 +27,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useStableCallback } from "@/hooks";
 import { PANEL } from "../constants";
 import { usePersistedSettings } from "./use-persisted-settings";
 
@@ -99,7 +100,10 @@ export function useResizablePanel({
   const [localPanelPct, setLocalPanelPct] = useState(initialPct);
 
   const panelPct = persist ? persistedPanelPct : localPanelPct;
-  const setPanelPct = persist ? setPersistedPanelPct : setLocalPanelPct;
+  const setPanelPctInternal = persist ? setPersistedPanelPct : setLocalPanelPct;
+
+  // Stable callback to prevent stale closures in event handlers
+  const stableSetPanelPct = useStableCallback((pct: number) => setPanelPctInternal(pct));
 
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -129,7 +133,7 @@ export function useResizablePanel({
       if (rafRef.current === null) {
         rafRef.current = requestAnimationFrame(() => {
           if (pendingPctRef.current !== null) {
-            setPanelPct(pendingPctRef.current);
+            stableSetPanelPct(pendingPctRef.current);
           }
           rafRef.current = null;
         });
@@ -155,11 +159,11 @@ export function useResizablePanel({
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [isDragging, minPct, maxPct, setPanelPct]);
+  }, [isDragging, minPct, maxPct, stableSetPanelPct]);
 
   return {
     panelPct,
-    setPanelPct,
+    setPanelPct: stableSetPanelPct,
     isDragging,
     handleMouseDown,
     containerRef,
