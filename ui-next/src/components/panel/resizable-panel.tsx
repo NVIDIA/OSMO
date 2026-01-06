@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStableCallback } from "@/hooks";
 
 // =============================================================================
 // Types
@@ -98,6 +99,10 @@ export function ResizablePanel({
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; startWidth: number; containerWidth: number } | null>(null);
 
+  // Stable callbacks to prevent stale closures in effects and event handlers
+  const stableOnClose = useStableCallback(onClose);
+  const stableOnWidthChange = useStableCallback(onWidthChange);
+
   // Handle keyboard events on panel
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -106,11 +111,11 @@ export function ResizablePanel({
         const target = e.target as HTMLElement;
         const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
         if (!isInDropdown) {
-          onClose();
+          stableOnClose();
         }
       }
     },
-    [onClose],
+    [stableOnClose],
   );
 
   // Global escape key handler when panel is open
@@ -121,14 +126,14 @@ export function ResizablePanel({
       if (e.key === "Escape") {
         const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
         if (!isInDropdown) {
-          onClose();
+          stableOnClose();
         }
       }
     };
 
     document.addEventListener("keydown", handleGlobalKeyDown);
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [open, onClose]);
+  }, [open, stableOnClose]);
 
   // Resize drag handlers
   const handleResizeMouseDown = useCallback(
@@ -152,7 +157,7 @@ export function ResizablePanel({
       const deltaX = dragStartRef.current.x - e.clientX;
       const deltaPct = (deltaX / containerWidth) * 100;
       const newWidth = Math.min(maxWidth, Math.max(minWidth, dragStartRef.current.startWidth + deltaPct));
-      onWidthChange(newWidth);
+      stableOnWidthChange(newWidth);
     };
 
     const handleMouseUp = () => {
@@ -167,7 +172,7 @@ export function ResizablePanel({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, onWidthChange, minWidth, maxWidth]);
+  }, [isDragging, stableOnWidthChange, minWidth, maxWidth]);
 
   // Prevent text selection during drag
   useEffect(() => {
@@ -195,7 +200,7 @@ export function ResizablePanel({
           onClick={() => {
             // Don't close if we're in the middle of a resize drag
             if (!isDragging) {
-              onClose();
+              stableOnClose();
             }
           }}
           aria-hidden="true"

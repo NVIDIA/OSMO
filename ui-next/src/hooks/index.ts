@@ -22,19 +22,32 @@
  * General-purpose hooks used across the application.
  * Domain-specific hooks live in their respective modules
  * (e.g., headless/ for data fetching, auth/ for authentication).
+ *
+ * ## Stability Hooks
+ * For preventing stale closures and ensuring callback stability:
+ * - `useStableCallback` - Returns stable function reference that always calls latest version
+ * - `useStableValue` - Returns ref that always contains latest value
+ * - `useIsomorphicLayoutEffect` - SSR-safe useLayoutEffect
+ * - `useEventListener` - Type-safe event listeners with automatic cleanup
+ *
+ * ## Performance Hooks
+ * For 60fps interactions and RAF-throttled updates:
+ * - `useRafState` - RAF-throttled state for smooth drag/resize interactions
+ * - `useRafCssVar` - RAF-throttled CSS variable updates
+ * - `useVirtualizerCompat` - React Compiler compatible virtualizer
+ *
+ * ## UI Hooks
+ * - `useExpandableChips` - Responsive overflow for chip/pill lists
+ * - `useUrlChips` - URL-synced search chips
+ * - `usePersistedBoolean` - localStorage-backed boolean state
  */
 
-export { usePersistedBoolean } from "./use-persisted-boolean";
-export { useVirtualizerCompat } from "./use-virtualizer-compat";
-export {
-  useExpandableChips,
-  type ChipLayoutDimensions,
-  type MeasuredModeOptions,
-  type UseExpandableChipsOptions,
-  type UseExpandableChipsResult,
-} from "./use-expandable-chips";
-export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
+// Stability & Functional Correctness
 export { useStableCallback, useStableValue } from "./use-stable-callback";
+export { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
+export { useEventListener } from "./use-event-listener";
+
+// Performance & Animation
 export {
   useRafState,
   type UseRafStateOptions,
@@ -45,3 +58,15 @@ export {
   type UseRafCssVarOptions,
   type UseRafCssVarResult,
 } from "./use-raf-css-var";
+export { useVirtualizerCompat } from "./use-virtualizer-compat";
+
+// UI Components
+export { usePersistedBoolean } from "./use-persisted-boolean";
+export {
+  useExpandableChips,
+  type ChipLayoutDimensions,
+  type MeasuredModeOptions,
+  type UseExpandableChipsOptions,
+  type UseExpandableChipsResult,
+} from "./use-expandable-chips";
+export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";

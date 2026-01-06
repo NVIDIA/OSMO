@@ -253,12 +253,15 @@ export function useRafCssVar({
   // Cleanup
   // =========================================================================
   useEffect(() => {
+    // Capture ref value at effect start for cleanup
+    const container = containerRef?.current;
+
     return () => {
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
       }
-      if (deferredClassName && containerRef?.current) {
-        containerRef.current.classList.remove(deferredClassName);
+      if (deferredClassName && container) {
+        container.classList.remove(deferredClassName);
       }
     };
   }, [deferredClassName, containerRef]);
