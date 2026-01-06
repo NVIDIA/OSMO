@@ -22,19 +22,8 @@
  * Shared components for resizable side panels:
  * - ResizablePanel: Main panel container with drag-to-resize
  * - PanelHeaderActions: Header controls (badge, menu, close)
- * - PanelWidthMenu: Dropdown for width presets
- * - PanelCloseButton: Close button
  */
 
 export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
 
-export {
-  PANEL,
-  PanelHeaderActions,
-  PanelWidthMenu,
-  PanelCloseButton,
-  WIDTH_PRESET_ICONS,
-  type PanelHeaderActionsProps,
-  type PanelWidthMenuProps,
-  type PanelCloseButtonProps,
-} from "./panel-header-controls";
+export { PANEL, PanelHeaderActions, type PanelHeaderActionsProps } from "./panel-header-controls";

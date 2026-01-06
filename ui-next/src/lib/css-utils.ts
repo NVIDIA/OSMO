@@ -47,11 +47,3 @@ export function getCssVarPx(name: string, fallbackRem: string): number {
   const val = getComputedStyle(root).getPropertyValue(name).trim() || fallbackRem;
   return parseCssValue(val, rootFontSize);
 }
-
-/**
- * Get the shell header height for panel positioning.
- * Reads from CSS variable with fallback to 3.5rem (56px).
- */
-export function getShellHeaderHeight(): number {
-  return getCssVarPx("--shell-header-height", "3.5rem");
-}

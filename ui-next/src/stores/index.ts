@@ -25,7 +25,6 @@
  * Best Practices (for Next.js with Zustand):
  * - Use atomic selectors to minimize re-renders
  * - Use useShallow when selecting multiple properties
- * - Handle hydration with useIsHydrated or useHydratedValue
  * - Keep stores in "use client" components only
  *
  * @see https://zustand.docs.pmnd.rs/guides/nextjs
@@ -34,7 +33,7 @@
  * Usage:
  * ```ts
  * // In feature store file
- * import { createTableStore, createTableSelectors } from "@/stores";
+ * import { createTableStore } from "@/stores";
  *
  * export const usePoolsTableStore = createTableStore({
  *   storageKey: "pools-table",
@@ -42,11 +41,8 @@
  *   defaultColumnOrder: ["name", "quota", "capacity"],
  * });
  *
- * // Optional: Create bound selectors for this store
- * export const poolsSelectors = createTableSelectors(usePoolsTableStore);
- *
  * // In component
- * const { visibleColumnIds } = poolsSelectors.useColumnState();
+ * const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
  * ```
  */
 
@@ -69,15 +65,3 @@ export {
   type SharedPreferencesStore,
   type DisplayMode,
 } from "./shared-preferences-store";
-
-// Selector utilities (for optimal re-render behavior)
-export {
-  sharedPreferencesSelectors,
-  tableSelectors,
-  createTableSelectors,
-  useDisplayMode,
-  useCompactMode,
-} from "./selectors";
-
-// Hydration utilities (for SSR safety)
-export { useIsHydrated, useHydratedValue, useStoreHydrated, type StoreWithPersist } from "./use-store-hydration";
