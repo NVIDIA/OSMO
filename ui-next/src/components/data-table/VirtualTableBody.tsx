@@ -108,7 +108,8 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
               className="data-table-section-row sticky bg-zinc-100 dark:bg-zinc-900"
               style={{
                 height: virtualRow.size,
-                transform: `translateY(${virtualRow.start}px)`,
+                // translate3d triggers GPU compositor layer for smoother animation
+                transform: `translate3d(0, ${virtualRow.start}px, 0)`,
               }}
             >
               <td
@@ -159,25 +160,30 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             )}
             style={{
               height: virtualRow.size,
-              transform: `translateY(${virtualRow.start}px)`,
+              // translate3d triggers GPU compositor layer for smoother animation
+              transform: `translate3d(0, ${virtualRow.start}px, 0)`,
             }}
           >
-            {row.getVisibleCells().map((cell, cellIndex) => (
-              <td
-                key={cell.id}
-                role="gridcell"
-                aria-colindex={cellIndex + 1}
-                data-column-id={cell.column.id}
-                style={{
-                  width: getColumnCSSValue(cell.column.id),
-                  minWidth: getColumnCSSValue(cell.column.id),
-                  flexShrink: 0, // Prevent shrinking below specified width
-                }}
-                className="flex items-center overflow-hidden px-4"
-              >
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </td>
-            ))}
+            {row.getVisibleCells().map((cell, cellIndex) => {
+              // Cache CSS variable string to avoid duplicate function calls
+              const cssWidth = getColumnCSSValue(cell.column.id);
+              return (
+                <td
+                  key={cell.id}
+                  role="gridcell"
+                  aria-colindex={cellIndex + 1}
+                  data-column-id={cell.column.id}
+                  style={{
+                    width: cssWidth,
+                    minWidth: cssWidth,
+                    flexShrink: 0, // Prevent shrinking below specified width
+                  }}
+                  className="flex items-center overflow-hidden px-4"
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              );
+            })}
           </tr>
         );
       })}
