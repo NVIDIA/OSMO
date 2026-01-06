@@ -385,6 +385,48 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Compute aria-rowcount
   const ariaRowCount = totalCount ?? totalRowCount;
 
+  // ==========================================================================
+  // Auto-fit column width (double-click on resize handle)
+  // Measures visible cells and sets column to fit content
+  // ==========================================================================
+  const handleAutoFit = useCallback(
+    (columnId: string) => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      // Find all cells for this column (both header and body)
+      const cells = container.querySelectorAll<HTMLElement>(`[data-column-id="${columnId}"]`);
+      if (cells.length === 0) return;
+
+      // Measure the natural width of each cell's content
+      let maxWidth = 0;
+      cells.forEach((cell) => {
+        // scrollWidth gives the full content width (even if truncated)
+        // We measure the first child to avoid including padding twice
+        const content = cell.firstElementChild as HTMLElement | null;
+        const contentWidth = content?.scrollWidth ?? cell.scrollWidth;
+        maxWidth = Math.max(maxWidth, contentWidth);
+      });
+
+      // Add cell padding (px-4 = 16px each side = 32px total) + resize handle + extra breathing room
+      const CELL_PADDING = 32;
+      const RESIZE_HANDLE_WIDTH = 8;
+      const EXTRA_BUFFER = 16; // Extra padding for visual comfort
+      const targetWidth = maxWidth + CELL_PADDING + RESIZE_HANDLE_WIDTH + EXTRA_BUFFER;
+
+      columnSizingHook.setColumnSize(columnId, targetWidth);
+    },
+    [columnSizingHook],
+  );
+
+  // Reset column to default (shift + double-click on resize handle)
+  const handleResetColumn = useCallback(
+    (columnId: string) => {
+      columnSizingHook.resetColumn(columnId);
+    },
+    [columnSizingHook],
+  );
+
   // Row click and load more are accessed via refs (set above)
 
   // Keyboard navigation for rows (uses virtual indices which include sections)
@@ -530,6 +572,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
                             <ResizeHandle
                               header={header}
                               onResizeEnd={columnSizingHook.handleResizeEnd}
+                              onAutoFit={handleAutoFit}
+                              onReset={handleResetColumn}
                             />
                           </>
                         );
