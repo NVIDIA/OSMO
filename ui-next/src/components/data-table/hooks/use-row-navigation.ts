@@ -31,6 +31,7 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { useStableValue } from "@/hooks";
 
 // =============================================================================
 // Types
@@ -83,6 +84,10 @@ export function useRowNavigation({
   // Track the target row we want to focus (may not be in DOM yet due to virtualization)
   const pendingFocusRef = useRef<number | null>(null);
   const rafIdRef = useRef<number | null>(null);
+
+  // Stable refs for callbacks to prevent stale closures and unnecessary re-renders
+  const onRowActivateRef = useStableValue(onRowActivate);
+  const onScrollToRowRef = useStableValue(onScrollToRow);
 
   // Cleanup RAF on unmount
   useEffect(() => {
@@ -156,14 +161,14 @@ export function useRowNavigation({
         pendingFocusRef.current = clamped;
         // Update state (triggers the useLayoutEffect)
         setFocusedRowIndexState(clamped);
-        // Scroll the row into view
-        onScrollToRow?.(clamped, align);
+        // Scroll the row into view (using stable ref to avoid stale closures)
+        onScrollToRowRef.current?.(clamped, align);
       } else {
         pendingFocusRef.current = null;
         setFocusedRowIndexState(null);
       }
     },
-    [clampIndex, rowCount, onScrollToRow],
+    [clampIndex, rowCount, onScrollToRowRef],
   );
 
   // Public setter (defaults to center alignment for API callers)
@@ -220,7 +225,8 @@ export function useRowNavigation({
 
         case "Enter":
         case " ":
-          onRowActivate?.(currentIndex);
+          // Use stable ref to avoid stale closure issues
+          onRowActivateRef.current?.(currentIndex);
           break;
 
         default:
@@ -232,7 +238,7 @@ export function useRowNavigation({
         e.stopPropagation();
       }
     },
-    [disabled, rowCount, visibleRowCount, navigateToRow, onRowActivate],
+    [disabled, rowCount, visibleRowCount, navigateToRow, onRowActivateRef],
   );
 
   // Get tabIndex for a row (roving tabindex pattern)
