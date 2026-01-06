@@ -18,7 +18,14 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO Brev Deployment
 
-[![ Click here to deploy.](https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg)](https://brev.nvidia.com/launchable/deploy?launchableID=env-36a6a7qnkOMOP2vgiBRaw2e3jpW)
+<a href="https://github.com/NVIDIA/OSMO">
+  <img src="https://img.shields.io/badge/NVIDIA-OSMO-76b900?style=for-the-badge&logo=nvidia&logoColor=white" height="23">
+</a>
+<a href="https://brev.nvidia.com/launchable/deploy?launchableID=env-36a6a7qnkOMOP2vgiBRaw2e3jpW">
+  <img src="https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg" height="23">
+</a>
+<br />
+<br />
 
 The OSMO Brev deployment provides a pre-configured OSMO instance running in the cloud, allowing you to quickly try OSMO without setting up local infrastructure. This deployment uses a [Brev.dev](https://brev.dev) cloud instance with the [OSMO local deployment](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) pre-installed.
 
