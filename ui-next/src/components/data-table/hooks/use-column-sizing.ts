@@ -21,13 +21,14 @@
  *
  * ## What TanStack Handles Natively
  * - Resize dragging (header.getResizeHandler())
- * - Min/max enforcement during drag (minSize/maxSize on column defs)
  * - Size state (columnSizing)
  *
  * ## What This Hook Adds
  * - Persistence (via onSizingChange callback)
  * - CSS variables (performance optimization)
  * - Proportional scaling on container resize
+ * - **minSize enforcement** (TanStack only enforces on read via column.getSize(),
+ *   not in state - we enforce in CSS variables and during proportional scaling)
  *
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
  */
@@ -49,6 +50,12 @@ export interface UseColumnSizingOptions {
   persistedSizing?: ColumnSizingState;
   /** Callback to persist sizing changes */
   onSizingChange?: (sizing: ColumnSizingState) => void;
+  /**
+   * Minimum sizes per column (in pixels).
+   * Enforced in CSS variables and during proportional scaling.
+   * Should match minSize values from column definitions.
+   */
+  minSizes?: Record<string, number>;
 }
 
 export interface UseColumnSizingResult {
@@ -93,6 +100,7 @@ export function useColumnSizing({
   containerRef,
   persistedSizing,
   onSizingChange,
+  minSizes,
 }: UseColumnSizingOptions): UseColumnSizingResult {
   // Track previous container width for proportional scaling
   const prevContainerWidth = useRef<number | null>(null);
@@ -159,13 +167,15 @@ export function useColumnSizing({
       const scale = newWidth / prevWidth;
       prevContainerWidth.current = newWidth;
 
-      // Scale all columns proportionally
+      // Scale all columns proportionally, respecting minSizes
       setColumnSizing((prev) => {
         if (Object.keys(prev).length === 0) return prev;
 
         const next: ColumnSizingState = {};
         for (const [colId, width] of Object.entries(prev)) {
-          next[colId] = Math.round(width * scale);
+          const scaledWidth = Math.round(width * scale);
+          const minWidth = minSizes?.[colId] ?? 0;
+          next[colId] = Math.max(scaledWidth, minWidth);
         }
         return next;
       });
@@ -173,7 +183,7 @@ export function useColumnSizing({
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [containerRef, columnSizingInfo.isResizingColumn]);
+  }, [containerRef, columnSizingInfo.isResizingColumn, minSizes]);
 
   // =========================================================================
   // Actions
@@ -204,11 +214,14 @@ export function useColumnSizing({
     const vars: Record<string, string> = {};
     for (const colId of columnIds) {
       // Use persisted width, or TanStack's default (150px)
-      const width = columnSizing[colId] ?? 150;
+      const rawWidth = columnSizing[colId] ?? 150;
+      // Enforce minSize (TanStack only enforces on read via column.getSize())
+      const minWidth = minSizes?.[colId] ?? 0;
+      const width = Math.max(rawWidth, minWidth);
       vars[`--col-${colId}`] = `${width}px`;
     }
     return vars as React.CSSProperties;
-  }, [columnSizing, columnIds]);
+  }, [columnSizing, columnIds, minSizes]);
 
   return {
     columnSizing,
