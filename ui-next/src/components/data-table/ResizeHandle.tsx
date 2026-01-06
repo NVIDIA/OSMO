@@ -17,7 +17,8 @@
 /**
  * Column Resize Handle
  *
- * Draggable handle for column resizing using TanStack Table's native APIs.
+ * Draggable handle for column resizing using TanStack Table's native APIs
+ * and @use-gesture/react for robust gesture detection.
  *
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
  *
@@ -26,14 +27,16 @@
  * - Double-click to auto-fit content
  * - Shift + double-click to reset to proportional
  * - Keyboard accessible
- * - Touch support
+ * - Touch support with proper tap vs drag detection
  */
 
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useState } from "react";
+import { useDrag } from "@use-gesture/react";
 import type { Header } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
+import { useStableCallback, useStableValue } from "@/hooks";
 
 // =============================================================================
 // Types
@@ -57,97 +60,101 @@ export interface ResizeHandleProps<TData> {
 function ResizeHandleInner<TData>({ header, onResizeEnd, onAutoFit, onReset }: ResizeHandleProps<TData>) {
   const [isFocused, setIsFocused] = useState(false);
 
-  // TanStack's native resize handler - works with mouse, touch, and pointer events
-  // Memoize handler reference to avoid re-creating on each render
-  const resizeHandler = header.getResizeHandler();
-  
-  // Only check isResizing when actually needed for styling
-  // This getter can be expensive if called frequently
+  // TanStack's native resize handler - stable ref to avoid stale closures
+  const resizeHandlerRef = useStableValue(header.getResizeHandler());
   const isResizing = header.column.getIsResizing();
 
-  // Pointer events (modern, preferred)
-  // stopPropagation prevents DnD sensors from picking up the resize drag
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
-      e.stopPropagation();
+  // Stable refs for callbacks to avoid stale closures in useDrag
+  const onResizeEndRef = useStableValue(onResizeEnd);
+  const onAutoFitRef = useStableValue(onAutoFit);
+  const onResetRef = useStableValue(onReset);
 
-      resizeHandler(e);
+  // ==========================================================================
+  // Pointer Down - Start TanStack resize immediately
+  // TanStack's handler sets up its own document-level listeners for tracking
+  // ==========================================================================
 
-      const handlePointerUp = () => {
-        onResizeEnd?.();
-        document.removeEventListener("pointerup", handlePointerUp);
-      };
-      document.addEventListener("pointerup", handlePointerUp);
-    },
-    [resizeHandler, onResizeEnd],
-  );
+  const handlePointerDown = useStableCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    // Start TanStack resize immediately - it handles all the tracking
+    resizeHandlerRef.current(e.nativeEvent);
+  });
 
-  // Mouse events (fallback for older browsers)
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      e.stopPropagation();
+  // ==========================================================================
+  // Drag Gesture - only used to detect when resize ends
+  // TanStack handles all the actual resize tracking
+  // Uses refs to avoid stale closures (useDrag memoizes the handler)
+  // ==========================================================================
 
-      resizeHandler(e);
+  // ==========================================================================
+  // Drag Gesture - only used to detect when resize ends
+  // TanStack handles all the actual resize tracking
+  // Uses refs to avoid stale closures (useDrag memoizes the handler)
+  // ==========================================================================
 
-      const handleMouseUp = () => {
-        onResizeEnd?.();
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [resizeHandler, onResizeEnd],
-  );
+  const bindDrag = useDrag(
+    ({ last, tap }) => {
+      // Ignore taps (double-click handles those)
+      if (tap) return;
 
-  // Touch events (mobile)
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      e.stopPropagation();
-
-      resizeHandler(e);
-
-      const handleTouchEnd = () => {
-        onResizeEnd?.();
-        document.removeEventListener("touchend", handleTouchEnd);
-      };
-      document.addEventListener("touchend", handleTouchEnd);
-    },
-    [resizeHandler, onResizeEnd],
-  );
-
-  // Double-click: auto-fit or reset
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (e.shiftKey) {
-        onReset?.(header.id);
-      } else {
-        onAutoFit?.(header.id);
+      // When drag ends, notify parent for persistence
+      if (last) {
+        onResizeEndRef.current?.();
       }
     },
-    [header.id, onAutoFit, onReset],
+    {
+      filterTaps: true,
+      threshold: 3,
+      pointer: { touch: true },
+    },
   );
+
+  // ==========================================================================
+  // Click Events - Auto-fit and Reset
+  // Using stable callbacks to avoid recreating on prop changes
+  // ==========================================================================
+
+  const handleDoubleClick = useStableCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.shiftKey) {
+      onResetRef.current?.(header.id);
+    } else {
+      onAutoFitRef.current?.(header.id);
+    }
+  });
 
   // Keyboard support for accessibility
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        if (e.shiftKey) {
-          onReset?.(header.id);
-        } else {
-          onAutoFit?.(header.id);
-        }
+  const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        onResetRef.current?.(header.id);
+      } else {
+        onAutoFitRef.current?.(header.id);
       }
-    },
-    [header.id, onAutoFit, onReset],
-  );
+    }
+  });
+
+  // Merge pointer down: our handler (starts TanStack resize) + useDrag (tracks gesture)
+  // We call bindDrag() inside the handler (not during render) to get fresh bindings
+  const mergedPointerDown = useStableCallback((e: React.PointerEvent) => {
+    handlePointerDown(e);
+    // Get useDrag's pointer down handler and call it
+    // This is called in an event handler, not during render
+    bindDrag().onPointerDown?.(e);
+  });
+
+  // Get useDrag bindings to spread on element
+  // Note: bindDrag() returns a new object each time, but useDrag internally
+  // memoizes the handlers, so this is safe for React reconciliation
+  const dragBindProps = bindDrag();
 
   return (
     <div
+      {...dragBindProps}
       className={cn(
         "resize-handle",
         "absolute top-0 right-0 bottom-0 z-10",
@@ -163,9 +170,7 @@ function ResizeHandleInner<TData>({ header, onResizeEnd, onAutoFit, onReset }: R
         (isResizing || isFocused) && "after:bg-zinc-500 dark:after:bg-zinc-400",
       )}
       data-no-dnd="true"
-      onPointerDown={handlePointerDown}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
+      onPointerDown={mergedPointerDown}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       onFocus={() => setIsFocused(true)}

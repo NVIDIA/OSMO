@@ -61,7 +61,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   panelPct,
   onPanelResize,
   isDragging,
-  onResizeMouseDown,
+  bindResizeHandle,
   isDetailsExpanded,
   onToggleDetailsExpanded,
 }: DetailsPanelProps) {
@@ -101,12 +101,12 @@ export const DetailsPanel = memo(function DetailsPanel({
           "group absolute top-0 z-20 h-full w-1 cursor-ew-resize",
           isDragging ? "bg-blue-500" : "bg-transparent hover:bg-gray-400 dark:hover:bg-zinc-600",
         )}
+        {...bindResizeHandle()}
         style={{
           left: `${100 - panelPct}%`,
           transform: "translateX(-50%)",
           willChange: isDragging ? "left" : "auto",
         }}
-        onMouseDown={onResizeMouseDown}
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize panel"
