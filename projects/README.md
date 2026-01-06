@@ -127,8 +127,9 @@ For proposals that are significant or complex, a project design document provide
 
 2. **Track progress** – OSMO team updates the **Stage** field to **Stage: In Development** in the Projects project board.
 
-3. **Create a feature branch** - Work in a feature branch to keep `main` clean during feature development.
-   - Create the feature branch with the naming `feature/PROJ-NNN-short-slug`. Use the same name as your [Design (Markdown)](#stage-design-markdown).
+3. **Work in a feature branch** - Work in a feature branch to keep `main` clean during feature development.
+   - Add a comment on the [Proposal Issue](#stage-proposal-issue) asking an OSMO team member to create a branch for you. Creating feature branches is restricted.
+   - In the comment, provide a name for the feature branch with the naming `feature/PROJ-NNN-short-slug`. Use the same name as your [Design (Markdown)](#stage-design-markdown).
    - If your feature can be completed in a single, reasonably-sized PR, this project process may be unecessary. Use your discretion about whether a feature branch is necessary, and feel free to ask the OSMO team in your proposal issue.
 
 4. **Submit pull requests** – Implement the project in PRs against your feature branch.
