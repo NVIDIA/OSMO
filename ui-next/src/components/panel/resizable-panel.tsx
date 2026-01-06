@@ -16,10 +16,11 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useDrag } from "@use-gesture/react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStableCallback } from "@/hooks";
+import { useStableCallback, useStableValue } from "@/hooks";
 
 // =============================================================================
 // Types
@@ -97,26 +98,29 @@ export function ResizablePanel({
 
   // Drag state for resize handle
   const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef<{ x: number; startWidth: number; containerWidth: number } | null>(null);
+  // Store the width at drag start to calculate absolute new width from movement
+  const startWidthRef = useRef(width);
+
+  // Stable refs to avoid stale closures in useDrag (which memoizes the handler)
+  const widthRef = useStableValue(width);
+  const minWidthRef = useStableValue(minWidth);
+  const maxWidthRef = useStableValue(maxWidth);
 
   // Stable callbacks to prevent stale closures in effects and event handlers
   const stableOnClose = useStableCallback(onClose);
   const stableOnWidthChange = useStableCallback(onWidthChange);
 
-  // Handle keyboard events on panel
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // Only close if no dropdown/popover is open
-        const target = e.target as HTMLElement;
-        const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
-        if (!isInDropdown) {
-          stableOnClose();
-        }
+  // Handle keyboard events on panel - using stable callback
+  const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      // Only close if no dropdown/popover is open
+      const target = e.target as HTMLElement;
+      const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
+      if (!isInDropdown) {
+        stableOnClose();
       }
-    },
-    [stableOnClose],
-  );
+    }
+  });
 
   // Global escape key handler when panel is open
   useEffect(() => {
@@ -135,44 +139,37 @@ export function ResizablePanel({
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
   }, [open, stableOnClose]);
 
-  // Resize drag handlers
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      setIsDragging(true);
-      // Use the container width for percentage calculations (content column width)
-      const containerWidth = containerRef.current?.offsetWidth ?? window.innerWidth;
-      dragStartRef.current = { x: e.clientX, startWidth: width, containerWidth };
+  // Resize drag handler using @use-gesture/react
+  // Uses refs to avoid stale closures (useDrag memoizes the handler internally)
+  const bindResizeHandle = useDrag(
+    ({ active, first, last, movement: [mx] }) => {
+      if (first) {
+        setIsDragging(true);
+        // Capture the width at drag start from ref (current value)
+        startWidthRef.current = widthRef.current;
+      }
+
+      if (active) {
+        const containerWidth = containerRef.current?.offsetWidth ?? window.innerWidth;
+        // Movement is negative when dragging left (making panel wider)
+        // Use startWidth as the base, not current width
+        const deltaPct = (-mx / containerWidth) * 100;
+        const newWidth = Math.min(
+          maxWidthRef.current,
+          Math.max(minWidthRef.current, startWidthRef.current + deltaPct),
+        );
+        stableOnWidthChange(newWidth);
+      }
+
+      if (last) {
+        setIsDragging(false);
+      }
     },
-    [width],
+    {
+      // Enable pointer events (handles mouse, touch, pen)
+      pointer: { touch: true },
+    },
   );
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!dragStartRef.current) return;
-
-      const { containerWidth } = dragStartRef.current;
-      const deltaX = dragStartRef.current.x - e.clientX;
-      const deltaPct = (deltaX / containerWidth) * 100;
-      const newWidth = Math.min(maxWidth, Math.max(minWidth, dragStartRef.current.startWidth + deltaPct));
-      stableOnWidthChange(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      dragStartRef.current = null;
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging, stableOnWidthChange, minWidth, maxWidth]);
 
   // Prevent text selection during drag
   useEffect(() => {
@@ -227,15 +224,15 @@ export function ResizablePanel({
       >
         {/* Resize Handle - wide hit area, thin visible border */}
         <div
+          {...bindResizeHandle()}
           className={cn(
-            "group absolute inset-y-0 left-0 z-[60] w-4 -translate-x-1/2 cursor-ew-resize",
+            "group absolute inset-y-0 left-0 z-[60] w-4 -translate-x-1/2 cursor-ew-resize touch-none",
             // Thin 2px border in the center of the hit area
             "before:absolute before:inset-y-0 before:left-1/2 before:w-0.5 before:-translate-x-1/2 before:transition-colors",
             isDragging
               ? "before:bg-blue-500"
               : "before:bg-transparent hover:before:bg-zinc-300 dark:hover:before:bg-zinc-600",
           )}
-          onMouseDown={handleResizeMouseDown}
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize panel"
