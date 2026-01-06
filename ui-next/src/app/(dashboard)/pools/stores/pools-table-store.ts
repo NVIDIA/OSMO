@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createTableStore, createTableSelectors } from "@/stores";
+import { createTableStore } from "@/stores";
 import { create } from "zustand";
 import { persist, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -50,19 +50,6 @@ export const usePoolsTableStore = createTableStore({
   defaultSort: DEFAULT_SORT,
   defaultPanelWidth: DEFAULT_PANEL_WIDTH,
 });
-
-/**
- * Pre-bound selector hooks for the pools table store.
- *
- * Uses useShallow internally to prevent unnecessary re-renders.
- *
- * @example
- * ```tsx
- * const { visibleColumnIds, setVisibleColumns } = poolsTableSelectors.useColumnState();
- * const { sort, setSort } = poolsTableSelectors.useSorting();
- * ```
- */
-export const poolsTableSelectors = createTableSelectors(usePoolsTableStore);
 
 /**
  * Pools-specific extended state (not shared with resources).

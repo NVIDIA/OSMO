@@ -32,8 +32,7 @@
  *
  * ## Performance Hooks
  * For 60fps interactions and RAF-throttled updates:
- * - `useRafState` - RAF-throttled state for smooth drag/resize interactions
- * - `useRafCssVar` - RAF-throttled CSS variable updates
+ * - `useRafCallback` - Simple RAF debounce/throttle primitive for smooth animations
  * - `useVirtualizerCompat` - React Compiler compatible virtualizer
  *
  * ## UI Hooks
@@ -48,16 +47,7 @@ export { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 export { useEventListener } from "./use-event-listener";
 
 // Performance & Animation
-export {
-  useRafState,
-  type UseRafStateOptions,
-  type UseRafStateResult,
-} from "./use-raf-state";
-export {
-  useRafCssVar,
-  type UseRafCssVarOptions,
-  type UseRafCssVarResult,
-} from "./use-raf-css-var";
+export { useRafCallback } from "./use-raf-callback";
 export { useVirtualizerCompat } from "./use-virtualizer-compat";
 
 // UI Components

@@ -41,7 +41,6 @@ export { TableToolbar, type TableToolbarProps, type ColumnDefinition } from "./T
 export { SortButton } from "./SortButton";
 export { SortableCell } from "./SortableCell";
 export { ResizeHandle, type ResizeHandleProps } from "./ResizeHandle";
-export { SectionNavStack, type SectionNavStackProps, type SectionNavStackItem } from "./SectionNavStack";
 
 // =============================================================================
 // Hooks
@@ -64,20 +63,6 @@ export {
 export { useColumnSizing, type UseColumnSizingOptions, type UseColumnSizingResult } from "./hooks/use-column-sizing";
 
 export {
-  useSectionNavigation,
-  type UseSectionNavigationOptions,
-  type UseSectionNavigationResult,
-  type SectionNavItem,
-} from "./hooks/use-section-navigation";
-
-export {
-  useGridNavigation,
-  type UseGridNavigationOptions,
-  type UseGridNavigationResult,
-  type GridPosition,
-} from "./hooks/use-grid-navigation";
-
-export {
   useRowNavigation,
   type UseRowNavigationOptions,
   type UseRowNavigationResult,
@@ -88,8 +73,6 @@ export {
 // =============================================================================
 
 export type { SortDirection, SortState, SortButtonProps, SortableCellProps, Section, ColumnSizeConfig } from "./types";
-
-export { cycleSortState } from "./types";
 
 // Re-export TanStack Table types
 export type {

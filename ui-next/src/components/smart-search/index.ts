@@ -16,5 +16,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export { SmartSearch, DISPLAY_MODE_COLORS } from "./smart-search";
+export { SmartSearch } from "./smart-search";
 export { filterByChips, type SearchField, type SearchChip, type SmartSearchProps, type ChipVariant } from "./types";

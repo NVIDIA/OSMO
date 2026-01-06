@@ -18,11 +18,6 @@ export const card = {
   hover: "transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900",
 } as const;
 
-/** Section container with divide */
-export const section = {
-  list: "divide-y divide-zinc-200 dark:divide-zinc-800",
-} as const;
-
 // =============================================================================
 // Typography Patterns
 // =============================================================================
@@ -41,14 +36,6 @@ export const text = {
   mutedSmall: "text-xs text-zinc-500 dark:text-zinc-400",
   hint: "text-xs text-zinc-400 dark:text-zinc-500",
 } as const;
-
-// =============================================================================
-// Interactive Patterns
-// =============================================================================
-
-/** Clear/dismiss button style */
-export const clearButton =
-  "rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300";
 
 // =============================================================================
 // State Patterns
@@ -91,18 +78,4 @@ export const chip = {
   /** Dashed "action" chip (e.g., show more) */
   action:
     "border-dashed border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-300",
-} as const;
-
-// =============================================================================
-// Badge Patterns
-// =============================================================================
-
-export const badge = {
-  success:
-    "rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  warning:
-    "rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  info: "rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  purple:
-    "rounded bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
 } as const;
