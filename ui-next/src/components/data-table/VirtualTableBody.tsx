@@ -57,7 +57,7 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   getRowId?: (item: TData) => string;
   /** Custom row class name */
   rowClassName?: string | ((item: TData) => string);
-  /** Render section header */
+  /** Render custom section header */
   renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
   /** Get tabIndex for a row (roving tabindex pattern) */
   getRowTabIndex?: (index: number) => 0 | -1;

@@ -33,22 +33,6 @@ export interface SortState<TColumnId extends string = string> {
   direction: SortDirection;
 }
 
-/**
- * Cycle sort state: asc -> desc -> none
- */
-export function cycleSortState<TColumnId extends string>(
-  current: SortState<TColumnId>,
-  columnId: TColumnId,
-): SortState<TColumnId> {
-  if (current.column !== columnId) {
-    return { column: columnId, direction: "asc" };
-  }
-  if (current.direction === "asc") {
-    return { column: columnId, direction: "desc" };
-  }
-  return { column: null, direction: "asc" };
-}
-
 // =============================================================================
 // Sort Button Props
 // =============================================================================

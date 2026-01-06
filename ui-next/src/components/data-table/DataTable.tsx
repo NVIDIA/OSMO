@@ -97,28 +97,10 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   // === Sections (optional) ===
   /** Sectioned data (overrides data prop if provided) */
   sections?: Section<TData, TSectionMeta>[];
-  /** Render custom section header (index and stickyTop only available in non-virtualized mode) */
-  renderSectionHeader?: (
-    section: Section<TData, TSectionMeta>,
-    sectionIndex?: number,
-    stickyTop?: number,
-  ) => React.ReactNode;
+  /** Render custom section header */
+  renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
   /** Enable sticky section headers */
   stickyHeaders?: boolean;
-  /**
-   * CSS class for section rows (non-virtualized mode only).
-   * Used to apply status-specific styling.
-   */
-  sectionRowClassName?: string | ((section: Section<TData, TSectionMeta>, sectionIndex: number) => string);
-
-  // === Virtualization ===
-  /**
-   * Enable virtualization (default: true).
-   * Set to false for small datasets (<100 items) that need CSS sticky section headers.
-   * When false, all rows are rendered in normal document flow, enabling CSS sticky.
-   */
-  virtualized?: boolean;
-
   // === Column Management ===
   /** Column order (controlled) */
   columnOrder?: string[];

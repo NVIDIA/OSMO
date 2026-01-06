@@ -26,14 +26,13 @@
  * ## What This Hook Adds
  * - Persistence (via onSizingChange callback)
  * - CSS variables (performance optimization)
- * - Proportional scaling on container resize
  * - **minSize enforcement** (TanStack only enforces on read via column.getSize(),
- *   not in state - we enforce in CSS variables and during proportional scaling)
+ *   not in state - we enforce in CSS variables)
  *
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
  */
 
-import { useCallback, useRef, useMemo, useLayoutEffect, useState, useEffect } from "react";
+import { useCallback, useRef, useMemo, useState, useEffect } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
 import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
 
@@ -44,7 +43,7 @@ import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
 export interface UseColumnSizingOptions {
   /** Visible column IDs (for CSS variable generation) */
   columnIds: string[];
-  /** Container ref for proportional resize on window changes */
+  /** Container ref for adding/removing is-resizing class during drag */
   containerRef?: React.RefObject<HTMLElement | null>;
   /** Table element ref for direct DOM updates during resize */
   tableRef?: React.RefObject<HTMLTableElement | null>;
@@ -54,7 +53,7 @@ export interface UseColumnSizingOptions {
   onSizingChange?: (sizing: ColumnSizingState) => void;
   /**
    * Minimum sizes per column (in pixels).
-   * Enforced in CSS variables and during proportional scaling.
+   * Enforced in CSS variables.
    * Should match minSize values from column definitions.
    */
   minSizes?: Record<string, number>;
@@ -109,10 +108,6 @@ export function useColumnSizing({
   onSizingChange,
   minSizes,
 }: UseColumnSizingOptions): UseColumnSizingResult {
-  // Track previous container width for proportional scaling
-  const prevContainerWidth = useRef<number | null>(null);
-  const isInitialMount = useRef(true);
-
   // =========================================================================
   // Performance: RAF-throttled resize tracking
   // During drag, we update DOM directly and only sync to React on idle/end
@@ -166,9 +161,7 @@ export function useColumnSizing({
     (updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => {
       // Calculate new sizing using ref for latest value (avoid stale closure)
       const currentSizing = pendingSizingRef.current ?? columnSizingRef.current;
-      const newSizing = typeof updater === "function"
-        ? updater(currentSizing)
-        : updater;
+      const newSizing = typeof updater === "function" ? updater(currentSizing) : updater;
 
       // Store pending sizing for next RAF frame
       pendingSizingRef.current = newSizing;
@@ -227,64 +220,6 @@ export function useColumnSizing({
       container?.classList.remove("is-resizing");
     };
   }, [containerRef]);
-
-  // =========================================================================
-  // Proportional Scaling on Container Resize
-  // When the container (window/panel) resizes, scale all columns proportionally
-  // =========================================================================
-
-  // RAF-throttled proportional scaling for 60fps during window resize
-  const [scheduleProportionalScale] = useRafCallback((newWidth: number) => {
-    const prevWidth = prevContainerWidth.current;
-    if (prevWidth === null) return;
-
-    const scale = newWidth / prevWidth;
-    prevContainerWidth.current = newWidth;
-
-    // Scale all columns proportionally, respecting minSizes
-    setColumnSizing((prev) => {
-      if (Object.keys(prev).length === 0) return prev;
-
-      const next: ColumnSizingState = {};
-      for (const [colId, width] of Object.entries(prev)) {
-        const scaledWidth = Math.round(width * scale);
-        const minWidth = minSizes?.[colId] ?? 0;
-        next[colId] = Math.max(scaledWidth, minWidth);
-      }
-      return next;
-    });
-  });
-
-  useLayoutEffect(() => {
-    const container = containerRef?.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver(([entry]) => {
-      const newWidth = entry.contentRect.width;
-      if (newWidth <= 0) return;
-
-      // Skip during manual resize (user is dragging)
-      if (columnSizingInfo.isResizingColumn) return;
-
-      // Skip initial mount - just record the width
-      if (isInitialMount.current) {
-        prevContainerWidth.current = newWidth;
-        isInitialMount.current = false;
-        return;
-      }
-
-      const prevWidth = prevContainerWidth.current;
-      if (prevWidth === null || Math.abs(prevWidth - newWidth) < 1) {
-        prevContainerWidth.current = newWidth;
-        return;
-      }
-
-      scheduleProportionalScale(newWidth);
-    });
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [containerRef, columnSizingInfo.isResizingColumn, scheduleProportionalScale]);
 
   // =========================================================================
   // Actions
