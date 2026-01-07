@@ -35,18 +35,18 @@
  * ## State Machine Diagram
  * ```
  * ┌─────────────────────────────────────────────────────────────┐
- * │                        IDLE                                  │
+ * │                        IDLE                                 │
  * │  Responds to: INIT, CONTAINER_RESIZE, RESIZE_START,         │
- * │              AUTO_FIT, SET_SIZE                              │
- * │  Ignores:    RESIZE_MOVE, RESIZE_END                        │
+ * │               AUTO_FIT, SET_SIZE                            │
+ * │  Ignores:     RESIZE_MOVE, RESIZE_END                       │
  * └──────────────────────────┬──────────────────────────────────┘
  *                            │ RESIZE_START
  *                            ▼
  * ┌─────────────────────────────────────────────────────────────┐
- * │                       RESIZING                               │
+ * │                       RESIZING                              │
  * │  Responds to: RESIZE_MOVE, RESIZE_END                       │
- * │  Ignores:    INIT, CONTAINER_RESIZE, AUTO_FIT, SET_SIZE,   │
- * │              RESIZE_START                                    │
+ * │  Ignores:     INIT, CONTAINER_RESIZE, AUTO_FIT, SET_SIZE,   │
+ * │               RESIZE_START                                  │
  * └──────────────────────────┬──────────────────────────────────┘
  *                            │ RESIZE_END
  *                            ▼
