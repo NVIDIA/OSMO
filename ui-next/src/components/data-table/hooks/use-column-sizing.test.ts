@@ -351,13 +351,13 @@ describe("sizingReducer", () => {
 describe("calculateColumnWidths", () => {
   // Standard test configuration
   const minSizes = { col1: 80, col2: 80, col3: 80 };
-  const preferredSizes = { col1: 150, col2: 200, col3: 150 };
+  const configuredSizes = { col1: 150, col2: 200, col3: 150 };
   // Total preferred = 500px
 
   describe("when container >= total preferred widths (surplus space)", () => {
     it("distributes surplus proportionally", () => {
       const containerWidth = 600; // 100px surplus
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, {});
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, {});
 
       // Each column should get its preferred + proportional share of surplus
       // Total preferred = 500, surplus = 100
@@ -375,7 +375,7 @@ describe("calculateColumnWidths", () => {
 
     it("uses exact preferred widths when container exactly matches", () => {
       const containerWidth = 500; // Exact match
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, {});
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, {});
 
       expect(result.col1).toBe(150);
       expect(result.col2).toBe(200);
@@ -388,7 +388,7 @@ describe("calculateColumnWidths", () => {
       // Total preferred = 500, total min = 240
       // Container = 400, deficit = 100
       const containerWidth = 400;
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, {});
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, {});
 
       // Each column has "give" = preferred - floor (min in this case)
       // col1: give = 150 - 80 = 70
@@ -410,7 +410,7 @@ describe("calculateColumnWidths", () => {
     it("respects minimum sizes during shrink", () => {
       // Shrink aggressively but not below min
       const containerWidth = 280; // Just above total min (240)
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, {});
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, {});
 
       expect(result.col1).toBeGreaterThanOrEqual(80);
       expect(result.col2).toBeGreaterThanOrEqual(80);
@@ -421,7 +421,7 @@ describe("calculateColumnWidths", () => {
   describe("when container < total floors (overflow)", () => {
     it("all columns at floor widths (scrollable overflow)", () => {
       const containerWidth = 200; // Less than total min (240)
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, {});
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, {});
 
       // Columns should be at their floor values (min in this case)
       expect(result.col1).toBe(80);
@@ -437,7 +437,7 @@ describe("calculateColumnWidths", () => {
       };
       const containerWidth = 400;
 
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, prefs);
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, prefs);
 
       // col1's floor is now 100 (persisted width), clamped to min
       // col2, col3 have no preference, floor = min = 80
@@ -451,7 +451,7 @@ describe("calculateColumnWidths", () => {
       };
       const containerWidth = 400;
 
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, prefs);
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, prefs);
 
       // col1 should stay at least at preferred (150) or width (180)
       expect(result.col1).toBeGreaterThanOrEqual(150);
@@ -461,7 +461,7 @@ describe("calculateColumnWidths", () => {
       const prefs: ColumnSizingPreferences = {}; // No preferences
       const containerWidth = 300; // Forces shrinking
 
-      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, preferredSizes, prefs);
+      const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, prefs);
 
       // All columns should shrink (no locked floors)
       expect(result.col1).toBeLessThan(150);

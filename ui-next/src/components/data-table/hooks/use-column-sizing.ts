@@ -81,10 +81,18 @@ export interface UseColumnSizingOptions {
   sizingPreferences?: ColumnSizingPreferences;
   /** Callback when user manually resizes a column or auto-fits */
   onPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
+  /**
+   * Measured content widths per column (in pixels).
+   * Used as floor for NO_TRUNCATE mode to prevent content truncation.
+   * These are computed values, not user preferences.
+   */
+  contentWidths?: Record<string, number>;
+  /** Callback when auto-fit measures a column's content width */
+  onContentWidthChange?: (columnId: string, contentWidth: number) => void;
   /** Minimum sizes per column (in pixels) */
   minSizes?: Record<string, number>;
-  /** Preferred sizes per column (in pixels) */
-  preferredSizes?: Record<string, number>;
+  /** Configured/default sizes per column (in pixels, from column config) */
+  configuredSizes?: Record<string, number>;
   /** Debounce delay for resize observer (ms) */
   resizeDebounceMs?: number;
 }
@@ -238,8 +246,9 @@ export function calculateColumnWidths(
   columnIds: string[],
   containerWidth: number,
   minSizes: Record<string, number>,
-  preferredSizes: Record<string, number>,
+  configuredSizes: Record<string, number>,
   preferences: ColumnSizingPreferences,
+  contentWidths: Record<string, number> = {},
 ): ColumnSizingState {
   if (columnIds.length === 0 || containerWidth <= 0) {
     return {};
@@ -247,28 +256,32 @@ export function calculateColumnWidths(
 
   const columns = columnIds.map((id) => {
     const min = minSizes[id] ?? 80;
-    const configPreferred = preferredSizes[id] ?? min * 1.5;
+    const configuredWidth = configuredSizes[id] ?? min * 1.5;
     const pref = preferences[id];
+    const contentWidth = contentWidths[id];
 
     let target: number;
     let floor: number;
 
     if (pref) {
       switch (pref.mode) {
-        case PreferenceModes.NO_TRUNCATE:
-          floor = Math.max(configPreferred, min);
-          target = Math.max(pref.width, floor);
+        case PreferenceModes.NO_TRUNCATE: {
+          // Use contentWidth (measured) as floor to prevent truncation
+          // Fall back to pref.width if contentWidth not available
+          const measuredWidth = contentWidth ?? pref.width;
+          floor = Math.max(measuredWidth, min);
           break;
+        }
         case PreferenceModes.TRUNCATE:
           floor = Math.max(pref.width, min);
-          target = floor;
           break;
         default:
           assertNever(pref.mode);
       }
+      target = pref.width;
     } else {
       floor = min;
-      target = configPreferred;
+      target = configuredWidth;
     }
 
     target = Math.max(target, min);
@@ -490,8 +503,10 @@ export function useColumnSizing({
   columnConfigs,
   sizingPreferences = {},
   onPreferenceChange,
+  contentWidths: contentWidthsProp = {},
+  onContentWidthChange,
   minSizes: minSizesProp,
-  preferredSizes: preferredSizesProp,
+  configuredSizes: configuredSizesProp,
   resizeDebounceMs = 150,
 }: UseColumnSizingOptions): UseColumnSizingResult {
   // =========================================================================
@@ -502,10 +517,10 @@ export function useColumnSizing({
   // =========================================================================
   // Computed Sizes (min/preferred from configs or props)
   // =========================================================================
-  const { minSizes, preferredSizes } = useMemo(() => {
+  const { minSizes, configuredSizes } = useMemo(() => {
     const remToPxRatio = getRemToPx();
     const mins: Record<string, number> = { ...minSizesProp };
-    const prefs: Record<string, number> = { ...preferredSizesProp };
+    const prefs: Record<string, number> = { ...configuredSizesProp };
 
     if (columnConfigs) {
       for (const config of columnConfigs) {
@@ -524,16 +539,18 @@ export function useColumnSizing({
       if (prefs[id] === undefined) prefs[id] = 150;
     }
 
-    return { minSizes: mins, preferredSizes: prefs };
-  }, [columnIds, columnConfigs, minSizesProp, preferredSizesProp]);
+    return { minSizes: mins, configuredSizes: prefs };
+  }, [columnIds, columnConfigs, minSizesProp, configuredSizesProp]);
 
   // =========================================================================
   // Stable Refs (for callbacks that need latest values without re-creating)
   // =========================================================================
   const minSizesRef = useStableValue(minSizes);
-  const preferredSizesRef = useStableValue(preferredSizes);
+  const configuredSizesRef = useStableValue(configuredSizes);
   const sizingPreferencesRef = useStableValue(sizingPreferences);
+  const contentWidthsRef = useStableValue(contentWidthsProp);
   const onPreferenceChangeRef = useStableValue(onPreferenceChange);
+  const onContentWidthChangeRef = useStableValue(onContentWidthChange);
   const stateRef = useStableValue(state);
 
   // For tracking resize timing (cooldown after resize ends)
@@ -613,8 +630,9 @@ export function useColumnSizing({
         columnIds,
         containerWidth,
         minSizesRef.current,
-        preferredSizesRef.current,
+        configuredSizesRef.current,
         sizingPreferencesRef.current,
+        contentWidthsRef.current,
       );
 
       // Debug logging (lazy to avoid allocation when disabled)
@@ -627,7 +645,7 @@ export function useColumnSizing({
             columnSizing: sizing,
             preferences: sizingPreferencesRef.current,
             minSizes: minSizesRef.current,
-            preferredSizes: preferredSizesRef.current,
+            configuredSizes: configuredSizesRef.current,
             isResizing: stateRef.current.mode === SizingModes.RESIZING,
             isInitialized: stateRef.current.isInitialized,
           },
@@ -723,7 +741,7 @@ export function useColumnSizing({
       columnSizing: state.sizing,
       preferences: sizingPreferencesRef.current,
       minSizes: minSizesRef.current,
-      preferredSizes: preferredSizesRef.current,
+      configuredSizes: configuredSizesRef.current,
       isResizing: state.mode === SizingModes.RESIZING,
       isInitialized: state.isInitialized,
     }),
@@ -735,7 +753,7 @@ export function useColumnSizing({
       state.isInitialized,
       sizingPreferencesRef,
       minSizesRef,
-      preferredSizesRef,
+      configuredSizesRef,
     ],
   );
 
@@ -787,8 +805,8 @@ export function useColumnSizing({
       for (const [colId, newWidth] of Object.entries(finalSizing)) {
         const oldWidth = beforeResize[colId];
         if (oldWidth !== undefined && oldWidth !== newWidth) {
-          const preferredWidth = preferredSizesRef.current[colId] ?? 150;
-          const mode = newWidth < preferredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
+          const configuredWidth = configuredSizesRef.current[colId] ?? 150;
+          const mode = newWidth < configuredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
           changes[colId] = { from: oldWidth, to: newWidth, mode };
         }
       }
@@ -806,8 +824,8 @@ export function useColumnSizing({
       for (const [colId, newWidth] of Object.entries(finalSizing)) {
         const oldWidth = beforeResize[colId];
         if (oldWidth !== undefined && oldWidth !== newWidth) {
-          const preferredWidth = preferredSizesRef.current[colId] ?? 150;
-          const mode = newWidth < preferredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
+          const configuredWidth = configuredSizesRef.current[colId] ?? 150;
+          const mode = newWidth < configuredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
           onPreferenceChangeRef.current?.(colId, { mode, width: newWidth });
         }
       }
@@ -819,7 +837,7 @@ export function useColumnSizing({
     } else {
       setTimeout(persistPreferences, 0);
     }
-  }, [cancelColumnUpdate, stateRef, preferredSizesRef, onPreferenceChangeRef, getDebugState]);
+  }, [cancelColumnUpdate, stateRef, configuredSizesRef, onPreferenceChangeRef, getDebugState]);
 
   // =========================================================================
   // Other Actions
@@ -845,7 +863,7 @@ export function useColumnSizing({
   const autoFit = useCallback(
     (columnId: string, measuredWidth: number) => {
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
-      const preferredWidth = preferredSizesRef.current?.[columnId] ?? 150;
+      const configuredWidth = configuredSizesRef.current?.[columnId] ?? 150;
       const clampedSize = Math.max(measuredWidth, minWidth);
 
       cancelColumnUpdate();
@@ -863,23 +881,36 @@ export function useColumnSizing({
           measuredWidth,
           clampedSize,
           minWidth,
-          preferredWidth,
+          configuredWidth,
         }),
       );
 
-      // Optimization #7: Use requestIdleCallback for non-critical preference persistence
-      // Save preference as "no-truncate" - user explicitly wants full content
-      const persistPreference = () => {
-        onPreferenceChangeRef.current?.(columnId, { mode: PreferenceModes.NO_TRUNCATE, width: clampedSize });
+      // Optimization #7: Use requestIdleCallback for non-critical persistence
+      const persist = () => {
+        // Report measured content width (separate from preference)
+        onContentWidthChangeRef.current?.(columnId, clampedSize);
+        // Save preference as "no-truncate" - user wants full content
+        onPreferenceChangeRef.current?.(columnId, {
+          mode: PreferenceModes.NO_TRUNCATE,
+          width: clampedSize,
+        });
       };
 
       if (typeof requestIdleCallback !== "undefined") {
-        requestIdleCallback(persistPreference, { timeout: 1000 });
+        requestIdleCallback(persist, { timeout: 1000 });
       } else {
-        setTimeout(persistPreference, 0);
+        setTimeout(persist, 0);
       }
     },
-    [minSizesRef, preferredSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef, getDebugState],
+    [
+      minSizesRef,
+      configuredSizesRef,
+      cancelColumnUpdate,
+      tableRef,
+      onPreferenceChangeRef,
+      onContentWidthChangeRef,
+      getDebugState,
+    ],
   );
 
   const recalculate = useStableCallback(() => {
