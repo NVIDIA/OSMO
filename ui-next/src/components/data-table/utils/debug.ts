@@ -51,7 +51,7 @@ export interface DebugSnapshot {
   columnSizing: Record<string, number>;
   preferences: Record<string, { mode: string; width: number }>;
   minSizes: Record<string, number>;
-  preferredSizes: Record<string, number>;
+  configuredSizes: Record<string, number>;
   isResizing: boolean;
   isInitialized: boolean;
   // Event-specific data
@@ -128,7 +128,7 @@ function formatState(snapshot: DebugSnapshot): Record<string, unknown> {
       id,
       current: snapshot.columnSizing[id] ?? "undefined",
       min: snapshot.minSizes[id] ?? "undefined",
-      preferred: snapshot.preferredSizes[id] ?? "undefined",
+      preferred: snapshot.configuredSizes[id] ?? "undefined",
       preference: snapshot.preferences[id] ?? null,
     })),
   };
@@ -146,7 +146,7 @@ export function createDebugSnapshot(
     columnSizing: Record<string, number>;
     preferences?: Record<string, { mode: string; width: number }>;
     minSizes: Record<string, number>;
-    preferredSizes: Record<string, number>;
+    configuredSizes: Record<string, number>;
     isResizing: boolean;
     isInitialized: boolean;
   },
@@ -163,7 +163,7 @@ export function createDebugSnapshot(
       ? Object.fromEntries(Object.entries(state.preferences).map(([k, v]) => [k, { mode: v.mode, width: v.width }]))
       : {},
     minSizes: { ...state.minSizes },
-    preferredSizes: { ...state.preferredSizes },
+    configuredSizes: { ...state.configuredSizes },
     isResizing: state.isResizing,
     isInitialized: state.isInitialized,
     ...(context && { context }),
