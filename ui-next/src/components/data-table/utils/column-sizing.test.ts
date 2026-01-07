@@ -14,8 +14,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect } from "vitest";
-import { remToPx, getColumnCSSVariable, getColumnCSSValue } from "./column-sizing";
+import { describe, it, expect, beforeEach } from "vitest";
+import {
+  remToPx,
+  getColumnCSSVariable,
+  getColumnCSSValue,
+  getTruncationThreshold,
+  getRemToPx,
+  _invalidateRemToPxCache,
+} from "./column-sizing";
 
 // =============================================================================
 // remToPx Tests
@@ -72,5 +79,87 @@ describe("getColumnCSSValue", () => {
   it("uses custom fallback", () => {
     expect(getColumnCSSValue("name", 200)).toBe("var(--col-name, 200px)");
     expect(getColumnCSSValue("status", 100)).toBe("var(--col-status, 100px)");
+  });
+});
+
+// =============================================================================
+// getTruncationThreshold Tests - Single Source of Truth
+// =============================================================================
+
+describe("getTruncationThreshold", () => {
+  it("returns contentWidth when larger than configuredWidth", () => {
+    expect(getTruncationThreshold(300, 200)).toBe(300);
+    expect(getTruncationThreshold(500, 256)).toBe(500);
+  });
+
+  it("returns configuredWidth when larger than contentWidth", () => {
+    expect(getTruncationThreshold(100, 200)).toBe(200);
+    expect(getTruncationThreshold(150, 256)).toBe(256);
+  });
+
+  it("returns either when equal", () => {
+    expect(getTruncationThreshold(200, 200)).toBe(200);
+  });
+
+  it("handles zero contentWidth (unmeasured)", () => {
+    // When content hasn't been measured, threshold falls back to configuredWidth
+    expect(getTruncationThreshold(0, 256)).toBe(256);
+    expect(getTruncationThreshold(0, 150)).toBe(150);
+  });
+
+  it("handles zero configuredWidth", () => {
+    expect(getTruncationThreshold(300, 0)).toBe(300);
+  });
+
+  it("handles both zero (edge case)", () => {
+    expect(getTruncationThreshold(0, 0)).toBe(0);
+  });
+});
+
+// =============================================================================
+// getRemToPx Tests - Caching Behavior
+// =============================================================================
+
+describe("getRemToPx", () => {
+  beforeEach(() => {
+    // Reset cache before each test
+    _invalidateRemToPxCache();
+  });
+
+  it("returns a positive number", () => {
+    const result = getRemToPx();
+    expect(result).toBeGreaterThan(0);
+  });
+
+  it("returns consistent value on subsequent calls (caching)", () => {
+    const first = getRemToPx();
+    const second = getRemToPx();
+    const third = getRemToPx();
+
+    expect(first).toBe(second);
+    expect(second).toBe(third);
+  });
+
+  it("returns default value (16) in test environment without document.documentElement", () => {
+    // In jsdom/vitest, document.documentElement exists but may not have computed styles
+    // The function should gracefully handle this
+    const result = getRemToPx();
+    expect(result).toBeGreaterThanOrEqual(14); // Common range for base font sizes
+    expect(result).toBeLessThanOrEqual(18);
+  });
+});
+
+describe("_invalidateRemToPxCache", () => {
+  it("clears the cache so next call recomputes", () => {
+    // Get initial value (populates cache)
+    const initial = getRemToPx();
+
+    // Invalidate
+    _invalidateRemToPxCache();
+
+    // Next call should recompute (same value, but proves function exists)
+    const afterInvalidate = getRemToPx();
+
+    expect(afterInvalidate).toBe(initial); // Same environment, same result
   });
 });

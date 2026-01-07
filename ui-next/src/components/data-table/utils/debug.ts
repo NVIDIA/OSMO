@@ -38,6 +38,7 @@ function isDebugEnabled(): boolean {
 
 // Import debug event type from constants for type safety
 import type { DebugEventType } from "../constants";
+import { getTruncationThreshold } from "./column-sizing";
 
 // Re-export for convenience
 export type { DebugEventType };
@@ -52,6 +53,7 @@ export interface DebugSnapshot {
   preferences: Record<string, { mode: string; width: number }>;
   minSizes: Record<string, number>;
   configuredSizes: Record<string, number>;
+  contentWidths: Record<string, number>;
   isResizing: boolean;
   isInitialized: boolean;
   // Event-specific data
@@ -124,13 +126,20 @@ function formatState(snapshot: DebugSnapshot): Record<string, unknown> {
     containerWidth: snapshot.containerWidth,
     isResizing: snapshot.isResizing,
     isInitialized: snapshot.isInitialized,
-    columns: snapshot.columnIds.map((id) => ({
-      id,
-      current: snapshot.columnSizing[id] ?? "undefined",
-      min: snapshot.minSizes[id] ?? "undefined",
-      preferred: snapshot.configuredSizes[id] ?? "undefined",
-      preference: snapshot.preferences[id] ?? null,
-    })),
+    columns: snapshot.columnIds.map((id) => {
+      const contentWidth = snapshot.contentWidths[id] ?? 0;
+      const configuredWidth = snapshot.configuredSizes[id] ?? 150;
+      const threshold = getTruncationThreshold(contentWidth, configuredWidth);
+      return {
+        id,
+        current: snapshot.columnSizing[id] ?? "undefined",
+        min: snapshot.minSizes[id] ?? "undefined",
+        preferred: configuredWidth,
+        contentWidth: contentWidth || null,
+        threshold,
+        preference: snapshot.preferences[id] ?? null,
+      };
+    }),
   };
 }
 
@@ -147,6 +156,7 @@ export function createDebugSnapshot(
     preferences?: Record<string, { mode: string; width: number }>;
     minSizes: Record<string, number>;
     configuredSizes: Record<string, number>;
+    contentWidths?: Record<string, number>;
     isResizing: boolean;
     isInitialized: boolean;
   },
@@ -164,6 +174,7 @@ export function createDebugSnapshot(
       : {},
     minSizes: { ...state.minSizes },
     configuredSizes: { ...state.configuredSizes },
+    contentWidths: { ...(state.contentWidths ?? {}) },
     isResizing: state.isResizing,
     isInitialized: state.isInitialized,
     ...(context && { context }),

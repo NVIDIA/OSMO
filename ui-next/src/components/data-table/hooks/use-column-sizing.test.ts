@@ -535,4 +535,101 @@ describe("calculateColumnWidths", () => {
       expect(result.date).toBe(80);
     });
   });
+
+  describe("contentWidths (measured content for NO_TRUNCATE)", () => {
+    const cols = ["name", "description", "status"];
+    const mins = { name: 80, description: 100, status: 60 };
+    const configured = { name: 150, description: 200, status: 100 };
+
+    it("NO_TRUNCATE uses max(contentWidth, configuredWidth) as floor", () => {
+      // Description has measured content wider than configured
+      const prefs: ColumnSizingPreferences = {
+        description: { mode: PreferenceModes.NO_TRUNCATE, width: 400 },
+      };
+      const contentWidths = { description: 350 }; // Content is 350px wide
+
+      // Total targets: name=150, description=400, status=100 = 650
+      // Container = 450, which forces shrinking
+      // Without contentWidths, floor = max(configured=200, min=100) = 200
+      // With contentWidths, floor = max(350, 200) = 350 (content is wider)
+      // Algorithm: shrink from target (400) but not below floor (350)
+      const result = calculateColumnWidths(cols, 450, mins, configured, prefs, contentWidths);
+
+      // Description should not go below contentWidth (350)
+      expect(result.description).toBeGreaterThanOrEqual(350);
+    });
+
+    it("NO_TRUNCATE uses configuredWidth as floor when contentWidth is smaller", () => {
+      const prefs: ColumnSizingPreferences = {
+        description: { mode: PreferenceModes.NO_TRUNCATE, width: 250 },
+      };
+      const contentWidths = { description: 150 }; // Content is smaller than configured
+
+      // floor = max(150, 200) = 200 (configuredWidth wins)
+      const result = calculateColumnWidths(cols, 600, mins, configured, prefs, contentWidths);
+
+      expect(result.description).toBeGreaterThanOrEqual(200);
+    });
+
+    it("NO_TRUNCATE with unmeasured content (0) uses configuredWidth as floor", () => {
+      const prefs: ColumnSizingPreferences = {
+        description: { mode: PreferenceModes.NO_TRUNCATE, width: 250 },
+      };
+      // No contentWidths entry = unmeasured = 0
+
+      // floor = max(0, 200) = 200
+      const result = calculateColumnWidths(cols, 600, mins, configured, prefs, {});
+
+      expect(result.description).toBeGreaterThanOrEqual(200);
+    });
+
+    it("TRUNCATE mode ignores contentWidths", () => {
+      const prefs: ColumnSizingPreferences = {
+        description: { mode: PreferenceModes.TRUNCATE, width: 120 },
+      };
+      const contentWidths = { description: 350 }; // Content is wide
+
+      // TRUNCATE mode: floor = max(pref.width, min) = max(120, 100) = 120
+      // contentWidths should be ignored
+      const result = calculateColumnWidths(cols, 400, mins, configured, prefs, contentWidths);
+
+      // Description can shrink below contentWidth (120 < 350)
+      expect(result.description).toBeLessThan(350);
+      expect(result.description).toBeGreaterThanOrEqual(120);
+    });
+
+    it("columns without preference ignore contentWidths", () => {
+      const prefs: ColumnSizingPreferences = {}; // No preferences
+      const contentWidths = { name: 300 }; // Content measured for name
+
+      // No preference = floor is just min (80)
+      // contentWidths should be ignored
+      const result = calculateColumnWidths(cols, 300, mins, configured, prefs, contentWidths);
+
+      // Name can shrink below contentWidth
+      expect(result.name).toBeLessThan(300);
+      expect(result.name).toBeGreaterThanOrEqual(80);
+    });
+
+    it("multiple NO_TRUNCATE columns respect floor when container forces shrinking", () => {
+      const prefs: ColumnSizingPreferences = {
+        name: { mode: PreferenceModes.NO_TRUNCATE, width: 250 },
+        description: { mode: PreferenceModes.NO_TRUNCATE, width: 350 },
+      };
+      const contentWidths = {
+        name: 180, // Smaller than configured (150), floor = max(180, 150) = 180
+        description: 400, // Larger than configured (200), floor = max(400, 200) = 400
+      };
+
+      // Total targets: 250 + 350 + 100 = 700
+      // Total floors: 180 + 400 + 60 = 640
+      // Container = 500 forces shrinking below targets but above floors
+      const result = calculateColumnWidths(cols, 640, mins, configured, prefs, contentWidths);
+
+      // When container = totalFloor, all columns get their floor
+      expect(result.name).toBeGreaterThanOrEqual(180);
+      expect(result.description).toBeGreaterThanOrEqual(400);
+      expect(result.status).toBeGreaterThanOrEqual(60);
+    });
+  });
 });
