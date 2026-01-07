@@ -74,10 +74,14 @@ const FLUSH_DELAY_MS = 100; // Batch events within 100ms
 /**
  * Log a debug snapshot.
  * Batches rapid events together for cleaner output.
+ *
+ * Accepts either a snapshot directly or a factory function to avoid
+ * object allocation when debugging is disabled.
  */
-export function logColumnSizingDebug(snapshot: DebugSnapshot): void {
+export function logColumnSizingDebug(snapshotOrFactory: DebugSnapshot | (() => DebugSnapshot)): void {
   if (!isDebugEnabled()) return;
 
+  const snapshot = typeof snapshotOrFactory === "function" ? snapshotOrFactory() : snapshotOrFactory;
   eventBuffer.push(snapshot);
 
   // Debounce flush to batch rapid events
@@ -106,9 +110,7 @@ export function flushDebugBuffer(): void {
     _instruction: "Copy this entire object and paste to AI for debugging",
     eventCount: events.length,
     timeRange:
-      events.length > 1
-        ? `${events[0].timestamp} → ${events[events.length - 1].timestamp}`
-        : events[0]?.timestamp,
+      events.length > 1 ? `${events[0].timestamp} → ${events[events.length - 1].timestamp}` : events[0]?.timestamp,
     events: events.map((e) => ({
       event: e.event,
       time: e.timestamp.split("T")[1], // Just time portion
@@ -120,12 +122,7 @@ export function flushDebugBuffer(): void {
     finalState: events.length > 0 ? formatState(events[events.length - 1]) : null,
   };
 
-  // eslint-disable-next-line no-console
-  console.log(
-    "%c[ColumnSizing Debug]",
-    "color: #6366f1; font-weight: bold",
-    "\n" + JSON.stringify(output, null, 2),
-  );
+  console.log("%c[ColumnSizing Debug]", "color: #6366f1; font-weight: bold", "\n" + JSON.stringify(output, null, 2));
 }
 
 function formatState(snapshot: DebugSnapshot): Record<string, unknown> {
@@ -169,9 +166,7 @@ export function createDebugSnapshot(
     containerWidth: state.containerRef?.current?.clientWidth ?? null,
     columnSizing: { ...state.columnSizing },
     preferences: state.preferences
-      ? Object.fromEntries(
-          Object.entries(state.preferences).map(([k, v]) => [k, { mode: v.mode, width: v.width }]),
-        )
+      ? Object.fromEntries(Object.entries(state.preferences).map(([k, v]) => [k, { mode: v.mode, width: v.width }]))
       : {},
     minSizes: { ...state.minSizes },
     preferredSizes: { ...state.preferredSizes },
@@ -186,11 +181,7 @@ export function createDebugSnapshot(
  * Measure execution time of a function.
  * Returns result and logs timing.
  */
-export function measureTiming<T>(
-  label: string,
-  fn: () => T,
-  state: Parameters<typeof createDebugSnapshot>[1],
-): T {
+export function measureTiming<T>(label: string, fn: () => T, state: Parameters<typeof createDebugSnapshot>[1]): T {
   if (!isDebugEnabled()) return fn();
 
   const start = performance.now();
@@ -203,9 +194,7 @@ export function measureTiming<T>(
     });
     return result;
   } catch (e) {
-    logColumnSizingDebug(
-      createDebugSnapshot("ERROR", state, { label }, e instanceof Error ? e.message : String(e)),
-    );
+    logColumnSizingDebug(createDebugSnapshot("ERROR", state, { label }, e instanceof Error ? e.message : String(e)));
     throw e;
   }
 }
