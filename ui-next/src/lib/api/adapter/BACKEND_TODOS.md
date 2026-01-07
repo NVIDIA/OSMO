@@ -45,24 +45,64 @@ MIGRATION PATH:
 ### 1. Incorrect Response Types for Pool/Resource APIs
 
 **Priority:** High  
-**Status:** Active workaround in `transforms.ts`
+**Status:** Active workaround in `transforms.ts` and `hooks.ts`
 
 Several API endpoints have incorrect response types in the OpenAPI schema. They're typed as returning `string` but actually return structured JSON objects.
 
-**Affected endpoints:**
-- `GET /api/pool_quota` - Returns `PoolResponse`, not `string`
-- `GET /api/resources` - Returns `ResourcesResponse`, not `string`
+**Root cause:** The backend's OpenAPI spec generation is missing proper response type annotations. In `openapi.json`, these endpoints have:
+```json
+"responses": {
+  "200": {
+    "content": {
+      "application/json": {
+        "schema": { "type": "string" }  // ← Wrong: should be "$ref": "#/components/schemas/..."
+      }
+    }
+  }
+}
+```
 
-**Workaround:**
+**Affected endpoints:**
+| Endpoint | OpenAPI Says | Actually Returns |
+|----------|--------------|------------------|
+| `GET /api/pool_quota` | `string` | `PoolResponse` |
+| `GET /api/resources` | `string` | `ResourcesResponse` |
+| `GET /api/resources/{name}` | `string` | `ResourcesResponse` |
+| `GET /api/configs/service` | `string` | Config object |
+| `GET /api/configs/workflow` | `string` | Config object |
+| `GET /api/configs/dataset` | `string` | Config object |
+
+**Generated code consequence:**
 ```typescript
-// transforms.ts
+// generated.ts (orval correctly follows the spec, but spec is wrong)
+return customFetch<string>({ url: `/api/resources`, ... });
+//                 ^^^^^^ Should be ResourcesResponse
+```
+
+**Workarounds:**
+```typescript
+// transforms.ts - Cast unknown to actual type
 export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
   const response = rawResponse as PoolResponse | undefined;
   // ...
 }
+
+// hooks.ts:257 - Cast to unknown to satisfy function signature
+getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown)
 ```
 
-**Fix:** Update FastAPI endpoint return type annotations.
+**Fix (backend):** Add explicit response models to FastAPI endpoints:
+```python
+# Python/FastAPI - Add response_model annotation
+@router.get("/api/resources", response_model=ResourcesResponse)
+def get_resources(...) -> ResourcesResponse:
+    ...
+```
+
+This will cause the OpenAPI spec to correctly reference the schema:
+```json
+"schema": { "$ref": "#/components/schemas/ResourcesResponse" }
+```
 
 ---
 
@@ -546,7 +586,7 @@ GET /api/pools?status=online,maintenance&platform=dgx&search=ml-team
 
 | Issue | Priority | Workaround Location | When Fixed |
 |-------|----------|---------------------|------------|
-| #1 Incorrect response types | High | transforms.ts | Remove casts |
+| #1 Incorrect response types | High | transforms.ts, hooks.ts | Remove casts |
 | #2 String numbers | Medium | transforms.ts | Remove parseNumber |
 | #3 Auth in schema | Low | N/A | N/A |
 | #4 Version unknown | Low | transforms.ts | Use generated type |
