@@ -96,8 +96,6 @@ export type {
   ColumnWidthConfig,
   ColumnSizingPreference,
   ColumnSizingPreferences,
-  // Note: ColumnSizingCache is defined but not exported - it's only used internally
-  // by the (dead code) use-column-sizing-cache.ts hook
 } from "./types";
 
 // Re-export TanStack Table types

@@ -172,17 +172,49 @@ export const INITIAL_STATE: SizingState = {
 };
 
 // =============================================================================
+// Module-Level rem-to-px Cache
+// Optimization #1: Avoids forced layout on every useMemo recompute
+// Invalidates automatically on browser zoom changes
+// =============================================================================
+
+let _remToPxCache: number | null = null;
+
+// SSR-safe: only set up listener in browser with matchMedia support
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  // matchMedia with resolution query fires on zoom changes
+  window.matchMedia("(resolution: 1dppx)").addEventListener("change", () => {
+    _remToPxCache = null;
+  });
+}
+
+// =============================================================================
 // Pure Functions (Exported for testing)
 // =============================================================================
 
+/**
+ * Get the current rem-to-px ratio.
+ * Cached at module level; invalidated on browser zoom.
+ */
 export function getRemToPx(): number {
   if (typeof document === "undefined") return 16;
+
+  if (_remToPxCache !== null) return _remToPxCache;
+
   try {
     const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return fontSize > 0 ? fontSize : 16;
+    _remToPxCache = fontSize > 0 ? fontSize : 16;
+    return _remToPxCache;
   } catch {
     return 16;
   }
+}
+
+/**
+ * Invalidate the rem-to-px cache. Exposed for testing.
+ * @internal
+ */
+export function _invalidateRemToPxCache(): void {
+  _remToPxCache = null;
 }
 
 /**
@@ -277,6 +309,19 @@ export function calculateColumnWidths(
 }
 
 // =============================================================================
+// Reducer Helpers - Structural sharing to avoid unnecessary object creation
+// =============================================================================
+
+/**
+ * Update a single column's width with structural sharing.
+ * Returns the same object reference if the value hasn't changed.
+ */
+function updateSizing(sizing: ColumnSizingState, columnId: string, width: number): ColumnSizingState {
+  if (sizing[columnId] === width) return sizing; // No change - structural sharing
+  return { ...sizing, [columnId]: width };
+}
+
+// =============================================================================
 // Reducer - All state transitions in one place (Exported for testing)
 // =============================================================================
 
@@ -319,17 +364,17 @@ export function sizingReducer(state: SizingState, event: SizingEvent): SizingSta
             },
           };
 
-        case "AUTO_FIT":
-          return {
-            ...state,
-            sizing: { ...state.sizing, [event.columnId]: event.width },
-          };
+        case "AUTO_FIT": {
+          const newSizing = updateSizing(state.sizing, event.columnId, event.width);
+          if (newSizing === state.sizing) return state;
+          return { ...state, sizing: newSizing };
+        }
 
-        case "SET_SIZE":
-          return {
-            ...state,
-            sizing: { ...state.sizing, [event.columnId]: event.width },
-          };
+        case "SET_SIZE": {
+          const newSizing = updateSizing(state.sizing, event.columnId, event.width);
+          if (newSizing === state.sizing) return state;
+          return { ...state, sizing: newSizing };
+        }
 
         case "TANSTACK_SIZING_CHANGE":
           return {
@@ -366,11 +411,11 @@ export function sizingReducer(state: SizingState, event: SizingEvent): SizingSta
     // =========================================================================
     case "RESIZING":
       switch (event.type) {
-        case "RESIZE_MOVE":
-          return {
-            ...state,
-            sizing: { ...state.sizing, [event.columnId]: event.newWidth },
-          };
+        case "RESIZE_MOVE": {
+          const newSizing = updateSizing(state.sizing, event.columnId, event.newWidth);
+          if (newSizing === state.sizing) return state;
+          return { ...state, sizing: newSizing };
+        }
 
         case "RESIZE_END":
           return {
@@ -478,16 +523,14 @@ export function useColumnSizing({
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // RAF-throttled DOM update for 60fps performance during drag
-  const [scheduleColumnUpdate, cancelColumnUpdate] = useRafCallback((sizing: ColumnSizingState) => {
-    const table = tableRef?.current;
-    if (!table) return;
-
-    for (const [colId, width] of Object.entries(sizing)) {
-      const minWidth = minSizesRef.current?.[colId] ?? 0;
-      const clampedWidth = Math.max(width, minWidth);
-      table.style.setProperty(`--col-${colId}`, `${clampedWidth}px`);
-    }
-  });
+  // Optimization #2/#4: Only update the single changing column to avoid object allocation
+  const [scheduleColumnUpdate, cancelColumnUpdate] = useRafCallback(
+    ({ columnId, width }: { columnId: string; width: number }) => {
+      const table = tableRef?.current;
+      if (!table) return;
+      table.style.setProperty(`--col-${columnId}`, `${width}px`);
+    },
+  );
 
   // =========================================================================
   // Side Effects - DOM updates based on state changes
@@ -535,70 +578,76 @@ export function useColumnSizing({
 
   // =========================================================================
   // Calculate Sizing (used by INIT and CONTAINER_RESIZE)
+  // Optimization #3: Accept containerWidth to avoid forced layout when available
   // =========================================================================
-  const calculateAndDispatch = useStableCallback((eventType: "INIT" | "CONTAINER_RESIZE", animate: boolean) => {
-    const container = containerRef?.current;
-    if (!container) return;
+  const calculateAndDispatch = useStableCallback(
+    (eventType: "INIT" | "CONTAINER_RESIZE", animate: boolean, providedWidth: number | undefined) => {
+      const container = containerRef?.current;
+      if (!container) return;
 
-    const containerWidth = container.clientWidth;
-    if (containerWidth <= 0) return;
+      // Use provided width (from ResizeObserver) or read (forces layout - only for INIT)
+      const containerWidth = providedWidth ?? container.clientWidth;
+      if (containerWidth <= 0) return;
 
-    const sizing = calculateColumnWidths(
-      columnIds,
-      containerWidth,
-      minSizesRef.current,
-      preferredSizesRef.current,
-      sizingPreferencesRef.current,
-    );
+      const sizing = calculateColumnWidths(
+        columnIds,
+        containerWidth,
+        minSizesRef.current,
+        preferredSizesRef.current,
+        sizingPreferencesRef.current,
+      );
 
-    // Debug logging (lazy to avoid allocation when disabled)
-    logColumnSizingDebug(() =>
-      createDebugSnapshot(
-        eventType,
-        {
-          columnIds,
-          containerRef,
-          columnSizing: sizing,
-          preferences: sizingPreferencesRef.current,
-          minSizes: minSizesRef.current,
-          preferredSizes: preferredSizesRef.current,
-          isResizing: stateRef.current.mode === "RESIZING",
-          isInitialized: stateRef.current.isInitialized,
-        },
-        { animate, containerWidth },
-      ),
-    );
+      // Debug logging (lazy to avoid allocation when disabled)
+      logColumnSizingDebug(() =>
+        createDebugSnapshot(
+          eventType,
+          {
+            columnIds,
+            containerRef,
+            columnSizing: sizing,
+            preferences: sizingPreferencesRef.current,
+            minSizes: minSizesRef.current,
+            preferredSizes: preferredSizesRef.current,
+            isResizing: stateRef.current.mode === "RESIZING",
+            isInitialized: stateRef.current.isInitialized,
+          },
+          { animate, containerWidth },
+        ),
+      );
 
-    // Handle animation class with proper cleanup
-    if (animate && container) {
-      // Cancel any pending transition timeout
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
+      // Handle animation class with proper cleanup
+      if (animate && container) {
+        // Cancel any pending transition timeout
+        if (transitionTimeoutRef.current) {
+          clearTimeout(transitionTimeoutRef.current);
+        }
+        container.classList.add("is-transitioning");
+        transitionTimeoutRef.current = setTimeout(() => {
+          container.classList.remove("is-transitioning");
+          transitionTimeoutRef.current = null;
+        }, 150);
       }
-      container.classList.add("is-transitioning");
-      transitionTimeoutRef.current = setTimeout(() => {
-        container.classList.remove("is-transitioning");
-        transitionTimeoutRef.current = null;
-      }, 150);
-    }
 
-    dispatch({ type: eventType, sizing });
-  });
+      dispatch({ type: eventType, sizing });
+    },
+  );
 
   // =========================================================================
   // Initial Sizing Effect
+  // Optimization #6: Memoize columnSetKey to avoid allocation on every render
   // =========================================================================
-  const columnSetKey = [...columnIds].sort().join(",");
+  const columnSetKey = useMemo(() => [...columnIds].sort().join(","), [columnIds]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      calculateAndDispatch("INIT", false);
+      calculateAndDispatch("INIT", false, undefined);
     });
     return () => cancelAnimationFrame(frame);
   }, [columnSetKey, calculateAndDispatch]);
 
   // =========================================================================
   // Container Resize Effect
+  // Optimization #3: Pass ResizeObserver width directly to avoid forced layout
   // =========================================================================
   useEffect(() => {
     const container = containerRef?.current;
@@ -607,6 +656,7 @@ export function useColumnSizing({
     lastContainerWidthRef.current = container.clientWidth;
 
     let timeoutId: ReturnType<typeof setTimeout>;
+    let pendingWidth: number | null = null;
     const RESIZE_COOLDOWN_MS = 300;
 
     const observer = new ResizeObserver((entries) => {
@@ -624,10 +674,13 @@ export function useColumnSizing({
       if (widthDelta < 1) return;
 
       lastContainerWidthRef.current = newWidth;
+      pendingWidth = newWidth; // Capture width from ResizeObserver
 
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        calculateAndDispatch("CONTAINER_RESIZE", true);
+        // Pass captured width directly - no forced layout!
+        calculateAndDispatch("CONTAINER_RESIZE", true, pendingWidth ?? undefined);
+        pendingWidth = null;
       }, resizeDebounceMs);
     });
 
@@ -693,9 +746,10 @@ export function useColumnSizing({
       dispatch({ type: "RESIZE_MOVE", columnId, newWidth: clampedWidth });
 
       // RAF-throttled DOM update for 60fps
-      scheduleColumnUpdate({ ...stateRef.current.sizing, [columnId]: clampedWidth });
+      // Optimization #4: Only pass the changing column, not the entire sizing object
+      scheduleColumnUpdate({ columnId, width: clampedWidth });
     },
-    [minSizesRef, scheduleColumnUpdate, stateRef],
+    [minSizesRef, scheduleColumnUpdate],
   );
 
   const endResize = useCallback(() => {
@@ -726,8 +780,9 @@ export function useColumnSizing({
     });
     flushDebugBuffer();
 
-    // Detect and persist preferences
-    queueMicrotask(() => {
+    // Optimization #7: Use requestIdleCallback for non-critical preference persistence
+    // This moves localStorage writes out of the critical path
+    const persistPreferences = () => {
       for (const [colId, newWidth] of Object.entries(finalSizing)) {
         const oldWidth = beforeResize[colId];
         if (oldWidth !== undefined && oldWidth !== newWidth) {
@@ -736,7 +791,14 @@ export function useColumnSizing({
           onPreferenceChangeRef.current?.(colId, { mode, width: newWidth });
         }
       }
-    });
+    };
+
+    // Prefer idle callback, fall back to setTimeout for browsers without support
+    if (typeof requestIdleCallback !== "undefined") {
+      requestIdleCallback(persistPreferences, { timeout: 1000 });
+    } else {
+      setTimeout(persistPreferences, 0);
+    }
   }, [cancelColumnUpdate, stateRef, preferredSizesRef, onPreferenceChangeRef, getDebugState]);
 
   // =========================================================================
@@ -774,16 +836,23 @@ export function useColumnSizing({
         table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
       }
 
+      // Optimization #7: Use requestIdleCallback for non-critical preference persistence
       // Save preference as "no-truncate" - user explicitly wants full content
-      queueMicrotask(() => {
+      const persistPreference = () => {
         onPreferenceChangeRef.current?.(columnId, { mode: "no-truncate", width: clampedSize });
-      });
+      };
+
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(persistPreference, { timeout: 1000 });
+      } else {
+        setTimeout(persistPreference, 0);
+      }
     },
     [minSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef],
   );
 
   const recalculate = useStableCallback(() => {
-    calculateAndDispatch("INIT", false);
+    calculateAndDispatch("INIT", false, undefined);
   });
 
   // =========================================================================
@@ -798,8 +867,13 @@ export function useColumnSizing({
       dispatch({ type: "TANSTACK_SIZING_CHANGE", sizing: newSizing });
 
       // During resize, also update DOM via RAF
+      // Update only changed columns to match new scheduleColumnUpdate signature
       if (stateRef.current.mode === "RESIZING") {
-        scheduleColumnUpdate(newSizing);
+        for (const [columnId, width] of Object.entries(newSizing)) {
+          if (currentSizing[columnId] !== width) {
+            scheduleColumnUpdate({ columnId, width });
+          }
+        }
       }
     },
     [stateRef, scheduleColumnUpdate],
