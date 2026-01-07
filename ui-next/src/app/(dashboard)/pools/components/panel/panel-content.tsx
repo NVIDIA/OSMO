@@ -18,11 +18,11 @@
 
 "use client";
 
-import { memo, useMemo, useCallback } from "react";
-import { Share2 } from "lucide-react";
+import React, { memo, useMemo, useCallback } from "react";
+import { Share2, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { heading, text } from "@/lib/styles";
-import { ProgressBar } from "@/components/progress-bar";
+import { heading } from "@/lib/styles";
+import { CapacityBar } from "@/components/capacity-bar";
 import { PlaceholderSection } from "@/components/placeholder-section";
 import type { Pool } from "@/lib/api/adapter";
 import { getSharingInfo } from "@/lib/api/adapter/transforms";
@@ -98,60 +98,48 @@ export const PanelContent = memo(function PanelContent({
     [onPoolSelect],
   );
 
-  // Calculate progress percentages
-  const quotaPercent = pool.quota.limit > 0 ? (pool.quota.used / pool.quota.limit) * 100 : 0;
-  const capacityPercent = pool.quota.totalCapacity > 0 ? (pool.quota.totalUsage / pool.quota.totalCapacity) * 100 : 0;
-
   // Get selected platform config
   const platformConfig = effectivePlatform ? pool.platformConfigs[effectivePlatform] : null;
+
+  // Check if we have pool details content
+  const hasTimeouts =
+    pool.timeouts.defaultExec !== null ||
+    pool.timeouts.maxExec !== null ||
+    pool.timeouts.defaultQueue !== null ||
+    pool.timeouts.maxQueue !== null;
+
+  const hasExitActions = Object.keys(pool.defaultExitActions).length > 0;
+  const hasPoolDetails = pool.description || hasTimeouts || hasExitActions;
 
   return (
     <div className="flex-1 overflow-auto p-4">
       <div className="space-y-6">
-        {/* GPU Quota Section */}
-        <QuotaSection
-          title="GPU Quota"
+        {/* GPU Quota */}
+        <CapacityBar
+          label="GPU Quota"
           used={pool.quota.used}
           total={pool.quota.limit}
-          free={pool.quota.free}
-          percent={quotaPercent}
-          freeLabel="free"
         />
 
-        {/* GPU Capacity Section */}
-        <section>
-          <h3 className={cn(heading.section, "mb-2 flex items-center gap-2")}>
-            GPU Capacity
-            {sharedWith && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-violet-500/20 ring-inset dark:text-violet-300 dark:ring-violet-400/30">
-                <Share2 className="h-3 w-3" />
-                Shared
-              </span>
-            )}
-          </h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">Usage</span>
-              <span className="font-mono text-zinc-900 dark:text-zinc-100">
-                {pool.quota.totalUsage} / {pool.quota.totalCapacity}
-              </span>
-            </div>
-            <ProgressBar
-              value={pool.quota.totalUsage}
-              max={pool.quota.totalCapacity}
-              size="md"
-              trackClassName="pools-progress-track"
-              aria-label={`GPU Capacity: ${pool.quota.totalUsage} of ${pool.quota.totalCapacity} used`}
-            />
-            <div className={cn(text.mutedSmall, "flex items-center justify-between")}>
-              <span>{pool.quota.totalFree} idle</span>
-              <span>{Math.round(capacityPercent)}% utilized</span>
-            </div>
-          </div>
-
-          {/* Shared pools info */}
+        {/* GPU Capacity */}
+        <CapacityBar
+          label={
+            <span className="flex items-center gap-2">
+              GPU Capacity
+              {sharedWith && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-violet-500/20 ring-inset dark:text-violet-300 dark:ring-violet-400/30">
+                  <Share2 className="h-3 w-3" />
+                  Shared
+                </span>
+              )}
+            </span>
+          }
+          used={pool.quota.totalUsage}
+          total={pool.quota.totalCapacity}
+        >
+          {/* Shared pools info - colocated with capacity bar */}
           {sharedWith && sharedWith.length > 0 && (
-            <div className="mt-3 rounded-lg bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.05] p-3 ring-1 ring-violet-500/15 ring-inset dark:ring-violet-400/20">
+            <div className="rounded-lg bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.05] p-3 ring-1 ring-violet-500/15 ring-inset dark:ring-violet-400/20">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-300">
                 <Share2 className="h-3.5 w-3.5" />
                 Shares capacity with
@@ -162,7 +150,79 @@ export const PanelContent = memo(function PanelContent({
               />
             </div>
           )}
-        </section>
+        </CapacityBar>
+
+        {/* Pool Details */}
+        {hasPoolDetails && (
+          <section>
+            <h3 className={cn(heading.section, "mb-2")}>Pool Details</h3>
+
+            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                {/* Description */}
+                {pool.description && (
+                  <div className="p-3">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">{pool.description}</p>
+                  </div>
+                )}
+
+                {/* Timeouts */}
+                {hasTimeouts && (
+                  <div className="p-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      <Clock className="size-3" />
+                      Timeouts
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                      {pool.timeouts.defaultExec && (
+                        <>
+                          <span className="text-zinc-500 dark:text-zinc-500">Default Execution</span>
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.defaultExec}</span>
+                        </>
+                      )}
+                      {pool.timeouts.maxExec && (
+                        <>
+                          <span className="text-zinc-500 dark:text-zinc-500">Max Execution</span>
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.maxExec}</span>
+                        </>
+                      )}
+                      {pool.timeouts.defaultQueue && (
+                        <>
+                          <span className="text-zinc-500 dark:text-zinc-500">Default Queue</span>
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.defaultQueue}</span>
+                        </>
+                      )}
+                      {pool.timeouts.maxQueue && (
+                        <>
+                          <span className="text-zinc-500 dark:text-zinc-500">Max Queue</span>
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.maxQueue}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Exit Actions */}
+                {hasExitActions && (
+                  <div className="p-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      <AlertCircle className="size-3" />
+                      Default Exit Actions
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                      {Object.entries(pool.defaultExitActions).map(([exitCode, action]) => (
+                        <React.Fragment key={exitCode}>
+                          <span className="font-mono text-zinc-500 dark:text-zinc-500">{exitCode}</span>
+                          <span className="text-zinc-700 dark:text-zinc-300">{action}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Platform Configuration */}
         {pool.platforms.length > 0 && (
@@ -211,45 +271,3 @@ export const PanelContent = memo(function PanelContent({
     </div>
   );
 });
-
-// =============================================================================
-// Helper Components
-// =============================================================================
-
-interface QuotaSectionProps {
-  title: string;
-  used: number;
-  total: number;
-  free: number;
-  percent: number;
-  freeLabel: string;
-}
-
-function QuotaSection({ title, used, total, free, percent, freeLabel }: QuotaSectionProps) {
-  return (
-    <section>
-      <h3 className={cn(heading.section, "mb-2")}>{title}</h3>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-zinc-600 dark:text-zinc-400">Used</span>
-          <span className="font-mono text-zinc-900 dark:text-zinc-100">
-            {used} / {total}
-          </span>
-        </div>
-        <ProgressBar
-          value={used}
-          max={total}
-          size="md"
-          trackClassName="pools-progress-track"
-          aria-label={`${title}: ${used} of ${total} used`}
-        />
-        <div className={cn(text.mutedSmall, "flex items-center justify-between")}>
-          <span>
-            {free} {freeLabel}
-          </span>
-          <span>{Math.round(percent)}% utilized</span>
-        </div>
-      </div>
-    </section>
-  );
-}

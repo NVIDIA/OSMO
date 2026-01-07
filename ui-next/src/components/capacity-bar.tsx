@@ -16,7 +16,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { cn, formatCompact, formatBytesPair } from "@/lib/utils";
 import { ProgressBar } from "./progress-bar";
 
@@ -25,8 +25,8 @@ import { ProgressBar } from "./progress-bar";
 // =============================================================================
 
 export interface CapacityBarProps {
-  /** Label for the capacity type (e.g., "GPU", "CPU") */
-  label: string;
+  /** Label for the capacity type - can be a string or custom ReactNode for badges/icons */
+  label: ReactNode;
   /** Amount currently used */
   used: number;
   /** Total capacity */
@@ -37,6 +37,8 @@ export interface CapacityBarProps {
   size?: "sm" | "md";
   /** Whether to show the "free" indicator below the bar */
   showFree?: boolean;
+  /** Optional content to render below the bar (e.g., related info, shared pools) */
+  children?: ReactNode;
 }
 
 // =============================================================================
@@ -49,12 +51,18 @@ export interface CapacityBarProps {
  * Used across pool detail and resource views to show
  * resource utilization (GPU, CPU, Memory, Storage).
  *
- * Composes from ProgressBar primitive.
+ * Composes from ProgressBar primitive. Supports children for
+ * additional related content (e.g., shared pools info).
  *
  * @example
  * ```tsx
  * <CapacityBar label="GPU" used={6} total={8} />
  * <CapacityBar label="Memory" used={256} total={512} isBytes />
+ *
+ * // With children for related content
+ * <CapacityBar label="GPU Capacity" used={6} total={8}>
+ *   <SharedPoolsInfo pools={sharedPools} />
+ * </CapacityBar>
  * ```
  */
 export const CapacityBar = memo(function CapacityBar({
@@ -64,6 +72,7 @@ export const CapacityBar = memo(function CapacityBar({
   isBytes = false,
   size = "md",
   showFree = true,
+  children,
 }: CapacityBarProps) {
   const barSize = size === "sm" ? "sm" : "md";
   const textSize = size === "sm" ? "text-xs" : "text-sm";
@@ -72,15 +81,13 @@ export const CapacityBar = memo(function CapacityBar({
   if (total === 0) {
     return (
       <div>
-        <div className={cn("mb-1 flex items-center justify-between", textSize)}>
-          <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
-          <span className="text-zinc-400 dark:text-zinc-500">—</span>
-        </div>
+        <div className={cn("mb-2 text-zinc-600 dark:text-zinc-400", textSize)}>{label}</div>
         <ProgressBar
           value={0}
           max={1}
           size={barSize}
         />
+        <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">—</div>
       </div>
     );
   }
@@ -110,16 +117,8 @@ export const CapacityBar = memo(function CapacityBar({
 
   return (
     <div>
-      {/* Header: Label + Used/Total */}
-      <div className={cn("mb-1 flex items-center justify-between", textSize)}>
-        <div>
-          <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
-          <span className="ml-2 text-zinc-900 tabular-nums dark:text-zinc-100">
-            {usedStr}/{totalStr}
-          </span>
-          {unit && <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">{unit}</span>}
-        </div>
-      </div>
+      {/* Header: Label */}
+      <div className={cn("mb-2 text-zinc-600 dark:text-zinc-400", textSize)}>{label}</div>
 
       {/* Progress bar */}
       <ProgressBar
@@ -130,12 +129,19 @@ export const CapacityBar = memo(function CapacityBar({
         aria-label={ariaLabel}
       />
 
-      {/* Free label */}
+      {/* Footer: Used (left) / Free (right) - matches bar segment positions */}
       {showFree && (
-        <div className="mt-1 flex justify-end text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-          {freeDisplay} free
+        <div className="mt-2 flex items-center justify-between text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+          <span>
+            {usedStr}/{totalStr}
+            {unit && <span className="ml-0.5">{unit}</span>} used
+          </span>
+          <span>{freeDisplay} free</span>
         </div>
       )}
+
+      {/* Optional additional content */}
+      {children && <div className="mt-3">{children}</div>}
     </div>
   );
 });
