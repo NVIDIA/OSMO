@@ -46,6 +46,7 @@ import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-
 import { cn } from "@/lib/utils";
 
 import type { ColumnSizingState } from "@tanstack/react-table";
+import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";
 import { VirtualTableBody } from "./VirtualTableBody";
@@ -55,7 +56,7 @@ import { useVirtualizedTable } from "./hooks/use-virtualized-table";
 import { useTableDnd } from "./hooks/use-column-reordering";
 import { useColumnSizing } from "./hooks/use-column-sizing";
 import { useRowNavigation } from "./hooks/use-row-navigation";
-import type { Section, SortState } from "./types";
+import type { Section, SortState, ColumnSizeConfig } from "./types";
 import { getColumnCSSValue } from "./utils/column-sizing";
 
 // Component-specific styles (resize handles, table layout, etc.)
@@ -155,13 +156,17 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
 
   // === Column Sizing ===
   /**
-   * Persisted column sizing (pixel widths).
-   * Uses TanStack's native ColumnSizingState format: { columnId: pixelWidth }
-   * Initial sizes come from column def's `size` property (or TanStack's 150px default).
+   * Column size configurations (min and preferred widths in rem).
+   * Used for initial sizing and shrink/expand algorithm.
    */
-  columnSizing?: ColumnSizingState;
-  /** Callback when column sizing changes (for persistence) */
-  onColumnSizingChange?: (sizing: ColumnSizingState) => void;
+  columnSizeConfigs?: ColumnSizeConfig[];
+  /**
+   * User sizing preferences from persistence.
+   * Contains mode (proportional/no-truncate) and multiplier for each column.
+   */
+  columnSizingPreferences?: ColumnSizingPreferences;
+  /** Callback when user manually resizes a column or auto-fits */
+  onColumnSizingPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
 }
 
 // =============================================================================
@@ -198,8 +203,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
   onRowClick,
   selectedRowId,
   rowClassName,
-  columnSizing: persistedColumnSizing,
-  onColumnSizingChange,
+  columnSizeConfigs,
+  columnSizingPreferences,
+  onColumnSizingPreferenceChange,
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
@@ -264,16 +270,22 @@ export function DataTable<TData, TSectionMeta = unknown>({
     return sizes;
   }, [columns]);
 
-  // Column sizing - minimal wrapper around TanStack's native resize
+  // Column sizing - handles initial sizing, container resize, and user preferences
   // TanStack handles: drag, min/max enforcement, size state
-  // Hook adds: persistence, CSS variables, proportional container resize, minSize enforcement
-  // Performance: RAF-throttled direct DOM updates during drag for 60fps
+  // Hook adds:
+  // - Initial sizing based on container width and preferred widths
+  // - Container resize handling (via ResizeObserver)
+  // - User preference detection (proportional vs no-truncate mode)
+  // - Persistence via callbacks
+  // - CSS variables for performance
+  // - minSize enforcement
   const columnSizingHook = useColumnSizing({
     columnIds: visibleColumnIds,
     containerRef: scrollRef,
     tableRef: tableElementRef,
-    persistedSizing: persistedColumnSizing,
-    onSizingChange: onColumnSizingChange,
+    columnConfigs: columnSizeConfigs,
+    sizingPreferences: columnSizingPreferences,
+    onPreferenceChange: onColumnSizingPreferenceChange,
     minSizes: columnMinSizes,
   });
 
@@ -371,7 +383,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   // ==========================================================================
   // Auto-fit column width (double-click on resize handle)
-  // Measures visible cells and sets column to fit content
+  // Measures visible cells and calls hook's autoFit (which sets size + preference)
   // ==========================================================================
   const handleAutoFit = useCallback(
     (columnId: string) => {
@@ -398,15 +410,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
       const EXTRA_BUFFER = 16; // Extra padding for visual comfort
       const targetWidth = maxWidth + CELL_PADDING + RESIZE_HANDLE_WIDTH + EXTRA_BUFFER;
 
-      columnSizingHook.setColumnSize(columnId, targetWidth);
-    },
-    [columnSizingHook],
-  );
-
-  // Reset column to default (shift + double-click on resize handle)
-  const handleResetColumn = useCallback(
-    (columnId: string) => {
-      columnSizingHook.resetColumn(columnId);
+      // Hook handles: set size + save "no-truncate" preference
+      columnSizingHook.autoFit(columnId, targetWidth);
     },
     [columnSizingHook],
   );
@@ -564,12 +569,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               direction={isSorted === "asc" ? "asc" : isSorted === "desc" ? "desc" : undefined}
                               onSort={onSort}
                             />
-                            {/* Resize handle - uses TanStack's native getResizeHandler */}
+                            {/* Resize handle - uses @use-gesture/react for gesture handling */}
                             <ResizeHandle
                               header={header}
-                              onResizeEnd={columnSizingHook.handleResizeEnd}
+                              onResizeStart={columnSizingHook.startResize}
+                              onResizeUpdate={columnSizingHook.updateResize}
+                              onResizeEnd={columnSizingHook.endResize}
                               onAutoFit={handleAutoFit}
-                              onReset={handleResetColumn}
                             />
                           </>
                         );
