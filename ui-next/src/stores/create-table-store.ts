@@ -47,13 +47,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import type {
-  TableState,
-  TableStore,
-  SearchChip,
-  ColumnSizingPreference,
-  ColumnSizingPreferences,
-} from "./types";
+import type { TableState, TableStore, SearchChip, ColumnSizingPreference, ColumnSizingPreferences } from "./types";
 
 // =============================================================================
 // Factory Options
