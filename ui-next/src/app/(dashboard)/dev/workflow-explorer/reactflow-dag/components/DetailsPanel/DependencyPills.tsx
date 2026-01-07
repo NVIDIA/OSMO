@@ -27,7 +27,7 @@
 
 "use client";
 
-import { memo, useRef } from "react";
+import { memo } from "react";
 import { Check, Loader2, Clock, AlertCircle, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExpandableChips } from "@/hooks";
@@ -92,22 +92,39 @@ const STATUS_PILL_STYLES = {
 interface DependencyPillProps {
   group: GroupWithLayout;
   onClick?: () => void;
+  /** For measurement container - renders as span instead of button */
+  isMeasurement?: boolean;
 }
 
-const DependencyPill = memo(function DependencyPill({ group, onClick }: DependencyPillProps) {
+const DependencyPill = memo(function DependencyPill({ group, onClick, isMeasurement }: DependencyPillProps) {
   const category = getStatusCategory(group.status);
   const style = STATUS_PILL_STYLES[category] || STATUS_PILL_STYLES.waiting;
   const Icon = style.icon;
 
+  const className = cn(
+    "dependency-pill inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
+    !isMeasurement &&
+      "focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
+    style.pillClass,
+    onClick && "cursor-pointer",
+  );
+
+  if (isMeasurement) {
+    return (
+      <span
+        className={className}
+        data-chip
+      >
+        <Icon className={cn("size-3 shrink-0", style.iconClass)} />
+        <span className="max-w-[120px] truncate">{group.name}</span>
+      </span>
+    );
+  }
+
   return (
     <button
       onClick={onClick}
-      className={cn(
-        "dependency-pill inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
-        "focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
-        style.pillClass,
-        onClick && "cursor-pointer",
-      )}
+      className={className}
     >
       <Icon className={cn("size-3 shrink-0", style.iconClass)} />
       <span className="max-w-[120px] truncate">{group.name}</span>
@@ -116,22 +133,16 @@ const DependencyPill = memo(function DependencyPill({ group, onClick }: Dependen
 });
 
 // ============================================================================
-// Pill Row Component (uses useExpandableChips in measured mode)
+// Pill Row Component (uses CSS-driven measurement)
 // ============================================================================
 
 const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowProps) {
-  const measureRef = useRef<HTMLDivElement>(null);
-
-  const { containerRef, expanded, setExpanded, displayedItems, overflowCount } = useExpandableChips<GroupWithLayout>({
-    items: groups,
-    measured: {
-      measureRef,
-      itemSelector: "[data-measure-pill]",
-      reservedWidth: 100, // Label width + gap
-    },
-    sortAlphabetically: false, // Keep original order for dependencies
-    getKey: (g) => g.name,
-  });
+  const { containerRef, measureRef, expanded, setExpanded, displayedItems, overflowCount } =
+    useExpandableChips<GroupWithLayout>({
+      items: groups,
+      sortAlphabetically: false, // Keep original order for dependencies
+      getKey: (g) => g.name,
+    });
 
   // Don't render empty rows
   if (groups.length === 0) {
@@ -139,54 +150,64 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-wrap items-start gap-2"
-    >
-      {/* Hidden measurement container - renders all pills to measure their widths */}
-      <div
-        ref={measureRef}
-        className="pointer-events-none invisible absolute flex items-center gap-2"
-        aria-hidden="true"
-      >
-        {groups.map((group) => (
-          <div
-            key={`measure-${group.name}`}
-            data-measure-pill
-          >
-            <DependencyPill group={group} />
-          </div>
-        ))}
-      </div>
-
+    <div className="flex items-start gap-2">
       <span className="w-24 shrink-0 py-1 text-xs text-gray-500 dark:text-zinc-500">{label}</span>
-      <div className="flex flex-1 flex-wrap items-center gap-2">
-        {/* When collapsed: show visibleCount pills; when expanded: show all */}
-        {displayedItems.map((group) => (
-          <DependencyPill
-            key={group.name}
-            group={group}
-            onClick={onSelectGroup ? () => onSelectGroup(group.name) : undefined}
-          />
-        ))}
-        {/* +N button (collapsed state) */}
-        {!expanded && overflowCount > 0 && (
-          <button
-            onClick={() => setExpanded(true)}
-            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-gray-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-zinc-800 dark:hover:text-blue-300"
+
+      <div className="relative flex-1 overflow-hidden">
+        {/* Hidden measurement container - renders all pills to measure their widths */}
+        <div
+          ref={measureRef}
+          className="pointer-events-none invisible absolute flex items-center gap-2"
+          style={{ contain: "layout style", willChange: "contents" }}
+          aria-hidden="true"
+        >
+          {groups.map((group) => (
+            <DependencyPill
+              key={`measure-${group.name}`}
+              group={group}
+              isMeasurement
+            />
+          ))}
+          {/* Overflow button placeholder for measuring its width */}
+          <span
+            data-overflow
+            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600"
           >
-            +{overflowCount}
-          </button>
-        )}
-        {/* Show less button (expanded state) - inline with pills */}
-        {expanded && overflowCount > 0 && (
-          <button
-            onClick={() => setExpanded(false)}
-            className="inline-flex items-center rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-          >
-            show less
-          </button>
-        )}
+            +{overflowCount || 1}
+          </span>
+        </div>
+
+        {/* Visible container */}
+        <div
+          ref={containerRef}
+          className={cn("flex items-center gap-2", expanded ? "flex-wrap" : "flex-nowrap overflow-hidden")}
+        >
+          {displayedItems.map((group) => (
+            <DependencyPill
+              key={group.name}
+              group={group}
+              onClick={onSelectGroup ? () => onSelectGroup(group.name) : undefined}
+            />
+          ))}
+          {/* +N button (collapsed state) */}
+          {!expanded && overflowCount > 0 && (
+            <button
+              onClick={() => setExpanded(true)}
+              className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-gray-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-zinc-800 dark:hover:text-blue-300"
+            >
+              +{overflowCount}
+            </button>
+          )}
+          {/* Show less button (expanded state) */}
+          {expanded && overflowCount > 0 && (
+            <button
+              onClick={() => setExpanded(false)}
+              className="inline-flex items-center rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              show less
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

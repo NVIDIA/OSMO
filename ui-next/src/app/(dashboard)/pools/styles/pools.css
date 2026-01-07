@@ -68,17 +68,6 @@
     --pools-table-min-height: 25rem;
     --pools-border-width: 0.1875rem;
 
-    /* Chip Layout - Table Context (compact) */
-    --pools-chip-overflow-width: 2rem;
-    --pools-chip-gap: 0.25rem;
-    --pools-chip-padding: 1rem;
-    --pools-chip-char-width: 0.4375rem;
-
-    /* Chip Layout - Panel Context (spacious) */
-    --pools-chip-overflow-width-lg: 2.5rem;
-    --pools-chip-gap-lg: 0.375rem;
-    --pools-chip-container-padding: 0.25rem;
-
     /* Shell Integration - alias to global variable */
     --pools-shell-header-height: var(--shell-header-height);
 
