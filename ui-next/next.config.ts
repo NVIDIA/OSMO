@@ -62,6 +62,21 @@ const nextConfig: NextConfig = {
   },
 
   // =============================================================================
+  // Turbopack Configuration
+  // =============================================================================
+
+  turbopack: {
+    resolveAlias:
+      process.env.NODE_ENV === "production"
+        ? {
+            // Replace debug utilities with no-op stubs in production
+            // This eliminates all debug code from the production bundle
+            "./utils/debug": "./utils/debug.production",
+          }
+        : {},
+  },
+
+  // =============================================================================
   // Proxy & CORS Configuration
   // =============================================================================
 
