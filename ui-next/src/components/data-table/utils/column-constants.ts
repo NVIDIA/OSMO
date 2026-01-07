@@ -112,6 +112,16 @@ export const AVG_CHAR_WIDTH_REM = 0.55;
 export const CELL_PADDING_REM = 2;
 
 /**
- * Extra buffer for resize handle and breathing room.
+ * Resize handle width in pixels (fixed, doesn't scale with font).
+ */
+export const RESIZE_HANDLE_WIDTH_PX = 8;
+
+/**
+ * Extra buffer in pixels for visual breathing room after measurement.
+ */
+export const MEASUREMENT_BUFFER_PX = 16;
+
+/**
+ * Extra buffer for resize handle and breathing room (rem, used in preferred width calculations).
  */
 export const CELL_BUFFER_REM = 0.5;
