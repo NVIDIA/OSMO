@@ -285,6 +285,11 @@ export function createTableStore(options: CreateTableStoreOptions) {
           }),
           // Merge persisted state with defaults on every hydration
           merge: (persisted, current) => {
+            // Handle undefined/invalid persisted state (persisted is typed as unknown by Zustand)
+            if (!persisted || typeof persisted !== "object") {
+              return current;
+            }
+            // Safe to narrow after validation - we know it's an object from localStorage
             const p = persisted as Partial<TableState>;
             const existingVisible = p.visibleColumnIds ?? [];
             const existingOrder = p.columnOrder ?? [];

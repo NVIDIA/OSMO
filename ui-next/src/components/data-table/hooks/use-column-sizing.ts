@@ -589,8 +589,7 @@ export function useColumnSizing({
       calculateAndDispatch("INIT", false);
     });
     return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- calculateAndDispatch is stable
-  }, [columnSetKey]);
+  }, [columnSetKey, calculateAndDispatch]);
 
   // =========================================================================
   // Container Resize Effect

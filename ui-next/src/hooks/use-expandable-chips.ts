@@ -21,6 +21,18 @@ import type { RefObject } from "react";
 import { useRafCallback } from "./use-raf-callback";
 
 // =============================================================================
+// Type Guards
+// =============================================================================
+
+/**
+ * Type guard to check if an array contains strings.
+ * Enables TypeScript to narrow the generic type for sorting operations.
+ */
+function isStringArray<T>(items: T[]): items is (T & string)[] {
+  return items.length > 0 && typeof items[0] === "string";
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -158,8 +170,8 @@ export function useExpandableChips<T = string>({
     if (!shouldSort || items.length === 0) return items;
 
     // For strings, use localeCompare directly
-    if (typeof items[0] === "string") {
-      return [...items].sort((a, b) => (a as unknown as string).localeCompare(b as unknown as string));
+    if (isStringArray(items)) {
+      return [...items].sort((a, b) => a.localeCompare(b));
     }
 
     // For objects, sort by key if getKey is provided
