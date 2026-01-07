@@ -22,6 +22,7 @@ import { memo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SortButtonProps } from "./types";
+import { SortDirections, TextAlignments } from "./constants";
 
 /**
  * Sort button for table column headers.
@@ -31,7 +32,7 @@ import type { SortButtonProps } from "./types";
  */
 export const SortButton = memo(function SortButton({
   label,
-  align = "left",
+  align = TextAlignments.LEFT,
   sortable = true,
   isActive,
   direction,
@@ -40,7 +41,7 @@ export const SortButton = memo(function SortButton({
   // Note: aria-sort belongs on the parent <th> element, not on the button.
   // The parent SortableCell or DataTable header cell should handle this.
   const ariaLabel = isActive
-    ? `Sort by ${label}, currently ${direction === "asc" ? "ascending" : "descending"}`
+    ? `Sort by ${label}, currently ${direction === SortDirections.ASC ? "ascending" : "descending"}`
     : `Sort by ${label}`;
 
   return (
@@ -54,13 +55,13 @@ export const SortButton = memo(function SortButton({
       className={cn(
         "flex items-center gap-1 whitespace-nowrap transition-colors",
         sortable && "hover:text-zinc-900 dark:hover:text-zinc-100",
-        align === "right" && "ml-auto",
+        align === TextAlignments.RIGHT && "ml-auto",
       )}
     >
       <span className="truncate">{label}</span>
       {sortable &&
         (isActive ? (
-          direction === "asc" ? (
+          direction === SortDirections.ASC ? (
             <ChevronUp
               className="size-3 shrink-0"
               aria-hidden="true"

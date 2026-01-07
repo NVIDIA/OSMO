@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useStableCallback, useStableValue } from "@/hooks";
 import type { Section } from "../types";
+import { VirtualItemTypes, type VirtualItemType } from "../constants";
 
 // =============================================================================
 // Types
@@ -81,7 +82,7 @@ export interface UseVirtualizedTableResult<T, TSectionMeta = unknown> {
   /** Total virtual item count (sections + data rows, for navigation) */
   virtualItemCount: number;
   /** Get item for a virtual row index */
-  getItem: (index: number) => { type: "section"; section: Section<T, TSectionMeta> } | { type: "row"; item: T } | null;
+  getItem: (index: number) => { type: typeof VirtualItemTypes.SECTION; section: Section<T, TSectionMeta> } | { type: typeof VirtualItemTypes.ROW; item: T } | null;
   /** Trigger measurement recalculation */
   measure: () => void;
   /** Scroll to a specific virtual index */
@@ -108,14 +109,14 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   const virtualItems = useMemo(() => {
     if (sections && sections.length > 0) {
       const result: Array<
-        | { type: "section"; section: Section<T, TSectionMeta>; height: number }
-        | { type: "row"; item: T; height: number }
+        | { type: typeof VirtualItemTypes.SECTION; section: Section<T, TSectionMeta>; height: number }
+        | { type: typeof VirtualItemTypes.ROW; item: T; height: number }
       > = [];
 
       for (const section of sections) {
-        result.push({ type: "section", section, height: sectionHeight });
+        result.push({ type: VirtualItemTypes.SECTION, section, height: sectionHeight });
         for (const item of section.items) {
-          result.push({ type: "row", item, height: rowHeight });
+          result.push({ type: VirtualItemTypes.ROW, item, height: rowHeight });
         }
       }
 
@@ -123,7 +124,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     }
 
     if (items && items.length > 0) {
-      return items.map((item) => ({ type: "row" as const, item, height: rowHeight }));
+      return items.map((item) => ({ type: VirtualItemTypes.ROW as typeof VirtualItemTypes.ROW, item, height: rowHeight }));
     }
 
     return [];
@@ -144,7 +145,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     (index: number) => {
       const item = virtualItemsRef.current[index];
       if (!item) return index;
-      if (item.type === "section") return `section-${item.section.id}`;
+      if (item.type === VirtualItemTypes.SECTION) return `section-${item.section.id}`;
       return stableGetRowId(item.item);
     },
     [virtualItemsRef, stableGetRowId],
@@ -231,10 +232,10 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     (index: number) => {
       const item = virtualItems[index];
       if (!item) return null;
-      if (item.type === "section") {
-        return { type: "section" as const, section: item.section };
+      if (item.type === VirtualItemTypes.SECTION) {
+        return { type: VirtualItemTypes.SECTION as typeof VirtualItemTypes.SECTION, section: item.section };
       }
-      return { type: "row" as const, item: item.item };
+      return { type: VirtualItemTypes.ROW as typeof VirtualItemTypes.ROW, item: item.item };
     },
     [virtualItems],
   );

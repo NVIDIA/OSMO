@@ -127,3 +127,49 @@ export {
 
 // Debug utilities (enable via localStorage.setItem('DEBUG_COLUMN_SIZING', 'true'))
 export { logColumnSizingDebug, flushDebugBuffer, type DebugEventType, type DebugSnapshot } from "./utils/debug";
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+export {
+  // Exhaustive switch helper
+  assertNever,
+  // Preference modes
+  PreferenceModes,
+  type PreferenceMode,
+  PREFERENCE_MODE_VALUES,
+  // Sort directions
+  SortDirections,
+  SORT_DIRECTION_VALUES,
+  // Sizing state machine modes
+  SizingModes,
+  SIZING_MODE_VALUES,
+  // Sizing events
+  SizingEventTypes,
+  type SizingEventType,
+  SIZING_EVENT_TYPE_VALUES,
+  // Debug event types
+  DebugEventTypes,
+  DEBUG_EVENT_TYPE_VALUES,
+  // Column width config types
+  ColumnWidthConfigTypes,
+  type ColumnWidthConfigType,
+  COLUMN_WIDTH_CONFIG_TYPE_VALUES,
+  // Virtual item types
+  VirtualItemTypes,
+  type VirtualItemType,
+  VIRTUAL_ITEM_TYPE_VALUES,
+  // Scroll alignment
+  ScrollAlignments,
+  type ScrollAlignment,
+  SCROLL_ALIGNMENT_VALUES,
+  // Text alignment
+  TextAlignments,
+  type TextAlignment,
+  TEXT_ALIGNMENT_VALUES,
+  // Element types
+  ElementTypes,
+  type ElementType,
+  ELEMENT_TYPE_VALUES,
+} from "./constants";

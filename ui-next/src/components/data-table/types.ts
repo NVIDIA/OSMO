@@ -22,11 +22,22 @@
  * Type definitions for the DataTable component built on TanStack Table.
  */
 
+import type {
+  SortDirection,
+  PreferenceMode,
+  ColumnWidthConfigType,
+  TextAlignment,
+  ElementType,
+} from "./constants";
+
+// Re-export types from constants for convenience
+export type { SortDirection, PreferenceMode, ColumnWidthConfigType, TextAlignment, ElementType };
+
 // =============================================================================
 // Sort Types
 // =============================================================================
 
-export type SortDirection = "asc" | "desc";
+// Note: SortDirection is now imported from constants.ts
 
 export interface SortState<TColumnId extends string = string> {
   column: TColumnId | null;
@@ -39,7 +50,7 @@ export interface SortState<TColumnId extends string = string> {
 
 export interface SortButtonProps {
   label: string;
-  align?: "left" | "right";
+  align?: TextAlignment;
   sortable?: boolean;
   isActive: boolean;
   direction?: SortDirection;
@@ -54,7 +65,7 @@ export interface SortableCellProps {
   id: string;
   children: React.ReactNode;
   className?: string;
-  as?: "th" | "div";
+  as?: ElementType;
   width?: string;
   /** Column index for aria-colindex (1-based) */
   colIndex?: number;
@@ -103,7 +114,7 @@ export interface ColumnSizeConfig<TData = unknown> {
  */
 export interface ColumnWidthConfig<TData = unknown> {
   /** Calculate from text content length */
-  type: "text";
+  type: ColumnWidthConfigType;
   /** Function to extract text from row data */
   accessor: (row: TData) => string;
   /** Average character width in rem (default: 0.55) */
@@ -138,7 +149,7 @@ export interface ColumnSizingPreference {
   /** Persisted pixel width from last resize */
   width: number;
   /** Resize behavior mode */
-  mode: "truncate" | "no-truncate";
+  mode: PreferenceMode;
 }
 
 /**

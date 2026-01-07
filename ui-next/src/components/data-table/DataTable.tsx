@@ -57,6 +57,7 @@ import { useColumnSizing } from "./hooks/use-column-sizing";
 import { useRowNavigation } from "./hooks/use-row-navigation";
 import type { Section, SortState, ColumnSizeConfig } from "./types";
 import { getColumnCSSValue } from "./utils/column-sizing";
+import { SortDirections, VirtualItemTypes } from "./constants";
 
 // Component-specific styles (resize handles, table layout, etc.)
 import "./styles.css";
@@ -225,7 +226,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   // Convert our SortState to TanStack SortingState
   const tanstackSorting = useMemo<SortingState>(() => {
     if (!sorting?.column) return [];
-    return [{ id: sorting.column, desc: sorting.direction === "desc" }];
+    return [{ id: sorting.column, desc: sorting.direction === SortDirections.DESC }];
   }, [sorting]);
 
   // Column order with fallback
@@ -424,10 +425,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
       if (!isSortable) return;
 
       // Cycle: none -> asc -> desc -> asc (toggle between asc/desc once sorted)
-      if (!currentSortDirection || currentSortDirection === "desc") {
-        onSortingChangeRef.current?.({ column: columnId, direction: "asc" });
+      if (!currentSortDirection || currentSortDirection === SortDirections.DESC) {
+        onSortingChangeRef.current?.({ column: columnId, direction: SortDirections.ASC });
       } else {
-        onSortingChangeRef.current?.({ column: columnId, direction: "desc" });
+        onSortingChangeRef.current?.({ column: columnId, direction: SortDirections.DESC });
       }
     },
     [onSortingChangeRef],
@@ -442,7 +443,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
     onRowActivate: useCallback(
       (virtualIndex: number) => {
         const item = getItem(virtualIndex);
-        if (item?.type === "row") {
+        if (item?.type === VirtualItemTypes.ROW) {
           onRowClickRef.current?.(item.item);
         }
         // If it's a section, do nothing (or could expand/collapse)
@@ -563,7 +564,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               label={String(header.column.columnDef.header ?? header.id)}
                               sortable={isSortable}
                               isActive={Boolean(isSorted)}
-                              direction={isSorted === "asc" ? "asc" : isSorted === "desc" ? "desc" : undefined}
+                              direction={isSorted === SortDirections.ASC ? SortDirections.ASC : isSorted === SortDirections.DESC ? SortDirections.DESC : undefined}
                               onSort={onSort}
                             />
                             {/* Resize handle - uses @use-gesture/react for gesture handling */}

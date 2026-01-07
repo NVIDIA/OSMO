@@ -36,22 +36,11 @@ function isDebugEnabled(): boolean {
   return localStorage.getItem("DEBUG_COLUMN_SIZING") === "true";
 }
 
-// Event types for structured debugging
-// These match the state machine events in use-column-sizing.ts
-export type DebugEventType =
-  // State machine events
-  | "INIT"
-  | "CONTAINER_RESIZE"
-  | "RESIZE_START"
-  | "RESIZE_MOVE"
-  | "RESIZE_END"
-  | "AUTO_FIT"
-  | "SET_SIZE"
-  | "TANSTACK_SIZING_CHANGE"
-  | "TANSTACK_INFO_CHANGE"
-  // Internal/utility events
-  | "CACHE_COMPUTE"
-  | "ERROR";
+// Import debug event type from constants for type safety
+import type { DebugEventType } from "../constants";
+
+// Re-export for convenience
+export type { DebugEventType };
 
 export interface DebugSnapshot {
   event: DebugEventType;
