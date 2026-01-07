@@ -29,12 +29,7 @@ import { useMemo, useCallback } from "react";
 import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
 import { useSharedPreferences, type DisplayMode } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
-import {
-  MANDATORY_COLUMN_IDS,
-  asResourceColumnIds,
-  type ResourceColumnId,
-  RESOURCE_COLUMN_SIZE_CONFIG,
-} from "../../lib/resource-columns";
+import { MANDATORY_COLUMN_IDS, asResourceColumnIds, RESOURCE_COLUMN_SIZE_CONFIG } from "../../lib/resource-columns";
 import { createResourceColumns } from "../../lib/resource-column-defs";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 
@@ -209,7 +204,7 @@ export function ResourcesTable({
   // Handle column order change
   const handleColumnOrderChange = useCallback(
     (newOrder: string[]) => {
-      setColumnOrder(newOrder as ResourceColumnId[]);
+      setColumnOrder(newOrder);
     },
     [setColumnOrder],
   );
@@ -236,7 +231,7 @@ export function ResourcesTable({
         columnSizingPreferences={columnSizingPreferences}
         onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
         // Sorting
-        sorting={sortState as SortState<string>}
+        sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}
         // Pagination
         hasNextPage={hasNextPage}
