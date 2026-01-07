@@ -724,6 +724,9 @@ export function useColumnSizing({
       const currentSizing = stateRef.current.sizing;
       const startWidth = currentSizing[columnId] ?? 150;
 
+      // Reset move counter for new resize session
+      resizeMoveCountRef.current = 0;
+
       dispatch({
         type: "RESIZE_START",
         columnId,
@@ -738,6 +741,10 @@ export function useColumnSizing({
     [stateRef, getDebugState],
   );
 
+  // Sample counter for RESIZE_MOVE debug logging (log every Nth move to avoid spam)
+  const resizeMoveCountRef = useRef(0);
+  const RESIZE_MOVE_LOG_INTERVAL = 10; // Log every 10th move
+
   const updateResize = useCallback(
     (columnId: string, newWidth: number) => {
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
@@ -748,8 +755,20 @@ export function useColumnSizing({
       // RAF-throttled DOM update for 60fps
       // Optimization #4: Only pass the changing column, not the entire sizing object
       scheduleColumnUpdate({ columnId, width: clampedWidth });
+
+      // Sampled debug logging (avoid spam during rapid drag)
+      resizeMoveCountRef.current++;
+      if (resizeMoveCountRef.current % RESIZE_MOVE_LOG_INTERVAL === 0) {
+        logColumnSizingDebug(() =>
+          createDebugSnapshot("RESIZE_MOVE", getDebugState(), {
+            columnId,
+            newWidth: clampedWidth,
+            moveCount: resizeMoveCountRef.current,
+          }),
+        );
+      }
     },
-    [minSizesRef, scheduleColumnUpdate],
+    [minSizesRef, scheduleColumnUpdate, getDebugState],
   );
 
   const endResize = useCallback(() => {
@@ -818,13 +837,23 @@ export function useColumnSizing({
       if (table) {
         table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
       }
+
+      logColumnSizingDebug(() =>
+        createDebugSnapshot("SET_SIZE", getDebugState(), {
+          columnId,
+          requestedSize: size,
+          clampedSize,
+          minWidth,
+        }),
+      );
     },
-    [minSizesRef, cancelColumnUpdate, tableRef],
+    [minSizesRef, cancelColumnUpdate, tableRef, getDebugState],
   );
 
   const autoFit = useCallback(
     (columnId: string, measuredWidth: number) => {
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
+      const preferredWidth = preferredSizesRef.current?.[columnId] ?? 150;
       const clampedSize = Math.max(measuredWidth, minWidth);
 
       cancelColumnUpdate();
@@ -835,6 +864,16 @@ export function useColumnSizing({
       if (table) {
         table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
       }
+
+      logColumnSizingDebug(() =>
+        createDebugSnapshot("AUTO_FIT", getDebugState(), {
+          columnId,
+          measuredWidth,
+          clampedSize,
+          minWidth,
+          preferredWidth,
+        }),
+      );
 
       // Optimization #7: Use requestIdleCallback for non-critical preference persistence
       // Save preference as "no-truncate" - user explicitly wants full content
@@ -848,7 +887,7 @@ export function useColumnSizing({
         setTimeout(persistPreference, 0);
       }
     },
-    [minSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef],
+    [minSizesRef, preferredSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef, getDebugState],
   );
 
   const recalculate = useStableCallback(() => {
@@ -866,17 +905,33 @@ export function useColumnSizing({
 
       dispatch({ type: "TANSTACK_SIZING_CHANGE", sizing: newSizing });
 
+      // Find changed columns for logging and DOM updates
+      const changedColumns: Record<string, { from: number | undefined; to: number }> = {};
+      for (const [columnId, width] of Object.entries(newSizing)) {
+        if (currentSizing[columnId] !== width) {
+          changedColumns[columnId] = { from: currentSizing[columnId], to: width };
+        }
+      }
+
       // During resize, also update DOM via RAF
       // Update only changed columns to match new scheduleColumnUpdate signature
       if (stateRef.current.mode === "RESIZING") {
-        for (const [columnId, width] of Object.entries(newSizing)) {
-          if (currentSizing[columnId] !== width) {
-            scheduleColumnUpdate({ columnId, width });
-          }
+        for (const columnId of Object.keys(changedColumns)) {
+          scheduleColumnUpdate({ columnId, width: newSizing[columnId] });
         }
       }
+
+      // Only log if there are actual changes
+      if (Object.keys(changedColumns).length > 0) {
+        logColumnSizingDebug(() =>
+          createDebugSnapshot("TANSTACK_SIZING_CHANGE", getDebugState(), {
+            changedColumns,
+            isResizing: stateRef.current.mode === "RESIZING",
+          }),
+        );
+      }
     },
-    [stateRef, scheduleColumnUpdate],
+    [stateRef, scheduleColumnUpdate, getDebugState],
   );
 
   const onColumnSizingInfoChange = useCallback(
@@ -885,8 +940,22 @@ export function useColumnSizing({
       const newInfo = typeof updater === "function" ? updater(currentInfo) : updater;
 
       dispatch({ type: "TANSTACK_INFO_CHANGE", info: newInfo });
+
+      // Log when resizing state changes (start/end transitions)
+      const wasResizing = Boolean(currentInfo.isResizingColumn);
+      const isNowResizing = Boolean(newInfo.isResizingColumn);
+      if (wasResizing !== isNowResizing) {
+        logColumnSizingDebug(() =>
+          createDebugSnapshot("TANSTACK_INFO_CHANGE", getDebugState(), {
+            transition: wasResizing ? "resize_end" : "resize_start",
+            columnId: newInfo.isResizingColumn || currentInfo.isResizingColumn,
+            startSize: newInfo.startSize,
+            deltaOffset: newInfo.deltaOffset,
+          }),
+        );
+      }
     },
-    [stateRef],
+    [stateRef, getDebugState],
   );
 
   // =========================================================================
