@@ -47,7 +47,13 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import type { TableState, TableStore, SearchChip, ColumnOverride, ColumnOverrides } from "./types";
+import type {
+  TableState,
+  TableStore,
+  SearchChip,
+  ColumnSizingPreference,
+  ColumnSizingPreferences,
+} from "./types";
 
 // =============================================================================
 // Factory Options
@@ -95,7 +101,7 @@ export function createTableStore(options: CreateTableStoreOptions) {
   const initialState: TableState = {
     visibleColumnIds: defaultVisibleColumns,
     columnOrder: defaultColumnOrder,
-    columnOverrides: {},
+    columnSizingPreferences: {},
     sort: defaultSort,
     compactMode: false,
     collapsedSections: [],
@@ -104,8 +110,6 @@ export function createTableStore(options: CreateTableStoreOptions) {
   };
 
   // Create store with middleware stack: devtools → persist → immer
-  // State creator is defined inline to allow TypeScript to properly infer types
-  // through the middleware chain without any type assertions
   return create<TableStore>()(
     devtools(
       persist(
@@ -145,40 +149,32 @@ export function createTableStore(options: CreateTableStoreOptions) {
               "setColumnOrder",
             ),
 
-          setColumnOverride: (id: string, override: ColumnOverride) =>
+          // Column sizing preference actions
+          setColumnSizingPreference: (id: string, preference: ColumnSizingPreference) =>
             set(
               (state) => {
-                state.columnOverrides[id] = override;
+                state.columnSizingPreferences[id] = preference;
               },
               false,
-              "setColumnOverride",
+              "setColumnSizingPreference",
             ),
 
-          setColumnOverrides: (overrides: ColumnOverrides) =>
+          setColumnSizingPreferences: (preferences: ColumnSizingPreferences) =>
             set(
               (state) => {
-                state.columnOverrides = overrides;
+                state.columnSizingPreferences = preferences;
               },
               false,
-              "setColumnOverrides",
+              "setColumnSizingPreferences",
             ),
 
-          resetColumnOverride: (id: string) =>
+          removeColumnSizingPreference: (id: string) =>
             set(
               (state) => {
-                delete state.columnOverrides[id];
+                delete state.columnSizingPreferences[id];
               },
               false,
-              "resetColumnOverride",
-            ),
-
-          resetAllColumnOverrides: () =>
-            set(
-              (state) => {
-                state.columnOverrides = {};
-              },
-              false,
-              "resetAllColumnOverrides",
+              "removeColumnSizingPreference",
             ),
 
           // Sort actions
@@ -281,51 +277,42 @@ export function createTableStore(options: CreateTableStoreOptions) {
         {
           name: storageKey,
           storage: createJSONStorage(() => localStorage),
-          // Skip hydration for SSR - prevents hydration mismatches
-          // When true, call store.persist.rehydrate() after mount
-          // @see https://zustand.docs.pmnd.rs/guides/nextjs
           skipHydration,
           // Only persist these fields (exclude ephemeral state)
           partialize: (state) => ({
             visibleColumnIds: state.visibleColumnIds,
             columnOrder: state.columnOrder,
-            columnOverrides: state.columnOverrides,
+            columnSizingPreferences: state.columnSizingPreferences,
             sort: state.sort,
             compactMode: state.compactMode,
             collapsedSections: state.collapsedSections,
             panelWidth: state.panelWidth,
             // searchChips intentionally excluded - ephemeral
           }),
-          // Simple passthrough for any old versioned state
-          migrate: (state) => state as TableState,
           // Merge persisted state with defaults on every hydration
-          // Ensures new columns are always added without versioning
           merge: (persisted, current) => {
             const p = persisted as Partial<TableState>;
             const existingVisible = p.visibleColumnIds ?? [];
             const existingOrder = p.columnOrder ?? [];
 
-            // Only add columns that are TRULY NEW (not in the persisted column order).
-            // If a column is in defaultColumnOrder but not in existingOrder, it's a new column
-            // that was added to the codebase. If it's in existingOrder but not visibleColumnIds,
-            // the user intentionally hid it - don't re-add it!
+            // Only add columns that are TRULY NEW (not in the persisted column order)
             const newColumns = defaultColumnOrder.filter((c) => !existingOrder.includes(c));
 
             // Add new columns to visible if they're default-visible
             const newVisibleColumns = newColumns.filter((c) => defaultVisibleColumns.includes(c));
 
-            // Ensure columnOverrides is always an object (not undefined/null)
-            const columnOverrides = p.columnOverrides && typeof p.columnOverrides === "object" ? p.columnOverrides : {};
+            // Ensure columnSizingPreferences is always an object
+            const columnSizingPreferences =
+              p.columnSizingPreferences && typeof p.columnSizingPreferences === "object"
+                ? p.columnSizingPreferences
+                : {};
 
             return {
               ...current,
               ...p,
-              // Only add truly new columns to visible, respect user's hidden columns
               visibleColumnIds: [...existingVisible, ...newVisibleColumns],
-              // Add new columns to the end of the order
               columnOrder: [...existingOrder, ...newColumns],
-              columnOverrides,
-              // Ensure arrays are always arrays (defensive)
+              columnSizingPreferences,
               collapsedSections: Array.isArray(p.collapsedSections) ? p.collapsedSections : [],
               searchChips: [], // Always reset ephemeral state
             };

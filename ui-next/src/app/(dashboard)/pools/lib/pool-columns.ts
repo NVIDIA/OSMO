@@ -16,7 +16,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { COLUMN_MIN_WIDTHS_REM, type ColumnSizeConfig, type ColumnDefinition } from "@/components/data-table";
+import {
+  COLUMN_MIN_WIDTHS_REM,
+  COLUMN_PREFERRED_WIDTHS_REM,
+  type ColumnSizeConfig,
+  type ColumnDefinition,
+} from "@/components/data-table";
 
 // =============================================================================
 // Column IDs
@@ -104,15 +109,46 @@ export const MANDATORY_COLUMN_IDS: ReadonlySet<PoolColumnId> = new Set(["name"])
 /**
  * Column sizing configuration.
  * Uses rem for accessibility (scales with user font size).
+ *
+ * - minWidthRem: Absolute floor (column never smaller than this)
+ * - preferredWidthRem: Ideal width when space allows (used for initial sizing)
  */
 export const POOL_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
-  { id: "name", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
-  { id: "status", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
-  { id: "description", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
-  { id: "quota", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT },
-  { id: "capacity", minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT },
-  { id: "platforms", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE },
-  { id: "backend", minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT },
+  {
+    id: "name",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
+  },
+  {
+    id: "status",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE,
+  },
+  {
+    id: "description",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
+  },
+  {
+    id: "quota",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+  },
+  {
+    id: "capacity",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+  },
+  {
+    id: "platforms",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PLATFORM_ICONS,
+  },
+  {
+    id: "backend",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+  },
 ];
 
 // =============================================================================
