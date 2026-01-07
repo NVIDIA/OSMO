@@ -145,30 +145,3 @@ export interface ColumnSizingPreference {
  * Map of column IDs to sizing preferences.
  */
 export type ColumnSizingPreferences = Record<string, ColumnSizingPreference>;
-
-// =============================================================================
-// Column Sizing Cache (Runtime)
-// =============================================================================
-
-/**
- * Precomputed values for O(1) lookups during user actions.
- * Computed during idle time, invalidated on relevant changes.
- */
-export interface ColumnSizingCache {
-  /** Sum of all visible column minWidths (px) */
-  totalMinWidth: number;
-  /** Sum of all visible column preferredWidths (px) */
-  totalPreferredWidth: number;
-  /** Precomputed floor per column: mode=no-truncate ? preferred : min */
-  floors: Record<string, number>;
-  /** Sum of all floors */
-  totalFloorWidth: number;
-  /** Derived shares: columnWidth / tableWidth */
-  shares: Record<string, number>;
-  /** Column IDs without user override (for natural ratio) */
-  naturalColumnIds: Set<string>;
-  /** Column IDs with user override */
-  overriddenColumnIds: Set<string>;
-  /** Natural ratio: sum(naturalWidths) / sum(naturalPreferred) */
-  naturalRatio: number;
-}
