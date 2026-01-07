@@ -468,6 +468,8 @@ export function useColumnSizing({
   // For tracking resize timing (cooldown after resize ends)
   const lastResizeEndRef = useRef<number>(0);
   const lastContainerWidthRef = useRef<number>(0);
+  // Track transition timeout for cleanup
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // RAF-throttled DOM update for 60fps performance during drag
   const [scheduleColumnUpdate, cancelColumnUpdate] = useRafCallback((sizing: ColumnSizingState) => {
@@ -517,57 +519,65 @@ export function useColumnSizing({
     const container = containerRef?.current;
     return () => {
       container?.classList.remove("is-resizing");
+      container?.classList.remove("is-transitioning");
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+        transitionTimeoutRef.current = null;
+      }
     };
   }, [containerRef]);
 
   // =========================================================================
   // Calculate Sizing (used by INIT and CONTAINER_RESIZE)
   // =========================================================================
-  const calculateAndDispatch = useStableCallback(
-    (eventType: "INIT" | "CONTAINER_RESIZE", animate: boolean) => {
-      const container = containerRef?.current;
-      if (!container) return;
+  const calculateAndDispatch = useStableCallback((eventType: "INIT" | "CONTAINER_RESIZE", animate: boolean) => {
+    const container = containerRef?.current;
+    if (!container) return;
 
-      const containerWidth = container.clientWidth;
-      if (containerWidth <= 0) return;
+    const containerWidth = container.clientWidth;
+    if (containerWidth <= 0) return;
 
-      const sizing = calculateColumnWidths(
-        columnIds,
-        containerWidth,
-        minSizesRef.current,
-        preferredSizesRef.current,
-        sizingPreferencesRef.current,
-      );
+    const sizing = calculateColumnWidths(
+      columnIds,
+      containerWidth,
+      minSizesRef.current,
+      preferredSizesRef.current,
+      sizingPreferencesRef.current,
+    );
 
-      // Debug logging
-      logColumnSizingDebug(
-        createDebugSnapshot(
-          eventType,
-          {
-            columnIds,
-            containerRef,
-            columnSizing: sizing,
-            preferences: sizingPreferencesRef.current,
-            minSizes: minSizesRef.current,
-            preferredSizes: preferredSizesRef.current,
-            isResizing: stateRef.current.mode === "RESIZING",
-            isInitialized: stateRef.current.isInitialized,
-          },
-          { animate, containerWidth },
-        ),
-      );
+    // Debug logging (lazy to avoid allocation when disabled)
+    logColumnSizingDebug(() =>
+      createDebugSnapshot(
+        eventType,
+        {
+          columnIds,
+          containerRef,
+          columnSizing: sizing,
+          preferences: sizingPreferencesRef.current,
+          minSizes: minSizesRef.current,
+          preferredSizes: preferredSizesRef.current,
+          isResizing: stateRef.current.mode === "RESIZING",
+          isInitialized: stateRef.current.isInitialized,
+        },
+        { animate, containerWidth },
+      ),
+    );
 
-      // Handle animation class
-      if (animate && container) {
-        container.classList.add("is-transitioning");
-        setTimeout(() => {
-          container.classList.remove("is-transitioning");
-        }, 150);
+    // Handle animation class with proper cleanup
+    if (animate && container) {
+      // Cancel any pending transition timeout
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
       }
+      container.classList.add("is-transitioning");
+      transitionTimeoutRef.current = setTimeout(() => {
+        container.classList.remove("is-transitioning");
+        transitionTimeoutRef.current = null;
+      }, 150);
+    }
 
-      dispatch({ type: eventType, sizing });
-    },
-  );
+    dispatch({ type: eventType, sizing });
+  });
 
   // =========================================================================
   // Initial Sizing Effect
@@ -639,7 +649,16 @@ export function useColumnSizing({
       isResizing: state.mode === "RESIZING",
       isInitialized: state.isInitialized,
     }),
-    [columnIds, containerRef, state.sizing, state.mode, state.isInitialized, sizingPreferencesRef, minSizesRef, preferredSizesRef],
+    [
+      columnIds,
+      containerRef,
+      state.sizing,
+      state.mode,
+      state.isInitialized,
+      sizingPreferencesRef,
+      minSizesRef,
+      preferredSizesRef,
+    ],
   );
 
   const startResize = useCallback(
@@ -654,9 +673,7 @@ export function useColumnSizing({
         currentSizing,
       });
 
-      logColumnSizingDebug(
-        createDebugSnapshot("RESIZE_START", getDebugState(), { columnId, startWidth }),
-      );
+      logColumnSizingDebug(() => createDebugSnapshot("RESIZE_START", getDebugState(), { columnId, startWidth }));
 
       return startWidth;
     },
@@ -685,24 +702,23 @@ export function useColumnSizing({
 
     dispatch({ type: "RESIZE_END" });
 
-    // Debug logging
-    const changes: Record<string, { from: number; to: number; mode: string }> = {};
-    for (const [colId, newWidth] of Object.entries(finalSizing)) {
-      const oldWidth = beforeResize[colId];
-      if (oldWidth !== undefined && oldWidth !== newWidth) {
-        const preferredWidth = preferredSizesRef.current[colId] ?? 150;
-        const mode = newWidth < preferredWidth ? "truncate" : "no-truncate";
-        changes[colId] = { from: oldWidth, to: newWidth, mode };
+    // Debug logging (lazy computation)
+    logColumnSizingDebug(() => {
+      const changes: Record<string, { from: number; to: number; mode: string }> = {};
+      for (const [colId, newWidth] of Object.entries(finalSizing)) {
+        const oldWidth = beforeResize[colId];
+        if (oldWidth !== undefined && oldWidth !== newWidth) {
+          const preferredWidth = preferredSizesRef.current[colId] ?? 150;
+          const mode = newWidth < preferredWidth ? "truncate" : "no-truncate";
+          changes[colId] = { from: oldWidth, to: newWidth, mode };
+        }
       }
-    }
-
-    logColumnSizingDebug(
-      createDebugSnapshot("RESIZE_END", getDebugState(), {
+      return createDebugSnapshot("RESIZE_END", getDebugState(), {
         changes,
         beforeResize,
         finalSizing,
-      }),
-    );
+      });
+    });
     flushDebugBuffer();
 
     // Detect and persist preferences
