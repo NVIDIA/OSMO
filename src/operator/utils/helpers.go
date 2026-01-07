@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/url"
 	"sync"
+	"time"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
@@ -144,4 +145,17 @@ func (um *UnackMessages) Qsize() int {
 	um.mu.RLock()
 	defer um.mu.RUnlock()
 	return len(um.messages)
+}
+
+// CalculateBackoff calculates exponential backoff duration with a maximum cap
+// Backoff sequence: 1s, 2s, 4s, 8s, 16s, max 30s
+func CalculateBackoff(retryCount int, maxBackoff time.Duration) time.Duration {
+	if retryCount <= 0 {
+		return 0
+	}
+	backoff := time.Duration(1<<uint(retryCount-1)) * time.Second
+	if backoff > maxBackoff {
+		backoff = maxBackoff
+	}
+	return backoff
 }

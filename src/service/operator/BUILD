@@ -25,10 +25,15 @@ load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 go_library(
     name = "utils",
-    srcs = ["utils/helpers.go"],
+    srcs = [
+        "utils/helpers.go",
+        "utils/operator_args.go",
+    ],
     importpath = "go.corp.nvidia.com/osmo/service/operator/utils",
     visibility = ["//src/service/operator:__subpackages__"],
     deps = [
+        "//src/proto/operator:operator_go_proto",
+        "@com_github_jackc_pgx_v5//pgxpool",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
@@ -56,6 +61,7 @@ go_library(
     deps = [
         ":utils",
         "//src/proto/operator:operator_go_proto",
+        "@com_github_jackc_pgx_v5//pgxpool",
         "@com_github_redis_go_redis_v9//:go-redis",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
@@ -86,6 +92,8 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         ":listener_service",
+        ":utils",
+        "@com_github_jackc_pgx_v5//pgxpool",
         "@com_github_redis_go_redis_v9//:go-redis",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//health",

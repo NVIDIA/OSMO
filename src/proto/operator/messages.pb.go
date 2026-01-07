@@ -338,6 +338,82 @@ func (x *UpdatePodBody) GetConditions() []*ConditionMessage {
 	return nil
 }
 
+type InitBody struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	K8SUid              string                 `protobuf:"bytes,1,opt,name=k8s_uid,json=k8sUid,proto3" json:"k8s_uid,omitempty"`
+	K8SNamespace        string                 `protobuf:"bytes,2,opt,name=k8s_namespace,json=k8sNamespace,proto3" json:"k8s_namespace,omitempty"`
+	Name                string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Version             string                 `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	NodeConditionPrefix string                 `protobuf:"bytes,5,opt,name=node_condition_prefix,json=nodeConditionPrefix,proto3" json:"node_condition_prefix,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *InitBody) Reset() {
+	*x = InitBody{}
+	mi := &file_src_proto_operator_messages_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitBody) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitBody) ProtoMessage() {}
+
+func (x *InitBody) ProtoReflect() protoreflect.Message {
+	mi := &file_src_proto_operator_messages_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitBody.ProtoReflect.Descriptor instead.
+func (*InitBody) Descriptor() ([]byte, []int) {
+	return file_src_proto_operator_messages_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InitBody) GetK8SUid() string {
+	if x != nil {
+		return x.K8SUid
+	}
+	return ""
+}
+
+func (x *InitBody) GetK8SNamespace() string {
+	if x != nil {
+		return x.K8SNamespace
+	}
+	return ""
+}
+
+func (x *InitBody) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *InitBody) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *InitBody) GetNodeConditionPrefix() string {
+	if x != nil {
+		return x.NodeConditionPrefix
+	}
+	return ""
+}
+
 var File_src_proto_operator_messages_proto protoreflect.FileDescriptor
 
 const file_src_proto_operator_messages_proto_rawDesc = "" +
@@ -373,7 +449,13 @@ const file_src_proto_operator_messages_proto_rawDesc = "" +
 	" \x01(\tR\abackend\x12:\n" +
 	"\n" +
 	"conditions\x18\v \x03(\v2\x1a.operator.ConditionMessageR\n" +
-	"conditionsB1Z/go.corp.nvidia.com/osmo/proto/operator;operatorb\x06proto3"
+	"conditions\"\xaa\x01\n" +
+	"\bInitBody\x12\x17\n" +
+	"\ak8s_uid\x18\x01 \x01(\tR\x06k8sUid\x12#\n" +
+	"\rk8s_namespace\x18\x02 \x01(\tR\fk8sNamespace\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x122\n" +
+	"\x15node_condition_prefix\x18\x05 \x01(\tR\x13nodeConditionPrefixB1Z/go.corp.nvidia.com/osmo/proto/operator;operatorb\x06proto3"
 
 var (
 	file_src_proto_operator_messages_proto_rawDescOnce sync.Once
@@ -388,12 +470,13 @@ func file_src_proto_operator_messages_proto_rawDescGZIP() []byte {
 }
 
 var file_src_proto_operator_messages_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_src_proto_operator_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_src_proto_operator_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_src_proto_operator_messages_proto_goTypes = []any{
 	(ListenerMessage_MessageType)(0), // 0: operator.ListenerMessage.MessageType
 	(*ListenerMessage)(nil),          // 1: operator.ListenerMessage
 	(*ConditionMessage)(nil),         // 2: operator.ConditionMessage
 	(*UpdatePodBody)(nil),            // 3: operator.UpdatePodBody
+	(*InitBody)(nil),                 // 4: operator.InitBody
 }
 var file_src_proto_operator_messages_proto_depIdxs = []int32{
 	0, // 0: operator.ListenerMessage.type:type_name -> operator.ListenerMessage.MessageType
@@ -416,7 +499,7 @@ func file_src_proto_operator_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_src_proto_operator_messages_proto_rawDesc), len(file_src_proto_operator_messages_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -130,7 +130,7 @@ func TestNewListenerService(t *testing.T) {
 	t.Run("with custom logger", func(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 		redisClient := setupTestRedis(t)
-		service := NewListenerService(logger, redisClient)
+		service := NewListenerService(logger, redisClient, nil, "")
 		if service == nil {
 			t.Fatal("expected non-nil service")
 		}
@@ -138,7 +138,7 @@ func TestNewListenerService(t *testing.T) {
 
 	t.Run("with nil logger", func(t *testing.T) {
 		redisClient := setupTestRedis(t)
-		service := NewListenerService(nil, redisClient)
+		service := NewListenerService(nil, redisClient, nil, "")
 		if service == nil {
 			t.Fatal("expected non-nil service with default logger")
 		}
@@ -148,7 +148,7 @@ func TestNewListenerService(t *testing.T) {
 func TestWorkflowListenerStream_HappyPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 
@@ -215,7 +215,7 @@ func TestWorkflowListenerStream_HappyPath(t *testing.T) {
 func TestWorkflowListenerStream_EOFClose(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 	stream.recvError = io.EOF
@@ -229,7 +229,7 @@ func TestWorkflowListenerStream_EOFClose(t *testing.T) {
 func TestWorkflowListenerStream_ContextCanceled(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 	stream.recvError = context.Canceled
@@ -243,7 +243,7 @@ func TestWorkflowListenerStream_ContextCanceled(t *testing.T) {
 func TestWorkflowListenerStream_CanceledStatusCode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 	stream.recvError = status.Error(codes.Canceled, "canceled")
@@ -257,7 +257,7 @@ func TestWorkflowListenerStream_CanceledStatusCode(t *testing.T) {
 func TestWorkflowListenerStream_RecvError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 	expectedErr := errors.New("recv error")
@@ -275,7 +275,7 @@ func TestWorkflowListenerStream_RecvError(t *testing.T) {
 func TestWorkflowListenerStream_SendError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 
@@ -304,7 +304,7 @@ func TestWorkflowListenerStream_SendError(t *testing.T) {
 func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 
@@ -348,7 +348,7 @@ func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
 func TestWorkflowListenerStream_MultipleMessages(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 
@@ -396,7 +396,7 @@ func TestWorkflowListenerStream_MultipleMessages(t *testing.T) {
 func TestRegisterServices(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	// Create a gRPC server
 	grpcServer := grpc.NewServer()
@@ -456,7 +456,7 @@ func TestIsExpectedClose(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			redisClient := setupTestRedis(t)
-			service := NewListenerService(logger, redisClient)
+			service := NewListenerService(logger, redisClient, nil, "")
 
 			stream := newMockStream()
 			stream.recvError = tt.err
@@ -483,7 +483,7 @@ func TestIsExpectedClose(t *testing.T) {
 func TestWorkflowListenerStream_WithCanceledContext(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// Add backend-name metadata to context before canceling
@@ -517,7 +517,7 @@ func TestWorkflowListenerStream_WithCanceledContext(t *testing.T) {
 func TestWorkflowListenerStream_EmptyData(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	stream := newMockStream()
 
@@ -560,7 +560,7 @@ func TestWorkflowListenerStream_EmptyData(t *testing.T) {
 func TestWorkflowListenerStream_WithBackendNameMetadata(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	// Create stream with specific backend name
 	stream := newMockStreamWithBackend("production-backend")
@@ -601,7 +601,7 @@ func TestWorkflowListenerStream_WithBackendNameMetadata(t *testing.T) {
 func TestWorkflowListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	// Create stream without metadata (should be rejected)
 	stream := &mockStream{
@@ -626,7 +626,7 @@ func TestWorkflowListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 func TestWorkflowListenerStream_WithEmptyBackendName(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	redisClient := setupTestRedis(t)
-	service := NewListenerService(logger, redisClient)
+	service := NewListenerService(logger, redisClient, nil, "")
 
 	// Create stream with empty backend name (should be rejected)
 	ctx := context.Background()

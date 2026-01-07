@@ -305,6 +305,7 @@ go_library(
     importpath = "go.corp.nvidia.com/osmo/operator",
     visibility = ["//src/operator:__subpackages__"],
     deps = [
+        "//src/lib/utils:utils",
         "//src/operator/utils:utils",
         "//src/proto/operator:operator_go_proto",
         "@com_github_google_uuid//:uuid",

@@ -22,8 +22,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -41,21 +41,27 @@ const (
 // ListenerService handles workflow listener gRPC streaming operations
 type ListenerService struct {
 	pb.UnimplementedListenerServiceServer
-	logger      *slog.Logger
-	redisClient *redis.Client
+	logger          *slog.Logger
+	redisClient     *redis.Client
+	pgPool          *pgxpool.Pool
+	serviceHostname string
 }
 
 // NewListenerService creates a new listener service instance
 func NewListenerService(
 	logger *slog.Logger,
 	redisClient *redis.Client,
+	pgPool *pgxpool.Pool,
+	serviceHostname string,
 ) *ListenerService {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &ListenerService{
-		logger:      logger,
-		redisClient: redisClient,
+		logger:          logger,
+		redisClient:     redisClient,
+		pgPool:          pgPool,
+		serviceHostname: serviceHostname,
 	}
 }
 
@@ -84,10 +90,6 @@ func (ls *ListenerService) pushMessageToRedis(
 			err,
 		)
 	}
-
-	ls.logger.InfoContext(ctx, "pushed message to Redis stream",
-		slog.String("stream", operatorMessagesStream),
-		slog.String("uuid", msg.Uuid))
 
 	return nil
 }
@@ -131,19 +133,6 @@ func (ls *ListenerService) WorkflowListenerStream(
 			return err
 		}
 
-		// Calculate latency from message timestamp
-		var latencyMs float64
-		if msgTime, err := time.Parse(time.RFC3339Nano, msg.Timestamp); err == nil {
-			latencyMs = float64(time.Since(msgTime).Microseconds()) / 1000.0
-		}
-
-		ls.logger.InfoContext(ctx, "received message",
-			slog.String("backend_name", backendName),
-			slog.String("type", msg.Type.String()),
-			slog.String("uuid", msg.Uuid),
-			slog.Float64("latency_ms", latencyMs),
-			slog.String("timestamp", msg.Timestamp))
-
 		// Push message to Redis Stream before sending ACK
 		if err := ls.pushMessageToRedis(ctx, msg); err != nil {
 			ls.logger.ErrorContext(ctx, "failed to push message to Redis stream",
@@ -164,9 +153,52 @@ func (ls *ListenerService) WorkflowListenerStream(
 			ls.logger.ErrorContext(ctx, "failed to send ACK", slog.String("error", err.Error()))
 			return err
 		}
-
-		ls.logger.InfoContext(ctx, "sent ACK", slog.String("for_uuid", msg.Uuid))
 	}
+}
+
+// InitBackend handles backend initialization requests
+func (ls *ListenerService) InitBackend(
+	ctx context.Context,
+	req *pb.InitBackendRequest,
+) (*pb.InitBackendResponse, error) {
+	initBody := req.GetInitBody()
+	if initBody == nil {
+		ls.logger.ErrorContext(ctx, "init body is missing")
+		return &pb.InitBackendResponse{
+			Success: false,
+			Message: "init body is required",
+		}, nil
+	}
+
+	backendName := initBody.Name
+	if backendName == "" {
+		ls.logger.ErrorContext(ctx, "backend name is missing in init body")
+		return &pb.InitBackendResponse{
+			Success: false,
+			Message: "backend name is required",
+		}, nil
+	}
+
+	// Store backend initialization information in postgres database
+	err := utils.CreateOrUpdateBackend(ctx, ls.pgPool, initBody, ls.serviceHostname)
+	if err != nil {
+		ls.logger.ErrorContext(ctx, "failed to initialize backend",
+			slog.String("backend_name", backendName),
+			slog.String("error", err.Error()))
+		return &pb.InitBackendResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to initialize backend: %s", err.Error()),
+		}, nil
+	}
+
+	ls.logger.InfoContext(ctx, "backend initialized successfully",
+		slog.String("backend_name", backendName),
+		slog.String("k8s_uid", initBody.K8SUid))
+
+	return &pb.InitBackendResponse{
+		Success: true,
+		Message: "backend initialized successfully",
+	}, nil
 }
 
 // RegisterServices registers the listener service with the gRPC server.

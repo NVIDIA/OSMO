@@ -18,12 +18,21 @@ package(default_visibility = ["//visibility:public"])
 
 load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 exports_files(
     [
         "version.yaml",
         "py.typed",
     ],
+)
+
+go_library(
+    name = "utils",
+    srcs = ["version.go"],
+    data = ["version.yaml"],
+    importpath = "go.corp.nvidia.com/osmo/lib/utils",
+    deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
 )
 
 osmo_py_library(

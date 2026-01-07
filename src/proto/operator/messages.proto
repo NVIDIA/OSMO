@@ -63,3 +63,12 @@ message UpdatePodBody {
   string backend = 10;
   repeated ConditionMessage conditions = 11;
 }
+
+// InitBody represents the initialization message body
+message InitBody {
+  string k8s_uid = 1;
+  string k8s_namespace = 2;
+  string name = 3;
+  string version = 4;
+  string node_condition_prefix = 5;
+}

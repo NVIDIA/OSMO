@@ -19,9 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -119,4 +121,23 @@ func CreateKubernetesClient() (*kubernetes.Clientset, error) {
 	}
 
 	return clientset, nil
+}
+
+// GetKubeSystemUID retrieves the UID of the kube-system namespace
+func GetKubeSystemUID() (string, error) {
+	clientset, err := CreateKubernetesClient()
+	if err != nil {
+		return "", fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	namespace, err := clientset.CoreV1().Namespaces().Get(
+		context.Background(),
+		"kube-system",
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kube-system namespace: %w", err)
+	}
+
+	return string(namespace.UID), nil
 }

@@ -22,9 +22,23 @@ import "src/proto/operator/messages.proto";
 
 option go_package = "go.corp.nvidia.com/osmo/proto/operator;operator";
 
+// InitBackendRequest represents the request to initialize a backend
+message InitBackendRequest {
+  InitBody init_body = 1;
+}
+
+// InitBackendResponse represents the response to backend initialization
+message InitBackendResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 // ListenerService handles bidirectional streaming connections from workflow backends
 service ListenerService {
   // Bidirectional stream for workflow backend communication
   rpc WorkflowListenerStream(stream ListenerMessage) returns (stream ListenerMessage);
+
+  // Initialize a workflow backend
+  rpc InitBackend(InitBackendRequest) returns (InitBackendResponse);
 }
 

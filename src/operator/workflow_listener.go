@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
@@ -54,6 +55,10 @@ func main() {
 	// Add backend-name to metadata
 	md := metadata.Pairs("backend-name", cmdArgs.Backend)
 	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	if err := initializeBackend(ctx, cmdArgs); err != nil {
+		log.Fatalf("Failed to initialize backend: %v", err)
+	}
 
 	// Create shared unacked messages tracker that persists across reconnections
 	// This ensures messages are not lost when:
@@ -83,6 +88,67 @@ func main() {
 	}
 
 	log.Println("Workflow Listener stopped gracefully")
+}
+
+// initializeBackend sends the initial backend registration to the operator service
+// with automatic retry until successful or context cancelled
+func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
+	version, err := libutils.LoadVersion()
+	if err != nil {
+		return fmt.Errorf("failed to load version from file: %w", err)
+	}
+
+	// Parse serviceURL to extract host:port for gRPC
+	serviceAddr, err := utils.ParseServiceURL(args.ServiceURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse service URL: %w", err)
+	}
+
+	kubeSystemUID, err := utils.GetKubeSystemUID()
+	if err != nil {
+		return fmt.Errorf("failed to get kube-system UID: %w", err)
+	}
+	initReq := &pb.InitBackendRequest{
+		InitBody: &pb.InitBody{
+			K8SUid:              kubeSystemUID,
+			K8SNamespace:        args.Namespace,
+			Name:                args.Backend,
+			Version:             version,
+			NodeConditionPrefix: args.NodeConditionPrefix,
+		},
+	}
+
+	// Create connection (lazy - actual connection happens on first RPC)
+	conn, err := grpc.NewClient(
+		serviceAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create gRPC client: %w", err)
+	}
+	defer conn.Close()
+
+	client := pb.NewListenerServiceClient(conn)
+
+	// Retry loop for InitBackend RPC call
+	retryCount := 0
+	for {
+		initResp, err := client.InitBackend(ctx, initReq)
+		if err == nil {
+			if !initResp.Success {
+				return fmt.Errorf("backend initialization failed: %s", initResp.Message)
+			}
+			return nil
+		}
+
+		retryCount++
+		if retryCount == 1 {
+			log.Printf("Failed to initialize backend: %v. Retrying...", err)
+		}
+
+		backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
+		time.Sleep(backoff)
+	}
 }
 
 // runWorkflowListener establishes a connection to the operator service

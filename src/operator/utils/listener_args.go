@@ -26,13 +26,14 @@ import (
 
 // ListenerArgs holds configuration for the workflow listener
 type ListenerArgs struct {
-	ServiceURL         string
-	Backend            string
-	Namespace          string
-	PodUpdateChanSize  int
-	ResyncPeriodSec    int
-	StateCacheTTLMin   int
-	MaxUnackedMessages int
+	ServiceURL          string
+	Backend             string
+	Namespace           string
+	PodUpdateChanSize   int
+	ResyncPeriodSec     int
+	StateCacheTTLMin    int
+	MaxUnackedMessages  int
+	NodeConditionPrefix string
 }
 
 // ListenerParse parses command line arguments and environment variables
@@ -41,7 +42,7 @@ func ListenerParse() ListenerArgs {
 		getEnv("OSMO_SERVICE_URL", "http://127.0.0.1:8001"),
 		"The osmo service url to connect to.")
 	backend := flag.String("backend",
-		getEnv("BACKEND", "osmo-backend"),
+		getEnv("BACKEND", "default"),
 		"The backend to connect to.")
 	namespace := flag.String("namespace",
 		getEnv("OSMO_NAMESPACE", "osmo"),
@@ -58,17 +59,21 @@ func ListenerParse() ListenerArgs {
 	maxUnackedMessages := flag.Int("maxUnackedMessages",
 		getEnvInt("MAX_UNACKED_MESSAGES", 100),
 		"Maximum number of unacked messages allowed")
+	nodeConditionPrefix := flag.String("nodeConditionPrefix",
+		getEnv("NODE_CONDITION_PREFIX", "osmo.nvidia.com/"),
+		"Prefix for node conditions")
 
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL:         *serviceURL,
-		Backend:            *backend,
-		Namespace:          *namespace,
-		PodUpdateChanSize:  *podUpdateChanSize,
-		ResyncPeriodSec:    *resyncPeriodSec,
-		StateCacheTTLMin:   *stateCacheTTLMin,
-		MaxUnackedMessages: *maxUnackedMessages,
+		ServiceURL:          *serviceURL,
+		Backend:             *backend,
+		Namespace:           *namespace,
+		PodUpdateChanSize:   *podUpdateChanSize,
+		ResyncPeriodSec:     *resyncPeriodSec,
+		StateCacheTTLMin:    *stateCacheTTLMin,
+		MaxUnackedMessages:  *maxUnackedMessages,
+		NodeConditionPrefix: *nodeConditionPrefix,
 	}
 }
 
