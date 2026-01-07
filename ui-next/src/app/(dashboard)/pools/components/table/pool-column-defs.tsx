@@ -168,7 +168,7 @@ export function createPoolColumns({
       minSize: getMinSize("backend"),
       enableSorting: true,
       cell: ({ getValue }) => (
-        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{getValue() as string}</span>
+        <span className="truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">{getValue() as string}</span>
       ),
     },
   ];
