@@ -56,13 +56,26 @@
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
  */
 
-import { useCallback, useRef, useMemo, useEffect, useReducer } from "react";
+import { useCallback, useRef, useMemo, useEffect, useReducer, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
-import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
+import { useStableCallback, useStableValue, useRafCallback, useIsomorphicLayoutEffect } from "@/hooks";
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import type { ColumnSizeConfig } from "../types";
 import { logColumnSizingDebug, createDebugSnapshot, flushDebugBuffer } from "../utils/debug";
-import { SizingModes, SizingEventTypes, PreferenceModes, assertNever, type SizingMode } from "../constants";
+import {
+  measureColumnContentWidth,
+  measureMultipleColumns,
+  getTruncationThreshold,
+  getRemToPx,
+} from "../utils/column-sizing";
+import {
+  SizingModes,
+  SizingEventTypes,
+  PreferenceModes,
+  assertNever,
+  type SizingMode,
+  type PreferenceMode,
+} from "../constants";
 
 // =============================================================================
 // Types - External API
@@ -81,20 +94,22 @@ export interface UseColumnSizingOptions {
   sizingPreferences?: ColumnSizingPreferences;
   /** Callback when user manually resizes a column or auto-fits */
   onPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
-  /**
-   * Measured content widths per column (in pixels).
-   * Used as floor for NO_TRUNCATE mode to prevent content truncation.
-   * These are computed values, not user preferences.
-   */
-  contentWidths?: Record<string, number>;
-  /** Callback when auto-fit measures a column's content width */
-  onContentWidthChange?: (columnId: string, contentWidth: number) => void;
   /** Minimum sizes per column (in pixels) */
   minSizes?: Record<string, number>;
   /** Configured/default sizes per column (in pixels, from column config) */
   configuredSizes?: Record<string, number>;
   /** Debounce delay for resize observer (ms) */
   resizeDebounceMs?: number;
+  /**
+   * Data length for triggering content width measurement.
+   * When this changes (and > 0), NO_TRUNCATE columns will be remeasured.
+   */
+  dataLength?: number;
+  /**
+   * Whether data is still loading (skeleton visible).
+   * Measurement is deferred until loading completes.
+   */
+  isLoading?: boolean;
 }
 
 export interface UseColumnSizingResult {
@@ -187,50 +202,9 @@ export const INITIAL_STATE: SizingState = {
 };
 
 // =============================================================================
-// Module-Level rem-to-px Cache
-// Optimization #1: Avoids forced layout on every useMemo recompute
-// Invalidates automatically on browser zoom changes
+// Re-exports from utils for backwards compatibility
 // =============================================================================
-
-let _remToPxCache: number | null = null;
-
-// SSR-safe: only set up listener in browser with matchMedia support
-if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-  // matchMedia with resolution query fires on zoom changes
-  window.matchMedia("(resolution: 1dppx)").addEventListener("change", () => {
-    _remToPxCache = null;
-  });
-}
-
-// =============================================================================
-// Pure Functions (Exported for testing)
-// =============================================================================
-
-/**
- * Get the current rem-to-px ratio.
- * Cached at module level; invalidated on browser zoom.
- */
-export function getRemToPx(): number {
-  if (typeof document === "undefined") return 16;
-
-  if (_remToPxCache !== null) return _remToPxCache;
-
-  try {
-    const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    _remToPxCache = fontSize > 0 ? fontSize : 16;
-    return _remToPxCache;
-  } catch {
-    return 16;
-  }
-}
-
-/**
- * Invalidate the rem-to-px cache. Exposed for testing.
- * @internal
- */
-export function _invalidateRemToPxCache(): void {
-  _remToPxCache = null;
-}
+export { getRemToPx, _invalidateRemToPxCache, getTruncationThreshold } from "../utils/column-sizing";
 
 /**
  * Calculate column widths based on container width and preferences.
@@ -266,10 +240,10 @@ export function calculateColumnWidths(
     if (pref) {
       switch (pref.mode) {
         case PreferenceModes.NO_TRUNCATE: {
-          // Use contentWidth (measured) as floor to prevent truncation
-          // Fall back to pref.width if contentWidth not available
-          const measuredWidth = contentWidth ?? pref.width;
-          floor = Math.max(measuredWidth, min);
+          // Use truncation threshold as floor to prevent content truncation
+          // getTruncationThreshold returns max(contentWidth, configuredWidth)
+          const threshold = getTruncationThreshold(contentWidth ?? 0, configuredWidth);
+          floor = Math.max(threshold, min);
           break;
         }
         case PreferenceModes.TRUNCATE:
@@ -503,16 +477,24 @@ export function useColumnSizing({
   columnConfigs,
   sizingPreferences = {},
   onPreferenceChange,
-  contentWidths: contentWidthsProp = {},
-  onContentWidthChange,
   minSizes: minSizesProp,
   configuredSizes: configuredSizesProp,
   resizeDebounceMs = 150,
+  dataLength = 0,
+  isLoading = false,
 }: UseColumnSizingOptions): UseColumnSizingResult {
   // =========================================================================
   // State Machine
   // =========================================================================
   const [state, dispatch] = useReducer(sizingReducer, INITIAL_STATE);
+
+  // =========================================================================
+  // Content Width Measurement State
+  // Tracks measured widths for NO_TRUNCATE columns to prevent truncation
+  // =========================================================================
+  const [contentWidths, setContentWidths] = useState<Record<string, number>>({});
+  const measuredDataLengthRef = useRef<number>(0);
+  const prevPreferencesRef = useRef<ColumnSizingPreferences | undefined>(undefined);
 
   // =========================================================================
   // Computed Sizes (min/preferred from configs or props)
@@ -548,14 +530,15 @@ export function useColumnSizing({
   const minSizesRef = useStableValue(minSizes);
   const configuredSizesRef = useStableValue(configuredSizes);
   const sizingPreferencesRef = useStableValue(sizingPreferences);
-  const contentWidthsRef = useStableValue(contentWidthsProp);
+  const contentWidthsRef = useStableValue(contentWidths);
   const onPreferenceChangeRef = useStableValue(onPreferenceChange);
-  const onContentWidthChangeRef = useStableValue(onContentWidthChange);
   const stateRef = useStableValue(state);
 
   // For tracking resize timing (cooldown after resize ends)
   const lastResizeEndRef = useRef<number>(0);
   const lastContainerWidthRef = useRef<number>(0);
+  // Track auto-fit timing (cooldown to ignore TanStack echo)
+  const lastAutoFitRef = useRef<number>(0);
   // Track transition timeout for cleanup
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -612,6 +595,109 @@ export function useColumnSizing({
       }
     };
   }, [containerRef]);
+
+  // =========================================================================
+  // Content Width Measurement Effects
+  // Measures visible cells for NO_TRUNCATE columns to set accurate floors
+  // =========================================================================
+
+  // Identify columns with NO_TRUNCATE preference
+  const noTruncateColumnIds = useMemo(() => {
+    return columnIds.filter((id) => {
+      const pref = sizingPreferences[id];
+      return pref?.mode === PreferenceModes.NO_TRUNCATE;
+    });
+  }, [columnIds, sizingPreferences]);
+
+  // Measure NO_TRUNCATE columns when data arrives or changes significantly
+  // Uses useIsomorphicLayoutEffect for SSR safety (runs synchronously before paint)
+  useIsomorphicLayoutEffect(() => {
+    const container = containerRef?.current;
+    // Skip if no container, no data, still loading, or no NO_TRUNCATE columns
+    if (!container || dataLength === 0 || isLoading || noTruncateColumnIds.length === 0) {
+      return;
+    }
+
+    // Only remeasure if data length changed (new data loaded)
+    if (measuredDataLengthRef.current === dataLength) {
+      return;
+    }
+    measuredDataLengthRef.current = dataLength;
+
+    // Measure each NO_TRUNCATE column using the utility function
+    const newWidths = measureMultipleColumns(container, noTruncateColumnIds);
+
+    // Batch update if we measured anything
+    if (Object.keys(newWidths).length > 0) {
+      setContentWidths((prev) => ({ ...prev, ...newWidths }));
+    }
+  }, [dataLength, isLoading, noTruncateColumnIds, containerRef]);
+
+  // Track pending idle callback for cleanup
+  const pendingIdleCallbackRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
+
+  // Remeasure when a column becomes NO_TRUNCATE (after user resize)
+  // Uses useEffect (not layout effect) since measurement can happen after paint
+  useEffect(() => {
+    const container = containerRef?.current;
+    const prev = prevPreferencesRef.current;
+    const current = sizingPreferences;
+    prevPreferencesRef.current = current;
+
+    // Skip on first render or if no data/container
+    if (!container || !prev || dataLength === 0) {
+      return;
+    }
+
+    // Find columns that just became NO_TRUNCATE
+    const newNoTruncateColumns: string[] = [];
+    for (const columnId of columnIds) {
+      const prevMode = prev[columnId]?.mode;
+      const currentMode = current[columnId]?.mode;
+      if (currentMode === PreferenceModes.NO_TRUNCATE && prevMode !== PreferenceModes.NO_TRUNCATE) {
+        // Column just became NO_TRUNCATE - needs measurement
+        // Use ref to avoid effect re-runs when contentWidths changes
+        if (!contentWidthsRef.current[columnId]) {
+          newNoTruncateColumns.push(columnId);
+        }
+      }
+    }
+
+    if (newNoTruncateColumns.length === 0) {
+      return;
+    }
+
+    // Measure using requestIdleCallback for non-blocking behavior
+    const measureNewColumns = () => {
+      pendingIdleCallbackRef.current = null;
+      const containerEl = containerRef?.current;
+      if (!containerEl) return;
+
+      const newWidths = measureMultipleColumns(containerEl, newNoTruncateColumns);
+      if (Object.keys(newWidths).length > 0) {
+        setContentWidths((prev) => ({ ...prev, ...newWidths }));
+      }
+    };
+
+    // Schedule measurement with proper cleanup tracking
+    if (typeof requestIdleCallback !== "undefined") {
+      pendingIdleCallbackRef.current = requestIdleCallback(measureNewColumns, { timeout: 500 });
+    } else {
+      pendingIdleCallbackRef.current = setTimeout(measureNewColumns, 0);
+    }
+
+    // Cleanup: cancel pending callback on unmount or re-run
+    return () => {
+      if (pendingIdleCallbackRef.current !== null) {
+        if (typeof cancelIdleCallback !== "undefined" && typeof pendingIdleCallbackRef.current === "number") {
+          cancelIdleCallback(pendingIdleCallbackRef.current);
+        } else {
+          clearTimeout(pendingIdleCallbackRef.current as ReturnType<typeof setTimeout>);
+        }
+        pendingIdleCallbackRef.current = null;
+      }
+    };
+  }, [sizingPreferences, columnIds, dataLength, containerRef, contentWidthsRef]);
 
   // =========================================================================
   // Calculate Sizing (used by INIT and CONTAINER_RESIZE)
@@ -742,6 +828,7 @@ export function useColumnSizing({
       preferences: sizingPreferencesRef.current,
       minSizes: minSizesRef.current,
       configuredSizes: configuredSizesRef.current,
+      contentWidths: contentWidthsRef.current,
       isResizing: state.mode === SizingModes.RESIZING,
       isInitialized: state.isInitialized,
     }),
@@ -754,6 +841,7 @@ export function useColumnSizing({
       sizingPreferencesRef,
       minSizesRef,
       configuredSizesRef,
+      contentWidthsRef,
     ],
   );
 
@@ -799,35 +887,67 @@ export function useColumnSizing({
 
     dispatch({ type: SizingEventTypes.RESIZE_END });
 
-    // Debug logging (lazy computation)
-    logColumnSizingDebug(() => {
-      const changes: Record<string, { from: number; to: number; mode: string }> = {};
-      for (const [colId, newWidth] of Object.entries(finalSizing)) {
-        const oldWidth = beforeResize[colId];
-        if (oldWidth !== undefined && oldWidth !== newWidth) {
-          const configuredWidth = configuredSizesRef.current[colId] ?? 150;
-          const mode = newWidth < configuredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
-          changes[colId] = { from: oldWidth, to: newWidth, mode };
+    // IMPORTANT: Capture mode determination SYNCHRONOUSLY to avoid race conditions
+    // We compute the mode now and store it, so requestIdleCallback uses the same values
+    const preferencesToPersist: Array<{ columnId: string; mode: PreferenceMode; width: number }> = [];
+    const changes: Record<
+      string,
+      { from: number; to: number; mode: string; contentWidth: number; configuredWidth: number; threshold: number }
+    > = {};
+
+    // Get container for measurement
+    const container = containerRef?.current;
+
+    // Collect newly measured widths to batch the state update
+    const newlyMeasuredWidths: Record<string, number> = {};
+
+    for (const [colId, newWidth] of Object.entries(finalSizing)) {
+      const oldWidth = beforeResize[colId];
+      if (oldWidth !== undefined && oldWidth !== newWidth) {
+        // Get cached contentWidth, or measure now if not available
+        let contentWidth = contentWidthsRef.current[colId] ?? 0;
+
+        // If no contentWidth cached, measure it now to make accurate mode decision
+        if (contentWidth === 0 && container) {
+          contentWidth = measureColumnContentWidth(container, colId);
+          // Collect for batched state update
+          if (contentWidth > 0) {
+            newlyMeasuredWidths[colId] = contentWidth;
+          }
         }
+
+        const configuredWidth = configuredSizesRef.current[colId] ?? 150;
+        const threshold = getTruncationThreshold(contentWidth, configuredWidth);
+        const mode = newWidth < threshold ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
+
+        // Store for later persistence
+        preferencesToPersist.push({ columnId: colId, mode, width: newWidth });
+
+        // Store for debug
+        changes[colId] = { from: oldWidth, to: newWidth, mode, contentWidth, configuredWidth, threshold };
       }
-      return createDebugSnapshot("RESIZE_END", getDebugState(), {
+    }
+
+    // Batch update all newly measured content widths
+    if (Object.keys(newlyMeasuredWidths).length > 0) {
+      setContentWidths((prev) => ({ ...prev, ...newlyMeasuredWidths }));
+    }
+
+    // Debug logging
+    logColumnSizingDebug(() =>
+      createDebugSnapshot("RESIZE_END", getDebugState(), {
         changes,
         beforeResize,
         finalSizing,
-      });
-    });
+      }),
+    );
     flushDebugBuffer();
 
     // Optimization #7: Use requestIdleCallback for non-critical preference persistence
-    // This moves localStorage writes out of the critical path
+    // Mode is already determined above - we just persist the captured values
     const persistPreferences = () => {
-      for (const [colId, newWidth] of Object.entries(finalSizing)) {
-        const oldWidth = beforeResize[colId];
-        if (oldWidth !== undefined && oldWidth !== newWidth) {
-          const configuredWidth = configuredSizesRef.current[colId] ?? 150;
-          const mode = newWidth < configuredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
-          onPreferenceChangeRef.current?.(colId, { mode, width: newWidth });
-        }
+      for (const pref of preferencesToPersist) {
+        onPreferenceChangeRef.current?.(pref.columnId, { mode: pref.mode, width: pref.width });
       }
     };
 
@@ -837,7 +957,15 @@ export function useColumnSizing({
     } else {
       setTimeout(persistPreferences, 0);
     }
-  }, [cancelColumnUpdate, stateRef, configuredSizesRef, onPreferenceChangeRef, getDebugState]);
+  }, [
+    cancelColumnUpdate,
+    stateRef,
+    containerRef,
+    configuredSizesRef,
+    contentWidthsRef,
+    onPreferenceChangeRef,
+    getDebugState,
+  ]);
 
   // =========================================================================
   // Other Actions
@@ -866,6 +994,9 @@ export function useColumnSizing({
       const configuredWidth = configuredSizesRef.current?.[columnId] ?? 150;
       const clampedSize = Math.max(measuredWidth, minWidth);
 
+      // Set cooldown to ignore TanStack echo events
+      lastAutoFitRef.current = Date.now();
+
       cancelColumnUpdate();
       dispatch({ type: SizingEventTypes.AUTO_FIT, columnId, width: clampedSize });
 
@@ -885,32 +1016,20 @@ export function useColumnSizing({
         }),
       );
 
-      // Optimization #7: Use requestIdleCallback for non-critical persistence
-      const persist = () => {
-        // Report measured content width (separate from preference)
-        onContentWidthChangeRef.current?.(columnId, clampedSize);
-        // Save preference as "no-truncate" - user wants full content
-        onPreferenceChangeRef.current?.(columnId, {
-          mode: PreferenceModes.NO_TRUNCATE,
-          width: clampedSize,
-        });
-      };
+      // Cache measured content width internally
+      setContentWidths((prev) => {
+        if (prev[columnId] === clampedSize) return prev;
+        return { ...prev, [columnId]: clampedSize };
+      });
 
-      if (typeof requestIdleCallback !== "undefined") {
-        requestIdleCallback(persist, { timeout: 1000 });
-      } else {
-        setTimeout(persist, 0);
-      }
+      // Persist preference synchronously to avoid race conditions
+      // Unlike resize end, auto-fit is a discrete action that should complete immediately
+      onPreferenceChangeRef.current?.(columnId, {
+        mode: PreferenceModes.NO_TRUNCATE,
+        width: clampedSize,
+      });
     },
-    [
-      minSizesRef,
-      configuredSizesRef,
-      cancelColumnUpdate,
-      tableRef,
-      onPreferenceChangeRef,
-      onContentWidthChangeRef,
-      getDebugState,
-    ],
+    [minSizesRef, configuredSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef, getDebugState],
   );
 
   const recalculate = useStableCallback(() => {
@@ -923,6 +1042,14 @@ export function useColumnSizing({
 
   const onColumnSizingChange = useCallback(
     (updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => {
+      // Cooldown after autoFit/resize - ignore TanStack echo events
+      // This prevents TanStack from overwriting the width we just set
+      const AUTO_FIT_COOLDOWN_MS = 100;
+      const timeSinceAutoFit = Date.now() - lastAutoFitRef.current;
+      if (timeSinceAutoFit < AUTO_FIT_COOLDOWN_MS) {
+        return; // Ignore TanStack update during cooldown
+      }
+
       const currentSizing = stateRef.current.sizing;
       const newSizing = typeof updater === "function" ? updater(currentSizing) : updater;
 
