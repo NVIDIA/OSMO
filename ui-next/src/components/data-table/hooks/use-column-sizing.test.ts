@@ -38,6 +38,7 @@ import {
   type SizingEvent,
 } from "./use-column-sizing";
 import type { ColumnSizingPreferences } from "../types";
+import { PreferenceModes, SizingModes, SizingEventTypes } from "../constants";
 
 // =============================================================================
 // Test Helpers
@@ -46,7 +47,7 @@ import type { ColumnSizingPreferences } from "../types";
 /** Create a state in IDLE mode with given sizing */
 function idleState(sizing: Record<string, number>, isInitialized = true): SizingState {
   return {
-    mode: "IDLE",
+    mode: SizingModes.IDLE,
     sizing,
     isInitialized,
     columnSizingInfo: DEFAULT_COLUMN_SIZING_INFO,
@@ -62,7 +63,7 @@ function resizingState(
   beforeResize?: Record<string, number>,
 ): SizingState {
   return {
-    mode: "RESIZING",
+    mode: SizingModes.RESIZING,
     sizing,
     isInitialized: true,
     columnSizingInfo: {
@@ -90,13 +91,13 @@ describe("sizingReducer", () => {
     it("INIT → sets sizing and marks initialized", () => {
       const state = INITIAL_STATE;
       const event: SizingEvent = {
-        type: "INIT",
+        type: SizingEventTypes.INIT,
         sizing: { col1: 100, col2: 200 },
       };
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("IDLE");
+      expect(result.mode).toBe(SizingModes.IDLE);
       expect(result.sizing).toEqual({ col1: 100, col2: 200 });
       expect(result.isInitialized).toBe(true);
     });
@@ -104,20 +105,20 @@ describe("sizingReducer", () => {
     it("CONTAINER_RESIZE → updates sizing", () => {
       const state = idleState({ col1: 100, col2: 200 });
       const event: SizingEvent = {
-        type: "CONTAINER_RESIZE",
+        type: SizingEventTypes.CONTAINER_RESIZE,
         sizing: { col1: 150, col2: 250 },
       };
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("IDLE");
+      expect(result.mode).toBe(SizingModes.IDLE);
       expect(result.sizing).toEqual({ col1: 150, col2: 250 });
     });
 
     it("RESIZE_START → transitions to RESIZING mode", () => {
       const state = idleState({ col1: 100, col2: 200 });
       const event: SizingEvent = {
-        type: "RESIZE_START",
+        type: SizingEventTypes.RESIZE_START,
         columnId: "col1",
         startWidth: 100,
         currentSizing: { col1: 100, col2: 200 },
@@ -125,7 +126,7 @@ describe("sizingReducer", () => {
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("RESIZING");
+      expect(result.mode).toBe(SizingModes.RESIZING);
       expect(result.resizing).toEqual({
         columnId: "col1",
         startWidth: 100,
@@ -137,21 +138,21 @@ describe("sizingReducer", () => {
     it("AUTO_FIT → updates single column width", () => {
       const state = idleState({ col1: 100, col2: 200 });
       const event: SizingEvent = {
-        type: "AUTO_FIT",
+        type: SizingEventTypes.AUTO_FIT,
         columnId: "col1",
         width: 180,
       };
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("IDLE");
+      expect(result.mode).toBe(SizingModes.IDLE);
       expect(result.sizing).toEqual({ col1: 180, col2: 200 });
     });
 
     it("SET_SIZE → updates single column width", () => {
       const state = idleState({ col1: 100, col2: 200 });
       const event: SizingEvent = {
-        type: "SET_SIZE",
+        type: SizingEventTypes.SET_SIZE,
         columnId: "col2",
         width: 300,
       };
@@ -176,7 +177,7 @@ describe("sizingReducer", () => {
     it("ignores RESIZE_MOVE (no-op)", () => {
       const state = idleState({ col1: 100 });
       const event: SizingEvent = {
-        type: "RESIZE_MOVE",
+        type: SizingEventTypes.RESIZE_MOVE,
         columnId: "col1",
         newWidth: 200,
       };
@@ -188,7 +189,7 @@ describe("sizingReducer", () => {
 
     it("ignores RESIZE_END (no-op)", () => {
       const state = idleState({ col1: 100 });
-      const event: SizingEvent = { type: "RESIZE_END" };
+      const event: SizingEvent = { type: SizingEventTypes.RESIZE_END };
 
       const result = sizingReducer(state, event);
 
@@ -200,24 +201,24 @@ describe("sizingReducer", () => {
     it("RESIZE_MOVE → updates column width", () => {
       const state = resizingState({ col1: 100, col2: 200 }, "col1", 100);
       const event: SizingEvent = {
-        type: "RESIZE_MOVE",
+        type: SizingEventTypes.RESIZE_MOVE,
         columnId: "col1",
         newWidth: 150,
       };
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("RESIZING");
+      expect(result.mode).toBe(SizingModes.RESIZING);
       expect(result.sizing).toEqual({ col1: 150, col2: 200 });
     });
 
     it("RESIZE_END → transitions back to IDLE", () => {
       const state = resizingState({ col1: 150, col2: 200 }, "col1", 100);
-      const event: SizingEvent = { type: "RESIZE_END" };
+      const event: SizingEvent = { type: SizingEventTypes.RESIZE_END };
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("IDLE");
+      expect(result.mode).toBe(SizingModes.IDLE);
       expect(result.resizing).toBeNull();
       expect(result.columnSizingInfo).toEqual(DEFAULT_COLUMN_SIZING_INFO);
       expect(result.sizing).toEqual({ col1: 150, col2: 200 }); // Preserves final size
@@ -232,7 +233,7 @@ describe("sizingReducer", () => {
 
       const result = sizingReducer(state, event);
 
-      expect(result.mode).toBe("RESIZING"); // Stays in RESIZING
+      expect(result.mode).toBe(SizingModes.RESIZING); // Stays in RESIZING
       expect(result.sizing).toEqual({ col1: 130 });
     });
 
@@ -243,7 +244,7 @@ describe("sizingReducer", () => {
     it("IGNORES CONTAINER_RESIZE during drag (critical guard)", () => {
       const state = resizingState({ col1: 150, col2: 200 }, "col1", 100);
       const event: SizingEvent = {
-        type: "CONTAINER_RESIZE",
+        type: SizingEventTypes.CONTAINER_RESIZE,
         sizing: { col1: 80, col2: 160 }, // Would shrink columns
       };
 
@@ -256,7 +257,7 @@ describe("sizingReducer", () => {
     it("IGNORES INIT during drag", () => {
       const state = resizingState({ col1: 150 }, "col1", 100);
       const event: SizingEvent = {
-        type: "INIT",
+        type: SizingEventTypes.INIT,
         sizing: { col1: 80 },
       };
 
@@ -268,7 +269,7 @@ describe("sizingReducer", () => {
     it("IGNORES AUTO_FIT during drag", () => {
       const state = resizingState({ col1: 150 }, "col1", 100);
       const event: SizingEvent = {
-        type: "AUTO_FIT",
+        type: SizingEventTypes.AUTO_FIT,
         columnId: "col1",
         width: 200,
       };
@@ -281,7 +282,7 @@ describe("sizingReducer", () => {
     it("IGNORES SET_SIZE during drag", () => {
       const state = resizingState({ col1: 150 }, "col1", 100);
       const event: SizingEvent = {
-        type: "SET_SIZE",
+        type: SizingEventTypes.SET_SIZE,
         columnId: "col1",
         width: 200,
       };
@@ -294,7 +295,7 @@ describe("sizingReducer", () => {
     it("IGNORES RESIZE_START during drag (prevents concurrent resizes)", () => {
       const state = resizingState({ col1: 150, col2: 200 }, "col1", 100);
       const event: SizingEvent = {
-        type: "RESIZE_START",
+        type: SizingEventTypes.RESIZE_START,
         columnId: "col2",
         startWidth: 200,
         currentSizing: { col1: 150, col2: 200 },
@@ -314,30 +315,30 @@ describe("sizingReducer", () => {
 
       // 1. User starts dragging "name" column
       state = sizingReducer(state, {
-        type: "RESIZE_START",
+        type: SizingEventTypes.RESIZE_START,
         columnId: "name",
         startWidth: 100,
         currentSizing: { name: 100, status: 150 },
       });
-      expect(state.mode).toBe("RESIZING");
+      expect(state.mode).toBe(SizingModes.RESIZING);
 
       // 2. User drags right (multiple move events)
-      state = sizingReducer(state, { type: "RESIZE_MOVE", columnId: "name", newWidth: 120 });
-      state = sizingReducer(state, { type: "RESIZE_MOVE", columnId: "name", newWidth: 150 });
-      state = sizingReducer(state, { type: "RESIZE_MOVE", columnId: "name", newWidth: 180 });
+      state = sizingReducer(state, { type: SizingEventTypes.RESIZE_MOVE, columnId: "name", newWidth: 120 });
+      state = sizingReducer(state, { type: SizingEventTypes.RESIZE_MOVE, columnId: "name", newWidth: 150 });
+      state = sizingReducer(state, { type: SizingEventTypes.RESIZE_MOVE, columnId: "name", newWidth: 180 });
       expect(state.sizing.name).toBe(180);
 
       // 3. Container resize fires during drag (should be IGNORED)
       const beforeContainerResize = state;
       state = sizingReducer(state, {
-        type: "CONTAINER_RESIZE",
+        type: SizingEventTypes.CONTAINER_RESIZE,
         sizing: { name: 80, status: 120 },
       });
       expect(state).toBe(beforeContainerResize); // No change
 
       // 4. User releases mouse
-      state = sizingReducer(state, { type: "RESIZE_END" });
-      expect(state.mode).toBe("IDLE");
+      state = sizingReducer(state, { type: SizingEventTypes.RESIZE_END });
+      expect(state.mode).toBe(SizingModes.IDLE);
       expect(state.sizing).toEqual({ name: 180, status: 150 });
     });
   });
@@ -432,7 +433,7 @@ describe("calculateColumnWidths", () => {
   describe("user preferences", () => {
     it("truncate mode: floor = persisted width (can shrink to persisted size)", () => {
       const prefs: ColumnSizingPreferences = {
-        col1: { mode: "truncate", width: 100 }, // User shrunk col1 to 100
+        col1: { mode: PreferenceModes.TRUNCATE, width: 100 }, // User shrunk col1 to 100
       };
       const containerWidth = 400;
 
@@ -446,7 +447,7 @@ describe("calculateColumnWidths", () => {
 
     it("no-truncate mode: floor = max(preferred, min)", () => {
       const prefs: ColumnSizingPreferences = {
-        col1: { mode: "no-truncate", width: 180 }, // User expanded col1
+        col1: { mode: PreferenceModes.NO_TRUNCATE, width: 180 }, // User expanded col1
       };
       const containerWidth = 400;
 

@@ -62,6 +62,13 @@ import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import type { ColumnSizeConfig } from "../types";
 import { logColumnSizingDebug, createDebugSnapshot, flushDebugBuffer } from "../utils/debug";
+import {
+  SizingModes,
+  SizingEventTypes,
+  PreferenceModes,
+  assertNever,
+  type SizingMode,
+} from "../constants";
 
 // =============================================================================
 // Types - External API
@@ -122,7 +129,8 @@ export interface UseColumnSizingResult {
 // State Machine Types (Exported for testing)
 // =============================================================================
 
-export type SizingMode = "IDLE" | "RESIZING";
+// Re-export SizingMode from constants for backwards compatibility
+export type { SizingMode } from "../constants";
 
 export interface ResizingContext {
   columnId: string;
@@ -140,15 +148,15 @@ export interface SizingState {
 }
 
 export type SizingEvent =
-  | { type: "INIT"; sizing: ColumnSizingState }
-  | { type: "CONTAINER_RESIZE"; sizing: ColumnSizingState }
-  | { type: "RESIZE_START"; columnId: string; startWidth: number; currentSizing: ColumnSizingState }
-  | { type: "RESIZE_MOVE"; columnId: string; newWidth: number }
-  | { type: "RESIZE_END" }
-  | { type: "AUTO_FIT"; columnId: string; width: number }
-  | { type: "SET_SIZE"; columnId: string; width: number }
-  | { type: "TANSTACK_SIZING_CHANGE"; sizing: ColumnSizingState }
-  | { type: "TANSTACK_INFO_CHANGE"; info: ColumnSizingInfoState };
+  | { type: typeof SizingEventTypes.INIT; sizing: ColumnSizingState }
+  | { type: typeof SizingEventTypes.CONTAINER_RESIZE; sizing: ColumnSizingState }
+  | { type: typeof SizingEventTypes.RESIZE_START; columnId: string; startWidth: number; currentSizing: ColumnSizingState }
+  | { type: typeof SizingEventTypes.RESIZE_MOVE; columnId: string; newWidth: number }
+  | { type: typeof SizingEventTypes.RESIZE_END }
+  | { type: typeof SizingEventTypes.AUTO_FIT; columnId: string; width: number }
+  | { type: typeof SizingEventTypes.SET_SIZE; columnId: string; width: number }
+  | { type: typeof SizingEventTypes.TANSTACK_SIZING_CHANGE; sizing: ColumnSizingState }
+  | { type: typeof SizingEventTypes.TANSTACK_INFO_CHANGE; info: ColumnSizingInfoState };
 
 // =============================================================================
 // Constants (Exported for testing)
@@ -164,7 +172,7 @@ export const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
 };
 
 export const INITIAL_STATE: SizingState = {
-  mode: "IDLE",
+  mode: SizingModes.IDLE,
   sizing: {},
   isInitialized: false,
   columnSizingInfo: DEFAULT_COLUMN_SIZING_INFO,
@@ -247,12 +255,17 @@ export function calculateColumnWidths(
     let floor: number;
 
     if (pref) {
-      if (pref.mode === "no-truncate") {
-        floor = Math.max(configPreferred, min);
-        target = Math.max(pref.width, floor);
-      } else {
-        floor = Math.max(pref.width, min);
-        target = floor;
+      switch (pref.mode) {
+        case PreferenceModes.NO_TRUNCATE:
+          floor = Math.max(configPreferred, min);
+          target = Math.max(pref.width, floor);
+          break;
+        case PreferenceModes.TRUNCATE:
+          floor = Math.max(pref.width, min);
+          target = floor;
+          break;
+        default:
+          assertNever(pref.mode);
       }
     } else {
       floor = min;
@@ -330,25 +343,25 @@ export function sizingReducer(state: SizingState, event: SizingEvent): SizingSta
     // =========================================================================
     // IDLE Mode
     // =========================================================================
-    case "IDLE":
+    case SizingModes.IDLE:
       switch (event.type) {
-        case "INIT":
+        case SizingEventTypes.INIT:
           return {
             ...state,
             sizing: event.sizing,
             isInitialized: true,
           };
 
-        case "CONTAINER_RESIZE":
+        case SizingEventTypes.CONTAINER_RESIZE:
           return {
             ...state,
             sizing: event.sizing,
           };
 
-        case "RESIZE_START":
+        case SizingEventTypes.RESIZE_START:
           return {
             ...state,
-            mode: "RESIZING",
+            mode: SizingModes.RESIZING,
             resizing: {
               columnId: event.columnId,
               startWidth: event.startWidth,
@@ -364,31 +377,31 @@ export function sizingReducer(state: SizingState, event: SizingEvent): SizingSta
             },
           };
 
-        case "AUTO_FIT": {
+        case SizingEventTypes.AUTO_FIT: {
           const newSizing = updateSizing(state.sizing, event.columnId, event.width);
           if (newSizing === state.sizing) return state;
           return { ...state, sizing: newSizing };
         }
 
-        case "SET_SIZE": {
+        case SizingEventTypes.SET_SIZE: {
           const newSizing = updateSizing(state.sizing, event.columnId, event.width);
           if (newSizing === state.sizing) return state;
           return { ...state, sizing: newSizing };
         }
 
-        case "TANSTACK_SIZING_CHANGE":
+        case SizingEventTypes.TANSTACK_SIZING_CHANGE:
           return {
             ...state,
             sizing: event.sizing,
           };
 
-        case "TANSTACK_INFO_CHANGE":
+        case SizingEventTypes.TANSTACK_INFO_CHANGE:
           // TanStack might start resize via its own handler
           if (!state.columnSizingInfo.isResizingColumn && event.info.isResizingColumn) {
             const columnId = String(event.info.isResizingColumn);
             return {
               ...state,
-              mode: "RESIZING",
+              mode: SizingModes.RESIZING,
               columnSizingInfo: event.info,
               resizing: {
                 columnId,
@@ -400,44 +413,47 @@ export function sizingReducer(state: SizingState, event: SizingEvent): SizingSta
           return { ...state, columnSizingInfo: event.info };
 
         // Invalid events in IDLE - no-op
-        case "RESIZE_MOVE":
-        case "RESIZE_END":
+        case SizingEventTypes.RESIZE_MOVE:
+        case SizingEventTypes.RESIZE_END:
           return state;
+
+        default:
+          // Exhaustive check - TypeScript will error if any case is missing
+          return assertNever(event);
       }
-      break;
 
     // =========================================================================
     // RESIZING Mode
     // =========================================================================
-    case "RESIZING":
+    case SizingModes.RESIZING:
       switch (event.type) {
-        case "RESIZE_MOVE": {
+        case SizingEventTypes.RESIZE_MOVE: {
           const newSizing = updateSizing(state.sizing, event.columnId, event.newWidth);
           if (newSizing === state.sizing) return state;
           return { ...state, sizing: newSizing };
         }
 
-        case "RESIZE_END":
+        case SizingEventTypes.RESIZE_END:
           return {
             ...state,
-            mode: "IDLE",
+            mode: SizingModes.IDLE,
             resizing: null,
             columnSizingInfo: DEFAULT_COLUMN_SIZING_INFO,
           };
 
-        case "TANSTACK_SIZING_CHANGE":
+        case SizingEventTypes.TANSTACK_SIZING_CHANGE:
           // During resize, accept sizing updates from TanStack
           return {
             ...state,
             sizing: event.sizing,
           };
 
-        case "TANSTACK_INFO_CHANGE":
+        case SizingEventTypes.TANSTACK_INFO_CHANGE:
           // TanStack might end resize via its own handler
           if (state.columnSizingInfo.isResizingColumn && !event.info.isResizingColumn) {
             return {
               ...state,
-              mode: "IDLE",
+              mode: SizingModes.IDLE,
               resizing: null,
               columnSizingInfo: event.info,
             };
@@ -446,17 +462,22 @@ export function sizingReducer(state: SizingState, event: SizingEvent): SizingSta
 
         // CRITICAL: These events are IGNORED during resize
         // This IS the guard - encoded in the structure
-        case "INIT":
-        case "CONTAINER_RESIZE":
-        case "AUTO_FIT":
-        case "SET_SIZE":
-        case "RESIZE_START":
+        case SizingEventTypes.INIT:
+        case SizingEventTypes.CONTAINER_RESIZE:
+        case SizingEventTypes.AUTO_FIT:
+        case SizingEventTypes.SET_SIZE:
+        case SizingEventTypes.RESIZE_START:
           return state;
-      }
-      break;
-  }
 
-  return state;
+        default:
+          // Exhaustive check - TypeScript will error if any case is missing
+          return assertNever(event);
+      }
+
+    default:
+      // Exhaustive check for state.mode
+      return assertNever(state.mode);
+  }
 }
 
 // =============================================================================
@@ -542,7 +563,7 @@ export function useColumnSizing({
     if (!table) return;
 
     // Only update if NOT currently resizing (RAF handles that)
-    if (state.mode === "RESIZING") return;
+    if (state.mode === SizingModes.RESIZING) return;
 
     for (const [colId, width] of Object.entries(state.sizing)) {
       const minWidth = minSizes[colId] ?? 0;
@@ -556,7 +577,7 @@ export function useColumnSizing({
     const container = containerRef?.current;
     if (!container) return;
 
-    if (state.mode === "RESIZING") {
+    if (state.mode === SizingModes.RESIZING) {
       container.classList.add("is-resizing");
     } else {
       container.classList.remove("is-resizing");
@@ -608,7 +629,7 @@ export function useColumnSizing({
             preferences: sizingPreferencesRef.current,
             minSizes: minSizesRef.current,
             preferredSizes: preferredSizesRef.current,
-            isResizing: stateRef.current.mode === "RESIZING",
+            isResizing: stateRef.current.mode === SizingModes.RESIZING,
             isInitialized: stateRef.current.isInitialized,
           },
           { animate, containerWidth },
@@ -662,7 +683,7 @@ export function useColumnSizing({
     const observer = new ResizeObserver((entries) => {
       // State machine handles this guard: RESIZING mode ignores CONTAINER_RESIZE
       // But we also check here to avoid unnecessary calculations
-      if (stateRef.current.mode === "RESIZING") return;
+      if (stateRef.current.mode === SizingModes.RESIZING) return;
 
       const timeSinceResizeEnd = Date.now() - lastResizeEndRef.current;
       if (timeSinceResizeEnd < RESIZE_COOLDOWN_MS) return;
@@ -704,7 +725,7 @@ export function useColumnSizing({
       preferences: sizingPreferencesRef.current,
       minSizes: minSizesRef.current,
       preferredSizes: preferredSizesRef.current,
-      isResizing: state.mode === "RESIZING",
+      isResizing: state.mode === SizingModes.RESIZING,
       isInitialized: state.isInitialized,
     }),
     [
@@ -728,7 +749,7 @@ export function useColumnSizing({
       resizeMoveCountRef.current = 0;
 
       dispatch({
-        type: "RESIZE_START",
+        type: SizingEventTypes.RESIZE_START,
         columnId,
         startWidth,
         currentSizing,
@@ -750,7 +771,7 @@ export function useColumnSizing({
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
       const clampedWidth = Math.max(newWidth, minWidth);
 
-      dispatch({ type: "RESIZE_MOVE", columnId, newWidth: clampedWidth });
+      dispatch({ type: SizingEventTypes.RESIZE_MOVE, columnId, newWidth: clampedWidth });
 
       // RAF-throttled DOM update for 60fps
       // Optimization #4: Only pass the changing column, not the entire sizing object
@@ -778,7 +799,7 @@ export function useColumnSizing({
     const finalSizing = stateRef.current.sizing;
     const beforeResize = stateRef.current.resizing?.beforeResize ?? {};
 
-    dispatch({ type: "RESIZE_END" });
+    dispatch({ type: SizingEventTypes.RESIZE_END });
 
     // Debug logging (lazy computation)
     logColumnSizingDebug(() => {
@@ -787,7 +808,7 @@ export function useColumnSizing({
         const oldWidth = beforeResize[colId];
         if (oldWidth !== undefined && oldWidth !== newWidth) {
           const preferredWidth = preferredSizesRef.current[colId] ?? 150;
-          const mode = newWidth < preferredWidth ? "truncate" : "no-truncate";
+          const mode = newWidth < preferredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
           changes[colId] = { from: oldWidth, to: newWidth, mode };
         }
       }
@@ -806,7 +827,7 @@ export function useColumnSizing({
         const oldWidth = beforeResize[colId];
         if (oldWidth !== undefined && oldWidth !== newWidth) {
           const preferredWidth = preferredSizesRef.current[colId] ?? 150;
-          const mode: "truncate" | "no-truncate" = newWidth < preferredWidth ? "truncate" : "no-truncate";
+          const mode = newWidth < preferredWidth ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
           onPreferenceChangeRef.current?.(colId, { mode, width: newWidth });
         }
       }
@@ -830,7 +851,7 @@ export function useColumnSizing({
       const clampedSize = Math.max(size, minWidth);
 
       cancelColumnUpdate();
-      dispatch({ type: "SET_SIZE", columnId, width: clampedSize });
+      dispatch({ type: SizingEventTypes.SET_SIZE, columnId, width: clampedSize });
 
       // Direct DOM update for immediate feedback
       const table = tableRef?.current;
@@ -857,7 +878,7 @@ export function useColumnSizing({
       const clampedSize = Math.max(measuredWidth, minWidth);
 
       cancelColumnUpdate();
-      dispatch({ type: "AUTO_FIT", columnId, width: clampedSize });
+      dispatch({ type: SizingEventTypes.AUTO_FIT, columnId, width: clampedSize });
 
       // Direct DOM update for immediate feedback
       const table = tableRef?.current;
@@ -878,7 +899,7 @@ export function useColumnSizing({
       // Optimization #7: Use requestIdleCallback for non-critical preference persistence
       // Save preference as "no-truncate" - user explicitly wants full content
       const persistPreference = () => {
-        onPreferenceChangeRef.current?.(columnId, { mode: "no-truncate", width: clampedSize });
+        onPreferenceChangeRef.current?.(columnId, { mode: PreferenceModes.NO_TRUNCATE, width: clampedSize });
       };
 
       if (typeof requestIdleCallback !== "undefined") {
@@ -903,7 +924,7 @@ export function useColumnSizing({
       const currentSizing = stateRef.current.sizing;
       const newSizing = typeof updater === "function" ? updater(currentSizing) : updater;
 
-      dispatch({ type: "TANSTACK_SIZING_CHANGE", sizing: newSizing });
+      dispatch({ type: SizingEventTypes.TANSTACK_SIZING_CHANGE, sizing: newSizing });
 
       // Find changed columns for logging and DOM updates
       const changedColumns: Record<string, { from: number | undefined; to: number }> = {};
@@ -926,7 +947,7 @@ export function useColumnSizing({
         logColumnSizingDebug(() =>
           createDebugSnapshot("TANSTACK_SIZING_CHANGE", getDebugState(), {
             changedColumns,
-            isResizing: stateRef.current.mode === "RESIZING",
+            isResizing: stateRef.current.mode === SizingModes.RESIZING,
           }),
         );
       }
@@ -939,7 +960,7 @@ export function useColumnSizing({
       const currentInfo = stateRef.current.columnSizingInfo;
       const newInfo = typeof updater === "function" ? updater(currentInfo) : updater;
 
-      dispatch({ type: "TANSTACK_INFO_CHANGE", info: newInfo });
+      dispatch({ type: SizingEventTypes.TANSTACK_INFO_CHANGE, info: newInfo });
 
       // Log when resizing state changes (start/end transitions)
       const wasResizing = Boolean(currentInfo.isResizingColumn);
