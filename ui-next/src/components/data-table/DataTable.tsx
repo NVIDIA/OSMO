@@ -423,13 +423,11 @@ export function DataTable<TData, TSectionMeta = unknown>({
     (columnId: string, isSortable: boolean, currentSortDirection: false | "asc" | "desc") => {
       if (!isSortable) return;
 
-      // Cycle: none -> asc -> desc -> none
-      if (!currentSortDirection) {
+      // Cycle: none -> asc -> desc -> asc (toggle between asc/desc once sorted)
+      if (!currentSortDirection || currentSortDirection === "desc") {
         onSortingChangeRef.current?.({ column: columnId, direction: "asc" });
-      } else if (currentSortDirection === "asc") {
-        onSortingChangeRef.current?.({ column: columnId, direction: "desc" });
       } else {
-        onSortingChangeRef.current?.({ column: null, direction: "asc" });
+        onSortingChangeRef.current?.({ column: columnId, direction: "desc" });
       }
     },
     [onSortingChangeRef],
