@@ -102,11 +102,49 @@ export const AUTO_SCROLL_CONFIG = false;
  * </DndContext>
  * ```
  */
+/**
+ * Check if an element or any of its ancestors has `data-no-dnd="true"`.
+ * Used to prevent DnD activation on resize handles and other non-draggable elements.
+ */
+function hasNoDndAncestor(element: Element | null): boolean {
+  let current = element;
+  while (current) {
+    if (current.getAttribute?.("data-no-dnd") === "true") {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
+
+/**
+ * Custom PointerSensor that respects `data-no-dnd="true"` attribute.
+ * Extends the default PointerSensor to skip drag activation on resize handles.
+ */
+class NoDndPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: "onPointerDown" as const,
+      handler: ({ nativeEvent: event }: { nativeEvent: PointerEvent }) => {
+        // Don't activate if the target or its ancestors have data-no-dnd="true"
+        if (hasNoDndAncestor(event.target as Element)) {
+          return false;
+        }
+        // Only activate on primary button (left click)
+        if (event.button !== 0) {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
+
 export function useTableDnd(options?: { enableBoundsRestriction?: boolean }) {
   const { enableBoundsRestriction = true } = options ?? {};
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(NoDndPointerSensor, {
       activationConstraint: {
         // Require 5px movement before starting drag
         // Prevents accidental drags on click

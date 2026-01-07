@@ -21,6 +21,16 @@
  *
  * All measurements are in rem units for accessibility (scale with user's font size).
  * At 16px base font size: 1rem = 16px.
+ *
+ * ## Sizing Philosophy
+ *
+ * - **minWidthRem**: Absolute floor. Column never goes below this.
+ * - **preferredWidthRem**: Ideal width when space allows. Used for initial sizing.
+ *
+ * On initial load:
+ * - If container >= total preferred: columns use preferred widths
+ * - If container < total preferred: columns shrink proportionally toward min
+ * - If container < total min: columns use min widths + horizontal scroll
  */
 
 /**
@@ -52,3 +62,56 @@ export const COLUMN_MIN_WIDTHS_REM = {
   /** Status badge column */
   STATUS_BADGE: 6,
 } as const;
+
+/**
+ * Recommended preferred widths in rem units.
+ * These are the "ideal" widths when container has enough space.
+ * Columns won't grow beyond preferred (extra space = whitespace on right).
+ */
+export const COLUMN_PREFERRED_WIDTHS_REM = {
+  /** Text that truncates - comfortable reading width */
+  TEXT_TRUNCATE: 16,
+
+  /** Short text labels (status, type) - badge + text */
+  TEXT_SHORT: 8,
+
+  /** Short numbers with fraction: "128/256" */
+  NUMBER_SHORT: 6.5,
+
+  /** Numbers with units: "512/1,024 Gi" */
+  NUMBER_WITH_UNIT: 9,
+
+  /** Timestamps: "2024-01-15 14:30" with breathing room */
+  TIMESTAMP: 11,
+
+  /** Actions column (icon buttons) - small */
+  ACTIONS_SMALL: 3.5,
+
+  /** Actions column (icon buttons) - medium */
+  ACTIONS_MEDIUM: 5.5,
+
+  /** Status badge column - dot + text */
+  STATUS_BADGE: 8,
+
+  /** Progress bar column - bar + percentage */
+  PROGRESS_BAR: 12,
+
+  /** Platform icons column - ~4 icons */
+  PLATFORM_ICONS: 10,
+} as const;
+
+/**
+ * Average character width in rem for text estimation.
+ * Based on typical monospace and proportional fonts at 1rem size.
+ */
+export const AVG_CHAR_WIDTH_REM = 0.55;
+
+/**
+ * Cell padding in rem (px-4 = 1rem each side = 2rem total).
+ */
+export const CELL_PADDING_REM = 2;
+
+/**
+ * Extra buffer for resize handle and breathing room.
+ */
+export const CELL_BUFFER_REM = 0.5;

@@ -52,8 +52,8 @@ export type {
   TableState,
   TableActions,
   TableStore,
-  ColumnOverride,
-  ColumnOverrides,
+  ColumnSizingPreference,
+  ColumnSizingPreferences,
   SearchChip,
   ChipVariant,
 } from "./types";
