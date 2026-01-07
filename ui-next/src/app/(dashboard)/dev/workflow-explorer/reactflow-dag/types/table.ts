@@ -74,8 +74,13 @@ export interface OptionalColumnDef extends ColumnDef {
 // Sort Types
 // ============================================================================
 
+// Import SortDirection from single source of truth
+import type { SortDirection } from "@/components/data-table/constants";
+
+// Re-export for convenience
+export type { SortDirection };
+
 export type SortColumn = ColumnId;
-export type SortDirection = "asc" | "desc";
 
 export interface SortState {
   column: SortColumn | null;

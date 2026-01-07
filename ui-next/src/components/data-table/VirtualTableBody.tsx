@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import type { VirtualizedRow } from "./hooks/use-virtualized-table";
 import type { Section } from "./types";
 import { getColumnCSSValue } from "./utils/column-sizing";
+import { VirtualItemTypes } from "./constants";
 
 // =============================================================================
 // Types
@@ -97,7 +98,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
 
         if (!item) return null;
 
-        if (item.type === "section") {
+        if (item.type === VirtualItemTypes.SECTION) {
           // Use index in key to guarantee uniqueness in virtualized list
           return (
             <tr
