@@ -54,8 +54,6 @@ export { useVirtualizerCompat } from "./use-virtualizer-compat";
 export { usePersistedBoolean } from "./use-persisted-boolean";
 export {
   useExpandableChips,
-  type ChipLayoutDimensions,
-  type MeasuredModeOptions,
   type UseExpandableChipsOptions,
   type UseExpandableChipsResult,
 } from "./use-expandable-chips";

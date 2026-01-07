@@ -18,11 +18,9 @@
 
 "use client";
 
-import { useMemo } from "react";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExpandableChips } from "@/hooks";
-import { getChipLayoutSpacious } from "../../hooks/use-layout-dimensions";
 
 // =============================================================================
 // Types
@@ -36,67 +34,106 @@ interface SharedPoolsChipsProps {
 }
 
 // =============================================================================
+// Styles (shared between measure and visible containers)
+// =============================================================================
+
+const chipClassName =
+  "group inline-flex shrink-0 items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-zinc-200 ring-inset dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700";
+
+const overflowClassName =
+  "inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 ring-inset dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700";
+
+// =============================================================================
 // Component
 // =============================================================================
 
 /**
  * Shared Pools Chips - Expandable chip list for shared capacity pools.
  *
- * Uses the generic `useExpandableChips` hook with pool-specific styling.
- * Chips are clickable and navigate to the selected pool.
+ * Uses CSS-driven measurement - no configuration needed. The hook measures
+ * actual rendered chip widths to calculate how many fit.
  */
 export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) {
-  const layout = useMemo(() => getChipLayoutSpacious(), []);
-
-  const { containerRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
-    useExpandableChips({ items: pools, layout });
+  const { containerRef, measureRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
+    useExpandableChips({ items: pools });
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "-m-0.5 flex w-full items-center gap-1.5 p-0.5",
-        expanded ? "flex-wrap" : "flex-nowrap overflow-hidden",
-      )}
-    >
-      {displayedItems.map((poolName) => (
-        <button
-          key={poolName}
-          type="button"
-          onClick={() => onPoolClick?.(poolName)}
-          className={cn(
-            "group inline-flex shrink-0 items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-zinc-200 transition-colors ring-inset hover:bg-violet-100 hover:text-violet-700 hover:ring-violet-300 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-violet-900/50 dark:hover:text-violet-300 dark:hover:ring-violet-600",
-            expanded && "max-w-full",
-          )}
-          title={`View ${poolName}`}
+    <div className="relative overflow-hidden">
+      {/* Hidden measurement container - renders all chips to measure actual widths */}
+      {/* CSS containment + will-change for 60fps performance */}
+      <div
+        ref={measureRef}
+        className="pointer-events-none invisible absolute flex items-center gap-1.5"
+        style={{ contain: "layout style", willChange: "contents" }}
+        aria-hidden="true"
+      >
+        {sortedItems.map((poolName) => (
+          <span
+            key={poolName}
+            data-chip
+            className={chipClassName}
+          >
+            <span>{poolName}</span>
+            <ExternalLink className="size-3" />
+          </span>
+        ))}
+        {/* Overflow button placeholder for measuring its width */}
+        <span
+          data-overflow
+          className={overflowClassName}
         >
-          <span className={expanded ? "truncate" : undefined}>{poolName}</span>
-          <ExternalLink className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
-        </button>
-      ))}
+          +{overflowCount || 1}
+        </span>
+      </div>
 
-      {/* Overflow indicator */}
-      {!expanded && overflowCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 transition-colors ring-inset hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
-          title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
-        >
-          +{overflowCount}
-        </button>
-      )}
+      {/* Visible container */}
+      <div
+        ref={containerRef}
+        className={cn(
+          "-m-0.5 flex w-full items-center gap-1.5 p-0.5",
+          expanded ? "flex-wrap" : "flex-nowrap overflow-hidden",
+        )}
+      >
+        {displayedItems.map((poolName) => (
+          <button
+            key={poolName}
+            type="button"
+            onClick={() => onPoolClick?.(poolName)}
+            className={cn(
+              chipClassName,
+              "transition-colors hover:bg-violet-100 hover:text-violet-700 hover:ring-violet-300 dark:hover:bg-violet-900/50 dark:hover:text-violet-300 dark:hover:ring-violet-600",
+              expanded && "max-w-full",
+            )}
+            title={`View ${poolName}`}
+          >
+            <span className={expanded ? "truncate" : undefined}>{poolName}</span>
+            <ExternalLink className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
+          </button>
+        ))}
 
-      {/* Collapse button */}
-      {expanded && sortedItems.length > 1 && (
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 transition-colors ring-inset hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700 dark:hover:bg-violet-800/50"
-        >
-          less
-        </button>
-      )}
+        {/* Overflow indicator */}
+        {!expanded && overflowCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className={cn(overflowClassName, "transition-colors hover:bg-violet-200 dark:hover:bg-violet-800/50")}
+            title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
+          >
+            +{overflowCount}
+          </button>
+        )}
+
+        {/* Collapse button */}
+        {expanded && sortedItems.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className={cn(overflowClassName, "transition-colors hover:bg-violet-200 dark:hover:bg-violet-800/50")}
+          >
+            less
+          </button>
+        )}
+      </div>
     </div>
   );
 }

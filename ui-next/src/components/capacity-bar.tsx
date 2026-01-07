@@ -131,7 +131,7 @@ export const CapacityBar = memo(function CapacityBar({
 
       {/* Footer: Used (left) / Free (right) - matches bar segment positions */}
       {showFree && (
-        <div className="mt-2 flex items-center justify-between text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+        <div className="mt-2 flex items-center justify-between text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
           <span>
             {usedStr}/{totalStr}
             {unit && <span className="ml-0.5">{unit}</span>} used
