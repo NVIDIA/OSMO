@@ -47,6 +47,23 @@ export interface TopologicalLevelOptions {
 }
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Gets a value from a Map, creating it if it doesn't exist.
+ * Avoids non-null assertions after has()/set() patterns.
+ */
+function getOrCreate<K, V>(map: Map<K, V>, key: K, create: () => V): V {
+  let value = map.get(key);
+  if (value === undefined) {
+    value = create();
+    map.set(key, value);
+  }
+  return value;
+}
+
+// ============================================================================
 // Core Transformation Functions
 // ============================================================================
 
@@ -124,8 +141,9 @@ export function transformGroups(
 
   const computeLevel = (groupName: string, visited: Set<string>): number => {
     // Return cached result
-    if (levelMap.has(groupName)) {
-      return levelMap.get(groupName)!;
+    const cached = levelMap.get(groupName);
+    if (cached !== undefined) {
+      return cached;
     }
 
     // Detect cycles
@@ -170,10 +188,7 @@ export function transformGroups(
   const groupsByLevel = new Map<number, string[]>();
   for (const group of groups) {
     const level = levelMap.get(group.name) ?? 0;
-    if (!groupsByLevel.has(level)) {
-      groupsByLevel.set(level, []);
-    }
-    groupsByLevel.get(level)!.push(group.name);
+    getOrCreate(groupsByLevel, level, () => []).push(group.name);
   }
 
   // Assign lanes within each level (sorted alphabetically for consistency)
@@ -213,10 +228,7 @@ export function getGroupsByLevel(groups: GroupWithLayout[]): Map<number, GroupWi
   const result = new Map<number, GroupWithLayout[]>();
 
   for (const group of groups) {
-    if (!result.has(group.level)) {
-      result.set(group.level, []);
-    }
-    result.get(group.level)!.push(group);
+    getOrCreate(result, group.level, () => []).push(group);
   }
 
   return result;

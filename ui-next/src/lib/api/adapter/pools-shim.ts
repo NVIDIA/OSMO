@@ -143,7 +143,8 @@ function applyPoolFilters(pools: Pool[], params: PoolFilterParams, sharingGroups
 
   // SHIM: Filter by shared pool group (should be server-side)
   if (params.sharedWith) {
-    const sharedGroup = sharingGroups.find((g) => g.includes(params.sharedWith!));
+    const sharedWithValue = params.sharedWith;
+    const sharedGroup = sharingGroups.find((g) => g.includes(sharedWithValue));
     if (sharedGroup) {
       const sharedSet = new Set(sharedGroup);
       result = result.filter((pool) => sharedSet.has(pool.name));
