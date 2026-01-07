@@ -119,18 +119,18 @@ export interface UseColumnSizingResult {
 }
 
 // =============================================================================
-// State Machine Types
+// State Machine Types (Exported for testing)
 // =============================================================================
 
-type SizingMode = "IDLE" | "RESIZING";
+export type SizingMode = "IDLE" | "RESIZING";
 
-interface ResizingContext {
+export interface ResizingContext {
   columnId: string;
   startWidth: number;
   beforeResize: ColumnSizingState;
 }
 
-interface SizingState {
+export interface SizingState {
   mode: SizingMode;
   sizing: ColumnSizingState;
   isInitialized: boolean;
@@ -139,7 +139,7 @@ interface SizingState {
   resizing: ResizingContext | null;
 }
 
-type SizingEvent =
+export type SizingEvent =
   | { type: "INIT"; sizing: ColumnSizingState }
   | { type: "CONTAINER_RESIZE"; sizing: ColumnSizingState }
   | { type: "RESIZE_START"; columnId: string; startWidth: number; currentSizing: ColumnSizingState }
@@ -151,10 +151,10 @@ type SizingEvent =
   | { type: "TANSTACK_INFO_CHANGE"; info: ColumnSizingInfoState };
 
 // =============================================================================
-// Constants
+// Constants (Exported for testing)
 // =============================================================================
 
-const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
+export const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
   startOffset: null,
   startSize: null,
   deltaOffset: null,
@@ -163,7 +163,7 @@ const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
   columnSizingStart: [],
 };
 
-const INITIAL_STATE: SizingState = {
+export const INITIAL_STATE: SizingState = {
   mode: "IDLE",
   sizing: {},
   isInitialized: false,
@@ -172,10 +172,10 @@ const INITIAL_STATE: SizingState = {
 };
 
 // =============================================================================
-// Pure Functions
+// Pure Functions (Exported for testing)
 // =============================================================================
 
-function getRemToPx(): number {
+export function getRemToPx(): number {
   if (typeof document === "undefined") return 16;
   try {
     const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -188,8 +188,14 @@ function getRemToPx(): number {
 /**
  * Calculate column widths based on container width and preferences.
  * Pure function - no side effects.
+ *
+ * Algorithm:
+ * 1. Each column has: min (absolute floor), target (preferred), floor (mode-dependent)
+ * 2. If container >= totalTarget: distribute surplus proportionally
+ * 3. If container >= totalFloor but < totalTarget: shrink columns with "give" (target - floor)
+ * 4. If container < totalFloor: all columns at floor (overflow, scrollable)
  */
-function calculateColumnWidths(
+export function calculateColumnWidths(
   columnIds: string[],
   containerWidth: number,
   minSizes: Record<string, number>,
@@ -271,10 +277,10 @@ function calculateColumnWidths(
 }
 
 // =============================================================================
-// Reducer - All state transitions in one place
+// Reducer - All state transitions in one place (Exported for testing)
 // =============================================================================
 
-function sizingReducer(state: SizingState, event: SizingEvent): SizingState {
+export function sizingReducer(state: SizingState, event: SizingEvent): SizingState {
   switch (state.mode) {
     // =========================================================================
     // IDLE Mode
