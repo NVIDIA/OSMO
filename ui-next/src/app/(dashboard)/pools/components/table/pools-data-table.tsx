@@ -34,12 +34,7 @@ import { DataTable, type SortState, type ColumnSizingPreference } from "@/compon
 import { useSharedPreferences } from "@/stores";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import {
-  MANDATORY_COLUMN_IDS,
-  asPoolColumnIds,
-  type PoolColumnId,
-  POOL_COLUMN_SIZE_CONFIG,
-} from "../../lib/pool-columns";
+import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "../../lib/pool-columns";
 import { createPoolColumns } from "./pool-column-defs";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { useSortedPools } from "../../hooks/use-sorted-pools";
@@ -111,7 +106,7 @@ export function PoolsDataTable({
   // Sort pools (flat list, no sections)
   const { sortedPools, sharingMap } = useSortedPools({
     pools,
-    sort: sortState as SortState<PoolColumnId>,
+    sort: sortState,
     sharingGroups,
     displayMode,
   });
@@ -179,7 +174,7 @@ export function PoolsDataTable({
   // Handle column order change
   const handleColumnOrderChange = useCallback(
     (newOrder: string[]) => {
-      setColumnOrder(newOrder as PoolColumnId[]);
+      setColumnOrder(newOrder);
     },
     [setColumnOrder],
   );
@@ -268,7 +263,7 @@ export function PoolsDataTable({
         columnSizingPreferences={columnSizingPreferences}
         onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
         // Sorting
-        sorting={sortState as SortState<string>}
+        sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}
         // Layout
         rowHeight={rowHeight}
