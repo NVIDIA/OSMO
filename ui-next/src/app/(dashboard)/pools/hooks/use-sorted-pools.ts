@@ -29,14 +29,13 @@
 import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
 import type { SortState } from "@/components/data-table";
-import type { PoolColumnId } from "../lib/pool-columns";
 
 // =============================================================================
 // Sorting
 // =============================================================================
 
-function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "used" | "free"): Pool[] {
-  if (!sort.column) return pools;
+function sortPools(pools: Pool[], sort: SortState<string> | null, displayMode: "used" | "free"): Pool[] {
+  if (!sort?.column) return pools;
 
   return [...pools].sort((a, b) => {
     let cmp = 0;
@@ -71,8 +70,8 @@ function sortPools(pools: Pool[], sort: SortState<PoolColumnId>, displayMode: "u
 interface UseSortedPoolsOptions {
   /** Pre-filtered pools from usePoolsData */
   pools: Pool[];
-  /** Current sort state */
-  sort: SortState<PoolColumnId>;
+  /** Current sort state (from store or DataTable) */
+  sort: SortState<string> | null;
   /** Sharing groups for building sharing map */
   sharingGroups: string[][];
   /** Display mode for quota/capacity sorting */
