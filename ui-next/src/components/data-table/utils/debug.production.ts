@@ -23,22 +23,9 @@
  * @see next.config.ts for the alias configuration
  */
 
-// Types must match debug.ts for type-checking
-// These match the state machine events in use-column-sizing.ts
-export type DebugEventType =
-  // State machine events
-  | "INIT"
-  | "CONTAINER_RESIZE"
-  | "RESIZE_START"
-  | "RESIZE_MOVE"
-  | "RESIZE_END"
-  | "AUTO_FIT"
-  | "SET_SIZE"
-  | "TANSTACK_SIZING_CHANGE"
-  | "TANSTACK_INFO_CHANGE"
-  // Internal/utility events
-  | "CACHE_COMPUTE"
-  | "ERROR";
+// Import and re-export debug event type from constants for type safety
+import type { DebugEventType } from "../constants";
+export type { DebugEventType };
 
 export interface DebugSnapshot {
   event: DebugEventType;
