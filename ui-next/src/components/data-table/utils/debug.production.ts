@@ -36,7 +36,7 @@ export interface DebugSnapshot {
   columnSizing: Record<string, number>;
   preferences: Record<string, { mode: string; width: number }>;
   minSizes: Record<string, number>;
-  preferredSizes: Record<string, number>;
+  configuredSizes: Record<string, number>;
   isResizing: boolean;
   isInitialized: boolean;
   context?: Record<string, unknown>;
@@ -56,7 +56,7 @@ export function createDebugSnapshot(
     columnSizing: Record<string, number>;
     preferences?: Record<string, { mode: string; width: number }>;
     minSizes: Record<string, number>;
-    preferredSizes: Record<string, number>;
+    configuredSizes: Record<string, number>;
     isResizing: boolean;
     isInitialized: boolean;
   },

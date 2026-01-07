@@ -63,12 +63,12 @@ export function assertNever(value: never): never {
  * User's preference for column sizing behavior.
  *
  * - TRUNCATE: User accepts truncation. Floor = persisted width.
- * - NO_TRUNCATE: User wants full content. Floor = preferred width.
+ * - NO_TRUNCATE: User wants full content. Floor = contentWidth (measured).
  */
 export const PreferenceModes = {
   /** User accepts truncation. Floor = persisted width. */
   TRUNCATE: "truncate",
-  /** User wants full content. Floor = preferred width. */
+  /** User wants full content. Floor = contentWidth (measured from auto-fit). */
   NO_TRUNCATE: "no-truncate",
 } as const;
 
