@@ -60,13 +60,21 @@ export {
   type VirtualizedRow,
 } from "./hooks/use-virtualized-table";
 
-export { useColumnSizing, type UseColumnSizingOptions, type UseColumnSizingResult } from "./hooks/use-column-sizing";
-
 export {
-  useColumnSizingCache,
-  type UseColumnSizingCacheOptions,
-  type UseColumnSizingCacheResult,
-} from "./hooks/use-column-sizing-cache";
+  useColumnSizing,
+  type UseColumnSizingOptions,
+  type UseColumnSizingResult,
+  // Pure functions and types for testing
+  sizingReducer,
+  calculateColumnWidths,
+  getRemToPx,
+  type SizingState,
+  type SizingEvent,
+  type SizingMode,
+  type ResizingContext,
+  INITIAL_STATE,
+  DEFAULT_COLUMN_SIZING_INFO,
+} from "./hooks/use-column-sizing";
 
 export {
   useRowNavigation,
@@ -88,7 +96,8 @@ export type {
   ColumnWidthConfig,
   ColumnSizingPreference,
   ColumnSizingPreferences,
-  ColumnSizingCache,
+  // Note: ColumnSizingCache is defined but not exported - it's only used internally
+  // by the (dead code) use-column-sizing-cache.ts hook
 } from "./types";
 
 // Re-export TanStack Table types
