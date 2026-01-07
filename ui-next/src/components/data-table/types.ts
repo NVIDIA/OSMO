@@ -129,12 +129,16 @@ export interface ColumnWidthConfig<TData = unknown> {
  *
  * ## Mode
  * - "truncate": User accepts truncation. Floor = persisted width.
- * - "no-truncate": User wants full content. Floor = preferred width (content-driven).
+ * - "no-truncate": User wants full content. Floor = measured content width.
  *
  * ## How mode is determined
  * - User shrinks column below preferredWidth → "truncate" (accepts truncation)
  * - User expands/keeps column at or above preferredWidth → "no-truncate"
  * - Double-click auto-fit → "no-truncate"
+ *
+ * ## Content widths (separate from preferences)
+ * Content widths are measured/computed values, not user preferences.
+ * They are passed separately to useColumnSizing via `contentWidths` option.
  *
  * ## Columns without preference
  * - No floor lock, can shrink from preferred to min dynamically
