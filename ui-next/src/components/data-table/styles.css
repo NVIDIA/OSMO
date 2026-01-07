@@ -236,6 +236,28 @@
 }
 
 /* =============================================================================
+   Smooth Layout Transitions
+   Applied when NOT resizing for graceful column width changes
+   ============================================================================= */
+
+/* Smooth transitions for column widths when layout changes (not during drag) */
+.data-table:not(.is-resizing) th,
+.data-table:not(.is-resizing) td {
+  transition:
+    width 150ms ease-out,
+    min-width 150ms ease-out;
+}
+
+/* Transitioning class - added temporarily during animated layout changes */
+.is-transitioning th,
+.is-transitioning td {
+  transition:
+    width 150ms ease-out,
+    min-width 150ms ease-out,
+    opacity 150ms ease-out;
+}
+
+/* =============================================================================
    High-Performance Resize Mode
    Applied during column drag for 60fps smooth resizing
    ============================================================================= */

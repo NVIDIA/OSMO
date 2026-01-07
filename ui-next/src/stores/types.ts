@@ -23,27 +23,36 @@
  */
 
 // =============================================================================
-// Column Types
+// Column Sizing Types
 // =============================================================================
 
 /**
- * User override for column sizing from manual resizing.
+ * User's preference for a column's sizing behavior.
+ * Persisted to localStorage for session continuity.
  *
- * When user resizes:
- * - minWidthPx = the resized width (new floor)
- * - share = calculated to achieve this width proportionally
+ * ## Mode
+ * - "truncate": User accepts truncation. Floor = persisted width.
+ * - "no-truncate": User wants full content. Floor = preferred width (content-driven).
+ *
+ * ## How mode is determined
+ * - User shrinks column below preferredWidth → "truncate" (accepts truncation)
+ * - User expands/keeps column at or above preferredWidth → "no-truncate"
+ * - Double-click auto-fit → "no-truncate"
+ *
+ * ## Columns without preference
+ * - No floor lock, can shrink from preferred to min dynamically
  */
-export interface ColumnOverride {
-  /** New minimum width in pixels (resized width becomes the floor) */
-  minWidthPx: number;
-  /** Calculated share to achieve this width */
-  share: number;
+export interface ColumnSizingPreference {
+  /** Persisted pixel width from last resize */
+  width: number;
+  /** Resize behavior mode */
+  mode: "truncate" | "no-truncate";
 }
 
 /**
- * State shape for column user overrides.
+ * Map of column IDs to sizing preferences.
  */
-export type ColumnOverrides = Record<string, ColumnOverride>;
+export type ColumnSizingPreferences = Record<string, ColumnSizingPreference>;
 
 // =============================================================================
 // Search Types
@@ -79,8 +88,8 @@ export interface TableState {
   // Column state
   visibleColumnIds: string[];
   columnOrder: string[];
-  /** Column overrides from manual resizing (simplified: just share) */
-  columnOverrides: ColumnOverrides;
+  /** Column sizing preferences from manual resizing */
+  columnSizingPreferences: ColumnSizingPreferences;
 
   // Sort state
   sort: { column: string; direction: "asc" | "desc" } | null;
@@ -102,14 +111,13 @@ export interface TableActions {
   setVisibleColumns: (ids: string[]) => void;
   toggleColumn: (id: string) => void;
   setColumnOrder: (order: string[]) => void;
-  /** Set column override (just share) */
-  setColumnOverride: (id: string, override: ColumnOverride) => void;
-  /** Set all column overrides at once */
-  setColumnOverrides: (overrides: ColumnOverrides) => void;
-  /** Reset a single column override */
-  resetColumnOverride: (id: string) => void;
-  /** Reset all column overrides */
-  resetAllColumnOverrides: () => void;
+
+  /** Set a single column's sizing preference */
+  setColumnSizingPreference: (id: string, preference: ColumnSizingPreference) => void;
+  /** Set multiple column sizing preferences at once */
+  setColumnSizingPreferences: (preferences: ColumnSizingPreferences) => void;
+  /** Remove a single column's sizing preference (reset to default) */
+  removeColumnSizingPreference: (id: string) => void;
 
   // Sort actions
   setSort: (column: string) => void;

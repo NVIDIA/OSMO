@@ -26,10 +26,15 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { DataTable, type SortState } from "@/components/data-table";
+import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
 import { useSharedPreferences, type DisplayMode } from "@/stores";
 import type { Resource } from "@/lib/api/adapter";
-import { MANDATORY_COLUMN_IDS, asResourceColumnIds, type ResourceColumnId } from "../../lib/resource-columns";
+import {
+  MANDATORY_COLUMN_IDS,
+  asResourceColumnIds,
+  type ResourceColumnId,
+  RESOURCE_COLUMN_SIZE_CONFIG,
+} from "../../lib/resource-columns";
 import { createResourceColumns } from "../../lib/resource-column-defs";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 
@@ -137,24 +142,14 @@ export function ResourcesTable({
   const displayMode = useSharedPreferences((s) => s.displayMode);
   const compactMode = useSharedPreferences((s) => s.compactMode);
 
-  // Table store (column visibility, order, and overrides)
-  // Use type-safe helper to validate column IDs from store (which stores string[])
+  // Table store (column visibility, order, and preferences)
   const storeVisibleColumnIds = asResourceColumnIds(useResourcesTableStore((s) => s.visibleColumnIds));
   const columnOrder = asResourceColumnIds(useResourcesTableStore((s) => s.columnOrder));
   const setColumnOrder = useResourcesTableStore((s) => s.setColumnOrder);
   const sortState = useResourcesTableStore((s) => s.sort);
   const setSort = useResourcesTableStore((s) => s.setSort);
-  const storeColumnOverrides = useResourcesTableStore((s) => s.columnOverrides);
-  const setColumnOverrides = useResourcesTableStore((s) => s.setColumnOverrides);
-
-  // Convert store's ColumnOverrides to TanStack's ColumnSizingState (just pixel widths)
-  const columnSizing = useMemo(() => {
-    const sizing: Record<string, number> = {};
-    for (const [id, override] of Object.entries(storeColumnOverrides)) {
-      sizing[id] = override.minWidthPx;
-    }
-    return sizing;
-  }, [storeColumnOverrides]);
+  const columnSizingPreferences = useResourcesTableStore((s) => s.columnSizingPreferences);
+  const setColumnSizingPreference = useResourcesTableStore((s) => s.setColumnSizingPreference);
 
   // Merge showPoolsColumn prop with store visibility
   const effectiveVisibleIds = useMemo(() => {
@@ -193,28 +188,20 @@ export function ResourcesTable({
   // Row height based on compact mode
   const rowHeight = compactMode ? 32 : 48;
 
-  // Handle column sizing change - convert TanStack's format to store format
-  const handleColumnSizingChange = useCallback(
-    (sizing: Record<string, number>) => {
-      // Convert ColumnSizingState (just widths) to store's ColumnOverrides format
-      const overrides: Record<string, { minWidthPx: number; share: number }> = {};
-      for (const [id, width] of Object.entries(sizing)) {
-        // Store width with a default share (proportional to width / 100)
-        overrides[id] = { minWidthPx: width, share: width / 100 };
-      }
-      setColumnOverrides(overrides);
+  // Handle column sizing preference change
+  const handleColumnSizingPreferenceChange = useCallback(
+    (columnId: string, preference: ColumnSizingPreference) => {
+      setColumnSizingPreference(columnId, preference);
     },
-    [setColumnOverrides],
+    [setColumnSizingPreference],
   );
 
   // Handle sort change - simply pass the column to the store
-  // The store handles direction toggle internally
   const handleSortChange = useCallback(
     (newSort: SortState<string>) => {
       if (newSort.column) {
         setSort(newSort.column);
       }
-      // If newSort.column is null, do nothing - let user click again to toggle
     },
     [setSort],
   );
@@ -244,9 +231,10 @@ export function ResourcesTable({
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
-        // Column sizing - TanStack handles via size/minSize on column defs
-        columnSizing={columnSizing}
-        onColumnSizingChange={handleColumnSizingChange}
+        // Column sizing
+        columnSizeConfigs={RESOURCE_COLUMN_SIZE_CONFIG}
+        columnSizingPreferences={columnSizingPreferences}
+        onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
         // Sorting
         sorting={sortState as SortState<string>}
         onSortingChange={handleSortChange}
