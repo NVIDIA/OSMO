@@ -73,6 +73,14 @@
   will-change: transform;
   /* Prevent subpixel rendering issues */
   backface-visibility: hidden;
+  /*
+   * Optimization #5: content-visibility for off-screen rows
+   * Skips rendering for rows outside the viewport intersection.
+   * Provides progressive enhancement for virtualized tables.
+   * contain-intrinsic-block-size prevents layout shifts when rows become visible.
+   */
+  content-visibility: auto;
+  contain-intrinsic-block-size: var(--data-table-row-height);
 
   /* Fill remaining space with pseudo-element to avoid whitespace gap */
   &::after {
