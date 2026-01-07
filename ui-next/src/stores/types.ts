@@ -20,62 +20,35 @@
  * Shared types for Zustand stores.
  *
  * These types are used by the store factory and feature-specific stores.
- */
-
-// =============================================================================
-// Column Sizing Types
-// =============================================================================
-
-/**
- * User's preference for a column's sizing behavior.
- * Persisted to localStorage for session continuity.
  *
- * ## Mode
- * - "truncate": User accepts truncation. Floor = persisted width.
- * - "no-truncate": User wants full content. Floor = preferred width (content-driven).
- *
- * ## How mode is determined
- * - User shrinks column below preferredWidth → "truncate" (accepts truncation)
- * - User expands/keeps column at or above preferredWidth → "no-truncate"
- * - Double-click auto-fit → "no-truncate"
- *
- * ## Columns without preference
- * - No floor lock, can shrink from preferred to min dynamically
+ * NOTE: Column sizing and sort types are imported from @/components/data-table
+ * which is the single source of truth. Do not redefine these types here.
  */
-export interface ColumnSizingPreference {
-  /** Persisted pixel width from last resize */
-  width: number;
-  /** Resize behavior mode */
-  mode: "truncate" | "no-truncate";
-}
-
-/**
- * Map of column IDs to sizing preferences.
- */
-export type ColumnSizingPreferences = Record<string, ColumnSizingPreference>;
 
 // =============================================================================
-// Search Types
+// Re-export from Data Table (Single Source of Truth)
 // =============================================================================
 
-/**
- * Chip variant for styling (e.g., free/used filters).
- */
-export type ChipVariant = "free" | "used";
+// Import column sizing types from data-table (single source of truth)
+import type {
+  ColumnSizingPreference,
+  ColumnSizingPreferences,
+  SortDirection,
+  PreferenceMode,
+} from "@/components/data-table/types";
 
-/**
- * A search filter chip displayed in the search bar.
- */
-export interface SearchChip {
-  /** Field ID this chip filters on (e.g., "status", "platform") */
-  field: string;
-  /** The filter value (e.g., "ONLINE", "dgx") */
-  value: string;
-  /** Display label (e.g., "Status: ONLINE") */
-  label: string;
-  /** Optional variant for styling (e.g., "free" or "used") */
-  variant?: ChipVariant;
-}
+// Re-export for consumers of this module
+export type { ColumnSizingPreference, ColumnSizingPreferences, SortDirection, PreferenceMode };
+
+// =============================================================================
+// Search Types (Single Source of Truth: smart-search)
+// =============================================================================
+
+// Import search types from smart-search component (single source of truth)
+import type { ChipVariant, SearchChip } from "@/components/smart-search/types";
+
+// Re-export for consumers of this module
+export type { ChipVariant, SearchChip };
 
 // =============================================================================
 // Table State Types
@@ -92,7 +65,7 @@ export interface TableState {
   columnSizingPreferences: ColumnSizingPreferences;
 
   // Sort state
-  sort: { column: string; direction: "asc" | "desc" } | null;
+  sort: { column: string; direction: SortDirection } | null;
 
   // UI state
   compactMode: boolean;
