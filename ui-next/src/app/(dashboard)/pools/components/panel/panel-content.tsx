@@ -177,7 +177,9 @@ export const PanelContent = memo(function PanelContent({
                       {pool.timeouts.defaultExec && (
                         <>
                           <span className="text-zinc-500 dark:text-zinc-500">Default Execution</span>
-                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.defaultExec}</span>
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                            {pool.timeouts.defaultExec}
+                          </span>
                         </>
                       )}
                       {pool.timeouts.maxExec && (
@@ -189,7 +191,9 @@ export const PanelContent = memo(function PanelContent({
                       {pool.timeouts.defaultQueue && (
                         <>
                           <span className="text-zinc-500 dark:text-zinc-500">Default Queue</span>
-                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.defaultQueue}</span>
+                          <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                            {pool.timeouts.defaultQueue}
+                          </span>
                         </>
                       )}
                       {pool.timeouts.maxQueue && (

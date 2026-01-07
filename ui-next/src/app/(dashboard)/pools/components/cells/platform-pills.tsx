@@ -18,9 +18,8 @@
 
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { ExpandableChips } from "@/components/expandable-chips";
-import { getChipLayoutCompact } from "../../hooks/use-layout-dimensions";
 
 // =============================================================================
 // Types
@@ -40,7 +39,7 @@ export interface PlatformPillsProps {
 /**
  * PlatformPills - Pool-specific wrapper for platform chips.
  *
- * Composes from ExpandableChips with pool-specific layout dimensions.
+ * Uses CSS-driven measurement - no configuration needed.
  *
  * @example
  * ```tsx
@@ -48,12 +47,9 @@ export interface PlatformPillsProps {
  * ```
  */
 export const PlatformPills = memo(function PlatformPills({ platforms, expandable = true }: PlatformPillsProps) {
-  const layout = useMemo(() => getChipLayoutCompact(), []);
-
   return (
     <ExpandableChips
       items={platforms}
-      layout={layout}
       expandable={expandable}
     />
   );

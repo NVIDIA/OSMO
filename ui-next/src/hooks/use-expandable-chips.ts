@@ -16,90 +16,59 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import type { RefObject } from "react";
 import { useRafCallback } from "./use-raf-callback";
-
-// =============================================================================
-// Type Guards
-// =============================================================================
-
-/**
- * Type guard to check if an array contains strings.
- * Enables TypeScript to narrow the generic type for sorting operations.
- */
-function isStringArray<T>(items: T[]): items is (T & string)[] {
-  return items.length > 0 && typeof items[0] === "string";
-}
+import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
+import { useStableCallback } from "./use-stable-callback";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-/**
- * Layout dimensions for chip width estimation (used when measureRef is not provided).
- */
-export interface ChipLayoutDimensions {
-  /** Width of the overflow button (e.g., "+3") */
-  overflowButtonWidth: number;
-  /** Gap between chips */
-  chipGap: number;
-  /** Horizontal padding inside each chip */
-  chipPadding: number;
-  /** Estimated width per character */
-  charWidth: number;
-  /** Padding around the container */
-  containerPadding: number;
-}
-
-/**
- * Options for DOM-based measurement mode.
- * When provided, the hook uses actual rendered widths instead of estimation.
- */
-export interface MeasuredModeOptions {
-  /** Ref to a hidden container that renders all items for measurement */
-  measureRef: RefObject<HTMLElement | null>;
-  /** CSS selector to find measurable items within measureRef (default: "[data-measure-item]") */
-  itemSelector?: string;
-  /** Reserved width for label or prefix content */
-  reservedWidth?: number;
-}
-
 export interface UseExpandableChipsOptions<T = string> {
   /** Array of items to display */
   items: T[];
-  /**
-   * Layout dimensions for width estimation.
-   * Required when NOT using measured mode.
-   */
-  layout?: ChipLayoutDimensions;
-  /**
-   * DOM-based measurement options.
-   * When provided, uses actual rendered widths instead of character estimation.
-   * More accurate for complex items with icons, variable fonts, etc.
-   */
-  measured?: MeasuredModeOptions;
-  /** Whether items should be sorted alphabetically (default: true for strings, false for objects) */
+  /** Whether items should be sorted alphabetically (default: true for strings) */
   sortAlphabetically?: boolean;
-  /** Key extractor for non-string items (required for object items) */
+  /** Key extractor for non-string items */
   getKey?: (item: T) => string;
 }
 
 export interface UseExpandableChipsResult<T = string> {
-  /** Ref to attach to the container element */
+  /** Ref for the visible container */
   containerRef: RefObject<HTMLDivElement | null>;
+  /** Ref for the hidden measurement container */
+  measureRef: RefObject<HTMLDivElement | null>;
   /** Whether the list is currently expanded */
   expanded: boolean;
   /** Toggle expansion state */
   setExpanded: (expanded: boolean) => void;
   /** Number of items visible when collapsed */
   visibleCount: number;
-  /** Items to display (sorted if sortAlphabetically is true) */
+  /** Sorted items array */
   sortedItems: T[];
   /** Items currently displayed based on expansion state */
   displayedItems: T[];
   /** Number of items hidden in overflow */
   overflowCount: number;
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function isStringArray<T>(items: T[]): items is (T & string)[] {
+  return items.length > 0 && typeof items[0] === "string";
+}
+
+/**
+ * Get the number of characters in "+N" for a given overflow count.
+ * Used to estimate overflow button width dynamically.
+ */
+function getOverflowCharCount(overflow: number): number {
+  // "+1" = 2 chars, "+10" = 3 chars, "+100" = 4 chars
+  return 1 + String(overflow).length;
 }
 
 // =============================================================================
@@ -109,113 +78,110 @@ export interface UseExpandableChipsResult<T = string> {
 /**
  * Hook for expandable chip/pill lists with responsive overflow.
  *
- * Supports two measurement modes:
- * 1. **Estimation mode** (default): Uses character count to estimate widths.
- *    Best for simple text chips with consistent styling.
- * 2. **Measured mode**: Uses actual DOM measurements from a hidden container.
- *    Best for complex items with icons, variable fonts, or dynamic styling.
- *
- * @example Estimation mode (simple text chips)
- * ```tsx
- * const { containerRef, displayedItems, overflowCount, expanded, setExpanded } =
- *   useExpandableChips({ items: platforms, layout: chipLayout });
- *
- * return (
- *   <div ref={containerRef}>
- *     {displayedItems.map(item => <Chip key={item}>{item}</Chip>)}
- *     {overflowCount > 0 && <button onClick={() => setExpanded(!expanded)}>+{overflowCount}</button>}
- *   </div>
- * );
- * ```
- *
- * @example Measured mode (complex items with icons)
- * ```tsx
- * const measureRef = useRef<HTMLDivElement>(null);
- * const { containerRef, displayedItems, overflowCount, expanded, setExpanded } =
- *   useExpandableChips({
- *     items: groups,
- *     measured: { measureRef, itemSelector: "[data-pill]", reservedWidth: 100 },
- *     getKey: (g) => g.name,
- *   });
- *
- * return (
- *   <div ref={containerRef}>
- *     <div ref={measureRef} className="invisible absolute">
- *       {items.map(g => <div key={g.name} data-pill><Pill group={g} /></div>)}
- *     </div>
- *     {displayedItems.map(g => <Pill key={g.name} group={g} />)}
- *   </div>
- * );
- * ```
+ * Uses CSS-driven measurement with dynamic +N width calculation.
+ * Optimized for 60fps performance with batched DOM reads and RAF throttling.
  */
 export function useExpandableChips<T = string>({
   items,
-  layout,
-  measured,
   sortAlphabetically,
   getKey,
 }: UseExpandableChipsOptions<T>): UseExpandableChipsResult<T> {
-  const [expanded, setExpanded] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(1);
+  // Keyed expanded state - uses items reference as key
+  // When items changes (new array), expanded auto-resets to false
+  const [expandedState, setExpandedState] = useState<{ items: T[]; value: boolean }>({
+    items,
+    value: false,
+  });
+
+  // Derive actual expanded value - if items reference changed, reset to false
+  const expanded = expandedState.items === items ? expandedState.value : false;
+
+  // Stable setter that updates with current items reference
+  const setExpanded = useStableCallback((value: boolean) => {
+    setExpandedState({ items, value });
+  });
+
+  const [visibleCount, setVisibleCount] = useState(items.length);
   const containerRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
 
-  // Determine if we're in measured mode
-  const isMeasuredMode = measured !== undefined;
+  const shouldSort = sortAlphabetically ?? isStringArray(items);
 
-  // Default sort behavior: true for strings, false for objects
-  const shouldSort = sortAlphabetically ?? typeof items[0] === "string";
-
-  // Sort items if requested
+  // Sort items alphabetically if requested
   const sortedItems = useMemo(() => {
     if (!shouldSort || items.length === 0) return items;
-
-    // For strings, use localeCompare directly
     if (isStringArray(items)) {
       return [...items].sort((a, b) => a.localeCompare(b));
     }
-
-    // For objects, sort by key if getKey is provided
     if (getKey) {
       return [...items].sort((a, b) => getKey(a).localeCompare(getKey(b)));
     }
-
     return items;
   }, [items, shouldSort, getKey]);
 
   // ==========================================================================
-  // Estimation Mode Calculation
+  // CSS-Driven Measurement with Dynamic +N Calculation
   // ==========================================================================
 
-  const estimateChipWidth = useCallback(
-    (text: string) => {
-      if (!layout) return 0;
-      return text.length * layout.charWidth + layout.chipPadding;
-    },
-    [layout],
-  );
+  const calculateVisibleCount = useCallback(() => {
+    const container = containerRef.current;
+    const measure = measureRef.current;
+    const itemCount = sortedItems.length;
 
-  const calculateVisibleCountEstimated = useCallback(() => {
-    if (!containerRef.current || sortedItems.length === 0 || !layout) return 1;
+    if (!container || !measure || itemCount === 0) {
+      return itemCount;
+    }
 
-    const containerWidth = containerRef.current.offsetWidth;
-    if (containerWidth === 0) return 1;
+    // === BATCH ALL DOM READS FIRST (avoid layout thrashing) ===
+    const containerWidth = container.offsetWidth;
+    if (containerWidth === 0) return itemCount;
 
-    const availableWidth = containerWidth - layout.containerPadding;
+    const computedStyle = getComputedStyle(measure);
+    const gap = parseFloat(computedStyle.gap) || 0;
 
-    let usedWidth = 0;
+    // Get all chip elements and read their widths in one pass
+    const chips = measure.querySelectorAll<HTMLElement>("[data-chip]");
+    if (chips.length === 0) return itemCount;
+
+    // Pre-read all chip widths into array (single layout pass)
+    const chipWidths: number[] = [];
+    for (let i = 0; i < chips.length; i++) {
+      chipWidths.push(chips[i].offsetWidth);
+    }
+
+    // Read overflow button measurements
+    // We measure "+1" (2 chars) as baseline to calculate per-character width
+    const overflowBtn = measure.querySelector<HTMLElement>("[data-overflow]");
+    const baseOverflowWidth = overflowBtn?.offsetWidth || 0;
+    const baseCharCount = 2; // "+1" = 2 characters
+    // Estimate character width from the measured button
+    // Button padding stays constant, only text width changes
+    const charWidth = baseOverflowWidth / (baseCharCount + 1.5); // +1.5 accounts for padding ratio
+
+    // === NOW CALCULATE (no more DOM reads) ===
+    let accumulatedWidth = 0;
     let count = 0;
-    const hasOverflow = sortedItems.length > 1;
 
-    for (let i = 0; i < sortedItems.length; i++) {
-      const item = sortedItems[i];
-      const text = typeof item === "string" ? item : (getKey?.(item) ?? String(i));
-      const chipWidth = estimateChipWidth(text);
-      const needsOverflowSpace = hasOverflow && i < sortedItems.length - 1;
-      const requiredWidth = usedWidth + chipWidth + (count > 0 ? layout.chipGap : 0);
-      const reservedForOverflow = needsOverflowSpace ? layout.overflowButtonWidth + layout.chipGap : 0;
+    for (let i = 0; i < chipWidths.length; i++) {
+      const chipWidth = chipWidths[i];
+      const gapWidth = count > 0 ? gap : 0;
+      const isLast = i === chipWidths.length - 1;
 
-      if (requiredWidth + reservedForOverflow <= availableWidth) {
-        usedWidth = requiredWidth;
+      // Dynamic overflow calculation: if we stop here, overflow = remaining items
+      const potentialOverflow = itemCount - (i + 1);
+
+      // Calculate the actual overflow button width for this potential overflow count
+      let overflowReserve = 0;
+      if (!isLast && potentialOverflow > 0) {
+        // Estimate overflow button width based on character count
+        const overflowCharCount = getOverflowCharCount(potentialOverflow);
+        const charDiff = overflowCharCount - baseCharCount;
+        const dynamicOverflowWidth = baseOverflowWidth + charDiff * charWidth;
+        overflowReserve = dynamicOverflowWidth + gap;
+      }
+
+      if (accumulatedWidth + gapWidth + chipWidth + overflowReserve <= containerWidth) {
+        accumulatedWidth += gapWidth + chipWidth;
         count++;
       } else {
         break;
@@ -223,88 +189,40 @@ export function useExpandableChips<T = string>({
     }
 
     return Math.max(1, count);
-  }, [sortedItems, estimateChipWidth, layout, getKey]);
+  }, [sortedItems]);
 
-  // ==========================================================================
-  // Measured Mode Calculation
-  // ==========================================================================
-
-  const calculateVisibleCountMeasured = useCallback(() => {
-    if (!containerRef.current || !measured?.measureRef.current || sortedItems.length === 0) {
-      return 1;
-    }
-
-    const container = containerRef.current;
-    const measureContainer = measured.measureRef.current;
-    const selector = measured.itemSelector ?? "[data-measure-item]";
-    const pills = measureContainer.querySelectorAll(selector);
-
-    if (pills.length === 0) return 1;
-
-    const containerRect = container.getBoundingClientRect();
-    const reservedWidth = measured.reservedWidth ?? 0;
-    const overflowButtonWidth = 60; // Space for "+N" button
-    const gap = 8; // Typical gap between items
-    const availableWidth = containerRect.width - reservedWidth - overflowButtonWidth;
-
-    let totalWidth = 0;
-    let count = 0;
-
-    pills.forEach((pill, index) => {
-      const pillRect = pill.getBoundingClientRect();
-      const pillWidth = pillRect.width + (index > 0 ? gap : 0);
-
-      if (totalWidth + pillWidth <= availableWidth) {
-        totalWidth += pillWidth;
-        count = index + 1;
-      }
-    });
-
-    return Math.max(1, count);
-  }, [sortedItems.length, measured]);
-
-  // ==========================================================================
-  // Unified Calculation
-  // ==========================================================================
-
-  const calculateVisibleCount = isMeasuredMode ? calculateVisibleCountMeasured : calculateVisibleCountEstimated;
-
-  // RAF-throttled recalculation for 60fps during container resize
-  // Using null as signal value since the actual count is computed inside the callback
+  // RAF-throttled recalculation for smooth 60fps resize handling
   const [scheduleRecalculate] = useRafCallback<null>(() => {
     setVisibleCount(calculateVisibleCount());
   });
 
-  // Use useLayoutEffect for measured mode (needs DOM to be painted)
-  // Use useEffect for estimation mode (no DOM dependency)
-  const effectHook = isMeasuredMode ? useLayoutEffect : useEffect;
-
-  effectHook(() => {
+  // Observe container resize and recalculate
+  useIsomorphicLayoutEffect(() => {
     if (expanded) return;
 
     const container = containerRef.current;
     if (!container) return;
 
-    const observer = new ResizeObserver(() => {
-      scheduleRecalculate(null);
-    });
-
-    observer.observe(container);
+    // Initial calculation
     setVisibleCount(calculateVisibleCount());
 
-    return () => observer.disconnect();
-  }, [calculateVisibleCount, expanded, sortedItems, scheduleRecalculate]);
+    // Observe resize with RAF throttling
+    const observer = new ResizeObserver(() => scheduleRecalculate(null));
+    observer.observe(container);
 
-  // Reset to collapsed when items change
-  useEffect(() => {
-    setExpanded(false);
-  }, [items]);
+    return () => observer.disconnect();
+  }, [calculateVisibleCount, expanded, scheduleRecalculate]);
+
+  // ==========================================================================
+  // Return (computed values, no DOM access)
+  // ==========================================================================
 
   const displayedItems = expanded ? sortedItems : sortedItems.slice(0, visibleCount);
   const overflowCount = sortedItems.length - visibleCount;
 
   return {
     containerRef,
+    measureRef,
     expanded,
     setExpanded,
     visibleCount,
