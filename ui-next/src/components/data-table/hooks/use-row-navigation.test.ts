@@ -116,11 +116,7 @@ function getTargetIndex(
  * Calculate roving tabindex for a row
  * Only one row should be tabbable at a time
  */
-function getRowTabIndex(
-  rowIndex: number,
-  focusedRowIndex: number | null,
-  disabled: boolean,
-): 0 | -1 {
+function getRowTabIndex(rowIndex: number, focusedRowIndex: number | null, disabled: boolean): 0 | -1 {
   if (disabled) return -1;
 
   // If nothing focused, first row is tabbable
