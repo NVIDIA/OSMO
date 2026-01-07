@@ -564,7 +564,13 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               label={String(header.column.columnDef.header ?? header.id)}
                               sortable={isSortable}
                               isActive={Boolean(isSorted)}
-                              direction={isSorted === SortDirections.ASC ? SortDirections.ASC : isSorted === SortDirections.DESC ? SortDirections.DESC : undefined}
+                              direction={
+                                isSorted === SortDirections.ASC
+                                  ? SortDirections.ASC
+                                  : isSorted === SortDirections.DESC
+                                    ? SortDirections.DESC
+                                    : undefined
+                              }
                               onSort={onSort}
                             />
                             {/* Resize handle - uses @use-gesture/react for gesture handling */}
