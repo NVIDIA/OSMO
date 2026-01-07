@@ -63,6 +63,12 @@ export {
 export { useColumnSizing, type UseColumnSizingOptions, type UseColumnSizingResult } from "./hooks/use-column-sizing";
 
 export {
+  useColumnSizingCache,
+  type UseColumnSizingCacheOptions,
+  type UseColumnSizingCacheResult,
+} from "./hooks/use-column-sizing-cache";
+
+export {
   useRowNavigation,
   type UseRowNavigationOptions,
   type UseRowNavigationResult,
@@ -72,7 +78,18 @@ export {
 // Types
 // =============================================================================
 
-export type { SortDirection, SortState, SortButtonProps, SortableCellProps, Section, ColumnSizeConfig } from "./types";
+export type {
+  SortDirection,
+  SortState,
+  SortButtonProps,
+  SortableCellProps,
+  Section,
+  ColumnSizeConfig,
+  ColumnWidthConfig,
+  ColumnSizingPreference,
+  ColumnSizingPreferences,
+  ColumnSizingCache,
+} from "./types";
 
 // Re-export TanStack Table types
 export type {
@@ -93,4 +110,13 @@ export type {
 // =============================================================================
 
 export { remToPx, getColumnCSSValue } from "./utils/column-sizing";
-export { COLUMN_MIN_WIDTHS_REM } from "./utils/column-constants";
+export {
+  COLUMN_MIN_WIDTHS_REM,
+  COLUMN_PREFERRED_WIDTHS_REM,
+  AVG_CHAR_WIDTH_REM,
+  CELL_PADDING_REM,
+  CELL_BUFFER_REM,
+} from "./utils/column-constants";
+
+// Debug utilities (enable via localStorage.setItem('DEBUG_COLUMN_SIZING', 'true'))
+export { logColumnSizingDebug, flushDebugBuffer, type DebugEventType, type DebugSnapshot } from "./utils/debug";

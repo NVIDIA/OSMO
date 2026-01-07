@@ -17,22 +17,28 @@
 /**
  * Column Resize Handle
  *
- * Draggable handle for column resizing using TanStack Table's native APIs
- * and @use-gesture/react for robust gesture detection.
+ * Draggable handle for column resizing using @use-gesture/react for
+ * robust gesture handling and useColumnSizing's Resize Control API.
  *
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
+ * @see https://use-gesture.netlify.app/docs/gestures/#drag
  *
  * Features:
- * - Drag to resize (via TanStack's `header.getResizeHandler()`)
+ * - Drag to resize (via useDrag from @use-gesture/react)
  * - Double-click to auto-fit content
- * - Shift + double-click to reset to proportional
  * - Keyboard accessible
  * - Touch support with proper tap vs drag detection
+ *
+ * Architecture:
+ * - useDrag handles ALL gesture detection (no competing event listeners)
+ * - Resize Control API (startResize/updateResize/endResize) manages state
+ * - RAF-throttled DOM updates for 60fps performance during drag
+ * - Clean lifecycle: first → active → last
  */
 
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
 import type { Header } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
@@ -43,118 +49,117 @@ import { useStableCallback, useStableValue } from "@/hooks";
 // =============================================================================
 
 export interface ResizeHandleProps<TData> {
-  /** TanStack header instance (provides getResizeHandler) */
+  /** TanStack header instance */
   header: Header<TData, unknown>;
-  /** Called when resize ends (for persistence) */
+  /**
+   * Start resize - call from useDrag's `first` event.
+   * @returns The starting width for delta calculations.
+   */
+  onResizeStart?: (columnId: string) => number;
+  /**
+   * Update resize - call from useDrag during drag.
+   * @param columnId - Column being resized
+   * @param newWidth - New width (startWidth + delta)
+   */
+  onResizeUpdate?: (columnId: string, newWidth: number) => void;
+  /**
+   * End resize - call from useDrag's `last` event.
+   */
   onResizeEnd?: () => void;
   /** Double-click to auto-fit column */
   onAutoFit?: (columnId: string) => void;
-  /** Shift + double-click to reset column */
-  onReset?: (columnId: string) => void;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-function ResizeHandleInner<TData>({ header, onResizeEnd, onAutoFit, onReset }: ResizeHandleProps<TData>) {
+function ResizeHandleInner<TData>({
+  header,
+  onResizeStart,
+  onResizeUpdate,
+  onResizeEnd,
+  onAutoFit,
+}: ResizeHandleProps<TData>) {
   const [isFocused, setIsFocused] = useState(false);
+  const startWidthRef = useRef<number>(0);
 
-  // TanStack's native resize handler - stable ref to avoid stale closures
-  const resizeHandlerRef = useStableValue(header.getResizeHandler());
   const isResizing = header.column.getIsResizing();
+  const columnId = header.id;
 
   // Stable refs for callbacks to avoid stale closures in useDrag
+  const onResizeStartRef = useStableValue(onResizeStart);
+  const onResizeUpdateRef = useStableValue(onResizeUpdate);
   const onResizeEndRef = useStableValue(onResizeEnd);
   const onAutoFitRef = useStableValue(onAutoFit);
-  const onResetRef = useStableValue(onReset);
 
   // ==========================================================================
-  // Pointer Down - Start TanStack resize immediately
-  // TanStack's handler sets up its own document-level listeners for tracking
-  // ==========================================================================
-
-  const handlePointerDown = useStableCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    // Start TanStack resize immediately - it handles all the tracking
-    resizeHandlerRef.current(e.nativeEvent);
-  });
-
-  // ==========================================================================
-  // Drag Gesture - only used to detect when resize ends
-  // TanStack handles all the actual resize tracking
-  // Uses refs to avoid stale closures (useDrag memoizes the handler)
-  // ==========================================================================
-
-  // ==========================================================================
-  // Drag Gesture - only used to detect when resize ends
-  // TanStack handles all the actual resize tracking
-  // Uses refs to avoid stale closures (useDrag memoizes the handler)
+  // Drag Gesture - @use-gesture/react as the canonical gesture handler
+  //
+  // Clean lifecycle:
+  // - first: Capture start width, initialize resize state
+  // - active (not first, not last): Update column width
+  // - last: Finalize and persist
+  //
+  // Using refs for all callbacks to avoid stale closures (useDrag memoizes)
   // ==========================================================================
 
   const bindDrag = useDrag(
-    ({ last, tap }) => {
-      // Ignore taps (double-click handles those)
+    ({ first, last, movement: [mx], tap, event }) => {
+      // Ignore taps - they're handled by onDoubleClick
       if (tap) return;
 
-      // When drag ends, notify parent for persistence
-      if (last) {
+      // CRITICAL: Stop propagation to prevent @dnd-kit from triggering column reorder
+      // This ensures resize and DnD don't interfere with each other
+      event?.stopPropagation();
+      event?.preventDefault();
+
+      if (first) {
+        // Drag started - capture starting width
+        const startWidth = onResizeStartRef.current?.(columnId) ?? header.getSize();
+        startWidthRef.current = startWidth;
+      } else if (last) {
+        // Drag ended - finalize and persist
         onResizeEndRef.current?.();
+      } else {
+        // During drag - update width
+        const newWidth = startWidthRef.current + mx;
+        onResizeUpdateRef.current?.(columnId, newWidth);
       }
     },
     {
+      // Filter taps vs drags (double-click handled separately)
       filterTaps: true,
+      // Minimum movement to start drag (pixels)
       threshold: 3,
+      // Enable touch support
       pointer: { touch: true },
+      // Prevent scrolling while dragging
+      preventScrollAxis: "x",
     },
   );
 
   // ==========================================================================
-  // Click Events - Auto-fit and Reset
-  // Using stable callbacks to avoid recreating on prop changes
+  // Click Events - Auto-fit
   // ==========================================================================
 
   const handleDoubleClick = useStableCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (e.shiftKey) {
-      onResetRef.current?.(header.id);
-    } else {
-      onAutoFitRef.current?.(header.id);
-    }
+    onAutoFitRef.current?.(columnId);
   });
 
   // Keyboard support for accessibility
   const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      if (e.shiftKey) {
-        onResetRef.current?.(header.id);
-      } else {
-        onAutoFitRef.current?.(header.id);
-      }
+      onAutoFitRef.current?.(columnId);
     }
   });
 
-  // Merge pointer down: our handler (starts TanStack resize) + useDrag (tracks gesture)
-  // We call bindDrag() inside the handler (not during render) to get fresh bindings
-  const mergedPointerDown = useStableCallback((e: React.PointerEvent) => {
-    handlePointerDown(e);
-    // Get useDrag's pointer down handler and call it
-    // This is called in an event handler, not during render
-    bindDrag().onPointerDown?.(e);
-  });
-
-  // Get useDrag bindings to spread on element
-  // Note: bindDrag() returns a new object each time, but useDrag internally
-  // memoizes the handlers, so this is safe for React reconciliation
-  const dragBindProps = bindDrag();
-
   return (
     <div
-      {...dragBindProps}
+      {...bindDrag()}
       className={cn(
         "resize-handle",
         "absolute top-0 right-0 bottom-0 z-10",
@@ -170,14 +175,13 @@ function ResizeHandleInner<TData>({ header, onResizeEnd, onAutoFit, onReset }: R
         (isResizing || isFocused) && "after:bg-zinc-500 dark:after:bg-zinc-400",
       )}
       data-no-dnd="true"
-      onPointerDown={mergedPointerDown}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
       role="separator"
       aria-orientation="vertical"
-      aria-label={`Resize ${header.id} column. Double-click to auto-fit, Shift+double-click to reset.`}
+      aria-label={`Resize ${columnId} column. Double-click to auto-fit.`}
       tabIndex={0}
     />
   );

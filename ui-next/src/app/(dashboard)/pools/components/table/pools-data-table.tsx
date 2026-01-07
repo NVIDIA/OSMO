@@ -30,11 +30,16 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { DataTable, type SortState } from "@/components/data-table";
+import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import { MANDATORY_COLUMN_IDS, asPoolColumnIds, type PoolColumnId } from "../../lib/pool-columns";
+import {
+  MANDATORY_COLUMN_IDS,
+  asPoolColumnIds,
+  type PoolColumnId,
+  POOL_COLUMN_SIZE_CONFIG,
+} from "../../lib/pool-columns";
 import { createPoolColumns } from "./pool-column-defs";
 import { usePoolsTableStore } from "../../stores/pools-table-store";
 import { useSortedPools } from "../../hooks/use-sorted-pools";
@@ -98,17 +103,8 @@ export function PoolsDataTable({
   const setColumnOrder = usePoolsTableStore((s) => s.setColumnOrder);
   const sortState = usePoolsTableStore((s) => s.sort);
   const setSort = usePoolsTableStore((s) => s.setSort);
-  const storeColumnOverrides = usePoolsTableStore((s) => s.columnOverrides);
-  const setColumnOverrides = usePoolsTableStore((s) => s.setColumnOverrides);
-
-  // Convert store's ColumnOverrides to TanStack's ColumnSizingState (just pixel widths)
-  const columnSizing = useMemo(() => {
-    const sizing: Record<string, number> = {};
-    for (const [id, override] of Object.entries(storeColumnOverrides)) {
-      sizing[id] = override.minWidthPx;
-    }
-    return sizing;
-  }, [storeColumnOverrides]);
+  const columnSizingPreferences = usePoolsTableStore((s) => s.columnSizingPreferences);
+  const setColumnSizingPreference = usePoolsTableStore((s) => s.setColumnSizingPreference);
 
   const rowHeight = compactMode ? layout.rowHeightCompact : layout.rowHeight;
 
@@ -188,18 +184,12 @@ export function PoolsDataTable({
     [setColumnOrder],
   );
 
-  // Handle column sizing change - convert TanStack's format to store format
-  const handleColumnSizingChange = useCallback(
-    (sizing: Record<string, number>) => {
-      // Convert ColumnSizingState (just widths) to store's ColumnOverrides format
-      const overrides: Record<string, { minWidthPx: number; share: number }> = {};
-      for (const [id, width] of Object.entries(sizing)) {
-        // Store width with a default share (proportional to width / 100)
-        overrides[id] = { minWidthPx: width, share: width / 100 };
-      }
-      setColumnOverrides(overrides);
+  // Handle column sizing preference change
+  const handleColumnSizingPreferenceChange = useCallback(
+    (columnId: string, preference: ColumnSizingPreference) => {
+      setColumnSizingPreference(columnId, preference);
     },
-    [setColumnOverrides],
+    [setColumnSizingPreference],
   );
 
   // Handle row click - call onPoolSelect with pool name
@@ -273,9 +263,10 @@ export function PoolsDataTable({
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
-        // Column sizing - TanStack handles via size/minSize on column defs
-        columnSizing={columnSizing}
-        onColumnSizingChange={handleColumnSizingChange}
+        // Column sizing
+        columnSizeConfigs={POOL_COLUMN_SIZE_CONFIG}
+        columnSizingPreferences={columnSizingPreferences}
+        onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
         // Sorting
         sorting={sortState as SortState<string>}
         onSortingChange={handleSortChange}
