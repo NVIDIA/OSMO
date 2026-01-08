@@ -216,7 +216,7 @@ export function ResourcesTable({
   );
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="table-container flex h-full flex-col">
       <DataTable<Resource>
         data={sortedResources}
         columns={columns}

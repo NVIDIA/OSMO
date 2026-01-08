@@ -17,7 +17,7 @@
 "use client";
 
 import Link from "next/link";
-import { FlaskConical, Workflow } from "lucide-react";
+import { FlaskConical, Workflow, Palette } from "lucide-react";
 import { usePage } from "@/components/shell";
 
 /**
@@ -34,11 +34,18 @@ import { usePage } from "@/components/shell";
 
 const devPages = [
   {
+    title: "Table Styles",
+    href: "/dev/table-styles",
+    description: "Compare different table container styling options",
+    icon: Palette,
+    highlight: true,
+  },
+  {
     title: "Workflow Explorer",
     href: "/dev/workflow-explorer",
     description: "Compare different DAG and timeline visualization approaches",
     icon: Workflow,
-    highlight: true,
+    highlight: false,
   },
 ];
 

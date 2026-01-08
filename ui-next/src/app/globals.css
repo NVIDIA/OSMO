@@ -97,6 +97,18 @@
   --color-danger-bg: var(--status-danger-bg);
 
   /* ==========================================================================
+     Table Colors (Semantic)
+     Available as: bg-table-surface, bg-table-header, border-table-border, etc.
+     ========================================================================== */
+  --color-table-surface: var(--table-surface);
+  --color-table-header: var(--table-header);
+  --color-table-border: var(--table-border);
+  --color-table-border-top: var(--table-border-top);
+  --color-table-border-left: var(--table-border-left);
+  --color-table-border-right: var(--table-border-right);
+  --color-table-border-bottom: var(--table-border-bottom);
+
+  /* ==========================================================================
      Border Radius Scale
      ========================================================================== */
   --radius-sm: calc(var(--radius) - 4px);
@@ -161,6 +173,16 @@
   --status-success-bg: oklch(0.95 0.05 145);
   --status-warning-bg: oklch(0.95 0.05 85);
   --status-danger-bg: oklch(0.95 0.05 25);
+
+  /* Table colors (light mode) */
+  --table-surface: #ffffff;
+  --table-header: #f0f0f0;
+  --table-border: oklch(0.9 0 0);
+  /* Bevel borders for 3D effect */
+  --table-border-top: oklch(0.93 0 0);
+  --table-border-left: oklch(0.92 0 0);
+  --table-border-right: oklch(0.86 0 0);
+  --table-border-bottom: oklch(0.85 0 0);
 }
 
 .dark {
@@ -207,6 +229,16 @@
   --status-success-bg: oklch(0.25 0.05 145);
   --status-warning-bg: oklch(0.25 0.05 85);
   --status-danger-bg: oklch(0.25 0.05 25);
+
+  /* Table colors (dark mode) */
+  --table-surface: #09090b; /* zinc-950 / sidebar */
+  --table-header: #18181b; /* zinc-900 */
+  --table-border: oklch(0.15 0 0);
+  /* Bevel borders for 3D effect */
+  --table-border-top: oklch(0.18 0 0);
+  --table-border-left: oklch(0.17 0 0);
+  --table-border-right: oklch(0.1 0 0);
+  --table-border-bottom: oklch(0.09 0 0);
 }
 
 @layer base {
@@ -369,6 +401,30 @@
 
     @media (prefers-reduced-motion: reduce) {
       animation: none;
+    }
+  }
+
+  /* ==========================================================================
+     Table Container - Semantic table styling with bevel and header shadow
+     ========================================================================== */
+  .table-container {
+    background: var(--table-surface);
+    border-radius: theme(borderRadius.md);
+    overflow: hidden;
+    /* Bevel borders */
+    border-top: 1px solid var(--table-border-top);
+    border-left: 1px solid var(--table-border-left);
+    border-right: 1px solid var(--table-border-right);
+    border-bottom: 1px solid var(--table-border-bottom);
+  }
+
+  .table-header {
+    background: var(--table-header);
+    /* Sharp shadow - z-index handled by sticky class when needed */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+
+    :is(.dark &) {
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     }
   }
 
