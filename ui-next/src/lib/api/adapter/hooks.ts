@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
@@ -107,6 +107,8 @@ export function useFilteredPools(params: PoolFilterParams = {}) {
       });
     },
     staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
+    // Keep previous data while fetching with new filters to prevent flash of empty state
+    placeholderData: keepPreviousData,
   });
 
   return {
