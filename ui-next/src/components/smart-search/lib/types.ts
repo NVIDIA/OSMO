@@ -17,10 +17,10 @@
  */
 
 /**
- * Generic smart search types.
+ * Core types for SmartSearch.
  *
- * These types define the interface for the omni search component
- * that converts user input into filter chips.
+ * These types define the data model for smart search - fields, chips, and presets.
+ * This is pure business logic, completely independent of any UI library.
  */
 
 /**
@@ -161,33 +161,29 @@ export interface SmartSearchProps<T> {
 }
 
 /**
- * Filter items by chips.
- * Same-field chips are OR'd, different-field chips are AND'd.
- *
- * @param items - Items to filter
- * @param chips - Active filter chips
- * @param fields - Field definitions with match functions
- * @returns Filtered items
+ * A suggestion item for the dropdown.
  */
-export function filterByChips<T>(items: T[], chips: SearchChip[], fields: readonly SearchField<T>[]): T[] {
-  if (chips.length === 0) return items;
+export interface Suggestion<T> {
+  /** Type of suggestion */
+  type: "field" | "value" | "hint";
+  /** The field this suggestion is for */
+  field: SearchField<T>;
+  /** The value to use when selected */
+  value: string;
+  /** Display label */
+  label: string;
+  /** Optional hint text */
+  hint?: string;
+}
 
-  // Group chips by field
-  const chipGroups = new Map<string, string[]>();
-  for (const chip of chips) {
-    const values = chipGroups.get(chip.field) ?? [];
-    values.push(chip.value);
-    chipGroups.set(chip.field, values);
-  }
-
-  return items.filter((item) => {
-    // AND across different fields
-    for (const [fieldId, values] of chipGroups) {
-      const field = fields.find((f) => f.id === fieldId);
-      if (!field) continue;
-      // OR within same field
-      if (!values.some((v) => field.match(item, v))) return false;
-    }
-    return true;
-  });
+/**
+ * Parsed input result.
+ */
+export interface ParsedInput<T> {
+  /** The matched field (null if no prefix matched) */
+  field: SearchField<T> | null;
+  /** The query after the prefix */
+  query: string;
+  /** Whether a prefix was matched */
+  hasPrefix: boolean;
 }
