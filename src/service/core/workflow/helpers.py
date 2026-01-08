@@ -306,7 +306,7 @@ def get_pool_resources(pools: List[str] | None = None,
         # If the quota is defined in the pool resources, use the lower of
         # the total allocatable GPU and the defined quota
         allocatable_gpu = total_allocatable['gpu', 0]
-        if pool_row.get('resources', {}) and pool_row.get('resources', {}).get('gpu', -1) != -1:
+        if pool_row.get('resources', {}) and pool_row.get('resources', {}).get('gpu', -1) > -1:
             quota = min(allocatable_gpu, pool_row.get('resources').get('gpu', -1))
         else:
             quota = allocatable_gpu
