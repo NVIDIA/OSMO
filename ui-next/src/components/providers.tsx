@@ -22,7 +22,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
-import { SidebarProvider } from "@/components/shell/sidebar-context";
 import { PageProvider } from "@/components/shell/page-context";
 import { AuthProvider, UserProvider } from "@/lib/auth";
 import { MockProvider } from "@/mocks/MockProvider";
@@ -97,9 +96,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           >
             <AuthProvider>
               <UserProvider>
-                <SidebarProvider>
-                  <PageProvider>{children}</PageProvider>
-                </SidebarProvider>
+                <PageProvider>{children}</PageProvider>
               </UserProvider>
             </AuthProvider>
           </ThemeProvider>
