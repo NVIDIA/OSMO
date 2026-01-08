@@ -58,12 +58,12 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
     useExpandableChips({ items: pools });
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative min-w-0">
       {/* Hidden measurement container - renders all chips to measure actual widths */}
       {/* CSS containment + will-change for 60fps performance */}
       <div
         ref={measureRef}
-        className="pointer-events-none invisible absolute flex items-center gap-1.5"
+        className="pointer-events-none invisible absolute flex w-full items-center gap-1.5"
         style={{ contain: "layout style", willChange: "contents" }}
         aria-hidden="true"
       >
@@ -90,8 +90,8 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
       <div
         ref={containerRef}
         className={cn(
-          "-m-0.5 flex w-full items-center gap-1.5 p-0.5",
-          expanded ? "flex-wrap" : "flex-nowrap overflow-hidden",
+          "-m-0.5 flex min-w-0 w-full items-center gap-1.5 p-0.5",
+          expanded ? "flex-wrap content-start" : "flex-nowrap overflow-hidden",
         )}
       >
         {displayedItems.map((poolName) => (

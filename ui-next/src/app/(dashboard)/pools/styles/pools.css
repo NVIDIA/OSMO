@@ -130,23 +130,24 @@
     height: var(--pools-header-height);
   }
 
-  /* Data rows */
+  /* Data rows - min-height allows dynamic expansion for wrapped content */
   .pools-row {
-    height: var(--pools-row-height);
-    contain: layout style;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 100% auto var(--pools-row-height);
+    min-height: var(--pools-row-height);
   }
 
   .pools-row[data-compact="true"] {
-    height: var(--pools-row-height-compact);
-    contain-intrinsic-size: auto 100% auto var(--pools-row-height-compact);
+    min-height: var(--pools-row-height-compact);
   }
 
   .pools-td {
-    @apply truncate overflow-hidden align-middle whitespace-nowrap;
-    height: inherit;
-    max-width: 20rem; /* Description column can truncate */
+    @apply align-middle;
+    min-height: inherit;
+  }
+
+  /* Cells that should truncate (not expandable chips) */
+  .pools-td-truncate {
+    @apply truncate overflow-hidden whitespace-nowrap;
+    max-width: 20rem;
   }
 
   /* Status styling - border on first cell since <tr> can't have border-left */
