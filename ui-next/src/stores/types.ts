@@ -45,7 +45,7 @@ export type { ColumnSizingPreference, ColumnSizingPreferences, SortDirection, Pr
 // =============================================================================
 
 // Import search types from smart-search component (single source of truth)
-import type { ChipVariant, SearchChip } from "@/components/smart-search/types";
+import type { ChipVariant, SearchChip } from "@/components/smart-search";
 
 // Re-export for consumers of this module
 export type { ChipVariant, SearchChip };
