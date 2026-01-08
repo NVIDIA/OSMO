@@ -122,64 +122,155 @@ export function getTruncationThreshold(contentWidth: number, configuredWidth: nu
 // DOM Content Width Measurement
 // =============================================================================
 
+// Pre-computed padding (cached on first use, invalidated with rem cache)
+let _paddingCache: number | null = null;
+
+function getCellPaddingTotal(): number {
+  if (_paddingCache !== null) return _paddingCache;
+  _paddingCache = CELL_PADDING_REM * getRemToPx() + RESIZE_HANDLE_WIDTH_PX + MEASUREMENT_BUFFER_PX;
+  return _paddingCache;
+}
+
+// Invalidate padding cache when rem changes (piggyback on existing listener)
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  window.matchMedia("(resolution: 1dppx)").addEventListener("change", () => {
+    _paddingCache = null;
+  });
+}
+
+// Measurement style string (constant, never changes)
+const MEASURE_STYLE = "flex:none;width:max-content;min-width:0";
+
 /**
  * Measure the maximum content width of a column from visible DOM cells.
  *
- * Uses `scrollWidth` which returns the full content width even when
- * the content is truncated with CSS `overflow: hidden`.
+ * Measures the INTRINSIC content width (minimum needed to display content
+ * without truncation), not the current rendered width. This is important
+ * for flex containers that grow to fill available space - we want to
+ * measure what they NEED, not what they currently HAVE.
+ *
+ * Optimized for performance:
+ * - Uses parallel arrays to avoid object allocation
+ * - Single cssText write/restore for minimal style recalc
+ * - Batched reads after writes for single reflow
  *
  * @param container - The scroll container element containing the table
  * @param columnId - The column ID to measure (matches `data-column-id` attribute)
  * @returns The measured width in pixels, including padding and buffer. Returns 0 if no cells found.
- *
- * @example
- * ```ts
- * const width = measureColumnContentWidth(scrollRef.current, "name");
- * if (width > 0) {
- *   setColumnWidth("name", width);
- * }
- * ```
  */
 export function measureColumnContentWidth(container: HTMLElement, columnId: string): number {
-  const selector = `[data-column-id="${columnId}"]`;
-  const cells = container.querySelectorAll<HTMLElement>(selector);
+  const cells = container.querySelectorAll<HTMLElement>(`[data-column-id="${columnId}"]`);
+  const len = cells.length;
+  if (len === 0) return 0;
 
-  if (cells.length === 0) return 0;
+  // Parallel arrays - avoid object allocation overhead
+  const contents: HTMLElement[] = [];
+  const originals: string[] = [];
 
-  // Find the maximum content width across all visible cells
-  let maxContentWidth = 0;
-  for (let i = 0; i < cells.length; i++) {
-    const cell = cells[i];
-    // Measure first child to get content width without cell padding
-    const content = cell.firstElementChild as HTMLElement | null;
-    const contentWidth = content?.scrollWidth ?? cell.scrollWidth;
-    if (contentWidth > maxContentWidth) {
-      maxContentWidth = contentWidth;
+  // Phase 1: Collect elements and save original cssText (single property read)
+  for (let i = 0; i < len; i++) {
+    const content = cells[i].firstElementChild as HTMLElement | null;
+    if (content) {
+      contents.push(content);
+      originals.push(content.style.cssText);
     }
   }
 
-  // Add cell padding (converts from rem) + resize handle + visual buffer
-  const cellPaddingPx = CELL_PADDING_REM * getRemToPx();
-  return maxContentWidth + cellPaddingPx + RESIZE_HANDLE_WIDTH_PX + MEASUREMENT_BUFFER_PX;
+  const count = contents.length;
+  if (count === 0) return 0;
+
+  // Phase 2: Apply measurement styles (batch writes)
+  for (let i = 0; i < count; i++) {
+    contents[i].style.cssText = MEASURE_STYLE;
+  }
+
+  // Phase 3: Measure (batch reads - triggers single reflow)
+  let max = 0;
+  for (let i = 0; i < count; i++) {
+    const w = contents[i].scrollWidth;
+    if (w > max) max = w;
+  }
+
+  // Phase 4: Restore original styles (batch writes)
+  for (let i = 0; i < count; i++) {
+    contents[i].style.cssText = originals[i];
+  }
+
+  return max + getCellPaddingTotal();
 }
 
 /**
- * Batch measure multiple columns.
- * More efficient than calling measureColumnContentWidth in a loop
- * when you need to measure multiple columns at once.
+ * Batch measure multiple columns in a single reflow.
+ *
+ * More efficient than calling measureColumnContentWidth in a loop -
+ * applies all measurement styles, measures everything, then restores.
+ * This triggers only ONE reflow instead of one per column.
  *
  * @param container - The scroll container element
  * @param columnIds - Array of column IDs to measure
  * @returns Record of columnId -> measured width (only includes columns with width > 0)
  */
 export function measureMultipleColumns(container: HTMLElement, columnIds: string[]): Record<string, number> {
-  const result: Record<string, number> = {};
+  if (columnIds.length === 0) return {};
 
+  // Collect all elements across all columns
+  const allContents: HTMLElement[] = [];
+  const allOriginals: string[] = [];
+  const columnBoundaries: number[] = []; // Track where each column's elements start
+  const validColumnIds: string[] = [];
+
+  // Phase 1: Collect all elements from all columns
   for (const columnId of columnIds) {
-    const width = measureColumnContentWidth(container, columnId);
-    if (width > 0) {
-      result[columnId] = width;
+    const cells = container.querySelectorAll<HTMLElement>(`[data-column-id="${columnId}"]`);
+    const startIdx = allContents.length;
+
+    for (let i = 0; i < cells.length; i++) {
+      const content = cells[i].firstElementChild as HTMLElement | null;
+      if (content) {
+        allContents.push(content);
+        allOriginals.push(content.style.cssText);
+      }
     }
+
+    // Only track columns that have elements
+    if (allContents.length > startIdx) {
+      columnBoundaries.push(startIdx);
+      validColumnIds.push(columnId);
+    }
+  }
+
+  if (allContents.length === 0) return {};
+
+  // Mark final boundary
+  columnBoundaries.push(allContents.length);
+
+  // Phase 2: Apply measurement styles to ALL elements (single batch)
+  for (let i = 0; i < allContents.length; i++) {
+    allContents[i].style.cssText = MEASURE_STYLE;
+  }
+
+  // Phase 3: Measure ALL elements (single reflow for all columns)
+  const result: Record<string, number> = {};
+  const padding = getCellPaddingTotal();
+
+  for (let col = 0; col < validColumnIds.length; col++) {
+    const start = columnBoundaries[col];
+    const end = columnBoundaries[col + 1];
+    let max = 0;
+
+    for (let i = start; i < end; i++) {
+      const w = allContents[i].scrollWidth;
+      if (w > max) max = w;
+    }
+
+    if (max > 0) {
+      result[validColumnIds[col]] = max + padding;
+    }
+  }
+
+  // Phase 4: Restore ALL original styles (single batch)
+  for (let i = 0; i < allContents.length; i++) {
+    allContents[i].style.cssText = allOriginals[i];
   }
 
   return result;

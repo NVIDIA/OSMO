@@ -96,9 +96,13 @@ export const InlineProgress = memo(function InlineProgress({
     );
   }
 
+  // Convert width class to max-width for capped growth
+  // e.g., "w-16" -> "max-w-16", bar grows to fill but caps at this size
+  const maxBarWidth = barWidth.replace(/^w-/, "max-w-");
+
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <div className={cn(barWidth, "shrink-0")}>
+    <div className={cn("flex min-w-0 flex-1 items-center gap-2", className)}>
+      <div className={cn(maxBarWidth, "min-w-6 shrink grow basis-0")}>
         <ProgressBar
           value={used}
           max={total}

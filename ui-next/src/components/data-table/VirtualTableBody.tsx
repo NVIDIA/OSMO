@@ -186,10 +186,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                     minWidth: cssWidth,
                     flexShrink: 0, // Prevent shrinking below specified width
                   }}
-                  className={cn(
-                    "flex items-center px-4",
-                    compact ? "py-1.5" : "py-3",
-                  )}
+                  className={cn("flex items-center px-4", compact ? "py-1.5" : "py-3")}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
