@@ -72,8 +72,8 @@ export const COLUMN_LABELS: Record<PoolColumnId, string> = {
 export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
   { id: "status", label: "Status", menuLabel: "Status" },
   { id: "description", label: "Description", menuLabel: "Description" },
-  { id: "quota", label: "Quota (GPU)", menuLabel: "GPU Quota" },
-  { id: "capacity", label: "Capacity (GPU)", menuLabel: "GPU Capacity" },
+  { id: "quota", label: "Quota (GPU)", menuLabel: "Quota (GPU)" },
+  { id: "capacity", label: "Capacity (GPU)", menuLabel: "Capacity (GPU)" },
   { id: "platforms", label: "Platforms", menuLabel: "Platforms" },
   { id: "backend", label: "Backend", menuLabel: "Backend" },
 ];
@@ -131,12 +131,12 @@ export const POOL_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   },
   {
     id: "quota",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
     preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
   },
   {
     id: "capacity",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_UNIT,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR + COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
     preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
   },
   {
