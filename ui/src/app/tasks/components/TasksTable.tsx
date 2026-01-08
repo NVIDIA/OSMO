@@ -27,13 +27,13 @@ import {
 import Link from "next/link";
 
 import { TaskTableRowAction } from "~/app/workflows/components/TaskTableRowAction";
+import { linkToUserWorkflows } from "~/app/workflows/components/WorkflowDetails";
 import { WorkflowTableRowAction } from "~/app/workflows/components/WorkflowTableRowAction";
 import { getStatusDescription } from "~/app/workflows/components/WorkfowStatusInfo";
 import { type ToolParamUpdaterProps, ToolType } from "~/app/workflows/hooks/useToolParamUpdater";
 import { commonFilterFns } from "~/components/commonFilterFns";
 import StatusBadge from "~/components/StatusBadge";
 import { TableBase } from "~/components/TableBase";
-import { TableLoader } from "~/components/TableLoader";
 import { TablePagination } from "~/components/TablePagination";
 import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
@@ -41,6 +41,10 @@ import { useTableStateUrlUpdater } from "~/hooks/useTableStateUrlUpdater";
 import { type TaskListItem } from "~/models/tasks-model";
 import { useRuntimeEnv } from "~/runtime-env";
 import { convertSeconds, convertToReadableTimezone, formatForWrapping, sortDateWithNA } from "~/utils/string";
+
+export const getActionId = (showWF: boolean, workflowId: string, taskName: string, retryId: number) => {
+  return `${showWF ? "workflow" : "task"}-${workflowId}-${taskName}-${retryId}`;
+};
 
 export const TasksTable = ({
   processResources,
@@ -73,6 +77,7 @@ export const TasksTable = ({
         accessorKey: "task_name",
         cell: ({ row }) => (
           <TaskTableRowAction
+            id={getActionId(false, row.original.workflow_id, row.original.task_name, row.original.retry_id)}
             name={row.original.task_name}
             retry_id={row.original.retry_id}
             lead={false}
@@ -84,7 +89,6 @@ export const TasksTable = ({
               !showWF
             }
             updateUrl={updateUrl}
-            disableScrollIntoView={true}
             extraParams={{
               workflow: row.original.workflow_id,
               showWF: "false",
@@ -102,10 +106,10 @@ export const TasksTable = ({
         header: "Workflow ID",
         cell: ({ row }) => (
           <WorkflowTableRowAction
+            id={getActionId(true, row.original.workflow_id, row.original.task_name, row.original.retry_id)}
             name={row.original.workflow_id}
             selected={row.original.workflow_id === selectedWorkflowId && showWF}
             updateUrl={updateUrl}
-            disableScrollIntoView={true}
             extraParams={{
               showWF: "true",
               task: row.original.task_name,
@@ -121,7 +125,14 @@ export const TasksTable = ({
       {
         accessorKey: "user",
         header: "User",
-        cell: ({ row }) => formatForWrapping(row.original.user),
+        cell: ({ row }) => (
+          <Link
+            href={linkToUserWorkflows(row.original.user)}
+            className="no-underline px-0"
+          >
+            {formatForWrapping(row.original.user)}
+          </Link>
+        ),
         sortingFn: "alphanumericCaseSensitive",
         enableMultiSort: true,
         invertSorting: true,
@@ -287,6 +298,7 @@ export const TasksTable = ({
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => `${row.workflow_id}-${row.task_name}-${row.retry_id}`,
     state: {
       sorting,
       columnVisibility,
@@ -304,29 +316,17 @@ export const TasksTable = ({
     autoResetPageIndex: false,
   });
 
-  if (isLoading) {
-    return <TableLoader table={table} />;
-  }
-
   return (
-    <div className="h-full w-full">
-      {isLoading ? (
-        <TableLoader table={table} />
-      ) : (
-        <div className="flex flex-col h-full w-full">
-          <TableBase
-            columns={columns}
-            table={table}
-            paddingOffset={10}
-            className="body-component"
-          >
-            <TablePagination
-              table={table}
-              totalRows={processResources.length}
-            />
-          </TableBase>
-        </div>
-      )}
-    </div>
+    <TableBase
+      columns={columns}
+      table={table}
+      className="body-component"
+      isLoading={isLoading}
+    >
+      <TablePagination
+        table={table}
+        totalRows={processResources.length}
+      />
+    </TableBase>
   );
 };

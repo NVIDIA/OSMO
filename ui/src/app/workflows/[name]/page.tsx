@@ -14,17 +14,21 @@
 
 //SPDX-License-Identifier: Apache-2.0
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 import { ReactFlowProvider } from "reactflow";
 
 import { useAuth } from "~/components/AuthProvider";
+import { FilterButton } from "~/components/FilterButton";
 import { FilledIcon, OutlinedIcon } from "~/components/Icon";
+import { IconButton } from "~/components/IconButton";
 import { PageError } from "~/components/PageError";
+import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
 import { Spinner } from "~/components/Spinner";
 import StatusBadge from "~/components/StatusBadge";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { TASK_PINNED_KEY, UrlTypes } from "~/components/StoreProvider";
 import { ViewToggleButton } from "~/components/ViewToggleButton";
 import { env } from "~/env.mjs";
@@ -43,8 +47,6 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   const { username } = useAuth();
   const [taskPinned, setTaskPinned] = useState(false);
   const [workflowNameParts, setWorkflowNameParts] = useState<{ id: number; name: string } | undefined>(undefined);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
 
   const {
     updateUrl,
@@ -53,7 +55,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     lines,
     view,
     statusFilter,
-    allStatuses,
+    statusFilterType,
     nameFilter,
     nodes,
     isSelectAllNodesChecked,
@@ -62,9 +64,10 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     showWF,
     selectedTaskName,
     retryId,
-  } = useToolParamUpdater(UrlTypes.Workflows, username, { showWF: "true", allStatuses: "true", status: "" });
+  } = useToolParamUpdater(UrlTypes.Workflows, username, { showWF: "true", statusFilterType: StatusFilterType.ALL });
   const selectedWorkflow = useWorkflow(params.name, true, 2);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
+  const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | undefined>(undefined);
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -75,6 +78,37 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
         .filter((node) => node.length > 0) ?? [],
     [selectedWorkflow.data],
   );
+
+  const flatTasks = useMemo(() => {
+    if (!selectedWorkflow.data) {
+      return undefined;
+    }
+    return (selectedWorkflow.data?.groups ?? []).flatMap((group) => group.tasks);
+  }, [selectedWorkflow.data]);
+
+  const forceSingleTaskView = useMemo(() => {
+    if (!flatTasks) {
+      return undefined;
+    }
+    return flatTasks.length <= 1;
+  }, [flatTasks]);
+
+  const localView = useMemo(() => {
+    if (forceSingleTaskView) {
+      return ViewType.SingleTask;
+    }
+
+    return view ?? ViewType.List;
+  }, [forceSingleTaskView, view]);
+
+  useEffect(() => {
+    if (localView === ViewType.SingleTask && (!selectedTaskName || retryId === undefined)) {
+      const task = selectedWorkflow.data?.groups?.[0]?.tasks?.[0];
+      if (task) {
+        updateUrl({ task: task.name, retry_id: task.retry_id });
+      }
+    }
+  }, [localView, selectedTaskName, retryId, selectedWorkflow.data, updateUrl]);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {
@@ -107,30 +141,52 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
   }, [selectedWorkflow.data, tool]);
 
   useEffect(() => {
-    if (selectedTaskName) {
-      setSelectedTask(
-        selectedWorkflow.data?.groups
-          ?.find((g) =>
-            g.tasks.some((t) => t.name === selectedTaskName && (retryId === undefined || t.retry_id === retryId)),
-          )
-          ?.tasks.find((t) => t.name === selectedTaskName && (retryId === undefined || t.retry_id === retryId)),
-      );
+    if (flatTasks && selectedTaskName && retryId !== undefined) {
+      const taskIndex = flatTasks.findIndex((t) => t.name === selectedTaskName && t.retry_id === retryId);
+
+      setSelectedTask(taskIndex === undefined ? undefined : flatTasks[taskIndex]);
+      setSelectedTaskIndex(taskIndex);
     } else {
       setSelectedTask(undefined);
+      setSelectedTaskIndex(undefined);
     }
-  }, [selectedWorkflow?.data, selectedTaskName, retryId]);
+  }, [flatTasks, selectedTaskName, retryId]);
+
+  const nextTask = useMemo(() => {
+    if (flatTasks && selectedTaskIndex !== undefined && selectedTaskIndex < flatTasks.length - 1) {
+      return flatTasks[selectedTaskIndex + 1];
+    }
+    return undefined;
+  }, [selectedTaskIndex, flatTasks]);
+
+  const previousTask = useMemo(() => {
+    if (flatTasks && selectedTaskIndex !== undefined && selectedTaskIndex > 0) {
+      return flatTasks[selectedTaskIndex - 1];
+    }
+    return undefined;
+  }, [selectedTaskIndex, flatTasks]);
+
+  const onNextTask = useCallback(() => {
+    if (nextTask) {
+      updateUrl({ task: nextTask.name, retry_id: nextTask.retry_id });
+    }
+  }, [nextTask, updateUrl]);
+
+  const onPreviousTask = useCallback(() => {
+    if (previousTask) {
+      updateUrl({ task: previousTask.name, retry_id: previousTask.retry_id });
+    }
+  }, [previousTask, updateUrl]);
 
   const gridClass = useMemo(() => {
-    if (showWF && selectedTask && taskPinned) {
+    if (localView === ViewType.SingleTask) {
+      return "grid grid-cols-[auto_0fr_1fr]";
+    } else if (showWF && selectedTask && taskPinned) {
       return "grid grid-cols-[auto_1fr_auto]";
-    } else if (showWF) {
-      return "grid grid-cols-[auto_1fr]";
-    } else if (taskPinned && selectedTask) {
-      return "grid grid-cols-[1fr_auto]";
     } else {
       return "flex flex-row";
     }
-  }, [showWF, selectedTask, taskPinned]);
+  }, [showWF, selectedTask, taskPinned, localView]);
 
   const verbose = useMemo(() => {
     const tasks = (selectedWorkflow.data?.groups ?? []).flatMap((group) => group.tasks);
@@ -142,7 +198,7 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     if (!props.allNodes && props.nodes.length === 0) {
       errors.push("Please select at least one node");
     }
-    if (!props.allStatuses && props.statuses.length === 0) {
+    if (props.statusFilterType === StatusFilterType.CUSTOM && !props.statuses?.length) {
       errors.push("Please select at least one status");
     }
     return errors;
@@ -157,9 +213,9 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
     );
   }
 
-  if (!selectedWorkflow.data) {
+  if (!selectedWorkflow.data || !localView) {
     return (
-      <div className="h-full flex justify-center items-center">
+      <div className="h-full w-full flex justify-center items-center">
         <Spinner
           description="Generating Overview..."
           size="large"
@@ -170,28 +226,11 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
 
   return (
     <>
-      <div
-        className="page-header mb-3 flex items-center text-center gap-3"
-        ref={headerRef}
-      >
-        <button
-          className={`btn ${showWF ? "btn-primary" : ""}`}
-          onClick={() => {
-            updateUrl({ showWF: !showWF });
-          }}
-          aria-pressed={showWF}
-        >
-          <StatusBadge
-            status={selectedWorkflow.data.status}
-            compact
-          />
-          Workflow
-          <FilledIcon name="more_vert" />
-        </button>
-        <div className="flex items-center gap-1">
+      <PageHeader>
+        <div className="flex items-center justify-center grow overflow-x-hidden">
           {workflowNameParts && workflowNameParts.id > 1 ? (
             <Link
-              className="no-underline"
+              className="no-underline p-0 m-1"
               href={`/workflows/${workflowNameParts.name}-${workflowNameParts.id - 1}`}
               title="Previous Run"
             >
@@ -203,13 +242,13 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           ) : (
             <OutlinedIcon
               name="keyboard_double_arrow_left"
-              className="text-lg! opacity-50 mx-1"
+              className="text-lg! opacity-50 m-1"
             />
           )}
-          <h1>{params.name}</h1>
+          <h2>{params.name}</h2>
           {workflowNameParts && (
             <Link
-              className="no-underline"
+              className="no-underline p-0 m-1"
               href={`/workflows/${workflowNameParts.name}-${workflowNameParts.id + 1}`}
               title="Next Run"
             >
@@ -220,41 +259,84 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             </Link>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <fieldset
-            className="flex flex-row gap-3"
-            aria-label="View Type"
-          >
-            <ViewToggleButton
-              name="list"
-              checked={view === ViewType.List}
-              onChange={() => updateUrl({ view: ViewType.List })}
+        {!forceSingleTaskView && (
+          <>
+            <IconButton
+              icon="work_outline"
+              text="Workflow"
+              className={`relative btn ${showWF ? "btn-primary" : ""}`}
+              onClick={() => {
+                updateUrl({ showWF: !showWF });
+              }}
+              aria-pressed={showWF}
+              disabled={localView === ViewType.SingleTask}
             >
-              <FilledIcon name="list" />
-              List
-            </ViewToggleButton>
-            <ViewToggleButton
-              name="graph"
-              checked={view === ViewType.Graph}
-              onChange={() => updateUrl({ view: ViewType.Graph })}
+              <StatusBadge
+                className="tag-filter right-[-0.75rem] top-[-0.35rem]"
+                status={selectedWorkflow.data.status}
+                compact
+              />
+            </IconButton>
+            <fieldset
+              className="toggle-group"
+              aria-label="View Type"
             >
-              <FilledIcon name="border_clear" />
-              Graph
-            </ViewToggleButton>
-          </fieldset>
-          <button
-            className={`btn ${showFilters ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowFilters(!showFilters);
-            }}
-          >
-            <FilledIcon name="filter_list" />
-            Filters {filterCount > 0 ? `(${filterCount})` : ""}
-          </button>
-        </div>
+              <ViewToggleButton
+                name="taskViewType"
+                checked={localView === ViewType.SingleTask}
+                onChange={() => updateUrl({ view: ViewType.SingleTask, showWF: true })}
+              >
+                <FilledIcon name="task" />
+                <span
+                  className="hidden lg:block"
+                  aria-label="Single Task"
+                >
+                  Task
+                </span>
+              </ViewToggleButton>
+              <ViewToggleButton
+                name="taskViewType"
+                checked={localView === ViewType.List}
+                onChange={() => updateUrl({ view: ViewType.List })}
+              >
+                <FilledIcon name="list" />
+                <span
+                  className="hidden lg:block"
+                  aria-label="List"
+                >
+                  List
+                </span>
+              </ViewToggleButton>
+              <ViewToggleButton
+                name="taskViewType"
+                checked={localView === ViewType.Graph}
+                onChange={() => updateUrl({ view: ViewType.Graph })}
+              >
+                <FilledIcon name="border_clear" />
+                <span
+                  className="hidden lg:block"
+                  aria-label="Graph"
+                >
+                  Graph
+                </span>
+              </ViewToggleButton>
+            </fieldset>
+            <FilterButton
+              showFilters={showFilters}
+              setShowFilters={(showFilters) => {
+                if (localView === ViewType.List) {
+                  setShowFilters(showFilters);
+                }
+              }}
+              filterCount={localView === ViewType.List ? filterCount : 0}
+              aria-controls="tasks-filters"
+              aria-disabled={localView !== ViewType.List}
+            />
+          </>
+        )}
+      </PageHeader>
+      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
         <SlideOut
-          top={headerRef.current?.offsetHeight ?? 0}
-          containerRef={headerRef}
           id="tasks-filter"
           open={showFilters}
           onClose={() => {
@@ -262,43 +344,38 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           }}
           aria-label="Tasks Filter"
           className="z-20 border-t-0 w-100"
-          dimBackground={false}
         >
           <TasksFilter
             name={nameFilter}
             nodes={nodes}
             allNodes={isSelectAllNodesChecked ?? true}
             statuses={statusFilter ?? ""}
-            allStatuses={allStatuses ?? true}
+            statusFilterType={statusFilterType}
             pod_ip={podIp}
             availableNodes={availableNodes}
             updateUrl={updateUrl}
             validateFilters={validateFilters}
           />
         </SlideOut>
-      </div>
-      <div
-        ref={containerRef}
-        className={`${gridClass} h-full w-full overflow-x-auto relative px-3 gap-3`}
-      >
         {showWF && (
           <div
-            className="workflow-details-slideout flex flex-col relative overflow-y-auto body-component"
-            style={{
-              maxHeight: `calc(100vh - ${10 + (containerRef?.current?.getBoundingClientRect()?.top ?? 0)}px)`,
-            }}
+            className="flex flex-col relative body-component workflow-details-slideout"
+            role="region"
+            aria-labelledby="workflow-details-header"
           >
             <div className={`popup-header sticky top-0 z-10 brand-header`}>
-              <h2>Workflow Details</h2>
-              <button
-                className="btn btn-action"
-                aria-label="Close"
-                onClick={() => {
-                  updateUrl({ showWF: false });
-                }}
-              >
-                <OutlinedIcon name="close" />
-              </button>
+              <h2 id="workflow-details-header">Workflow Details</h2>
+              {localView !== ViewType.SingleTask && (
+                <button
+                  className="btn btn-action"
+                  aria-label="Close Workflow Details"
+                  onClick={() => {
+                    updateUrl({ showWF: false });
+                  }}
+                >
+                  <OutlinedIcon name="close" />
+                </button>
+              )}
             </div>
             <div className="dag-details-body">
               <WorkflowDetails
@@ -308,15 +385,15 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             </div>
           </div>
         )}
-        <div className="h-full w-full">
-          <div className={`h-full w-full p-3 ${view === ViewType.Graph ? "block" : "hidden"}`}>
+        <div className={`h-full ${localView === ViewType.SingleTask ? "w-0" : "w-full grow"} overflow-x-auto`}>
+          <div className={`h-full w-full ${localView === ViewType.Graph ? "block p-1" : "hidden"}`}>
             {selectedWorkflow.data?.groups?.length > 0 ? (
               <ReactFlowProvider>
                 <DirectedAcyclicGraph
                   workflow={selectedWorkflow.data}
                   refetch={selectedWorkflow.refetch}
                   selectedTask={selectedTask}
-                  visible={view === ViewType.Graph}
+                  visible={localView === ViewType.Graph}
                   updateUrl={updateUrl}
                 />
               </ReactFlowProvider>
@@ -324,34 +401,34 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
               <div className="flex items-center justify-center h-full w-full">
                 <p
                   className="text-center"
-                  aria-live="polite"
+                  role="alert"
                 >
                   No tasks found
                 </p>
               </div>
             )}
           </div>
-          <div className={`h-full w-full ${view === ViewType.List ? "block" : "hidden"}`}>
+          <div className={`h-full w-full ${localView === ViewType.List ? "block" : "hidden"}`}>
             <TasksTable
               workflow={selectedWorkflow.data}
               name={nameFilter}
               nodes={nodes}
               allNodes={isSelectAllNodesChecked}
               statuses={statusFilter}
-              allStatuses={allStatuses}
+              statusFilterType={statusFilterType}
               pod_ip={podIp}
-              selectedTask={view === ViewType.List ? selectedTask : undefined}
-              visible={view === ViewType.List}
+              selectedTask={localView === ViewType.List ? selectedTask : undefined}
+              visible={localView === ViewType.List}
               verbose={verbose}
               updateUrl={updateUrl}
             />
           </div>
         </div>
         <SlideOut
-          canPin
-          containerRef={containerRef}
-          heightOffset={10}
-          pinned={taskPinned}
+          animate={true}
+          canClose={localView !== ViewType.SingleTask}
+          canPin={localView !== ViewType.SingleTask}
+          pinned={localView === ViewType.SingleTask || taskPinned}
           paused={!!activeTool}
           onPinChange={(pinned) => {
             setTaskPinned(pinned);
@@ -359,11 +436,12 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
           }}
           id={"task-details"}
           header="Task Details"
+          aria-label={`Task Details for ${selectedTaskName}`}
           open={!!selectedTask}
           onClose={() => {
             updateUrl({ task: null });
           }}
-          className="workflow-details-slideout"
+          className={`body-component ${localView === ViewType.SingleTask ? "h-full overflow-y-auto grow" : "workflow-details-slideout"}`}
           headerClassName="brand-header"
           bodyClassName="dag-details-body"
         >
@@ -371,6 +449,11 @@ export default function WorkflowOverviewPage({ params }: WorkflowSlugParams) {
             <TaskDetails
               task={selectedTask}
               updateUrl={updateUrl}
+              hasNavigation={localView === ViewType.SingleTask && !forceSingleTaskView}
+              onNext={onNextTask}
+              onPrevious={onPreviousTask}
+              hasNext={!!nextTask}
+              hasPrevious={!!previousTask}
             />
           )}
         </SlideOut>

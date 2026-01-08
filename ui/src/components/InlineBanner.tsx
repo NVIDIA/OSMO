@@ -42,10 +42,10 @@ export const InlineBanner = ({
 
   return (
     <div
-      className={`flex items-center gap-3 ${statusColor[status]} p-2 min-h-10 ${className}`}
+      className={`flex items-center gap-global ${statusColor[status]} p-2 min-h-10 ${className}`}
       aria-live="polite"
     >
-      {statusIcon[status] && <span>{statusIcon[status]}</span>}
+      {statusIcon[status] && <span aria-hidden="true">{statusIcon[status]}</span>}
       {children}
     </div>
   );

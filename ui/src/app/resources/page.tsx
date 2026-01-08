@@ -20,12 +20,13 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { z } from "zod";
 
+import { FilterButton } from "~/components/FilterButton";
 import FullPageModal from "~/components/FullPageModal";
-import { FilledIcon, OutlinedIcon } from "~/components/Icon";
+import { FilledIcon } from "~/components/Icon";
+import { IconButton } from "~/components/IconButton";
+import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
-import { SHOW_USED_KEY } from "~/components/StoreProvider";
 import { TaskHistoryBanner } from "~/components/TaskHistoryBanner";
-import { ViewToggleButton } from "~/components/ViewToggleButton";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
 import { convertFields, ResourcesEntrySchema, roundResources } from "~/models";
 import { api } from "~/trpc/react";
@@ -35,6 +36,7 @@ import { ResourceDetails, type ResourceListItem } from "./components/ResourceDet
 import { ResourcesFilter } from "./components/ResourcesFilter";
 import { ResourcesTable } from "./components/ResourcesTable";
 import useToolParamUpdater from "./hooks/useToolParamUpdater";
+import { UsedFreeToggle } from "../pools/components/UsedFreeToggle";
 import { resourcesToNodes } from "../tasks/components/TasksFilters";
 
 export default function Resources() {
@@ -51,8 +53,6 @@ export default function Resources() {
     selectedResource,
   } = useToolParamUpdater();
   const [showFilters, setShowFilters] = useState(false);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const { setSafeTimeout } = useSafeTimeout();
 
@@ -150,68 +150,34 @@ export default function Resources() {
 
   return (
     <>
-      <div
-        className="page-header mb-3"
-        ref={headerRef}
-      >
-        <div className="flex items-center gap-8">
-          <button
-            className={`btn ${showGauges ? "btn-primary" : ""}`}
-            aria-pressed={showGauges}
-            onClick={() => updateUrl({ showGauges: !showGauges })}
-          >
-            <OutlinedIcon name="speed" />
-            Gauges
-            <FilledIcon name="more_vert" />
-          </button>
-          <h1>Resources</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <fieldset
-            className="flex flex-row gap-3"
-            aria-label="View Type"
-          >
-            <ViewToggleButton
-              name="isShowingUsed"
-              checked={isShowingUsed}
-              onChange={() => {
-                updateUrl({ isShowingUsed: true });
-                localStorage.setItem(SHOW_USED_KEY, "true");
-              }}
-            >
-              Used
-            </ViewToggleButton>
-            <ViewToggleButton
-              name="isShowingUsed"
-              checked={!isShowingUsed}
-              onChange={() => {
-                updateUrl({ isShowingUsed: false });
-                localStorage.setItem(SHOW_USED_KEY, "false");
-              }}
-            >
-              Free
-            </ViewToggleButton>
-          </fieldset>
-          <button
-            className={`btn ${showFilters ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowFilters(true);
-            }}
-          >
-            <FilledIcon name="filter_list" />
-            Filters {filterCount > 0 ? `(${filterCount})` : ""}
-          </button>
-        </div>
+      <PageHeader>
+        <IconButton
+          id="gauges-button"
+          className={`btn ${showGauges ? "btn-primary" : ""}`}
+          aria-pressed={showGauges}
+          onClick={() => updateUrl({ showGauges: !showGauges })}
+          icon="speed"
+          text="Gauges"
+        />
+        <UsedFreeToggle
+          isShowingUsed={isShowingUsed}
+          updateUrl={updateUrl}
+        />
+        <FilterButton
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          filterCount={filterCount}
+          aria-controls="resources-filters"
+        />
+      </PageHeader>
+      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
         <SlideOut
-          top={headerRef.current?.offsetHeight ?? 0}
-          containerRef={headerRef}
           id="resources-filter"
           open={showFilters}
           onClose={() => {
             setShowFilters(false);
           }}
           aria-label="Resources Filter"
-          dimBackground={false}
           className="z-40 border-t-0 w-100"
         >
           <ResourcesFilter
@@ -225,50 +191,29 @@ export default function Resources() {
             onRefresh={forceRefetch}
           />
         </SlideOut>
-      </div>
-      <div
-        ref={containerRef}
-        className={`${gridClass} h-full w-full overflow-x-auto relative px-3 gap-3`}
-      >
         {showGauges && (
-          <div
+          <section
             className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
-            style={{
-              maxHeight: `calc(100vh - ${10 + (containerRef?.current?.getBoundingClientRect()?.top ?? 0)}px)`,
-            }}
+            aria-labelledby="gauges-button"
           >
-            <div className={`popup-header sticky top-0 z-10 brand-header`}>
-              <h2>Gauges</h2>
-              <button
-                className="btn btn-action"
-                aria-label="Close"
-                onClick={() => {
-                  updateUrl({ showGauges: false });
-                }}
-              >
-                <OutlinedIcon name="close" />
-              </button>
-            </div>
             <AggregatePanels
               {...aggregates}
               isLoading={isFetching}
               isShowingUsed={isShowingUsed}
             />
-          </div>
+          </section>
         )}
-        <div className="h-full w-full">
-          <ResourcesTable
-            isLoading={isFetching}
-            resources={processResources}
-            isShowingUsed={isShowingUsed}
-            setAggregates={setAggregates}
-            nodes={nodes}
-            allNodes={isSelectAllNodesChecked}
-            filterResourceTypes={filterResourceTypes}
-            selectedResource={selectedResource}
-            updateUrl={updateUrl}
-          />
-        </div>
+        <ResourcesTable
+          isLoading={isFetching}
+          resources={processResources}
+          isShowingUsed={isShowingUsed}
+          setAggregates={setAggregates}
+          nodes={nodes}
+          allNodes={isSelectAllNodesChecked}
+          filterResourceTypes={filterResourceTypes}
+          selectedResource={selectedResource}
+          updateUrl={updateUrl}
+        />
       </div>
       <FullPageModal
         headerChildren={
@@ -279,13 +224,14 @@ export default function Resources() {
               href={`/resources/${selectedResource.node}`}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Open in new tab"
+              aria-label={`${selectedResource.node} - Open in new tab`}
             >
               <span className="font-semibold">{selectedResource.node}</span>
               <FilledIcon name="open_in_new" />
             </Link>
           )
         }
+        aria-label={selectedResource?.node ?? "Node Details"}
         open={!!selectedResource}
         onClose={() => {
           updateUrl({ selectedResource: null });

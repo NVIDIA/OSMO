@@ -17,7 +17,8 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { FilledIcon } from "~/components/Icon";
+import { FilterButton } from "~/components/FilterButton";
+import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
 import { UrlTypes } from "~/components/StoreProvider";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
@@ -36,9 +37,7 @@ export default function Pools() {
     UrlTypes.Pools,
   );
   const [showFilters, setShowFilters] = useState(false);
-  const headerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
-  const containerRef = useRef<HTMLDivElement>(null);
   const { setSafeTimeout } = useSafeTimeout();
 
   const {
@@ -76,37 +75,27 @@ export default function Pools() {
 
   return (
     <>
-      <div
-        className="page-header mb-3"
-        ref={headerRef}
-      >
-        <h1>Pools</h1>
-        <div className="flex items-center gap-3">
-          <UsedFreeToggle
-            isShowingUsed={isShowingUsed}
-            updateUrl={updateUrl}
-          />
-          <button
-            className={`btn ${showFilters ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowFilters(true);
-            }}
-          >
-            <FilledIcon name="filter_list" />
-            Filters {filterCount > 0 ? `(${filterCount})` : ""}
-          </button>
-        </div>
+      <PageHeader>
+        <UsedFreeToggle
+          isShowingUsed={isShowingUsed}
+          updateUrl={updateUrl}
+        />
+        <FilterButton
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          filterCount={filterCount}
+          aria-controls="pools-filters"
+        />
+      </PageHeader>
+      <div className="h-full w-full grid grid-cols-[auto_1fr] overflow-x-auto relative">
         <SlideOut
-          top={headerRef.current?.offsetHeight ?? 0}
-          containerRef={headerRef}
-          id="resources-filter"
+          id="pools-filter"
           open={showFilters}
           onClose={() => {
             setShowFilters(false);
           }}
           aria-label="Pools Filter"
-          dimBackground={false}
-          className="z-40 border-t-0 w-100"
+          className="border-t-0 w-80"
         >
           <PoolsFilter
             selectedPools={selectedPools}
@@ -115,27 +104,16 @@ export default function Pools() {
             onRefresh={forceRefetch}
           />
         </SlideOut>
-      </div>
-      <div
-        className="h-full w-full px-3 gap-3 grid grid-cols-[auto_1fr]"
-        ref={containerRef}
-      >
         <div
-          className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden body-component"
-          style={{
-            maxHeight: `calc(100vh - ${10 + (containerRef?.current?.getBoundingClientRect()?.top ?? 0)}px)`,
-          }}
+          className="h-full w-40 2xl:w-50 3xl:w-80 4xl:w-100 flex flex-col relative overflow-y-auto overflow-x-hidden"
+          role="list"
+          aria-label="Pool usage gauges"
         >
-          <div className={`popup-header sticky top-0 z-10 brand-header`}>
-            <h2>Gauges</h2>
-          </div>
-          <div className="flex flex-col gap-3 p-3 h-full justify-between">
-            <AggregatePanels
-              totals={processPools.totalResources}
-              isLoading={isFetching}
-              isShowingUsed={isShowingUsed}
-            />
-          </div>
+          <AggregatePanels
+            totals={processPools.totalResources}
+            isLoading={isFetching}
+            isShowingUsed={isShowingUsed}
+          />
         </div>
         <PoolsTable
           isLoading={isFetching}

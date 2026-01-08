@@ -13,11 +13,12 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { allDateRange, defaultDateRange, getBestDateRange, getDateFromValues, type DateRange } from "~/components/DateRangePicker";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { type UrlTypes, useStore } from "~/components/StoreProvider";
 import { UserFilterType } from "~/components/UserFilter";
 import { PARAM_KEYS as TABLE_PARAM_KEYS } from "~/hooks/useTablePageLoader";
@@ -45,6 +46,7 @@ export enum ToolType {
 export enum ViewType {
   List = "list",
   Graph = "graph",
+  SingleTask = "single_task",
 }
 
 export const PARAM_KEYS = {
@@ -57,7 +59,7 @@ export const PARAM_KEYS = {
   filterName: "filter_name",
   allNodes: "allNodes",
   nodes: "nodes",
-  allStatuses: "allStatuses",
+  statusType: "statusType",
   status: "status",
   showWF: "showWF",
   showTask: "showTask",
@@ -84,8 +86,8 @@ export interface ToolParamUpdaterProps {
   filterName?: string | null;
   nodes?: string;
   allNodes?: boolean;
-  allStatuses?: boolean;
-  status?: string;
+  statusFilterType?: StatusFilterType;
+  status?: string | null;
   showWF?: boolean;
   pools?: string[] | null;
   users?: string[] | null;
@@ -109,14 +111,14 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
   const [tool, setTool] = useState<ToolType | undefined>(undefined);
   const [fullLog, showFullLog] = useState(false);
   const [lines, setLines] = useState(1000);
-  const [view, setView] = useState<ViewType>(ViewType.List);
+  const [view, setView] = useState<ViewType | undefined>(undefined);
   const [nameFilter, setNameFilter] = useState("");
   const [isSelectAllNodesChecked, setIsSelectAllNodesChecked] = useState<boolean | undefined>(undefined);
   const [nodes, setNodes] = useState("");
   const [podIp, setPodIp] = useState("");
   const [userFilter, setUserFilter] = useState<string | undefined>(username);
   const [poolFilter, setPoolFilter] = useState<string>("");
-  const [allStatuses, setAllStatuses] = useState<boolean | undefined>(undefined);
+  const [statusFilterType, setStatusFilterType] = useState<StatusFilterType | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [isSelectAllUsersChecked, setIsSelectAllUsersChecked] = useState(false);
   const [isSelectAllPoolsChecked, setIsSelectAllPoolsChecked] = useState(true);
@@ -144,7 +146,7 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     setDateBeforeFilter(urlParams.get(PARAM_KEYS.dateBefore) ?? undefined);
     setSelectedWorkflowName(urlParams.get(PARAM_KEYS.workflow) ?? undefined);
     setSelectedTaskName(urlParams.get(PARAM_KEYS.task) ?? undefined);
-    setView(urlParams.get(PARAM_KEYS.view) as ViewType ?? ViewType.List);
+    setView(urlParams.get(PARAM_KEYS.view) as ViewType);
     showFullLog(urlParams.get(PARAM_KEYS.full_log) === "true");
 
     const showWFParam = urlParams.get(PARAM_KEYS.showWF);
@@ -232,24 +234,13 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
 
     setPoolFilter(urlParams.get(PARAM_KEYS.pools) ?? "");
 
-    const allStatusesParam = urlParams.get(PARAM_KEYS.allStatuses);
-    let allStatus = true;
+    const statusFilterTypeParam = urlParams.get(PARAM_KEYS.statusType);
+    const statusFilterTypeValue = statusFilterTypeParam as StatusFilterType ?? defaults.statusFilterType as StatusFilterType;
+    setStatusFilterType(statusFilterTypeValue);
+    setStatusFilter(urlParams.get(PARAM_KEYS.status) ?? undefined);
 
-    if (allStatusesParam !== null) {
-      allStatus = allStatusesParam === "true";
-    } else if (defaults.allStatuses) {
-      allStatus = defaults.allStatuses === "true";
-    }
-
-    setAllStatuses(allStatus);
-    if (allStatus) {
-      setStatusFilter(undefined);
-    } else {
-      const statusParam = urlParams.get(PARAM_KEYS.status);
-      setStatusFilter(statusParam ?? defaults.status);
-      if (statusParam ?? defaults.status) {
-        filterCount++;
-      }
+    if (statusFilterTypeValue !== StatusFilterType.ALL) {
+      filterCount++;
     }
 
     setFilterCount(filterCount);
@@ -269,7 +260,7 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
     }
   }, [isSelectAllUsersChecked, userFilter, username]);
 
-  const updateUrl = (props: ToolParamUpdaterProps): void => {
+  const updateUrl = useCallback((props: ToolParamUpdaterProps): void => {
     const {
       tool,
       task,
@@ -280,7 +271,7 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       nodes,
       allNodes: isSelectAllNodesChecked,
       status,
-      allStatuses,
+      statusFilterType,
       showWF,
       workflow,
       pools,
@@ -354,8 +345,8 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       newParams.set(PARAM_KEYS.status, status);
     }
 
-    if (allStatuses !== undefined) {
-      newParams.set(PARAM_KEYS.allStatuses, allStatuses.toString());
+    if (statusFilterType !== undefined) {
+      newParams.set(PARAM_KEYS.statusType, statusFilterType);
     }
 
     if (showWF !== undefined) {
@@ -444,9 +435,36 @@ const useToolParamUpdater = (urlType?: UrlTypes, username?: string, defaults: Re
       newParams.delete(PARAM_KEYS.last_n_lines);
       handleChangeSidebarData(urlType, `?${newParams.toString()}`);
     }
-  };
+  }, [handleChangeSidebarData, pathname, router, urlType]);
 
-  return { updateUrl, tool, fullLog, lines, view, nameFilter, nodes, isSelectAllNodesChecked, podIp, filterCount, userFilter, poolFilter, allStatuses, statusFilter, userType, isSelectAllPoolsChecked, priority, dateRange, dateAfterFilter, dateBeforeFilter, selectedWorkflowName, selectedTaskName, retryId, dateRangeDates, showTask, showWF };
+  return {
+    updateUrl,
+    tool,
+    fullLog,
+    lines,
+    view,
+    nameFilter,
+    nodes,
+    isSelectAllNodesChecked,
+    podIp,
+    filterCount,
+    userFilter,
+    poolFilter,
+    statusFilterType,
+    statusFilter,
+    userType,
+    isSelectAllPoolsChecked,
+    priority,
+    dateRange,
+    dateAfterFilter,
+    dateBeforeFilter,
+    selectedWorkflowName,
+    selectedTaskName,
+    retryId,
+    dateRangeDates,
+    showTask,
+    showWF,
+  };
 };
 
 export default useToolParamUpdater;

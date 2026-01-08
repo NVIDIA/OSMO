@@ -29,7 +29,6 @@ import Link from "next/link";
 import { commonFilterFns } from "~/components/commonFilterFns";
 import StatusBadge from "~/components/StatusBadge";
 import { TableBase } from "~/components/TableBase";
-import { TableLoader } from "~/components/TableLoader";
 import { TablePagination } from "~/components/TablePagination";
 import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
@@ -38,9 +37,14 @@ import { type WorkflowListItem } from "~/models";
 import { useRuntimeEnv } from "~/runtime-env";
 import { convertSeconds, convertToReadableTimezone, formatForWrapping, sortDateWithNA } from "~/utils/string";
 
+import { linkToUserWorkflows } from "./WorkflowDetails";
 import { WorkflowTableRowAction } from "./WorkflowTableRowAction";
 import { getStatusDescription } from "./WorkfowStatusInfo";
 import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
+
+export const getActionId = (workflowName: string) => {
+  return `workflow-${workflowName}`;
+};
 
 export const WorkflowsTable = ({
   processResources,
@@ -67,6 +71,7 @@ export const WorkflowsTable = ({
         accessorKey: "name",
         cell: ({ row }) => (
           <WorkflowTableRowAction
+            id={getActionId(row.original.name)}
             name={row.original.name}
             selected={row.original.name === selectedWorkflowName}
             updateUrl={updateUrl}
@@ -81,7 +86,14 @@ export const WorkflowsTable = ({
       {
         accessorKey: "user",
         header: "User",
-        cell: ({ row }) => formatForWrapping(row.original.user),
+        cell: ({ row }) => (
+          <Link
+            href={linkToUserWorkflows(row.original.user)}
+            className="no-underline px-0"
+          >
+            {formatForWrapping(row.original.user)}
+          </Link>
+        ),
         sortingFn: "alphanumericCaseSensitive",
         enableMultiSort: true,
         invertSorting: true,
@@ -192,6 +204,7 @@ export const WorkflowsTable = ({
     onColumnVisibilityChange: setColumnVisibility,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId: (row) => row.name,
     enableSortingRemoval: false,
     enableMultiSort: true,
     filterFns: commonFilterFns,
@@ -204,24 +217,16 @@ export const WorkflowsTable = ({
   });
 
   return (
-    <div className="h-full w-full">
-      {isLoading ? (
-        <TableLoader table={table} />
-      ) : (
-        <div className="flex flex-col h-full w-full">
-          <TableBase
-            columns={columns}
-            table={table}
-            paddingOffset={10}
-            className="body-component"
-          >
-            <TablePagination
-              table={table}
-              totalRows={processResources.length}
-            />
-          </TableBase>
-        </div>
-      )}
-    </div>
+    <TableBase
+      columns={columns}
+      table={table}
+      className="body-component"
+      isLoading={isLoading}
+    >
+      <TablePagination
+        table={table}
+        totalRows={processResources.length}
+      />
+    </TableBase>
   );
 };

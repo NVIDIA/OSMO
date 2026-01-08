@@ -83,7 +83,7 @@ export const PoolsFilter = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-global p-global">
         <MultiselectWithAll
           id="pools"
           label="All Pools"
@@ -99,7 +99,7 @@ export const PoolsFilter = ({
         />
         {isLoadingPools && !localAllPools && <Spinner size="small" />}
       </div>
-      <div className="flex flex-row gap-3 justify-between body-footer p-3">
+      <div className="flex flex-row gap-global justify-between body-footer p-global">
         <button
           type="button"
           className="btn"

@@ -22,6 +22,7 @@ import { useSearchParams } from "next/navigation";
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
+import PageHeader from "~/components/PageHeader";
 import { Spinner } from "~/components/Spinner";
 import { TextInput } from "~/components/TextInput";
 import { type CredentialListItem, type ProfileResponse } from "~/models";
@@ -107,10 +108,14 @@ export default function ProfileSettingsPage() {
 
   return (
     <>
-      <div className={`grid h-full w-full gap-3 p-3 grid-cols-[1fr_3fr]`}>
-        <div className="flex flex-col body-component">
-          <div className={`popup-header brand-header`}>
-            <h2>Profile</h2>
+      <PageHeader />
+      <div className={`flex md:flex-row flex-wrap w-full md:h-full`}>
+        <div className="flex flex-col body-component md:h-full w-full md:w-auto">
+          <section
+            className={`popup-header brand-header`}
+            aria-labelledby="profile-details-title"
+          >
+            <h2 id="profile-details-title">Profile</h2>
             <button
               className="btn btn-secondary"
               aria-label="Edit Profile"
@@ -121,18 +126,19 @@ export default function ProfileSettingsPage() {
               <OutlinedIcon name="edit" />
               Edit
             </button>
-          </div>
-          <div className="dag-details-body p-3">
+          </section>
+          <div className="dag-details-body p-global sm:h-full sm:overflow-y-auto">
             <ProfileSettings profile={profile.data} />
           </div>
         </div>
-        <div className="flex flex-col body-component">
-          <div
-            className={`popup-header brand-header`}
+        <div className="flex flex-col body-component md:h-full grow">
+          <section
+            className={`popup-header brand-header items-center`}
+            aria-labelledby="credentials-title"
             ref={headerRef}
           >
-            <h2>Credentials</h2>
-            <div className="flex flex-row gap-3">
+            <h2 id="credentials-title">Credentials</h2>
+            <div className="flex flex-row gap-global">
               <TextInput
                 id="credential-name"
                 type="search"
@@ -150,12 +156,13 @@ export default function ProfileSettingsPage() {
                 onClick={() => {
                   toolParamUpdater({ tool: ToolType.CreateCredential });
                 }}
+                title="Add New Credential"
               >
                 <OutlinedIcon name="add" />
-                Add New Credential
+                <span className="hidden md:block">Add New Credential</span>
               </button>
             </div>
-          </div>
+          </section>
           <CredentialsTable
             credentials={processCredentials}
             nameFilter={credNameFilter}
@@ -163,7 +170,8 @@ export default function ProfileSettingsPage() {
         </div>
       </div>
       <FullPageModal
-        headerChildren={<h2>{toolHeading}</h2>}
+        headerChildren={<h2 id="profile-settings-header">{toolHeading}</h2>}
+        aria-labelledby="profile-settings-header"
         size="none"
         open={!!tool}
         onClose={() => {

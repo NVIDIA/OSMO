@@ -20,6 +20,8 @@ Shared definitions for storage backends modules.
 
 import abc
 import enum
+import functools
+import logging
 import os
 import pathlib
 from urllib import parse
@@ -28,6 +30,11 @@ from typing import Any, List
 import pydantic
 
 from ..core import header, provider
+from ..credentials import credentials
+from ....utils import osmo_errors
+
+
+logger = logging.getLogger(__name__)
 
 
 class StorageBackendType(enum.Enum):
@@ -89,7 +96,13 @@ class StoragePath:
     )
 
 
-class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class StorageBackend(
+    abc.ABC,
+    pydantic.BaseModel,
+    extra=pydantic.Extra.forbid,
+    arbitrary_types_allowed=True,
+    keep_untouched=(functools.cached_property,),  # Don't serialize cached properties
+):
     """
     Represents information about a storage backend.
     """
@@ -101,6 +114,7 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     path: str
 
     override_endpoint: str | None = None
+    supports_environment_auth: bool = False
 
     @classmethod
     @abc.abstractmethod
@@ -184,24 +198,36 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def data_auth(
         self,
-        access_key_id: str,
-        access_key: str,
-        region: str | None = None,
+        data_cred: credentials.DataCredential | None = None,
         access_type: AccessType | None = None,
     ):
         """
-        Validates if the access id and key can perform action
+        Validates if the access id and key can perform action.
+
+        If no data credential is provided, it will be resolved via resolved_data_credential.
+
+        Args:
+            data_cred: The data credential to use for the validation.
+            access_type: The access type to validate.
         """
         pass
 
     @abc.abstractmethod
     def region(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential | None = None,
     ) -> str:
         """
-        Infer the region of the bucket via provided credentials.
+        Infer the region of the bucket from the storage backend.
+
+        Some backends may not require a data credential to infer the region.
+        If no data credential is provided, it will be resolved via resolved_data_credential.
+
+        Args:
+            data_cred: The data credential to use for the region inference.
+
+        Returns:
+            The region of the bucket.
         """
         pass
 
@@ -232,12 +258,46 @@ class StorageBackend(abc.ABC, pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @abc.abstractmethod
     def client_factory(
         self,
-        access_key_id: str,
-        access_key: str,
+        data_cred: credentials.DataCredential | None = None,
         request_headers: List[header.RequestHeaders] | None = None,
         **kwargs: Any,
     ) -> provider.StorageClientFactory:
         """
         Returns a factory for creating storage clients.
+
+        If no data credential is provided, it will be resolved via resolved_data_credential.
+
+        Args:
+            data_cred: The data credential to use for the client factory.
+            request_headers: The request headers to use for the client factory.
+            **kwargs: Additional keyword arguments to pass to the client factory.
+
+        Returns:
+            A factory for creating storage clients.
         """
         pass
+
+    @functools.cached_property
+    def resolved_data_credential(self) -> credentials.DataCredential:
+        """
+        Resolve the data credential for the storage backend.
+
+        Returns:
+            The resolved data credential.
+
+        Raises:
+            OSMOCredentialError: If the data credential is not found.
+        """
+        data_cred = credentials.get_static_data_credential_from_config(self.profile)
+
+        if data_cred is not None:
+            return data_cred
+
+        if self.supports_environment_auth:
+            return credentials.DefaultDataCredential(
+                endpoint=self.profile,
+                region=None,
+            )
+
+        raise osmo_errors.OSMOCredentialError(
+            f'Data credential not found for {self.profile}')
