@@ -127,9 +127,9 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       header: COLUMN_LABELS.name,
       minSize: getMinSize("name"),
       enableSorting: true,
-      cell: ({ getValue }) => (
+      cell: ({ row }) => (
         <span className="truncate font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {getValue() as string}
+          {row.original.name}
         </span>
       ),
     },
@@ -158,9 +158,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       header: COLUMN_LABELS.user,
       minSize: getMinSize("user"),
       enableSorting: true,
-      cell: ({ getValue }) => (
-        <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{getValue() as string}</span>
-      ),
+      cell: ({ row }) => <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.user}</span>,
     },
     {
       id: "submit_time",
@@ -168,14 +166,15 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       header: COLUMN_LABELS.submit_time,
       minSize: getMinSize("submit_time"),
       enableSorting: true,
-      cell: ({ getValue }) => {
-        const value = getValue() as string;
+      cell: ({ row }) => {
+        const submitTime = row.original.submit_time;
+        if (!submitTime) return <span className="text-sm text-zinc-400">—</span>;
         return (
           <span
             className="truncate text-sm text-zinc-500 dark:text-zinc-400"
-            title={formatFullDate(value)}
+            title={formatFullDate(submitTime)}
           >
-            {formatRelativeTime(value)}
+            {formatRelativeTime(submitTime)}
           </span>
         );
       },
@@ -209,9 +208,9 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       header: COLUMN_LABELS.queued_time,
       minSize: getMinSize("queued_time"),
       enableSorting: true,
-      cell: ({ getValue }) => (
+      cell: ({ row }) => (
         <span className="truncate font-mono text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
-          {formatDuration(getValue() as number)}
+          {formatDuration(row.original.queued_time)}
         </span>
       ),
     },
@@ -221,10 +220,9 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       header: COLUMN_LABELS.pool,
       minSize: getMinSize("pool"),
       enableSorting: true,
-      cell: ({ getValue }) => {
-        const value = getValue() as string | undefined;
-        return <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{value || "—"}</span>;
-      },
+      cell: ({ row }) => (
+        <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.pool || "—"}</span>
+      ),
     },
     {
       id: "priority",
@@ -232,10 +230,10 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       header: COLUMN_LABELS.priority,
       minSize: getMinSize("priority"),
       enableSorting: true,
-      cell: ({ getValue }) => {
-        const value = getValue() as string;
-        const display = getPriorityDisplay(value);
-        const Icon = PRIORITY_ICONS[value.toUpperCase()] ?? AlertTriangle;
+      cell: ({ row }) => {
+        const priority = row.original.priority;
+        const display = getPriorityDisplay(priority);
+        const Icon = PRIORITY_ICONS[priority.toUpperCase()] ?? AlertTriangle;
 
         return (
           <span
