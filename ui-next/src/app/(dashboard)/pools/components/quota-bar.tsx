@@ -72,10 +72,10 @@ export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }:
       <CardContent className="space-y-3">
         {/* Header: Label + Used/Limit */}
         <div className="flex items-baseline justify-between">
-          <span className="text-sm text-muted-foreground">GPU Quota</span>
+          <span className="text-muted-foreground text-sm">GPU Quota</span>
           <span className="text-lg font-semibold tabular-nums">
             {used} <span className="text-muted-foreground">/</span> {limit}
-            <span className="ml-1 text-sm font-normal text-muted-foreground">GPUs</span>
+            <span className="text-muted-foreground ml-1 text-sm font-normal">GPUs</span>
           </span>
         </div>
 
@@ -90,14 +90,14 @@ export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }:
         />
 
         {/* Contextual message */}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {free > 0 ? (
             <>
-              <span className="font-medium text-nvidia dark:text-nvidia-light">{free} available</span> for HIGH/NORMAL
+              <span className="text-nvidia dark:text-nvidia-light font-medium">{free} available</span> for HIGH/NORMAL
               priority workflows
             </>
           ) : (
-            <span className="font-medium text-foreground">
+            <span className="text-foreground font-medium">
               No quota available — LOW priority workflows may still run
             </span>
           )}

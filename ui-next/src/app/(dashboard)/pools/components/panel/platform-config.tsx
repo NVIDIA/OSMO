@@ -47,28 +47,34 @@ export function PlatformConfigContent({ config }: PlatformConfigContentProps) {
   return (
     <div className="space-y-3">
       {/* Description */}
-      {config.description && <p className="text-sm text-muted-foreground">{config.description}</p>}
+      {config.description && <p className="text-muted-foreground text-sm">{config.description}</p>}
 
       {/* Boolean flags */}
       <div className="space-y-1">
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-muted-foreground">Host Network</span>
+          <span className="text-muted-foreground text-sm">Host Network</span>
           <BooleanIndicator value={config.hostNetworkAllowed} />
         </div>
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-muted-foreground">Privileged Mode</span>
+          <span className="text-muted-foreground text-sm">Privileged Mode</span>
           <BooleanIndicator value={config.privilegedAllowed} />
         </div>
       </div>
 
       {/* Default Mounts */}
       {config.defaultMounts.length > 0 && (
-        <MountsList title="Default Mounts" mounts={config.defaultMounts} />
+        <MountsList
+          title="Default Mounts"
+          mounts={config.defaultMounts}
+        />
       )}
 
       {/* Allowed Mounts */}
       {config.allowedMounts.length > 0 && (
-        <MountsList title="Allowed Mounts" mounts={config.allowedMounts} />
+        <MountsList
+          title="Allowed Mounts"
+          mounts={config.allowedMounts}
+        />
       )}
     </div>
   );
@@ -81,10 +87,13 @@ export function PlatformConfigContent({ config }: PlatformConfigContentProps) {
 function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
   return (
     <div>
-      <div className="mb-1.5 text-sm text-muted-foreground">{title}</div>
+      <div className="text-muted-foreground mb-1.5 text-sm">{title}</div>
       <div className="flex flex-col gap-1">
         {mounts.map((mount, idx) => (
-          <CopyableBlock key={idx} value={mount} />
+          <CopyableBlock
+            key={idx}
+            value={mount}
+          />
         ))}
       </div>
     </div>
