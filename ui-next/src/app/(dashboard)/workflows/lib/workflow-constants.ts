@@ -142,6 +142,13 @@ export const STATUS_STYLES: Record<
 
 export type Priority = "HIGH" | "NORMAL" | "LOW";
 
+const VALID_PRIORITIES: ReadonlySet<string> = new Set(["HIGH", "NORMAL", "LOW"]);
+
+/** Type guard for Priority */
+function isPriority(value: string): value is Priority {
+  return VALID_PRIORITIES.has(value);
+}
+
 export const PRIORITY_STYLES: Record<
   Priority,
   {
@@ -168,6 +175,9 @@ export const PRIORITY_STYLES: Record<
 };
 
 export function getPriorityDisplay(priority: string): { label: string; bg: string; text: string } {
-  const normalized = priority.toUpperCase() as Priority;
-  return PRIORITY_STYLES[normalized] ?? PRIORITY_STYLES.NORMAL;
+  const normalized = priority.toUpperCase();
+  if (isPriority(normalized)) {
+    return PRIORITY_STYLES[normalized];
+  }
+  return PRIORITY_STYLES.NORMAL;
 }
