@@ -125,6 +125,7 @@ METRIC 2: CROSS-IMPLEMENTATION DETECTION LATENCY
     Python detected first: 0 times
 
   Time Difference Statistics:
+  (For Go it takes around 20 ms from creating an Message to getting an ACK)
     Average:           29.42ms
     Median:            24.48ms
     Min:                4.76ms
@@ -144,8 +145,6 @@ METRIC 2: CROSS-IMPLEMENTATION DETECTION LATENCY
 ================================================================================
 UNIQUE POD EVENT DETECTION ANALYSIS
 ================================================================================
-
-Benchmark Duration:  Python: 64.4s  |  Go: 62.6s
 
 EVENT COVERAGE:
   Total unique events:     951
