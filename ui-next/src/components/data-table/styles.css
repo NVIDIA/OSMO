@@ -35,20 +35,16 @@
 
 /* Base table styles */
 .data-table {
-  --data-table-row-height: 3rem; /* 48px at 16px base */
   --data-table-header-height: 2.75rem; /* 44px at 16px base */
   --data-table-section-height: 2.25rem; /* 36px at 16px base */
 
   border-collapse: collapse;
-  /* Containment: isolates layout recalculation to this subtree */
-  contain: inline-size layout style;
 }
 
 /* Virtualized table body - uses absolute positioning */
 .data-table-body {
   position: relative;
   display: block;
-  contain: layout style;
 }
 
 /* Section header row - full width absolute positioned */
@@ -67,20 +63,12 @@
   /* Full width ensures row background extends to container edge */
   width: 100%;
   display: flex;
-  /* Layout/style/paint containment - NOT size (rows need intrinsic width) */
-  contain: layout style paint;
+  /* Ensure cells stretch to row height */
+  align-items: stretch;
   /* GPU layer hint for transform animations (translate3d) */
   will-change: transform;
   /* Prevent subpixel rendering issues */
   backface-visibility: hidden;
-  /*
-   * Optimization #5: content-visibility for off-screen rows
-   * Skips rendering for rows outside the viewport intersection.
-   * Provides progressive enhancement for virtualized tables.
-   * contain-intrinsic-block-size prevents layout shifts when rows become visible.
-   */
-  content-visibility: auto;
-  contain-intrinsic-block-size: var(--data-table-row-height);
 
   /* Fill remaining space with pseudo-element to avoid whitespace gap */
   &::after {
@@ -117,12 +105,9 @@
 /* Cell alignment helpers */
 .data-table-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   /* Use logical properties for RTL support */
   padding-inline: 1rem;
-  overflow: hidden;
-  /* Containment: cell layout is self-contained */
-  contain: layout style;
   /* Text optimization - use optimizeSpeed during interactions for perf */
   text-rendering: optimizeLegibility;
   /* Prevent layout thrashing from width changes */
