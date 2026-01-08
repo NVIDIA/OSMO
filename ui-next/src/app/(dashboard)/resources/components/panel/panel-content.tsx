@@ -62,31 +62,52 @@ export function ResourcePanelContent({
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Pool-Agnostic Section */}
-      <div className="space-y-6 border-b border-border p-6">
+      <div className="border-border space-y-6 border-b p-6">
         {/* Hostname */}
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hostname</h3>
+          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Hostname</h3>
           <CopyableValue value={resource.hostname} />
         </section>
 
         {/* Resource Capacity */}
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Capacity</h3>
+          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Capacity</h3>
           <div className="space-y-4">
-            <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
-            <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
-            <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} isBytes />
-            <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} isBytes />
+            <CapacityBar
+              label="GPU"
+              used={resource.gpu.used}
+              total={resource.gpu.total}
+            />
+            <CapacityBar
+              label="CPU"
+              used={resource.cpu.used}
+              total={resource.cpu.total}
+            />
+            <CapacityBar
+              label="Memory"
+              used={resource.memory.used}
+              total={resource.memory.total}
+              isBytes
+            />
+            <CapacityBar
+              label="Storage"
+              used={resource.storage.used}
+              total={resource.storage.total}
+              isBytes
+            />
           </div>
         </section>
 
         {/* Conditions if any */}
         {resource.conditions.length > 0 && (
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conditions</h3>
+            <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Conditions</h3>
             <div className="flex flex-wrap gap-2">
               {resource.conditions.map((condition, idx) => (
-                <Badge key={idx} variant="secondary">
+                <Badge
+                  key={idx}
+                  variant="secondary"
+                >
                   {condition}
                 </Badge>
               ))}
@@ -98,7 +119,7 @@ export function ResourcePanelContent({
       {/* Pool-Specific Section */}
       <div className="p-6">
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
             Pool Configuration
           </h3>
 
@@ -116,11 +137,11 @@ export function ResourcePanelContent({
               <Skeleton className="h-16 w-full" />
             </div>
           ) : pools.length === 0 ? (
-            <p className="text-sm text-muted-foreground">This resource is not a member of any pool.</p>
+            <p className="text-muted-foreground text-sm">This resource is not a member of any pool.</p>
           ) : (
             <Card className="gap-0 py-0">
               {/* Pool Selector Header */}
-              <CardHeader className="border-b border-border bg-muted/30 px-4 py-2.5">
+              <CardHeader className="border-border bg-muted/30 border-b px-4 py-2.5">
                 <ItemSelector
                   items={pools}
                   selectedItem={selectedPool}
@@ -134,7 +155,7 @@ export function ResourcePanelContent({
                 {taskConfig ? (
                   <TaskConfigContent config={taskConfig} />
                 ) : (
-                  <p className="text-sm text-muted-foreground">No configuration available for this platform.</p>
+                  <p className="text-muted-foreground text-sm">No configuration available for this platform.</p>
                 )}
               </CardContent>
             </Card>
@@ -159,11 +180,11 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Boolean flags */}
       <div className="space-y-1">
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-muted-foreground">Host Network</span>
+          <span className="text-muted-foreground text-sm">Host Network</span>
           <BooleanIndicator value={config.hostNetworkAllowed} />
         </div>
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-muted-foreground">Privileged Mode</span>
+          <span className="text-muted-foreground text-sm">Privileged Mode</span>
           <BooleanIndicator value={config.privilegedAllowed} />
         </div>
       </div>
@@ -171,10 +192,13 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Default Mounts */}
       {config.defaultMounts.length > 0 && (
         <div>
-          <div className="mb-1.5 text-sm text-muted-foreground">Default Mounts</div>
+          <div className="text-muted-foreground mb-1.5 text-sm">Default Mounts</div>
           <div className="flex flex-col gap-1">
             {config.defaultMounts.map((mount, idx) => (
-              <CopyableBlock key={idx} value={mount} />
+              <CopyableBlock
+                key={idx}
+                value={mount}
+              />
             ))}
           </div>
         </div>
@@ -183,10 +207,13 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Allowed Mounts */}
       {config.allowedMounts.length > 0 && (
         <div>
-          <div className="mb-1.5 text-sm text-muted-foreground">Allowed Mounts</div>
+          <div className="text-muted-foreground mb-1.5 text-sm">Allowed Mounts</div>
           <div className="flex flex-col gap-1">
             {config.allowedMounts.map((mount, idx) => (
-              <CopyableBlock key={idx} value={mount} />
+              <CopyableBlock
+                key={idx}
+                value={mount}
+              />
             ))}
           </div>
         </div>

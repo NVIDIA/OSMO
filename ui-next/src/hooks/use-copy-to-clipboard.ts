@@ -99,7 +99,7 @@ export function useCopyToClipboard(options: UseCopyToClipboardOptions = {}): Use
         onError?.(error);
       }
     },
-    [resetDelay, onSuccess, onError]
+    [resetDelay, onSuccess, onError],
   );
 
   const reset = useCallback(() => {

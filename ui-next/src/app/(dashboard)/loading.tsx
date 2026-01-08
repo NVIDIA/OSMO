@@ -41,7 +41,7 @@ export default function Loading() {
       {/* Main content skeleton - fills remaining space */}
       <Card className="contain-layout-paint min-h-0 flex-1 gap-0 py-0">
         {/* Filter bar skeleton */}
-        <div className="border-b border-border p-4">
+        <div className="border-border border-b p-4">
           <div className="flex items-center gap-3">
             <Skeleton className="h-9 w-64" />
             <Skeleton className="h-9 w-24" />
@@ -52,18 +52,27 @@ export default function Loading() {
         {/* Table skeleton */}
         <CardContent className="p-4">
           {/* Table header skeleton */}
-          <div className="mb-4 flex items-center gap-4 border-b border-border pb-3">
+          <div className="border-border mb-4 flex items-center gap-4 border-b pb-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="h-4 flex-1" />
+              <Skeleton
+                key={i}
+                className="h-4 flex-1"
+              />
             ))}
           </div>
 
           {/* Table rows skeleton */}
           <div className="space-y-3">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="flex items-center gap-4">
+              <div
+                key={i}
+                className="flex items-center gap-4"
+              >
                 {[1, 2, 3, 4, 5, 6].map((j) => (
-                  <Skeleton key={j} className="h-6 flex-1" />
+                  <Skeleton
+                    key={j}
+                    className="h-6 flex-1"
+                  />
                 ))}
               </div>
             ))}

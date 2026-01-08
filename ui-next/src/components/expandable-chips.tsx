@@ -67,7 +67,7 @@ export const ExpandableChips = memo(function ExpandableChips({
     useExpandableChips({ items });
 
   if (sortedItems.length === 0) {
-    return <span className="text-xs text-muted-foreground">{emptyText}</span>;
+    return <span className="text-muted-foreground text-xs">{emptyText}</span>;
   }
 
   const isClickable = !!onItemClick;
@@ -105,7 +105,7 @@ export const ExpandableChips = memo(function ExpandableChips({
         ref={containerRef}
         className={cn(
           "flex min-w-0 items-center gap-1",
-          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden"
+          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden",
         )}
       >
         {displayedItems.map((item) => (
@@ -113,11 +113,7 @@ export const ExpandableChips = memo(function ExpandableChips({
             key={item}
             variant="outline"
             asChild={isClickable}
-            className={cn(
-              chipClassName,
-              isClickable && "cursor-pointer hover:bg-accent",
-              expanded && "max-w-full"
-            )}
+            className={cn(chipClassName, isClickable && "hover:bg-accent cursor-pointer", expanded && "max-w-full")}
             title={item}
           >
             {isClickable ? (
@@ -141,10 +137,7 @@ export const ExpandableChips = memo(function ExpandableChips({
           <Badge
             variant="outline"
             asChild
-            className={cn(
-              "border-dashed",
-              expandable && "cursor-pointer hover:bg-accent"
-            )}
+            className={cn("border-dashed", expandable && "hover:bg-accent cursor-pointer")}
             title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
           >
             <button
@@ -167,7 +160,7 @@ export const ExpandableChips = memo(function ExpandableChips({
           <Badge
             variant="outline"
             asChild
-            className="cursor-pointer border-dashed hover:bg-accent"
+            className="hover:bg-accent cursor-pointer border-dashed"
           >
             <button
               type="button"
