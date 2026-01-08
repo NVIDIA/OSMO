@@ -50,8 +50,14 @@ export const COLUMN_MIN_WIDTHS_REM = {
   /** Numbers with units: "512/1,024 Gi" */
   NUMBER_WITH_UNIT: 7.25,
 
+  /** Numbers with progress bar */
+  NUMBER_WITH_PROGRESS_BAR: 8,
+
   /** Timestamps: "2024-01-15 14:30" */
   TIMESTAMP: 8.75,
+
+  /** Actions column (icon buttons) - icon */
+  ACTIONS_ICON: 1,
 
   /** Actions column (icon buttons) - small */
   ACTIONS_SMALL: 3.125,
