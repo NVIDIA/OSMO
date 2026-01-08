@@ -33,29 +33,37 @@
 
 "use client";
 
-import { useState, useRef, useMemo, useCallback, memo } from "react";
+import { useState, useRef, useMemo, useCallback, memo, useEffect } from "react";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SmartSearchProps, SearchField, SearchChip } from "./types";
+import type { SmartSearchProps, SearchField, SearchChip, SearchPreset } from "./types";
 
 // ============================================================================
-// Constants
+// Styles - Semantic Tailwind class compositions
 // ============================================================================
 
-/** Display mode color styles for chips and UI elements */
-export const DISPLAY_MODE_COLORS = {
-  free: {
-    bg: "bg-emerald-50 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-400",
-    textMuted: "text-emerald-600 dark:text-emerald-400",
-    icon: "text-emerald-500",
-  },
-  used: {
-    bg: "bg-amber-50 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-400",
-    textMuted: "text-amber-600 dark:text-amber-400",
-    icon: "text-amber-500",
-  },
+/** Reusable style patterns for SmartSearch */
+const styles = {
+  // Surfaces & backgrounds
+  surface: "bg-white dark:bg-zinc-900",
+  border: "border-zinc-200 dark:border-zinc-700",
+  borderError: "border-red-200 dark:border-red-800",
+
+  // Text colors
+  muted: "text-zinc-500 dark:text-zinc-400",
+  mutedLight: "text-zinc-400 dark:text-zinc-500",
+  error: "text-red-600 dark:text-red-400",
+  prefix: "text-blue-600 dark:text-blue-400",
+
+  // Interactive states
+  focusRing: "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-900",
+  hoverBg: "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+  highlighted: "bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100",
+
+  // Components
+  kbd: "rounded bg-zinc-200 px-1 dark:bg-zinc-700",
+  nonInteractive: "pointer-events-none select-none",
+  dropdownItem: "px-3 py-2 text-sm",
 } as const;
 
 // ============================================================================
@@ -75,7 +83,15 @@ interface Suggestion<T> {
 // ============================================================================
 
 /** Styles "Free" or "Used" portion of chip labels with appropriate colors */
-function ChipLabel({ chip, onRemove }: { chip: SearchChip; onRemove: () => void }) {
+const ChipLabel = memo(function ChipLabel({
+  chip,
+  onRemove,
+  focused = false,
+}: {
+  chip: SearchChip;
+  onRemove: () => void;
+  focused?: boolean;
+}) {
   // Parse label to find "Free" or "Used" for styling
   const renderLabel = () => {
     if (!chip.variant) return chip.label;
@@ -96,7 +112,12 @@ function ChipLabel({ chip, onRemove }: { chip: SearchChip; onRemove: () => void 
   };
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 transition-all dark:bg-blue-900/40 dark:text-blue-300",
+        focused && styles.focusRing,
+      )}
+    >
       {renderLabel()}
       <button
         type="button"
@@ -110,7 +131,7 @@ function ChipLabel({ chip, onRemove }: { chip: SearchChip; onRemove: () => void 
       </button>
     </span>
   );
-}
+});
 
 // ============================================================================
 // Component
@@ -124,12 +145,14 @@ function SmartSearchInner<T>({
   placeholder = "Search... (try 'pool:' or 'platform:')",
   className,
   displayMode,
+  presets,
 }: SmartSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1); // -1 = nothing highlighted
-  const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0); // For render-phase reset
+  const [prevNavigableCount, setPrevNavigableCount] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null); // Error message or null
+  const [focusedChipIndex, setFocusedChipIndex] = useState(-1); // -1 = input focused, >=0 = chip index
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -265,11 +288,20 @@ function SmartSearchInner<T>({
     return items;
   }, [inputValue, parsedInput, fields, data]);
 
-  // Adjust state during render: reset highlighted index when suggestions change
-  // This is the React-recommended pattern for derived state resets (see react.dev docs)
-  // React will immediately re-render with the updated state without committing the intermediate state
-  if (suggestions.length !== prevSuggestionsLength) {
-    setPrevSuggestionsLength(suggestions.length);
+  // Flatten all presets into a single array for navigation
+  const flatPresets = useMemo(() => {
+    if (!presets || inputValue !== "") return [];
+    return presets.flatMap((group) => group.items);
+  }, [presets, inputValue]);
+
+  // Total navigable items: presets first, then selectable suggestions
+  const selectableSuggestions = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
+
+  const totalNavigableCount = flatPresets.length + selectableSuggestions.length;
+
+  // Reset highlighted index when navigable items change (React-recommended render-phase pattern)
+  if (totalNavigableCount !== prevNavigableCount) {
+    setPrevNavigableCount(totalNavigableCount);
     setHighlightedIndex(-1);
   }
 
@@ -345,6 +377,29 @@ function SmartSearchInner<T>({
     [chips, onChipsChange],
   );
 
+  // Check if a preset is currently active (has matching chip)
+  const isPresetActive = useCallback(
+    (preset: SearchPreset<T>) => {
+      return chips.some((c) => c.field === preset.chip.field && c.value === preset.chip.value);
+    },
+    [chips],
+  );
+
+  // Toggle a preset on/off
+  const togglePreset = useCallback(
+    (preset: SearchPreset<T>) => {
+      if (isPresetActive(preset)) {
+        onChipsChange(chips.filter((c) => !(c.field === preset.chip.field && c.value === preset.chip.value)));
+      } else {
+        onChipsChange([...chips, preset.chip]);
+      }
+      setInputValue("");
+      setShowDropdown(false);
+      inputRef.current?.focus();
+    },
+    [chips, onChipsChange, isPresetActive],
+  );
+
   const handleSelect = useCallback(
     (index: number) => {
       const suggestion = suggestions[index];
@@ -362,83 +417,87 @@ function SmartSearchInner<T>({
     [suggestions, addChip],
   );
 
-  // Tab-complete: fill input with selected value (for cycling through options)
-  const tabComplete = useCallback(
-    (index: number) => {
-      const suggestion = suggestions[index];
-      if (!suggestion) return;
-
-      // Fill in the suggestion value into the input (don't add chip yet)
-      setInputValue(suggestion.label);
-      setHighlightedIndex(index);
-    },
-    [suggestions],
-  );
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Unified navigation: presets (0 to flatPresets.length-1) then suggestions
+      const presetCount = flatPresets.length;
+
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        // Find selectable indices (skip hints)
-        const selectableIndices = suggestions
-          .map((s, i) => ({ suggestion: s, index: i }))
-          .filter(({ suggestion }) => suggestion.type !== "hint")
-          .map(({ index }) => index);
-
-        if (selectableIndices.length === 0) return;
+        if (totalNavigableCount === 0) return;
 
         if (!showDropdown) {
           setShowDropdown(true);
-          setHighlightedIndex(selectableIndices[0]);
+          setHighlightedIndex(0);
         } else {
           setHighlightedIndex((current) => {
-            const currentPos = selectableIndices.indexOf(current);
-            if (currentPos === -1 || currentPos === selectableIndices.length - 1) {
-              return selectableIndices[0];
+            if (current === -1 || current >= totalNavigableCount - 1) {
+              return 0; // Wrap to start
             }
-            return selectableIndices[currentPos + 1];
+            return current + 1;
           });
         }
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        const selectableIndices = suggestions
-          .map((s, i) => ({ suggestion: s, index: i }))
-          .filter(({ suggestion }) => suggestion.type !== "hint")
-          .map(({ index }) => index);
+        if (totalNavigableCount === 0) return;
 
-        if (selectableIndices.length === 0) return;
-
-        setHighlightedIndex((current) => {
-          const currentPos = selectableIndices.indexOf(current);
-          if (currentPos === -1 || currentPos === 0) {
-            return selectableIndices[selectableIndices.length - 1];
-          }
-          return selectableIndices[currentPos - 1];
-        });
-      } else if (e.key === "Tab" && showDropdown && suggestions.length > 0) {
-        e.preventDefault();
-        // Filter out hint-type suggestions for Tab cycling
-        const selectableSuggestions = suggestions
-          .map((s, i) => ({ suggestion: s, index: i }))
-          .filter(({ suggestion }) => suggestion.type !== "hint");
-
-        if (selectableSuggestions.length === 0) return;
-
-        if (highlightedIndex >= 0) {
-          // Already highlighted - cycle to next selectable, wrapping around
-          const currentSelectableIndex = selectableSuggestions.findIndex(({ index }) => index === highlightedIndex);
-          const nextSelectableIndex = (currentSelectableIndex + 1) % selectableSuggestions.length;
-          tabComplete(selectableSuggestions[nextSelectableIndex].index);
-        } else if (selectableSuggestions.length === 1) {
-          // Only one selectable option - Tab completes it
-          tabComplete(selectableSuggestions[0].index);
+        if (!showDropdown) {
+          // Open dropdown and highlight last item
+          setShowDropdown(true);
+          setHighlightedIndex(totalNavigableCount - 1);
+        } else {
+          setHighlightedIndex((current) => {
+            if (current === -1 || current === 0) {
+              return totalNavigableCount - 1; // Wrap to end
+            }
+            return current - 1;
+          });
         }
-        // Multiple selectable options and nothing highlighted - Tab does nothing (ambiguous)
+      } else if (e.key === "Tab" && totalNavigableCount > 0) {
+        // Tab opens dropdown if closed, or cycles through items
+        if (!showDropdown) {
+          e.preventDefault();
+          setShowDropdown(true);
+          setHighlightedIndex(0);
+        } else if (highlightedIndex >= 0) {
+          e.preventDefault();
+          const nextIndex = (highlightedIndex + 1) % totalNavigableCount;
+          setHighlightedIndex(nextIndex);
+          // If it's a suggestion (not preset), also fill input
+          if (nextIndex >= presetCount) {
+            const suggestionIndex = nextIndex - presetCount;
+            const suggestion = selectableSuggestions[suggestionIndex];
+            if (suggestion) {
+              setInputValue(suggestion.label);
+            }
+          }
+        } else {
+          // Nothing highlighted - highlight first item
+          e.preventDefault();
+          setHighlightedIndex(0);
+        }
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (showDropdown && highlightedIndex >= 0) {
-          // Prioritize highlighted selection (user explicitly arrowed to it)
-          handleSelect(highlightedIndex);
+        if (!showDropdown) {
+          // Dropdown closed - open it
+          setShowDropdown(true);
+        } else if (highlightedIndex >= 0) {
+          // Something is highlighted - select it
+          if (highlightedIndex < presetCount) {
+            // It's a preset - toggle it
+            const preset = flatPresets[highlightedIndex];
+            if (preset) {
+              togglePreset(preset);
+            }
+          } else {
+            // It's a suggestion - use existing handleSelect
+            const originalSuggestionIndex = suggestions.findIndex(
+              (s) => s === selectableSuggestions[highlightedIndex - presetCount],
+            );
+            if (originalSuggestionIndex >= 0) {
+              handleSelect(originalSuggestionIndex);
+            }
+          }
         } else if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
           // Add filter when in field prefix mode (e.g., "pool:g" or "pool:gpu-pool-1")
           addChip(parsedInput.field, parsedInput.query.trim());
@@ -446,8 +505,67 @@ function SmartSearchInner<T>({
           // No prefix - show error (persists until user types)
           setValidationError("Use a filter prefix (e.g. pool:, platform:, quota:)");
         }
+      } else if (e.key === "ArrowLeft") {
+        // Navigate left: through chips OR through presets in dropdown
+        if (focusedChipIndex >= 0) {
+          // Already navigating chips
+          e.preventDefault();
+          if (focusedChipIndex > 0) {
+            setFocusedChipIndex(focusedChipIndex - 1);
+          }
+        } else if (showDropdown && highlightedIndex >= 0 && highlightedIndex < presetCount) {
+          // Navigating presets horizontally
+          e.preventDefault();
+          if (highlightedIndex > 0) {
+            setHighlightedIndex(highlightedIndex - 1);
+          } else {
+            // Wrap to last preset
+            setHighlightedIndex(presetCount - 1);
+          }
+        } else if (chips.length > 0) {
+          // Check if cursor is at start to enter chip navigation
+          const cursorAtStart = inputRef.current?.selectionStart === 0 && inputRef.current?.selectionEnd === 0;
+          if (cursorAtStart) {
+            e.preventDefault();
+            setFocusedChipIndex(chips.length - 1);
+          }
+        }
+      } else if (e.key === "ArrowRight") {
+        // Navigate right: through chips OR through presets in dropdown
+        if (focusedChipIndex >= 0) {
+          // Already navigating chips
+          e.preventDefault();
+          if (focusedChipIndex < chips.length - 1) {
+            setFocusedChipIndex(focusedChipIndex + 1);
+          } else {
+            // Move back to input
+            setFocusedChipIndex(-1);
+            inputRef.current?.focus();
+          }
+        } else if (showDropdown && highlightedIndex >= 0 && highlightedIndex < presetCount) {
+          // Navigating presets horizontally
+          e.preventDefault();
+          if (highlightedIndex < presetCount - 1) {
+            setHighlightedIndex(highlightedIndex + 1);
+          } else {
+            // Wrap to first preset
+            setHighlightedIndex(0);
+          }
+        }
       } else if (e.key === "Backspace" && inputValue === "" && chips.length > 0) {
-        removeChip(chips.length - 1);
+        // Delete focused chip, or select last chip if none focused
+        if (focusedChipIndex >= 0) {
+          e.preventDefault();
+          removeChip(focusedChipIndex);
+          // Adjust focus: move to previous chip or input
+          setFocusedChipIndex(chips.length === 1 ? -1 : Math.min(focusedChipIndex, chips.length - 2));
+        } else {
+          setFocusedChipIndex(chips.length - 1);
+        }
+      } else if (e.key === "Delete" && focusedChipIndex >= 0) {
+        e.preventDefault();
+        removeChip(focusedChipIndex);
+        setFocusedChipIndex(chips.length === 1 ? -1 : Math.min(focusedChipIndex, chips.length - 2));
       } else if (e.key === "Escape") {
         if (showDropdown) {
           e.preventDefault();
@@ -459,11 +577,15 @@ function SmartSearchInner<T>({
       }
     },
     [
+      flatPresets,
+      selectableSuggestions,
       suggestions,
+      totalNavigableCount,
       highlightedIndex,
       showDropdown,
       handleSelect,
-      tabComplete,
+      togglePreset,
+      focusedChipIndex,
       parsedInput,
       inputValue,
       chips,
@@ -476,21 +598,36 @@ function SmartSearchInner<T>({
     setInputValue(e.target.value);
     setShowDropdown(true);
     setValidationError(null); // Clear error when user types
+    setFocusedChipIndex(-1); // Clear chip focus when typing
   }, []);
 
   const handleFocus = useCallback(() => {
     setShowDropdown(true);
+    setFocusedChipIndex(-1); // Clear chip focus when input is focused
   }, []);
 
+  // Scroll highlighted item into view when navigating
+  useEffect(() => {
+    if (highlightedIndex < 0 || !dropdownRef.current) return;
+
+    // Find the highlighted element by data attribute
+    const highlighted = dropdownRef.current.querySelector(`[data-highlight-index="${highlightedIndex}"]`);
+    if (highlighted) {
+      highlighted.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [highlightedIndex]);
+
   const shouldShowDropdown = showDropdown && suggestions.length > 0;
+  const showPresets = showDropdown && presets && presets.length > 0 && inputValue === "";
 
   return (
     <div className={cn("relative", className)}>
-      {/* Search input with chips */}
+      {/* Search input with chips - z-50 to stay above backdrop */}
       <div
         className={cn(
-          "flex flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors",
-          "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+          "relative z-50 flex flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors",
+          styles.border,
+          styles.surface,
           "focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
           // Validation error state
           validationError &&
@@ -499,17 +636,18 @@ function SmartSearchInner<T>({
         onClick={() => inputRef.current?.focus()}
       >
         <Search
-          className={cn(
-            "size-4 shrink-0 transition-colors",
-            validationError ? "text-red-500" : "text-zinc-400 dark:text-zinc-500",
-          )}
+          className={cn("size-4 shrink-0 transition-colors", validationError ? "text-red-500" : styles.mutedLight)}
         />
 
         {chips.map((chip, index) => (
           <ChipLabel
             key={`${chip.field}-${chip.value}-${index}`}
             chip={chip}
-            onRemove={() => removeChip(index)}
+            onRemove={() => {
+              removeChip(index);
+              setFocusedChipIndex(-1);
+            }}
+            focused={focusedChipIndex === index}
           />
         ))}
 
@@ -534,17 +672,24 @@ function SmartSearchInner<T>({
         {chips.length > 0 && (
           <button
             type="button"
-            onClick={() => onChipsChange([])}
-            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Clear all filters"
+            onClick={(e) => {
+              e.stopPropagation(); // Don't trigger container's focus behavior
+              onChipsChange([]);
+            }}
+            className={cn(
+              "ml-1 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors hover:text-zinc-700 dark:hover:text-zinc-300",
+              styles.muted,
+              styles.hoverBg,
+            )}
           >
-            <X className="size-4" />
+            <X className="size-3" />
+            <span>Clear filters</span>
           </button>
         )}
       </div>
 
       {/* Invisible backdrop to capture outside clicks without triggering underlying elements */}
-      {shouldShowDropdown && (
+      {(shouldShowDropdown || showPresets) && (
         <div
           className="fixed-below-header z-40"
           onClick={(e) => {
@@ -556,85 +701,166 @@ function SmartSearchInner<T>({
       )}
 
       {/* Dropdown suggestions (includes error messages as hints) */}
-      {(shouldShowDropdown || validationError) && (
+      {(shouldShowDropdown || showPresets || validationError) && (
         <div
           ref={dropdownRef}
           id="smart-search-listbox"
           className={cn(
             "absolute inset-x-0 top-full z-50 mt-1 max-h-[300px] overflow-auto rounded-md border shadow-lg",
-            validationError
-              ? "border-red-200 bg-white dark:border-red-800 dark:bg-zinc-900"
-              : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+            styles.surface,
+            validationError ? styles.borderError : styles.border,
           )}
           role="listbox"
         >
           {/* Error message as a hint */}
           {validationError && (
-            <div className="pointer-events-none border-b border-red-100 px-3 py-2 text-sm text-red-600 select-none dark:border-red-900 dark:text-red-400">
+            <div
+              className={cn(
+                "border-b border-red-100 dark:border-red-900",
+                styles.dropdownItem,
+                styles.error,
+                styles.nonInteractive,
+              )}
+            >
               ⚠ {validationError}
             </div>
           )}
 
-          {suggestions.map((suggestion, index) => {
-            // Hint type is display-only, not interactive
-            if (suggestion.type === "hint") {
-              return (
+          {/* Preset filter buttons */}
+          {showPresets &&
+            (() => {
+              let flatIndex = 0;
+              return presets.map((group) => (
                 <div
-                  key={`hint-${suggestion.field.id}-${index}`}
-                  className="pointer-events-none border-b border-zinc-100 px-3 py-2 text-sm text-zinc-500 italic select-none dark:border-zinc-800 dark:text-zinc-400"
-                >
-                  {suggestion.label}
-                </div>
-              );
-            }
-
-            // Count selectable suggestions and find first
-            const selectableSuggestions = suggestions.filter((s) => s.type !== "hint");
-            const firstSelectableIndex = suggestions.findIndex((s) => s.type !== "hint");
-            const showTabHint = selectableSuggestions.length === 1 && index === firstSelectableIndex;
-
-            return (
-              <button
-                key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
-                id={`suggestion-${index}`}
-                type="button"
-                onClick={() => handleSelect(index)}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                className={cn(
-                  "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
-                  index === highlightedIndex
-                    ? "bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100"
-                    : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
-                )}
-                role="option"
-                aria-selected={index === highlightedIndex}
-              >
-                <span className="flex items-center gap-2">
-                  {suggestion.type === "field" ? (
-                    <>
-                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{suggestion.label}</span>
-                      {suggestion.hint && <span className="text-zinc-500 dark:text-zinc-400">{suggestion.hint}</span>}
-                    </>
-                  ) : (
-                    <span>{suggestion.label}</span>
+                  key={group.label}
+                  className={cn(
+                    "grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 border-b px-3 py-2",
+                    styles.border,
                   )}
-                </span>
-                {/* Show Tab hint only when there's exactly one selectable option */}
-                {showTabHint && (
-                  <kbd className="hidden rounded bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-500 sm:inline dark:bg-zinc-700 dark:text-zinc-400">
-                    Tab
-                  </kbd>
-                )}
-              </button>
-            );
-          })}
+                >
+                  <span className={cn("text-xs font-medium", styles.muted)}>{group.label}</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.items.map((preset) => {
+                      const currentIndex = flatIndex++;
+                      const isHighlighted = highlightedIndex === currentIndex;
+                      const active = isPresetActive(preset);
+                      const count = preset.count(data);
+
+                      // Custom render: user provides their own content and handles all visual states
+                      if (preset.render) {
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            data-highlight-index={currentIndex}
+                            onClick={() => togglePreset(preset)}
+                            onMouseEnter={() => setHighlightedIndex(currentIndex)}
+                            className="rounded transition-all"
+                          >
+                            {preset.render({ active, focused: isHighlighted, count, label: preset.label })}
+                          </button>
+                        );
+                      }
+
+                      // Default render: dot + label + count
+                      const activeClasses = preset.badgeColors
+                        ? cn(preset.badgeColors.bg, preset.badgeColors.text)
+                        : "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200";
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          data-highlight-index={currentIndex}
+                          onClick={() => togglePreset(preset)}
+                          onMouseEnter={() => setHighlightedIndex(currentIndex)}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                            active
+                              ? activeClasses
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
+                            isHighlighted && styles.focusRing,
+                          )}
+                        >
+                          <span className={cn("size-2 rounded-full", preset.dotColor)} />
+                          <span>{preset.label}</span>
+                          <span className="tabular-nums opacity-60">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            })()}
+
+          {(() => {
+            // Track which selectable suggestion we're on for unified navigation
+            let selectableIndex = 0;
+            const presetCount = flatPresets.length;
+
+            return suggestions.map((suggestion, index) => {
+              // Hint type is display-only, not interactive
+              if (suggestion.type === "hint") {
+                return (
+                  <div
+                    key={`hint-${suggestion.field.id}-${index}`}
+                    className={cn(
+                      "border-b border-zinc-100 italic dark:border-zinc-800",
+                      styles.dropdownItem,
+                      styles.muted,
+                      styles.nonInteractive,
+                    )}
+                  >
+                    {suggestion.label}
+                  </div>
+                );
+              }
+
+              // Calculate unified navigation index (presets come first)
+              const unifiedIndex = presetCount + selectableIndex;
+              selectableIndex++;
+
+              const isHighlighted = highlightedIndex === unifiedIndex;
+              const showTabHint = selectableSuggestions.length === 1 && selectableIndex === 1;
+
+              return (
+                <button
+                  key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
+                  id={`suggestion-${index}`}
+                  type="button"
+                  data-highlight-index={unifiedIndex}
+                  onClick={() => handleSelect(index)}
+                  onMouseEnter={() => setHighlightedIndex(unifiedIndex)}
+                  className={cn(
+                    "flex w-full items-center justify-between text-left",
+                    styles.dropdownItem,
+                    isHighlighted ? styles.highlighted : cn("text-zinc-700 dark:text-zinc-300", styles.hoverBg),
+                  )}
+                  role="option"
+                  aria-selected={isHighlighted}
+                >
+                  <span className="flex items-center gap-2">
+                    {suggestion.type === "field" ? (
+                      <>
+                        <span className={cn("font-mono text-xs", styles.prefix)}>{suggestion.label}</span>
+                        {suggestion.hint && <span className={styles.muted}>{suggestion.hint}</span>}
+                      </>
+                    ) : (
+                      <span>{suggestion.label}</span>
+                    )}
+                  </span>
+                  {/* Show Tab hint only when there's exactly one selectable option */}
+                  {showTabHint && (
+                    <kbd className={cn("hidden px-1.5 py-0.5 text-xs sm:inline", styles.kbd, styles.muted)}>Tab</kbd>
+                  )}
+                </button>
+              );
+            });
+          })()}
 
           {/* Footer hint */}
-          <div className="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-            <kbd className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">↑↓</kbd> navigate{" "}
-            <kbd className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">Tab</kbd> complete{" "}
-            <kbd className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">Enter</kbd> select{" "}
-            <kbd className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">Esc</kbd> close
+          <div className={cn("border-t px-3 py-2 text-xs", styles.border, styles.muted)}>
+            <kbd className={styles.kbd}>↑↓</kbd> navigate <kbd className={styles.kbd}>Tab</kbd> complete{" "}
+            <kbd className={styles.kbd}>Enter</kbd> select <kbd className={styles.kbd}>Esc</kbd> close
           </div>
         </div>
       )}

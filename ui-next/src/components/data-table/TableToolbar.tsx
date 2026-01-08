@@ -28,7 +28,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useSharedPreferences, type SearchChip } from "@/stores";
-import { SmartSearch, type SearchField } from "@/components/smart-search";
+import { SmartSearch, type SearchField, type SearchPreset } from "@/components/smart-search";
 
 // =============================================================================
 // Types
@@ -57,6 +57,11 @@ export interface TableToolbarProps<T> {
   onSearchChipsChange: (chips: SearchChip[]) => void;
   /** SmartSearch placeholder text */
   placeholder?: string;
+  /** Preset filter buttons for SmartSearch dropdown */
+  searchPresets?: {
+    label: string;
+    items: SearchPreset<T>[];
+  }[];
   /** Additional content to render after standard controls */
   children?: React.ReactNode;
 }
@@ -97,6 +102,7 @@ function TableToolbarInner<T>({
   searchChips,
   onSearchChipsChange,
   placeholder = "Search...",
+  searchPresets,
   children,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
@@ -114,6 +120,7 @@ function TableToolbarInner<T>({
           chips={searchChips}
           onChipsChange={onSearchChipsChange}
           placeholder={placeholder}
+          presets={searchPresets}
         />
       </div>
 

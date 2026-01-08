@@ -55,6 +55,17 @@
  */
 
 import type { Pool } from "./types";
+import { PoolStatus } from "../generated";
+
+/**
+ * Map status category names to raw PoolStatus values.
+ * This bridges the gap between UI-friendly names and API values.
+ */
+const STATUS_CATEGORY_TO_RAW: Record<string, string> = {
+  online: PoolStatus.ONLINE,
+  maintenance: PoolStatus.MAINTENANCE,
+  offline: PoolStatus.OFFLINE,
+};
 
 // =============================================================================
 // Types
@@ -124,8 +135,11 @@ function applyPoolFilters(pools: Pool[], params: PoolFilterParams, sharingGroups
   let result = pools;
 
   // SHIM: Filter by status (should be server-side)
+  // Status filter accepts category names (online, maintenance, offline)
+  // and maps them to raw PoolStatus values (ONLINE, MAINTENANCE, OFFLINE)
   if (params.statuses && params.statuses.length > 0) {
-    const statusSet = new Set(params.statuses);
+    const rawStatuses = params.statuses.map((s) => STATUS_CATEGORY_TO_RAW[s.toLowerCase()] ?? s);
+    const statusSet = new Set(rawStatuses);
     result = result.filter((pool) => statusSet.has(pool.status));
   }
 
