@@ -62,6 +62,8 @@ export interface TableToolbarProps<T> {
     label: string;
     items: SearchPreset<T>[];
   }[];
+  /** Show the free/used display mode toggle (default: true) */
+  showDisplayModeToggle?: boolean;
   /** Additional content to render after standard controls */
   children?: React.ReactNode;
 }
@@ -103,6 +105,7 @@ function TableToolbarInner<T>({
   onSearchChipsChange,
   placeholder = "Search...",
   searchPresets,
+  showDisplayModeToggle = true,
   children,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
@@ -125,17 +128,19 @@ function TableToolbarInner<T>({
       </div>
 
       <div className="flex items-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggleDisplayMode}
-              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
-        </Tooltip>
+        {showDisplayModeToggle && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleDisplayMode}
+                className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
+          </Tooltip>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>

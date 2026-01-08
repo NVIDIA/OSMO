@@ -51,6 +51,7 @@ export const handlers = [
   // ==========================================================================
 
   // List workflows (paginated)
+  // Returns SrcServiceCoreWorkflowObjectsListResponse format
   http.get("/api/workflow", async ({ request }) => {
     await delay(MOCK_DELAY);
 
@@ -77,13 +78,40 @@ export const handlers = [
       filtered = filtered.filter((w) => userFilter.includes(w.submitted_by));
     }
 
+    // Transform to API response format (SrcServiceCoreWorkflowObjectsListEntry)
+    const workflows = filtered.map((w) => ({
+      user: w.submitted_by,
+      name: w.name,
+      workflow_uuid: w.uuid,
+      submit_time: w.submit_time,
+      start_time: w.start_time,
+      end_time: w.end_time,
+      queued_time: w.queued_time,
+      duration: w.duration,
+      status: w.status,
+      overview: `${w.groups.length} groups, ${w.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
+      logs: w.logs_url,
+      error_logs: w.status.toString().startsWith("FAILED") ? `/api/workflow/${w.name}/logs?type=error` : undefined,
+      grafana_url: `https://grafana.example.com/d/workflow/${w.name}`,
+      dashboard_url: `https://dashboard.example.com/workflow/${w.name}`,
+      pool: w.pool,
+      app_owner: undefined,
+      app_name: undefined,
+      app_version: undefined,
+      priority: w.priority,
+    }));
+
+    const hasFilters = statusFilter.length > 0 || poolFilter.length > 0 || userFilter.length > 0;
+    const moreEntries = hasFilters ? false : offset + limit < total;
+
     return HttpResponse.json({
-      entries: filtered,
-      total: statusFilter.length > 0 || poolFilter.length > 0 || userFilter.length > 0 ? filtered.length : total,
+      workflows,
+      more_entries: moreEntries,
     });
   }),
 
   // Get single workflow
+  // Returns WorkflowQueryResponse format
   http.get("/api/workflow/:name", async ({ params }) => {
     await delay(MOCK_DELAY);
 
@@ -94,7 +122,55 @@ export const handlers = [
       return new HttpResponse(null, { status: 404 });
     }
 
-    return HttpResponse.json(workflow);
+    // Transform groups to API format (GroupQueryResponse)
+    const groups = workflow.groups.map((g) => ({
+      name: g.name,
+      status: g.status,
+      start_time: g.tasks[0]?.start_time,
+      end_time: g.tasks[g.tasks.length - 1]?.end_time,
+      remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
+      downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
+      failure_message: g.failure_message,
+      tasks: g.tasks.map((t) => ({
+        name: t.name,
+        retry_id: t.retry_id,
+        status: t.status,
+        node: t.node,
+        start_time: t.start_time,
+        end_time: t.end_time,
+        exit_code: t.exit_code,
+        failure_message: t.failure_message,
+      })),
+    }));
+
+    // Transform to WorkflowQueryResponse format
+    const response = {
+      name: workflow.name,
+      uuid: workflow.uuid,
+      submitted_by: workflow.submitted_by,
+      cancelled_by: workflow.cancelled_by,
+      spec: workflow.spec_url,
+      template_spec: workflow.spec_url,
+      logs: workflow.logs_url,
+      events: workflow.events_url,
+      overview: `${workflow.groups.length} groups, ${workflow.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
+      dashboard_url: `https://dashboard.example.com/workflow/${workflow.name}`,
+      grafana_url: `https://grafana.example.com/d/workflow/${workflow.name}`,
+      tags: workflow.tags,
+      submit_time: workflow.submit_time,
+      start_time: workflow.start_time,
+      end_time: workflow.end_time,
+      duration: workflow.duration,
+      queued_time: workflow.queued_time,
+      status: workflow.status,
+      groups,
+      pool: workflow.pool,
+      backend: workflow.backend,
+      plugins: {},
+      priority: workflow.priority,
+    };
+
+    return HttpResponse.json(response);
   }),
 
   // Workflow logs
