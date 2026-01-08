@@ -23,7 +23,7 @@
 
 import type { SearchField } from "@/components/smart-search";
 import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
-import { STATUS_CATEGORY_MAP, type StatusCategory } from "./workflow-constants";
+import { STATUS_CATEGORY_MAP } from "./workflow-constants";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 
@@ -32,70 +32,60 @@ export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 // =============================================================================
 
 /**
- * Create workflow search fields.
- * These define the autocomplete behavior and filtering logic.
+ * Pre-built workflow search fields (frozen to prevent accidental mutation).
  */
-export function createWorkflowSearchFields(): SearchField<WorkflowListEntry>[] {
-  return [
-    {
-      id: "name",
-      label: "Name",
-      hint: "workflow name",
-      prefix: "name:",
-      getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
-      match: (workflow, value) => workflow.name.toLowerCase().includes(value.toLowerCase()),
+export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze([
+  {
+    id: "name",
+    label: "Name",
+    hint: "workflow name",
+    prefix: "name:",
+    getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
+    match: (workflow, value) => workflow.name.toLowerCase().includes(value.toLowerCase()),
+  },
+  {
+    id: "status",
+    label: "Status",
+    hint: "workflow status category",
+    prefix: "status:",
+    // Show category values for simpler filtering (maps to multiple statuses)
+    getValues: () => ["running", "waiting", "completed", "failed"],
+    match: (workflow, value) => {
+      const category = STATUS_CATEGORY_MAP[workflow.status];
+      return category === value.toLowerCase();
     },
-    {
-      id: "status",
-      label: "Status",
-      hint: "workflow status category",
-      prefix: "status:",
-      // Show category values for simpler filtering (maps to multiple statuses)
-      getValues: () => ["running", "waiting", "completed", "failed"],
-      match: (workflow, value) => {
-        const category = STATUS_CATEGORY_MAP[workflow.status];
-        return category === value.toLowerCase();
-      },
-    },
-    {
-      id: "user",
-      label: "User",
-      hint: "submitted by",
-      prefix: "user:",
-      getValues: (workflows) => [...new Set(workflows.map((w) => w.user))].sort().slice(0, 20),
-      match: (workflow, value) => workflow.user.toLowerCase().includes(value.toLowerCase()),
-    },
-    {
-      id: "pool",
-      label: "Pool",
-      hint: "pool name",
-      prefix: "pool:",
-      getValues: (workflows) => [...new Set(workflows.map((w) => w.pool).filter((p): p is string => !!p))].sort(),
-      match: (workflow, value) => workflow.pool?.toLowerCase().includes(value.toLowerCase()) ?? false,
-    },
-    {
-      id: "priority",
-      label: "Priority",
-      hint: "HIGH, NORMAL, LOW",
-      prefix: "priority:",
-      getValues: () => ["HIGH", "NORMAL", "LOW"],
-      match: (workflow, value) => workflow.priority.toUpperCase() === value.toUpperCase(),
-      requiresValidValue: true,
-    },
-    {
-      id: "app",
-      label: "App",
-      hint: "app name",
-      prefix: "app:",
-      getValues: (workflows) => [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(),
-      match: (workflow, value) => workflow.app_name?.toLowerCase().includes(value.toLowerCase()) ?? false,
-    },
-  ];
-}
-
-/**
- * Get all unique status categories for preset buttons.
- */
-export function getStatusCategories(): StatusCategory[] {
-  return ["running", "waiting", "completed", "failed"];
-}
+  },
+  {
+    id: "user",
+    label: "User",
+    hint: "submitted by",
+    prefix: "user:",
+    getValues: (workflows) => [...new Set(workflows.map((w) => w.user))].sort().slice(0, 20),
+    match: (workflow, value) => workflow.user.toLowerCase().includes(value.toLowerCase()),
+  },
+  {
+    id: "pool",
+    label: "Pool",
+    hint: "pool name",
+    prefix: "pool:",
+    getValues: (workflows) => [...new Set(workflows.map((w) => w.pool).filter((p): p is string => !!p))].sort(),
+    match: (workflow, value) => workflow.pool?.toLowerCase().includes(value.toLowerCase()) ?? false,
+  },
+  {
+    id: "priority",
+    label: "Priority",
+    hint: "HIGH, NORMAL, LOW",
+    prefix: "priority:",
+    getValues: () => ["HIGH", "NORMAL", "LOW"],
+    match: (workflow, value) => workflow.priority.toUpperCase() === value.toUpperCase(),
+    requiresValidValue: true,
+  },
+  {
+    id: "app",
+    label: "App",
+    hint: "app name",
+    prefix: "app:",
+    getValues: (workflows) => [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(),
+    match: (workflow, value) => workflow.app_name?.toLowerCase().includes(value.toLowerCase()) ?? false,
+  },
+]);

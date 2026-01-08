@@ -31,7 +31,7 @@ import type { SearchPreset, PresetRenderProps } from "@/components/smart-search"
 import { TableToolbar } from "@/components/data-table";
 import { useWorkflowsTableStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
-import { createWorkflowSearchFields, type WorkflowListEntry } from "../lib/workflow-search-fields";
+import { WORKFLOW_SEARCH_FIELDS, type WorkflowListEntry } from "../lib/workflow-search-fields";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP, type StatusCategory } from "../lib/workflow-constants";
 
 // =============================================================================
@@ -78,9 +78,6 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useWorkflowsTableStore((s) => s.toggleColumn);
 
-  // Create search fields
-  const searchFields = useMemo(() => createWorkflowSearchFields(), []);
-
   // Create status presets for quick filtering
   const statusPresets = useMemo(
     (): SearchPreset<WorkflowListEntry>[] =>
@@ -120,7 +117,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   return (
     <TableToolbar
       data={workflows}
-      searchFields={searchFields}
+      searchFields={WORKFLOW_SEARCH_FIELDS}
       columns={OPTIONAL_COLUMNS}
       visibleColumnIds={visibleColumnIds}
       onToggleColumn={toggleColumn}

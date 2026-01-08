@@ -21,11 +21,12 @@
  * - Smart search with filter chips (status, user, pool, priority)
  * - Column visibility and reordering
  * - Status-based row styling
+ * - Infinite scroll pagination
  * - Navigation to workflow detail page on row click
  *
  * Architecture:
- * - useWorkflowsData encapsulates data fetching and filtering
- * - UI receives pre-filtered data
+ * - useWorkflowsData encapsulates data fetching, filtering, and pagination
+ * - UI receives paginated, pre-filtered data
  * - Uses Zustand for state persistence
  * - Uses nuqs for URL state synchronization
  */
@@ -55,12 +56,13 @@ export default function WorkflowsPage() {
   const { searchChips, setSearchChips } = useUrlChips();
 
   // ==========================================================================
-  // Data Fetching with SmartSearch filtering
+  // Data Fetching with SmartSearch filtering and pagination
   // ==========================================================================
 
-  const { workflows, allWorkflows, isLoading, error, refetch } = useWorkflowsData({
-    searchChips,
-  });
+  const { workflows, allWorkflows, isLoading, error, refetch, hasMore, fetchNextPage, isFetchingNextPage, total } =
+    useWorkflowsData({
+      searchChips,
+    });
 
   // ==========================================================================
   // Render
@@ -91,9 +93,13 @@ export default function WorkflowsPage() {
         >
           <WorkflowsDataTable
             workflows={workflows}
+            totalCount={total}
             isLoading={isLoading}
             error={error ?? undefined}
             onRetry={refetch}
+            hasNextPage={hasMore}
+            onLoadMore={fetchNextPage}
+            isFetchingNextPage={isFetchingNextPage}
           />
         </InlineErrorBoundary>
       </div>
