@@ -267,6 +267,7 @@ export function PoolsDataTable({
         onSortingChange={handleSortChange}
         // Layout
         rowHeight={rowHeight}
+        compact={compactMode}
         className="text-sm"
         scrollClassName="scrollbar-styled flex-1"
         // State

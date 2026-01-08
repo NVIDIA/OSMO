@@ -92,7 +92,7 @@ export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }:
       <p className={cn("mt-2", text.muted)}>
         {free > 0 ? (
           <>
-            <span className="font-medium text-nvidia dark:text-nvidia-light">{free} available</span> for HIGH/NORMAL
+            <span className="text-nvidia dark:text-nvidia-light font-medium">{free} available</span> for HIGH/NORMAL
             priority workflows
           </>
         ) : (

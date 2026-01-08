@@ -1,5 +1,5 @@
 /**
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,34 +20,51 @@
  * DataTable Styles
  *
  * CSS for the virtualized data table component.
- *
- * Uses @reference to access Tailwind theme and utilities from globals.css
- * without duplicating CSS in the bundle.
- * See: https://tailwindcss.com/docs/upgrade-guide#using-apply-with-vue-svelte-or-css-modules
- *
- * ## Performance Optimizations
- * - CSS containment: Isolates layout/paint to subtrees
- * - content-visibility: Skips rendering of off-screen content
- * - will-change: Hints for GPU compositing (used sparingly)
- * - contain-intrinsic-size: Prevents layout shifts
+ * Uses @reference to access Tailwind theme without duplicating CSS.
+ * See: https://tailwindcss.com/docs/functions-and-directives#reference-directive
  */
 @reference "../../app/globals.css";
 
-/* Base table styles */
-.data-table {
-  --data-table-header-height: 2.75rem; /* 44px at 16px base */
-  --data-table-section-height: 2.25rem; /* 36px at 16px base */
+/* =============================================================================
+   Base Table Styles
+   ============================================================================= */
 
+.data-table {
+  --data-table-header-height: 2.75rem;
+  --data-table-section-height: 2.25rem;
   border-collapse: collapse;
 }
 
-/* Virtualized table body - uses absolute positioning */
+/* Virtualized table body - container for absolute positioned rows */
 .data-table-body {
   position: relative;
   display: block;
 }
 
-/* Section header row - full width absolute positioned */
+/* =============================================================================
+   Row Styles - Virtualized Positioning
+   ============================================================================= */
+
+/* Data row - absolute positioned for virtualization */
+.data-table-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  will-change: transform;
+  backface-visibility: hidden;
+
+  /* Fill remaining space to extend row background */
+  &::after {
+    content: "";
+    flex: 1 0 0;
+    min-width: 0;
+  }
+}
+
+/* Section header row - virtualized */
 .data-table-section-row {
   position: absolute;
   top: 0;
@@ -55,133 +72,43 @@
   width: 100%;
 }
 
-/* Virtualized row - absolutely positioned */
-.data-table-row {
-  position: absolute;
-  top: 0;
-  left: 0;
-  /* Full width ensures row background extends to container edge */
-  width: 100%;
-  display: flex;
-  /* Ensure cells stretch to row height */
-  align-items: stretch;
-  /* GPU layer hint for transform animations (translate3d) */
-  will-change: transform;
-  /* Prevent subpixel rendering issues */
-  backface-visibility: hidden;
-
-  /* Fill remaining space with pseudo-element to avoid whitespace gap */
-  &::after {
-    content: "";
-    flex: 1 0 0;
-    min-width: 0;
-  }
-}
-
 /* Header row - flex layout for column alignment */
 .data-table-header-row {
   display: flex;
-  /* Full width ensures header background extends to container edge */
   width: 100%;
 
-  /* Fill remaining space with pseudo-element to avoid whitespace gap */
   &::after {
     content: "";
     flex: 1 0 0;
     min-width: 0;
   }
-}
-
-/* Header row - uses Tailwind theme values for consistency */
-.data-table-header {
-  @apply sticky top-0 z-20 flex bg-zinc-100 dark:bg-zinc-900;
-}
-
-/* Section header row (sticky within scroll) */
-.data-table-section {
-  @apply sticky z-10 flex bg-zinc-100 dark:bg-zinc-900;
-}
-
-/* Cell alignment helpers */
-.data-table-cell {
-  display: flex;
-  align-items: flex-start;
-  /* Use logical properties for RTL support */
-  padding-inline: 1rem;
-  /* Text optimization - use optimizeSpeed during interactions for perf */
-  text-rendering: optimizeLegibility;
-  /* Prevent layout thrashing from width changes */
-  box-sizing: border-box;
-
-  /* Alignment variants using CSS nesting */
-  &.data-table-cell--left {
-    justify-content: flex-start;
-    text-align: start;
-  }
-
-  &.data-table-cell--right {
-    justify-content: flex-end;
-    text-align: end;
-  }
-
-  &.data-table-cell--center {
-    justify-content: center;
-    text-align: center;
-  }
-}
-
-/* Row states using CSS nesting */
-.data-table-row--interactive {
-  @apply cursor-pointer transition-colors duration-150;
-
-  &:hover {
-    @apply bg-zinc-50 dark:bg-zinc-900;
-  }
-
-  /* Ensure filler area is also clickable */
-  &::after {
-    @apply cursor-pointer;
-  }
-}
-
-.data-table-row--selected {
-  @apply bg-zinc-100 dark:bg-zinc-800;
 }
 
 /* =============================================================================
    Focus States - Keyboard Navigation
    ============================================================================= */
 
-/* Focus visible on rows - subtle outline */
 .data-table-row:focus-visible {
   @apply z-[1] outline-2 outline-blue-500;
   outline-offset: -2px;
 }
 
-/* Focus visible on cells - for grid navigation */
 .data-table-row td:focus-visible,
 .data-table-row [role="gridcell"]:focus-visible {
   @apply bg-blue-50 outline-2 outline-blue-500 dark:bg-blue-500/15;
   outline-offset: -2px;
 }
 
-/* Focus visible on header cells */
 .data-table th:focus-visible,
 .data-table [role="columnheader"]:focus-visible {
   @apply outline-2 outline-blue-500;
   outline-offset: -2px;
 }
 
-/* Skip link for accessibility - visually hidden until focused */
-.data-table-skip-link {
-  @apply absolute left-[-9999px] z-[100] rounded bg-zinc-900 px-4 py-2 text-white no-underline;
+/* =============================================================================
+   Scroll Container
+   ============================================================================= */
 
-  &:focus {
-    @apply top-2 left-2;
-  }
-}
-
-/* Scroll container */
 .data-table-scroll {
   @apply overflow-auto overscroll-contain;
   scrollbar-gutter: stable;
@@ -191,7 +118,6 @@
    Column Resize Styles
    ============================================================================= */
 
-/* Header cells need relative positioning for resize handle */
 .data-table th {
   position: relative;
 }
@@ -200,40 +126,33 @@
 .resize-handle {
   @apply absolute inset-y-0 end-0 z-[1] w-2 cursor-col-resize touch-none select-none;
 
-  /* Visual indicator line */
   &::after {
     content: "";
     @apply absolute end-[3px] top-1/4 bottom-1/4 w-0.5 rounded-sm bg-transparent transition-colors duration-150;
   }
 
-  /* Hover state */
   &:hover::after {
     @apply bg-zinc-400 dark:bg-zinc-500;
   }
 
-  /* Active/dragging state */
   &:active::after,
   &.is-dragging::after {
     @apply bg-zinc-500 dark:bg-zinc-400;
   }
 }
 
-/* Show resize handle when hovering the column header cell */
 .data-table th:hover .resize-handle::after {
   @apply bg-zinc-300 dark:bg-zinc-700;
 }
 
-/* Ensure direct hover on handle is brighter than cell hover */
 .data-table th:hover .resize-handle:hover::after {
   @apply bg-zinc-400 dark:bg-zinc-500;
 }
 
 /* =============================================================================
    Smooth Layout Transitions
-   Applied when NOT resizing for graceful column width changes
    ============================================================================= */
 
-/* Smooth transitions for column widths when layout changes (not during drag) */
 .data-table:not(.is-resizing) th,
 .data-table:not(.is-resizing) td {
   transition:
@@ -241,7 +160,6 @@
     min-width 150ms ease-out;
 }
 
-/* Transitioning class - added temporarily during animated layout changes */
 .is-transitioning th,
 .is-transitioning td {
   transition:
@@ -252,68 +170,41 @@
 
 /* =============================================================================
    High-Performance Resize Mode
-   Applied during column drag for 60fps smooth resizing
    ============================================================================= */
 
-/* Applied to scroll container during resize */
 .is-resizing {
-  /* Prevent all scrolling during resize */
   overflow: hidden !important;
-
-  /* Prevent overscroll behavior */
   overscroll-behavior: none;
-
-  /* Prevent text selection */
   user-select: none;
-
-  /* Prevent touch actions */
   touch-action: none;
-
-  /* Performance flag for CSS queries */
   --is-resizing: 1;
 }
 
-/* GPU acceleration for the entire table during resize */
 .is-resizing .data-table {
-  /* Promote table to compositor layer */
   will-change: contents;
-  /* Stricter containment during resize */
   contain: strict;
 }
 
-/* Optimize header cells during resize */
 .is-resizing .data-table th,
 .is-resizing .data-table td {
-  /* Disable transitions during drag for instant updates */
   transition: none !important;
-  /* Promote cells to compositor for GPU rendering */
   will-change: width;
-  /* Contain layout recalculations */
   contain: layout style;
 }
 
-/* Disable all hover effects during resize to reduce paint */
 .is-resizing .data-table-row:hover {
   background: inherit !important;
 }
 
-/* Force col-resize cursor everywhere during resize */
 .is-resizing,
 .is-resizing * {
   cursor: col-resize !important;
 }
 
-/* Prevent pointer events on table content during resize */
 .is-resizing .data-table tbody {
   pointer-events: none;
 }
 
-/* Disable text rendering optimizations during resize for speed */
-.is-resizing .data-table-cell {
-  text-rendering: optimizeSpeed;
-}
-
-/* Remove box-shadows and complex effects during resize */
 .is-resizing .data-table * {
   box-shadow: none !important;
 }
