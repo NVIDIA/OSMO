@@ -30,13 +30,7 @@
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/shadcn/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/shadcn/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 
 // =============================================================================
 // Types
@@ -98,7 +92,7 @@ export function ItemSelector({
   if (items.length === 1) {
     return (
       <div className={cn("flex items-center gap-2", className)}>
-        {label && <span className="text-sm text-muted-foreground">{label}</span>}
+        {label && <span className="text-muted-foreground text-sm">{label}</span>}
         <span className="text-sm font-medium">{items[0]}</span>
       </div>
     );
@@ -107,32 +101,40 @@ export function ItemSelector({
   // Multiple items: Select dropdown
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {label && <span className="text-sm text-muted-foreground">{label}</span>}
-      <Select value={selectedItem ?? undefined} onValueChange={onSelect}>
+      {label && <span className="text-muted-foreground text-sm">{label}</span>}
+      <Select
+        value={selectedItem ?? undefined}
+        onValueChange={onSelect}
+      >
         <SelectTrigger
           size="sm"
-          className="h-auto gap-1.5 border-0 bg-transparent px-0 py-0.5 shadow-none hover:bg-accent/50"
+          className="hover:bg-accent/50 h-auto gap-1.5 border-0 bg-transparent px-0 py-0.5 shadow-none"
           aria-label={ariaLabel ?? "Select item"}
         >
           <SelectValue />
           {selectedItem === defaultItem && (
-            <Badge variant="secondary" className="ml-1 text-[0.625rem] uppercase">
+            <Badge
+              variant="secondary"
+              className="ml-1 text-[0.625rem] uppercase"
+            >
               Default
             </Badge>
           )}
         </SelectTrigger>
-        <SelectContent align="start" className="min-w-56">
+        <SelectContent
+          align="start"
+          className="min-w-56"
+        >
           {items.map((item) => {
             const isDefault = item === defaultItem;
 
             return (
-              <SelectItem key={item} value={item}>
+              <SelectItem
+                key={item}
+                value={item}
+              >
                 <span className="flex-1 truncate">{item}</span>
-                {isDefault && (
-                  <span className="ml-2 text-[0.625rem] text-muted-foreground uppercase">
-                    Default
-                  </span>
-                )}
+                {isDefault && <span className="text-muted-foreground ml-2 text-[0.625rem] uppercase">Default</span>}
               </SelectItem>
             );
           })}

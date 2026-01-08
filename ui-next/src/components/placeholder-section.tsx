@@ -61,11 +61,11 @@ export function PlaceholderSection({ title, description, note, className }: Plac
   return (
     <Card className={cn("border-dashed opacity-50", className)}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-xs font-semibold uppercase tracking-wider">{title}</CardTitle>
+        <CardTitle className="text-xs font-semibold tracking-wider uppercase">{title}</CardTitle>
       </CardHeader>
       <CardContent className="text-center">
         <CardDescription>{description}</CardDescription>
-        {note && <p className="mt-1 text-xs text-muted-foreground/70">{note}</p>}
+        {note && <p className="text-muted-foreground/70 mt-1 text-xs">{note}</p>}
       </CardContent>
     </Card>
   );
