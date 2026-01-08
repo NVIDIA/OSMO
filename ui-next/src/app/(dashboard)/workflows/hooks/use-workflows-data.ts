@@ -15,28 +15,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Data hook for workflows page with SmartSearch chip filtering.
+ * Data hook for workflows page with SmartSearch chip filtering and infinite scroll.
  *
  * Architecture:
- * - Fetches workflows from the API
- * - Converts SmartSearch chips to filter logic
- * - Returns filtered data for UI
+ * - Uses usePaginatedData for offset-based pagination with infinite scroll
+ * - Converts SmartSearch chips to filter logic via shim layer
+ * - Returns paginated, filtered data for UI
  *
- * Currently implements client-side filtering.
- * When backend supports filtering, this can be updated to pass params to API.
+ * SHIM NOTE:
+ * Currently filtering happens client-side in workflows-shim.ts.
+ * When backend supports filtering, the shim will pass filters to the API
+ * and this hook remains unchanged.
  */
 
 "use client";
 
-import { useMemo, useCallback } from "react";
-import {
-  useListWorkflowApiWorkflowGet,
-  type SrcServiceCoreWorkflowObjectsListEntry,
-  type ListWorkflowApiWorkflowGetParams,
-} from "@/lib/api/generated";
+import { useMemo } from "react";
 import type { SearchChip } from "@/stores";
-import { filterByChips } from "@/components/smart-search";
-import { createWorkflowSearchFields, type WorkflowListEntry } from "../lib/workflow-search-fields";
+import { usePaginatedData, type PaginationParams, type PaginatedResponse } from "@/lib/api/pagination";
+import type { WorkflowListEntry } from "../lib/workflow-search-fields";
+import { fetchPaginatedWorkflows, buildWorkflowsQueryKey, hasActiveFilters } from "../lib/workflows-shim";
 
 // =============================================================================
 // Types
@@ -44,18 +42,18 @@ import { createWorkflowSearchFields, type WorkflowListEntry } from "../lib/workf
 
 interface UseWorkflowsDataParams {
   searchChips: SearchChip[];
-  /** Number of workflows to fetch (default: 100) */
-  limit?: number;
+  /** Number of workflows per page (default: 50) */
+  pageSize?: number;
 }
 
 interface UseWorkflowsDataReturn {
   /** Filtered workflows (after applying search chips) */
   workflows: WorkflowListEntry[];
-  /** All workflows (unfiltered, for suggestions) */
+  /** All loaded workflows (for suggestions in SmartSearch) */
   allWorkflows: WorkflowListEntry[];
   /** Whether any filters are active */
   hasActiveFilters: boolean;
-  /** Total workflows before filtering */
+  /** Total workflows before filtering (if available from server) */
   total: number;
   /** Total workflows after filtering */
   filteredTotal: number;
@@ -67,66 +65,58 @@ interface UseWorkflowsDataReturn {
   refetch: () => void;
   /** Whether there are more workflows available */
   hasMore: boolean;
+  /** Function to load next page */
+  fetchNextPage: () => void;
+  /** Whether currently loading more data */
+  isFetchingNextPage: boolean;
 }
 
 // =============================================================================
 // Hook
 // =============================================================================
 
-export function useWorkflowsData({ searchChips, limit = 100 }: UseWorkflowsDataParams): UseWorkflowsDataReturn {
-  // API params - fetch all user's workflows
-  const params: ListWorkflowApiWorkflowGetParams = useMemo(
-    () => ({
-      limit,
-      order: "DESC", // Most recent first
-    }),
-    [limit],
-  );
+export function useWorkflowsData({ searchChips, pageSize = 50 }: UseWorkflowsDataParams): UseWorkflowsDataReturn {
+  // Build stable query key - changes when filters change, which resets pagination
+  const queryKey = useMemo(() => buildWorkflowsQueryKey(searchChips), [searchChips]);
 
-  // Fetch workflows from API
-  const { data: rawData, isLoading, error, refetch } = useListWorkflowApiWorkflowGet(params);
-
-  // Parse the response (API returns JSON string)
-  const parsedData = useMemo(() => {
-    if (!rawData) return null;
-    try {
-      // The API returns a JSON string that we need to parse
-      const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-      return parsed as { workflows: SrcServiceCoreWorkflowObjectsListEntry[]; more_entries: boolean };
-    } catch {
-      console.error("Failed to parse workflow response");
-      return null;
-    }
-  }, [rawData]);
-
-  // Get all workflows
-  const allWorkflows = useMemo((): WorkflowListEntry[] => {
-    return parsedData?.workflows ?? [];
-  }, [parsedData]);
-
-  // Create search fields for filtering
-  const searchFields = useMemo(() => createWorkflowSearchFields(), []);
-
-  // Filter workflows by chips (client-side)
-  const workflows = useMemo((): WorkflowListEntry[] => {
-    if (searchChips.length === 0) return allWorkflows;
-    return filterByChips(allWorkflows, searchChips, searchFields);
-  }, [allWorkflows, searchChips, searchFields]);
-
-  // Stable refetch callback
-  const handleRefetch = useCallback(() => {
-    refetch();
-  }, [refetch]);
+  // Use paginated data hook for infinite scroll
+  const {
+    items: workflows,
+    filteredCount,
+    totalCount,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isLoading,
+    error,
+    refetch,
+  } = usePaginatedData<WorkflowListEntry, { searchChips: SearchChip[] }>({
+    queryKey,
+    queryFn: async (
+      params: PaginationParams & { searchChips: SearchChip[] },
+    ): Promise<PaginatedResponse<WorkflowListEntry>> => {
+      return fetchPaginatedWorkflows(params);
+    },
+    params: { searchChips },
+    config: {
+      pageSize,
+      staleTime: 60_000, // 1 minute
+    },
+  });
 
   return {
     workflows,
-    allWorkflows,
-    hasActiveFilters: searchChips.length > 0,
-    total: allWorkflows.length,
-    filteredTotal: workflows.length,
+    // For SmartSearch suggestions, we use the currently loaded workflows
+    // This provides a reasonable suggestion pool without fetching all data
+    allWorkflows: workflows,
+    hasActiveFilters: hasActiveFilters(searchChips),
+    total: totalCount ?? workflows.length,
+    filteredTotal: filteredCount ?? workflows.length,
     isLoading,
-    error: error as Error | null,
-    refetch: handleRefetch,
-    hasMore: parsedData?.more_entries ?? false,
+    error,
+    refetch,
+    hasMore: hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
   };
 }
