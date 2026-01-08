@@ -240,6 +240,7 @@ export function ResourcesTable({
         totalCount={totalCount}
         // Layout
         rowHeight={rowHeight}
+        compact={compactMode}
         className="text-sm"
         scrollClassName="resources-scroll-container scrollbar-styled flex-1"
         // State

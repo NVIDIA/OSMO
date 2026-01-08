@@ -1,5 +1,5 @@
 /**
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,395 +19,99 @@
 /**
  * Pools Feature Styles
  *
- * Uses @reference to access Tailwind theme, utilities, and custom properties
- * from globals.css without duplicating CSS in the bundle.
- * See: https://tailwindcss.com/docs/upgrade-guide#using-apply-with-vue-svelte-or-css-modules
+ * Uses @reference to access Tailwind theme without duplicating CSS.
+ * See: https://tailwindcss.com/docs/functions-and-directives#reference-directive
  */
 @reference "../../../globals.css";
 
 /* =============================================================================
-   CSS Layers - Cascade management for predictable specificity
+   CSS Custom Properties
    ============================================================================= */
-@layer pools.base, pools.table, pools.sections, pools.interactions, pools.panel, pools.scrollbar;
 
-/* =============================================================================
-   CSS Custom Properties - Single source of truth for all dimensions
-   Uses Tailwind CSS variables for consistency with design system
-   ============================================================================= */
-@layer pools.base {
-  :root {
-    /* Colors - using Tailwind CSS variables (--color-*) */
-    --pools-surface-elevated: var(--color-zinc-50);
-    --pools-surface-hover: var(--color-zinc-100);
-    --pools-surface-selected: var(--color-blue-50);
-    --pools-text-secondary: var(--color-zinc-500);
+:root {
+  /* Layout dimensions */
+  --pools-row-height: 3rem;
+  --pools-row-height-compact: 2rem;
+  --pools-table-min-height: 25rem;
+  --pools-border-width: 0.1875rem;
+  --pools-shell-header-height: var(--shell-header-height);
 
-    /* Status colors - semantic palette */
-    --pools-status-online-border: var(--color-emerald-400);
-    --pools-status-maintenance-border: var(--color-amber-400);
-    --pools-status-offline-border: var(--color-red-400);
+  /* Surface colors */
+  --pools-surface-hover: var(--color-zinc-100);
+  --pools-surface-selected: var(--color-blue-50);
 
-    /* Status backgrounds */
-    --pools-status-online-bg: var(--color-green-100);
-    --pools-status-maintenance-bg: var(--color-yellow-100);
-    --pools-status-offline-bg: var(--color-red-100);
-    --pools-status-online-bg-hover: var(--color-green-200);
-    --pools-status-maintenance-bg-hover: var(--color-yellow-200);
-    --pools-status-offline-bg-hover: var(--color-red-200);
+  /* Status border colors */
+  --pools-status-online-border: var(--color-emerald-400);
+  --pools-status-maintenance-border: var(--color-amber-400);
+  --pools-status-offline-border: var(--color-red-400);
+}
 
-    /* Status text colors */
-    --pools-status-online-text: var(--color-emerald-700);
-    --pools-status-maintenance-text: var(--color-amber-700);
-    --pools-status-offline-text: var(--color-red-700);
+.dark {
+  --pools-surface-hover: var(--color-zinc-800);
+  --pools-surface-selected: rgb(59 130 246 / 15%);
 
-    /* Table Dimensions */
-    --pools-row-height: 3rem;
-    --pools-row-height-compact: 2rem;
-    --pools-section-height: 2.25rem;
-    --pools-header-height: 2.25rem;
-    --pools-table-min-height: 25rem;
-    --pools-border-width: 0.1875rem;
-
-    /* Shell Integration - alias to global variable */
-    --pools-shell-header-height: var(--shell-header-height);
-
-    /* Shadows */
-    --pools-shadow-section: 0 2px 4px -1px rgb(0 0 0 / 15%);
-    --pools-shadow-section-bottom: 0 -2px 4px -1px rgb(0 0 0 / 15%);
-  }
-
-  .dark {
-    --pools-surface-elevated: var(--color-zinc-900);
-    --pools-surface-hover: var(--color-zinc-800);
-    --pools-surface-selected: rgb(59 130 246 / 15%);
-    --pools-text-secondary: var(--color-zinc-400);
-
-    /* Status colors - adjusted for dark mode visibility */
-    --pools-status-online-border: var(--color-emerald-600);
-    --pools-status-maintenance-border: var(--color-yellow-400);
-    --pools-status-offline-border: var(--color-red-600);
-
-    /* Status backgrounds - dark variants */
-    --pools-status-online-bg: var(--color-green-950);
-    --pools-status-maintenance-bg: var(--color-yellow-950);
-    --pools-status-offline-bg: var(--color-red-950);
-    --pools-status-online-bg-hover: var(--color-emerald-900);
-    --pools-status-maintenance-bg-hover: var(--color-yellow-900);
-    --pools-status-offline-bg-hover: var(--color-red-900);
-
-    /* Status text colors - lighter for dark mode */
-    --pools-status-online-text: var(--color-emerald-400);
-    --pools-status-maintenance-text: var(--color-yellow-300);
-    --pools-status-offline-text: var(--color-red-400);
-
-    /* Dark mode shadows - more pronounced */
-    --pools-shadow-section: 0 2px 4px -1px rgb(0 0 0 / 50%);
-    --pools-shadow-section-bottom: 0 -2px 4px -1px rgb(0 0 0 / 50%);
-  }
+  /* Status border colors - adjusted for dark mode */
+  --pools-status-online-border: var(--color-emerald-600);
+  --pools-status-maintenance-border: var(--color-yellow-400);
+  --pools-status-offline-border: var(--color-red-600);
 }
 
 /* =============================================================================
-   Table Container & Element Styles
+   Table Container & Row Styles
    ============================================================================= */
-@layer pools.table {
-  .pools-table-container {
-    @apply relative flex flex-col;
-    min-height: var(--pools-table-min-height);
-  }
 
-  .pools-table {
-    @apply border-separate border-spacing-0;
-    table-layout: auto;
-  }
+.pools-table-container {
+  @apply relative flex flex-col;
+  min-height: var(--pools-table-min-height);
+}
 
-  /* Header */
-  .pools-thead {
-    background: var(--pools-surface-elevated);
-  }
+/* =============================================================================
+   Row Styles
+   Note: Row height is controlled by DataTable's rowHeight prop via virtualization.
+   The CSS variables --pools-row-height and --pools-row-height-compact are read
+   by useLayoutDimensions() to provide these values to the virtualizer.
+   ============================================================================= */
 
-  .pools-thead th {
-    @apply whitespace-nowrap;
-    height: var(--pools-header-height);
-  }
+.pools-row {
+  @apply transition-colors duration-75 ease-out;
+}
 
-  /* Data rows - min-height allows dynamic expansion for wrapped content */
+.pools-row:not(.pools-row--selected):hover {
+  background: var(--pools-surface-hover);
+}
+
+.pools-row--selected {
+  background: var(--pools-surface-selected);
+}
+
+/* Status left border indicators */
+.pools-row--online > td:first-child {
+  border-left: var(--pools-border-width) solid var(--pools-status-online-border);
+}
+
+.pools-row--maintenance > td:first-child {
+  border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
+}
+
+.pools-row--offline > td:first-child {
+  border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
+}
+
+.pools-row:focus-visible {
+  @apply outline-none;
+  box-shadow: inset 0 0 0 2px var(--pools-status-online-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
   .pools-row {
-    min-height: var(--pools-row-height);
-  }
-
-  .pools-row[data-compact="true"] {
-    min-height: var(--pools-row-height-compact);
-  }
-
-  .pools-td {
-    @apply align-middle;
-    min-height: inherit;
-  }
-
-  /* Cells that should truncate (not expandable chips) */
-  .pools-td-truncate {
-    @apply truncate overflow-hidden whitespace-nowrap;
-    max-width: 20rem;
-  }
-
-  /* Status styling - border on first cell since <tr> can't have border-left */
-  .pools-row[data-status="online"] > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-online-border);
-  }
-  .pools-row[data-status="maintenance"] > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
-  }
-  .pools-row[data-status="offline"] > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-  }
-  .pools-row[data-selected="true"] {
-    background: var(--pools-surface-selected);
+    @apply transition-none;
   }
 }
 
 /* =============================================================================
-   Section Rows - Sticky status headers with tinted backgrounds
+   Panel Containment
    ============================================================================= */
-@layer pools.sections {
-  .pools-section-row {
-    @apply sticky z-10;
-    box-shadow: var(--pools-shadow-section);
-  }
 
-  .pools-section-row[data-section-index="0"] {
-    top: var(--pools-header-height);
-    @apply z-[13];
-  }
-  .pools-section-row[data-section-index="1"] {
-    top: calc(var(--pools-header-height) + var(--pools-section-height));
-    @apply z-[12];
-  }
-  .pools-section-row[data-section-index="2"] {
-    top: calc(var(--pools-header-height) + var(--pools-section-height) * 2);
-    @apply z-[11];
-  }
-
-  /* Status-specific tinted backgrounds using CSS custom properties */
-  .pools-section-row[data-status="online"],
-  .pools-bottom-section-row[data-status="online"] {
-    background: var(--pools-status-online-bg);
-  }
-  .pools-section-row[data-status="maintenance"],
-  .pools-bottom-section-row[data-status="maintenance"] {
-    background: var(--pools-status-maintenance-bg);
-  }
-  .pools-section-row[data-status="offline"],
-  .pools-bottom-section-row[data-status="offline"] {
-    background: var(--pools-status-offline-bg);
-  }
-
-  /* Section row left border */
-  .pools-section-row[data-status="online"] > td:first-child,
-  .pools-bottom-section-row[data-status="online"] > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-online-border);
-  }
-  .pools-section-row[data-status="maintenance"] > td:first-child,
-  .pools-bottom-section-row[data-status="maintenance"] > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
-  }
-  .pools-section-row[data-status="offline"] > td:first-child,
-  .pools-bottom-section-row[data-status="offline"] > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-  }
-
-  /* Section label colors - using CSS custom properties for theme awareness */
-  .pools-section-row .pools-section-label,
-  .pools-bottom-section-row .pools-section-label {
-    &[data-status="online"],
-    :is([data-status="online"] &) {
-      color: var(--pools-status-online-text);
-    }
-    &[data-status="maintenance"],
-    :is([data-status="maintenance"] &) {
-      color: var(--pools-status-maintenance-text);
-    }
-    &[data-status="offline"],
-    :is([data-status="offline"] &) {
-      color: var(--pools-status-offline-text);
-    }
-  }
-
-  /* Section count */
-  .pools-section-count {
-    @apply font-medium;
-    color: var(--pools-text-secondary);
-  }
-
-  /* Bottom section stack (tfoot) */
-  .pools-tfoot {
-    @apply bg-transparent;
-  }
-
-  .pools-bottom-section-row {
-    box-shadow: var(--pools-shadow-section-bottom);
-  }
-
-  .pools-bottom-section-item {
-    @apply bg-transparent;
-  }
-
-  /* ==========================================================================
-     DataTable Section Headers - New component styles
-     ========================================================================== */
-
-  /* Section header button (inside DataTable section rows) */
-  .pools-section-header[data-status="online"] {
-    background: var(--pools-status-online-bg);
-  }
-  .pools-section-header[data-status="maintenance"] {
-    background: var(--pools-status-maintenance-bg);
-  }
-  .pools-section-header[data-status="offline"] {
-    background: var(--pools-status-offline-bg);
-  }
-
-  .pools-section-header .pools-section-label {
-    &[data-status="online"],
-    :is([data-status="online"] &) {
-      color: var(--pools-status-online-text);
-    }
-    &[data-status="maintenance"],
-    :is([data-status="maintenance"] &) {
-      color: var(--pools-status-maintenance-text);
-    }
-    &[data-status="offline"],
-    :is([data-status="offline"] &) {
-      color: var(--pools-status-offline-text);
-    }
-  }
-
-  /* ==========================================================================
-     Section Nav Stack Items - Using CSS custom properties for theme awareness
-     ========================================================================== */
-
-  .pools-nav-item--online {
-    background: var(--pools-status-online-bg);
-    border-left: var(--pools-border-width) solid var(--pools-status-online-border);
-
-    .section-nav-label {
-      color: var(--pools-status-online-text);
-    }
-
-    &:hover {
-      background: var(--pools-status-online-bg-hover);
-    }
-  }
-
-  .pools-nav-item--maintenance {
-    background: var(--pools-status-maintenance-bg);
-    border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
-
-    .section-nav-label {
-      color: var(--pools-status-maintenance-text);
-    }
-
-    &:hover {
-      background: var(--pools-status-maintenance-bg-hover);
-    }
-  }
-
-  .pools-nav-item--offline {
-    background: var(--pools-status-offline-bg);
-    border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-
-    .section-nav-label {
-      color: var(--pools-status-offline-text);
-    }
-
-    &:hover {
-      background: var(--pools-status-offline-bg-hover);
-    }
-  }
-
-  /* ==========================================================================
-     DataTable Row Styles - Status borders via class instead of data attribute
-     ========================================================================== */
-
-  .pools-row--online > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-online-border);
-  }
-  .pools-row--maintenance > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-maintenance-border);
-  }
-  .pools-row--offline > td:first-child {
-    border-left: var(--pools-border-width) solid var(--pools-status-offline-border);
-  }
-  .pools-row--selected {
-    background: var(--pools-surface-selected);
-  }
-}
-
-/* =============================================================================
-   Hover & Focus States
-   ============================================================================= */
-@layer pools.interactions {
-  .pools-row:not([data-selected="true"]):hover {
-    background: var(--pools-surface-hover);
-  }
-
-  /* Section row hover - using CSS custom properties */
-  .pools-section-row[data-status="online"]:hover,
-  .pools-bottom-section-row[data-status="online"]:hover {
-    background: var(--pools-status-online-bg-hover);
-  }
-  .pools-section-row[data-status="maintenance"]:hover,
-  .pools-bottom-section-row[data-status="maintenance"]:hover {
-    background: var(--pools-status-maintenance-bg-hover);
-  }
-  .pools-section-row[data-status="offline"]:hover,
-  .pools-bottom-section-row[data-status="offline"]:hover {
-    background: var(--pools-status-offline-bg-hover);
-  }
-
-  .pools-row,
-  .pools-section-row,
-  .pools-bottom-section-item {
-    @apply transition-colors duration-75 ease-out;
-  }
-
-  .pools-row:focus-visible {
-    @apply outline-none;
-    box-shadow: inset 0 0 0 2px var(--pools-status-online-border);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .pools-row,
-    .pools-section-row,
-    .pools-bottom-section-item {
-      @apply transition-none;
-    }
-  }
-}
-
-/* =============================================================================
-   Panel containment
-   ============================================================================= */
-@layer pools.panel {
-  .pools-panel {
-    contain: layout style;
-  }
-}
-
-/* =============================================================================
-   Pool-specific visual styles (scrollbar styling is in globals.css)
-   ============================================================================= */
-@layer pools.scrollbar {
-  /* Progress Track - using Tailwind theme colors */
-  .pools-progress-track {
-    @apply bg-zinc-200;
-
-    :is(.dark &) {
-      @apply bg-zinc-700;
-    }
-  }
-
-  /* Shared Capacity Progress Bar - gradient from indigo to pink */
-  .pools-shared-capacity-bar {
-    background: linear-gradient(90deg, var(--color-indigo-400), var(--color-purple-400), var(--color-pink-400));
-  }
+.pools-panel {
+  contain: layout style;
 }
