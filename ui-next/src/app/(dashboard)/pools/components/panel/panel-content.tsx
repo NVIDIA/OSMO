@@ -19,7 +19,7 @@
 "use client";
 
 import React, { memo, useMemo, useCallback } from "react";
-import { Share2, Clock, AlertCircle } from "lucide-react";
+import { CirclePile, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { heading } from "@/lib/styles";
 import { CapacityBar } from "@/components/capacity-bar";
@@ -128,7 +128,7 @@ export const PanelContent = memo(function PanelContent({
               GPU Capacity
               {sharedWith && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-violet-500/20 ring-inset dark:text-violet-300 dark:ring-violet-400/30">
-                  <Share2 className="h-3 w-3" />
+                  <CirclePile className="h-3 w-3" />
                   Shared
                 </span>
               )}
@@ -141,7 +141,7 @@ export const PanelContent = memo(function PanelContent({
           {sharedWith && sharedWith.length > 0 && (
             <div className="rounded-lg bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.05] p-3 ring-1 ring-violet-500/15 ring-inset dark:ring-violet-400/20">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-300">
-                <Share2 className="h-3.5 w-3.5" />
+                <CirclePile className="h-3.5 w-3.5" />
                 Shares capacity with
               </div>
               <SharedPoolsChips
