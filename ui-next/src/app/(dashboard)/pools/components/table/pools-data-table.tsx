@@ -214,7 +214,7 @@ export function PoolsDataTable({
   // Loading state
   if (isLoading && pools.length === 0) {
     return (
-      <div className="pools-table-container h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="pools-table-container table-container h-full">
         <div className="flex flex-1 flex-col gap-2 p-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <div
@@ -230,7 +230,7 @@ export function PoolsDataTable({
   // Error state
   if (error) {
     return (
-      <div className="pools-table-container h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="pools-table-container table-container h-full">
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
           <div className="text-sm text-red-600 dark:text-red-400">Unable to load pools</div>
           <div className="text-xs text-zinc-500 dark:text-zinc-400">{error.message}</div>
@@ -248,7 +248,7 @@ export function PoolsDataTable({
   }
 
   return (
-    <div className="pools-table-container relative h-full overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="pools-table-container table-container relative h-full">
       <DataTable<Pool>
         data={sortedPools}
         columns={columns}
