@@ -19,8 +19,9 @@
 "use client";
 
 import { memo, useCallback } from "react";
-import { Share2 } from "lucide-react";
+import { CirclePile } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { InlineProgress, type DisplayMode } from "@/components/inline-progress";
 import type { Quota } from "@/lib/api/adapter";
 
@@ -65,26 +66,38 @@ const ShareIcon = memo(function ShareIcon({ compact, interactive, onClick }: Sha
     };
 
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        onKeyDown={handleKeyDown}
-        className="inline-flex items-center justify-center rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
-        aria-label="Filter to show only pools sharing capacity with this pool"
-      >
-        <Share2
-          className={iconSize}
-          aria-hidden="true"
-        />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onClick}
+            onKeyDown={handleKeyDown}
+            className="inline-flex items-center justify-center rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
+            aria-label="Show shared pools"
+          >
+            <CirclePile
+              className={iconSize}
+              aria-hidden="true"
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Show shared pools</TooltipContent>
+      </Tooltip>
     );
   }
 
   return (
-    <Share2
-      className={cn("text-violet-500 dark:text-violet-400", iconSize)}
-      aria-label="This pool shares capacity with other pools"
-    />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <CirclePile
+            className={cn("text-violet-500 dark:text-violet-400", iconSize)}
+            aria-label="This pool shares capacity with other pools"
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Show shared pools</TooltipContent>
+    </Tooltip>
   );
 });
 

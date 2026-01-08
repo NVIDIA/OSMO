@@ -57,11 +57,15 @@ export const skeleton = {
 /** Progress bar track */
 export const progressTrack = "overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800";
 
-/** Progress bar fill colors based on percentage thresholds */
-export function getProgressColor(percent: number): string {
-  if (percent > 90) return "bg-red-500";
-  if (percent > 70) return "bg-amber-500";
-  return "bg-emerald-500";
+/**
+ * Progress bar fill color - NVIDIA brand green.
+ *
+ * Uses NVIDIA's signature lime-green (#76b900) which is visually
+ * distinct from the emerald used for status indicators.
+ * Reinforces brand identity across capacity/quota displays.
+ */
+export function getProgressColor(_percent: number): string {
+  return "bg-nvidia dark:bg-nvidia-light";
 }
 
 // =============================================================================
