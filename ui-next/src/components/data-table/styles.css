@@ -110,8 +110,13 @@
    ============================================================================= */
 
 .data-table-scroll {
-  @apply overflow-auto overscroll-contain;
-  scrollbar-gutter: stable;
+  @apply overscroll-contain;
+  /* Overlay scrollbar - doesn't take up space */
+  overflow: overlay;
+  /* Fallback for browsers that don't support overlay */
+  @supports not (overflow: overlay) {
+    overflow: auto;
+  }
 }
 
 /* =============================================================================
