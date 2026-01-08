@@ -520,7 +520,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
               <thead
                 role="rowgroup"
                 className={cn(
-                  "bg-zinc-100 text-left text-xs font-medium text-zinc-500 uppercase dark:bg-zinc-900 dark:text-zinc-400",
+                  "table-header text-left text-xs font-medium text-zinc-500 uppercase dark:text-zinc-400",
                   stickyHeaders && "sticky top-0 z-20",
                 )}
               >
