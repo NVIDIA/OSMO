@@ -143,11 +143,16 @@ function TableToolbarInner<T>({
         </Tooltip>
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
-              <Columns className="size-4" />
-            </button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+                  <Columns className="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Toggle columns</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent
             align="end"
             className="w-48"
