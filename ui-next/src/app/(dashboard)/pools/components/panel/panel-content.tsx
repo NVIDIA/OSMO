@@ -20,8 +20,8 @@
 
 import React, { memo, useMemo, useCallback } from "react";
 import { CirclePile, Clock, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { heading } from "@/lib/styles";
+import { Badge } from "@/components/shadcn/badge";
+import { Card, CardContent, CardHeader } from "@/components/shadcn/card";
 import { CapacityBar } from "@/components/capacity-bar";
 import { PlaceholderSection } from "@/components/placeholder-section";
 import type { Pool } from "@/lib/api/adapter";
@@ -115,11 +115,7 @@ export const PanelContent = memo(function PanelContent({
     <div className="flex-1 overflow-auto p-4">
       <div className="space-y-6">
         {/* GPU Quota */}
-        <CapacityBar
-          label="GPU Quota"
-          used={pool.quota.used}
-          total={pool.quota.limit}
-        />
+        <CapacityBar label="GPU Quota" used={pool.quota.used} total={pool.quota.limit} />
 
         {/* GPU Capacity */}
         <CapacityBar
@@ -127,10 +123,13 @@ export const PanelContent = memo(function PanelContent({
             <span className="flex items-center gap-2">
               GPU Capacity
               {sharedWith && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 ring-1 ring-violet-500/20 ring-inset dark:text-violet-300 dark:ring-violet-400/30">
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 text-[0.625rem] text-violet-700 dark:text-violet-300"
+                >
                   <CirclePile className="h-3 w-3" />
                   Shared
-                </span>
+                </Badge>
               )}
             </span>
           }
@@ -144,10 +143,7 @@ export const PanelContent = memo(function PanelContent({
                 <CirclePile className="h-3.5 w-3.5" />
                 Shares capacity with
               </div>
-              <SharedPoolsChips
-                pools={sharedWith}
-                onPoolClick={handlePoolClick}
-              />
+              <SharedPoolsChips pools={sharedWith} onPoolClick={handlePoolClick} />
             </div>
           )}
         </CapacityBar>
@@ -155,51 +151,47 @@ export const PanelContent = memo(function PanelContent({
         {/* Pool Details */}
         {hasPoolDetails && (
           <section>
-            <h3 className={cn(heading.section, "mb-2")}>Pool Details</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pool Details</h3>
 
-            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="divide-y divide-zinc-200 dark:divide-zinc-700">
+            <Card className="gap-0 py-0">
+              <CardContent className="divide-y divide-border p-0">
                 {/* Description */}
                 {pool.description && (
                   <div className="p-3">
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">{pool.description}</p>
+                    <p className="text-sm text-muted-foreground">{pool.description}</p>
                   </div>
                 )}
 
                 {/* Timeouts */}
                 {hasTimeouts && (
                   <div className="p-3">
-                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <Clock className="size-3" />
                       Timeouts
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                       {pool.timeouts.defaultExec && (
                         <>
-                          <span className="text-zinc-500 dark:text-zinc-500">Default Execution</span>
-                          <span className="font-mono text-zinc-700 dark:text-zinc-300">
-                            {pool.timeouts.defaultExec}
-                          </span>
+                          <span className="text-muted-foreground">Default Execution</span>
+                          <span className="font-mono">{pool.timeouts.defaultExec}</span>
                         </>
                       )}
                       {pool.timeouts.maxExec && (
                         <>
-                          <span className="text-zinc-500 dark:text-zinc-500">Max Execution</span>
-                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.maxExec}</span>
+                          <span className="text-muted-foreground">Max Execution</span>
+                          <span className="font-mono">{pool.timeouts.maxExec}</span>
                         </>
                       )}
                       {pool.timeouts.defaultQueue && (
                         <>
-                          <span className="text-zinc-500 dark:text-zinc-500">Default Queue</span>
-                          <span className="font-mono text-zinc-700 dark:text-zinc-300">
-                            {pool.timeouts.defaultQueue}
-                          </span>
+                          <span className="text-muted-foreground">Default Queue</span>
+                          <span className="font-mono">{pool.timeouts.defaultQueue}</span>
                         </>
                       )}
                       {pool.timeouts.maxQueue && (
                         <>
-                          <span className="text-zinc-500 dark:text-zinc-500">Max Queue</span>
-                          <span className="font-mono text-zinc-700 dark:text-zinc-300">{pool.timeouts.maxQueue}</span>
+                          <span className="text-muted-foreground">Max Queue</span>
+                          <span className="font-mono">{pool.timeouts.maxQueue}</span>
                         </>
                       )}
                     </div>
@@ -209,52 +201,52 @@ export const PanelContent = memo(function PanelContent({
                 {/* Exit Actions */}
                 {hasExitActions && (
                   <div className="p-3">
-                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <AlertCircle className="size-3" />
                       Default Exit Actions
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                       {Object.entries(pool.defaultExitActions).map(([exitCode, action]) => (
                         <React.Fragment key={exitCode}>
-                          <span className="font-mono text-zinc-500 dark:text-zinc-500">{exitCode}</span>
-                          <span className="text-zinc-700 dark:text-zinc-300">{action}</span>
+                          <span className="font-mono text-muted-foreground">{exitCode}</span>
+                          <span>{action}</span>
                         </React.Fragment>
                       ))}
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </section>
         )}
 
         {/* Platform Configuration */}
         {pool.platforms.length > 0 && (
           <section>
-            <h3 className={cn(heading.section, "mb-2")}>Platform Configuration</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Platform Configuration
+            </h3>
 
-            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+            <Card className="gap-0 py-0">
               {/* Platform Selector Header */}
-              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-100/50 px-4 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/30">
+              <CardHeader className="border-b border-border bg-muted/30 px-4 py-2.5">
                 <PlatformSelector
                   platforms={pool.platforms}
                   defaultPlatform={pool.defaultPlatform}
                   selectedPlatform={effectivePlatform}
                   onSelectPlatform={handlePlatformSelect}
                 />
-              </div>
+              </CardHeader>
 
               {/* Platform Config Content */}
-              <div className="p-3">
+              <CardContent className="p-3">
                 {platformConfig ? (
                   <PlatformConfigContent config={platformConfig} />
                 ) : (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    No configuration available for this platform.
-                  </p>
+                  <p className="text-sm text-muted-foreground">No configuration available for this platform.</p>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </section>
         )}
 

@@ -25,9 +25,9 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCopyToClipboard } from "@/hooks";
 
 // =============================================================================
 // CopyableValue - Inline copyable text
@@ -49,28 +49,18 @@ export interface CopyableValueProps {
  * ```
  */
 export function CopyableValue({ value, className }: CopyableValueProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      console.warn("Clipboard API not available");
-    }
-  }, [value]);
+  const { copied, copy } = useCopyToClipboard({ resetDelay: 1500 });
 
   return (
     <button
       type="button"
-      onClick={handleCopy}
+      onClick={() => copy(value)}
       className={cn(
         "group inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 font-mono text-sm transition-colors",
         copied
           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
           : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700",
-        className,
+        className
       )}
       title={copied ? "Copied!" : `Copy ${value}`}
     >
@@ -105,28 +95,18 @@ export interface CopyableBlockProps {
  * ```
  */
 export function CopyableBlock({ value, className }: CopyableBlockProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      console.warn("Clipboard API not available");
-    }
-  }, [value]);
+  const { copied, copy } = useCopyToClipboard({ resetDelay: 1500 });
 
   return (
     <button
       type="button"
-      onClick={handleCopy}
+      onClick={() => copy(value)}
       className={cn(
         "group flex w-full items-start justify-between gap-2 rounded-md px-2.5 py-1.5 text-left font-mono text-xs transition-colors",
         copied
           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
           : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
-        className,
+        className
       )}
       title={copied ? "Copied!" : `Copy ${value}`}
     >
