@@ -1,5 +1,5 @@
 /**
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,52 +19,38 @@
 /**
  * DAG Visualization Styles
  *
- * This stylesheet provides:
+ * Features:
  * - CSS custom properties for theming (status colors, dimensions)
- * - Light/dark mode support via .dark class (next-themes compatible)
- * - Data-attribute styling for status (avoids JS style recalculation)
+ * - Light/dark mode support via .dark class
+ * - Data-attribute styling for status
  * - ReactFlow overrides
- * - Relative units (rem/em) for scalability
- *
- * THEMING:
- * - Uses CSS custom properties that change based on .dark class
- * - Components should use these variables for consistent theming
- * - Tailwind classes should use dark: prefix for mode-specific styles
- *
- * PERFORMANCE NOTES:
- * - Uses CSS containment (contain: layout style) to isolate calculations
- * - Avoids static will-change/translateZ(0) to prevent blurry text at zoom
- * - Prefers data-attribute selectors over JS-driven className changes
- * - Respects prefers-reduced-motion for accessibility
+ * - Respects prefers-reduced-motion
  */
 
 /* ==========================================================================
-   CSS Custom Properties - Light mode (default)
+   CSS Custom Properties - Light mode
    ========================================================================== */
 
 :root {
-  /* Canvas colors */
+  /* Canvas */
   --dag-canvas-bg: oklch(0.985 0 0);
   --dag-canvas-dots: oklch(0.85 0 0);
 
-  /* Surface colors */
+  /* Surfaces */
   --dag-surface: oklch(1 0 0);
   --dag-surface-elevated: oklch(0.98 0 0);
   --dag-surface-hover: oklch(0.96 0 0);
-  --dag-surface-selected: oklch(0.94 0 0);
 
-  /* Border colors */
+  /* Borders */
   --dag-border: oklch(0.9 0 0);
-  --dag-border-subtle: oklch(0.92 0 0);
   --dag-border-strong: oklch(0.8 0 0);
 
-  /* Text colors */
+  /* Text */
   --dag-text: oklch(0.2 0 0);
   --dag-text-secondary: oklch(0.45 0 0);
   --dag-text-tertiary: oklch(0.6 0 0);
-  --dag-text-inverted: oklch(0.98 0 0);
 
-  /* Status colors - Light mode (more vibrant) */
+  /* Status colors */
   --dag-status-waiting-bg: oklch(0.96 0 0);
   --dag-status-waiting-border: oklch(0.8 0 0);
   --dag-status-waiting-text: oklch(0.5 0 0);
@@ -85,9 +71,10 @@
   --dag-status-failed-text: oklch(0.45 0.18 25);
   --dag-status-failed-color: oklch(0.55 0.2 25);
 
-  /* Handle colors */
+  /* Handles */
   --dag-handle-bg: oklch(0.7 0 0);
   --dag-handle-border: oklch(0.6 0 0);
+  --dag-handle-size: 0.5rem;
 
   /* Selection */
   --dag-selection-ring: oklch(0.6 0.15 250);
@@ -102,41 +89,20 @@
   --dag-controls-text: oklch(0.4 0 0);
   --dag-controls-hover: oklch(0.94 0 0);
 
-  /* Minimap - warm ivory tint for pleasant distinction */
+  /* Minimap */
   --dag-minimap-bg: oklch(0.97 0.008 80);
   --dag-minimap-mask: oklch(0.45 0.02 250 / 0.15);
   --dag-minimap-border: oklch(0.88 0.01 80);
   --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
 
-  /* Node dimensions (rem-based for scalability) */
-  --dag-node-collapsed-width: 11.25rem;
-  --dag-node-collapsed-height: 4.5rem;
-  --dag-node-expanded-width: 15rem;
-  --dag-node-max-height: 20rem;
-  --dag-node-header-height: 3.5rem;
-  --dag-task-row-height: 1.75rem;
-
-  /* Edge styling */
+  /* Dimensions */
   --dag-edge-stroke-width: 0.125rem;
-  --dag-edge-dash-array: 5 3;
-
-  /* Panel dimensions */
-  --dag-panel-min-width: 20rem;
-  --dag-panel-max-width: 30rem;
-  --dag-panel-shadow: -0.25rem 0 1rem -0.25rem rgba(0, 0, 0, 0.1);
-
-  /* Handle sizes */
-  --dag-handle-size: 0.5rem;
+  --dag-radius-sm: 0.25rem;
+  --dag-radius-md: 0.5rem;
 
   /* Transitions */
   --dag-transition-fast: 75ms ease-out;
   --dag-transition-normal: 150ms ease-out;
-  --dag-transition-slow: 300ms ease-out;
-
-  /* Border radius */
-  --dag-radius-sm: 0.25rem;
-  --dag-radius-md: 0.5rem;
-  --dag-radius-lg: 0.75rem;
 }
 
 /* ==========================================================================
@@ -144,26 +110,19 @@
    ========================================================================== */
 
 .dark {
-  /* Canvas colors */
   --dag-canvas-bg: oklch(0.12 0 0);
   --dag-canvas-dots: oklch(0.25 0 0);
 
-  /* Surface colors */
   --dag-surface: oklch(0.16 0 0);
   --dag-surface-elevated: oklch(0.2 0 0);
   --dag-surface-hover: oklch(0.22 0 0);
-  --dag-surface-selected: oklch(0.25 0 0);
 
-  /* Border colors */
   --dag-border: oklch(0.28 0 0);
-  --dag-border-subtle: oklch(0.24 0 0);
   --dag-border-strong: oklch(0.35 0 0);
 
-  /* Text colors */
   --dag-text: oklch(0.95 0 0);
   --dag-text-secondary: oklch(0.7 0 0);
   --dag-text-tertiary: oklch(0.5 0 0);
-  --dag-text-inverted: oklch(0.1 0 0);
 
   /* Status colors - Dark mode */
   --dag-status-waiting-bg: oklch(0.27 0 0 / 0.6);
@@ -186,47 +145,34 @@
   --dag-status-failed-text: oklch(0.7 0.18 25);
   --dag-status-failed-color: oklch(0.55 0.2 25);
 
-  /* Handle colors */
   --dag-handle-bg: oklch(0.4 0 0);
   --dag-handle-border: oklch(0.5 0 0);
 
-  /* Selection */
   --dag-selection-ring: oklch(0.7 0.15 195);
 
-  /* Scrollbar */
   --dag-scrollbar-thumb: oklch(0.4 0 0);
   --dag-scrollbar-thumb-hover: oklch(0.5 0 0);
 
-  /* Controls */
   --dag-controls-bg: oklch(0.2 0 0);
   --dag-controls-border: oklch(0.3 0 0);
   --dag-controls-text: oklch(0.64 0 0);
   --dag-controls-hover: oklch(0.3 0 0);
 
-  /* Minimap - elevated slate with blue undertone for clear distinction from canvas */
   --dag-minimap-bg: oklch(0.24 0.018 250);
   --dag-minimap-mask: oklch(0.08 0.015 250 / 0.55);
   --dag-minimap-border: oklch(0.32 0.02 250);
   --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
-
-  /* Panel shadow - darker in dark mode */
-  --dag-panel-shadow: -0.25rem 0 1rem -0.25rem rgba(0, 0, 0, 0.3);
 }
 
 /* ==========================================================================
-   Node Status Styling via data-attributes (no JS style recalculation)
+   Node Styles
    ========================================================================== */
 
 .dag-node {
-  /* Allow handles to overflow outside the node */
   overflow: visible;
-
-  /* Card-like shadow for depth */
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 2px 4px rgba(0, 0, 0, 0.06);
-
-  /* Smooth transitions */
   transition:
     box-shadow var(--dag-transition-normal),
     border-color var(--dag-transition-normal);
@@ -238,6 +184,7 @@
     0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
+/* Node status via data-attributes */
 .dag-node[data-status="waiting"] {
   background: var(--dag-status-waiting-bg);
   border-color: var(--dag-status-waiting-border);
@@ -258,7 +205,7 @@
   border-color: var(--dag-status-failed-border);
 }
 
-/* Status text colors for node hints */
+/* Node hint text colors */
 .dag-node[data-status="waiting"] .dag-node-hint {
   color: var(--dag-status-waiting-text);
 }
@@ -272,7 +219,7 @@
   color: var(--dag-status-failed-text);
 }
 
-/* Status text colors for task row durations */
+/* Task row duration colors */
 .dag-task-row[data-status="waiting"] .dag-task-duration {
   color: var(--dag-status-waiting-text);
 }
@@ -286,17 +233,97 @@
   color: var(--dag-status-failed-text);
 }
 
-/* Task rows */
 .dag-task-row {
   isolation: isolate;
 }
 
 /* ==========================================================================
-   Virtualized scroll container optimization
+   Expanded Node Shadows
+   ========================================================================== */
+
+.dag-node-header-expanded {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+}
+
+.dark .dag-node-header-expanded {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.25);
+}
+
+.dag-collapse-lip {
+  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.dark .dag-collapse-lip {
+  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Selection state */
+.dag-node[data-selected="true"] {
+  outline: 2px solid var(--dag-selection-ring);
+  outline-offset: 2px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dark .dag-node[data-selected="true"] {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.25),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   Task Count Badge
+   ========================================================================== */
+
+.dag-count-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 10;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-feature-settings: "tnum" 1;
+  background: oklch(0.55 0 0);
+  color: oklch(0.98 0 0);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.dark .dag-count-badge {
+  background: oklch(0.5 0 0);
+  color: oklch(0.95 0 0);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================================================
+   Connection Handles
+   ========================================================================== */
+
+.dag-handle {
+  width: var(--dag-handle-size) !important;
+  height: var(--dag-handle-size) !important;
+  min-width: var(--dag-handle-size) !important;
+  min-height: var(--dag-handle-size) !important;
+  background: var(--dag-handle-bg) !important;
+  border: 1.5px solid var(--dag-handle-border) !important;
+  border-radius: 50% !important;
+}
+
+/* ==========================================================================
+   Scroll Container
    ========================================================================== */
 
 .dag-scroll-container {
-  /* Optimize scroll performance */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--dag-scrollbar-thumb) transparent;
@@ -320,111 +347,12 @@
 }
 
 /* ==========================================================================
-   Expanded node depth shadows
+   ReactFlow - Nodes, Edges, Controls
    ========================================================================== */
 
-/* Header shadow casting down onto task list */
-.dag-node-header-expanded {
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
-}
-
-.dark .dag-node-header-expanded {
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.25);
-}
-
-/* Collapse lip shadow casting up onto task list */
-.dag-collapse-lip {
-  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.dark .dag-collapse-lip {
-  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.2);
-}
-
-/* Selection state - pure CSS, no JS re-render needed */
-.dag-node[data-selected="true"] {
-  outline: 2px solid var(--dag-selection-ring);
-  outline-offset: 2px;
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.08),
-    0 4px 8px rgba(0, 0, 0, 0.08);
-}
-
-.dark .dag-node[data-selected="true"] {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.25),
-    0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* ==========================================================================
-   Task Count Badge - notification-style pill at top-right
-   ========================================================================== */
-
-.dag-count-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  z-index: 10;
-
-  /* Pill styling */
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-
-  /* Typography */
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-  font-feature-settings: "tnum" 1;
-
-  /* Light mode colors - subtle gray */
-  background: oklch(0.55 0 0);
-  color: oklch(0.98 0 0);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.5);
-}
-
-.dark .dag-count-badge {
-  /* Dark mode - slightly brighter */
-  background: oklch(0.5 0 0);
-  color: oklch(0.95 0 0);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-/* ==========================================================================
-   Connection Handles - positioned outside the node
-   ========================================================================== */
-
-.dag-handle {
-  /* Size using custom property */
-  width: var(--dag-handle-size) !important;
-  height: var(--dag-handle-size) !important;
-  min-width: var(--dag-handle-size) !important;
-  min-height: var(--dag-handle-size) !important;
-
-  /* Appearance */
-  background: var(--dag-handle-bg) !important;
-  border: 1.5px solid var(--dag-handle-border) !important;
-  border-radius: 50% !important;
-}
-
-/* ==========================================================================
-   ReactFlow Canvas Optimization
-   ========================================================================== */
-
-/* Individual node wrappers - containment for layout isolation */
 .react-flow__node {
   contain: layout style;
 }
-
-/* ==========================================================================
-   Edge Styling via CSS (class-based, no inline styles)
-   ========================================================================== */
 
 .react-flow__edge-path {
   stroke-width: var(--dag-edge-stroke-width);
@@ -432,7 +360,7 @@
   vector-effect: non-scaling-stroke;
 }
 
-/* Edge status coloring via class names */
+/* Edge status coloring */
 .dag-edge.dag-edge--waiting path {
   stroke: var(--dag-status-waiting-color);
 }
@@ -449,7 +377,7 @@
   stroke: var(--dag-status-failed-color);
 }
 
-/* Edge animation - GPU-accelerated using stroke-dashoffset */
+/* Edge animation */
 .react-flow__edge.animated path {
   stroke-dasharray: 5;
   animation: dag-edge-flow 0.5s linear infinite;
@@ -460,31 +388,6 @@
     stroke-dashoffset: -10;
   }
 }
-
-/* ==========================================================================
-   Reduced Motion - Accessibility
-   ========================================================================== */
-
-@media (prefers-reduced-motion: reduce) {
-  .dag-node,
-  .react-flow__edge-path {
-    transition: none;
-  }
-
-  .react-flow__edge.animated path {
-    animation: none;
-  }
-
-  /* Disable all transforms that aren't for positioning */
-  .dag-node,
-  .dag-task-row {
-    will-change: auto;
-  }
-}
-
-/* ==========================================================================
-   ReactFlow Controls and Minimap - Theme-aware
-   ========================================================================== */
 
 /* Controls panel */
 .react-flow__controls {
@@ -518,7 +421,7 @@
   fill: currentColor;
 }
 
-/* Minimap - card-like appearance floating over canvas */
+/* Minimap */
 .react-flow__minimap {
   background: var(--dag-minimap-bg);
   border: 1px solid var(--dag-minimap-border);
@@ -541,7 +444,6 @@
   fill: var(--dag-minimap-mask);
 }
 
-/* Attribution - hide or style */
 .react-flow__attribution {
   background: transparent;
 }
@@ -551,116 +453,34 @@
 }
 
 /* ==========================================================================
-   Panel Styles
-   ========================================================================== */
-
-.dag-panel {
-  contain: layout style;
-  box-shadow: var(--dag-panel-shadow);
-}
-
-/* ==========================================================================
-   Table Styles (for GroupPanel)
-   ========================================================================== */
-
-.dag-table-header {
-  contain: layout style;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.dag-table-row {
-  contain: layout style paint;
-  transition: background-color var(--dag-transition-fast);
-}
-
-.dag-table-row:hover {
-  background-color: var(--dag-surface-hover);
-}
-
-/* ==========================================================================
-   Resize Handle
-   ========================================================================== */
-
-.dag-resize-handle {
-  touch-action: none;
-  user-select: none;
-}
-
-.dag-resize-handle::before {
-  content: "";
-  position: absolute;
-  inset: -0.5rem;
-}
-
-/* ==========================================================================
-   GPU Acceleration Utility Classes
-   ========================================================================== */
-
-/**
- * GPU acceleration - promotes element to its own composite layer.
- * WARNING: Only use during active animations, not statically.
- * Static use causes blurry text/edges at different zoom levels.
- */
-.dag-gpu-accelerated {
-  will-change: transform;
-}
-
-/**
- * Strict containment - maximum layout isolation.
- * Use for table rows, list items, cards that don't affect siblings.
- */
-.dag-contained {
-  contain: layout style paint;
-}
-
-/**
- * Strict containment for virtual list items.
- * Maximum isolation + content-visibility optimization.
- */
-.dag-virtual-item {
-  contain: strict;
-  content-visibility: auto;
-}
-
-/**
- * Layout + style containment only (allows paint overflow).
- * Use for panels, dropdowns, modals.
- */
-.dag-contained-layout {
-  contain: layout style;
-}
-
-/* ==========================================================================
-   Panel Containers
+   Containment Utilities
    ========================================================================== */
 
 .dag-details-panel {
   contain: layout style;
 }
 
-/* ==========================================================================
-   Table Components
-   ========================================================================== */
-
 .dag-table-header-wrapper {
   contain: layout style paint;
 }
-
-/* ==========================================================================
-   Dropdown/Popover Components
-   ========================================================================== */
 
 .dag-dropdown {
   contain: layout style;
 }
 
+.dag-gpu-accelerated {
+  will-change: transform;
+}
+
+.dag-virtual-item {
+  contain: strict;
+  content-visibility: auto;
+}
+
 /* ==========================================================================
-   Group Details - Timeline Styles
+   Timeline Styles
    ========================================================================== */
 
-/* Timeline markers - use status colors for consistency */
 .timeline-marker-completed {
   background-color: var(--dag-status-completed-color);
   border-color: var(--dag-status-completed-color);
@@ -681,12 +501,10 @@
   border-color: var(--dag-border-strong);
 }
 
-/* Timeline segments */
 .timeline-segment-completed {
   background-color: var(--dag-status-completed-color);
 }
 
-/* Active timeline segment with gradient animation using running status color */
 .timeline-active-segment {
   background: linear-gradient(
     90deg,
@@ -708,7 +526,6 @@
   }
 }
 
-/* Timeline text labels */
 .timeline-text-completed {
   color: var(--dag-status-completed-text);
 }
@@ -725,31 +542,20 @@
   color: var(--dag-text-tertiary);
 }
 
-/* Reduce motion for accessibility */
-@media (prefers-reduced-motion: reduce) {
-  .timeline-active-segment {
-    animation: none;
-    background: var(--dag-status-running-color);
-  }
-}
-
 /* ==========================================================================
-   Group Details - Dependency Pills
+   Dependency Pills
    ========================================================================== */
 
-/* Dependency pill row container */
 .dependency-pills-row {
   contain: layout style;
 }
 
-/* Pill base styles */
 .dependency-pill {
   transition:
     filter var(--dag-transition-fast),
     transform var(--dag-transition-fast);
 }
 
-/* Pill hover effect */
 .dependency-pill:hover {
   filter: brightness(1.1);
 }
@@ -758,7 +564,6 @@
   transform: scale(0.98);
 }
 
-/* Status-specific pill styling using CSS variables */
 .dependency-pill-completed {
   background-color: var(--dag-status-completed-bg);
   border-color: var(--dag-status-completed-border);
@@ -788,4 +593,24 @@
   border-color: var(--dag-status-waiting-border);
   color: var(--dag-text-tertiary);
   opacity: 0.7;
+}
+
+/* ==========================================================================
+   Reduced Motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .dag-node,
+  .react-flow__edge-path {
+    transition: none;
+  }
+
+  .react-flow__edge.animated path {
+    animation: none;
+  }
+
+  .timeline-active-segment {
+    animation: none;
+    background: var(--dag-status-running-color);
+  }
 }
