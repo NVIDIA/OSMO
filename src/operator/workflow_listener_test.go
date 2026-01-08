@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -187,90 +187,6 @@ func TestCalculatePodStatus(t *testing.T) {
 		})
 	}
 }
-
-// Test getPodMessage function - COMMENTED OUT: getPodMessage is now internal to utils.CalculatePodStatus
-// The message extraction logic is tested as part of the comprehensive status calculation
-/* func TestGetPodMessage(t *testing.T) {
-	tests := []struct {
-		name     string
-		pod      *corev1.Pod
-		expected string
-	}{
-		{
-			name: "Message from waiting container",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					ContainerStatuses: []corev1.ContainerStatus{
-						{
-							State: corev1.ContainerState{
-								Waiting: &corev1.ContainerStateWaiting{
-									Message: "ImagePullBackOff",
-								},
-							},
-						},
-					},
-				},
-			},
-			expected: "ImagePullBackOff",
-		},
-		{
-			name: "Message from terminated container",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					ContainerStatuses: []corev1.ContainerStatus{
-						{
-							State: corev1.ContainerState{
-								Terminated: &corev1.ContainerStateTerminated{
-									Message: "Container crashed",
-								},
-							},
-						},
-					},
-				},
-			},
-			expected: "Container crashed",
-		},
-		{
-			name: "Message from pod condition",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Conditions: []corev1.PodCondition{
-						{
-							Status:  corev1.ConditionFalse,
-							Message: "Insufficient CPU",
-						},
-					},
-				},
-			},
-			expected: "Insufficient CPU",
-		},
-		{
-			name: "Message from pod status",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{
-					Message: "Pod evicted",
-				},
-			},
-			expected: "Pod evicted",
-		},
-		{
-			name: "No message",
-			pod: &corev1.Pod{
-				Status: corev1.PodStatus{},
-			},
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getPodMessage(tt.pod)
-			if result != tt.expected {
-				t.Errorf("getPodMessage() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-} */
 
 // Test createPodUpdateMessage function
 func TestCreatePodUpdateMessage(t *testing.T) {
