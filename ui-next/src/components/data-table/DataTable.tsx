@@ -352,20 +352,18 @@ export function DataTable<TData, TSectionMeta = unknown>({
   );
 
   // Virtualization
-  const { virtualRows, totalHeight, totalRowCount, virtualItemCount, getItem, scrollToIndex } = useVirtualizedTable<
-    TData,
-    TSectionMeta
-  >({
-    items: sections ? undefined : data,
-    sections,
-    getRowId,
-    scrollRef,
-    rowHeight,
-    sectionHeight,
-    hasNextPage,
-    onLoadMore,
-    isFetchingNextPage,
-  });
+  const { virtualRows, totalHeight, totalRowCount, virtualItemCount, getItem, scrollToIndex, measureElement } =
+    useVirtualizedTable<TData, TSectionMeta>({
+      items: sections ? undefined : data,
+      sections,
+      getRowId,
+      scrollRef,
+      rowHeight,
+      sectionHeight,
+      hasNextPage,
+      onLoadMore,
+      isFetchingNextPage,
+    });
 
   // Stable access to table instance in callbacks
   const tableRef = useStableValue(table);
@@ -626,6 +624,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 getRowTabIndex={rowNavigation.getRowTabIndex}
                 onRowFocus={rowNavigation.handleRowFocus}
                 onRowKeyDown={rowNavigation.handleRowKeyDown}
+                measureElement={measureElement}
               />
             </table>
 

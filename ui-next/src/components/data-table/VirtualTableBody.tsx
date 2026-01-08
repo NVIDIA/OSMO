@@ -66,6 +66,8 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   onRowFocus?: (index: number) => void;
   /** Row keydown handler */
   onRowKeyDown?: (e: React.KeyboardEvent, index: number) => void;
+  /** Ref callback for dynamic row measurement */
+  measureElement?: (node: Element | null) => void;
 }
 
 // =============================================================================
@@ -86,6 +88,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   getRowTabIndex,
   onRowFocus,
   onRowKeyDown,
+  measureElement,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
   return (
     <tbody
@@ -145,6 +148,8 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         return (
           <tr
             key={`row-${virtualRow.index}`}
+            ref={measureElement}
+            data-index={virtualRow.index}
             role="row"
             data-row-id={rowId}
             aria-rowindex={virtualRow.index + 2}
@@ -160,7 +165,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
               customClassName,
             )}
             style={{
-              height: virtualRow.size,
               // translate3d triggers GPU compositor layer for smoother animation
               transform: `translate3d(0, ${virtualRow.start}px, 0)`,
             }}
@@ -179,7 +183,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                     minWidth: cssWidth,
                     flexShrink: 0, // Prevent shrinking below specified width
                   }}
-                  className="flex items-center overflow-hidden px-4"
+                  className="flex items-start py-3 px-4"
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
