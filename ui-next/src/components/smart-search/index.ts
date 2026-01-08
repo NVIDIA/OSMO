@@ -17,4 +17,12 @@
  */
 
 export { SmartSearch } from "./smart-search";
-export { filterByChips, type SearchField, type SearchChip, type SmartSearchProps, type ChipVariant } from "./types";
+export {
+  filterByChips,
+  type SearchField,
+  type SearchChip,
+  type SmartSearchProps,
+  type ChipVariant,
+  type SearchPreset,
+  type PresetRenderProps,
+} from "./types";

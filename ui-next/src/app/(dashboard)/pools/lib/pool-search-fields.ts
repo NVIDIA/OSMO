@@ -132,6 +132,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     getValues: (pools) => pools.map((p) => p.name).slice(0, 20),
     match: (pool, value) => pool.name.toLowerCase().includes(value.toLowerCase()),
   },
+  // Note: status filter is handled via presets in the toolbar, not as a typed field
   {
     id: "platform",
     label: "Platform",
