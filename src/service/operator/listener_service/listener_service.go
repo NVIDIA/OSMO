@@ -142,11 +142,8 @@ func (ls *ListenerService) WorkflowListenerStream(
 		}
 
 		// Send ACK response
-		ack := &pb.ListenerMessage{
-			Type:      pb.ListenerMessage_ack,
-			Uuid:      msg.Uuid,      // ACK uses the same UUID as the original message
-			Timestamp: msg.Timestamp, // Echo back the original timestamp
-			Body:      "",            // ACK doesn't need body
+		ack := &pb.AckMessage{
+			AckUuid: msg.Uuid, // Acknowledge the received message UUID
 		}
 
 		if err := stream.Send(ack); err != nil {

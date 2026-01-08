@@ -284,10 +284,8 @@ func receiveMessages(
 		}
 
 		// Handle ACK messages by removing from unacked queue
-		if msg.Type == pb.ListenerMessage_ack {
-			unackedMessages.RemoveMessage(msg.Uuid)
-			log.Printf("Received ACK: uuid=%s", msg.Uuid)
-		}
+		unackedMessages.RemoveMessage(msg.AckUuid)
+		log.Printf("Received ACK: uuid=%s", msg.AckUuid)
 	}
 }
 

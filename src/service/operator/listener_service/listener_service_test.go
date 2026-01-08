@@ -40,7 +40,7 @@ import (
 type mockStream struct {
 	grpc.ServerStream
 	recvMessages []*pb.ListenerMessage
-	sentMessages []*pb.ListenerMessage
+	sentMessages []*pb.AckMessage
 	recvIndex    int
 	recvError    error
 	sendError    error
@@ -57,7 +57,7 @@ func newMockStreamWithBackend(backendName string) *mockStream {
 	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("backend-name", backendName))
 	return &mockStream{
 		recvMessages: []*pb.ListenerMessage{},
-		sentMessages: []*pb.ListenerMessage{},
+		sentMessages: []*pb.AckMessage{},
 		recvIndex:    0,
 		ctx:          ctx,
 	}
@@ -70,7 +70,7 @@ func (m *mockStream) Context() context.Context {
 	return m.ctx
 }
 
-func (m *mockStream) Send(msg *pb.ListenerMessage) error {
+func (m *mockStream) Send(msg *pb.AckMessage) error {
 	if m.sendError != nil {
 		return m.sendError
 	}
@@ -192,23 +192,14 @@ func TestWorkflowListenerStream_HappyPath(t *testing.T) {
 
 	// Verify first ACK
 	ack1 := stream.sentMessages[0]
-	if ack1.Type != pb.ListenerMessage_ack {
-		t.Errorf("expected ACK type, got %v", ack1.Type)
-	}
-	if ack1.Uuid != msg1.Uuid {
-		t.Errorf("expected UUID %s, got %s", msg1.Uuid, ack1.Uuid)
-	}
-	if ack1.Timestamp != msg1.Timestamp {
-		t.Errorf("expected timestamp %s, got %s", msg1.Timestamp, ack1.Timestamp)
+	if ack1.AckUuid != msg1.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg1.Uuid, ack1.AckUuid)
 	}
 
 	// Verify second ACK
 	ack2 := stream.sentMessages[1]
-	if ack2.Type != pb.ListenerMessage_ack {
-		t.Errorf("expected ACK type, got %v", ack2.Type)
-	}
-	if ack2.Uuid != msg2.Uuid {
-		t.Errorf("expected UUID %s, got %s", msg2.Uuid, ack2.Uuid)
+	if ack2.AckUuid != msg2.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg2.Uuid, ack2.AckUuid)
 	}
 }
 
@@ -334,14 +325,14 @@ func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
 		t.Fatal("test timed out")
 	}
 
-	// Verify ACK was sent with correct timestamp
+	// Verify ACK was sent
 	if len(stream.sentMessages) != 1 {
 		t.Fatalf("expected 1 ACK message, got %d", len(stream.sentMessages))
 	}
 
 	ack := stream.sentMessages[0]
-	if ack.Timestamp != msg.Timestamp {
-		t.Errorf("expected echoed timestamp %s, got %s", msg.Timestamp, ack.Timestamp)
+	if ack.AckUuid != msg.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg.Uuid, ack.AckUuid)
 	}
 }
 
@@ -385,11 +376,9 @@ func TestWorkflowListenerStream_MultipleMessages(t *testing.T) {
 		t.Fatalf("expected %d ACK messages, got %d", numMessages, len(stream.sentMessages))
 	}
 
-	// Verify all ACKs have correct type
-	for i, ack := range stream.sentMessages {
-		if ack.Type != pb.ListenerMessage_ack {
-			t.Errorf("message %d: expected ACK type, got %v", i, ack.Type)
-		}
+	// Verify all ACKs have been sent
+	if len(stream.sentMessages) != numMessages {
+		t.Errorf("expected %d ACKs, got %d", numMessages, len(stream.sentMessages))
 	}
 }
 
@@ -490,7 +479,7 @@ func TestWorkflowListenerStream_WithCanceledContext(t *testing.T) {
 	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("backend-name", "test-backend"))
 	stream := &mockStream{
 		recvMessages: []*pb.ListenerMessage{},
-		sentMessages: []*pb.ListenerMessage{},
+		sentMessages: []*pb.AckMessage{},
 		recvIndex:    0,
 		ctx:          ctx,
 	}
@@ -552,8 +541,8 @@ func TestWorkflowListenerStream_EmptyData(t *testing.T) {
 	}
 
 	ack := stream.sentMessages[0]
-	if ack.Body != "" {
-		t.Errorf("expected empty ACK body, got %s", ack.Body)
+	if ack.AckUuid != msg.Uuid {
+		t.Errorf("expected AckUuid %s, got %s", msg.Uuid, ack.AckUuid)
 	}
 }
 
@@ -606,7 +595,7 @@ func TestWorkflowListenerStream_WithoutBackendNameMetadata(t *testing.T) {
 	// Create stream without metadata (should be rejected)
 	stream := &mockStream{
 		recvMessages: []*pb.ListenerMessage{},
-		sentMessages: []*pb.ListenerMessage{},
+		sentMessages: []*pb.AckMessage{},
 		recvIndex:    0,
 		ctx:          context.Background(), // No metadata
 	}
@@ -633,7 +622,7 @@ func TestWorkflowListenerStream_WithEmptyBackendName(t *testing.T) {
 	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("backend-name", ""))
 	stream := &mockStream{
 		recvMessages: []*pb.ListenerMessage{},
-		sentMessages: []*pb.ListenerMessage{},
+		sentMessages: []*pb.AckMessage{},
 		recvIndex:    0,
 		ctx:          ctx,
 	}

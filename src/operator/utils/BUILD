@@ -46,6 +46,7 @@ go_library(
         "helpers.go",
         "k8s_helpers.go",
         "listener_args.go",
+        "unack_messages.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/operator/utils",
     visibility = ["//visibility:public"],
