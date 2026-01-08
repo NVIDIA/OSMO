@@ -21,21 +21,22 @@
  *
  * A smart selector that adapts based on item count:
  * - Single item: Static label (no dropdown)
- * - Multiple items: Dropdown with checkmark on selected
+ * - Multiple items: Select dropdown with checkmark on selected
  *
- * Used for platform/pool selection in detail panels.
+ * Uses shadcn/ui Select primitive.
  */
 
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/shadcn/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/shadcn/select";
 
 // =============================================================================
 // Types
@@ -97,55 +98,46 @@ export function ItemSelector({
   if (items.length === 1) {
     return (
       <div className={cn("flex items-center gap-2", className)}>
-        {label && <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>}
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{items[0]}</span>
+        {label && <span className="text-sm text-muted-foreground">{label}</span>}
+        <span className="text-sm font-medium">{items[0]}</span>
       </div>
     );
   }
 
-  // Multiple items: Dropdown selector
+  // Multiple items: Select dropdown
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {label && <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className="flex items-center gap-1.5 rounded-md py-0.5 pr-1 text-zinc-900 transition-colors hover:bg-zinc-200/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50"
-            aria-label={ariaLabel ?? "Select item"}
-          >
-            <span className="text-sm font-medium">{selectedItem}</span>
-            {selectedItem === defaultItem && (
-              <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[0.625rem] font-medium text-zinc-500 uppercase dark:bg-zinc-700 dark:text-zinc-400">
-                Default
-              </span>
-            )}
-            <ChevronDown className="size-3.5 text-zinc-500 dark:text-zinc-400" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-56"
+      {label && <span className="text-sm text-muted-foreground">{label}</span>}
+      <Select value={selectedItem ?? undefined} onValueChange={onSelect}>
+        <SelectTrigger
+          size="sm"
+          className="h-auto gap-1.5 border-0 bg-transparent px-0 py-0.5 shadow-none hover:bg-accent/50"
+          aria-label={ariaLabel ?? "Select item"}
         >
+          <SelectValue />
+          {selectedItem === defaultItem && (
+            <Badge variant="secondary" className="ml-1 text-[0.625rem] uppercase">
+              Default
+            </Badge>
+          )}
+        </SelectTrigger>
+        <SelectContent align="start" className="min-w-56">
           {items.map((item) => {
-            const isCurrent = item === selectedItem;
             const isDefault = item === defaultItem;
 
             return (
-              <DropdownMenuItem
-                key={item}
-                onSelect={() => onSelect(item)}
-                className={cn("flex items-center gap-2", isCurrent && "bg-zinc-100 dark:bg-zinc-800")}
-              >
-                <span className={cn("flex-1 truncate", isCurrent && "font-medium")}>{item}</span>
+              <SelectItem key={item} value={item}>
+                <span className="flex-1 truncate">{item}</span>
                 {isDefault && (
-                  <span className="text-[0.625rem] text-zinc-400 uppercase dark:text-zinc-500">Default</span>
+                  <span className="ml-2 text-[0.625rem] text-muted-foreground uppercase">
+                    Default
+                  </span>
                 )}
-                {isCurrent && <Check className="size-4 shrink-0 text-emerald-500" />}
-              </DropdownMenuItem>
+              </SelectItem>
             );
           })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </SelectContent>
+      </Select>
     </div>
   );
 }

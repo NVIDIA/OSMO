@@ -16,19 +16,19 @@
 
 "use client";
 
-import { memo } from "react";
+import * as React from "react";
+import * as ProgressPrimitive from "@radix-ui/react-progress";
 import { cn } from "@/lib/utils";
-import { getProgressColor } from "@/lib/styles";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface ProgressBarProps {
+export interface ProgressBarProps extends React.ComponentProps<typeof ProgressPrimitive.Root> {
   /** Current value */
   value: number;
   /** Maximum value */
-  max: number;
+  max?: number;
   /** Height variant */
   size?: "xs" | "sm" | "md";
   /** Use threshold colors (green → amber → red) based on percentage */
@@ -39,8 +39,6 @@ export interface ProgressBarProps {
   trackClassName?: string;
   /** Additional class for the fill (indicator) */
   fillClassName?: string;
-  /** Accessible label */
-  "aria-label"?: string;
 }
 
 // =============================================================================
@@ -54,19 +52,32 @@ const SIZE_CLASSES = {
 } as const;
 
 // =============================================================================
+// Color logic
+// =============================================================================
+
+/**
+ * Get progress bar color based on percentage thresholds.
+ * Uses NVIDIA brand green for normal, amber for warning, red for critical.
+ */
+function getProgressColor(percent: number): string {
+  if (percent >= 90) return "bg-red-500";
+  if (percent >= 75) return "bg-amber-500";
+  return "bg-nvidia dark:bg-nvidia-light";
+}
+
+// =============================================================================
 // Component
 // =============================================================================
 
 /**
- * ProgressBar - Core progress bar primitive with threshold colors.
+ * ProgressBar - Extended progress bar with threshold colors and size variants.
  *
- * This is the lowest-level progress component. It renders just the bar
- * with optional threshold-based coloring (green → amber → red).
+ * Extends shadcn/radix Progress primitive with:
+ * - Threshold-based coloring (green → amber → red)
+ * - Size variants (xs, sm, md)
+ * - Proper max value support
  *
- * Higher-level components like CapacityBar and InlineProgress compose
- * from this primitive.
- *
- * Uses GPU-accelerated scaleX transform for smooth animations.
+ * Uses GPU-accelerated translateX transform for smooth animations.
  *
  * @example
  * ```tsx
@@ -80,15 +91,16 @@ const SIZE_CLASSES = {
  * <ProgressBar value={50} max={100} colorClass="bg-blue-500" size="sm" />
  * ```
  */
-export const ProgressBar = memo(function ProgressBar({
+export function ProgressBar({
   value,
-  max,
+  max = 100,
   size = "md",
   thresholdColors = true,
   colorClass,
   trackClassName,
   fillClassName,
-  "aria-label": ariaLabel,
+  className,
+  ...props
 }: ProgressBarProps) {
   const percent = max > 0 ? (value / max) * 100 : 0;
   const clampedPercent = Math.min(percent, 100);
@@ -97,26 +109,27 @@ export const ProgressBar = memo(function ProgressBar({
   const fillColor = colorClass ?? (thresholdColors ? getProgressColor(percent) : "bg-primary");
 
   return (
-    <div
-      role="progressbar"
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-label={ariaLabel}
+    <ProgressPrimitive.Root
+      data-slot="progress"
+      value={value}
+      max={max}
       className={cn(
+        "relative w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",
         SIZE_CLASSES[size],
-        "contain-layout-paint overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",
         trackClassName,
+        className
       )}
+      {...props}
     >
-      <div
+      <ProgressPrimitive.Indicator
+        data-slot="progress-indicator"
         className={cn(
-          "h-full w-full origin-left rounded-full transition-transform duration-300 ease-out",
+          "h-full w-full flex-1 rounded-full transition-transform duration-300 ease-out",
           fillColor,
-          fillClassName,
+          fillClassName
         )}
-        style={{ transform: `scaleX(${clampedPercent / 100})` }}
+        style={{ transform: `translateX(-${100 - clampedPercent}%)` }}
       />
-    </div>
+    </ProgressPrimitive.Root>
   );
-});
+}
