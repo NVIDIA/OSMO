@@ -251,7 +251,7 @@ def get_pool_resources(pools: List[str] | None = None,
             query_params.append(tuple(platforms))
     fetch_cmd = f'''
         SELECT pools.name, keys as platform,
-            pools.backend, backends.last_heartbeat, pools.enable_maintenance,
+            pools.backend, backends.last_heartbeat, pools.enable_maintenance, pools.resources,
             json_agg(resources.usage_fields) as usage_fields,
             json_agg(resources.allocatable_fields) as allocatable_fields from pools
         CROSS JOIN LATERAL jsonb_object_keys(pools.platforms) AS keys(key)
@@ -301,6 +301,16 @@ def get_pool_resources(pools: List[str] | None = None,
                         current_info, pool_row['name'], pool_row['platform'])
                 total_usage[resource_label.name] += usage
                 total_allocatable[resource_label.name] += allocatable
+
+        # Calculate the quota for the pool
+        # If the quota is defined in the pool resources, use the lower of
+        # the total allocatable GPU and the defined quota
+        allocatable_gpu = total_allocatable['gpu', 0]
+        if pool_row.get('resources', {}) and pool_row.get('resources', {}).get('gpu', -1) != -1:
+            quota = min(allocatable_gpu, pool_row.get('resources').get('gpu', -1))
+        else:
+            quota = allocatable_gpu
+
         pool_response.append(objects.PoolResourcesEntry(
             pool=pool_row['name'],
             platform=pool_row['platform'],
@@ -308,6 +318,7 @@ def get_pool_resources(pools: List[str] | None = None,
             status=status,
             usage_fields=total_usage,
             allocatable_fields=total_allocatable,
+            quota=quota,
         ))
     return objects.PoolResourcesResponse(pools=pool_response)
 
