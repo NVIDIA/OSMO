@@ -115,7 +115,11 @@ export const PanelContent = memo(function PanelContent({
     <div className="flex-1 overflow-auto p-4">
       <div className="space-y-6">
         {/* GPU Quota */}
-        <CapacityBar label="GPU Quota" used={pool.quota.used} total={pool.quota.limit} />
+        <CapacityBar
+          label="GPU Quota"
+          used={pool.quota.used}
+          total={pool.quota.limit}
+        />
 
         {/* GPU Capacity */}
         <CapacityBar
@@ -143,7 +147,10 @@ export const PanelContent = memo(function PanelContent({
                 <CirclePile className="h-3.5 w-3.5" />
                 Shares capacity with
               </div>
-              <SharedPoolsChips pools={sharedWith} onPoolClick={handlePoolClick} />
+              <SharedPoolsChips
+                pools={sharedWith}
+                onPoolClick={handlePoolClick}
+              />
             </div>
           )}
         </CapacityBar>
@@ -151,21 +158,21 @@ export const PanelContent = memo(function PanelContent({
         {/* Pool Details */}
         {hasPoolDetails && (
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pool Details</h3>
+            <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Pool Details</h3>
 
             <Card className="gap-0 py-0">
-              <CardContent className="divide-y divide-border p-0">
+              <CardContent className="divide-border divide-y p-0">
                 {/* Description */}
                 {pool.description && (
                   <div className="p-3">
-                    <p className="text-sm text-muted-foreground">{pool.description}</p>
+                    <p className="text-muted-foreground text-sm">{pool.description}</p>
                   </div>
                 )}
 
                 {/* Timeouts */}
                 {hasTimeouts && (
                   <div className="p-3">
-                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium">
                       <Clock className="size-3" />
                       Timeouts
                     </div>
@@ -201,14 +208,14 @@ export const PanelContent = memo(function PanelContent({
                 {/* Exit Actions */}
                 {hasExitActions && (
                   <div className="p-3">
-                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium">
                       <AlertCircle className="size-3" />
                       Default Exit Actions
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                       {Object.entries(pool.defaultExitActions).map(([exitCode, action]) => (
                         <React.Fragment key={exitCode}>
-                          <span className="font-mono text-muted-foreground">{exitCode}</span>
+                          <span className="text-muted-foreground font-mono">{exitCode}</span>
                           <span>{action}</span>
                         </React.Fragment>
                       ))}
@@ -223,13 +230,13 @@ export const PanelContent = memo(function PanelContent({
         {/* Platform Configuration */}
         {pool.platforms.length > 0 && (
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
               Platform Configuration
             </h3>
 
             <Card className="gap-0 py-0">
               {/* Platform Selector Header */}
-              <CardHeader className="border-b border-border bg-muted/30 px-4 py-2.5">
+              <CardHeader className="border-border bg-muted/30 border-b px-4 py-2.5">
                 <PlatformSelector
                   platforms={pool.platforms}
                   defaultPlatform={pool.defaultPlatform}
@@ -243,7 +250,7 @@ export const PanelContent = memo(function PanelContent({
                 {platformConfig ? (
                   <PlatformConfigContent config={platformConfig} />
                 ) : (
-                  <p className="text-sm text-muted-foreground">No configuration available for this platform.</p>
+                  <p className="text-muted-foreground text-sm">No configuration available for this platform.</p>
                 )}
               </CardContent>
             </Card>
