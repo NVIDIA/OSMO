@@ -69,6 +69,7 @@ export default function RootLayout({
       suppressHydrationWarning
       // Prevent layout shift during theme hydration
       className="scroll-smooth"
+      data-scroll-behavior="smooth"
     >
       <head>
         {/* Preconnect to API for faster data fetching */}
