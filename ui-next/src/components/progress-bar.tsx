@@ -117,7 +117,7 @@ export function ProgressBar({
         "relative w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",
         SIZE_CLASSES[size],
         trackClassName,
-        className
+        className,
       )}
       {...props}
     >
@@ -126,7 +126,7 @@ export function ProgressBar({
         className={cn(
           "h-full w-full flex-1 rounded-full transition-transform duration-300 ease-out",
           fillColor,
-          fillClassName
+          fillClassName,
         )}
         style={{ transform: `translateX(-${100 - clampedPercent}%)` }}
       />

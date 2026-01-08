@@ -15,10 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { memo, Suspense } from "react";
-import { Sidebar } from "./sidebar";
+import { AppSidebar } from "./app-sidebar";
 import { Header } from "./header";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/shadcn/card";
+import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -27,15 +28,24 @@ interface ShellProps {
 /**
  * Application shell with optimized layout.
  *
- * Performance optimizations:
- * - CSS containment for layout isolation
- * - GPU-accelerated transforms
- * - Suspense boundaries for async content
- * - Memoized to prevent unnecessary re-renders
+ * Uses shadcn/ui Sidebar for:
+ * - Mobile-responsive Sheet behavior
+ * - Keyboard shortcut (Cmd/Ctrl+B) to toggle
+ * - Collapsible with icon-only mode
+ * - Accessibility out of the box
  */
 export const Shell = memo(function Shell({ children }: ShellProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-white contain-layout dark:bg-zinc-950">
+    <SidebarProvider
+      defaultOpen={true}
+      className="h-screen overflow-hidden"
+      style={
+        {
+          "--sidebar-width": "12rem",
+          "--sidebar-width-icon": "3.25rem",
+        } as React.CSSProperties
+      }
+    >
       {/* Skip to main content link - WCAG 2.1 bypass block */}
       <a
         href="#main-content"
@@ -44,11 +54,11 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
         Skip to main content
       </a>
 
-      {/* Sidebar - isolated layout */}
-      <Sidebar />
+      {/* Sidebar */}
+      <AppSidebar />
 
-      {/* Main area - flex container with isolated layout */}
-      <div className="flex flex-1 flex-col overflow-hidden contain-layout">
+      {/* Main area - flex to fill remaining space */}
+      <SidebarInset className="flex flex-col overflow-hidden">
         {/* Header */}
         <Header />
 
@@ -61,8 +71,8 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
         >
           <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
         </main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 });
 
@@ -82,7 +92,10 @@ function MainContentSkeleton() {
       <Card className="flex-1 p-4">
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-4">
+            <div
+              key={i}
+              className="flex items-center gap-4"
+            >
               <Skeleton className="h-10 flex-1" />
             </div>
           ))}

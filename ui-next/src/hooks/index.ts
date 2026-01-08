@@ -63,3 +63,6 @@ export {
   type UseExpandableChipsResult,
 } from "./use-expandable-chips";
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
+
+// Mobile & Platform Detection
+export { useIsMobile, useIsMac } from "./use-mobile";

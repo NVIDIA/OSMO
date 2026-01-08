@@ -60,7 +60,7 @@ export function CopyableValue({ value, className }: CopyableValueProps) {
         copied
           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
           : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700",
-        className
+        className,
       )}
       title={copied ? "Copied!" : `Copy ${value}`}
     >
@@ -106,7 +106,7 @@ export function CopyableBlock({ value, className }: CopyableBlockProps) {
         copied
           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
           : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
-        className
+        className,
       )}
       title={copied ? "Copied!" : `Copy ${value}`}
     >

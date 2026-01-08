@@ -50,7 +50,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   return (
     <button
       onClick={() => copy(value)}
-      className="ml-1.5 shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground ml-1.5 shrink-0 rounded p-0.5 transition-colors"
       aria-label={`Copy ${label}`}
       title={copied ? "Copied!" : `Copy ${label}`}
     >

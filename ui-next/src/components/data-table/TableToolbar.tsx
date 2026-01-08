@@ -163,14 +163,20 @@ function TableToolbarInner<T>({
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Toggle size="sm" aria-label="Toggle columns">
+                <Toggle
+                  size="sm"
+                  aria-label="Toggle columns"
+                >
                   <Columns className="size-4" />
                 </Toggle>
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent>Toggle columns</TooltipContent>
           </Tooltip>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent
+            align="end"
+            className="w-48"
+          >
             <DropdownMenuLabel>Columns</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {columns.map((column) => (

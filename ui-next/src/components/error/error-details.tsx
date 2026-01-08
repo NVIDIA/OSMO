@@ -20,11 +20,7 @@ import { ChevronDown, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCopyToClipboard } from "@/hooks";
 import { Card } from "@/components/shadcn/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/shadcn/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
 
 interface ErrorDetailsProps {
   /** Error object */
@@ -64,24 +60,22 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
       {/* Stack trace (collapsible) */}
       {stackLines && (
         <Collapsible>
-          <div
-            className={cn(
-              "flex items-center justify-between px-4 py-2",
-              error.message && "border-t border-border"
-            )}
-          >
-            <CollapsibleTrigger className="group flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:text-foreground">
+          <div className={cn("flex items-center justify-between px-4 py-2", error.message && "border-border border-t")}>
+            <CollapsibleTrigger className="group text-muted-foreground hover:text-foreground flex items-center gap-2 text-left text-xs transition-colors">
               <ChevronDown className="size-3 transition-transform group-data-[state=open]:rotate-180" />
               Stack trace
             </CollapsibleTrigger>
             <button
               onClick={handleCopy}
               data-testid="copy-error-button"
-              className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
               title="Copy error details"
             >
               {copied ? (
-                <span data-testid="copy-success" className="flex items-center gap-1 text-emerald-500">
+                <span
+                  data-testid="copy-success"
+                  className="flex items-center gap-1 text-emerald-500"
+                >
                   <Check className="size-3" />
                   Copied
                 </span>
@@ -94,7 +88,7 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
             </button>
           </div>
           <CollapsibleContent>
-            <pre className="max-h-64 overflow-auto border-t border-border px-4 py-3 font-mono text-xs text-muted-foreground">
+            <pre className="border-border text-muted-foreground max-h-64 overflow-auto border-t px-4 py-3 font-mono text-xs">
               {stackLines}
             </pre>
           </CollapsibleContent>

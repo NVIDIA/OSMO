@@ -17,7 +17,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Command, LogIn, Home, ChevronRight } from "lucide-react";
+import { Search, Command, LogIn, Home, ChevronRight, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { useSidebar } from "@/components/shadcn/sidebar";
 import { useAuth, useUser } from "@/lib/auth";
 import { useVersion } from "@/lib/api/adapter";
 import { usePageConfig, type BreadcrumbSegment } from "./page-context";
@@ -36,14 +37,26 @@ export function Header() {
   const { user, isLoading } = useUser();
   const { version } = useVersion();
   const pageConfig = usePageConfig();
+  const { toggleSidebar } = useSidebar();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
-      {/* Left: Breadcrumbs and Title */}
+      {/* Left: Mobile menu trigger, Breadcrumbs and Title */}
       <nav
         aria-label="Breadcrumb"
         className="flex min-w-0 items-center gap-1.5"
       >
+        {/* Mobile sidebar trigger - hamburger menu */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mr-1 -ml-1 size-8 md:hidden"
+          onClick={toggleSidebar}
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
         {/* Home link */}
         <Link
           href="/"
