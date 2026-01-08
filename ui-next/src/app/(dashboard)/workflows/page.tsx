@@ -14,16 +14,89 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Workflows Page
+ *
+ * Displays a table of all workflows with:
+ * - Smart search with filter chips (status, user, pool, priority)
+ * - Column visibility and reordering
+ * - Status-based row styling
+ * - Navigation to workflow detail page on row click
+ *
+ * Architecture:
+ * - useWorkflowsData encapsulates data fetching and filtering
+ * - UI receives pre-filtered data
+ * - Uses Zustand for state persistence
+ * - Uses nuqs for URL state synchronization
+ */
+
 "use client";
 
+import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/shell";
+import { useUrlChips } from "@/hooks";
+import { WorkflowsDataTable } from "./components/table/workflows-data-table";
+import { WorkflowsToolbar } from "./components/workflows-toolbar";
+import { useWorkflowsData } from "./hooks/use-workflows-data";
+
+// =============================================================================
+// Main Page Component
+// =============================================================================
 
 export default function WorkflowsPage() {
   usePage({ title: "Workflows" });
 
+  // ==========================================================================
+  // URL State - All state is URL-synced for shareable deep links
+  // URL: /workflows?f=status:running&f=user:alice
+  // ==========================================================================
+
+  // Filter chips - URL-synced via shared hook
+  const { searchChips, setSearchChips } = useUrlChips();
+
+  // ==========================================================================
+  // Data Fetching with SmartSearch filtering
+  // ==========================================================================
+
+  const { workflows, allWorkflows, isLoading, error, refetch } = useWorkflowsData({
+    searchChips,
+  });
+
+  // ==========================================================================
+  // Render
+  // ==========================================================================
+
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">Workflow list coming soon...</p>
+    <div className="flex h-full flex-col gap-4">
+      {/* Toolbar with search and controls */}
+      <div className="shrink-0">
+        <InlineErrorBoundary
+          title="Toolbar error"
+          compact
+        >
+          <WorkflowsToolbar
+            workflows={allWorkflows}
+            searchChips={searchChips}
+            onSearchChipsChange={setSearchChips}
+          />
+        </InlineErrorBoundary>
+      </div>
+
+      {/* Main workflows table */}
+      <div className="min-h-0 flex-1">
+        <InlineErrorBoundary
+          title="Unable to display workflows table"
+          resetKeys={[workflows.length]}
+          onReset={refetch}
+        >
+          <WorkflowsDataTable
+            workflows={workflows}
+            isLoading={isLoading}
+            error={error ?? undefined}
+            onRetry={refetch}
+          />
+        </InlineErrorBoundary>
+      </div>
     </div>
   );
 }
