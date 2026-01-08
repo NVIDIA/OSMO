@@ -19,8 +19,9 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { heading, text } from "@/lib/styles";
+import { Card, CardContent, CardHeader } from "@/components/shadcn/card";
+import { Badge } from "@/components/shadcn/badge";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { CapacityBar } from "@/components/capacity-bar";
 import { ApiError } from "@/components/error";
 import { CopyableValue, CopyableBlock } from "@/components/copyable-value";
@@ -61,54 +62,33 @@ export function ResourcePanelContent({
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Pool-Agnostic Section */}
-      <div className="space-y-6 border-b border-zinc-200 p-6 dark:border-zinc-800">
+      <div className="space-y-6 border-b border-border p-6">
         {/* Hostname */}
         <section>
-          <h3 className={cn("mb-2", heading.section)}>Hostname</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hostname</h3>
           <CopyableValue value={resource.hostname} />
         </section>
 
         {/* Resource Capacity */}
         <section>
-          <h3 className={cn("mb-2", heading.section)}>Capacity</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Capacity</h3>
           <div className="space-y-4">
-            <CapacityBar
-              label="GPU"
-              used={resource.gpu.used}
-              total={resource.gpu.total}
-            />
-            <CapacityBar
-              label="CPU"
-              used={resource.cpu.used}
-              total={resource.cpu.total}
-            />
-            <CapacityBar
-              label="Memory"
-              used={resource.memory.used}
-              total={resource.memory.total}
-              isBytes
-            />
-            <CapacityBar
-              label="Storage"
-              used={resource.storage.used}
-              total={resource.storage.total}
-              isBytes
-            />
+            <CapacityBar label="GPU" used={resource.gpu.used} total={resource.gpu.total} />
+            <CapacityBar label="CPU" used={resource.cpu.used} total={resource.cpu.total} />
+            <CapacityBar label="Memory" used={resource.memory.used} total={resource.memory.total} isBytes />
+            <CapacityBar label="Storage" used={resource.storage.used} total={resource.storage.total} isBytes />
           </div>
         </section>
 
         {/* Conditions if any */}
         {resource.conditions.length > 0 && (
           <section>
-            <h3 className={cn("mb-2", heading.section)}>Conditions</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conditions</h3>
             <div className="flex flex-wrap gap-2">
               {resource.conditions.map((condition, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex rounded bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                >
+                <Badge key={idx} variant="secondary">
                   {condition}
-                </span>
+                </Badge>
               ))}
             </div>
           </section>
@@ -118,7 +98,9 @@ export function ResourcePanelContent({
       {/* Pool-Specific Section */}
       <div className="p-6">
         <section>
-          <h3 className={cn("mb-2", heading.section)}>Pool Configuration</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Pool Configuration
+          </h3>
 
           {error ? (
             <ApiError
@@ -129,33 +111,33 @@ export function ResourcePanelContent({
               loginMessage="You need to log in to view resource details."
             />
           ) : isLoadingPools ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-800" />
-              <div className="h-16 rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-16 w-full" />
             </div>
           ) : pools.length === 0 ? (
-            <p className={text.muted}>This resource is not a member of any pool.</p>
+            <p className="text-sm text-muted-foreground">This resource is not a member of any pool.</p>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+            <Card className="gap-0 py-0">
               {/* Pool Selector Header */}
-              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-100/50 px-4 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/30">
+              <CardHeader className="border-b border-border bg-muted/30 px-4 py-2.5">
                 <ItemSelector
                   items={pools}
                   selectedItem={selectedPool}
                   onSelect={handlePoolSelect}
                   aria-label="Select pool"
                 />
-              </div>
+              </CardHeader>
 
               {/* Task Config Content */}
-              <div className="p-3">
+              <CardContent className="p-3">
                 {taskConfig ? (
                   <TaskConfigContent config={taskConfig} />
                 ) : (
-                  <p className={text.muted}>No configuration available for this platform.</p>
+                  <p className="text-sm text-muted-foreground">No configuration available for this platform.</p>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </section>
       </div>
@@ -177,11 +159,11 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Boolean flags */}
       <div className="space-y-1">
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">Host Network</span>
+          <span className="text-sm text-muted-foreground">Host Network</span>
           <BooleanIndicator value={config.hostNetworkAllowed} />
         </div>
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">Privileged Mode</span>
+          <span className="text-sm text-muted-foreground">Privileged Mode</span>
           <BooleanIndicator value={config.privilegedAllowed} />
         </div>
       </div>
@@ -189,13 +171,10 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Default Mounts */}
       {config.defaultMounts.length > 0 && (
         <div>
-          <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">Default Mounts</div>
+          <div className="mb-1.5 text-sm text-muted-foreground">Default Mounts</div>
           <div className="flex flex-col gap-1">
             {config.defaultMounts.map((mount, idx) => (
-              <CopyableBlock
-                key={idx}
-                value={mount}
-              />
+              <CopyableBlock key={idx} value={mount} />
             ))}
           </div>
         </div>
@@ -204,13 +183,10 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
       {/* Allowed Mounts */}
       {config.allowedMounts.length > 0 && (
         <div>
-          <div className="mb-1.5 text-sm text-zinc-600 dark:text-zinc-400">Allowed Mounts</div>
+          <div className="mb-1.5 text-sm text-muted-foreground">Allowed Mounts</div>
           <div className="flex flex-col gap-1">
             {config.allowedMounts.map((mount, idx) => (
-              <CopyableBlock
-                key={idx}
-                value={mount}
-              />
+              <CopyableBlock key={idx} value={mount} />
             ))}
           </div>
         </div>

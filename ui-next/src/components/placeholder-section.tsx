@@ -24,7 +24,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import { heading, text } from "@/lib/styles";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/shadcn/card";
 
 // =============================================================================
 // Types
@@ -59,12 +59,14 @@ export interface PlaceholderSectionProps {
  */
 export function PlaceholderSection({ title, description, note, className }: PlaceholderSectionProps) {
   return (
-    <section className={cn("opacity-50", className)}>
-      <h3 className={cn(heading.section, "mb-2")}>{title}</h3>
-      <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-        <p className={cn(text.muted, "text-center")}>{description}</p>
-        {note && <p className={cn(text.hint, "mt-1 text-center")}>{note}</p>}
-      </div>
-    </section>
+    <Card className={cn("border-dashed opacity-50", className)}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wider">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="text-center">
+        <CardDescription>{description}</CardDescription>
+        {note && <p className="mt-1 text-xs text-muted-foreground/70">{note}</p>}
+      </CardContent>
+    </Card>
   );
 }

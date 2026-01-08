@@ -17,8 +17,8 @@
  */
 
 import { memo } from "react";
-import { cn } from "@/lib/utils";
-import { card, skeleton, text } from "@/lib/styles";
+import { Card, CardContent } from "@/components/shadcn/card";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ProgressBar } from "@/components/progress-bar";
 
 // =============================================================================
@@ -57,27 +57,29 @@ interface QuotaBarProps {
 export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }: QuotaBarProps) {
   if (isLoading) {
     return (
-      <div className={cn(card.base, "p-4")}>
-        <div className={cn(skeleton.base, skeleton.md, "w-24")} />
-        <div className={cn(skeleton.base, "mt-3 h-3 w-full rounded-full")} />
-        <div className={cn(skeleton.base, skeleton.sm, "mt-2 w-48")} />
-      </div>
+      <Card className="gap-3 py-4">
+        <CardContent className="space-y-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-full rounded-full" />
+          <Skeleton className="h-3 w-48" />
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className={cn(card.base, "p-4")}>
-      {/* Header: Label + Used/Limit */}
-      <div className="flex items-baseline justify-between">
-        <span className={text.muted}>GPU Quota</span>
-        <span className="text-lg font-semibold tabular-nums">
-          {used} <span className="text-zinc-400">/</span> {limit}
-          <span className="ml-1 text-sm font-normal text-zinc-500">GPUs</span>
-        </span>
-      </div>
+    <Card className="gap-3 py-4">
+      <CardContent className="space-y-3">
+        {/* Header: Label + Used/Limit */}
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-muted-foreground">GPU Quota</span>
+          <span className="text-lg font-semibold tabular-nums">
+            {used} <span className="text-muted-foreground">/</span> {limit}
+            <span className="ml-1 text-sm font-normal text-muted-foreground">GPUs</span>
+          </span>
+        </div>
 
-      {/* Progress bar */}
-      <div className="mt-3">
+        {/* Progress bar */}
         <ProgressBar
           value={used}
           max={limit}
@@ -86,21 +88,21 @@ export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }:
           trackClassName="h-3"
           aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
         />
-      </div>
 
-      {/* Contextual message */}
-      <p className={cn("mt-2", text.muted)}>
-        {free > 0 ? (
-          <>
-            <span className="text-nvidia dark:text-nvidia-light font-medium">{free} available</span> for HIGH/NORMAL
-            priority workflows
-          </>
-        ) : (
-          <span className="font-medium text-zinc-600 dark:text-zinc-300">
-            No quota available — LOW priority workflows may still run
-          </span>
-        )}
-      </p>
-    </div>
+        {/* Contextual message */}
+        <p className="text-sm text-muted-foreground">
+          {free > 0 ? (
+            <>
+              <span className="font-medium text-nvidia dark:text-nvidia-light">{free} available</span> for HIGH/NORMAL
+              priority workflows
+            </>
+          ) : (
+            <span className="font-medium text-foreground">
+              No quota available — LOW priority workflows may still run
+            </span>
+          )}
+        </p>
+      </CardContent>
+    </Card>
   );
 });

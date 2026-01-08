@@ -20,16 +20,14 @@
  * Table Skeleton
  *
  * Shows a loading skeleton that matches the table structure.
- * Uses the global .skeleton-shimmer class for smooth animation.
- *
- * The shimmer class is defined in globals.css using Tailwind's theme()
- * function and includes prefers-reduced-motion support.
+ * Uses shadcn/ui Skeleton component for consistent styling.
  */
 
 "use client";
 
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/shadcn/skeleton";
 
 // =============================================================================
 // Types
@@ -80,15 +78,15 @@ const SkeletonRow = memo(function SkeletonRow({ columnCount, rowHeight, rowIndex
   return (
     <tr
       style={{ height: rowHeight, display: "flex" }}
-      className="border-b border-zinc-200 dark:border-zinc-800"
+      className="border-b border-border"
     >
       {Array.from({ length: columnCount }).map((_, colIndex) => (
         <td
           key={colIndex}
           className="flex flex-1 shrink-0 items-center px-4"
         >
-          <div
-            className="skeleton-shimmer h-4 rounded"
+          <Skeleton
+            className="h-4"
             style={{ width: cellWidths[colIndex] }}
           />
         </td>
@@ -120,18 +118,18 @@ export const TableSkeleton = memo(function TableSkeleton({
       <table className="w-full border-collapse text-sm">
         {/* Header */}
         {showHeader && (
-          <thead className="bg-zinc-100 text-left text-xs font-medium text-zinc-500 uppercase dark:bg-zinc-900 dark:text-zinc-400">
+          <thead className="bg-muted text-left text-xs font-medium uppercase text-muted-foreground">
             <tr style={{ display: "flex" }}>
               {effectiveHeaders.map((header, i) => (
                 <th
                   key={i}
                   className="flex flex-1 shrink-0 items-center px-4 py-3"
                 >
-                  {/* Show actual header text if provided, otherwise shimmer */}
+                  {/* Show actual header text if provided, otherwise skeleton */}
                   {headers && headers.length > 0 ? (
                     <span className="truncate">{header}</span>
                   ) : (
-                    <div className="skeleton-shimmer h-3 w-16 rounded" />
+                    <Skeleton className="h-3 w-16" />
                   )}
                 </th>
               ))}

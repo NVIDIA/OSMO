@@ -53,6 +53,11 @@ export { useVirtualizerCompat } from "./use-virtualizer-compat";
 // UI Components
 export { usePersistedBoolean } from "./use-persisted-boolean";
 export {
+  useCopyToClipboard,
+  type UseCopyToClipboardOptions,
+  type UseCopyToClipboardReturn,
+} from "./use-copy-to-clipboard";
+export {
   useExpandableChips,
   type UseExpandableChipsOptions,
   type UseExpandableChipsResult,
