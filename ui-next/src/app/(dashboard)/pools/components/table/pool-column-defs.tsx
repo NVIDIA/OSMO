@@ -26,11 +26,19 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Pool } from "@/lib/api/adapter";
 import type { DisplayMode } from "@/stores";
+import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { remToPx } from "@/components/data-table";
 import { GpuProgressCell } from "../cells/gpu-progress-cell";
 import { PlatformPills } from "../cells/platform-pills";
 import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "../../lib/pool-columns";
-import { getStatusDisplay, STATUS_STYLES } from "../../lib/constants";
+import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "../../lib/constants";
+
+// Status icons mapping
+const STATUS_ICONS = {
+  online: CheckCircle2,
+  maintenance: Wrench,
+  offline: XCircle,
+} as const;
 
 // =============================================================================
 // Types
@@ -96,11 +104,17 @@ export function createPoolColumns({
       enableSorting: true,
       cell: ({ row }) => {
         const { category, label } = getStatusDisplay(row.original.status);
-        const dotClass = STATUS_STYLES[category]?.dot ?? "bg-zinc-400";
+        const styles = STATUS_STYLES[category]?.badge;
+        const Icon = STATUS_ICONS[category as StatusCategory];
+
+        if (!styles) {
+          return <span className="text-zinc-500">{label}</span>;
+        }
+
         return (
-          <span className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
-            <span className="truncate text-zinc-600 dark:text-zinc-300">{label}</span>
+          <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${styles.bg}`}>
+            <Icon className={`h-3.5 w-3.5 ${styles.icon}`} />
+            <span className={`text-xs font-semibold ${styles.text}`}>{label}</span>
           </span>
         );
       },
