@@ -103,7 +103,7 @@ flowchart LR
 1. [Prerequisites](#prerequisites)
 2. [Microsoft Entra ID (Azure AD)](#microsoft-entra-id-azure-ad)
 3. [Google OAuth2](#google-oauth2)
-4. [Amazon Cognito](#amazon-cognito)
+4. [AWS IAM Identity Center (AWS SSO)](#aws-iam-identity-center-aws-sso)
 5. [Envoy Configuration](#envoy-configuration)
 6. [Role Management APIs](#role-management-apis)
 7. [Verification Steps](#verification-steps)
@@ -122,8 +122,8 @@ Throughout this guide, replace these placeholders:
 | `<tenant-id>` | Microsoft tenant ID | `12345678-1234-1234-1234-123456789abc` |
 | `<client-id>` | OAuth2 client/application ID | `abcd1234-...` |
 | `<client-secret>` | OAuth2 client secret | `xxx...` |
-| `<user-pool-id>` | Amazon Cognito user pool ID | `us-west-2_abc123` |
-| `<cognito-domain>` | Cognito hosted UI domain | `myapp.auth.us-west-2.amazoncognito.com` |
+| `<instance-id>` | AWS Identity Center instance ID | `ssoins-abc123def456` |
+| `<region>` | AWS region | `us-east-1`, `us-west-2` |
 
 ---
 
@@ -316,57 +316,84 @@ sidecars:
 
 ---
 
-## Amazon Cognito
+## AWS IAM Identity Center (AWS SSO)
 
-### Step 1: Create a User Pool
+AWS IAM Identity Center (formerly AWS SSO) is AWS's centralized identity management service. It differs from Amazon Cognito in that it's designed as an enterprise identity broker that integrates with your corporate identity provider (Microsoft Entra ID, Okta, Google Workspace, etc.) rather than a standalone user directory.
 
-1. Go to [Amazon Cognito Console](https://console.aws.amazon.com/cognito)
-2. Click **Create user pool**
-3. Configure sign-in experience:
-   - **Cognito user pool sign-in options**: Email (recommended)
-   - Enable **Federated identity providers** if you want to use external IDPs
-4. Configure security requirements as needed
-5. Configure message delivery (email for verification)
-6. Name your user pool (e.g., `osmo-users`)
-7. Click **Create user pool**
-8. Note the **User pool ID** (format: `<region>_<id>`)
+### Key Differences from Cognito
 
-### Step 2: Create an App Client
+| Aspect | Amazon Cognito | AWS IAM Identity Center |
+|--------|---------------|-------------------------|
+| Primary Use Case | Customer-facing apps, mobile apps | Enterprise workforce access |
+| User Directory | Managed user pool | Federated from corporate IdP |
+| OIDC Support | Native | Customer managed applications |
+| Typical Users | End customers | Employees, contractors |
 
-1. In your user pool, go to **App integration** tab
-2. Scroll to **App clients and analytics**
-3. Click **Create app client**
-4. Configure:
-   - **App type**: **Confidential client**
-   - **App client name**: `OSMO Service`
-   - **Client secret**: Generate a client secret
-5. Under **Hosted UI settings**:
-   - **Allowed callback URLs**: `https://<your-domain>/api/auth/getAToken`
-   - **Allowed sign-out URLs**: `https://<your-domain>/logout`
-   - **Identity providers**: Select your providers
-   - **OAuth 2.0 grant types**: Authorization code grant
-   - **OpenID Connect scopes**: `openid`, `email`, `profile`
-6. Click **Create app client**
-7. Note the **Client ID** and **Client secret**
+### Step 1: Enable AWS IAM Identity Center
 
-### Step 3: Configure Hosted UI Domain
+1. Go to [AWS IAM Identity Center Console](https://console.aws.amazon.com/singlesignon)
+2. Click **Enable** if not already enabled
+3. Choose your **Identity source**:
+   - **Identity Center directory**: Create and manage users directly in AWS
+   - **Active Directory**: Connect to on-premises or AWS Managed Microsoft AD
+   - **External identity provider**: Federate with Okta, Microsoft Entra ID, Google Workspace, etc.
+4. Note your **Identity Center instance ARN** (format: `arn:aws:sso:::instance/ssoins-<instance-id>`)
+5. Note your **Access Portal URL** (format: `https://<instance-id>.awsapps.com/start`)
 
-1. In **App integration** → **Domain**
-2. Create either:
-   - **Cognito domain**: `<your-prefix>.auth.<region>.amazoncognito.com`
-   - **Custom domain**: Your own domain (requires certificate)
-3. Note the domain URL
+### Step 2: Configure External Identity Provider (If Using Federation)
 
-### Step 4: Gather Endpoint URLs
+If federating with an external IdP:
+
+1. Go to **Settings** → **Identity source** → **Actions** → **Change identity source**
+2. Select **External identity provider**
+3. Download the **IAM Identity Center SAML metadata** file
+4. In your external IdP (e.g., Okta, Microsoft Entra ID):
+   - Create a new SAML 2.0 application
+   - Upload the IAM Identity Center metadata
+   - Configure attribute mappings:
+     - `email` → user email
+     - `firstName` → given name
+     - `lastName` → family name
+5. Download the IdP metadata and upload it to IAM Identity Center
+6. Optionally, enable **Automatic provisioning (SCIM)** for user/group sync
+
+### Step 3: Create a Customer Managed Application
+
+1. In IAM Identity Center, go to **Applications** → **Customer managed**
+2. Click **Add application**
+3. Select **I have an application I want to set up** → **OAuth 2.0**
+4. Configure the application:
+   - **Display name**: `OSMO Service`
+   - **Description**: OSMO workflow orchestration platform
+   - **Application URL**: `https://<your-domain>`
+5. Under **OAuth 2.0 configuration**:
+   - **Redirect URIs**: `https://<your-domain>/api/auth/getAToken`
+   - **Grant types**: Authorization code
+   - **Scopes**: `openid`, `email`, `profile`
+6. Click **Submit**
+7. Note the **Application ARN** and **Client ID**
+8. Generate and save the **Client secret**
+
+### Step 4: Assign Users and Groups
+
+1. In your application settings, go to **Assigned users and groups**
+2. Click **Assign users and groups**
+3. Select the users or groups who should have access to OSMO
+4. Click **Assign**
+
+### Step 5: Gather Endpoint URLs
 
 | Endpoint | URL |
 |----------|-----|
-| Token Endpoint | `https://<cognito-domain>/oauth2/token` |
-| Authorization Endpoint | `https://<cognito-domain>/oauth2/authorize` |
-| JWKS URI | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/jwks.json` |
-| Issuer | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>` |
+| Token Endpoint | `https://oidc.<region>.amazonaws.com/token` |
+| Authorization Endpoint | `https://<instance-id>.awsapps.com/start/authorize` |
+| JWKS URI | `https://oidc.<region>.amazonaws.com/keys` |
+| Issuer | `https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>` |
+| OpenID Configuration | `https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>/.well-known/openid-configuration` |
 
-### Amazon Cognito Values Configuration
+> **Note**: Replace `<region>` with your AWS region (e.g., `us-east-1`) and `<instance-id>` with your Identity Center instance ID.
+
+### AWS IAM Identity Center Values Configuration
 
 ```yaml
 sidecars:
@@ -379,8 +406,8 @@ sidecars:
     # OAuth2 filter for browser-based authentication
     oauth2Filter:
       enabled: true
-      tokenEndpoint: https://<cognito-domain>/oauth2/token
-      authEndpoint: https://<cognito-domain>/oauth2/authorize
+      tokenEndpoint: https://oidc.<region>.amazonaws.com/token
+      authEndpoint: https://<instance-id>.awsapps.com/start/authorize
       clientId: <client-id>
       redirectPath: api/auth/getAToken
       logoutPath: logout
@@ -393,18 +420,30 @@ sidecars:
     jwt:
       user_header: x-osmo-user
       providers:
-      - issuer: https://cognito-idp.<region>.amazonaws.com/<user-pool-id>
+      - issuer: https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>
         audience: <client-id>
-        jwks_uri: https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/jwks.json
+        jwks_uri: https://oidc.<region>.amazonaws.com/keys
         user_claim: email
         cluster: oauth
 ```
 
-### Important Notes for Amazon Cognito
+### Important Notes for AWS IAM Identity Center
 
-1. **User Claim**: Cognito uses `email` or `cognito:username` as user identifiers
-2. **Custom Attributes**: You can add custom attributes for roles in Cognito
-3. **Groups**: Cognito supports groups that can be included in tokens via `cognito:groups` claim
+1. **User Claim**: Identity Center uses `email` or `sub` as user identifiers
+2. **Federation**: Most enterprises use Identity Center as a broker to their corporate IdP (Okta, Microsoft Entra ID, etc.)
+3. **Access Portal**: Users can access `https://<instance-id>.awsapps.com/start` to see all assigned applications
+4. **Groups**: Groups synced from your corporate IdP are available for RBAC
+5. **SCIM Provisioning**: Enable automatic user/group provisioning from your corporate IdP for seamless user lifecycle management
+6. **Region-Specific**: Unlike Cognito, Identity Center endpoints are region-specific
+
+### Migrating from Cognito to Identity Center
+
+If you're migrating from Amazon Cognito:
+
+1. **User Migration**: Export Cognito users and import them to your corporate IdP or Identity Center directory
+2. **Update Envoy Configuration**: Replace Cognito endpoints with Identity Center endpoints
+3. **Update Redirect URIs**: Ensure the new Identity Center application has the correct callback URLs
+4. **Test Federation**: Verify that users from your corporate IdP can authenticate successfully
 
 ---
 
@@ -507,8 +546,8 @@ clusters:
               address: login.microsoftonline.com
               # For Google:
               # address: oauth2.googleapis.com
-              # For Cognito:
-              # address: <cognito-domain>
+              # For AWS Identity Center:
+              # address: oidc.<region>.amazonaws.com
               port_value: 443
   transport_socket:
     name: envoy.transport_sockets.tls
@@ -587,7 +626,7 @@ CREATE TABLE user_roles (
     username VARCHAR(255) NOT NULL,
     role_name VARCHAR(255) NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
     assigned_by VARCHAR(255) NOT NULL,
-    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(username, role_name)
 );
@@ -770,114 +809,6 @@ func (s *AuthzServer) resolveRoles(ctx context.Context, username string, jwtRole
 }
 ```
 
-### Service Implementation
-
-The role management APIs are implemented in the OSMO core service (`config_service.py`). The following new endpoints are added:
-
-**File**: `external/src/service/core/config/config_service.py`
-
-```python
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
-from datetime import datetime
-
-router = APIRouter()
-
-@router.get('/api/users/{username}/roles')
-def get_user_roles(
-    username: str,
-    current_user: str = Depends(get_current_user)
-) -> UserRolesResponse:
-    """Get all roles assigned to a user."""
-    postgres = PostgresConnector.get_instance()
-    roles = postgres.get_user_roles(username)
-    return UserRolesResponse(username=username, roles=roles)
-
-
-@router.post('/api/users/{username}/roles', status_code=201)
-def assign_role_to_user(
-    username: str,
-    request: AssignRoleRequest,
-    current_user: str = Depends(require_role_manage_permission)
-) -> RoleAssignment:
-    """Assign a role to a user."""
-    postgres = PostgresConnector.get_instance()
-
-    # Validate role exists
-    role = postgres.get_role(request.role_name)
-    if not role:
-        raise HTTPException(status_code=404, detail=f"Role '{request.role_name}' not found")
-
-    # Create assignment
-    assignment = postgres.assign_role_to_user(
-        username=username,
-        role_name=request.role_name,
-        assigned_by=current_user,
-        expires_at=request.expires_at
-    )
-    return assignment
-
-
-@router.delete('/api/users/{username}/roles/{role_name}', status_code=204)
-def remove_role_from_user(
-    username: str,
-    role_name: str,
-    current_user: str = Depends(require_role_manage_permission)
-):
-    """Remove a role from a user."""
-    postgres = PostgresConnector.get_instance()
-
-    if not postgres.remove_role_from_user(username, role_name):
-        raise HTTPException(status_code=404, detail="Role assignment not found")
-
-
-@router.get('/api/roles/{role_name}/users')
-def get_role_users(
-    role_name: str,
-    current_user: str = Depends(get_current_user)
-) -> RoleUsersResponse:
-    """Get all users with a specific role."""
-    postgres = PostgresConnector.get_instance()
-    users = postgres.get_users_with_role(role_name)
-    return RoleUsersResponse(role_name=role_name, users=users)
-
-
-@router.post('/api/roles/{role_name}/users')
-def bulk_assign_role(
-    role_name: str,
-    request: BulkAssignRequest,
-    current_user: str = Depends(require_role_manage_permission)
-) -> BulkAssignResponse:
-    """Assign a role to multiple users."""
-    postgres = PostgresConnector.get_instance()
-
-    assigned = []
-    already_assigned = []
-    failed = []
-
-    for username in request.usernames:
-        try:
-            result = postgres.assign_role_to_user(
-                username=username,
-                role_name=role_name,
-                assigned_by=current_user,
-                expires_at=request.expires_at
-            )
-            if result.was_created:
-                assigned.append(username)
-            else:
-                already_assigned.append(username)
-        except Exception as e:
-            failed.append({"username": username, "error": str(e)})
-
-    return BulkAssignResponse(
-        role_name=role_name,
-        assigned=assigned,
-        already_assigned=already_assigned,
-        failed=failed
-    )
-```
-
 ### Action Registry Addition
 
 Add the new role management actions to the action registry:
@@ -921,157 +852,6 @@ osmo role users list osmo-ml-team
 osmo role users add osmo-ml-team --users user1@example.com,user2@example.com
 ```
 
-**CLI Implementation** (`external/src/cli/user.py`):
-
-```python
-import click
-from datetime import datetime
-
-@click.group()
-def user():
-    """User management commands."""
-    pass
-
-@user.group()
-def roles():
-    """Manage user role assignments."""
-    pass
-
-@roles.command('list')
-@click.argument('username')
-def list_roles(username: str):
-    """List all roles assigned to a user."""
-    client = get_service_client()
-    response = client.get(f'/api/users/{username}/roles')
-    response.raise_for_status()
-
-    data = response.json()
-    click.echo(f"Roles for {data['username']}:")
-    for role in data['roles']:
-        expires = f" (expires: {role['expires_at']})" if role.get('expires_at') else ""
-        click.echo(f"  - {role['name']}{expires}")
-
-@roles.command('add')
-@click.argument('username')
-@click.option('--role', required=True, help='Role name to assign')
-@click.option('--expires', help='Expiration date (YYYY-MM-DD)')
-def add_role(username: str, role: str, expires: str = None):
-    """Assign a role to a user."""
-    client = get_service_client()
-
-    body = {'role_name': role}
-    if expires:
-        body['expires_at'] = f"{expires}T23:59:59Z"
-
-    response = client.post(f'/api/users/{username}/roles', json=body)
-    response.raise_for_status()
-
-    click.echo(f"Assigned role '{role}' to {username}")
-
-@roles.command('remove')
-@click.argument('username')
-@click.option('--role', required=True, help='Role name to remove')
-def remove_role(username: str, role: str):
-    """Remove a role from a user."""
-    client = get_service_client()
-    response = client.delete(f'/api/users/{username}/roles/{role}')
-    response.raise_for_status()
-
-    click.echo(f"Removed role '{role}' from {username}")
-```
-
-### PostgreSQL Functions
-
-Add the following functions to the PostgreSQL connector:
-
-**File**: `external/src/utils/connectors/postgres.py`
-
-```python
-def get_user_roles(self, username: str) -> List[RoleAssignment]:
-    """Get all roles assigned to a user."""
-    query = """
-        SELECT role_name, assigned_by, assigned_at, expires_at
-        FROM user_roles
-        WHERE username = %s
-          AND (expires_at IS NULL OR expires_at > NOW())
-        ORDER BY assigned_at
-    """
-    with self.connection.cursor() as cursor:
-        cursor.execute(query, (username,))
-        rows = cursor.fetchall()
-        return [
-            RoleAssignment(
-                name=row[0],
-                assigned_by=row[1],
-                assigned_at=row[2],
-                expires_at=row[3]
-            )
-            for row in rows
-        ]
-
-def assign_role_to_user(
-    self,
-    username: str,
-    role_name: str,
-    assigned_by: str,
-    expires_at: Optional[datetime] = None
-) -> RoleAssignment:
-    """Assign a role to a user. Idempotent - returns existing if already assigned."""
-    query = """
-        INSERT INTO user_roles (username, role_name, assigned_by, expires_at)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (username, role_name)
-        DO UPDATE SET expires_at = EXCLUDED.expires_at
-        RETURNING assigned_at, (xmax = 0) as was_created
-    """
-    with self.connection.cursor() as cursor:
-        cursor.execute(query, (username, role_name, assigned_by, expires_at))
-        row = cursor.fetchone()
-        self.connection.commit()
-        return RoleAssignment(
-            username=username,
-            role_name=role_name,
-            assigned_by=assigned_by,
-            assigned_at=row[0],
-            expires_at=expires_at,
-            was_created=row[1]
-        )
-
-def remove_role_from_user(self, username: str, role_name: str) -> bool:
-    """Remove a role from a user. Returns True if deleted, False if not found."""
-    query = """
-        DELETE FROM user_roles
-        WHERE username = %s AND role_name = %s
-    """
-    with self.connection.cursor() as cursor:
-        cursor.execute(query, (username, role_name))
-        deleted = cursor.rowcount > 0
-        self.connection.commit()
-        return deleted
-
-def get_users_with_role(self, role_name: str) -> List[UserRoleInfo]:
-    """Get all users with a specific role."""
-    query = """
-        SELECT username, assigned_by, assigned_at, expires_at
-        FROM user_roles
-        WHERE role_name = %s
-          AND (expires_at IS NULL OR expires_at > NOW())
-        ORDER BY username
-    """
-    with self.connection.cursor() as cursor:
-        cursor.execute(query, (role_name,))
-        rows = cursor.fetchall()
-        return [
-            UserRoleInfo(
-                username=row[0],
-                assigned_by=row[1],
-                assigned_at=row[2],
-                expires_at=row[3]
-            )
-            for row in rows
-        ]
-```
-
 ### Database Migration
 
 WIP
@@ -1091,8 +871,8 @@ curl -s "https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-c
 # Test Google
 curl -s "https://accounts.google.com/.well-known/openid-configuration" | jq .
 
-# Test Amazon Cognito
-curl -s "https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration" | jq .
+# Test AWS IAM Identity Center
+curl -s "https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>/.well-known/openid-configuration" | jq .
 ```
 
 **Expected Output**: JSON document with `authorization_endpoint`, `token_endpoint`, `jwks_uri`, etc.
@@ -1181,6 +961,13 @@ jwt:
     cluster: oauth
 ```
 
+## Future IDPs
+
+We plan on supporting these other IDPs in the future, but might be beyond the scope of the inital feature.
+
+* Okta
+* auth0
+
 ## Troubleshooting
 
 ### Authentication Fails with "Invalid Token"
@@ -1244,7 +1031,7 @@ jwt:
 2. **Verify user_claim configuration**:
    - Microsoft: `preferred_username` or `unique_name`
    - Google: `email`
-   - Cognito: `email` or `cognito:username`
+   - AWS Identity Center: `email` or `sub`
 
 3. **Check database for role assignments**:
    ```sql
@@ -1296,7 +1083,7 @@ jwt:
 |----------|---------------|---------------|----------|--------|
 | Microsoft | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token` | `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize` | `https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys` | `https://login.microsoftonline.com/<tenant>/v2.0` |
 | Google | `https://oauth2.googleapis.com/token` | `https://accounts.google.com/o/oauth2/v2/auth` | `https://www.googleapis.com/oauth2/v3/certs` | `https://accounts.google.com` |
-| Cognito | `https://<domain>/oauth2/token` | `https://<domain>/oauth2/authorize` | `https://cognito-idp.<region>.amazonaws.com/<pool-id>/.well-known/jwks.json` | `https://cognito-idp.<region>.amazonaws.com/<pool-id>` |
+| AWS Identity Center | `https://oidc.<region>.amazonaws.com/token` | `https://<instance-id>.awsapps.com/start/authorize` | `https://oidc.<region>.amazonaws.com/keys` | `https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>` |
 
 ### User Claim Mapping
 
@@ -1304,4 +1091,4 @@ jwt:
 |----------|--------------|
 | Microsoft | `preferred_username`, `unique_name`, `email`, `upn` |
 | Google | `email`, `name`, `sub` |
-| Cognito | `email`, `cognito:username`, `sub` |
+| AWS Identity Center | `email`, `sub`, `name` |

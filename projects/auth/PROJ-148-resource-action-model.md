@@ -55,7 +55,7 @@ This approach has several limitations:
 
 | Use Case | Description |
 |---|---|
-| Define a read-only role | Admin creates a role that can view workflows and tasks but cannot create, modify, or delete them using `workflow:Read`, `task:Read` actions |
+| Define a read-only role | Admin creates a role that can view workflows and tasks but cannot create, modify, or delete them using `workflow:Read` action |
 | Grant workflow management | User role includes `workflow:*` to allow all workflow operations (create, read, update, delete, cancel, clone) |
 | Restrict pool deletion | Admin creates a policy with `Deny` effect on `pool:Delete` for production pools to prevent accidental deletion |
 | Backend service access | Internal services use `internal:Operator` action to access agent APIs without exposing those endpoints to regular users |
@@ -92,8 +92,7 @@ This approach has several limitations:
 │  ─────────────────────────────────────────────────────────────────────────  │
 │  Immutable mapping of actions → API paths                                   │
 │  Changes require code update + deployment                                   │
-│  Examples: workflow:Create → POST /api/workflow                             │
-│            task:Exec → POST /api/task/*/exec                                │
+│  Example: workflow:Create → POST /api/workflow                              │
 │                                                                             │
 │  LAYER 2: Policy Engine (Dynamic, DB-stored)                                │
 │  ─────────────────────────────────────────────────────────────────────────  │
@@ -127,39 +126,38 @@ The action registry is defined in code (not database) for several reasons:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         RESOURCE-ACTION MODEL                                │
+│                         RESOURCE-ACTION MODEL                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  RESOURCES           ACTIONS                    SCOPED TO                   │
 │  ─────────           ───────                    ─────────                   │
-│  pool                Create, Read, Update,      (global)                    │
-│                      Delete, List                                           │
+│  pool                List                       (global)                    │
 │                                                                             │
-│  workflow            Create, Read, Update,      pool                        │
+│  workflow            Create, Read, Update,      pool / user                 │
 │                      Delete, Cancel, Clone,                                 │
 │                      List, Execute                                          │
 │                                                                             │
-│  task                Read, Update, Cancel,      pool (via workflow)         │
+│  task                Read, Update, Cancel,      pool / user                 │
 │                      Exec, PortForward, Rsync                               │
 │                                                                             │
-│  bucket              Create, Read, Write,       pool                        │
+│  bucket              Create, Read, Write,       bucket                      │
 │                      Delete, List                                           │
 │                                                                             │
 │  credentials         Create, Read, Update,      (global)                    │
 │                      Delete, List                                           │
 │                                                                             │
-│  profile             Read, Update               user (self)                 │
+│  profile             Read, Update               user                        │
 │                                                                             │
 │  user                List                       (global)                    │
 │                                                                             │
 │  app                 Create, Read, Update,      (global)                    │
 │                      Delete, List                                           │
 │                                                                             │
-│  config              Read, Update               (global / service)          │
+│  config              Read, Update               config                      │
 │                                                                             │
 │  system              Health, Version            (public)                    │
 │                                                                             │
-│  internal            Operator, Logger, Router   (backend only)              │
+│  internal            Operator, Logger, Router   backend / workflow          │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -178,14 +176,9 @@ const (
     ActionWorkflowCancel  = "workflow:Cancel"
     ActionWorkflowList    = "workflow:List"
     ActionWorkflowExecute = "workflow:Execute"
-
-    // Task actions
-    ActionTaskRead        = "task:Read"
-    ActionTaskUpdate      = "task:Update"
-    ActionTaskCancel      = "task:Cancel"
-    ActionTaskExec        = "task:Exec"
-    ActionTaskPortForward = "task:PortForward"
-    ActionTaskRsync       = "task:Rsync"
+    ActionWorkflowExec        = "workflow:Exec"
+    ActionWorkflowPortForward = "workflow:PortForward"
+    ActionWorkflowRsync       = "workflow:Rsync"
 
     // Bucket actions
     ActionBucketCreate = "bucket:Create"
@@ -195,16 +188,16 @@ const (
     ActionBucketList   = "bucket:List"
 
     // Pool actions
-    ActionPoolCreate = "pool:Create"
-    ActionPoolRead   = "pool:Read"
-    ActionPoolUpdate = "pool:Update"
-    ActionPoolDelete = "pool:Delete"
     ActionPoolList   = "pool:List"
 
     // Internal/Backend actions (restricted)
     ActionInternalOperator = "internal:Operator"
     ActionInternalLogger   = "internal:Logger"
     ActionInternalRouter   = "internal:Router"
+
+    // Config actions
+    ActionConfigRead = "config:Read"
+    ActionConfigUpdate = "config:Update"
 
     // System actions (public)
     ActionSystemHealth  = "system:Health"
@@ -218,12 +211,14 @@ const (
 <resource-type>/<identifier>
 
 Examples:
-  workflow/*           - All workflows
-  workflow/abc123      - Specific workflow
-  pool/default         - Default pool
-  pool/production/*    - Production pool and children
-  bucket/pool/default/* - Buckets in default pool
-  *                    - All resources
+  workflow/*             - All workflows
+  workflow/abc123        - Specific workflow
+  pool/default           - Default pool
+  pool/production/*      - Production pool and children
+  bucket/data-generation - Bucket for storing data generation datasets
+  backend/gb200-testing  - Backend called gb200-testing
+  config/service         - Service Config
+  *                      - All resources
 ```
 
 ---
@@ -242,9 +237,7 @@ Policies use AWS IAM-style JSON format with Allow/Deny statements:
         "workflow:Read",
         "workflow:Update",
         "workflow:Delete",
-        "workflow:Cancel",
-        "task:Read",
-        "task:Cancel"
+        "workflow:Cancel"
       ],
       "resources": ["*"]
     },
@@ -309,7 +302,6 @@ Standard user role:
         "effect": "Allow",
         "actions": [
           "workflow:*",
-          "task:Read", "task:Update", "task:Cancel", "task:Exec", "task:PortForward", "task:Rsync",
           "bucket:*",
           "credentials:*",
           "profile:Read", "profile:Update",
@@ -319,7 +311,6 @@ Standard user role:
           "resources:Read",
           "config:Read",
           "auth:Token",
-          "tag:Read",
           "router:Client",
           "system:*"
         ],
@@ -345,7 +336,6 @@ Read-only access:
         "effect": "Allow",
         "actions": [
           "workflow:Read", "workflow:List",
-          "task:Read",
           "bucket:Read", "bucket:List",
           "system:*"
         ],
@@ -370,7 +360,7 @@ For backend agents:
       {
         "effect": "Allow",
         "actions": ["internal:Operator", "pool:Read", "config:Read"],
-        "resources": ["*"]
+        "resources": ["backend/*", "pool/*", "config/backend"]
       }
     ]
   },
@@ -680,6 +670,9 @@ var ActionRegistry = map[string][]EndpointPattern{
     "workflow:Read": {
         {Path: "/api/workflow", Methods: []string{"GET"}},
         {Path: "/api/workflow/*", Methods: []string{"GET"}},
+        {Path: "/api/task", Methods: []string{"GET"}},
+        {Path: "/api/task/*", Methods: []string{"GET"}},
+        {Path: "/api/tag", Methods: []string{"GET"}},
     },
     "workflow:Update": {
         {Path: "/api/workflow/*", Methods: []string{"PUT", "PATCH"}},
@@ -690,26 +683,14 @@ var ActionRegistry = map[string][]EndpointPattern{
     "workflow:Cancel": {
         {Path: "/api/workflow/*/cancel", Methods: []string{"POST"}},
     },
-
-    // ==================== TASK ====================
-    "task:Read": {
-        {Path: "/api/task", Methods: []string{"GET"}},
-        {Path: "/api/task/*", Methods: []string{"GET"}},
+    "workflow:Exec": {
+        {Path: "/api/workflow/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
     },
-    "task:Update": {
-        {Path: "/api/task/*", Methods: []string{"PUT", "PATCH"}},
+    "workflow:PortForward": {
+        {Path: "/api/workflow/*/portforward/*", Methods: []string{"*"}},
     },
-    "task:Cancel": {
-        {Path: "/api/task/*/cancel", Methods: []string{"POST"}},
-    },
-    "task:Exec": {
-        {Path: "/api/task/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
-    },
-    "task:PortForward": {
-        {Path: "/api/task/*/portforward/*", Methods: []string{"*"}},
-    },
-    "task:Rsync": {
-        {Path: "/api/task/*/rsync", Methods: []string{"POST"}},
+    "workflow:Rsync": {
+        {Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
     },
 
     // ==================== BUCKET ====================
@@ -728,17 +709,6 @@ var ActionRegistry = map[string][]EndpointPattern{
     },
 
     // ==================== POOL ====================
-    "pool:Create": {
-        {Path: "/api/pool", Methods: []string{"POST"}},
-    },
-    "pool:Read": {
-        {Path: "/api/pool", Methods: []string{"GET"}},
-        {Path: "/api/pool/*", Methods: []string{"GET"}},
-        {Path: "/api/pool_quota", Methods: []string{"GET"}},
-    },
-    "pool:Update": {
-        {Path: "/api/pool/*", Methods: []string{"PUT", "PATCH"}},
-    },
     "pool:Delete": {
         {Path: "/api/pool/*", Methods: []string{"DELETE"}},
     },
@@ -795,7 +765,6 @@ var ActionRegistry = map[string][]EndpointPattern{
     // ==================== CONFIG ====================
     "config:Read": {
         {Path: "/api/configs/*", Methods: []string{"GET"}},
-        {Path: "/api/plugins/configs", Methods: []string{"GET"}},
     },
     "config:Update": {
         {Path: "/api/configs/*", Methods: []string{"PUT", "PATCH"}},
@@ -816,16 +785,14 @@ var ActionRegistry = map[string][]EndpointPattern{
         {Path: "/api/auth/access_token/user", Methods: []string{"*"}},
         {Path: "/api/auth/access_token/user/*", Methods: []string{"*"}},
     },
-
-    // ==================== TAG ====================
-    "tag:Read": {
-        {Path: "/api/tag", Methods: []string{"GET"}},
-    },
-    "tag:Create": {
-        {Path: "/api/tag", Methods: []string{"POST"}},
+    "auth:ServiceToken": {
+        {Path: "/api/auth/access_token", Methods: []string{"*"}},
+        {Path: "/api/auth/access_token/service", Methods: []string{"*"}},
+        {Path: "/api/auth/access_token/service/*", Methods: []string{"*"}},
     },
 
     // ==================== ROUTER ====================
+    // This one is still WIP to see if it is needed or can be merged
     "router:Client": {
         {Path: "/api/router/webserver/*/", Methods: []string{"*"}},
         {Path: "/api/router/webserver_enabled", Methods: []string{"*"}},

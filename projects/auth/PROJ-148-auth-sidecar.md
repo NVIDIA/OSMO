@@ -31,10 +31,10 @@ scalable, and maintainable solution.
 
 ### Motivation
 
-- **Performance**: Python middleware adds latency to every request; Golang gRPC with caching achieves <5ms authorization checks
-- **Scalability**: Sidecar pattern scales automatically with service pods; no centralized authorization bottleneck. Rate-limiting is now be applied with authorized users.
-- **Maintainability**: Separates authorization logic from application code; single service to update policies
-- **Observability**: Centralized authorization decisions enable better monitoring and auditing
+- **Centralized Logic**: OSMO is slowing converting microservices to Go. By introducing a sidecar, OSMO wouldn't need an auto mechanism for both the Python + Go services
+- **Scalability**: Rate-limiting is now be applied with authorized users. Currently, users can be rate-limited by non-authorized users which causes heavy APIs where we have lower rate limiting thresholds can be severly impacted.
+- **Performance**: Go is **2-3x faster** at low load and **8-10x faster** at high load (Performance numbers are detailed in a section below)
+- **Maintainability**: Separates authorization logic from application code. Many services like logger and router do not need to access to postgres, but currently, postgres information needs to be injected into the container due to the Middleware.
 
 ### Problem
 
@@ -239,7 +239,10 @@ sidecars:
 #### Alternative 1: Keep Python Middleware
 
 * **Pros**: No migration needed, well-tested
-* **Cons**: Performance overhead + code is intermingled with the service logic + rate limiting is applied before access is verified
+* **Cons**:
+  * Need to write a separate logic for both Python and Go services
+  * Middleware has to be behind rate-limiting which can cause performance issues for users
+  * Services that don't require postgres will need to have postgres for the Middleware
 * **Why not chosen**: Based on the cons
 
 #### Alternative 2: Centralized Authorization Service
@@ -299,7 +302,7 @@ All tests measure authorization checks with cache hits (worst-case includes data
 **Why Python appears faster at low load**:
 - HTTP/1.1 has lower connection setup cost (~300µs) than gRPC/HTTP2 (~700µs)
 - gRPC uses HTTP/2 which requires more complex handshaking (SETTINGS frames, binary framing)
-- This is a well-known tradeoff: **HTTP = fast to connect, gRPC = fast once connected**
+- This is due to the tradeoff: **HTTP = fast to connect, gRPC = fast once connected**
 - ⚠️ **This scenario does NOT represent production usage** (Envoy maintains persistent connections)
 
 ---
@@ -330,7 +333,7 @@ All tests measure authorization checks with cache hits (worst-case includes data
 **Connection Pooling Impact**:
 - Eliminating connection overhead reveals Go's true performance advantage
 - Go authz_sidecar is **2-3x faster** at low load and **8-10x faster** at high load
-- Production deployments use persistent connections (Scenario 2), so Go wins decisively
+- Production deployments use persistent connections (Scenario 2)
 
 **Concurrency Scaling**:
 
