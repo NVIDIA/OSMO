@@ -139,6 +139,8 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   className?: string;
   /** Scroll container class name */
   scrollClassName?: string;
+  /** Compact mode - reduces cell padding for denser display */
+  compact?: boolean;
 
   // === State ===
   /** Is loading initial data */
@@ -198,6 +200,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   sectionHeight = 36,
   className,
   scrollClassName,
+  compact = false,
   isLoading,
   emptyContent,
   onRowClick,
@@ -625,6 +628,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 onRowFocus={rowNavigation.handleRowFocus}
                 onRowKeyDown={rowNavigation.handleRowKeyDown}
                 measureElement={measureElement}
+                compact={compact}
               />
             </table>
 

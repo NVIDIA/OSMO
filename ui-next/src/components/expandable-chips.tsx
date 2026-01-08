@@ -80,7 +80,7 @@ export const ExpandableChips = memo(function ExpandableChips({
   );
 
   return (
-    <div className="relative min-w-0 w-full flex-1">
+    <div className="relative w-full min-w-0 flex-1">
       {/* Hidden measurement container - CSS containment for 60fps performance */}
       <div
         ref={measureRef}
@@ -113,7 +113,7 @@ export const ExpandableChips = memo(function ExpandableChips({
         ref={containerRef}
         className={cn(
           "flex min-w-0 items-center gap-1",
-          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden"
+          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden",
         )}
       >
         {displayedItems.map((item) => (

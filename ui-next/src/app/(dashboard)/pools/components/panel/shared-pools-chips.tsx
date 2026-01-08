@@ -90,7 +90,7 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
       <div
         ref={containerRef}
         className={cn(
-          "-m-0.5 flex min-w-0 w-full items-center gap-1.5 p-0.5",
+          "-m-0.5 flex w-full min-w-0 items-center gap-1.5 p-0.5",
           expanded ? "flex-wrap content-start" : "flex-nowrap overflow-hidden",
         )}
       >
