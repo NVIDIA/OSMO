@@ -87,6 +87,52 @@ export interface SearchChip {
 }
 
 /**
+ * Props passed to the custom preset render function.
+ */
+export interface PresetRenderProps {
+  /** Whether the preset is currently active (has matching chip) */
+  active: boolean;
+  /** Whether the preset is focused via keyboard navigation */
+  focused: boolean;
+  /** Count of matching items */
+  count: number;
+  /** The preset label */
+  label: string;
+}
+
+/**
+ * A preset filter button shown at the top of the dropdown.
+ * Used for quick-access filters like status categories.
+ * @template T - The data item type being filtered
+ */
+export interface SearchPreset<T> {
+  /** Unique identifier */
+  id: string;
+  /** Display label (e.g., "Online") */
+  label: string;
+  /** Function to count matching items */
+  count: (data: T[]) => number;
+  /** The chip to add when this preset is clicked */
+  chip: SearchChip;
+  /**
+   * Custom render function for preset content.
+   * If provided, replaces the default dot + label + count rendering.
+   * The button wrapper and click handling are still managed by SmartSearch.
+   */
+  render?: (props: PresetRenderProps) => React.ReactNode;
+  // ---- Default rendering props (used when render is not provided) ----
+  /** Tailwind class for the status dot color (e.g., "bg-emerald-500") */
+  dotColor?: string;
+  /** Tailwind classes for badge styling when active */
+  badgeColors?: {
+    /** Background color class (e.g., "bg-emerald-100 dark:bg-emerald-900/50") */
+    bg: string;
+    /** Text color class (e.g., "text-emerald-700 dark:text-emerald-300") */
+    text: string;
+  };
+}
+
+/**
  * Props for the SmartSearch component.
  * @template T - The data item type being searched
  */
@@ -101,12 +147,17 @@ export interface SmartSearchProps<T> {
   onChipsChange: (chips: SearchChip[]) => void;
   /** Placeholder text */
   placeholder?: string;
-  /** Enable natural language date parsing (requires chrono-node) */
-  enableDateParsing?: boolean;
   /** Additional CSS class */
   className?: string;
   /** Display mode context for resolving shorthand fields */
   displayMode?: "free" | "used";
+  /** Preset filter buttons shown at top of dropdown (grouped by label) */
+  presets?: {
+    /** Group label (e.g., "Status") */
+    label: string;
+    /** Preset buttons in this group */
+    items: SearchPreset<T>[];
+  }[];
 }
 
 /**
