@@ -39,6 +39,8 @@
 .data-table-body {
   position: relative;
   display: block;
+  /* Background prevents "white flash" during fast scroll when rows aren't rendered yet */
+  @apply bg-white dark:bg-zinc-950;
 }
 
 /* =============================================================================
@@ -55,6 +57,8 @@
   align-items: stretch;
   will-change: transform;
   backface-visibility: hidden;
+  /* Subtle fade-in prevents jarring "pop" when rows appear during fast scroll */
+  animation: row-fade-in 100ms ease-out;
 
   /* Fill remaining space to extend row background */
   &::after {
@@ -64,12 +68,24 @@
   }
 }
 
+/* Fast, subtle fade-in for virtualized rows */
+@keyframes row-fade-in {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Section header row - virtualized */
 .data-table-section-row {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
+  /* Match data row fade-in for consistency */
+  animation: row-fade-in 100ms ease-out;
 }
 
 /* Header row - flex layout for column alignment */
