@@ -376,35 +376,6 @@
   }
 
   /* ==========================================================================
-     Skeleton Loading Animation
-     ========================================================================== */
-  .skeleton-shimmer {
-    background: linear-gradient(
-      90deg,
-      theme(colors.zinc.200) 0%,
-      theme(colors.zinc.100) 50%,
-      theme(colors.zinc.200) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite ease-in-out;
-    will-change: background-position;
-
-    :is(.dark &) {
-      background: linear-gradient(
-        90deg,
-        theme(colors.zinc.800) 0%,
-        theme(colors.zinc.700) 50%,
-        theme(colors.zinc.800) 100%
-      );
-      background-size: 200% 100%;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      animation: none;
-    }
-  }
-
-  /* ==========================================================================
      Table Container - Semantic table styling with bevel and header shadow
      ========================================================================== */
   .table-container {
@@ -440,15 +411,5 @@
       outline: 2px solid var(--nvidia-green);
       outline-offset: 2px;
     }
-  }
-}
-
-/* Keyframes - defined outside @layer for proper scoping */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
   }
 }

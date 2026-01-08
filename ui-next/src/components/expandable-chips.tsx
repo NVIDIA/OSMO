@@ -18,7 +18,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { chip } from "@/lib/styles";
+import { Badge } from "@/components/shadcn/badge";
 import { useExpandableChips } from "@/hooks";
 
 // =============================================================================
@@ -67,17 +67,10 @@ export const ExpandableChips = memo(function ExpandableChips({
     useExpandableChips({ items });
 
   if (sortedItems.length === 0) {
-    return <span className="text-xs text-zinc-400 dark:text-zinc-500">{emptyText}</span>;
+    return <span className="text-xs text-muted-foreground">{emptyText}</span>;
   }
 
   const isClickable = !!onItemClick;
-  const ChipComponent = isClickable ? "button" : "span";
-
-  const baseChipClass = cn(
-    "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap",
-    chip.unselected,
-    chipClassName,
-  );
 
   return (
     <div className="relative w-full min-w-0 flex-1">
@@ -89,23 +82,22 @@ export const ExpandableChips = memo(function ExpandableChips({
         aria-hidden="true"
       >
         {sortedItems.map((item) => (
-          <span
+          <Badge
             key={item}
             data-chip
-            className={baseChipClass}
+            variant="outline"
+            className={chipClassName}
           >
             {item}
-          </span>
+          </Badge>
         ))}
-        <span
+        <Badge
           data-overflow
-          className={cn(
-            "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-            chip.action,
-          )}
+          variant="outline"
+          className="border-dashed"
         >
           +{overflowCount || 1}
-        </span>
+        </Badge>
       </div>
 
       {/* Visible container */}
@@ -113,73 +105,82 @@ export const ExpandableChips = memo(function ExpandableChips({
         ref={containerRef}
         className={cn(
           "flex min-w-0 items-center gap-1",
-          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden",
+          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden"
         )}
       >
         {displayedItems.map((item) => (
-          <ChipComponent
+          <Badge
             key={item}
-            type={isClickable ? "button" : undefined}
-            onClick={
-              isClickable
-                ? (e) => {
-                    e.stopPropagation();
-                    onItemClick(item);
-                  }
-                : undefined
-            }
+            variant="outline"
+            asChild={isClickable}
             className={cn(
-              baseChipClass,
-              isClickable &&
-                "cursor-pointer hover:border-zinc-300 hover:text-zinc-600 dark:hover:border-zinc-600 dark:hover:text-zinc-300",
-              expanded && "max-w-full truncate",
+              chipClassName,
+              isClickable && "cursor-pointer hover:bg-accent",
+              expanded && "max-w-full"
             )}
             title={item}
           >
-            <span className={expanded ? "truncate" : undefined}>{item}</span>
-          </ChipComponent>
+            {isClickable ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onItemClick(item);
+                }}
+              >
+                <span className={expanded ? "truncate" : undefined}>{item}</span>
+              </button>
+            ) : (
+              <span className={expanded ? "truncate" : undefined}>{item}</span>
+            )}
+          </Badge>
         ))}
 
         {/* Overflow indicator */}
         {!expanded && overflowCount > 0 && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (expandable) setExpanded(true);
-            }}
+          <Badge
+            variant="outline"
+            asChild
             className={cn(
-              "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-              chip.action,
-              expandable && "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800",
+              "border-dashed",
+              expandable && "cursor-pointer hover:bg-accent"
             )}
             title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
-            disabled={!expandable}
-            aria-expanded={false}
-            aria-label={`Show ${overflowCount} more items`}
           >
-            +{overflowCount}
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (expandable) setExpanded(true);
+              }}
+              disabled={!expandable}
+              aria-expanded={false}
+              aria-label={`Show ${overflowCount} more items`}
+            >
+              +{overflowCount}
+            </button>
+          </Badge>
         )}
 
         {/* Collapse button */}
         {expanded && sortedItems.length > 1 && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(false);
-            }}
-            className={cn(
-              "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-              chip.action,
-              "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800",
-            )}
-            aria-expanded={true}
-            aria-label="Show fewer items"
+          <Badge
+            variant="outline"
+            asChild
+            className="cursor-pointer border-dashed hover:bg-accent"
           >
-            {collapseLabel}
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(false);
+              }}
+              aria-expanded={true}
+              aria-label="Show fewer items"
+            >
+              {collapseLabel}
+            </button>
+          </Badge>
         )}
       </div>
     </div>
