@@ -107,7 +107,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   scrollRef,
   rowHeight,
   sectionHeight = 36,
-  overscan = 5,
+  overscan = 20,
   hasNextPage = false,
   onLoadMore,
   isFetchingNextPage = false,
@@ -191,12 +191,17 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   // Track if we've already triggered load more to prevent duplicate calls
   const loadMoreTriggeredRef = useRef(false);
 
-  // Reset the trigger flag when fetching completes
+  // Reset the trigger flag when new data arrives (item count changes).
+  // This single mechanism works for both slow network responses and instant
+  // cached responses, making the logic agnostic of data source timing.
+  const prevItemCountRef = useRef(items?.length ?? 0);
   useEffect(() => {
-    if (!isFetchingNextPage) {
+    const currentCount = items?.length ?? 0;
+    if (currentCount !== prevItemCountRef.current) {
+      prevItemCountRef.current = currentCount;
       loadMoreTriggeredRef.current = false;
     }
-  }, [isFetchingNextPage]);
+  }, [items?.length]);
 
   useEffect(() => {
     if (!hasNextPage || isFetchingNextPage) return;
