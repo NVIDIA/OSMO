@@ -222,8 +222,10 @@ use_repo(
     "in_gopkg_yaml_v3",
 
     # Service dependencies (authz_sidecar)
+    "com_github_casbin_casbin_v2",
     "com_github_envoyproxy_go_control_plane",
     "com_github_jackc_pgx_v5",
+    "com_github_pckhoi_casbin_pgx_adapter_v2",
     "org_golang_google_genproto_googleapis_rpc",
     "org_golang_google_grpc",
 

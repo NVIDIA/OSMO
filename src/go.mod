@@ -3,16 +3,17 @@ module go.corp.nvidia.com/osmo
 go 1.24.3
 
 require (
+	// Service dependencies (authz_sidecar)
+	github.com/casbin/casbin/v2 v2.103.0
 	// Runtime dependencies
 	github.com/conduitio/bwlimit v0.1.0
 	github.com/creack/pty v1.1.18
-
-	// Service dependencies (authz_sidecar)
 	github.com/envoyproxy/go-control-plane v0.13.0
 	github.com/gokrazy/rsync v0.0.0-20250601185929-d3cb1d4a4fcd
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gorilla/websocket v1.5.0
 	github.com/jackc/pgx/v5 v5.7.2
+	github.com/pckhoi/casbin-pgx-adapter/v2 v2.2.2
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250106144421-5f5ef82da422
 	google.golang.org/grpc v1.67.3
 	gopkg.in/yaml.v3 v3.0.1
@@ -35,10 +36,20 @@ require (
 )
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/casbin/govaluate v1.3.0 // indirect
+	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/pgconn v1.10.0 // indirect
+	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.1.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgtype v1.8.1 // indirect
+	github.com/jackc/pgx/v4 v4.13.0 // indirect
+	github.com/jackc/puddle v1.1.3 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/mmcloughlin/meow v0.0.0-20200201185800-3501c7c05d21 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	golang.org/x/crypto v0.37.0 // indirect

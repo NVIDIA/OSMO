@@ -60,6 +60,10 @@ var (
 	cacheEnabled = flag.Bool("cache-enabled", true, "Enable role caching")
 	cacheTTL     = flag.Duration("cache-ttl", defaultCacheTTL, "Cache TTL for roles")
 	cacheMaxSize = flag.Int("cache-max-size", defaultCacheSize, "Maximum cache size")
+
+	// Casbin flags
+	casbinEnabled            = flag.Bool("casbin-enabled", false, "Enable Casbin-based authorization (default: legacy)")
+	casbinPolicyReloadPeriod = flag.Duration("casbin-policy-reload-period", 5*time.Minute, "Casbin policy reload interval")
 )
 
 func main() {
@@ -98,22 +102,50 @@ func main() {
 		slog.String("database", *postgresDB),
 	)
 
-	// Create role cache
-	cacheConfig := server.RoleCacheConfig{
-		Enabled: *cacheEnabled,
-		TTL:     *cacheTTL,
-		MaxSize: *cacheMaxSize,
+	// Create authorization server based on configuration
+	var authzServer server.AuthzServerInterface
+
+	if *casbinEnabled {
+		// Use Casbin-based authorization
+		// Build connection string for Casbin adapter (uses pgx/v4 format)
+		connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			*postgresHost, *postgresPort, *postgresUser, *postgresPassword, *postgresDB, *postgresSSLMode)
+
+		casbinConfig := server.CasbinConfig{
+			PolicyReloadInterval: *casbinPolicyReloadPeriod,
+			ConnectionString:     connStr,
+		}
+
+		casbinServer, err := server.NewCasbinAuthzServer(ctx, pgClient.Pool(), casbinConfig, logger)
+		if err != nil {
+			logger.Error("failed to create casbin authz server", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+
+		authzServer = casbinServer
+
+		logger.Info("casbin authz server initialized",
+			slog.Duration("policy_reload_period", *casbinPolicyReloadPeriod),
+		)
+	} else {
+		// Use legacy authorization
+		cacheConfig := server.RoleCacheConfig{
+			Enabled: *cacheEnabled,
+			TTL:     *cacheTTL,
+			MaxSize: *cacheMaxSize,
+		}
+		roleCache := server.NewRoleCache(cacheConfig, logger)
+
+		logger.Info("role cache initialized",
+			slog.Bool("enabled", *cacheEnabled),
+			slog.Duration("ttl", *cacheTTL),
+			slog.Int("max_size", *cacheMaxSize),
+		)
+
+		authzServer = server.NewAuthzServer(pgClient, roleCache, logger)
+
+		logger.Info("legacy authz server initialized")
 	}
-	roleCache := server.NewRoleCache(cacheConfig, logger)
-
-	logger.Info("role cache initialized",
-		slog.Bool("enabled", *cacheEnabled),
-		slog.Duration("ttl", *cacheTTL),
-		slog.Int("max_size", *cacheMaxSize),
-	)
-
-	// Create authorization server
-	authzServer := server.NewAuthzServer(pgClient, roleCache, logger)
 
 	// Create gRPC server options
 	opts := []grpc.ServerOption{
@@ -137,13 +169,12 @@ func main() {
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	// Register authorization service
-	server.RegisterAuthzService(grpcServer, authzServer)
+	server.RegisterAuthzServiceWithServer(grpcServer, authzServer)
 
 	logger.Info("authz server configured",
 		slog.Int("port", *grpcPort),
 		slog.String("postgres_host", *postgresHost),
-		slog.Bool("cache_enabled", *cacheEnabled),
-		slog.Duration("cache_ttl", *cacheTTL),
+		slog.Bool("casbin_enabled", *casbinEnabled),
 	)
 
 	// Start gRPC server

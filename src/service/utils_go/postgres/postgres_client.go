@@ -215,6 +215,11 @@ func (c *PostgresClient) Close() {
 	c.pool.Close()
 }
 
+// Pool returns the underlying pgxpool.Pool for direct database access
+func (c *PostgresClient) Pool() *pgxpool.Pool {
+	return c.pool
+}
+
 // Ping verifies the database connection is still alive
 func (c *PostgresClient) Ping(ctx context.Context) error {
 	return c.pool.Ping(ctx)
