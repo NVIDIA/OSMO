@@ -82,7 +82,7 @@ export function Sidebar() {
       <aside
         id="sidebar-nav"
         className={cn(
-          "flex h-full flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950",
+          "flex h-full flex-col border-r border-zinc-200 bg-white transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950",
           collapsed ? "w-[52px]" : "w-48",
         )}
       >
@@ -90,7 +90,7 @@ export function Sidebar() {
         <div
           className={cn(
             "flex h-14 shrink-0 items-center border-b border-zinc-200 transition-all duration-200 ease-out dark:border-zinc-800",
-            collapsed ? "justify-center px-2" : "px-3",
+            collapsed ? "justify-center px-2" : "px-4",
           )}
         >
           <Link
