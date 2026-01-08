@@ -1,5 +1,5 @@
 /**
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -219,7 +219,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Enable GPU compositing for smoother scrolling */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -234,25 +233,19 @@
 @layer utilities {
   /* Hide scrollbars while maintaining scroll functionality */
   .scrollbar-none {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 
     &::-webkit-scrollbar {
-      display: none; /* Chrome, Safari, Opera */
+      display: none;
     }
   }
-}
 
-@layer utilities {
-  /* ==========================================================================
-     Styled Scrollbars - Subtle, elegant scrollbars for scroll containers
-     ========================================================================== */
+  /* Styled scrollbars - subtle, elegant scrollbars for scroll containers */
   .scrollbar-styled {
     scrollbar-width: thin;
-    /* Firefox: thumb color, track color */
     scrollbar-color: theme(colors.zinc.400 / 50%) theme(colors.zinc.100 / 60%);
 
-    /* Webkit (Chrome, Safari, Edge) */
     &::-webkit-scrollbar {
       width: 10px;
       height: 10px;
@@ -280,7 +273,6 @@
       border-radius: 5px;
     }
 
-    /* Dark mode variants using Tailwind's dark selector */
     :is(.dark &) {
       scrollbar-color: theme(colors.zinc.500 / 40%) theme(colors.zinc.800 / 50%);
 
@@ -303,31 +295,8 @@
     }
   }
 
-  /* GPU-accelerated transform layer - prevents layout thrashing */
-  .gpu-layer {
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    perspective: 1000px;
-  }
-}
-
-@layer utilities {
-  /* ==========================================================================
-     Shell Layout Utilities
-     Fixed positioning constrained to page area (below header, right of sidebar)
-     ========================================================================== */
-
-  /* Fixed overlay that covers only the page content area (not shell header/sidebar) */
-  /* Note: Shell uses contain:layout, so fixed is relative to content column */
-  .fixed-below-header {
-    position: fixed;
-    inset: 0;
-    top: var(--shell-header-height);
-  }
-
   /* ==========================================================================
      CSS Containment - Isolate layout/paint calculations for performance
-     Use these to prevent layout thrashing from child elements
      ========================================================================== */
   .contain-strict {
     contain: strict;
@@ -357,31 +326,26 @@
     contain: content;
   }
 
-  /* Content visibility for lazy rendering - massive perf win for off-screen content */
+  /* Content visibility for lazy rendering */
   .content-auto {
     content-visibility: auto;
     contain-intrinsic-size: auto 500px;
   }
 
-  /* Optimized animations - use transform/opacity only (no layout triggers) */
-  .animate-gpu {
-    will-change: transform, opacity;
-    transform: translateZ(0);
-  }
-}
+  /* ==========================================================================
+     Shell Layout Utilities
+     ========================================================================== */
 
-/* Skeleton shimmer animation - defined outside @layer for keyframes */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
+  /* Fixed overlay that covers only the page content area */
+  .fixed-below-header {
+    position: fixed;
+    inset: 0;
+    top: var(--shell-header-height);
   }
-  100% {
-    background-position: 200% 0;
-  }
-}
 
-@layer utilities {
-  /* Skeleton loading with GPU acceleration */
+  /* ==========================================================================
+     Skeleton Loading Animation
+     ========================================================================== */
   .skeleton-shimmer {
     background: linear-gradient(
       90deg,
@@ -408,57 +372,9 @@
     }
   }
 
-  /* Prevent layout shift during interactions */
-  .stable-layout {
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  /* Optimized scrolling container */
-  .scroll-optimized {
-    overflow-anchor: none;
-    overscroll-behavior: contain;
-    scroll-behavior: smooth;
-
-    @media (prefers-reduced-motion: reduce) {
-      scroll-behavior: auto;
-    }
-  }
-
-  /* Virtualized list item - optimized for transform positioning */
-  .virtual-item {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    contain: layout style;
-    will-change: transform;
-  }
-
-  /* Prevent text rendering jank on hover */
-  .text-stable {
-    font-synthesis: none;
-    text-size-adjust: 100%;
-  }
-
-  /* Optimized table cells - prevent width recalculation */
-  .table-fixed-layout {
-    table-layout: fixed;
-  }
-
-  /* Reduce paint operations for frequently updated elements */
-  .isolate-layer {
-    isolation: isolate;
-  }
-
-  /* Preload critical interactions */
-  @media (hover: hover) {
-    .preload-hover:hover {
-      will-change: background-color, color, border-color;
-    }
-  }
-
-  /* Focus-visible optimization - only show focus ring for keyboard navigation */
+  /* ==========================================================================
+     Focus States - NVIDIA Brand Focus Ring
+     ========================================================================== */
   .focus-nvidia {
     &:focus {
       outline: none;
@@ -471,98 +387,12 @@
   }
 }
 
-/* =============================================================================
-   COMPONENT STYLES
-   Reusable CSS components using @layer components
-   ============================================================================= */
-
-/* Animation keyframes - defined outside layers for reuse */
-@keyframes css-spinner {
-  to {
-    transform: rotate(360deg);
+/* Keyframes - defined outside @layer for proper scoping */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
   }
-}
-
-@keyframes pulse-dot {
-  0%,
   100% {
-    opacity: 0.4;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  10%,
-  30%,
-  50%,
-  70%,
-  90% {
-    transform: translateX(-2px);
-  }
-  20%,
-  40%,
-  60%,
-  80% {
-    transform: translateX(2px);
-  }
-}
-
-@layer components {
-  /* ==========================================================================
-     CSS Spinner - GPU-accelerated, no JavaScript, minimal repaints
-     Usage: <div class="css-spinner" /> or css-spinner-sm/css-spinner-lg
-     ========================================================================== */
-  .css-spinner {
-    @apply size-4 rounded-full;
-    border: 2px solid currentColor;
-    border-top-color: transparent;
-    animation: css-spinner 0.6s linear infinite;
-    will-change: transform;
-  }
-
-  .css-spinner-sm {
-    @apply size-3;
-    border-width: 1.5px;
-  }
-
-  .css-spinner-lg {
-    @apply size-6;
-    border-width: 3px;
-  }
-
-  /* ==========================================================================
-     Pulse Loader - Ultra lightweight dot loader
-     Usage: <div class="pulse-loader"><span/><span/><span/></div>
-     ========================================================================== */
-  .pulse-loader {
-    @apply flex gap-1;
-
-    & > span {
-      @apply size-1.5 rounded-full bg-current;
-      animation: pulse-dot 1s ease-in-out infinite;
-    }
-
-    & > span:nth-child(2) {
-      animation-delay: 0.15s;
-    }
-
-    & > span:nth-child(3) {
-      animation-delay: 0.3s;
-    }
-  }
-}
-
-@layer utilities {
-  /* Shake animation for validation errors */
-  .animate-shake {
-    animation: shake 0.4s ease-in-out;
+    background-position: 200% 0;
   }
 }

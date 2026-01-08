@@ -68,6 +68,8 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   onRowKeyDown?: (e: React.KeyboardEvent, index: number) => void;
   /** Ref callback for dynamic row measurement */
   measureElement?: (node: Element | null) => void;
+  /** Compact mode - reduces cell padding */
+  compact?: boolean;
 }
 
 // =============================================================================
@@ -89,6 +91,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   onRowFocus,
   onRowKeyDown,
   measureElement,
+  compact = false,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
   return (
     <tbody
@@ -183,7 +186,10 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                     minWidth: cssWidth,
                     flexShrink: 0, // Prevent shrinking below specified width
                   }}
-                  className="flex items-start py-3 px-4"
+                  className={cn(
+                    "flex items-center px-4",
+                    compact ? "py-1.5" : "py-3",
+                  )}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
