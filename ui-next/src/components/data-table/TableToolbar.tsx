@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Toggle } from "@/components/shadcn/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useSharedPreferences, type SearchChip } from "@/stores";
 import { SmartSearch, type SearchField, type SearchPreset } from "@/components/smart-search";
@@ -131,12 +132,14 @@ function TableToolbarInner<T>({
         {showDisplayModeToggle && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                onClick={toggleDisplayMode}
-                className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              <Toggle
+                size="sm"
+                pressed={displayMode === "free"}
+                onPressedChange={toggleDisplayMode}
+                aria-label={displayMode === "free" ? "Show used" : "Show available"}
               >
                 {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
-              </button>
+              </Toggle>
             </TooltipTrigger>
             <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
           </Tooltip>
@@ -144,12 +147,14 @@ function TableToolbarInner<T>({
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              onClick={toggleCompactMode}
-              className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            <Toggle
+              size="sm"
+              pressed={compactMode}
+              onPressedChange={toggleCompactMode}
+              aria-label={compactMode ? "Comfortable view" : "Compact view"}
             >
               {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
-            </button>
+            </Toggle>
           </TooltipTrigger>
           <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
         </Tooltip>
@@ -158,17 +163,14 @@ function TableToolbarInner<T>({
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <button className="rounded p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+                <Toggle size="sm" aria-label="Toggle columns">
                   <Columns className="size-4" />
-                </button>
+                </Toggle>
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent>Toggle columns</TooltipContent>
           </Tooltip>
-          <DropdownMenuContent
-            align="end"
-            className="w-48"
-          >
+          <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel>Columns</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {columns.map((column) => (

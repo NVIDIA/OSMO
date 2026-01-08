@@ -17,6 +17,8 @@
 import { memo, Suspense } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Card } from "@/components/shadcn/card";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -72,23 +74,20 @@ function MainContentSkeleton() {
     <div className="animate-in fade-in flex h-full flex-col gap-6 duration-300">
       {/* Page header skeleton */}
       <div className="shrink-0 space-y-2">
-        <div className="skeleton-shimmer h-8 w-48 rounded" />
-        <div className="skeleton-shimmer h-4 w-72 rounded" />
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
       </div>
 
       {/* Content skeleton */}
-      <div className="flex-1 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <Card className="flex-1 p-4">
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4"
-            >
-              <div className="skeleton-shimmer h-10 flex-1 rounded" />
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-10 flex-1" />
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

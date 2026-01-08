@@ -27,10 +27,11 @@
 
 "use client";
 
-import { useMemo, useCallback, memo, useState } from "react";
+import { useMemo, useCallback, memo } from "react";
 import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
+import { useCopyToClipboard } from "@/hooks";
 import { calculateDuration, formatDuration } from "../../../workflow-types";
 import type { GroupWithLayout } from "../../../workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../utils/status";
@@ -44,30 +45,12 @@ import type { TaskDetailsProps, SiblingTask } from "../../types/panel";
 // ============================================================================
 
 function CopyButton({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = value;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }, [value]);
+  const { copied, copy } = useCopyToClipboard();
 
   return (
     <button
-      onClick={handleCopy}
-      className="ml-1.5 shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+      onClick={() => copy(value)}
+      className="ml-1.5 shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       aria-label={`Copy ${label}`}
       title={copied ? "Copied!" : `Copy ${label}`}
     >
