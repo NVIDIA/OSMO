@@ -20,6 +20,7 @@
  * Workflow-specific wrapper around DataTable that handles:
  * - Flat table with full sorting flexibility
  * - Workflow-specific row styling (status borders)
+ * - Infinite scroll pagination
  * - Navigation to workflow detail page on click
  *
  * Built on the canonical DataTable component.
@@ -55,12 +56,22 @@ const ROW_HEIGHT_COMPACT = 36;
 export interface WorkflowsDataTableProps {
   /** Workflow data */
   workflows: WorkflowListEntry[];
+  /** Total count before filters */
+  totalCount?: number;
   /** Loading state */
   isLoading?: boolean;
   /** Error state */
   error?: Error;
   /** Retry callback */
   onRetry?: () => void;
+
+  // === Infinite scroll props ===
+  /** Whether more data is available to load */
+  hasNextPage?: boolean;
+  /** Function to load next page (called when scrolling near end) */
+  onLoadMore?: () => void;
+  /** Whether currently loading more data */
+  isFetchingNextPage?: boolean;
 }
 
 // =============================================================================
@@ -74,7 +85,16 @@ const getRowId = (workflow: WorkflowListEntry) => workflow.name;
 // Component
 // =============================================================================
 
-export function WorkflowsDataTable({ workflows, isLoading = false, error, onRetry }: WorkflowsDataTableProps) {
+export function WorkflowsDataTable({
+  workflows,
+  totalCount,
+  isLoading = false,
+  error,
+  onRetry,
+  hasNextPage = false,
+  onLoadMore,
+  isFetchingNextPage = false,
+}: WorkflowsDataTableProps) {
   const router = useRouter();
 
   // Shared preferences
@@ -239,11 +259,16 @@ export function WorkflowsDataTable({ workflows, isLoading = false, error, onRetr
         // Sorting
         sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}
+        // Pagination
+        hasNextPage={hasNextPage}
+        onLoadMore={onLoadMore}
+        isFetchingNextPage={isFetchingNextPage}
+        totalCount={totalCount}
         // Layout
         rowHeight={rowHeight}
         compact={compactMode}
         className="text-sm"
-        scrollClassName="scrollbar-styled flex-1"
+        scrollClassName="workflows-scroll-container scrollbar-styled flex-1"
         // State
         isLoading={isLoading}
         emptyContent={emptyContent}
