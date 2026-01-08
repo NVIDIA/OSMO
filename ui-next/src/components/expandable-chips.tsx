@@ -80,11 +80,11 @@ export const ExpandableChips = memo(function ExpandableChips({
   );
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative min-w-0 w-full flex-1">
       {/* Hidden measurement container - CSS containment for 60fps performance */}
       <div
         ref={measureRef}
-        className="pointer-events-none invisible absolute flex items-center gap-1"
+        className="pointer-events-none invisible absolute flex w-full items-center gap-1"
         style={{ contain: "layout style", willChange: "contents" }}
         aria-hidden="true"
       >
@@ -111,7 +111,10 @@ export const ExpandableChips = memo(function ExpandableChips({
       {/* Visible container */}
       <div
         ref={containerRef}
-        className={cn("flex items-center gap-1", expanded ? "flex-wrap" : "flex-nowrap overflow-hidden")}
+        className={cn(
+          "flex min-w-0 items-center gap-1",
+          expanded ? "w-full flex-wrap content-start" : "flex-nowrap overflow-hidden"
+        )}
       >
         {displayedItems.map((item) => (
           <ChipComponent

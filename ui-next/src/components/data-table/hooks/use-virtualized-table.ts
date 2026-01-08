@@ -92,6 +92,8 @@ export interface UseVirtualizedTableResult<T, TSectionMeta = unknown> {
   measure: () => void;
   /** Scroll to a specific virtual index */
   scrollToIndex: (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => void;
+  /** Ref callback for dynamic row measurement - attach to row elements */
+  measureElement: (node: Element | null) => void;
 }
 
 // =============================================================================
@@ -276,5 +278,6 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     getItem,
     measure: () => virtualizer.measure(),
     scrollToIndex,
+    measureElement: virtualizer.measureElement,
   };
 }
