@@ -42,11 +42,32 @@ export function getStatusDisplay(status: string): StatusDisplay {
 
 export const STATUS_ORDER = [PoolStatus.ONLINE, PoolStatus.MAINTENANCE, PoolStatus.OFFLINE];
 
-// Tailwind classes for status styling (used in pool-panel)
+// Tailwind classes for status styling
 export const STATUS_STYLES = {
-  online: { dot: "bg-emerald-500" },
-  maintenance: { dot: "bg-amber-500" },
-  offline: { dot: "bg-red-500" },
+  online: {
+    dot: "bg-emerald-500",
+    badge: {
+      bg: "bg-emerald-100 dark:bg-emerald-900/50",
+      text: "text-emerald-700 dark:text-emerald-300",
+      icon: "text-emerald-600 dark:text-emerald-400",
+    },
+  },
+  maintenance: {
+    dot: "bg-amber-500",
+    badge: {
+      bg: "bg-amber-100 dark:bg-amber-900/50",
+      text: "text-amber-700 dark:text-amber-300",
+      icon: "text-amber-600 dark:text-amber-400",
+    },
+  },
+  offline: {
+    dot: "bg-red-500",
+    badge: {
+      bg: "bg-red-100 dark:bg-red-900/50",
+      text: "text-red-700 dark:text-red-300",
+      icon: "text-red-600 dark:text-red-400",
+    },
+  },
 } as const;
 
 export function getStatusStyles(status: string) {
