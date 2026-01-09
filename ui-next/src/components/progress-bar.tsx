@@ -31,7 +31,7 @@ export interface ProgressBarProps extends React.ComponentProps<typeof ProgressPr
   max?: number;
   /** Height variant */
   size?: "xs" | "sm" | "md";
-  /** Use threshold colors (green → amber → red) based on percentage */
+  /** Use threshold colors (green → amber → red) based on percentage. Default: false (NVIDIA green) */
   thresholdColors?: boolean;
   /** Custom color class (overrides thresholdColors) */
   colorClass?: string;
@@ -70,22 +70,20 @@ function getProgressColor(percent: number): string {
 // =============================================================================
 
 /**
- * ProgressBar - Extended progress bar with threshold colors and size variants.
+ * ProgressBar - Extended progress bar with size variants.
  *
  * Extends shadcn/radix Progress primitive with:
- * - Threshold-based coloring (green → amber → red)
+ * - NVIDIA green default color
  * - Size variants (xs, sm, md)
  * - Proper max value support
+ * - Optional threshold-based coloring (green → amber → red)
  *
  * Uses GPU-accelerated translateX transform for smooth animations.
  *
  * @example
  * ```tsx
- * // Basic usage
+ * // Basic usage (NVIDIA green)
  * <ProgressBar value={6} max={8} />
- *
- * // With threshold colors
- * <ProgressBar value={95} max={100} thresholdColors />
  *
  * // Custom styling
  * <ProgressBar value={50} max={100} colorClass="bg-blue-500" size="sm" />
@@ -95,7 +93,7 @@ export function ProgressBar({
   value,
   max = 100,
   size = "md",
-  thresholdColors = true,
+  thresholdColors = false,
   colorClass,
   trackClassName,
   fillClassName,
@@ -105,8 +103,8 @@ export function ProgressBar({
   const percent = max > 0 ? (value / max) * 100 : 0;
   const clampedPercent = Math.min(percent, 100);
 
-  // Determine fill color
-  const fillColor = colorClass ?? (thresholdColors ? getProgressColor(percent) : "bg-primary");
+  // Determine fill color - default to NVIDIA green
+  const fillColor = colorClass ?? (thresholdColors ? getProgressColor(percent) : "bg-nvidia dark:bg-nvidia-light");
 
   return (
     <ProgressPrimitive.Root

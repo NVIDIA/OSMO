@@ -107,7 +107,6 @@ export const InlineProgress = memo(function InlineProgress({
           value={used}
           max={total}
           size="md"
-          thresholdColors
         />
       </div>
       <span className="text-xs whitespace-nowrap text-zinc-600 tabular-nums dark:text-zinc-400">{displayLabel}</span>
