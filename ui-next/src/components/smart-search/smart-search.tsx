@@ -22,39 +22,35 @@
  * Intelligent search input with chip-based filters, autocomplete suggestions,
  * and support for field-specific queries (pool:, platform:, backend:, etc.).
  *
+ * Built on cmdk (via shadcn/ui Command) for:
+ * - Keyboard navigation (↑↓, Enter, Escape)
+ * - Fuzzy search filtering
+ * - Accessibility (ARIA)
+ * - Focus management
+ *
  * Architecture:
  * - lib/: Core business logic (types, useChips, useSuggestions, filterByChips)
- *   → Never changes when swapping UI libraries
- *
- * - components.tsx: UI components split into:
- *   - ChipLabel, PresetButton/Group: KEEP (core to SmartSearch)
- *   - DropdownHint, DropdownItem, DropdownFooter: REPLACEABLE by cmdk
- *
- * - use-dropdown-navigation.ts: REPLACEABLE by cmdk's built-in navigation
- *
- * - styles.ts: Separated into dropdownStyles (replaceable) and chipStyles (keep)
- *
- * When migrating to cmdk:
- * 1. Add shadcn Command component to components/shadcn/command.tsx
- * 2. Replace dropdown rendering with Command/CommandList/CommandItem
- * 3. Remove useDropdownNavigation (cmdk handles keyboard nav)
- * 4. Keep: lib/*, ChipLabel, PresetButton/Group, chipStyles
+ * - hooks/: React state management (useChips, useSuggestions)
+ * - components.tsx: ChipLabel, PresetButton/Group (core UI)
+ * - This file: Main component integrating cmdk with chip/preset logic
  */
 
 "use client";
 
-import { useState, useRef, useCallback, memo } from "react";
+import { useState, useRef, useCallback, useMemo, memo } from "react";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// shadcn/ui Command (cmdk)
+import { Command, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/shadcn/command";
+
 // Core types (lib/) and hooks (hooks/) - never change with UI library swap
-import type { SmartSearchProps } from "./lib";
+import type { SmartSearchProps, SearchPreset } from "./lib";
 import { useChips, useSuggestions } from "./hooks";
 
-// UI layer (replaceable by cmdk)
-import { dropdownStyles, inputStyles } from "./styles";
-import { useDropdownNavigation } from "./use-dropdown-navigation";
-import { ChipLabel, DropdownHint, DropdownItem, DropdownFooter, PresetGroup } from "./components";
+// UI components and styles
+import { inputStyles, chipStyles, dropdownStyles } from "./styles";
+import { ChipLabel, PresetGroup } from "./components";
 
 // ============================================================================
 // Component
@@ -71,10 +67,10 @@ function SmartSearchInner<T>({
   presets,
 }: SmartSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [focusedChipIndex, setFocusedChipIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // ========== Core hooks (lib/) - never changes ==========
   const { addChip, removeChip, clearChips, isPresetActive, togglePreset, validationError, clearValidationError } =
@@ -86,44 +82,30 @@ function SmartSearchInner<T>({
       displayMode,
     });
 
-  const { parsedInput, suggestions, selectableSuggestions, flatPresets, totalNavigableCount } = useSuggestions({
+  const { parsedInput, suggestions } = useSuggestions({
     inputValue,
     fields,
     data,
     presets,
   });
 
-  // ========== UI navigation (replaceable by cmdk) ==========
-  const {
-    highlightedIndex,
-    setHighlightedIndex,
-    navigateDown,
-    navigateUp,
-    navigateNext,
-    isHighlightedPreset,
-    getSuggestionIndex,
-  } = useDropdownNavigation({
-    totalNavigableCount,
-    presetCount: flatPresets.length,
-    isOpen: showDropdown,
-    onOpen: () => setShowDropdown(true),
-    dropdownRef,
-  });
-
   // ========== Event handlers ==========
 
-  const handleSelect = useCallback(
-    (index: number) => {
-      const suggestion = suggestions[index];
-      if (!suggestion) return;
+  const handleSelectSuggestion = useCallback(
+    (value: string) => {
+      // Find the suggestion by value
+      const suggestion = suggestions.find((s) => s.value === value || s.label === value);
+      if (!suggestion || suggestion.type === "hint") return;
 
       if (suggestion.type === "field") {
+        // Field prefix selected - fill input with prefix
         setInputValue(suggestion.value);
         inputRef.current?.focus();
       } else {
+        // Value selected - create chip
         if (addChip(suggestion.field, suggestion.value)) {
           setInputValue("");
-          setShowDropdown(false);
+          setIsOpen(false);
           inputRef.current?.focus();
         }
       }
@@ -132,10 +114,10 @@ function SmartSearchInner<T>({
   );
 
   const handleTogglePreset = useCallback(
-    (preset: (typeof flatPresets)[number]) => {
+    (preset: SearchPreset<T>) => {
       togglePreset(preset);
       setInputValue("");
-      setShowDropdown(false);
+      setIsOpen(false);
       inputRef.current?.focus();
     },
     [togglePreset],
@@ -143,58 +125,11 @@ function SmartSearchInner<T>({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const presetCount = flatPresets.length;
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        navigateDown();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        navigateUp();
-      } else if (e.key === "Tab" && totalNavigableCount > 0) {
-        if (!showDropdown) {
-          e.preventDefault();
-          setShowDropdown(true);
-          setHighlightedIndex(0);
-        } else if (highlightedIndex >= 0) {
-          e.preventDefault();
-          navigateNext();
-          const nextIndex = (highlightedIndex + 1) % totalNavigableCount;
-          if (nextIndex >= presetCount) {
-            const suggestion = selectableSuggestions[nextIndex - presetCount];
-            if (suggestion) setInputValue(suggestion.label);
-          }
-        } else {
-          e.preventDefault();
-          setHighlightedIndex(0);
-        }
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        if (!showDropdown) {
-          setShowDropdown(true);
-        } else if (highlightedIndex >= 0) {
-          if (isHighlightedPreset()) {
-            const preset = flatPresets[highlightedIndex];
-            if (preset) handleTogglePreset(preset);
-          } else {
-            const suggestionIndex = getSuggestionIndex(highlightedIndex);
-            const originalIndex = suggestions.findIndex((s) => s === selectableSuggestions[suggestionIndex]);
-            if (originalIndex >= 0) handleSelect(originalIndex);
-          }
-        } else if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
-          if (addChip(parsedInput.field, parsedInput.query.trim())) {
-            setInputValue("");
-            setShowDropdown(false);
-            inputRef.current?.focus();
-          }
-        }
-      } else if (e.key === "ArrowLeft") {
+      // Chip navigation with arrow keys
+      if (e.key === "ArrowLeft") {
         if (focusedChipIndex >= 0) {
           e.preventDefault();
           if (focusedChipIndex > 0) setFocusedChipIndex(focusedChipIndex - 1);
-        } else if (showDropdown && highlightedIndex >= 0 && highlightedIndex < presetCount) {
-          e.preventDefault();
-          setHighlightedIndex(highlightedIndex > 0 ? highlightedIndex - 1 : presetCount - 1);
         } else if (chips.length > 0) {
           const cursorAtStart = inputRef.current?.selectionStart === 0 && inputRef.current?.selectionEnd === 0;
           if (cursorAtStart) {
@@ -211,9 +146,6 @@ function SmartSearchInner<T>({
             setFocusedChipIndex(-1);
             inputRef.current?.focus();
           }
-        } else if (showDropdown && highlightedIndex >= 0 && highlightedIndex < presetCount) {
-          e.preventDefault();
-          setHighlightedIndex(highlightedIndex < presetCount - 1 ? highlightedIndex + 1 : 0);
         }
       } else if (e.key === "Backspace" && inputValue === "" && chips.length > 0) {
         if (focusedChipIndex >= 0) {
@@ -228,43 +160,35 @@ function SmartSearchInner<T>({
         removeChip(focusedChipIndex);
         setFocusedChipIndex(chips.length === 1 ? -1 : Math.min(focusedChipIndex, chips.length - 2));
       } else if (e.key === "Escape") {
-        if (showDropdown) {
+        if (isOpen) {
           e.preventDefault();
           e.stopPropagation();
-          setShowDropdown(false);
+          setIsOpen(false);
         } else {
           inputRef.current?.blur();
         }
+      } else if (
+        e.key === "Enter" &&
+        !isOpen &&
+        parsedInput.hasPrefix &&
+        parsedInput.field &&
+        parsedInput.query.trim()
+      ) {
+        // Direct entry when dropdown is closed but user typed field:value
+        e.preventDefault();
+        if (addChip(parsedInput.field, parsedInput.query.trim())) {
+          setInputValue("");
+          inputRef.current?.focus();
+        }
       }
     },
-    [
-      flatPresets,
-      selectableSuggestions,
-      suggestions,
-      totalNavigableCount,
-      highlightedIndex,
-      showDropdown,
-      handleSelect,
-      handleTogglePreset,
-      focusedChipIndex,
-      parsedInput,
-      inputValue,
-      chips,
-      addChip,
-      removeChip,
-      navigateDown,
-      navigateUp,
-      navigateNext,
-      setHighlightedIndex,
-      isHighlightedPreset,
-      getSuggestionIndex,
-    ],
+    [focusedChipIndex, chips, inputValue, removeChip, isOpen, parsedInput, addChip],
   );
 
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setInputValue(e.target.value);
-      setShowDropdown(true);
+    (value: string) => {
+      setInputValue(value);
+      setIsOpen(true);
       clearValidationError();
       setFocusedChipIndex(-1);
     },
@@ -272,12 +196,8 @@ function SmartSearchInner<T>({
   );
 
   const handleFocus = useCallback(() => {
-    setShowDropdown(true);
+    setIsOpen(true);
     setFocusedChipIndex(-1);
-  }, []);
-
-  const closeDropdown = useCallback(() => {
-    setShowDropdown(false);
   }, []);
 
   const handleChipRemove = useCallback(
@@ -296,159 +216,213 @@ function SmartSearchInner<T>({
     [clearChips],
   );
 
-  // ========== Render ==========
+  // Close dropdown when clicking outside
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    // Check if focus is moving outside the container
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+      setIsOpen(false);
+    }
+  }, []);
 
-  const shouldShowDropdown = showDropdown && suggestions.length > 0;
-  const showPresets = showDropdown && presets && presets.length > 0 && inputValue === "";
-  let presetStartIndex = 0;
+  // Stable handler for input container click
+  const handleContainerClick = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Stable handler for backdrop click
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsOpen(false);
+  }, []);
+
+  // Stable handler for input change event
+  const handleInputChangeEvent = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      handleInputChange(e.target.value);
+    },
+    [handleInputChange],
+  );
+
+  // ========== Memoized render helpers ==========
+
+  const showPresets = isOpen && presets && presets.length > 0 && inputValue === "";
+  const showSuggestions = isOpen && suggestions.length > 0;
+  const showDropdown = showPresets || showSuggestions || !!validationError;
+
+  // Separate hints from selectable suggestions (memoized to prevent re-filtering on every render)
+  const hints = useMemo(() => suggestions.filter((s) => s.type === "hint"), [suggestions]);
+  const selectables = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
+
+  // Stable no-op callback for PresetGroup (presets don't need highlight tracking with cmdk)
+  const noopHighlight = useCallback(() => {}, []);
 
   return (
-    <div className={cn("relative", className)}>
-      {/* Input container with chips */}
-      <div
-        className={cn(
-          inputStyles.container,
-          dropdownStyles.border,
-          dropdownStyles.surface,
-          validationError && inputStyles.containerError,
-        )}
-        onClick={() => inputRef.current?.focus()}
+    <div
+      ref={containerRef}
+      className={cn("relative", className)}
+      onBlur={handleBlur}
+    >
+      <Command
+        shouldFilter={false}
+        className="overflow-visible bg-transparent"
       >
-        <Search
-          className={cn(
-            "size-4 shrink-0 transition-colors",
-            validationError ? "text-red-500" : dropdownStyles.mutedLight,
-          )}
-        />
-
-        {chips.map((chip, index) => (
-          <ChipLabel
-            key={`${chip.field}-${chip.value}-${index}`}
-            chip={chip}
-            onRemove={() => handleChipRemove(index)}
-            focused={focusedChipIndex === index}
-          />
-        ))}
-
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onFocus={handleFocus}
-          onKeyDown={handleKeyDown}
-          placeholder={chips.length === 0 ? placeholder : "Add filter..."}
-          className={inputStyles.input}
-          role="combobox"
-          aria-expanded={shouldShowDropdown}
-          aria-controls="smart-search-listbox"
-          aria-haspopup="listbox"
-          aria-activedescendant={
-            shouldShowDropdown && highlightedIndex >= 0 ? `suggestion-${highlightedIndex}` : undefined
-          }
-        />
-
-        {chips.length > 0 && (
-          <button
-            type="button"
-            onClick={handleClearAll}
-            className={cn(inputStyles.clearButton, dropdownStyles.muted, dropdownStyles.hoverBg)}
-          >
-            <X className="size-3" />
-            <span>Clear filters</span>
-          </button>
-        )}
-      </div>
-
-      {/* Backdrop */}
-      {(shouldShowDropdown || showPresets) && (
+        {/* Input container with chips */}
         <div
-          className="fixed-below-header z-40"
-          onClick={(e) => {
-            e.stopPropagation();
-            closeDropdown();
-          }}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Dropdown - REPLACEABLE by cmdk Command */}
-      {(shouldShowDropdown || showPresets || validationError) && (
-        <div
-          ref={dropdownRef}
-          id="smart-search-listbox"
           className={cn(
-            dropdownStyles.dropdown,
+            inputStyles.container,
+            dropdownStyles.border,
             dropdownStyles.surface,
-            validationError ? dropdownStyles.borderError : dropdownStyles.border,
+            validationError && inputStyles.containerError,
           )}
-          role="listbox"
+          onClick={handleContainerClick}
         >
-          {validationError && (
-            <DropdownHint
-              message={validationError}
-              isError
+          <Search
+            className={cn(
+              "size-4 shrink-0 transition-colors",
+              validationError ? "text-red-500" : dropdownStyles.mutedLight,
+            )}
+          />
+
+          {chips.map((chip, index) => (
+            <ChipLabel
+              key={`${chip.field}-${chip.value}-${index}`}
+              chip={chip}
+              onRemove={() => handleChipRemove(index)}
+              focused={focusedChipIndex === index}
             />
+          ))}
+
+          {/* Custom input - cmdk's CommandInput has its own search icon which we don't want */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChangeEvent}
+            onFocus={handleFocus}
+            onKeyDown={handleKeyDown}
+            placeholder={chips.length === 0 ? placeholder : "Add filter..."}
+            className={inputStyles.input}
+            role="combobox"
+            aria-expanded={showDropdown || undefined}
+            aria-controls="smart-search-listbox"
+            aria-haspopup="listbox"
+          />
+
+          {chips.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className={cn(inputStyles.clearButton, dropdownStyles.muted, dropdownStyles.hoverBg)}
+            >
+              <X className="size-3" />
+              <span>Clear filters</span>
+            </button>
           )}
+        </div>
 
-          {showPresets &&
-            presets?.map((group) => {
-              const startIndex = presetStartIndex;
-              presetStartIndex += group.items.length;
-              return (
-                <PresetGroup
-                  key={group.label}
-                  label={group.label}
-                  items={group.items}
-                  data={data}
-                  highlightedIndex={highlightedIndex}
-                  startIndex={startIndex}
-                  isPresetActive={isPresetActive}
-                  onTogglePreset={handleTogglePreset}
-                  onHighlight={setHighlightedIndex}
-                />
-              );
-            })}
+        {/* Backdrop */}
+        {showDropdown && (
+          <div
+            className="fixed-below-header z-40"
+            onClick={handleBackdropClick}
+            aria-hidden="true"
+          />
+        )}
 
-          {(() => {
-            let selectableIndex = 0;
-            const presetCount = flatPresets.length;
+        {/* Dropdown - powered by cmdk */}
+        {showDropdown && (
+          <div
+            className={cn(
+              dropdownStyles.dropdown,
+              dropdownStyles.surface,
+              validationError ? dropdownStyles.borderError : dropdownStyles.border,
+            )}
+          >
+            {/* Validation error */}
+            {validationError && (
+              <div
+                className={cn(
+                  dropdownStyles.dropdownItem,
+                  dropdownStyles.nonInteractive,
+                  "border-b border-red-100 dark:border-red-900",
+                  dropdownStyles.error,
+                )}
+              >
+                ⚠ {validationError}
+              </div>
+            )}
 
-            return suggestions.map((suggestion, index) => {
-              if (suggestion.type === "hint") {
+            {/* Presets section */}
+            {showPresets &&
+              presets?.map((group, groupIndex) => {
+                const startIndex = presets.slice(0, groupIndex).reduce((acc, g) => acc + g.items.length, 0);
                 return (
-                  <DropdownHint
-                    key={`hint-${suggestion.field.id}-${index}`}
-                    message={suggestion.label}
+                  <PresetGroup
+                    key={group.label}
+                    label={group.label}
+                    items={group.items}
+                    data={data}
+                    highlightedIndex={-1}
+                    startIndex={startIndex}
+                    isPresetActive={isPresetActive}
+                    onTogglePreset={handleTogglePreset}
+                    onHighlight={noopHighlight}
                   />
                 );
-              }
+              })}
 
-              const unifiedIndex = presetCount + selectableIndex;
-              selectableIndex++;
+            {/* Hints (non-interactive) */}
+            {hints.map((hint, index) => (
+              <div
+                key={`hint-${hint.field.id}-${index}`}
+                className={cn(
+                  dropdownStyles.dropdownItem,
+                  dropdownStyles.nonInteractive,
+                  "border-b border-zinc-100 italic dark:border-zinc-800",
+                  dropdownStyles.muted,
+                )}
+              >
+                {hint.label}
+              </div>
+            ))}
 
-              const isHighlighted = highlightedIndex === unifiedIndex;
-              const showTabHint = selectableSuggestions.length === 1 && selectableIndex === 1;
+            {/* Suggestions - cmdk handles keyboard navigation */}
+            <CommandList>
+              <CommandEmpty className="py-3 text-center text-sm text-zinc-500">No results found.</CommandEmpty>
 
-              return (
-                <DropdownItem
-                  key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
-                  label={suggestion.label}
-                  hint={suggestion.hint}
-                  isHighlighted={isHighlighted}
-                  showTabHint={showTabHint}
-                  isFieldType={suggestion.type === "field"}
-                  highlightIndex={unifiedIndex}
-                  onClick={() => handleSelect(index)}
-                  onMouseEnter={() => setHighlightedIndex(unifiedIndex)}
-                />
-              );
-            });
-          })()}
+              {selectables.length > 0 && (
+                <CommandGroup>
+                  {selectables.map((suggestion, index) => (
+                    <CommandItem
+                      key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
+                      value={suggestion.value}
+                      onSelect={handleSelectSuggestion}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="flex items-center gap-2">
+                        {suggestion.type === "field" ? (
+                          <>
+                            <span className={cn("font-mono text-xs", dropdownStyles.prefix)}>{suggestion.label}</span>
+                            {suggestion.hint && <span className={dropdownStyles.muted}>{suggestion.hint}</span>}
+                          </>
+                        ) : (
+                          <span>{suggestion.label}</span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
 
-          <DropdownFooter />
-        </div>
-      )}
+            {/* Footer */}
+            <div className={cn("border-t px-3 py-2 text-xs", dropdownStyles.border, dropdownStyles.muted)}>
+              <kbd className={chipStyles.chip}>↑↓</kbd> navigate <kbd className={chipStyles.chip}>Enter</kbd> select{" "}
+              <kbd className={chipStyles.chip}>Esc</kbd> close
+            </div>
+          </div>
+        )}
+      </Command>
     </div>
   );
 }
