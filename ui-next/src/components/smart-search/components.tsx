@@ -19,16 +19,11 @@
 /**
  * SmartSearch UI components.
  *
- * Split into two categories:
- *
- * KEEP (core to SmartSearch):
+ * Core components for SmartSearch:
  * - ChipLabel: Chip display with variants
  * - PresetButton/PresetGroup: Preset filter buttons
  *
- * REPLACEABLE (by cmdk/shadcn Command):
- * - DropdownHint: Hint/error messages → CommandEmpty or custom
- * - DropdownItem: Suggestion items → CommandItem
- * - DropdownFooter: Keyboard hints → custom footer
+ * Note: Dropdown rendering is handled by cmdk (shadcn/ui Command).
  */
 
 "use client";
@@ -40,7 +35,7 @@ import { dropdownStyles, chipStyles, chipVariantStyles } from "./styles";
 import type { SearchChip, SearchPreset } from "./lib";
 
 // ============================================================================
-// Chip Components - KEEP (core to SmartSearch)
+// Chip Components
 // ============================================================================
 
 export interface ChipLabelProps {
@@ -51,7 +46,6 @@ export interface ChipLabelProps {
 
 /**
  * Chip label component with variant styling for Free/Used.
- * This component is core to SmartSearch and stays regardless of dropdown impl.
  */
 export const ChipLabel = memo(function ChipLabel({ chip, onRemove, focused = false }: ChipLabelProps) {
   // Parse label to find "Free" or "Used" for styling
@@ -90,7 +84,7 @@ export const ChipLabel = memo(function ChipLabel({ chip, onRemove, focused = fal
 });
 
 // ============================================================================
-// Preset Components - KEEP (core to SmartSearch)
+// Preset Components
 // ============================================================================
 
 export interface PresetButtonProps<T> {
@@ -105,7 +99,6 @@ export interface PresetButtonProps<T> {
 
 /**
  * Preset filter button with optional custom render.
- * This component is core to SmartSearch and stays regardless of dropdown impl.
  */
 export const PresetButton = memo(function PresetButton<T>({
   preset,
@@ -211,115 +204,3 @@ export const PresetGroup = memo(function PresetGroup<T>({
     </div>
   );
 }) as <T>(props: PresetGroupProps<T>) => React.ReactElement;
-
-// ============================================================================
-// Dropdown Components - REPLACEABLE by cmdk/shadcn Command
-// ============================================================================
-
-export interface DropdownHintProps {
-  message: string;
-  isError?: boolean;
-}
-
-/**
- * Non-interactive hint or error message in dropdown.
- *
- * ⚠️ REPLACEABLE: When using cmdk, replace with CommandEmpty or custom element.
- */
-export const DropdownHint = memo(function DropdownHint({ message, isError = false }: DropdownHintProps) {
-  return (
-    <div
-      className={cn(
-        dropdownStyles.dropdownItem,
-        dropdownStyles.nonInteractive,
-        isError
-          ? cn("border-b border-red-100 dark:border-red-900", dropdownStyles.error)
-          : cn("border-b border-zinc-100 italic dark:border-zinc-800", dropdownStyles.muted),
-      )}
-    >
-      {isError && "⚠ "}
-      {message}
-    </div>
-  );
-});
-
-export interface DropdownItemProps {
-  label: React.ReactNode;
-  hint?: string;
-  isHighlighted: boolean;
-  showTabHint?: boolean;
-  isFieldType?: boolean;
-  highlightIndex: number;
-  onClick: () => void;
-  onMouseEnter: () => void;
-}
-
-/**
- * Interactive suggestion item in dropdown.
- *
- * ⚠️ REPLACEABLE: When using cmdk, replace with CommandItem.
- */
-export const DropdownItem = memo(function DropdownItem({
-  label,
-  hint,
-  isHighlighted,
-  showTabHint = false,
-  isFieldType = false,
-  highlightIndex,
-  onClick,
-  onMouseEnter,
-}: DropdownItemProps) {
-  return (
-    <button
-      type="button"
-      data-highlight-index={highlightIndex}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      className={cn(
-        "flex w-full items-center justify-between text-left",
-        dropdownStyles.dropdownItem,
-        isHighlighted ? dropdownStyles.highlighted : cn("text-zinc-700 dark:text-zinc-300", dropdownStyles.hoverBg),
-      )}
-      role="option"
-      aria-selected={isHighlighted}
-    >
-      <span className="flex items-center gap-2">
-        {isFieldType ? (
-          <>
-            <span className={cn("font-mono text-xs", dropdownStyles.prefix)}>{label}</span>
-            {hint && <span className={dropdownStyles.muted}>{hint}</span>}
-          </>
-        ) : (
-          <span>{label}</span>
-        )}
-      </span>
-      {showTabHint && (
-        <kbd className={cn("hidden px-1.5 py-0.5 text-xs sm:inline", dropdownStyles.kbd, dropdownStyles.muted)}>
-          Tab
-        </kbd>
-      )}
-    </button>
-  );
-});
-
-export interface DropdownFooterProps {
-  children?: React.ReactNode;
-}
-
-/**
- * Footer with keyboard hints.
- *
- * ⚠️ REPLACEABLE: When using cmdk, can remove or use custom footer.
- */
-export const DropdownFooter = memo(function DropdownFooter({ children }: DropdownFooterProps) {
-  return (
-    <div className={cn("border-t px-3 py-2 text-xs", dropdownStyles.border, dropdownStyles.muted)}>
-      {children ?? (
-        <>
-          <kbd className={dropdownStyles.kbd}>↑↓</kbd> navigate <kbd className={dropdownStyles.kbd}>Tab</kbd> complete{" "}
-          <kbd className={dropdownStyles.kbd}>Enter</kbd> select <kbd className={dropdownStyles.kbd}>Esc</kbd> close
-        </>
-      )}
-    </div>
-  );
-});
