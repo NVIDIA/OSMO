@@ -19,7 +19,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/shadcn/card";
+import { Card, CardContent } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { CapacityBar } from "@/components/capacity-bar";
@@ -141,14 +141,14 @@ export function ResourcePanelContent({
           ) : (
             <Card className="gap-0 py-0">
               {/* Pool Selector Header */}
-              <CardHeader className="border-border bg-muted/30 border-b px-4 py-2.5">
+              <div className="border-border bg-muted/30 border-b px-4 py-2.5">
                 <ItemSelector
                   items={pools}
                   selectedItem={selectedPool}
                   onSelect={handlePoolSelect}
                   aria-label="Select pool"
                 />
-              </CardHeader>
+              </div>
 
               {/* Task Config Content */}
               <CardContent className="p-3">
