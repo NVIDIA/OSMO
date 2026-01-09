@@ -23,10 +23,10 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { TaskGroupStatus } from "@/lib/api/generated";
+import { TaskGroupStatus, WorkflowStatus } from "@/lib/api/generated";
 
 // Re-export for convenience
-export { TaskGroupStatus };
+export { TaskGroupStatus, WorkflowStatus };
 
 // ============================================================================
 // Types
@@ -76,7 +76,7 @@ export interface MockGroupNode {
 export interface MockComplexWorkflow {
   id: string;
   name: string;
-  status: TaskGroupStatus;
+  status: WorkflowStatus;
   priority: "LOW" | "NORMAL" | "HIGH";
   pool: string;
   user: string;
@@ -158,20 +158,21 @@ export function generateComplexWorkflow(
   }
 
   // Calculate workflow status from groups
+  // Note: Tasks use TaskGroupStatus, but workflow uses WorkflowStatus
   const allTasks = groups.flatMap((g) => g.tasks);
   const hasRunning = allTasks.some((t) => getStatusCategory(t.status) === "running");
   const hasFailed = allTasks.some((t) => getStatusCategory(t.status) === "failed");
   const allCompleted = allTasks.every((t) => t.status === TaskGroupStatus.COMPLETED);
 
-  let workflowStatus: TaskGroupStatus;
+  let workflowStatus: WorkflowStatus;
   if (allCompleted) {
-    workflowStatus = TaskGroupStatus.COMPLETED;
+    workflowStatus = WorkflowStatus.COMPLETED;
   } else if (hasFailed) {
-    workflowStatus = TaskGroupStatus.FAILED;
+    workflowStatus = WorkflowStatus.FAILED;
   } else if (hasRunning) {
-    workflowStatus = TaskGroupStatus.RUNNING;
+    workflowStatus = WorkflowStatus.RUNNING;
   } else {
-    workflowStatus = TaskGroupStatus.WAITING;
+    workflowStatus = WorkflowStatus.WAITING;
   }
 
   const duration = hasRunning

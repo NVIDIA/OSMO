@@ -24,7 +24,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores";
 import type { SearchPreset, PresetRenderProps } from "@/components/smart-search";
@@ -43,6 +43,7 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
   running: Loader2,
   completed: CheckCircle2,
   failed: XCircle,
+  unknown: AlertTriangle,
 };
 
 // =============================================================================
@@ -124,7 +125,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search workflows... (try 'name:', 'status:', 'user:', 'pool:')"
-      searchPresets={[{ label: "Status", items: statusPresets }]}
+      searchPresets={[{ label: "Presets:", items: statusPresets }]}
       showDisplayModeToggle={false}
     />
   );
