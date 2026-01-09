@@ -19,28 +19,23 @@
 /**
  * SmartSearch - Intelligent search with chip-based filters.
  *
+ * Built on cmdk (via shadcn/ui Command) for keyboard navigation,
+ * fuzzy search, and accessibility.
+ *
  * Architecture:
  *
  * lib/ - Pure TypeScript (no React)
  *   - types.ts: SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput
  *   - filter.ts: filterByChips function
- *   - filter.test.ts: Tests for filterByChips
  *
- * hooks/ - Core React hooks (NEVER changes with UI swap)
+ * hooks/ - Core React hooks
  *   - use-chips.ts: Chip management (add, remove, validate, presets)
  *   - use-suggestions.ts: Prefix parsing, suggestion generation
  *
- * Flat files - UI layer (REPLACEABLE by cmdk/shadcn)
- *   - use-dropdown-navigation.ts: Keyboard navigation → cmdk handles this
- *   - components.tsx: DropdownHint, DropdownItem, DropdownFooter → CommandItem
- *   - styles.ts: dropdownStyles can be swapped, chipStyles stay
- *
- * When migrating to cmdk:
- *   1. Add components/shadcn/command.tsx
- *   2. Import Command in smart-search.tsx
- *   3. Replace dropdown JSX with Command/CommandList/CommandItem
- *   4. Remove useDropdownNavigation usage
- *   5. Keep: lib/*, hooks/*, ChipLabel, PresetButton/Group, chipStyles
+ * UI Layer
+ *   - smart-search.tsx: Main component using cmdk Command
+ *   - components.tsx: ChipLabel, PresetButton/Group
+ *   - styles.ts: Shared styles for chips and inputs
  */
 
 // ============================================================================
@@ -69,34 +64,17 @@ export type {
 export { filterByChips } from "./lib";
 
 // ============================================================================
-// Hooks (hooks/) - Core React hooks, never change with UI swap
+// Hooks (hooks/) - Core React hooks
 // ============================================================================
 
 export { useChips, type UseChipsOptions, type UseChipsReturn } from "./hooks";
 export { useSuggestions, type UseSuggestionsOptions, type UseSuggestionsReturn } from "./hooks";
 
 // ============================================================================
-// UI Layer - Replaceable by cmdk/shadcn
+// UI Components
 // ============================================================================
 
-// Navigation hook (remove when using cmdk)
-export {
-  useDropdownNavigation,
-  type UseDropdownNavigationOptions,
-  type UseDropdownNavigationReturn,
-} from "./use-dropdown-navigation";
-
-// Components
-export {
-  // KEEP - core to SmartSearch
-  ChipLabel,
-  PresetButton,
-  PresetGroup,
-  // REPLACEABLE - by cmdk CommandItem, CommandEmpty, etc.
-  DropdownHint,
-  DropdownItem,
-  DropdownFooter,
-} from "./components";
+export { ChipLabel, PresetButton, PresetGroup } from "./components";
 
 // Styles
 export { dropdownStyles, inputStyles, chipStyles, chipVariantStyles } from "./styles";
