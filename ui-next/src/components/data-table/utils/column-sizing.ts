@@ -119,6 +119,115 @@ export function getTruncationThreshold(contentWidth: number, configuredWidth: nu
 }
 
 // =============================================================================
+// Column Width Calculation Algorithm
+// =============================================================================
+
+import type { ColumnSizingState } from "@tanstack/react-table";
+import type { ColumnSizingPreferences } from "../types";
+import { PreferenceModes, assertNever } from "../constants";
+
+/**
+ * Calculate column widths based on container width and preferences.
+ * Pure function - no side effects.
+ *
+ * Algorithm:
+ * 1. Each column has: min (absolute floor), target (preferred), floor (mode-dependent)
+ * 2. If container >= totalTarget: distribute surplus proportionally
+ * 3. If container >= totalFloor but < totalTarget: shrink columns with "give" (target - floor)
+ * 4. If container < totalFloor: all columns at floor (overflow, scrollable)
+ */
+export function calculateColumnWidths(
+  columnIds: string[],
+  containerWidth: number,
+  minSizes: Record<string, number>,
+  configuredSizes: Record<string, number>,
+  preferences: ColumnSizingPreferences,
+  contentWidths: Record<string, number> = {},
+): ColumnSizingState {
+  if (columnIds.length === 0 || containerWidth <= 0) {
+    return {};
+  }
+
+  const columns = columnIds.map((id) => {
+    const min = minSizes[id] ?? 80;
+    const configuredWidth = configuredSizes[id] ?? min * 1.5;
+    const pref = preferences[id];
+    const contentWidth = contentWidths[id];
+
+    let target: number;
+    let floor: number;
+
+    if (pref) {
+      switch (pref.mode) {
+        case PreferenceModes.NO_TRUNCATE: {
+          // Use truncation threshold as floor to prevent content truncation
+          // getTruncationThreshold returns max(contentWidth, configuredWidth)
+          const threshold = getTruncationThreshold(contentWidth ?? 0, configuredWidth);
+          floor = Math.max(threshold, min);
+          break;
+        }
+        case PreferenceModes.TRUNCATE:
+          floor = Math.max(pref.width, min);
+          break;
+        default:
+          assertNever(pref.mode);
+      }
+      target = pref.width;
+    } else {
+      floor = min;
+      target = configuredWidth;
+    }
+
+    target = Math.max(target, min);
+    floor = Math.max(floor, min);
+
+    return { id, min, target, floor };
+  });
+
+  const totalTarget = columns.reduce((sum, c) => sum + c.target, 0);
+  const totalFloor = columns.reduce((sum, c) => sum + c.floor, 0);
+
+  // Case 1: Container fits all targets
+  if (containerWidth >= totalTarget) {
+    const surplus = containerWidth - totalTarget;
+    if (surplus > 0 && totalTarget > 0) {
+      const result: ColumnSizingState = {};
+      for (const c of columns) {
+        const shareOfSurplus = (c.target / totalTarget) * surplus;
+        result[c.id] = c.target + shareOfSurplus;
+      }
+      return result;
+    }
+    return Object.fromEntries(columns.map((c) => [c.id, c.target]));
+  }
+
+  // Case 2: Container smaller than targets but larger than floors
+  if (containerWidth >= totalFloor) {
+    const deficit = totalTarget - containerWidth;
+    const columnsWithGive = columns.map((c) => ({
+      ...c,
+      give: Math.max(0, c.target - c.floor),
+    }));
+
+    const totalGive = columnsWithGive.reduce((sum, c) => sum + c.give, 0);
+    if (totalGive <= 0) {
+      return Object.fromEntries(columnsWithGive.map((c) => [c.id, c.floor]));
+    }
+
+    const shrinkRatio = Math.min(1, deficit / totalGive);
+    const result: ColumnSizingState = {};
+    for (const c of columnsWithGive) {
+      const shrinkAmount = c.give * shrinkRatio;
+      result[c.id] = Math.max(c.floor, c.target - shrinkAmount);
+    }
+    return result;
+  }
+
+  // Case 3: Container smaller than total floors
+  return Object.fromEntries(columns.map((c) => [c.id, c.floor]));
+}
+
+// =============================================================================
 // DOM Content Width Measurement
 // =============================================================================
 
