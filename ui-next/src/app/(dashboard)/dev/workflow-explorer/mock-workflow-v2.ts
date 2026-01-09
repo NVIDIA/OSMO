@@ -32,8 +32,9 @@ import type {
   TaskQueryResponse,
   WorkflowQueryResponse,
   TaskGroupStatus,
+  WorkflowStatus,
 } from "@/lib/api/generated";
-import { TaskGroupStatus as Status } from "@/lib/api/generated";
+import { TaskGroupStatus as Status, WorkflowStatus as WFStatus } from "@/lib/api/generated";
 import { isFailedStatus } from "./workflow-types";
 
 // ============================================================================
@@ -1105,20 +1106,21 @@ export function generateMockWorkflow(options: GeneratorOptions = {}): WorkflowQu
   }
 
   // Calculate workflow status
+  // Note: Tasks use TaskGroupStatus, but workflow uses WorkflowStatus
   const allTasks = groups.flatMap((g) => g.tasks || []);
   const hasRunning = allTasks.some((t) => t.status === Status.RUNNING || t.status === Status.INITIALIZING);
   const hasFailed = allTasks.some((t) => isFailedStatus(t.status));
   const allCompleted = allTasks.every((t) => t.status === Status.COMPLETED);
 
-  let workflowStatus: TaskGroupStatus;
+  let workflowStatus: WorkflowStatus;
   if (allCompleted) {
-    workflowStatus = Status.COMPLETED;
+    workflowStatus = WFStatus.COMPLETED;
   } else if (hasFailed) {
-    workflowStatus = Status.FAILED;
+    workflowStatus = WFStatus.FAILED;
   } else if (hasRunning) {
-    workflowStatus = Status.RUNNING;
+    workflowStatus = WFStatus.RUNNING;
   } else {
-    workflowStatus = Status.WAITING;
+    workflowStatus = WFStatus.WAITING;
   }
 
   // Calculate end time if completed
