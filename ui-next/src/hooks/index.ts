@@ -52,6 +52,15 @@ export { useVirtualizerCompat } from "./use-virtualizer-compat";
 
 // UI Components
 export { usePersistedBoolean } from "./use-persisted-boolean";
+
+// Accessibility
+export {
+  useAnnouncer,
+  cleanupAnnouncer,
+  type UseAnnouncerOptions,
+  type AnnouncerPoliteness,
+  type AnnounceFunction,
+} from "./use-announcer";
 export {
   useCopyToClipboard,
   type UseCopyToClipboardOptions,
