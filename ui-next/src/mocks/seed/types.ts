@@ -111,7 +111,7 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   // All 16 WorkflowStatus values (not TaskGroupStatus)
   statusDistribution: {
     // Active states
-    RUNNING: 0.20,
+    RUNNING: 0.2,
     COMPLETED: 0.35,
     WAITING: 0.08,
     PENDING: 0.07,

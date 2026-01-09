@@ -189,3 +189,265 @@ export function getPriorityDisplay(priority: string): { label: string; bg: strin
   }
   return PRIORITY_STYLES.NORMAL;
 }
+
+// =============================================================================
+// Status Fuzzy Search Index (Fully Static - Zero Runtime Computation)
+// =============================================================================
+
+/** All valid workflow statuses (static array) */
+export const ALL_WORKFLOW_STATUSES: readonly WorkflowStatus[] = [
+  "PENDING",
+  "WAITING",
+  "RUNNING",
+  "COMPLETED",
+  "FAILED",
+  "FAILED_SUBMISSION",
+  "FAILED_SERVER_ERROR",
+  "FAILED_EXEC_TIMEOUT",
+  "FAILED_QUEUE_TIMEOUT",
+  "FAILED_CANCELED",
+  "FAILED_BACKEND_ERROR",
+  "FAILED_IMAGE_PULL",
+  "FAILED_EVICTED",
+  "FAILED_START_ERROR",
+  "FAILED_START_TIMEOUT",
+  "FAILED_PREEMPTED",
+] as const;
+
+/** Static lookup: lowercase label → canonical status */
+const LABEL_TO_STATUS: Readonly<Record<string, WorkflowStatus>> = {
+  pending: "PENDING",
+  waiting: "WAITING",
+  running: "RUNNING",
+  completed: "COMPLETED",
+  failed: "FAILED",
+  "failed: submission": "FAILED_SUBMISSION",
+  "failed: server error": "FAILED_SERVER_ERROR",
+  "failed: exec timeout": "FAILED_EXEC_TIMEOUT",
+  "failed: queue timeout": "FAILED_QUEUE_TIMEOUT",
+  "failed: canceled": "FAILED_CANCELED",
+  "failed: backend error": "FAILED_BACKEND_ERROR",
+  "failed: image pull": "FAILED_IMAGE_PULL",
+  "failed: evicted": "FAILED_EVICTED",
+  "failed: start error": "FAILED_START_ERROR",
+  "failed: start timeout": "FAILED_START_TIMEOUT",
+  "failed: preempted": "FAILED_PREEMPTED",
+};
+
+/** Static lookup: token → statuses containing that token */
+const TOKEN_TO_STATUSES: Readonly<Record<string, readonly WorkflowStatus[]>> = {
+  pending: ["PENDING"],
+  waiting: ["WAITING"],
+  running: ["RUNNING"],
+  completed: ["COMPLETED"],
+  failed: [
+    "FAILED",
+    "FAILED_SUBMISSION",
+    "FAILED_SERVER_ERROR",
+    "FAILED_EXEC_TIMEOUT",
+    "FAILED_QUEUE_TIMEOUT",
+    "FAILED_CANCELED",
+    "FAILED_BACKEND_ERROR",
+    "FAILED_IMAGE_PULL",
+    "FAILED_EVICTED",
+    "FAILED_START_ERROR",
+    "FAILED_START_TIMEOUT",
+    "FAILED_PREEMPTED",
+  ],
+  submission: ["FAILED_SUBMISSION"],
+  server: ["FAILED_SERVER_ERROR"],
+  error: ["FAILED_SERVER_ERROR", "FAILED_BACKEND_ERROR", "FAILED_START_ERROR"],
+  exec: ["FAILED_EXEC_TIMEOUT"],
+  timeout: ["FAILED_EXEC_TIMEOUT", "FAILED_QUEUE_TIMEOUT", "FAILED_START_TIMEOUT"],
+  queue: ["FAILED_QUEUE_TIMEOUT"],
+  canceled: ["FAILED_CANCELED"],
+  backend: ["FAILED_BACKEND_ERROR"],
+  image: ["FAILED_IMAGE_PULL"],
+  pull: ["FAILED_IMAGE_PULL"],
+  evicted: ["FAILED_EVICTED"],
+  start: ["FAILED_START_ERROR", "FAILED_START_TIMEOUT"],
+  preempted: ["FAILED_PREEMPTED"],
+};
+
+/** Static lookup: status → its tokens (for scoring) */
+const STATUS_TOKENS: Readonly<Record<WorkflowStatus, readonly string[]>> = {
+  PENDING: ["pending"],
+  WAITING: ["waiting"],
+  RUNNING: ["running"],
+  COMPLETED: ["completed"],
+  FAILED: ["failed"],
+  FAILED_SUBMISSION: ["failed", "submission"],
+  FAILED_SERVER_ERROR: ["failed", "server", "error"],
+  FAILED_EXEC_TIMEOUT: ["failed", "exec", "timeout"],
+  FAILED_QUEUE_TIMEOUT: ["failed", "queue", "timeout"],
+  FAILED_CANCELED: ["failed", "canceled"],
+  FAILED_BACKEND_ERROR: ["failed", "backend", "error"],
+  FAILED_IMAGE_PULL: ["failed", "image", "pull"],
+  FAILED_EVICTED: ["failed", "evicted"],
+  FAILED_START_ERROR: ["failed", "start", "error"],
+  FAILED_START_TIMEOUT: ["failed", "start", "timeout"],
+  FAILED_PREEMPTED: ["failed", "preempted"],
+};
+
+/** Valid status set for O(1) exact match lookup */
+const VALID_STATUSES: ReadonlySet<string> = new Set(ALL_WORKFLOW_STATUSES);
+
+/**
+ * Tokenize input string into lowercase words (only function with runtime logic).
+ */
+function tokenize(str: string): string[] {
+  return str
+    .toLowerCase()
+    .split(/[_:\s]+/)
+    .filter((t) => t.length > 0);
+}
+
+/**
+ * Result of a status match attempt.
+ */
+export interface StatusMatchResult {
+  /** The canonical status if matched, null if no match */
+  status: WorkflowStatus | null;
+  /** Confidence score: 1.0 = exact/full match, 0-1 = partial */
+  confidence: number;
+  /** All statuses that partially match (for suggestions) */
+  candidates: WorkflowStatus[];
+}
+
+/**
+ * Match user input to a workflow status.
+ * Uses static lookup tables - zero runtime index building.
+ *
+ * - Exact: "FAILED_IMAGE_PULL" → FAILED_IMAGE_PULL (confidence: 1.0)
+ * - Label: "failed: image pull" → FAILED_IMAGE_PULL (confidence: 1.0)
+ * - Natural: "failed image pull" → FAILED_IMAGE_PULL (confidence: 1.0)
+ * - Partial: "image" → candidates: [FAILED_IMAGE_PULL] (confidence: 0.33)
+ *
+ * @param input - User's search input
+ * @returns Match result with status, confidence, and candidates
+ */
+export function matchStatus(input: string): StatusMatchResult {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { status: null, confidence: 0, candidates: [] };
+  }
+
+  // 1. Exact match (fastest path) - O(1) Set lookup
+  const exactUpper = trimmed.toUpperCase();
+  if (VALID_STATUSES.has(exactUpper)) {
+    const status = exactUpper as WorkflowStatus;
+    return { status, confidence: 1.0, candidates: [status] };
+  }
+
+  // 2. Label match (e.g., "Failed: Image Pull") - O(1) object lookup
+  const labelMatch = LABEL_TO_STATUS[trimmed.toLowerCase()];
+  if (labelMatch) {
+    return { status: labelMatch, confidence: 1.0, candidates: [labelMatch] };
+  }
+
+  // 3. Token-based matching - O(tokens)
+  const inputTokens = tokenize(trimmed);
+  if (inputTokens.length === 0) {
+    return { status: null, confidence: 0, candidates: [] };
+  }
+
+  // Find statuses that contain ALL input tokens (intersection)
+  let candidates: WorkflowStatus[] | null = null;
+
+  for (const token of inputTokens) {
+    const matching = TOKEN_TO_STATUSES[token];
+    if (!matching || matching.length === 0) {
+      // Token not found in any status - no matches
+      return { status: null, confidence: 0, candidates: [] };
+    }
+
+    if (candidates === null) {
+      candidates = [...matching];
+    } else {
+      // Intersect: keep only statuses that have ALL tokens
+      candidates = candidates.filter((s) => matching.includes(s));
+    }
+
+    if (candidates.length === 0) {
+      return { status: null, confidence: 0, candidates: [] };
+    }
+  }
+
+  const candidateArray = candidates ?? [];
+
+  // Calculate confidence based on token coverage
+  // If user typed all tokens of a status, confidence = 1.0
+  if (candidateArray.length === 1) {
+    const statusTokens = STATUS_TOKENS[candidateArray[0]];
+    const coverage = inputTokens.length / statusTokens.length;
+    const confidence = coverage >= 1 ? 1.0 : coverage;
+    return {
+      status: confidence >= 1 ? candidateArray[0] : null,
+      confidence,
+      candidates: candidateArray,
+    };
+  }
+
+  // Multiple candidates - find best match by token coverage
+  let bestStatus: WorkflowStatus | null = null;
+  let bestConfidence = 0;
+
+  for (const status of candidateArray) {
+    const statusTokens = STATUS_TOKENS[status];
+    const coverage = inputTokens.length / statusTokens.length;
+    if (coverage > bestConfidence) {
+      bestConfidence = coverage;
+      bestStatus = coverage >= 1 ? status : null;
+    }
+  }
+
+  return {
+    status: bestStatus,
+    confidence: bestConfidence,
+    candidates: candidateArray,
+  };
+}
+
+/**
+ * Get autocomplete suggestions for a status input.
+ * Returns statuses that match the input tokens, sorted by relevance.
+ *
+ * @param input - Partial user input (e.g., "image" or "failed im")
+ * @param limit - Maximum suggestions to return
+ * @returns Array of matching statuses, best matches first
+ */
+export function getStatusSuggestions(input: string, limit = 10): WorkflowStatus[] {
+  const result = matchStatus(input);
+
+  // Sort candidates: higher confidence (more tokens matched) first
+  // Then alphabetically for stability
+  const inputTokens = tokenize(input);
+  return result.candidates
+    .map((status) => {
+      const statusTokens = STATUS_TOKENS[status];
+      const matchedTokens = inputTokens.filter((t) => statusTokens.includes(t)).length;
+      return { status, score: matchedTokens / statusTokens.length };
+    })
+    .sort((a, b) => b.score - a.score || a.status.localeCompare(b.status))
+    .slice(0, limit)
+    .map((s) => s.status);
+}
+
+/**
+ * Check if Tab should autocomplete (high confidence single match).
+ *
+ * @param input - Current user input
+ * @returns The status to autocomplete to, or null if not confident enough
+ */
+export function shouldTabComplete(input: string): WorkflowStatus | null {
+  const result = matchStatus(input);
+
+  // Tab complete if:
+  // 1. Single candidate with any token match, OR
+  // 2. Exact prefix match on a single status
+  if (result.candidates.length === 1 && result.confidence > 0) {
+    return result.candidates[0];
+  }
+
+  return null;
+}

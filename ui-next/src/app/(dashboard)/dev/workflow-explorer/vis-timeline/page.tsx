@@ -46,6 +46,7 @@ import {
   type MockTaskNode,
   type WorkflowPattern,
   TaskGroupStatus,
+  WorkflowStatus,
 } from "../mock-workflow";
 
 // ============================================================================
@@ -59,8 +60,21 @@ const statusColors = {
   failed: { bg: "#7f1d1d", border: "#ef4444", text: "#fca5a5" },
 };
 
-function getStatusIcon(status: TaskGroupStatus, size = "h-4 w-4") {
-  const category = getStatusCategory(status);
+/** Get status category for workflow-level status (different from task group status) */
+function getWorkflowCategory(status: WorkflowStatus): "waiting" | "running" | "completed" | "failed" {
+  if (status === WorkflowStatus.PENDING || status === WorkflowStatus.WAITING) return "waiting";
+  if (status === WorkflowStatus.RUNNING) return "running";
+  if (status === WorkflowStatus.COMPLETED) return "completed";
+  return "failed"; // All FAILED_* statuses
+}
+
+function getStatusIcon(status: TaskGroupStatus | WorkflowStatus, size = "h-4 w-4") {
+  // Determine category based on status type
+  const category =
+    Object.values(TaskGroupStatus).includes(status as TaskGroupStatus)
+      ? getStatusCategory(status as TaskGroupStatus)
+      : getWorkflowCategory(status as WorkflowStatus);
+
   switch (category) {
     case "waiting":
       return <Clock className={cn(size, "text-zinc-400")} />;
