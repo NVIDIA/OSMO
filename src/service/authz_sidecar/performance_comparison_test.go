@@ -55,22 +55,22 @@ func init() {
 //
 // SETUP:
 //
-//	Terminal 1 - PostgreSQL:
-//	  docker run --rm -d --name postgres -p 5432:5432 \
-//	    -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
+//		Terminal 1 - PostgreSQL:
+//		  docker run --rm -d --name postgres -p 5432:5432 \
+//		    -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
 //
-//	Terminal 2 - Python service:
-//	  cd external/src/service/authz_sidecar/test_service_python
-//	  pip install fastapi uvicorn psycopg2-binary
-//	  python service.py --postgres-password=osmo
+//		Terminal 2 - Python service:
+//	   cd src/service/authz_sidecar/test_service_python
+//	   pip install fastapi uvicorn psycopg2-binary
+//	   python service.py --postgres-password=osmo
 //
-//	Terminal 3 - Go authz_sidecar:
-//	  cd external && bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
-//	    --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
+//		Terminal 3 - Go authz_sidecar:
+//		  bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
+//		    --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
 //
-//	Terminal 4 - Run benchmark:
-//	  cd external && bazel test //src/service/authz_sidecar:performance_comparison \
-//	    --test_output=streamed
+//		Terminal 4 - Run benchmark:
+//		  bazel test //src/service/authz_sidecar:performance_comparison \
+//		    --test_output=streamed
 func TestPerformanceComparison(t *testing.T) {
 	flag.Parse()
 

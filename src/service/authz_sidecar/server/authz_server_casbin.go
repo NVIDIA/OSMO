@@ -1,5 +1,5 @@
 /*
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -99,9 +99,14 @@ func NewCasbinAuthzServer(ctx context.Context, pool *pgxpool.Pool, config Casbin
 	enforcer.AddFunction("actionMatch", actionMatchFunc)
 	enforcer.AddFunction("resourceMatch", resourceMatchFunc)
 
-	// Load policies from database
+	// Load policies from Casbin storage (casbin_rule table)
 	if err := enforcer.LoadPolicy(); err != nil {
 		return nil, fmt.Errorf("failed to load policies: %w", err)
+	}
+
+	// Load policies from postgres roles table if Casbin storage is empty
+	if err := loadPoliciesFromPostgres(ctx, pool, enforcer, logger); err != nil {
+		return nil, fmt.Errorf("failed to load policies from postgres: %w", err)
 	}
 
 	server := &CasbinAuthzServer{
@@ -194,7 +199,7 @@ func (s *CasbinAuthzServer) Check(ctx context.Context, req *envoy_service_auth_v
 	}
 
 	if !allowed {
-		s.logger.Info("casbin access denied",
+		s.logger.Debug("casbin access denied",
 			slog.String("user", user),
 			slog.String("path", path),
 			slog.String("method", method),
@@ -407,5 +412,277 @@ func (s *CasbinAuthzServer) denyResponse(code codes.Code, message string) *envoy
 				},
 			},
 		},
+	}
+}
+
+// loadPoliciesFromPostgres loads policies from the postgres roles table
+// and converts path-based policies to Casbin action-based policies
+func loadPoliciesFromPostgres(ctx context.Context, pool *pgxpool.Pool, enforcer *casbin.Enforcer, logger *slog.Logger) error {
+	// Check if policies already exist in Casbin storage
+	policies, err := enforcer.GetPolicy()
+	if err != nil {
+		return fmt.Errorf("failed to get policies: %w", err)
+	}
+	if len(policies) > 0 {
+		logger.Info("casbin policies already loaded from storage", slog.Int("count", len(policies)))
+		return nil
+	}
+
+	logger.Info("loading policies from postgres roles table")
+
+	// Query all roles from postgres
+	query := `SELECT name, array_to_json(policies)::text as policies FROM roles`
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to query roles: %w", err)
+	}
+	defer rows.Close()
+
+	policyCount := 0
+
+	for rows.Next() {
+		var roleName string
+		var policiesStr string
+
+		if err := rows.Scan(&roleName, &policiesStr); err != nil {
+			return fmt.Errorf("failed to scan role: %w", err)
+		}
+
+		// Parse policies JSON
+		var policiesArray []json.RawMessage
+		if err := json.Unmarshal([]byte(policiesStr), &policiesArray); err != nil {
+			logger.Warn("failed to parse policies for role",
+				slog.String("role", roleName),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+
+		// Process each policy
+		for _, policyRaw := range policiesArray {
+			var policy struct {
+				Actions []struct {
+					Path   string `json:"path"`
+					Method string `json:"method"`
+				} `json:"actions"`
+			}
+
+			if err := json.Unmarshal(policyRaw, &policy); err != nil {
+				logger.Warn("failed to parse policy",
+					slog.String("role", roleName),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
+
+			// Convert each path/method action to Casbin policies
+			for _, action := range policy.Actions {
+				casbinPolicies := convertPathToCasbinPolicies(roleName, action.Path, action.Method, logger)
+				for _, p := range casbinPolicies {
+					if _, err := enforcer.AddPolicy(p); err != nil {
+						logger.Debug("policy may already exist",
+							slog.String("role", roleName),
+							slog.Any("policy", p),
+						)
+					} else {
+						policyCount++
+					}
+				}
+			}
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating roles: %w", err)
+	}
+
+	// Save policies to Casbin storage for future reloads
+	if policyCount > 0 {
+		if err := enforcer.SavePolicy(); err != nil {
+			return fmt.Errorf("failed to save policies: %w", err)
+		}
+	}
+
+	logger.Info("policies loaded from postgres roles",
+		slog.Int("policy_count", policyCount),
+	)
+
+	return nil
+}
+
+// convertPathToCasbinPolicies converts a path/method pattern to Casbin policies
+// by matching against the ActionRegistry
+func convertPathToCasbinPolicies(roleName, pathPattern, method string, logger *slog.Logger) [][]string {
+	var policies [][]string
+
+	// Handle deny patterns (paths starting with !)
+	effect := "allow"
+	if strings.HasPrefix(pathPattern, "!") {
+		effect = "deny"
+		pathPattern = pathPattern[1:]
+	}
+
+	// Handle wildcard path patterns - find all matching actions
+	if pathPattern == "*" || pathPattern == "/*" {
+		// Full wildcard - allow all actions
+		policies = append(policies, []string{roleName, "*:*", "*", effect})
+		return policies
+	}
+
+	// Try to match this path pattern against ActionRegistry entries
+	matchedActions := findMatchingActions(pathPattern, method)
+
+	if len(matchedActions) > 0 {
+		for _, actionName := range matchedActions {
+			// Extract resource scope from action
+			resource := getResourceScopeForAction(actionName)
+			policy := []string{roleName, actionName, resource, effect}
+			logger.Debug("adding casbin policy",
+				slog.String("role", roleName),
+				slog.String("action", actionName),
+				slog.String("resource", resource),
+				slog.String("effect", effect),
+				slog.Any("policy", policy),
+			)
+			policies = append(policies, policy)
+		}
+	} else {
+		// No direct match - try to infer action from path pattern
+		inferredAction := inferActionFromPath(pathPattern, method)
+		if inferredAction != "" {
+			resource := getResourceScopeForAction(inferredAction)
+			policies = append(policies, []string{roleName, inferredAction, resource, effect})
+		} else {
+			logger.Debug("no action match for path pattern",
+				slog.String("role", roleName),
+				slog.String("path", pathPattern),
+				slog.String("method", method),
+			)
+		}
+	}
+
+	return policies
+}
+
+// findMatchingActions finds all actions in ActionRegistry that match the given path pattern
+func findMatchingActions(pathPattern, method string) []string {
+	var matchedActions []string
+	seenActions := make(map[string]bool)
+
+	for actionName, patterns := range ActionRegistry {
+		for _, pattern := range patterns {
+			// Check if the path pattern matches this registry entry
+			if pathPatternsOverlap(pathPattern, pattern.Path) && methodMatches(method, pattern.Methods) {
+				if !seenActions[actionName] {
+					matchedActions = append(matchedActions, actionName)
+					seenActions[actionName] = true
+				}
+			}
+		}
+	}
+
+	return matchedActions
+}
+
+// pathPatternsOverlap checks if two path patterns could match the same paths
+func pathPatternsOverlap(pattern1, pattern2 string) bool {
+	// Exact match
+	if pattern1 == pattern2 {
+		return true
+	}
+
+	// If either is a full wildcard
+	if pattern1 == "*" || pattern1 == "/*" || pattern2 == "*" || pattern2 == "/*" {
+		return true
+	}
+
+	// Check if one is a prefix of the other with wildcard
+	// e.g., "/api/workflow/*" overlaps with "/api/workflow" and "/api/workflow/abc"
+	p1HasWildcard := strings.HasSuffix(pattern1, "/*") || strings.HasSuffix(pattern1, "*")
+	p2HasWildcard := strings.HasSuffix(pattern2, "/*") || strings.HasSuffix(pattern2, "*")
+
+	if p1HasWildcard {
+		prefix1 := strings.TrimSuffix(strings.TrimSuffix(pattern1, "/*"), "*")
+		if strings.HasPrefix(pattern2, prefix1) || strings.HasPrefix(prefix1, strings.TrimSuffix(pattern2, "/*")) {
+			return true
+		}
+	}
+
+	if p2HasWildcard {
+		prefix2 := strings.TrimSuffix(strings.TrimSuffix(pattern2, "/*"), "*")
+		if strings.HasPrefix(pattern1, prefix2) || strings.HasPrefix(prefix2, strings.TrimSuffix(pattern1, "/*")) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// methodMatches checks if a method matches the allowed methods
+func methodMatches(requestMethod string, allowedMethods []string) bool {
+	if requestMethod == "*" {
+		return true
+	}
+	for _, m := range allowedMethods {
+		if m == "*" || strings.EqualFold(m, requestMethod) {
+			return true
+		}
+	}
+	return false
+}
+
+// inferActionFromPath tries to infer the action from a path pattern
+func inferActionFromPath(pathPattern, method string) string {
+	// Extract resource type from path (e.g., /api/workflow/* -> workflow)
+	parts := strings.Split(strings.Trim(pathPattern, "/"), "/")
+	if len(parts) < 2 || parts[0] != "api" {
+		return ""
+	}
+
+	resourceType := parts[1]
+
+	// Map common HTTP methods to action verbs
+	var actionVerb string
+	switch strings.ToUpper(method) {
+	case "GET":
+		actionVerb = "Read"
+	case "POST":
+		actionVerb = "Create"
+	case "PUT", "PATCH":
+		actionVerb = "Update"
+	case "DELETE":
+		actionVerb = "Delete"
+	case "*":
+		actionVerb = "*"
+	default:
+		actionVerb = "Read"
+	}
+
+	return resourceType + ":" + actionVerb
+}
+
+// getResourceScopeForAction returns the appropriate resource scope for an action
+func getResourceScopeForAction(action string) string {
+	parts := strings.Split(action, ":")
+	if len(parts) < 1 {
+		return "*"
+	}
+
+	resourceType := parts[0]
+
+	// Based on Resource-Action Model scope definitions
+	switch resourceType {
+	case "workflow":
+		return "pool/*"
+	case "bucket":
+		return "bucket/*"
+	case "config":
+		return "config/*"
+	case "profile":
+		return "user/*"
+	case "internal":
+		return "backend/*"
+	default:
+		return "*"
 	}
 }

@@ -63,7 +63,7 @@ go_test(
     ],
     embed = [":postgres"],
     deps = [],
-    tags = ["manual", "external"],  # Requires running PostgreSQL instance
+    tags = ["manual", "service"],  # Requires running PostgreSQL instance
     local = True,  # Run locally without sandboxing to access external database
 )
 

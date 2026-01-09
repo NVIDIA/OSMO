@@ -195,7 +195,7 @@ go_test(
         "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
     ],
     visibility = ["//visibility:public"],
-    tags = ["external", "manual"],  # Requires external service
+    tags = ["service", "manual"],  # Requires service
     local = True,  # Run locally without sandboxing
 )
 
@@ -207,12 +207,12 @@ go_test(
 #        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
 #
 #   2. Start Python test service:
-#      cd external/src/service/authz_sidecar/test_service_python
+#      cd src/service/authz_sidecar/test_service_python
 #      pip install -r requirements.txt
 #      python service.py --postgres-password=osmo
 #
 #   3. Start Go authz_sidecar:
-#      cd external && bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
+#      bazel run //src/service/authz_sidecar:authz_sidecar_bin -- \
 #        --postgres-password=osmo --postgres-db=osmo_db --postgres-host=localhost
 #
 #   4. Run the benchmark:
@@ -227,7 +227,7 @@ go_test(
         "@org_golang_google_grpc//credentials/insecure:go_default_library",
     ],
     visibility = ["//visibility:public"],
-    tags = ["external", "manual", "benchmark"],
+    tags = ["service", "manual", "benchmark"],
     local = True,
 )
 

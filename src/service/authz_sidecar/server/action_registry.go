@@ -19,7 +19,9 @@ SPDX-License-Identifier: Apache-2.0
 package server
 
 import (
+	"sort"
 	"strings"
+	"sync"
 )
 
 // Action constants for compile-time safety
@@ -93,6 +95,39 @@ type EndpointPattern struct {
 	Path    string
 	Methods []string
 }
+
+// compiledPattern is a pre-processed pattern for fast matching
+type compiledPattern struct {
+	action       string   // The action this pattern maps to
+	rawPath      string   // Original path pattern
+	parts        []string // Pre-split path parts
+	methods      []string // Allowed methods
+	isExact      bool     // True if no wildcards
+	hasTrailWild bool     // True if ends with /*
+	wildcardPos  int      // Position of first wildcard (-1 if none)
+	specificity  int      // Higher = more specific (for sorting)
+}
+
+// patternIndex provides O(1) lookup by method and fast prefix matching
+type patternIndex struct {
+	// Patterns grouped by HTTP method (includes "*" for wildcard methods)
+	byMethod map[string][]*compiledPattern
+
+	// Exact path matches for O(1) lookup: path -> method -> pattern
+	exactMatches map[string]map[string]*compiledPattern
+
+	// Patterns by first path segment for prefix filtering
+	byPrefix map[string][]*compiledPattern
+
+	// All patterns (sorted by specificity, most specific first)
+	allPatterns []*compiledPattern
+}
+
+var (
+	// Global pattern index, initialized once
+	patternIdx  *patternIndex
+	patternOnce sync.Once
+)
 
 // ActionRegistry maps resource:action pairs to API endpoint patterns
 // This is the authoritative mapping of actions to API paths
@@ -258,8 +293,127 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 }
 
+// initPatternIndex builds the optimized pattern index from ActionRegistry
+func initPatternIndex() *patternIndex {
+	idx := &patternIndex{
+		byMethod:     make(map[string][]*compiledPattern),
+		exactMatches: make(map[string]map[string]*compiledPattern),
+		byPrefix:     make(map[string][]*compiledPattern),
+		allPatterns:  make([]*compiledPattern, 0),
+	}
+
+	// Compile all patterns
+	for action, patterns := range ActionRegistry {
+		for _, ep := range patterns {
+			cp := compilePattern(action, ep)
+			idx.allPatterns = append(idx.allPatterns, cp)
+
+			// Index by method
+			for _, m := range cp.methods {
+				method := strings.ToUpper(m)
+				idx.byMethod[method] = append(idx.byMethod[method], cp)
+			}
+
+			// Index exact matches for O(1) lookup
+			if cp.isExact {
+				if idx.exactMatches[cp.rawPath] == nil {
+					idx.exactMatches[cp.rawPath] = make(map[string]*compiledPattern)
+				}
+				for _, m := range cp.methods {
+					method := strings.ToUpper(m)
+					idx.exactMatches[cp.rawPath][method] = cp
+				}
+			}
+
+			// Index by first path segment
+			prefix := getPathPrefix(cp.parts)
+			idx.byPrefix[prefix] = append(idx.byPrefix[prefix], cp)
+		}
+	}
+
+	// Sort all pattern lists by specificity (most specific first)
+	sortBySpecificity(idx.allPatterns)
+	for method := range idx.byMethod {
+		sortBySpecificity(idx.byMethod[method])
+	}
+	for prefix := range idx.byPrefix {
+		sortBySpecificity(idx.byPrefix[prefix])
+	}
+
+	return idx
+}
+
+// compilePattern pre-processes a pattern for fast matching
+func compilePattern(action string, ep EndpointPattern) *compiledPattern {
+	parts := strings.Split(ep.Path, "/")
+
+	// Calculate specificity and find first wildcard
+	specificity := 0
+	wildcardPos := -1
+	for i, part := range parts {
+		if part == "*" {
+			if wildcardPos == -1 {
+				wildcardPos = i
+			}
+		} else if part != "" {
+			specificity += 10 - i // Earlier non-wildcard parts are more specific
+		}
+	}
+
+	// Exact match bonus
+	isExact := wildcardPos == -1
+	if isExact {
+		specificity += 100
+	}
+
+	// Trailing wildcard check
+	hasTrailWild := strings.HasSuffix(ep.Path, "/*")
+
+	return &compiledPattern{
+		action:       action,
+		rawPath:      ep.Path,
+		parts:        parts,
+		methods:      ep.Methods,
+		isExact:      isExact,
+		hasTrailWild: hasTrailWild,
+		wildcardPos:  wildcardPos,
+		specificity:  specificity,
+	}
+}
+
+// getPathPrefix returns the first non-empty path segment
+func getPathPrefix(parts []string) string {
+	for _, part := range parts {
+		if part != "" && part != "*" {
+			return part
+		}
+	}
+	return ""
+}
+
+// sortBySpecificity sorts patterns with most specific first
+func sortBySpecificity(patterns []*compiledPattern) {
+	sort.Slice(patterns, func(i, j int) bool {
+		// Higher specificity first
+		if patterns[i].specificity != patterns[j].specificity {
+			return patterns[i].specificity > patterns[j].specificity
+		}
+		// Tie-breaker: fewer wildcards first
+		return patterns[i].wildcardPos > patterns[j].wildcardPos
+	})
+}
+
+// getPatternIndex returns the singleton pattern index
+func getPatternIndex() *patternIndex {
+	patternOnce.Do(func() {
+		patternIdx = initPatternIndex()
+	})
+	return patternIdx
+}
+
 // ResolvePathToAction converts an API path and method to a semantic action
 // Returns the action and resource, or empty strings if no match found
+// Optimized with pre-compiled patterns and indexed lookups
 func ResolvePathToAction(path, method string) (action string, resource string) {
 	// Normalize path - remove trailing slash and query string
 	normalizedPath := strings.TrimSuffix(path, "/")
@@ -268,24 +422,102 @@ func ResolvePathToAction(path, method string) (action string, resource string) {
 	}
 
 	method = strings.ToUpper(method)
+	pidx := getPatternIndex()
 
-	// Try to find a matching action in the registry
-	// We iterate through actions in a specific order to handle more specific patterns first
-	for actionName, patterns := range ActionRegistry {
-		for _, pattern := range patterns {
-			if matchPath(normalizedPath, pattern.Path) && matchMethod(method, pattern.Methods) {
-				resource = extractResourceFromPath(normalizedPath, actionName)
-				return actionName, resource
+	// Step 1: Try exact match first (O(1) lookup)
+	if methodMap, exists := pidx.exactMatches[normalizedPath]; exists {
+		if cp, found := methodMap[method]; found {
+			return cp.action, extractResourceFromPath(normalizedPath, cp.action)
+		}
+		// Try wildcard method
+		if cp, found := methodMap["*"]; found {
+			return cp.action, extractResourceFromPath(normalizedPath, cp.action)
+		}
+	}
+
+	// Step 2: Get candidate patterns by method
+	candidates := pidx.byMethod[method]
+	wildcardCandidates := pidx.byMethod["*"]
+
+	// Step 3: Also filter by path prefix for faster matching
+	pathParts := strings.Split(normalizedPath, "/")
+	prefix := getPathPrefix(pathParts)
+
+	// Combine method-specific and wildcard-method patterns
+	var patternsToCheck []*compiledPattern
+	if prefix != "" {
+		// Use prefix-filtered patterns
+		prefixPatterns := pidx.byPrefix[prefix]
+		for _, cp := range prefixPatterns {
+			if methodMatchesPattern(method, cp.methods) {
+				patternsToCheck = append(patternsToCheck, cp)
 			}
 		}
 	}
 
-	// Fallback: no action found in registry
+	// If no prefix match, fall back to method-indexed patterns
+	if len(patternsToCheck) == 0 {
+		patternsToCheck = append(patternsToCheck, candidates...)
+		patternsToCheck = append(patternsToCheck, wildcardCandidates...)
+	}
+
+	// Step 4: Check patterns (already sorted by specificity)
+	for _, cp := range patternsToCheck {
+		if matchPathCompiled(pathParts, cp) {
+			return cp.action, extractResourceFromPath(normalizedPath, cp.action)
+		}
+	}
+
+	// Fallback: no action found
 	return "", ""
 }
 
-// matchPath checks if a request path matches a pattern
-// Supports wildcards: /api/workflow/* matches /api/workflow/abc123
+// matchPathCompiled checks if path parts match a compiled pattern
+// Uses pre-split parts for efficiency
+func matchPathCompiled(requestParts []string, cp *compiledPattern) bool {
+	patternParts := cp.parts
+
+	// Handle trailing wildcard patterns (e.g., /api/workflow/*)
+	if cp.hasTrailWild {
+		// Pattern: /api/workflow/* should match /api/workflow/abc and /api/workflow/abc/def
+		prefixLen := len(patternParts) - 1 // Exclude the trailing *
+		if len(requestParts) < prefixLen {
+			return false
+		}
+
+		for i := 0; i < prefixLen; i++ {
+			if patternParts[i] != "*" && patternParts[i] != requestParts[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	// For non-trailing-wildcard patterns, lengths must match
+	if len(patternParts) != len(requestParts) {
+		return false
+	}
+
+	for i, patternPart := range patternParts {
+		if patternPart != "*" && patternPart != requestParts[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// methodMatchesPattern checks if a method matches the pattern's allowed methods
+func methodMatchesPattern(method string, allowedMethods []string) bool {
+	for _, m := range allowedMethods {
+		if m == "*" || strings.EqualFold(m, method) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchPath checks if a request path matches a pattern (legacy function for compatibility)
 func matchPath(requestPath, pattern string) bool {
 	// Exact match
 	if pattern == requestPath {
@@ -302,7 +534,6 @@ func matchPath(requestPath, pattern string) bool {
 
 	// Pattern ending with /* can match paths with more segments
 	if strings.HasSuffix(pattern, "/*") {
-		// Remove the trailing /* and check prefix
 		prefixPattern := strings.TrimSuffix(pattern, "/*")
 		prefixParts := strings.Split(prefixPattern, "/")
 
@@ -310,7 +541,6 @@ func matchPath(requestPath, pattern string) bool {
 			return false
 		}
 
-		// Check all prefix parts match
 		for i, part := range prefixParts {
 			if part != "*" && part != requestParts[i] {
 				return false
@@ -333,7 +563,7 @@ func matchPath(requestPath, pattern string) bool {
 	return true
 }
 
-// matchMethod checks if a request method matches allowed methods
+// matchMethod checks if a request method matches allowed methods (legacy function)
 func matchMethod(requestMethod string, allowedMethods []string) bool {
 	for _, m := range allowedMethods {
 		if m == "*" || strings.EqualFold(m, requestMethod) {
