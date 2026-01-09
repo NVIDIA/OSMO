@@ -23,7 +23,12 @@
 
 import type { SearchField } from "@/components/smart-search";
 import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
-import { STATUS_CATEGORY_MAP } from "./workflow-constants";
+import {
+  STATUS_CATEGORY_MAP,
+  STATUS_LABELS,
+  matchStatus,
+  getStatusSuggestions,
+} from "./workflow-constants";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 
@@ -46,13 +51,54 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
   {
     id: "status",
     label: "Status",
-    hint: "workflow status category",
+    hint: "status or category (e.g., failed, FAILED_IMAGE_PULL)",
     prefix: "status:",
-    // Show category values for simpler filtering (maps to multiple statuses)
-    getValues: () => ["running", "waiting", "completed", "failed"],
+    getValues: (workflows) => {
+      const dataStatuses = [...new Set(workflows.map((w) => w.status))];
+      return dataStatuses.sort();
+    },
     match: (workflow, value) => {
+      const valueLower = value.toLowerCase();
+
+      // 1. Category match (running, waiting, completed, failed)
       const category = STATUS_CATEGORY_MAP[workflow.status];
-      return category === value.toLowerCase();
+      if (category === valueLower) {
+        return true;
+      }
+
+      // 2. Fuzzy status match using pre-computed index
+      const result = matchStatus(value);
+      if (result.status) {
+        return workflow.status === result.status;
+      }
+
+      // 3. Partial match - check if any candidate matches
+      return result.candidates.includes(workflow.status);
+    },
+    // Custom validation that normalizes input to canonical form
+    validate: (value) => {
+      const valueLower = value.toLowerCase();
+
+      // Allow category values directly
+      if (["running", "waiting", "completed", "failed"].includes(valueLower)) {
+        return true;
+      }
+
+      // Try fuzzy match
+      const result = matchStatus(value);
+
+      // Accept if we have any candidates (will filter to matching workflows)
+      if (result.candidates.length > 0) {
+        return true;
+      }
+
+      // Suggest similar statuses
+      const suggestions = getStatusSuggestions(value.slice(0, 3), 3);
+      if (suggestions.length > 0) {
+        return `Unknown status. Did you mean: ${suggestions.join(", ")}?`;
+      }
+
+      return `Unknown status "${value}"`;
     },
   },
   {

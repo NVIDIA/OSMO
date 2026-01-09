@@ -28,7 +28,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronLeft, XCircle, FileText, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
@@ -60,20 +60,46 @@ export function WorkflowHeader({ workflow, isRefreshing, onRefresh, onCancel }: 
   // Get status category for styling
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "unknown";
   const statusStyles = STATUS_STYLES[statusCategory];
+  const isRunning = statusCategory === "running";
 
-  // Calculate duration
-  const duration = useMemo(() => {
+  // Calculate static duration (for completed workflows)
+  const staticDuration = useMemo(() => {
     if (workflow.duration) return workflow.duration;
-    if (workflow.start_time) {
+    if (workflow.start_time && workflow.end_time) {
       const start = new Date(workflow.start_time).getTime();
-      const end = workflow.end_time ? new Date(workflow.end_time).getTime() : Date.now();
+      const end = new Date(workflow.end_time).getTime();
       return (end - start) / 1000;
     }
     return null;
   }, [workflow.duration, workflow.start_time, workflow.end_time]);
 
+  // Determine if we need live updating
+  const needsLiveUpdate = isRunning && workflow.start_time && !workflow.end_time;
+  const startTimeMs = workflow.start_time ? new Date(workflow.start_time).getTime() : 0;
+
+  // Live duration for running workflows (updated every second)
+  // Initialize with current value if running
+  const [liveDuration, setLiveDuration] = useState<number>(() =>
+    needsLiveUpdate ? (Date.now() - startTimeMs) / 1000 : 0,
+  );
+
+  useEffect(() => {
+    // Only run timer for running workflows without end_time
+    if (!needsLiveUpdate) return;
+
+    // Update every second
+    const interval = setInterval(() => {
+      setLiveDuration((Date.now() - startTimeMs) / 1000);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [needsLiveUpdate, startTimeMs]);
+
+  // Use live duration for running workflows, static otherwise
+  const duration = needsLiveUpdate ? liveDuration : staticDuration;
+
   // Determine if workflow can be cancelled
-  const canCancel = statusCategory === "running" || statusCategory === "waiting";
+  const canCancel = isRunning || statusCategory === "waiting";
 
   return (
     <header className="flex items-center justify-between border-b border-gray-200 bg-white/80 px-6 py-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
@@ -119,10 +145,10 @@ export function WorkflowHeader({ workflow, isRefreshing, onRefresh, onCancel }: 
             )}
 
             {/* User */}
-            {workflow.user && (
+            {workflow.submitted_by && (
               <>
                 <span aria-hidden="true">•</span>
-                <span>by {workflow.user}</span>
+                <span>by {workflow.submitted_by}</span>
               </>
             )}
 

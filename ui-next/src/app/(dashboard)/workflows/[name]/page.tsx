@@ -36,6 +36,7 @@
 "use client";
 
 import { use, useState, useCallback } from "react";
+import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
 
@@ -54,10 +55,22 @@ import {
   DAGControls,
   DetailsPanel,
 } from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/components";
-import { useDAGState, useResizablePanel, useViewportBoundaries } from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/hooks";
+import {
+  useDAGState,
+  useResizablePanel,
+  useViewportBoundaries,
+} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/hooks";
 import { DAGProvider } from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/context";
-import { DEFAULT_ZOOM, MAX_ZOOM, MINIMAP, BACKGROUND } from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/constants";
-import { getMiniMapNodeColor, getMiniMapStrokeColor } from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/utils";
+import {
+  DEFAULT_ZOOM,
+  MAX_ZOOM,
+  MINIMAP,
+  BACKGROUND,
+} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/constants";
+import {
+  getMiniMapNodeColor,
+  getMiniMapStrokeColor,
+} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/utils";
 
 // Local components
 import { WorkflowHeader } from "./components/workflow-header";
@@ -122,12 +135,12 @@ function WorkflowNotFound({ name }: { name: string }) {
           The workflow <code className="rounded bg-gray-100 px-2 py-1 font-mono dark:bg-zinc-800">{name}</code> does not
           exist.
         </p>
-        <a
+        <Link
           href="/workflows"
           className="text-blue-600 hover:underline dark:text-blue-400"
         >
           ← Back to workflows
-        </a>
+        </Link>
       </div>
     </div>
   );
@@ -156,8 +169,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     setLayoutDirection,
     groupsWithLayout: dagGroups,
     rootNodeIds,
-    handleExpandAll,
-    handleCollapseAll,
     handleSelectGroup,
     handleSelectTask,
     handleToggleExpand,
@@ -167,7 +178,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     handleClosePanel,
     handleBackToGroup,
     nodeBounds,
-    isLayouting,
   } = useDAGState({
     groups: groupsWithLayout,
     initialDirection: "TB",

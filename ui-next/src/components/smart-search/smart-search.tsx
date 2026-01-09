@@ -90,6 +90,9 @@ function SmartSearchInner<T>({
     presets,
   });
 
+  // Separate hints from selectable suggestions (memoized, needed for Tab completion)
+  const selectables = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
+
   // ========== Event handlers ==========
 
   const handleSelect = useCallback(
@@ -182,9 +185,20 @@ function SmartSearchInner<T>({
         } else {
           setIsOpen(true);
         }
+      } else if (e.key === "Tab" && !e.shiftKey && inputValue.trim()) {
+        // Tab autocomplete: select single matching suggestion
+        const valueItems = selectables.filter((s) => s.type === "value");
+        if (valueItems.length === 1) {
+          e.preventDefault();
+          handleSelect(valueItems[0].value);
+        } else if (selectables.length === 1 && selectables[0].type === "field") {
+          // If only one field prefix matches, complete it
+          e.preventDefault();
+          setInputValue(selectables[0].value);
+        }
       }
     },
-    [focusedChipIndex, chips, inputValue, removeChip, isOpen, parsedInput, addChip],
+    [focusedChipIndex, chips, inputValue, removeChip, isOpen, parsedInput, addChip, selectables, handleSelect],
   );
 
   const handleInputChange = useCallback(
@@ -251,9 +265,8 @@ function SmartSearchInner<T>({
   const showSuggestions = isOpen && suggestions.length > 0;
   const showDropdown = showPresets || showSuggestions || !!validationError;
 
-  // Separate hints from selectable suggestions (memoized to prevent re-filtering on every render)
+  // Hints are non-interactive (selectables is already computed above for Tab completion)
   const hints = useMemo(() => suggestions.filter((s) => s.type === "hint"), [suggestions]);
-  const selectables = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
 
   return (
     <div
