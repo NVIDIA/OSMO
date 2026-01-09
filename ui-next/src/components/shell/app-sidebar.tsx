@@ -130,14 +130,14 @@ export function AppSidebar() {
 function CollapseButton({ collapsed }: { collapsed: boolean }) {
   const { toggleSidebar } = useSidebar();
   const isMac = useIsMac();
-  const shortcutKey = isMac ? "⌘" : "Ctrl+";
+  const shortcutKey = isMac ? "⌘B" : "Ctrl+B";
 
   return (
     <SidebarMenu className={cn(collapsed && "items-center")}>
       <SidebarMenuItem>
         <SidebarMenuButton
           onClick={toggleSidebar}
-          tooltip={collapsed ? `Expand sidebar (${shortcutKey}B)` : undefined}
+          tooltip={collapsed ? `Expand sidebar (${shortcutKey})` : undefined}
           className={cn(
             "rounded-lg py-2 text-sm font-medium text-zinc-600 transition-all duration-200 ease-out",
             "hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100",
@@ -159,7 +159,7 @@ function CollapseButton({ collapsed }: { collapsed: boolean }) {
           </span>
           {!collapsed && (
             <kbd className="pointer-events-none flex h-6 items-center gap-0.5 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-xs font-medium text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-              {shortcutKey}B
+              {shortcutKey}
             </kbd>
           )}
         </SidebarMenuButton>

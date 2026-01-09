@@ -24,7 +24,7 @@
  */
 
 import { useMemo } from "react";
-import type { SearchField, SearchPreset, Suggestion, ParsedInput } from "../lib";
+import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } from "../lib";
 
 export interface UseSuggestionsOptions<T> {
   /** Current input value */
@@ -33,6 +33,8 @@ export interface UseSuggestionsOptions<T> {
   fields: readonly SearchField<T>[];
   /** Data for generating autocomplete values */
   data: T[];
+  /** Current chips (to filter out already-selected values) */
+  chips: SearchChip[];
   /** Preset groups (for flattening for navigation) */
   presets?: {
     label: string;
@@ -89,13 +91,22 @@ function getFieldHint<T>(field: SearchField<T>): string {
 }
 
 /**
+ * Check if a chip already exists for the given field and value.
+ */
+function isAlreadySelected(chips: SearchChip[], fieldId: string, value: string): boolean {
+  return chips.some((c) => c.field === fieldId && c.value.toLowerCase() === value.toLowerCase());
+}
+
+/**
  * Generate suggestions based on current input.
+ * Filters out values that already have corresponding chips.
  */
 function generateSuggestions<T>(
   inputValue: string,
   parsedInput: ParsedInput<T>,
   fields: readonly SearchField<T>[],
   data: T[],
+  chips: SearchChip[],
 ): Suggestion<T>[] {
   const items: Suggestion<T>[] = [];
   const query = inputValue.toLowerCase().trim();
@@ -164,7 +175,9 @@ function generateSuggestions<T>(
     const values = field.getValues(data);
     const prefixQuery = parsedInput.query.toLowerCase();
 
-    const filtered = values.filter((v) => v.toLowerCase().includes(prefixQuery));
+    const filtered = values.filter(
+      (v) => v.toLowerCase().includes(prefixQuery) && !isAlreadySelected(chips, field.id, v),
+    );
     for (const v of filtered.slice(0, 10)) {
       items.push({
         type: "value",
@@ -211,15 +224,16 @@ export function useSuggestions<T>({
   inputValue,
   fields,
   data,
+  chips,
   presets,
 }: UseSuggestionsOptions<T>): UseSuggestionsReturn<T> {
   // Parse input for field prefix
   const parsedInput = useMemo(() => parseInput(inputValue, fields), [inputValue, fields]);
 
-  // Generate suggestions
+  // Generate suggestions (excludes already-selected values)
   const suggestions = useMemo(
-    () => generateSuggestions(inputValue, parsedInput, fields, data),
-    [inputValue, parsedInput, fields, data],
+    () => generateSuggestions(inputValue, parsedInput, fields, data, chips),
+    [inputValue, parsedInput, fields, data, chips],
   );
 
   // Filter to selectable suggestions (exclude hints)

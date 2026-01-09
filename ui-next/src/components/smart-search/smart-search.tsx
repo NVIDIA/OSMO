@@ -45,12 +45,12 @@ import { cn } from "@/lib/utils";
 import { Command, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/shadcn/command";
 
 // Core types (lib/) and hooks (hooks/) - never change with UI library swap
-import type { SmartSearchProps, SearchPreset } from "./lib";
+import type { SmartSearchProps } from "./lib";
 import { useChips, useSuggestions } from "./hooks";
 
 // UI components and styles
 import { inputStyles, chipStyles, dropdownStyles } from "./styles";
-import { ChipLabel, PresetGroup } from "./components";
+import { ChipLabel, PresetContent } from "./components";
 
 // ============================================================================
 // Component
@@ -82,17 +82,31 @@ function SmartSearchInner<T>({
       displayMode,
     });
 
-  const { parsedInput, suggestions } = useSuggestions({
+  const { parsedInput, suggestions, flatPresets } = useSuggestions({
     inputValue,
     fields,
     data,
+    chips,
     presets,
   });
 
   // ========== Event handlers ==========
 
-  const handleSelectSuggestion = useCallback(
+  const handleSelect = useCallback(
     (value: string) => {
+      // Check if it's a preset selection
+      if (value.startsWith("preset:")) {
+        const presetId = value.slice(7); // Remove "preset:" prefix
+        const preset = flatPresets.find((p) => p.id === presetId);
+        if (preset) {
+          togglePreset(preset);
+          setInputValue("");
+          setIsOpen(false);
+          inputRef.current?.focus();
+        }
+        return;
+      }
+
       // Find the suggestion by value
       const suggestion = suggestions.find((s) => s.value === value || s.label === value);
       if (!suggestion || suggestion.type === "hint") return;
@@ -110,17 +124,7 @@ function SmartSearchInner<T>({
         }
       }
     },
-    [suggestions, addChip],
-  );
-
-  const handleTogglePreset = useCallback(
-    (preset: SearchPreset<T>) => {
-      togglePreset(preset);
-      setInputValue("");
-      setIsOpen(false);
-      inputRef.current?.focus();
-    },
-    [togglePreset],
+    [suggestions, flatPresets, addChip, togglePreset],
   );
 
   const handleKeyDown = useCallback(
@@ -167,18 +171,16 @@ function SmartSearchInner<T>({
         } else {
           inputRef.current?.blur();
         }
-      } else if (
-        e.key === "Enter" &&
-        !isOpen &&
-        parsedInput.hasPrefix &&
-        parsedInput.field &&
-        parsedInput.query.trim()
-      ) {
-        // Direct entry when dropdown is closed but user typed field:value
+      } else if (e.key === "Enter" && !isOpen) {
         e.preventDefault();
-        if (addChip(parsedInput.field, parsedInput.query.trim())) {
-          setInputValue("");
-          inputRef.current?.focus();
+        // If user typed field:value, create chip; otherwise just open dropdown
+        if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
+          if (addChip(parsedInput.field, parsedInput.query.trim())) {
+            setInputValue("");
+            inputRef.current?.focus();
+          }
+        } else {
+          setIsOpen(true);
         }
       }
     },
@@ -253,9 +255,6 @@ function SmartSearchInner<T>({
   const hints = useMemo(() => suggestions.filter((s) => s.type === "hint"), [suggestions]);
   const selectables = useMemo(() => suggestions.filter((s) => s.type !== "hint"), [suggestions]);
 
-  // Stable no-op callback for PresetGroup (presets don't need highlight tracking with cmdk)
-  const noopHighlight = useCallback(() => {}, []);
-
   return (
     <div
       ref={containerRef}
@@ -264,6 +263,7 @@ function SmartSearchInner<T>({
     >
       <Command
         shouldFilter={false}
+        loop
         className="overflow-visible bg-transparent"
       >
         {/* Input container with chips */}
@@ -352,51 +352,68 @@ function SmartSearchInner<T>({
               </div>
             )}
 
-            {/* Presets section */}
-            {showPresets &&
-              presets?.map((group, groupIndex) => {
-                const startIndex = presets.slice(0, groupIndex).reduce((acc, g) => acc + g.items.length, 0);
-                return (
-                  <PresetGroup
-                    key={group.label}
-                    label={group.label}
-                    items={group.items}
-                    data={data}
-                    highlightedIndex={-1}
-                    startIndex={startIndex}
-                    isPresetActive={isPresetActive}
-                    onTogglePreset={handleTogglePreset}
-                    onHighlight={noopHighlight}
-                  />
-                );
-              })}
-
-            {/* Hints (non-interactive) */}
-            {hints.map((hint, index) => (
-              <div
-                key={`hint-${hint.field.id}-${index}`}
-                className={cn(
-                  dropdownStyles.dropdownItem,
-                  dropdownStyles.nonInteractive,
-                  "border-b border-zinc-100 italic dark:border-zinc-800",
-                  dropdownStyles.muted,
-                )}
-              >
-                {hint.label}
-              </div>
-            ))}
-
-            {/* Suggestions - cmdk handles keyboard navigation */}
-            <CommandList>
+            {/* Scrollable content area - cmdk handles all keyboard navigation */}
+            <CommandList className="max-h-none min-h-0 flex-1 overflow-y-auto">
               <CommandEmpty className="py-3 text-center text-sm text-zinc-500">No results found.</CommandEmpty>
 
+              {/* Presets (shown when input is empty) - inline layout with heading */}
+              {showPresets &&
+                presets?.map((group) => (
+                  <CommandGroup
+                    key={group.label}
+                    heading={group.label}
+                    className={cn(
+                      "grid grid-cols-[auto_1fr] items-center gap-x-3 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800",
+                      // Heading styling
+                      "[&>[cmdk-group-heading]]:text-xs [&>[cmdk-group-heading]]:font-medium [&>[cmdk-group-heading]]:text-zinc-500",
+                      // Items container: flex wrap
+                      "[&>[cmdk-group-items]]:flex [&>[cmdk-group-items]]:flex-wrap [&>[cmdk-group-items]]:gap-1.5",
+                    )}
+                  >
+                    {group.items.map((preset) => (
+                      <CommandItem
+                        key={preset.id}
+                        value={`preset:${preset.id}`}
+                        onSelect={handleSelect}
+                        className="group w-auto bg-transparent p-0"
+                      >
+                        <PresetContent
+                          preset={preset}
+                          data={data}
+                          isActive={isPresetActive(preset)}
+                        />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ))}
+
+              {/* Hints (non-interactive, shown above suggestions) */}
+              {hints.length > 0 && (
+                <div className="border-b border-zinc-100 dark:border-zinc-800">
+                  {hints.map((hint, index) => (
+                    <div
+                      key={`hint-${hint.field.id}-${index}`}
+                      className={cn(
+                        dropdownStyles.dropdownItem,
+                        dropdownStyles.nonInteractive,
+                        "italic",
+                        dropdownStyles.muted,
+                      )}
+                    >
+                      {hint.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Suggestions */}
               {selectables.length > 0 && (
                 <CommandGroup>
                   {selectables.map((suggestion, index) => (
                     <CommandItem
                       key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
                       value={suggestion.value}
-                      onSelect={handleSelectSuggestion}
+                      onSelect={handleSelect}
                       className="flex items-center justify-between"
                     >
                       <span className="flex items-center gap-2">
