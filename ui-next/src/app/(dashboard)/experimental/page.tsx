@@ -22,39 +22,38 @@ import { FlaskConical } from "lucide-react";
 import { usePage } from "@/components/shell";
 
 /**
- * Development Pages Index
+ * Experimental Pages Index
  *
- * This page lists all development/experimental pages.
- * These pages are for design exploration, prototyping, and testing.
+ * This page lists all experimental pages for design exploration, prototyping, and testing.
  *
  * Tree-shaken in production via NODE_ENV check below.
  */
 
 // Redirect away in production - this check is evaluated at build time
-// allowing the bundler to tree-shake the entire dev page in prod builds
+// allowing the bundler to tree-shake the entire page in prod builds
 if (process.env.NODE_ENV === "production") {
   redirect("/");
 }
 
-interface DevPage {
+interface ExperimentalPage {
   title: string;
   href: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const devPages: DevPage[] = [
-  // Add dev pages here as needed:
+const experimentalPages: ExperimentalPage[] = [
+  // Add experimental pages here as needed:
   // {
   //   title: "Example Page",
-  //   href: "/dev/example",
+  //   href: "/experimental/example",
   //   description: "Description of the experimental feature",
   //   icon: SomeIcon,
   // },
 ];
 
-export default function DevIndexPage() {
-  usePage({ title: "Dev" });
+export default function ExperimentalIndexPage() {
+  usePage({ title: "Experimental" });
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -75,9 +74,9 @@ export default function DevIndexPage() {
       </div>
 
       {/* Page Grid */}
-      {devPages.length > 0 ? (
+      {experimentalPages.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          {devPages.map((page) => (
+          {experimentalPages.map((page) => (
             <Link
               key={page.href}
               href={page.href}
@@ -99,16 +98,18 @@ export default function DevIndexPage() {
         </div>
       ) : (
         <div className="border-border bg-card/50 rounded-lg border border-dashed p-8 text-center">
-          <p className="text-muted-foreground text-sm">No dev pages currently. Add pages to the devPages array.</p>
+          <p className="text-muted-foreground text-sm">
+            No experimental pages currently. Add pages to the experimentalPages array.
+          </p>
         </div>
       )}
 
       {/* Footer */}
       <div className="border-border mt-12 border-t pt-8">
-        <h3 className="text-muted-foreground mb-2 text-sm font-medium">Adding New Dev Pages</h3>
+        <h3 className="text-muted-foreground mb-2 text-sm font-medium">Adding New Experimental Pages</h3>
         <p className="text-muted-foreground text-sm">
-          Create a new folder under <code className="bg-muted rounded px-1 py-0.5">/dev</code> and add it to the{" "}
-          <code className="bg-muted rounded px-1 py-0.5">devPages</code> array in this file.
+          Create a new folder under <code className="bg-muted rounded px-1 py-0.5">/experimental</code> and add it to
+          the <code className="bg-muted rounded px-1 py-0.5">experimentalPages</code> array in this file.
         </p>
       </div>
     </div>

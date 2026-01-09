@@ -54,7 +54,7 @@ export function DAGHeader({
   isLayouting,
   onExpandAll,
   onCollapseAll,
-  backUrl = "/dev/workflow-explorer",
+  backUrl = "/workflows",
 }: DAGHeaderProps) {
   // Memoize stats to prevent recalculation on every render
   const stats = useMemo(() => {
