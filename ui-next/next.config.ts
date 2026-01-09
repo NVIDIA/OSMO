@@ -37,6 +37,9 @@ const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
 const scheme = sslEnabled ? "https" : "http";
 const API_URL = `${scheme}://${apiHostname}`;
 
+// Check if mock mode is enabled - disables external API proxying
+const isMockMode = process.env.NEXT_PUBLIC_MOCK_API === "true";
+
 const nextConfig: NextConfig = {
   // Enable standalone output for containerized deployments
   output: "standalone",
@@ -81,7 +84,11 @@ const nextConfig: NextConfig = {
   // =============================================================================
 
   // Proxy API requests to the backend (avoids CORS issues)
+  // In mock mode, don't proxy - let MSW handle client requests and API routes handle server requests
   async rewrites() {
+    if (isMockMode) {
+      return { beforeFiles: [] };
+    }
     return {
       beforeFiles: [
         {

@@ -50,7 +50,7 @@ export {
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata } from "./hooks";
 
 // Resource shim types (will be simplified when backend supports pagination)
-export type { PaginatedResourcesResult } from "./resources-shim";
+export type { PaginatedResourcesResult, ResourceFilterParams } from "./resources-shim";
 
 // Utilities
 export { deriveResourceTypes } from "./utils";
