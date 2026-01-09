@@ -707,6 +707,7 @@ func TestBuildRequestContext(t *testing.T) {
 }
 
 // TestRolePatternScenarios tests common role-based access patterns
+// Uses scope-based resources as defined in the Resource-Action Model
 func TestRolePatternScenarios(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -719,15 +720,15 @@ func TestRolePatternScenarios(t *testing.T) {
 		{
 			name:          "osmo-admin: full access pattern",
 			requestAction: "workflow:Create",
-			requestRes:    "workflow/abc123",
+			requestRes:    "pool/*",
 			policyAction:  "*:*",
 			policyRes:     "*",
 			wantMatch:     true,
 		},
 		{
-			name:          "osmo-user: workflow access",
+			name:          "osmo-user: workflow access with pool scope",
 			requestAction: "workflow:Read",
-			requestRes:    "workflow/abc123",
+			requestRes:    "pool/*",
 			policyAction:  "workflow:*",
 			policyRes:     "*",
 			wantMatch:     true,
@@ -735,7 +736,7 @@ func TestRolePatternScenarios(t *testing.T) {
 		{
 			name:          "osmo-viewer: read-only access",
 			requestAction: "workflow:Read",
-			requestRes:    "workflow/abc123",
+			requestRes:    "pool/*",
 			policyAction:  "workflow:Read",
 			policyRes:     "*",
 			wantMatch:     true,
@@ -743,7 +744,7 @@ func TestRolePatternScenarios(t *testing.T) {
 		{
 			name:          "osmo-viewer: cannot create",
 			requestAction: "workflow:Create",
-			requestRes:    "workflow/abc123",
+			requestRes:    "pool/*",
 			policyAction:  "workflow:Read",
 			policyRes:     "*",
 			wantMatch:     false,
@@ -767,10 +768,34 @@ func TestRolePatternScenarios(t *testing.T) {
 		{
 			name:          "osmo-default: cannot access workflows",
 			requestAction: "workflow:Read",
-			requestRes:    "workflow/abc123",
+			requestRes:    "pool/*",
 			policyAction:  "system:Health",
 			policyRes:     "*",
 			wantMatch:     false,
+		},
+		{
+			name:          "bucket access with self-scope",
+			requestAction: "bucket:Read",
+			requestRes:    "bucket/my-bucket",
+			policyAction:  "bucket:*",
+			policyRes:     "bucket/*",
+			wantMatch:     true,
+		},
+		{
+			name:          "profile access with user scope",
+			requestAction: "profile:Read",
+			requestRes:    "user/alice",
+			policyAction:  "profile:Read",
+			policyRes:     "user/*",
+			wantMatch:     true,
+		},
+		{
+			name:          "credentials global access",
+			requestAction: "credentials:Read",
+			requestRes:    "*",
+			policyAction:  "credentials:*",
+			policyRes:     "*",
+			wantMatch:     true,
 		},
 	}
 
