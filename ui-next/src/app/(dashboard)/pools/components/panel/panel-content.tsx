@@ -21,7 +21,7 @@
 import React, { memo, useMemo, useCallback } from "react";
 import { CirclePile, Clock, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
-import { Card, CardContent, CardHeader } from "@/components/shadcn/card";
+import { Card, CardContent } from "@/components/shadcn/card";
 import { CapacityBar } from "@/components/capacity-bar";
 import { PlaceholderSection } from "@/components/placeholder-section";
 import type { Pool } from "@/lib/api/adapter";
@@ -236,14 +236,14 @@ export const PanelContent = memo(function PanelContent({
 
             <Card className="gap-0 py-0">
               {/* Platform Selector Header */}
-              <CardHeader className="border-border bg-muted/30 border-b px-4 py-2.5">
+              <div className="border-border bg-muted/30 border-b px-4 py-2.5">
                 <PlatformSelector
                   platforms={pool.platforms}
                   defaultPlatform={pool.defaultPlatform}
                   selectedPlatform={effectivePlatform}
                   onSelectPlatform={handlePlatformSelect}
                 />
-              </CardHeader>
+              </div>
 
               {/* Platform Config Content */}
               <CardContent className="p-3">
