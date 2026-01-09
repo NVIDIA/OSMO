@@ -178,7 +178,7 @@ function generateSuggestions<T>(
     const filtered = values.filter(
       (v) => v.toLowerCase().includes(prefixQuery) && !isAlreadySelected(chips, field.id, v),
     );
-    for (const v of filtered.slice(0, 10)) {
+    for (const v of filtered) {
       items.push({
         type: "value",
         field,
