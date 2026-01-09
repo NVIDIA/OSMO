@@ -108,14 +108,26 @@ export interface WorkflowPatterns {
 }
 
 export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
+  // All 16 WorkflowStatus values (not TaskGroupStatus)
   statusDistribution: {
-    RUNNING: 0.25,
-    COMPLETED: 0.4,
-    FAILED: 0.1,
-    WAITING: 0.1,
-    PENDING: 0.05,
-    SCHEDULING: 0.05,
-    INITIALIZING: 0.05,
+    // Active states
+    RUNNING: 0.20,
+    COMPLETED: 0.35,
+    WAITING: 0.08,
+    PENDING: 0.07,
+    // Failed states (all 12 failure types)
+    FAILED: 0.06,
+    FAILED_SUBMISSION: 0.02,
+    FAILED_SERVER_ERROR: 0.02,
+    FAILED_EXEC_TIMEOUT: 0.03,
+    FAILED_QUEUE_TIMEOUT: 0.02,
+    FAILED_CANCELED: 0.03,
+    FAILED_BACKEND_ERROR: 0.02,
+    FAILED_IMAGE_PULL: 0.03,
+    FAILED_EVICTED: 0.02,
+    FAILED_START_ERROR: 0.02,
+    FAILED_START_TIMEOUT: 0.02,
+    FAILED_PREEMPTED: 0.01,
   },
   priorityDistribution: {
     HIGH: 0.1,
@@ -204,15 +216,18 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
     duration: { min: 60, max: 172800, p50: 3600, p90: 28800 },
   },
   failures: {
+    // WorkflowStatus failure values only (FAILED_UPSTREAM is TaskGroupStatus only)
     typeDistribution: {
-      FAILED: 0.4,
+      FAILED: 0.35,
       FAILED_EXEC_TIMEOUT: 0.15,
       FAILED_IMAGE_PULL: 0.15,
       FAILED_EVICTED: 0.1,
       FAILED_PREEMPTED: 0.1,
       FAILED_QUEUE_TIMEOUT: 0.05,
-      FAILED_UPSTREAM: 0.05,
+      FAILED_CANCELED: 0.05,
+      FAILED_SUBMISSION: 0.05,
     },
+    // Messages for all 12 failure types
     messages: {
       FAILED: [
         "Process exited with code 1",
@@ -221,7 +236,12 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
         "RuntimeError: NCCL error",
         "Segmentation fault (core dumped)",
       ],
+      FAILED_SUBMISSION: ["Failed to submit workflow", "Invalid workflow spec", "Submission rejected by backend"],
+      FAILED_SERVER_ERROR: ["Internal server error", "Backend service unavailable", "API request failed"],
       FAILED_EXEC_TIMEOUT: ["Execution timeout exceeded (24h)", "Task exceeded maximum runtime", "Deadline exceeded"],
+      FAILED_QUEUE_TIMEOUT: ["Queue timeout exceeded (48h)", "No resources available within timeout"],
+      FAILED_CANCELED: ["Canceled by user", "Workflow canceled via API", "Canceled due to shutdown"],
+      FAILED_BACKEND_ERROR: ["Backend cluster unreachable", "Kubernetes API error", "Scheduler failure"],
       FAILED_IMAGE_PULL: [
         "ImagePullBackOff: unauthorized",
         "Failed to pull image: not found",
@@ -232,13 +252,13 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
         "Pod evicted due to disk pressure",
         "Evicted for node maintenance",
       ],
+      FAILED_START_ERROR: ["Container failed to start", "Entrypoint not found", "Permission denied"],
+      FAILED_START_TIMEOUT: ["Container start timeout", "Init container took too long", "Readiness probe failed"],
       FAILED_PREEMPTED: [
         "Preempted by higher priority workload",
         "Spot instance terminated",
         "Resource reclaimed for priority=HIGH",
       ],
-      FAILED_QUEUE_TIMEOUT: ["Queue timeout exceeded (48h)", "No resources available within timeout"],
-      FAILED_UPSTREAM: ["Upstream task failed", "Dependency task exited with error"],
     },
   },
 };
