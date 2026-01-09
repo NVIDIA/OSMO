@@ -28,211 +28,214 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-func main() {
-	cmdArgs := utils.ListenerParse()
+// WorkflowListener manages the bidirectional gRPC stream connection to the operator service
+type WorkflowListener struct {
+	args            utils.ListenerArgs
+	unackedMessages *utils.UnackMessages
 
-	log.Printf(
-		"Starting Workflow Listener: backend=%s, namespace=%s",
-		cmdArgs.Backend, cmdArgs.Namespace,
-	)
+	// Connection state
+	conn   *grpc.ClientConn
+	client pb.ListenerServiceClient
+	stream pb.ListenerService_WorkflowListenerStreamClient
 
-	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Add backend-name to metadata
-	md := metadata.Pairs("backend-name", cmdArgs.Backend)
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	if err := initializeBackend(ctx, cmdArgs); err != nil {
-		log.Fatalf("Failed to initialize backend: %v", err)
-	}
-
-	// Create shared unacked messages tracker that persists across reconnections
-	// This ensures messages are not lost when:
-	// 1. gRPC connection breaks
-	// 2. Pod watcher crashes
-	// 3. Any other transient failure occurs
-	unackedMessages := utils.NewUnackMessages(cmdArgs.MaxUnackedMessages)
-
-	// Run the listener client with automatic reconnection
-	// On each reconnection attempt:
-	// - Establish new gRPC stream
-	// - Resend all unacked messages before watching new events
-	// - Resume normal operation
-	for {
-		err := runWorkflowListener(ctx, cmdArgs, unackedMessages)
-		if err != nil {
-			if err == context.Canceled || err == context.DeadlineExceeded {
-				log.Printf("Context cancelled, shutting down: %v", err)
-				break
-			}
-			log.Printf("Connection lost: %v. Reconnecting in 3 seconds...", err)
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		// Clean exit
-		break
-	}
-
-	log.Println("Workflow Listener stopped gracefully")
+	// Stream coordination
+	streamCtx    context.Context
+	streamCancel context.CancelCauseFunc
+	wg           sync.WaitGroup
+	closeOnce    sync.Once
 }
 
-// initializeBackend sends the initial backend registration to the operator service
-// with automatic retry until successful or context cancelled
-func initializeBackend(ctx context.Context, args utils.ListenerArgs) error {
-	version, err := libutils.LoadVersion()
-	if err != nil {
-		return fmt.Errorf("failed to load version from file: %w", err)
-	}
-
-	// Parse serviceURL to extract host:port for gRPC
-	serviceAddr, err := utils.ParseServiceURL(args.ServiceURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse service URL: %w", err)
-	}
-
-	kubeSystemUID, err := utils.GetKubeSystemUID()
-	if err != nil {
-		return fmt.Errorf("failed to get kube-system UID: %w", err)
-	}
-	initReq := &pb.InitBackendRequest{
-		InitBody: &pb.InitBody{
-			K8SUid:              kubeSystemUID,
-			K8SNamespace:        args.Namespace,
-			Name:                args.Backend,
-			Version:             version,
-			NodeConditionPrefix: args.NodeConditionPrefix,
-		},
-	}
-
-	// Create connection (lazy - actual connection happens on first RPC)
-	conn, err := grpc.NewClient(
-		serviceAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create gRPC client: %w", err)
-	}
-	defer conn.Close()
-
-	client := pb.NewListenerServiceClient(conn)
-
-	// Retry loop for InitBackend RPC call
-	retryCount := 0
-	for {
-		initResp, err := client.InitBackend(ctx, initReq)
-		if err == nil {
-			if !initResp.Success {
-				return fmt.Errorf("backend initialization failed: %s", initResp.Message)
-			}
-			return nil
-		}
-
-		retryCount++
-		if retryCount == 1 {
-			log.Printf("Failed to initialize backend: %v. Retrying...", err)
-		}
-
-		backoff := utils.CalculateBackoff(retryCount, 30*time.Second)
-		time.Sleep(backoff)
+// NewWorkflowListener creates a new workflow listener instance
+func NewWorkflowListener(args utils.ListenerArgs) *WorkflowListener {
+	return &WorkflowListener{
+		args:            args,
+		unackedMessages: utils.NewUnackMessages(args.MaxUnackedMessages),
 	}
 }
 
-// runWorkflowListener establishes a connection to the operator service
-// and maintains a bidirectional stream
-func runWorkflowListener(
-	ctx context.Context,
-	args utils.ListenerArgs,
-	unackedMessages *utils.UnackMessages,
-) error {
+// Connect establishes a gRPC connection and stream
+func (wl *WorkflowListener) Connect(ctx context.Context) error {
 	// Parse serviceURL to extract host:port for gRPC
-	serviceAddr, err := utils.ParseServiceURL(args.ServiceURL)
+	serviceAddr, err := utils.ParseServiceURL(wl.args.ServiceURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse service URL: %w", err)
 	}
 
 	// Connect to the gRPC server
-	conn, err := grpc.NewClient(
+	wl.conn, err = grpc.NewClient(
 		serviceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to connect to service: %w", err)
 	}
-	defer conn.Close()
 
 	// Create the listener service client
-	client := pb.NewListenerServiceClient(conn)
+	wl.client = pb.NewListenerServiceClient(wl.conn)
 
 	// Establish the bidirectional stream
-	stream, err := client.WorkflowListenerStream(ctx)
+	wl.stream, err = wl.client.WorkflowListenerStream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
 
-	log.Printf("Connected to operator service, stream established")
-
-	// WaitGroup to track goroutine completion
-	var wg sync.WaitGroup // TODO
-
 	// Context for coordinated shutdown of goroutines with error cause
-	streamCtx, streamCancel := context.WithCancelCause(ctx)
-	defer streamCancel(nil)
+	wl.streamCtx, wl.streamCancel = context.WithCancelCause(ctx)
 
-	// Ensure stream is closed only once
-	var closeOnce sync.Once
-	closeStream := func() {
-		closeOnce.Do(func() {
-			if err := stream.CloseSend(); err != nil {
-				log.Printf("Error closing stream: %v", err)
-			}
-		})
+	log.Printf("Connected to operator service, stream established")
+	return nil
+}
+
+// Run manages the bidirectional streaming lifecycle
+func (wl *WorkflowListener) Run(ctx context.Context) error {
+	if err := wl.Connect(ctx); err != nil {
+		return err
 	}
-	defer closeStream()
+	defer wl.Close()
 
 	// Resend all unacked messages from previous connection (if any)
-	// This handles reconnection scenarios where messages were sent but not acknowledged
-	unackedList := unackedMessages.ListMessages()
-	if len(unackedList) > 0 {
-		log.Printf("Resending %d unacked messages from previous connection", len(unackedList))
-		for _, msg := range unackedList {
-			if err := stream.Send(msg); err != nil {
-				return fmt.Errorf("failed to resend unacked message %s: %w", msg.Uuid, err)
-			}
-		}
+	if err := wl.unackedMessages.ResendAll(wl.stream); err != nil {
+		return err
 	}
 
 	// Launch goroutines for send and receive
-	wg.Add(2)
+	wl.wg.Add(2)
 	go func() {
-		defer wg.Done()
-		receiveMessages(streamCtx, streamCancel, stream, unackedMessages)
+		defer wl.wg.Done()
+		wl.receiveMessages()
 	}()
 
 	go func() {
-		defer wg.Done()
-		sendMessages(streamCtx, streamCancel, stream, args, unackedMessages)
+		defer wl.wg.Done()
+		wl.sendMessages()
 	}()
 
+	// Wait for completion
+	return wl.waitForCompletion(ctx)
+}
+
+// receiveMessages handles receiving ACK messages from the server
+func (wl *WorkflowListener) receiveMessages() {
+	for {
+		msg, err := wl.stream.Recv()
+		if err != nil {
+			// Check if context was cancelled
+			if wl.streamCtx.Err() != nil {
+				log.Println("Stopping message receiver (context cancelled)...")
+				return
+			}
+			if err == io.EOF {
+				log.Println("Server closed the stream")
+				wl.streamCancel(io.EOF)
+				return
+			}
+			wl.streamCancel(fmt.Errorf("failed to receive message: %w", err))
+			return
+		}
+
+		// Handle ACK messages by removing from unacked queue
+		wl.unackedMessages.RemoveMessage(msg.AckUuid)
+		log.Printf("Received ACK: uuid=%s", msg.AckUuid)
+	}
+}
+
+// sendMessages consumes pod updates from a channel and sends them to the server
+func (wl *WorkflowListener) sendMessages() {
+	// Create a channel to receive pod updates (with pre-calculated status) from the watcher
+	podUpdateChan := make(chan podWithStatus, wl.args.PodUpdateChanSize)
+
+	// Create a channel to signal if watchPod exits unexpectedly
+	watcherDone := make(chan struct{})
+
+	// Start pod watcher in a separate goroutine
+	go func() {
+		defer close(watcherDone)
+		watchPod(wl.streamCtx, wl.args, podUpdateChan)
+	}()
+
+	// Send pod updates to the server
+	for {
+		select {
+		case <-wl.streamCtx.Done():
+			log.Println("Stopping message sender, draining channel...")
+			wl.drainChannel(podUpdateChan)
+			return
+		case <-watcherDone:
+			log.Println("Pod watcher stopped unexpectedly, draining channel...")
+			wl.drainChannel(podUpdateChan)
+			wl.streamCancel(fmt.Errorf("pod watcher stopped"))
+			return
+		case update := <-podUpdateChan:
+			if err := wl.sendPodUpdate(update); err != nil {
+				wl.streamCancel(fmt.Errorf("failed to send message: %w", err))
+				return
+			}
+		}
+	}
+}
+
+// sendPodUpdate sends a single pod update message
+func (wl *WorkflowListener) sendPodUpdate(update podWithStatus) error {
+	// Use pre-calculated status result from the channel to avoid duplicate calculation
+	msg, err := createPodUpdateMessage(update.pod, update.statusResult, wl.args.Backend)
+	if err != nil {
+		log.Printf("Failed to create pod update message: %v", err)
+		return nil // Don't fail the stream for one message
+	}
+
+	// Add message to unacked queue before sending
+	if err := wl.unackedMessages.AddMessage(wl.streamCtx, msg); err != nil {
+		log.Printf("Failed to add message to unacked queue: %v", err)
+		return nil // Don't fail the stream
+	}
+
+	if err := wl.stream.Send(msg); err != nil {
+		return err
+	}
+	return nil
+}
+
+// drainChannel saves any remaining messages in the channel to unacked queue
+// This prevents message loss during connection breaks
+func (wl *WorkflowListener) drainChannel(podUpdateChan <-chan podWithStatus) {
+	drained := 0
+	for {
+		select {
+		case update := <-podUpdateChan:
+			msg, err := createPodUpdateMessage(update.pod, update.statusResult, wl.args.Backend)
+			if err != nil {
+				log.Printf("Failed to create message during drain: %v", err)
+				continue
+			}
+			wl.unackedMessages.AddMessageForced(msg)
+			drained++
+		default:
+			if drained > 0 {
+				log.Printf("Drained %d messages from channel to unacked queue", drained)
+			}
+			return
+		}
+	}
+}
+
+// waitForCompletion waits for goroutines to finish
+func (wl *WorkflowListener) waitForCompletion(ctx context.Context) error {
 	// Wait for context cancellation (from parent or goroutines)
-	<-streamCtx.Done()
+	<-wl.streamCtx.Done()
 
 	// Check if error came from a goroutine or parent context
 	var finalErr error
-	if cause := context.Cause(streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
+	if cause := context.Cause(wl.streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
 		log.Printf("Error from goroutine: %v", cause)
 		finalErr = fmt.Errorf("stream error: %w", cause)
 	} else if ctx.Err() != nil {
@@ -241,11 +244,11 @@ func runWorkflowListener(
 	}
 
 	// Close stream and wait for goroutines with timeout
-	closeStream()
+	wl.closeStream()
 
 	shutdownComplete := make(chan struct{})
 	go func() {
-		wg.Wait()
+		wl.wg.Wait()
 		close(shutdownComplete)
 	}()
 
@@ -259,34 +262,87 @@ func runWorkflowListener(
 	return finalErr
 }
 
-// receiveMessages handles receiving ACK messages from the server
-func receiveMessages(
-	ctx context.Context,
-	cancel context.CancelCauseFunc,
-	stream pb.ListenerService_WorkflowListenerStreamClient,
-	unackedMessages *utils.UnackMessages,
-) {
-	for {
-		msg, err := stream.Recv()
-		if err != nil {
-			// Check if context was cancelled
-			if ctx.Err() != nil {
-				log.Println("Stopping message receiver (context cancelled)...")
-				return
+// closeStream ensures stream is closed only once
+func (wl *WorkflowListener) closeStream() {
+	wl.closeOnce.Do(func() {
+		if wl.stream != nil {
+			if err := wl.stream.CloseSend(); err != nil {
+				log.Printf("Error closing stream: %v", err)
 			}
-			if err == io.EOF {
-				log.Println("Server closed the stream")
-				cancel(io.EOF)
-				return
-			}
-			cancel(fmt.Errorf("failed to receive message: %w", err))
-			return
 		}
+	})
+}
 
-		// Handle ACK messages by removing from unacked queue
-		unackedMessages.RemoveMessage(msg.AckUuid)
-		log.Printf("Received ACK: uuid=%s", msg.AckUuid)
+// Close cleans up resources
+func (wl *WorkflowListener) Close() {
+	if wl.streamCancel != nil {
+		wl.streamCancel(nil)
 	}
+	wl.closeStream()
+	if wl.conn != nil {
+		wl.conn.Close()
+	}
+}
+
+// podWithStatus bundles a pod with its calculated status to avoid duplicate computation
+type podWithStatus struct {
+	pod          *corev1.Pod
+	statusResult utils.PodStatusResult
+}
+
+// podStateEntry represents a tracked pod state with timestamp
+type podStateEntry struct {
+	status    string
+	timestamp time.Time
+}
+
+// podStateTracker tracks the last sent state for each pod to avoid duplicate messages
+type podStateTracker struct {
+	mu     sync.RWMutex
+	states map[string]podStateEntry // key: workflow_uuid-task_uuid-retry_id
+	ttl    time.Duration            // time after which entries are considered stale
+}
+
+// getPodKey creates a composite key from pod labels
+func getPodKey(pod *corev1.Pod) string {
+	workflowUUID := pod.Labels["osmo.workflow_uuid"]
+	taskUUID := pod.Labels["osmo.task_uuid"]
+	retryID := pod.Labels["osmo.retry_id"]
+	return fmt.Sprintf("%s-%s-%s", workflowUUID, taskUUID, retryID)
+}
+
+// hasChanged checks if the pod's status has changed since last sent, or if the TTL has expired
+// Returns (changed bool, statusResult PodStatusResult) to avoid duplicate status calculation
+func (pst *podStateTracker) hasChanged(pod *corev1.Pod) (bool, utils.PodStatusResult) {
+	key := getPodKey(pod)
+
+	statusResult := utils.CalculatePodStatus(pod)
+	now := time.Now()
+
+	pst.mu.Lock()
+	defer pst.mu.Unlock()
+
+	entry, exists := pst.states[key]
+
+	// Return false if status unchanged and TTL not expired
+	if exists && entry.status == statusResult.Status && now.Sub(entry.timestamp) <= pst.ttl {
+		return false, utils.PodStatusResult{}
+	}
+
+	// Send if: new pod, status changed, or TTL expired
+	pst.states[key] = podStateEntry{
+		status:    statusResult.Status,
+		timestamp: now,
+	}
+	return true, statusResult
+}
+
+// remove removes a pod from the state tracker
+func (pst *podStateTracker) remove(pod *corev1.Pod) {
+	key := getPodKey(pod)
+	pst.mu.Lock()
+	defer pst.mu.Unlock()
+	delete(pst.states, key)
 }
 
 // watchPod watches for pod changes and sends them to a channel using
@@ -409,149 +465,6 @@ func watchPod(
 	log.Println("Pod watcher stopped")
 }
 
-// drainChannel saves any remaining messages in the channel to unacked queue
-// This prevents message loss during connection breaks
-func drainChannel(
-	podUpdateChan <-chan podWithStatus,
-	unackedMessages *utils.UnackMessages,
-	backend string,
-) {
-	drained := 0
-	for {
-		select {
-		case update := <-podUpdateChan:
-			msg, err := createPodUpdateMessage(update.pod, update.statusResult, backend)
-			if err != nil {
-				log.Printf("Failed to create message during drain: %v", err)
-				continue
-			}
-			unackedMessages.AddMessageForced(msg)
-			drained++
-		default:
-			if drained > 0 {
-				log.Printf("Drained %d messages from channel to unacked queue", drained)
-			}
-			return
-		}
-	}
-}
-
-// sendMessages consumes pod updates from a channel and sends them to the server
-func sendMessages(
-	ctx context.Context,
-	cancel context.CancelCauseFunc,
-	stream pb.ListenerService_WorkflowListenerStreamClient,
-	args utils.ListenerArgs,
-	unackedMessages *utils.UnackMessages,
-) {
-	// Create a channel to receive pod updates (with pre-calculated status) from the watcher
-	podUpdateChan := make(chan podWithStatus, args.PodUpdateChanSize)
-
-	// Create a channel to signal if watchPod exits unexpectedly
-	watcherDone := make(chan struct{})
-
-	// Start pod watcher in a separate goroutine
-	go func() {
-		defer close(watcherDone)
-		watchPod(ctx, args, podUpdateChan)
-	}()
-
-	// Send pod updates to the server
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("Stopping message sender, draining channel...")
-			drainChannel(podUpdateChan, unackedMessages, args.Backend)
-			return
-		case <-watcherDone:
-			log.Println("Pod watcher stopped unexpectedly, draining channel...")
-			drainChannel(podUpdateChan, unackedMessages, args.Backend)
-			cancel(fmt.Errorf("pod watcher stopped"))
-			return
-		case update := <-podUpdateChan:
-			// Use pre-calculated status result from the channel to avoid duplicate calculation
-			msg, err := createPodUpdateMessage(
-				update.pod, update.statusResult, args.Backend)
-			if err != nil {
-				log.Printf("Failed to create pod update message: %v", err)
-				continue
-			}
-
-			// Add message to unacked queue before sending
-			if err := unackedMessages.AddMessage(ctx, msg); err != nil {
-				log.Printf("Failed to add message to unacked queue: %v", err)
-				continue
-			}
-
-			if err := stream.Send(msg); err != nil {
-				cancel(fmt.Errorf("failed to send message: %w", err))
-				return
-			}
-		}
-	}
-}
-
-// podWithStatus bundles a pod with its calculated status to avoid duplicate computation
-type podWithStatus struct {
-	pod          *corev1.Pod
-	statusResult utils.PodStatusResult
-}
-
-// podStateEntry represents a tracked pod state with timestamp
-type podStateEntry struct {
-	status    string
-	timestamp time.Time
-}
-
-// podStateTracker tracks the last sent state for each pod to avoid duplicate messages
-type podStateTracker struct {
-	mu     sync.RWMutex
-	states map[string]podStateEntry // key: workflow_uuid-task_uuid-retry_id
-	ttl    time.Duration            // time after which entries are considered stale
-}
-
-// getPodKey creates a composite key from pod labels
-func getPodKey(pod *corev1.Pod) string {
-	workflowUUID := pod.Labels["osmo.workflow_uuid"]
-	taskUUID := pod.Labels["osmo.task_uuid"]
-	retryID := pod.Labels["osmo.retry_id"]
-	return fmt.Sprintf("%s-%s-%s", workflowUUID, taskUUID, retryID)
-}
-
-// hasChanged checks if the pod's status has changed since last sent, or if the TTL has expired
-// Returns (changed bool, statusResult PodStatusResult) to avoid duplicate status calculation
-func (pst *podStateTracker) hasChanged(pod *corev1.Pod) (bool, utils.PodStatusResult) {
-	key := getPodKey(pod)
-
-	statusResult := utils.CalculatePodStatus(pod)
-	now := time.Now()
-
-	pst.mu.Lock()
-	defer pst.mu.Unlock()
-
-	entry, exists := pst.states[key]
-
-	// Return false if status unchanged and TTL not expired
-	if exists && entry.status == statusResult.Status && now.Sub(entry.timestamp) <= pst.ttl {
-		return false, utils.PodStatusResult{}
-	}
-
-	// Send if: new pod, status changed, or TTL expired
-	pst.states[key] = podStateEntry{
-		status:    statusResult.Status,
-		timestamp: now,
-	}
-	return true, statusResult
-}
-
-// remove removes a pod from the state tracker
-func (pst *podStateTracker) remove(pod *corev1.Pod) {
-	key := getPodKey(pod)
-	pst.mu.Lock()
-	defer pst.mu.Unlock()
-	delete(pst.states, key)
-}
-
 // parseRetryID parses the retry_id label string to int32, defaulting to 0
 func parseRetryID(retryIDStr string) int32 {
 	retryID := int32(0)
@@ -562,7 +475,6 @@ func parseRetryID(retryIDStr string) int32 {
 }
 
 // createPodUpdateMessage creates a ListenerMessage from a pod object
-// Returns the message and the pod update body for reference
 func createPodUpdateMessage(
 	pod *corev1.Pod,
 	statusResult utils.PodStatusResult,

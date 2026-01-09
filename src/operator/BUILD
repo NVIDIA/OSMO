@@ -301,7 +301,10 @@ oci_push(
 
 go_library(
     name = "workflow_listener_lib",
-    srcs = ["workflow_listener.go"],
+    srcs = [
+        "main.go",
+        "workflow_listener.go",
+    ],
     importpath = "go.corp.nvidia.com/osmo/operator",
     visibility = ["//src/operator:__subpackages__"],
     deps = [

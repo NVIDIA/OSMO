@@ -20,12 +20,17 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
-	"time"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
+
+// MessageSender defines the interface for sending messages
+type MessageSender interface {
+	Send(*pb.ListenerMessage) error
+}
 
 // UnackMessages provides flow control and reliability by tracking messages that have been sent
 // but not yet acknowledged by the server. When the max limit is reached, sending is
@@ -133,15 +138,19 @@ func (um *UnackMessages) Qsize() int {
 	return len(um.messages)
 }
 
-// CalculateBackoff calculates exponential backoff duration with a maximum cap
-// Backoff sequence: 1s, 2s, 4s, 8s, 16s, max 30s
-func CalculateBackoff(retryCount int, maxBackoff time.Duration) time.Duration {
-	if retryCount <= 0 {
-		return 0
+// ResendAll resends all unacked messages using the provided sender
+// This is typically used after reconnection to ensure no messages are lost
+func (um *UnackMessages) ResendAll(sender MessageSender) error {
+	messages := um.ListMessages()
+	if len(messages) == 0 {
+		return nil
 	}
-	backoff := time.Duration(1<<uint(retryCount-1)) * time.Second
-	if backoff > maxBackoff {
-		backoff = maxBackoff
+
+	log.Printf("Resending %d unacked messages from previous connection", len(messages))
+	for _, msg := range messages {
+		if err := sender.Send(msg); err != nil {
+			return fmt.Errorf("failed to resend unacked message %s: %w", msg.Uuid, err)
+		}
 	}
-	return backoff
+	return nil
 }
