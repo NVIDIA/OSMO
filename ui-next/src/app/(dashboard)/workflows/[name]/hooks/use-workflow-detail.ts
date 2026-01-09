@@ -25,7 +25,7 @@
 
 import { useMemo } from "react";
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
-import { transformGroups, type GroupWithLayout } from "@/app/(dashboard)/dev/workflow-explorer/workflow-types";
+import { transformGroups, type GroupWithLayout } from "../lib/dag/workflow-types";
 
 // =============================================================================
 // Types
