@@ -18,19 +18,20 @@
  * Workflow Detail Page
  *
  * Displays a single workflow with:
- * - Header with name, status, duration, and actions (cancel, logs, refresh)
  * - DAG visualization of workflow groups and their dependencies
- * - Details panel for group/task inspection
+ * - Unified multi-layer inspector panel (workflow → group → task)
  *
  * Architecture:
  * - Uses useWorkflowDetail hook for data fetching
  * - Reuses DAG components from reactflow-dag
- * - Supports DAG/Table view toggle (future)
+ * - Multi-layer panel navigation with breadcrumbs
  *
- * Navigation Flow:
- * - Click GROUP node → Opens DetailsPanel with GroupDetails
- * - Click task in GroupDetails → Transitions to TaskDetails
- * - Click SINGLE-TASK node → Opens DetailsPanel with TaskDetails directly
+ * Panel Navigation Flow:
+ * - Default: WorkflowDetails (base layer)
+ * - Click GROUP node → GroupDetails layer
+ * - Click task in GroupDetails → TaskDetails layer
+ * - Click back/breadcrumb → Navigate up layers
+ * - Click X → Collapse to edge strip
  */
 
 "use client";
@@ -46,7 +47,7 @@ import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/skeleton";
 
-// DAG components from reactflow-dag
+// DAG components - local to workflow detail
 import {
   nodeTypes,
   MiniMapNode,
@@ -54,30 +55,31 @@ import {
   DAGErrorBoundary,
   DAGControls,
   DetailsPanel,
-} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/components";
+} from "./lib/dag/components";
+import type { DetailsPanelView } from "./lib/dag/components/DetailsPanel";
 import {
   useDAGState,
   useResizablePanel,
   useViewportBoundaries,
-} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/hooks";
-import { DAGProvider } from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/context";
+} from "./lib/dag/hooks";
+import { DAGProvider } from "./lib/dag/context";
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
   MINIMAP,
   BACKGROUND,
-} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/constants";
+} from "./lib/dag/constants";
 import {
   getMiniMapNodeColor,
   getMiniMapStrokeColor,
-} from "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/utils";
+} from "./lib/dag/utils";
 
-// Local components
-import { WorkflowHeader } from "./components/workflow-header";
+// Local hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
+import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
 
 // CSS for DAG
-import "@/app/(dashboard)/dev/workflow-explorer/reactflow-dag/dag.css";
+import "./lib/dag/dag.css";
 
 // =============================================================================
 // Types
@@ -93,30 +95,25 @@ interface WorkflowDetailPageProps {
 
 function WorkflowDetailSkeleton() {
   return (
-    <div className="flex h-full flex-col">
-      {/* Header skeleton */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-zinc-800">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-8 w-24" />
-          <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-700" />
-          <div>
-            <Skeleton className="mb-2 h-6 w-48" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Skeleton className="h-9 w-20" />
-          <Skeleton className="h-9 w-24" />
+    <div className="relative flex h-full bg-gray-50 dark:bg-zinc-950">
+      {/* DAG skeleton */}
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-center text-gray-500 dark:text-zinc-500">
+          <Skeleton className="mx-auto mb-4 h-32 w-32 rounded-lg" />
+          <p>Loading workflow...</p>
         </div>
       </div>
-      {/* DAG skeleton */}
-      <div className="flex-1 bg-gray-50 dark:bg-zinc-950">
-        <div className="flex h-full items-center justify-center">
-          <div className="text-center text-gray-500 dark:text-zinc-500">
-            <Skeleton className="mx-auto mb-4 h-32 w-32 rounded-lg" />
-            <p>Loading workflow...</p>
-          </div>
-        </div>
+      {/* Right panel skeleton */}
+      <div className="absolute inset-y-0 right-0 w-[33%] border-l border-gray-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <Skeleton className="mb-4 h-6 w-3/4" />
+        <Skeleton className="mb-2 h-4 w-1/2" />
+        <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
+        <Skeleton className="mb-2 h-4 w-20" />
+        <Skeleton className="mb-2 h-16 w-full" />
+        <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
+        <Skeleton className="mb-2 h-4 w-20" />
+        <Skeleton className="mb-2 h-4 w-24" />
+        <Skeleton className="h-4 w-16" />
       </div>
     </div>
   );
@@ -155,6 +152,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const { resolvedTheme } = useTheme();
 
+  // Panel collapsed state (persisted)
+  const { collapsed: isPanelCollapsed, toggle: togglePanelCollapsed } = useSidebarCollapsed();
+
   // Background color based on theme
   const backgroundDotColor = resolvedTheme === "dark" ? BACKGROUND.COLOR_DARK : BACKGROUND.COLOR_LIGHT;
 
@@ -172,7 +172,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     handleSelectGroup,
     handleSelectTask,
     handleToggleExpand,
-    panelView,
+    panelView: dagPanelView,
     selectedGroup,
     selectedTask,
     handleClosePanel,
@@ -186,17 +186,23 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Resizable panel
   const { panelPct, setPanelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel();
 
-  // Panel open state
-  const isPanelOpen = panelView !== "none" && selectedGroup !== null;
+  // Determine current panel view (workflow is default, then group/task based on selection)
+  const currentPanelView: DetailsPanelView = 
+    dagPanelView === "task" && selectedTask ? "task" :
+    dagPanelView === "group" && selectedGroup ? "group" : 
+    "workflow";
+
+  // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
+  const isPanelOpen = !isPanelCollapsed;
 
   // Viewport boundary management
   const { handleMove, handleMoveEnd } = useViewportBoundaries({
     nodeBounds,
-    panelPct,
+    panelPct: isPanelOpen ? panelPct : 3, // Use minimal width when collapsed
     isPanelOpen,
     containerRef,
     selectedGroupName: selectedGroup?.name ?? null,
-    panelView,
+    panelView: currentPanelView,
     nodes,
   });
 
@@ -216,15 +222,16 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     [setLayoutDirection],
   );
 
-  const handleRefresh = useCallback(() => {
-    refetch();
-  }, [refetch]);
-
   const handleCancel = useCallback(() => {
     // TODO: Implement workflow cancellation
     // This will need a confirmation dialog and API call
     console.log("Cancel workflow:", name);
   }, [name]);
+
+  // Navigate back from group to workflow (deselect group)
+  const handleBackToWorkflow = useCallback(() => {
+    handleClosePanel();
+  }, [handleClosePanel]);
 
   // Loading state
   if (isLoading) {
@@ -244,7 +251,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           <h2 className="mb-2 text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Workflow</h2>
           <p className="mb-4 text-gray-500 dark:text-zinc-400">{error.message}</p>
           <button
-            onClick={handleRefresh}
+            onClick={() => refetch()}
             className="text-blue-600 hover:underline dark:text-blue-400"
           >
             Try again
@@ -256,16 +263,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   return (
     <DAGErrorBoundary>
-      <div className="flex h-full flex-col bg-gray-50 dark:bg-zinc-950">
-        {/* Workflow Header */}
-        <WorkflowHeader
-          workflow={workflow}
-          isRefreshing={isLoading}
-          onRefresh={handleRefresh}
-          onCancel={handleCancel}
-        />
-
-        {/* Main Content */}
+      {/* Main Content: DAG + Unified Panel */}
+      <div className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950">
+        {/* DAG Canvas Area */}
         <div
           ref={containerRef}
           className="relative flex flex-1 overflow-hidden"
@@ -346,25 +346,28 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
             </DAGProvider>
           </main>
 
-          {/* Details Panel */}
-          {isPanelOpen && selectedGroup && (
-            <DetailsPanel
-              view={panelView as "group" | "task"}
-              group={selectedGroup}
-              allGroups={dagGroups}
-              task={selectedTask}
-              onClose={handleClosePanel}
-              onBackToGroup={handleBackToGroup}
-              onSelectTask={handleSelectTask}
-              onSelectGroup={handleSelectGroup}
-              panelPct={panelPct}
-              onPanelResize={setPanelPct}
-              isDragging={isDragging}
-              bindResizeHandle={bindResizeHandle}
-              isDetailsExpanded={isDetailsExpanded}
-              onToggleDetailsExpanded={handleToggleDetailsExpanded}
-            />
-          )}
+          {/* Unified Multi-Layer Inspector Panel (right) */}
+          <DetailsPanel
+            view={currentPanelView}
+            workflow={workflow}
+            group={selectedGroup}
+            allGroups={dagGroups}
+            task={selectedTask}
+            onClose={handleClosePanel}
+            onBackToGroup={handleBackToGroup}
+            onBackToWorkflow={handleBackToWorkflow}
+            onSelectTask={handleSelectTask}
+            onSelectGroup={handleSelectGroup}
+            panelPct={panelPct}
+            onPanelResize={setPanelPct}
+            isDragging={isDragging}
+            bindResizeHandle={bindResizeHandle}
+            isDetailsExpanded={isDetailsExpanded}
+            onToggleDetailsExpanded={handleToggleDetailsExpanded}
+            isCollapsed={isPanelCollapsed}
+            onToggleCollapsed={togglePanelCollapsed}
+            onCancelWorkflow={handleCancel}
+          />
         </div>
       </div>
     </DAGErrorBoundary>
@@ -389,9 +392,12 @@ export default function WorkflowDetailPage({ params }: WorkflowDetailPageProps) 
       title="Unable to display workflow"
       onReset={() => window.location.reload()}
     >
-      <ReactFlowProvider>
-        <WorkflowDetailPageInner name={decodedName} />
-      </ReactFlowProvider>
+      {/* Negate shell padding for edge-to-edge DAG layout */}
+      <div className="-m-6 h-[calc(100%+48px)]">
+        <ReactFlowProvider>
+          <WorkflowDetailPageInner name={decodedName} />
+        </ReactFlowProvider>
+      </div>
     </InlineErrorBoundary>
   );
 }
