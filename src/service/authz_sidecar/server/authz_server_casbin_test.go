@@ -1,5 +1,5 @@
 /*
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -232,186 +232,357 @@ func TestResourceMatchFunc(t *testing.T) {
 	}
 }
 
-func TestResolveAction(t *testing.T) {
+func TestResolvePathToAction(t *testing.T) {
 	tests := []struct {
-		name       string
-		path       string
-		method     string
-		wantAction string
+		name         string
+		path         string
+		method       string
+		wantAction   string
+		wantResource string
 	}{
+		// Pool-scoped resources (workflow, task) - pool cannot be determined from path
 		{
-			name:       "GET workflow list",
-			path:       "/api/workflow",
-			method:     "GET",
-			wantAction: "workflow:List",
+			name:         "GET workflow list",
+			path:         "/api/workflow",
+			method:       "GET",
+			wantAction:   ActionWorkflowRead,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "GET workflow by ID",
-			path:       "/api/workflow/abc123",
-			method:     "GET",
-			wantAction: "workflow:Read",
+			name:         "GET workflow by ID",
+			path:         "/api/workflow/abc123",
+			method:       "GET",
+			wantAction:   ActionWorkflowRead,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "POST create workflow",
-			path:       "/api/workflow",
-			method:     "POST",
-			wantAction: "workflow:Create",
+			name:         "POST create workflow",
+			path:         "/api/workflow",
+			method:       "POST",
+			wantAction:   ActionWorkflowCreate,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "PUT update workflow",
-			path:       "/api/workflow/abc123",
-			method:     "PUT",
-			wantAction: "workflow:Update",
+			name:         "PUT update workflow",
+			path:         "/api/workflow/abc123",
+			method:       "PUT",
+			wantAction:   ActionWorkflowUpdate,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "PATCH update workflow",
-			path:       "/api/workflow/abc123",
-			method:     "PATCH",
-			wantAction: "workflow:Update",
+			name:         "PATCH update workflow",
+			path:         "/api/workflow/abc123",
+			method:       "PATCH",
+			wantAction:   ActionWorkflowUpdate,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "DELETE workflow",
-			path:       "/api/workflow/abc123",
-			method:     "DELETE",
-			wantAction: "workflow:Delete",
+			name:         "DELETE workflow",
+			path:         "/api/workflow/abc123",
+			method:       "DELETE",
+			wantAction:   ActionWorkflowDelete,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "GET task list",
-			path:       "/api/task",
-			method:     "GET",
-			wantAction: "task:List",
+			name:         "POST cancel workflow",
+			path:         "/api/workflow/abc123/cancel",
+			method:       "POST",
+			wantAction:   ActionWorkflowCancel,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "GET task by ID",
-			path:       "/api/task/task-456",
-			method:     "GET",
-			wantAction: "task:Read",
+			name:         "GET task list",
+			path:         "/api/task",
+			method:       "GET",
+			wantAction:   ActionWorkflowRead,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "GET bucket list",
-			path:       "/api/bucket",
-			method:     "GET",
-			wantAction: "bucket:List",
+			name:         "GET task by ID",
+			path:         "/api/task/task-456",
+			method:       "GET",
+			wantAction:   ActionWorkflowRead,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "POST create bucket",
-			path:       "/api/bucket",
-			method:     "POST",
-			wantAction: "bucket:Create",
+			name:         "path with query string",
+			path:         "/api/workflow?status=running",
+			method:       "GET",
+			wantAction:   ActionWorkflowRead,
+			wantResource: "pool/*",
 		},
 		{
-			name:       "path with query string",
-			path:       "/api/workflow?status=running",
-			method:     "GET",
-			wantAction: "workflow:List",
+			name:         "path with trailing slash",
+			path:         "/api/workflow/",
+			method:       "GET",
+			wantAction:   ActionWorkflowRead,
+			wantResource: "pool/*",
+		},
+		// Self-scoped resources (bucket, config)
+		{
+			name:         "GET bucket list",
+			path:         "/api/bucket",
+			method:       "GET",
+			wantAction:   ActionBucketRead,
+			wantResource: "bucket/*",
 		},
 		{
-			name:       "path with trailing slash",
-			path:       "/api/workflow/",
-			method:     "GET",
-			wantAction: "workflow:List",
+			name:         "GET bucket by name",
+			path:         "/api/bucket/my-bucket",
+			method:       "GET",
+			wantAction:   ActionBucketRead,
+			wantResource: "bucket/my-bucket",
 		},
 		{
-			name:       "nested path",
-			path:       "/api/workflow/abc123/spec",
-			method:     "GET",
-			wantAction: "workflow:Read",
+			name:         "GET config list",
+			path:         "/api/configs",
+			method:       "GET",
+			wantAction:   ActionConfigRead,
+			wantResource: "config/*",
 		},
 		{
-			name:       "lowercase method",
-			path:       "/api/workflow",
-			method:     "get",
-			wantAction: "workflow:List",
+			name:         "GET config by ID",
+			path:         "/api/configs/my-config",
+			method:       "GET",
+			wantAction:   ActionConfigRead,
+			wantResource: "config/my-config",
+		},
+		// User-scoped resources (profile)
+		{
+			name:         "GET profile",
+			path:         "/api/profile/user123",
+			method:       "GET",
+			wantAction:   ActionProfileRead,
+			wantResource: "user/user123",
+		},
+		// Global/public resources
+		{
+			name:         "auth login endpoint",
+			path:         "/api/auth/login",
+			method:       "GET",
+			wantAction:   ActionAuthLogin,
+			wantResource: "*",
 		},
 		{
-			name:       "auth endpoint",
-			path:       "/api/auth/login",
-			method:     "GET",
-			wantAction: "auth:Read",
+			name:         "health endpoint",
+			path:         "/health",
+			method:       "GET",
+			wantAction:   ActionSystemHealth,
+			wantResource: "*",
 		},
 		{
-			name:       "health endpoint",
-			path:       "/health",
-			method:     "GET",
-			wantAction: "unknown:Unknown",
+			name:         "version endpoint",
+			path:         "/api/version",
+			method:       "GET",
+			wantAction:   ActionSystemVersion,
+			wantResource: "*",
+		},
+		{
+			name:         "credentials list",
+			path:         "/api/credentials",
+			method:       "GET",
+			wantAction:   ActionCredentialsRead,
+			wantResource: "*",
+		},
+		{
+			name:         "credentials create",
+			path:         "/api/credentials",
+			method:       "POST",
+			wantAction:   ActionCredentialsCreate,
+			wantResource: "*",
+		},
+		{
+			name:         "user list",
+			path:         "/api/users",
+			method:       "GET",
+			wantAction:   ActionUserList,
+			wantResource: "*",
+		},
+		{
+			name:         "app list",
+			path:         "/api/app",
+			method:       "GET",
+			wantAction:   ActionAppRead,
+			wantResource: "*",
+		},
+		// Internal resources - scoped to backend
+		{
+			name:         "internal operator",
+			path:         "/api/agent/listener/status",
+			method:       "GET",
+			wantAction:   ActionInternalOperator,
+			wantResource: "backend/listener",
+		},
+		{
+			name:         "internal logger",
+			path:         "/api/logger/workflow/abc123",
+			method:       "POST",
+			wantAction:   ActionInternalLogger,
+			wantResource: "backend/workflow",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveAction(tt.path, tt.method)
-			if got != tt.wantAction {
-				t.Errorf("resolveAction(%q, %q) = %q, want %q",
-					tt.path, tt.method, got, tt.wantAction)
+			gotAction, gotResource := ResolvePathToAction(tt.path, tt.method)
+			if gotAction != tt.wantAction {
+				t.Errorf("ResolvePathToAction(%q, %q) action = %q, want %q",
+					tt.path, tt.method, gotAction, tt.wantAction)
+			}
+			if gotResource != tt.wantResource {
+				t.Errorf("ResolvePathToAction(%q, %q) resource = %q, want %q",
+					tt.path, tt.method, gotResource, tt.wantResource)
 			}
 		})
 	}
 }
 
-func TestResolveResource(t *testing.T) {
+func TestUnknownPathReturnsEmptyAction(t *testing.T) {
+	// Test that unknown paths return empty action (which triggers deny)
 	tests := []struct {
-		name         string
-		path         string
-		wantResource string
+		name   string
+		path   string
+		method string
 	}{
 		{
-			name:         "workflow collection",
-			path:         "/api/workflow",
-			wantResource: "workflow/*",
+			name:   "unknown resource",
+			path:   "/api/unknown",
+			method: "GET",
 		},
 		{
-			name:         "workflow by ID",
-			path:         "/api/workflow/abc123",
-			wantResource: "workflow/abc123",
+			name:   "unknown nested path",
+			path:   "/api/unknown/abc123",
+			method: "GET",
 		},
 		{
-			name:         "task collection",
-			path:         "/api/task",
-			wantResource: "task/*",
-		},
-		{
-			name:         "task by ID",
-			path:         "/api/task/task-456",
-			wantResource: "task/task-456",
-		},
-		{
-			name:         "bucket by name",
-			path:         "/api/bucket/my-bucket",
-			wantResource: "bucket/my-bucket",
-		},
-		{
-			name:         "path with query string",
-			path:         "/api/workflow/abc123?details=true",
-			wantResource: "workflow/abc123",
-		},
-		{
-			name:         "path with trailing slash",
-			path:         "/api/workflow/",
-			wantResource: "workflow/*",
-		},
-		{
-			name:         "nested path returns first ID segment",
-			path:         "/api/workflow/abc123/spec",
-			wantResource: "workflow/abc123",
-		},
-		{
-			name:         "health endpoint",
-			path:         "/health",
-			wantResource: "*",
-		},
-		{
-			name:         "root path",
-			path:         "/",
-			wantResource: "*",
+			name:   "completely unknown path",
+			path:   "/something/random",
+			method: "POST",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveResource(tt.path)
-			if got != tt.wantResource {
-				t.Errorf("resolveResource(%q) = %q, want %q",
-					tt.path, got, tt.wantResource)
+			action, _ := ResolvePathToAction(tt.path, tt.method)
+			if action != "" {
+				t.Errorf("ResolvePathToAction(%q, %q) = %q, want empty string for unknown path",
+					tt.path, tt.method, action)
+			}
+		})
+	}
+}
+
+func TestIsValidAction(t *testing.T) {
+	tests := []struct {
+		name      string
+		action    string
+		wantValid bool
+	}{
+		{
+			name:      "exact action",
+			action:    ActionWorkflowCreate,
+			wantValid: true,
+		},
+		{
+			name:      "full wildcard *:*",
+			action:    "*:*",
+			wantValid: true,
+		},
+		{
+			name:      "full wildcard *",
+			action:    "*",
+			wantValid: true,
+		},
+		{
+			name:      "resource wildcard workflow:*",
+			action:    "workflow:*",
+			wantValid: true,
+		},
+		{
+			name:      "action wildcard *:Read",
+			action:    "*:Read",
+			wantValid: true,
+		},
+		{
+			name:      "invalid action",
+			action:    "invalid:Action",
+			wantValid: false,
+		},
+		{
+			name:      "invalid resource wildcard",
+			action:    "nonexistent:*",
+			wantValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidAction(tt.action)
+			if got != tt.wantValid {
+				t.Errorf("IsValidAction(%q) = %v, want %v",
+					tt.action, got, tt.wantValid)
+			}
+		})
+	}
+}
+
+func TestMatchPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestPath string
+		pattern     string
+		wantMatch   bool
+	}{
+		{
+			name:        "exact match",
+			requestPath: "/api/workflow",
+			pattern:     "/api/workflow",
+			wantMatch:   true,
+		},
+		{
+			name:        "wildcard suffix match",
+			requestPath: "/api/workflow/abc123",
+			pattern:     "/api/workflow/*",
+			wantMatch:   true,
+		},
+		{
+			name:        "wildcard suffix match nested",
+			requestPath: "/api/workflow/abc123/spec",
+			pattern:     "/api/workflow/*",
+			wantMatch:   true,
+		},
+		{
+			name:        "wildcard middle match",
+			requestPath: "/api/workflow/abc123/cancel",
+			pattern:     "/api/workflow/*/cancel",
+			wantMatch:   true,
+		},
+		{
+			name:        "wildcard no match different path",
+			requestPath: "/api/bucket/abc123",
+			pattern:     "/api/workflow/*",
+			wantMatch:   false,
+		},
+		{
+			name:        "exact no match",
+			requestPath: "/api/workflow/abc123",
+			pattern:     "/api/workflow",
+			wantMatch:   false,
+		},
+		{
+			name:        "multiple wildcards",
+			requestPath: "/api/router/session/abc/client/connect",
+			pattern:     "/api/router/*/*/client/*",
+			wantMatch:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchPath(tt.requestPath, tt.pattern)
+			if got != tt.wantMatch {
+				t.Errorf("matchPath(%q, %q) = %v, want %v",
+					tt.requestPath, tt.pattern, got, tt.wantMatch)
 			}
 		})
 	}

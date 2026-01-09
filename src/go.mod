@@ -20,7 +20,6 @@ require (
 )
 
 require (
-	github.com/cncf/xds/go v0.0.0-20240723142845-024c85f92f20 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	// Runtime indirect dependencies
 	github.com/google/renameio/v2 v2.0.0 // indirect
@@ -38,6 +37,7 @@ require (
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/casbin/govaluate v1.3.0 // indirect
+	github.com/cncf/xds/go v0.0.0-20240723142845-024c85f92f20 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.10.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
