@@ -168,9 +168,18 @@ func (s *CasbinAuthzServer) Check(ctx context.Context, req *envoy_service_auth_v
 		slog.Any("roles", roles),
 	)
 
-	// Resolve path and method to action
-	action := resolveAction(path, method)
-	resource := resolveResource(path)
+	// Resolve path and method to action using ActionRegistry
+	action, resource := ResolvePathToAction(path, method)
+	if action == "" {
+		// No action found in registry - deny access
+		s.logger.Warn("no action found in registry for path",
+			slog.String("user", user),
+			slog.String("path", path),
+			slog.String("method", method),
+			slog.Any("roles", roles),
+		)
+		return s.denyResponse(codes.PermissionDenied, "access denied: unknown endpoint"), nil
+	}
 
 	// Check access using Casbin
 	allowed, err := s.checkAccess(roles, action, resource)
@@ -255,66 +264,6 @@ func (s *CasbinAuthzServer) policyReloadLoop(interval time.Duration) {
 			)
 		}
 	}
-}
-
-// resolveAction converts HTTP method and path to a semantic action
-func resolveAction(path, method string) string {
-	// Normalize path for matching
-	normalizedPath := strings.TrimSuffix(path, "/")
-	if idx := strings.Index(normalizedPath, "?"); idx != -1 {
-		normalizedPath = normalizedPath[:idx]
-	}
-
-	// Extract resource type from path (e.g., /api/workflow -> workflow)
-	parts := strings.Split(strings.TrimPrefix(normalizedPath, "/"), "/")
-	if len(parts) < 2 {
-		return "unknown:Unknown"
-	}
-
-	resourceType := parts[1] // e.g., "workflow", "bucket", "task"
-
-	// Map HTTP method to action verb
-	var actionVerb string
-	switch strings.ToUpper(method) {
-	case "GET":
-		if len(parts) > 2 {
-			actionVerb = "Read"
-		} else {
-			actionVerb = "List"
-		}
-	case "POST":
-		actionVerb = "Create"
-	case "PUT", "PATCH":
-		actionVerb = "Update"
-	case "DELETE":
-		actionVerb = "Delete"
-	default:
-		actionVerb = "Unknown"
-	}
-
-	return fmt.Sprintf("%s:%s", resourceType, actionVerb)
-}
-
-// resolveResource extracts the resource identifier from the path
-func resolveResource(path string) string {
-	// Normalize path
-	normalizedPath := strings.TrimSuffix(path, "/")
-	if idx := strings.Index(normalizedPath, "?"); idx != -1 {
-		normalizedPath = normalizedPath[:idx]
-	}
-
-	// Extract resource type and ID (e.g., /api/workflow/abc123 -> workflow/abc123)
-	parts := strings.Split(strings.TrimPrefix(normalizedPath, "/"), "/")
-	if len(parts) < 2 {
-		return "*"
-	}
-
-	resourceType := parts[1]
-	if len(parts) > 2 {
-		return fmt.Sprintf("%s/%s", resourceType, parts[2])
-	}
-
-	return fmt.Sprintf("%s/*", resourceType)
 }
 
 // actionMatchFunc handles wildcard matching for actions

@@ -19,6 +19,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "server",
     srcs = [
+        "action_registry.go",
         "authz_interface.go",
         "authz_server.go",
         "authz_server_casbin.go",
@@ -44,6 +45,7 @@ go_library(
 go_test(
     name = "server_test",
     srcs = [
+        "action_registry_test.go",
         "authz_server_casbin_test.go",
         "authz_server_test.go",
         "integration_test.go",

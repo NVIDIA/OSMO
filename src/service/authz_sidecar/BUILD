@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("@io_bazel_rules_docker//go:image.bzl", "go_image")
-load("@io_bazel_rules_docker//container:container.bzl", "container_push")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 # gazelle:prefix go.corp.nvidia.com/osmo
 gazelle(name = "gazelle")
@@ -44,8 +44,13 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-go_image(
-    name = "authz_sidecar_image",
+################
+#    x86_64    #
+################
+
+go_binary(
+    name = "authz_sidecar_bin_x86_64",
+    basename = "authz_sidecar",
     embed = [":authz_sidecar"],
     goarch = "amd64",
     goos = "linux",
@@ -53,6 +58,105 @@ go_image(
     visibility = ["//visibility:public"],
 )
 
+pkg_tar(
+    name = "authz_sidecar_pkg_x86_64",
+    extension = "tgz",
+    package_dir = "/osmo",
+    srcs = [":authz_sidecar_bin_x86_64"],
+    mode = "0755",
+    visibility = ["//visibility:public"],
+)
+
+oci_image(
+    name = "authz_sidecar_image_x86_64",
+    base = "//src:osmo_docker_distroless_image_amd64",
+    tars = [":authz_sidecar_pkg_x86_64"],
+    entrypoint = ["/osmo/authz_sidecar"],
+    visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+oci_load(
+    name = "authz_sidecar_image_load_x86_64",
+    image = ":authz_sidecar_image_x86_64",
+    repo_tags = ["osmo.local/authz-sidecar:latest-x86_64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+oci_push(
+    name = "authz_sidecar_push_x86_64",
+    image = ":authz_sidecar_image_x86_64",
+    repository = BASE_IMAGE_URL + "authz-sidecar",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
+    visibility = ["//visibility:public"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+###############
+#    arm64    #
+###############
+
+go_binary(
+    name = "authz_sidecar_bin_arm64",
+    basename = "authz_sidecar",
+    embed = [":authz_sidecar"],
+    goarch = "arm64",
+    goos = "linux",
+    pure = "on",
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "authz_sidecar_pkg_arm64",
+    extension = "tgz",
+    package_dir = "/osmo",
+    srcs = [":authz_sidecar_bin_arm64"],
+    mode = "0755",
+    visibility = ["//visibility:public"],
+)
+
+oci_image(
+    name = "authz_sidecar_image_arm64",
+    base = "//src:osmo_docker_distroless_image_arm64",
+    tars = [":authz_sidecar_pkg_arm64"],
+    entrypoint = ["/osmo/authz_sidecar"],
+    visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+oci_load(
+    name = "authz_sidecar_image_load_arm64",
+    image = ":authz_sidecar_image_arm64",
+    repo_tags = ["osmo.local/authz-sidecar:latest-arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+oci_push(
+    name = "authz_sidecar_push_arm64",
+    image = ":authz_sidecar_image_arm64",
+    repository = BASE_IMAGE_URL + "authz-sidecar",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
+    visibility = ["//visibility:public"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+# Legacy target alias for backward compatibility
 pkg_tar(
     name = "authz_sidecar_pkg",
     extension = "tgz",

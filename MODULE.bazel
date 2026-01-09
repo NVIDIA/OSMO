@@ -190,7 +190,11 @@ go_sdk.from_file(
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//src:go.mod")
 
-go_deps.gazelle_override(
+# Gazelle overrides - using dev_dependency so they only apply when this module
+# is the root. When used as a dependency of osmo_internal, the parent's
+# MODULE.bazel provides these overrides instead.
+go_deps_overrides = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps", dev_dependency = True)
+go_deps_overrides.gazelle_override(
     build_file_generation = "on",
     path = "github.com/cncf/xds/go",
 )
