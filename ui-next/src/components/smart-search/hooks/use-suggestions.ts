@@ -86,7 +86,6 @@ function parseInput<T>(inputValue: string, fields: readonly SearchField<T>[]): P
  */
 function getFieldHint<T>(field: SearchField<T>): string {
   if (field.hint) return field.hint;
-  if (field.freeTextOnly) return `${field.label} (free text)`;
   return field.label;
 }
 
@@ -131,24 +130,26 @@ function generateSuggestions<T>(
     // Show values for the selected field
     const field = parsedInput.field;
     const currentPrefix = field.prefix;
+    const prefixQuery = parsedInput.query.toLowerCase();
 
-    // For freeTextOnly fields, show hint and sub-fields
-    if (field.freeTextOnly) {
-      const subQuery = parsedInput.query.toLowerCase();
+    // Get available values from data
+    const values = field.getValues(data);
 
-      // Find sub-fields that extend this prefix and match the query
-      const matchingSubFields = fields.filter((f) => {
-        if (!f.prefix || f.prefix === currentPrefix || !f.prefix.startsWith(currentPrefix)) {
-          return false;
-        }
-        // Get the part after the current prefix (e.g., "free:" from "quota:free:")
-        const suffix = f.prefix.slice(currentPrefix.length).toLowerCase();
-        // Match if user's query starts with or is contained in the suffix
-        return subQuery === "" || suffix.startsWith(subQuery);
-      });
+    // Find sub-fields that extend this prefix (e.g., "quota:" has sub-fields "quota:free:", "quota:used:")
+    const matchingSubFields = fields.filter((f) => {
+      if (!f.prefix || f.prefix === currentPrefix || !f.prefix.startsWith(currentPrefix)) {
+        return false;
+      }
+      // Get the part after the current prefix (e.g., "free:" from "quota:free:")
+      const suffix = f.prefix.slice(currentPrefix.length).toLowerCase();
+      // Match if user's query starts with or is contained in the suffix
+      return prefixQuery === "" || suffix.startsWith(prefixQuery);
+    });
 
-      // Show free-form hint if available (only when no specific sub-field is matched)
-      if (field.freeFormHint && (matchingSubFields.length !== 1 || subQuery === "")) {
+    // If no values available, show freeFormHint (if any) and sub-fields
+    if (values.length === 0) {
+      // Show free-form hint if available
+      if (field.freeFormHint && (matchingSubFields.length !== 1 || prefixQuery === "")) {
         items.push({
           type: "hint",
           field,
@@ -172,13 +173,27 @@ function generateSuggestions<T>(
       return items;
     }
 
-    const values = field.getValues(data);
-    const prefixQuery = parsedInput.query.toLowerCase();
-
+    // Filter to matching values, excluding already-selected
     const filtered = values.filter(
       (v) => v.toLowerCase().includes(prefixQuery) && !isAlreadySelected(chips, field.id, v),
     );
-    for (const v of filtered) {
+
+    // For non-exhaustive fields: limit to 8 suggestions max
+    // As user types, we show up to 8 matches; count only decreases when running out of matches
+    const maxSuggestions = field.exhaustive ? filtered.length : 8;
+    const limited = filtered.slice(0, maxSuggestions);
+
+    // For non-exhaustive fields, show freeFormHint to indicate free text is allowed
+    if (!field.exhaustive && field.freeFormHint) {
+      items.push({
+        type: "hint",
+        field,
+        value: "",
+        label: field.freeFormHint,
+      });
+    }
+
+    for (const v of limited) {
       items.push({
         type: "value",
         field,
@@ -214,9 +229,14 @@ function generateSuggestions<T>(
  * Core responsibilities:
  * - Parsing input to detect field prefixes
  * - Generating field suggestions when no prefix
- * - Generating value suggestions when prefix is active
+ * - Generating value suggestions when prefix is active (based on getValues)
  * - Handling hierarchical prefixes (quota:free:)
- * - Supporting freeTextOnly fields with sub-fields
+ * - Showing freeFormHint when no suggestions available
+ *
+ * Suggestion logic:
+ * - getValues() returns values → show suggestions (limited to 8 for non-exhaustive)
+ * - getValues() returns empty → show freeFormHint (if any) and sub-fields
+ * - exhaustive: true → no "Suggestions:" hint, no limit
  *
  * This hook is UI-agnostic and can work with any dropdown implementation.
  */
