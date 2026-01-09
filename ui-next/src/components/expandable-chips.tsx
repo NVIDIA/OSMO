@@ -94,7 +94,7 @@ export const ExpandableChips = memo(function ExpandableChips({
         <Badge
           data-overflow
           variant="outline"
-          className="border-dashed"
+          className="bg-muted/50 text-muted-foreground border-muted-foreground/30 font-medium"
         >
           +{overflowCount || 1}
         </Badge>
@@ -137,7 +137,10 @@ export const ExpandableChips = memo(function ExpandableChips({
           <Badge
             variant="outline"
             asChild
-            className={cn("border-dashed", expandable && "hover:bg-accent cursor-pointer")}
+            className={cn(
+              "bg-muted/50 text-muted-foreground border-muted-foreground/30 font-medium",
+              expandable && "hover:bg-muted hover:text-foreground cursor-pointer",
+            )}
             title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
           >
             <button
@@ -160,7 +163,7 @@ export const ExpandableChips = memo(function ExpandableChips({
           <Badge
             variant="outline"
             asChild
-            className="hover:bg-accent cursor-pointer border-dashed"
+            className="bg-muted/50 text-muted-foreground border-muted-foreground/30 hover:bg-muted hover:text-foreground cursor-pointer font-medium"
           >
             <button
               type="button"

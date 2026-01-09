@@ -74,7 +74,7 @@ export { useSuggestions, type UseSuggestionsOptions, type UseSuggestionsReturn }
 // UI Components
 // ============================================================================
 
-export { ChipLabel, PresetButton, PresetGroup } from "./components";
+export { ChipLabel, PresetContent, PresetButton, PresetGroup } from "./components";
 
 // Styles
 export { dropdownStyles, inputStyles, chipStyles, chipVariantStyles } from "./styles";
