@@ -204,44 +204,48 @@ Configure the pool that references both pod templates via ``platforms``:
 
   $ cat << EOF > platform_config.json
   {
-    "name": "heterogeneous_pool",
-    "backend": "default",
-    "default_platform": "l40s_platform",
-    "description": "Simulation and training pool",
-    "common_default_variables": {
-        "USER_CPU": 1,
-        "USER_GPU": 0,
-        "USER_MEMORY": "1Gi",
-        "USER_STORAGE": "1Gi"
-    },
-    "common_resource_validations": [
-        "default_cpu",
-        "default_memory",
-        "default_storage"
-    ],
-    "common_pod_template": [
-        "default_user",
-        "default_ctrl"
-    ],
-    "platforms": {
-        "l40s_platform": {
-            "description": "L40S platform",
-            "host_network_allowed": false,
-            "privileged_allowed": false,
-            "default_variables": {},
-            "resource_validations": [],
-            "override_pod_template": ["l40s"],
-            "allowed_mounts": []
+    "pools": {
+      "heterogeneous_pool": {
+        "name": "heterogeneous_pool",
+        "backend": "default",
+        "default_platform": "l40s_platform",
+        "description": "Simulation and training pool",
+        "common_default_variables": {
+            "USER_CPU": 1,
+            "USER_GPU": 0,
+            "USER_MEMORY": "1Gi",
+            "USER_STORAGE": "1Gi"
         },
-        "a100_platform": {
-            "description": "A100 platform",
-            "host_network_allowed": false,
-            "privileged_allowed": false,
-            "default_variables": {},
-            "resource_validations": [],
-            "override_pod_template": ["a100"],
-            "allowed_mounts": []
+        "common_resource_validations": [
+            "default_cpu",
+            "default_memory",
+            "default_storage"
+        ],
+        "common_pod_template": [
+            "default_user",
+            "default_ctrl"
+        ],
+        "platforms": {
+            "l40s_platform": {
+                "description": "L40S platform",
+                "host_network_allowed": false,
+                "privileged_allowed": false,
+                "default_variables": {},
+                "resource_validations": [],
+                "override_pod_template": ["l40s"],
+                "allowed_mounts": []
+            },
+            "a100_platform": {
+                "description": "A100 platform",
+                "host_network_allowed": false,
+                "privileged_allowed": false,
+                "default_variables": {},
+                "resource_validations": [],
+                "override_pod_template": ["a100"],
+                "allowed_mounts": []
+            }
         }
+      }
     }
   }
   EOF
@@ -250,7 +254,7 @@ Apply the pool configuration:
 
 .. code-block:: bash
 
-  $ osmo config update POOL heterogeneous_pool --file platform_config.json
+  $ osmo config update POOL --file platform_config.json
 
 Validate the pool configuration:
 
