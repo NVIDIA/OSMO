@@ -27,6 +27,7 @@ from typing import Any, Callable, Generator, Iterator, List, Tuple, Type
 from typing_extensions import assert_never, override
 
 from azure.core import exceptions
+from azure.identity import DefaultAzureCredential
 from azure.storage import blob
 
 from .. import credentials
@@ -271,6 +272,25 @@ class AzureBlobStorageResumableStream(client.ResumableStream):
         return chunk
 
 
+def _extract_storage_account_from_endpoint(endpoint: str) -> str:
+    """Extract storage account name from endpoint URL.
+
+    Supports:
+    - azure://storageaccount
+    - azure://storageaccount/container/path
+    - https://storageaccount.blob.core.windows.net
+    """
+    if endpoint.startswith('azure://'):
+        parts = endpoint.replace('azure://', '').split('/')
+        return parts[0]
+    if '.blob.core.windows.net' in endpoint:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(endpoint)
+        return parsed.netloc.split('.')[0]
+    raise ValueError(f'Cannot extract storage account from endpoint: {endpoint}')
+
+
 def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClient:
     """
     Creates a new Azure Blob Storage client.
@@ -281,8 +301,12 @@ def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClie
                 conn_str=data_cred.access_key.get_secret_value(),
             )
         case credentials.DefaultDataCredential():
-            raise NotImplementedError(
-                'Default data credentials are not supported yet')
+            storage_account = _extract_storage_account_from_endpoint(data_cred.endpoint)
+            account_url = f"https://{storage_account}.blob.core.windows.net"
+            return blob.BlobServiceClient(
+                account_url=account_url,
+                credential=DefaultAzureCredential(),
+            )
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -715,22 +739,40 @@ class AzureBlobStorageClient(client.StorageClient):
         Raises:
             src.lib.utils.data.client.OSMODataStorageClientError
         """
-        def _get_sas_url_for_copy(source_blob_client: blob.BlobClient) -> str:
+        def _get_sas_url_for_copy(
+            source_blob_client: blob.BlobClient,
+            service_client: blob.BlobServiceClient,
+        ) -> str:
             """
             Generate a SAS URL for the source blob that can be used for copy operations.
 
-            This is necessary to authorize the copy operation.
+            Uses account key for static credentials, user delegation key for token credentials.
             """
-            assert hasattr(source_blob_client.credential, 'account_key')
+            key_start_time = common.current_time().replace(tzinfo=datetime.timezone.utc)
+            key_expiry_time = key_start_time + _get_copy_sas_expiry_time()
 
-            sas_token = blob.generate_blob_sas(
-                account_name=source_blob_client.account_name,
-                container_name=source_blob_client.container_name,
-                blob_name=source_blob_client.blob_name,
-                account_key=source_blob_client.credential.account_key,
-                permission=blob.BlobSasPermissions(read=True),
-                expiry=common.current_time() + _get_copy_sas_expiry_time(),
-            )
+            if hasattr(source_blob_client.credential, 'account_key'):
+                sas_token = blob.generate_blob_sas(
+                    account_name=source_blob_client.account_name,
+                    container_name=source_blob_client.container_name,
+                    blob_name=source_blob_client.blob_name,
+                    account_key=source_blob_client.credential.account_key,
+                    permission=blob.BlobSasPermissions(read=True),
+                    expiry=key_expiry_time,
+                )
+            else:
+                user_delegation_key = service_client.get_user_delegation_key(
+                    key_start_time=key_start_time,
+                    key_expiry_time=key_expiry_time,
+                )
+                sas_token = blob.generate_blob_sas(
+                    account_name=source_blob_client.account_name,
+                    container_name=source_blob_client.container_name,
+                    blob_name=source_blob_client.blob_name,
+                    user_delegation_key=user_delegation_key,
+                    permission=blob.BlobSasPermissions(read=True),
+                    expiry=key_expiry_time,
+                )
             return f'{source_blob_client.url}?{sas_token}'
 
         def _call_api() -> client.CopyResponse:
@@ -745,7 +787,7 @@ class AzureBlobStorageClient(client.StorageClient):
 
             # Copy source blob to destination blob.
             destination_blob_client.upload_blob_from_url(
-                _get_sas_url_for_copy(source_blob_client),
+                _get_sas_url_for_copy(source_blob_client, self._azure_client),
             )
 
             blob_properties = destination_blob_client.get_blob_properties()
