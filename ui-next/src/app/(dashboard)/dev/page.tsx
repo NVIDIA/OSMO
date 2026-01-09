@@ -17,7 +17,8 @@
 "use client";
 
 import Link from "next/link";
-import { FlaskConical, Workflow } from "lucide-react";
+import { redirect } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 import { usePage } from "@/components/shell";
 
 /**
@@ -25,21 +26,31 @@ import { usePage } from "@/components/shell";
  *
  * This page lists all development/experimental pages.
  * These pages are for design exploration, prototyping, and testing.
- * They should NOT be included in production builds.
  *
- * To remove all dev pages from production:
- * 1. Delete this entire /dev directory
- * 2. Or use next.config.ts to exclude /dev routes
+ * Tree-shaken in production via NODE_ENV check below.
  */
 
-const devPages = [
-  {
-    title: "Workflow Explorer",
-    href: "/dev/workflow-explorer",
-    description: "Compare different DAG and timeline visualization approaches",
-    icon: Workflow,
-    highlight: false,
-  },
+// Redirect away in production - this check is evaluated at build time
+// allowing the bundler to tree-shake the entire dev page in prod builds
+if (process.env.NODE_ENV === "production") {
+  redirect("/");
+}
+
+interface DevPage {
+  title: string;
+  href: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const devPages: DevPage[] = [
+  // Add dev pages here as needed:
+  // {
+  //   title: "Example Page",
+  //   href: "/dev/example",
+  //   description: "Description of the experimental feature",
+  //   icon: SomeIcon,
+  // },
 ];
 
 export default function DevIndexPage() {
@@ -58,62 +69,39 @@ export default function DevIndexPage() {
       {/* Warning */}
       <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
         <p className="text-sm text-amber-200">
-          <strong>Note:</strong> These pages are for development only and use mock data. They should be removed or
-          hidden in production.
+          <strong>Note:</strong> These pages are for development only and use mock data. This page is not accessible in
+          production.
         </p>
       </div>
 
       {/* Page Grid */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {devPages.map((page) => (
-          <Link
-            key={page.href}
-            href={page.href}
-            className={`group rounded-lg border p-4 transition-all ${
-              "highlight" in page && page.highlight
-                ? "border-cyan-500/50 bg-cyan-500/5 hover:border-cyan-400 hover:bg-cyan-500/10"
-                : "border-border bg-card hover:border-primary/50 hover:bg-accent/50"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={`rounded-lg p-2 transition-colors ${
-                  "highlight" in page && page.highlight
-                    ? "bg-cyan-500/10 group-hover:bg-cyan-500/20"
-                    : "bg-muted group-hover:bg-primary/10"
-                }`}
-              >
-                <page.icon
-                  className={`h-5 w-5 transition-colors ${
-                    "highlight" in page && page.highlight
-                      ? "text-cyan-400 group-hover:text-cyan-300"
-                      : "text-muted-foreground group-hover:text-primary"
-                  }`}
-                />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2
-                    className={`font-semibold transition-colors ${
-                      "highlight" in page && page.highlight
-                        ? "text-cyan-400 group-hover:text-cyan-300"
-                        : "text-foreground group-hover:text-primary"
-                    }`}
-                  >
+      {devPages.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {devPages.map((page) => (
+            <Link
+              key={page.href}
+              href={page.href}
+              className="border-border bg-card hover:border-primary/50 hover:bg-accent/50 group rounded-lg border p-4 transition-all"
+            >
+              <div className="flex items-start gap-3">
+                <div className="bg-muted group-hover:bg-primary/10 rounded-lg p-2 transition-colors">
+                  <page.icon className="text-muted-foreground group-hover:text-primary h-5 w-5 transition-colors" />
+                </div>
+                <div>
+                  <h2 className="text-foreground group-hover:text-primary font-semibold transition-colors">
                     {page.title}
                   </h2>
-                  {"highlight" in page && page.highlight && (
-                    <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400">
-                      NEW
-                    </span>
-                  )}
+                  <p className="text-muted-foreground mt-1 text-sm">{page.description}</p>
                 </div>
-                <p className="text-muted-foreground mt-1 text-sm">{page.description}</p>
               </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="border-border bg-card/50 rounded-lg border border-dashed p-8 text-center">
+          <p className="text-muted-foreground text-sm">No dev pages currently. Add pages to the devPages array.</p>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="border-border mt-12 border-t pt-8">
