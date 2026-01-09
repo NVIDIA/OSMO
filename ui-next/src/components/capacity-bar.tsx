@@ -125,7 +125,6 @@ export const CapacityBar = memo(function CapacityBar({
         value={used}
         max={total}
         size={barSize}
-        thresholdColors
         aria-label={ariaLabel}
       />
 

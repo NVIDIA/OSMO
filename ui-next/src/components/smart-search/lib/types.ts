@@ -43,9 +43,10 @@ export interface SearchField<T> {
   getValues: (data: T[]) => string[];
   /** Check if an item matches this field's value */
   match: (item: T, value: string) => boolean;
-  /** If true, field only supports free-text search (no dropdown suggestions) */
-  freeTextOnly?: boolean;
-  /** If true, only values from getValues are valid - free text not allowed */
+  /**
+   * If true, only values from getValues are valid - free text not allowed.
+   * User must select from suggestions; typed values that don't match are rejected.
+   */
   requiresValidValue?: boolean;
   /** Custom hint text shown in dropdown (defaults to label) */
   hint?: string;
@@ -60,6 +61,18 @@ export interface SearchField<T> {
    * Shown in dropdown when no autocomplete suggestions available.
    */
   freeFormHint?: string;
+  /**
+   * Whether the field's suggestions are exhaustive (complete list).
+   *
+   * - `true`: Suggestions represent all valid options (e.g., enums like status, priority).
+   *   No "Seen in your data" hint is shown.
+   * - `false` (default): Suggestions are samples from loaded data.
+   *   Shows "Seen in your data:" heading to indicate non-exhaustive list.
+   *
+   * This affects UX treatment but not validation - use `requiresValidValue`
+   * to enforce selection from suggestions.
+   */
+  exhaustive?: boolean;
   /**
    * Variant for chip styling (e.g., "free" or "used").
    * Applied to chips created from this field.

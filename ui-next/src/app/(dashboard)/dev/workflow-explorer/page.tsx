@@ -55,10 +55,9 @@ function getWorkflowCategory(status: WorkflowStatus): "waiting" | "running" | "c
 
 function getStatusIcon(status: TaskGroupStatus | WorkflowStatus, size = "h-4 w-4") {
   // Determine category based on status type
-  const category =
-    Object.values(TaskGroupStatus).includes(status as TaskGroupStatus)
-      ? getStatusCategory(status as TaskGroupStatus)
-      : getWorkflowCategory(status as WorkflowStatus);
+  const category = Object.values(TaskGroupStatus).includes(status as TaskGroupStatus)
+    ? getStatusCategory(status as TaskGroupStatus)
+    : getWorkflowCategory(status as WorkflowStatus);
 
   switch (category) {
     case "waiting":
