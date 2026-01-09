@@ -54,8 +54,8 @@ export const dropdownStyles = {
   nonInteractive: "pointer-events-none select-none",
   dropdownItem: "px-3 py-2 text-sm",
 
-  // Dropdown container
-  dropdown: "absolute inset-x-0 top-full z-50 mt-1 max-h-[300px] overflow-auto rounded-md border shadow-lg",
+  // Dropdown container (no overflow here - CommandList handles scrolling)
+  dropdown: "absolute inset-x-0 top-full z-50 mt-1 flex max-h-[300px] flex-col rounded-md border shadow-lg",
 } as const;
 
 // ============================================================================
