@@ -19,14 +19,28 @@
 /**
  * Data hook for resources page with SmartSearch chip filtering.
  *
- * This hook fetches resources and applies client-side filtering
- * based on SmartSearch chips.
+ * Architecture:
+ * - Converts SmartSearch chips to filter params
+ * - Calls adapter (which handles client/server filtering transparently)
+ * - Returns clean data for UI
+ *
+ * SHIM NOTE:
+ * Currently filtering happens client-side in the adapter (resources-shim.ts).
+ * When backend supports filtering, the adapter will pass filters to the API
+ * and this hook remains unchanged.
+ *
+ * See: BACKEND_TODOS.md#11
  */
 
 "use client";
 
 import { useMemo } from "react";
-import { fetchResources, type Resource, type PaginatedResourcesResult } from "@/lib/api/adapter";
+import {
+  fetchResources,
+  type Resource,
+  type PaginatedResourcesResult,
+  type ResourceFilterParams,
+} from "@/lib/api/adapter";
 import { usePaginatedData } from "@/lib/api/pagination";
 import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";
@@ -56,19 +70,87 @@ interface UseResourcesDataReturn {
 }
 
 // =============================================================================
+// Chip to Filter Conversion
+// =============================================================================
+
+/** Fields handled by the shim (these get converted to params) */
+const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "name", "hostname"]);
+
+/**
+ * Convert SmartSearch chips to resource filter params.
+ *
+ * This mapping stays the same whether filtering is client or server side.
+ * The adapter handles where the filtering actually happens.
+ */
+function chipsToFilterParams(chips: SearchChip[]): ResourceFilterParams {
+  const params: ResourceFilterParams = {};
+
+  for (const chip of chips) {
+    switch (chip.field) {
+      case "pool":
+        params.pools = [...(params.pools ?? []), chip.value];
+        break;
+      case "platform":
+        params.platforms = [...(params.platforms ?? []), chip.value];
+        break;
+      case "type":
+        params.resourceTypes = [...(params.resourceTypes ?? []), chip.value];
+        break;
+      case "backend":
+        params.backends = [...(params.backends ?? []), chip.value];
+        break;
+      case "name":
+        // Name maps to search (substring match in shim)
+        params.search = chip.value;
+        break;
+      case "hostname":
+        params.hostname = chip.value;
+        break;
+    }
+  }
+
+  return params;
+}
+
+/**
+ * Get chips that need client-side filtering (not handled by shim).
+ * These are numeric filters that require % calculations.
+ */
+function getClientOnlyChips(chips: SearchChip[]): SearchChip[] {
+  return chips.filter((chip) => !SHIM_HANDLED_FIELDS.has(chip.field));
+}
+
+// =============================================================================
 // Hook
 // =============================================================================
 
 export function useResourcesData({ searchChips }: UseResourcesDataParams): UseResourcesDataReturn {
-  // Build query key - any change to chips triggers refetch
+  // Convert chips to filter params for the shim
+  const filterParams = useMemo(() => chipsToFilterParams(searchChips), [searchChips]);
+
+  // Get chips that shim doesn't handle (numeric filters with % calculations)
+  const clientOnlyChips = useMemo(() => getClientOnlyChips(searchChips), [searchChips]);
+
+  // Build query key from filter params (stable key for cache)
   const queryKey = useMemo(
     () => [
       "resources",
+      "filtered",
       {
-        chips: searchChips.map((c) => `${c.field}:${c.value}`).sort(),
+        pools: filterParams.pools?.sort().join(",") ?? "",
+        platforms: filterParams.platforms?.sort().join(",") ?? "",
+        resourceTypes: filterParams.resourceTypes?.sort().join(",") ?? "",
+        backends: filterParams.backends?.sort().join(",") ?? "",
+        search: filterParams.search ?? "",
+        hostname: filterParams.hostname ?? "",
+        // Include client-only chips in key for proper cache invalidation
+        clientFilters: clientOnlyChips
+          .map((c) => `${c.field}:${c.value}`)
+          .sort()
+          .join(","),
       },
     ],
-    [searchChips],
+    [filterParams, clientOnlyChips],
   );
 
   // Use data table hook for pagination
@@ -82,30 +164,30 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     isLoading,
     error,
     refetch,
-  } = usePaginatedData<Resource, Record<string, never>>({
+  } = usePaginatedData<Resource, ResourceFilterParams>({
     queryKey,
     queryFn: async (params): Promise<PaginatedResourcesResult> => {
-      // Fetch all resources (adapter handles pagination)
+      // Pass filter params to adapter - shim handles filtering
       return fetchResources(params);
     },
-    params: {},
+    params: filterParams,
     config: {
       pageSize: 50,
       staleTime: 60_000,
     },
   });
 
-  // Apply SmartSearch chip filtering client-side
-  // Uses shared filterByChips: same field = OR, different fields = AND
-  const filteredResources = useMemo(
-    () => filterByChips(allResources, searchChips, RESOURCE_SEARCH_FIELDS),
-    [allResources, searchChips],
-  );
+  // Apply client-only chips (numeric filters with % calculations)
+  // These can't be handled by the shim because they need complex math
+  const filteredResources = useMemo(() => {
+    if (clientOnlyChips.length === 0) return allResources;
+    return filterByChips(allResources, clientOnlyChips, RESOURCE_SEARCH_FIELDS);
+  }, [allResources, clientOnlyChips]);
 
   return {
     resources: filteredResources,
     allResources,
-    filteredCount: searchChips.length > 0 ? filteredResources.length : rawFilteredCount,
+    filteredCount: clientOnlyChips.length > 0 ? filteredResources.length : rawFilteredCount,
     totalCount,
     isLoading,
     error,

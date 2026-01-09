@@ -122,7 +122,11 @@ export interface ResourceFilterParams {
   pools?: string[];
   platforms?: string[];
   resourceTypes?: string[];
+  backends?: string[];
+  /** Text search across name */
   search?: string;
+  /** Hostname substring match */
+  hostname?: string;
   all_pools?: boolean;
 }
 
@@ -156,7 +160,13 @@ function applyClientSideFilters(resources: Resource[], params: ResourceFilterPar
     result = result.filter((resource) => typeSet.has(resource.resourceType));
   }
 
-  // SHIM: Filter by search (should be server-side)
+  // SHIM: Filter by backend (should be server-side)
+  if (params.backends && params.backends.length > 0) {
+    const backendSet = new Set(params.backends.map((b) => b.toLowerCase()));
+    result = result.filter((resource) => backendSet.has(resource.backend.toLowerCase()));
+  }
+
+  // SHIM: Filter by search/name (should be server-side)
   if (params.search && params.search.trim()) {
     result = result.filter((resource) =>
       matchesSearch(resource, params.search!, (r) => [
@@ -166,6 +176,12 @@ function applyClientSideFilters(resources: Resource[], params: ResourceFilterPar
         ...r.poolMemberships.map((m) => m.pool),
       ]),
     );
+  }
+
+  // SHIM: Filter by hostname (should be server-side)
+  if (params.hostname && params.hostname.trim()) {
+    const hostnameLower = params.hostname.toLowerCase();
+    result = result.filter((resource) => resource.hostname.toLowerCase().includes(hostnameLower));
   }
 
   return result;
