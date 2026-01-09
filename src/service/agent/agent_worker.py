@@ -16,7 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import datetime
 import json
 import logging
 import os
@@ -114,8 +113,12 @@ class AgentWorker:
 
             # Process the message based on type
             if message.type == backend_messages.MessageType.UPDATE_POD:
-                helpers.queue_update_group_job(self.postgres,
-                                               backend_messages.UpdatePodBody(**message.body))
+                if isinstance(message.body, dict):
+                    helpers.queue_update_group_job(self.postgres,
+                                                   backend_messages.UpdatePodBody(**message.body))
+                else:
+                    logging.error('Invalid body type for UPDATE_POD message: %s',
+                                  type(message.body))
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)
@@ -221,7 +224,7 @@ class AgentWorker:
                     continue
 
                 # Process each message
-                for stream_name, stream_messages in messages:
+                for _, stream_messages in messages:
                     for message_id, message_data in stream_messages:
                         if b'message' in message_data:
                             message_json = message_data[b'message'].decode('utf-8')
