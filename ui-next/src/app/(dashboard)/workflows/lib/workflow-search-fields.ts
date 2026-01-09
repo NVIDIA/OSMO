@@ -23,12 +23,7 @@
 
 import type { SearchField } from "@/components/smart-search";
 import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
-import {
-  STATUS_CATEGORY_MAP,
-  STATUS_LABELS,
-  matchStatus,
-  getStatusSuggestions,
-} from "./workflow-constants";
+import { STATUS_CATEGORY_MAP, matchStatus, getStatusSuggestions, ALL_WORKFLOW_STATUSES } from "./workflow-constants";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 
@@ -45,6 +40,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "Name",
     hint: "workflow name",
     prefix: "name:",
+    freeFormHint: "Type any name, press Enter",
     getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
     match: (workflow, value) => workflow.name.toLowerCase().includes(value.toLowerCase()),
   },
@@ -53,10 +49,9 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "Status",
     hint: "status or category (e.g., failed, FAILED_IMAGE_PULL)",
     prefix: "status:",
-    getValues: (workflows) => {
-      const dataStatuses = [...new Set(workflows.map((w) => w.status))];
-      return dataStatuses.sort();
-    },
+    // Static enum - suggestions are exhaustive (all valid statuses)
+    getValues: () => [...ALL_WORKFLOW_STATUSES],
+    exhaustive: true,
     match: (workflow, value) => {
       const valueLower = value.toLowerCase();
 
@@ -106,6 +101,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "User",
     hint: "submitted by",
     prefix: "user:",
+    freeFormHint: "Type any username, press Enter",
     getValues: (workflows) => [...new Set(workflows.map((w) => w.user))].sort().slice(0, 20),
     match: (workflow, value) => workflow.user.toLowerCase().includes(value.toLowerCase()),
   },
@@ -114,6 +110,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "Pool",
     hint: "pool name",
     prefix: "pool:",
+    freeFormHint: "Type any pool, press Enter",
     getValues: (workflows) => [...new Set(workflows.map((w) => w.pool).filter((p): p is string => !!p))].sort(),
     match: (workflow, value) => workflow.pool?.toLowerCase().includes(value.toLowerCase()) ?? false,
   },
@@ -123,6 +120,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "HIGH, NORMAL, LOW",
     prefix: "priority:",
     getValues: () => ["HIGH", "NORMAL", "LOW"],
+    exhaustive: true,
     match: (workflow, value) => workflow.priority.toUpperCase() === value.toUpperCase(),
     requiresValidValue: true,
   },
@@ -131,6 +129,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "App",
     hint: "app name",
     prefix: "app:",
+    freeFormHint: "Type any app, press Enter",
     getValues: (workflows) => [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(),
     match: (workflow, value) => workflow.app_name?.toLowerCase().includes(value.toLowerCase()) ?? false,
   },

@@ -84,7 +84,6 @@ export const QuotaBar = memo(function QuotaBar({ used, limit, free, isLoading }:
           value={used}
           max={limit}
           size="md"
-          thresholdColors
           trackClassName="h-3"
           aria-label={`GPU quota: ${used} of ${limit} GPUs used, ${free} available`}
         />

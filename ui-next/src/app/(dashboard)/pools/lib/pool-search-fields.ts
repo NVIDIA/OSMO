@@ -129,6 +129,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     label: "Pool",
     hint: "pool name",
     prefix: "pool:",
+    freeFormHint: "Type any pool, press Enter",
     getValues: (pools) => pools.map((p) => p.name).slice(0, 20),
     match: (pool, value) => pool.name.toLowerCase().includes(value.toLowerCase()),
   },
@@ -138,6 +139,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     label: "Platform",
     hint: "platform name",
     prefix: "platform:",
+    freeFormHint: "Type any platform, press Enter",
     getValues: (pools) => [...new Set(pools.flatMap((p) => p.platforms))].sort(),
     match: (pool, value) => pool.platforms.some((p) => p.toLowerCase().includes(value.toLowerCase())),
   },
@@ -146,6 +148,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     label: "Backend",
     hint: "backend name",
     prefix: "backend:",
+    freeFormHint: "Type any backend, press Enter",
     getValues: (pools) => [...new Set(pools.map((p) => p.backend))].sort(),
     match: (pool, value) => pool.backend.toLowerCase().includes(value.toLowerCase()),
   },
@@ -154,11 +157,9 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     label: "Description",
     hint: "description text",
     prefix: "description:",
-    // Description field: no autocomplete values, only free-text substring search
+    freeFormHint: "Type any text, press Enter",
     getValues: () => [],
     match: (pool, value) => pool.description.toLowerCase().includes(value.toLowerCase()),
-    // Mark as free-text only - no dropdown suggestions
-    freeTextOnly: true,
   },
 ];
 
@@ -176,7 +177,6 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "available guaranteed GPUs",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.free,
@@ -191,7 +191,6 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "quota consumption",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.used,
@@ -208,7 +207,6 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "total GPUs available",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.totalFree,
@@ -223,7 +221,6 @@ const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "pool consumption",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v), // Accepts both
     match: createNumericMatch(
       (p) => p.quota.totalUsage,
@@ -260,7 +257,9 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
     label: "Shared",
     hint: "pools sharing capacity",
     prefix: "shared:",
-    // Only show pools that are actually shared
+    freeFormHint: "Type any pool, press Enter",
+    // Show pools that are in sharing groups (from loaded data)
+    // Note: suggestions are non-exhaustive with backend filtering
     getValues: () => sharedPoolNames,
     // Match if pool is in the same sharing group as the filter value
     match: (pool, value) => {
@@ -268,8 +267,6 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
       if (!group) return false;
       return group.includes(pool.name);
     },
-    // Requires valid value - no free text allowed
-    requiresValidValue: true,
   };
 
   return [...BASE_POOL_SEARCH_FIELDS, sharedField, ...NUMERIC_POOL_SEARCH_FIELDS];

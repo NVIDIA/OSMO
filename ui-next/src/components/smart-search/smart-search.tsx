@@ -42,7 +42,7 @@ import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // shadcn/ui Command (cmdk)
-import { Command, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/shadcn/command";
+import { Command, CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 
 // Core types (lib/) and hooks (hooks/) - never change with UI library swap
 import type { SmartSearchProps } from "./lib";
@@ -174,17 +174,23 @@ function SmartSearchInner<T>({
         } else {
           inputRef.current?.blur();
         }
-      } else if (e.key === "Enter" && !isOpen) {
-        e.preventDefault();
-        // If user typed field:value, create chip; otherwise just open dropdown
+      } else if (e.key === "Enter") {
+        // If user typed field:value (e.g., "pool:myvalue"), create chip immediately
+        // This takes priority whether dropdown is open or closed
         if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
+          e.preventDefault();
+          e.stopPropagation();
           if (addChip(parsedInput.field, parsedInput.query.trim())) {
             setInputValue("");
+            setIsOpen(false);
             inputRef.current?.focus();
           }
-        } else {
+        } else if (!isOpen) {
+          // No field:value pattern and dropdown closed - just open it
+          e.preventDefault();
           setIsOpen(true);
         }
+        // Otherwise: dropdown is open, no field:value - let cmdk handle selection
       } else if (e.key === "Tab" && !e.shiftKey && inputValue.trim()) {
         // Tab autocomplete: select single matching suggestion
         const valueItems = selectables.filter((s) => s.type === "value");
@@ -367,8 +373,6 @@ function SmartSearchInner<T>({
 
             {/* Scrollable content area - cmdk handles all keyboard navigation */}
             <CommandList className="max-h-none min-h-0 flex-1 overflow-y-auto">
-              <CommandEmpty className="py-3 text-center text-sm text-zinc-500">No results found.</CommandEmpty>
-
               {/* Presets (shown when input is empty) - inline layout with heading */}
               {showPresets &&
                 presets?.map((group) => (

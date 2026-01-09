@@ -124,8 +124,8 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Name",
     hint: "resource name",
     prefix: "name:",
+    freeFormHint: "Type any name, press Enter",
     getValues: () => [],
-    freeTextOnly: true,
     match: (resource, value) => resource.name.toLowerCase().includes(value.toLowerCase()),
   },
   {
@@ -134,6 +134,7 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "allocation type",
     prefix: "type:",
     getValues: () => Object.values(BackendResourceType),
+    exhaustive: true,
     validate: (value) => {
       const validTypes = Object.values(BackendResourceType).map((t) => t.toLowerCase());
       if (!validTypes.includes(value.toLowerCase())) {
@@ -148,6 +149,7 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Platform",
     hint: "platform name",
     prefix: "platform:",
+    freeFormHint: "Type any platform, press Enter",
     getValues: (resources) => [...new Set(resources.map((r) => r.platform))].sort(),
     match: (resource, value) => resource.platform.toLowerCase() === value.toLowerCase(),
   },
@@ -156,6 +158,7 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Pool",
     hint: "pool membership",
     prefix: "pool:",
+    freeFormHint: "Type any pool, press Enter",
     getValues: (resources) => [...new Set(resources.flatMap((r) => r.poolMemberships.map((m) => m.pool)))].sort(),
     // Case-sensitive exact match for cross-linking from pools page
     match: (resource, value) => resource.poolMemberships.some((m) => m.pool === value),
@@ -165,6 +168,7 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Backend",
     hint: "backend cluster",
     prefix: "backend:",
+    freeFormHint: "Type any backend, press Enter",
     getValues: (resources) => [...new Set(resources.map((r) => r.backend))].sort(),
     match: (resource, value) => resource.backend.toLowerCase() === value.toLowerCase(),
   },
@@ -173,8 +177,8 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     label: "Hostname",
     hint: "hostname",
     prefix: "hostname:",
+    freeFormHint: "Type any hostname, press Enter",
     getValues: () => [],
-    freeTextOnly: true,
     match: (resource, value) => resource.hostname.toLowerCase().includes(value.toLowerCase()),
   },
 ];
@@ -192,7 +196,6 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "available GPUs",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v),
     match: createNumericMatch(
       (r) => r.gpu.total - r.gpu.used,
@@ -207,7 +210,6 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "GPU utilization",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v),
     match: createNumericMatch(
       (r) => r.gpu.used,
@@ -223,7 +225,6 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "available CPUs",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v),
     match: createNumericMatch(
       (r) => r.cpu.total - r.cpu.used,
@@ -238,7 +239,6 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "CPU utilization",
     freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v),
     match: createNumericMatch(
       (r) => r.cpu.used,
@@ -254,7 +254,6 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "available memory",
     freeFormHint: "<, <=, =, >, >=, N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v, { allowDiscrete: false }),
     match: createNumericMatch(
       (r) => r.memory.total - r.memory.used,
@@ -269,7 +268,6 @@ const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "memory utilization",
     freeFormHint: "<, <=, =, >, >=, N% (percentage)",
     getValues: () => [],
-    freeTextOnly: true,
     validate: (v) => validateNumericFilter(v, { allowDiscrete: false }),
     match: createNumericMatch(
       (r) => r.memory.used,
