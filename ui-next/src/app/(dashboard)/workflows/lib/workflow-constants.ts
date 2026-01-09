@@ -27,7 +27,7 @@ import type { WorkflowStatus } from "@/lib/api/generated";
 // Status Categories
 // =============================================================================
 
-export type StatusCategory = "waiting" | "running" | "completed" | "failed";
+export type StatusCategory = "waiting" | "running" | "completed" | "failed" | "unknown";
 
 /**
  * Map workflow status to display category.
@@ -57,7 +57,7 @@ export const STATUS_CATEGORY_MAP: Record<WorkflowStatus, StatusCategory> = {
 };
 
 /**
- * Human-readable labels for workflow statuses.
+ * Human-readable labels for workflow statuses (lowercase, actual status names).
  */
 export const STATUS_LABELS: Record<WorkflowStatus, string> = {
   PENDING: "Pending",
@@ -65,25 +65,26 @@ export const STATUS_LABELS: Record<WorkflowStatus, string> = {
   RUNNING: "Running",
   COMPLETED: "Completed",
   FAILED: "Failed",
-  FAILED_SUBMISSION: "Submission Failed",
-  FAILED_SERVER_ERROR: "Server Error",
-  FAILED_EXEC_TIMEOUT: "Exec Timeout",
-  FAILED_QUEUE_TIMEOUT: "Queue Timeout",
-  FAILED_CANCELED: "Canceled",
-  FAILED_BACKEND_ERROR: "Backend Error",
-  FAILED_IMAGE_PULL: "Image Pull Failed",
-  FAILED_EVICTED: "Evicted",
-  FAILED_START_ERROR: "Start Error",
-  FAILED_START_TIMEOUT: "Start Timeout",
-  FAILED_PREEMPTED: "Preempted",
+  FAILED_SUBMISSION: "Failed: Submission",
+  FAILED_SERVER_ERROR: "Failed: Server Error",
+  FAILED_EXEC_TIMEOUT: "Failed: Exec Timeout",
+  FAILED_QUEUE_TIMEOUT: "Failed: Queue Timeout",
+  FAILED_CANCELED: "Failed: Canceled",
+  FAILED_BACKEND_ERROR: "Failed: Backend Error",
+  FAILED_IMAGE_PULL: "Failed: Image Pull",
+  FAILED_EVICTED: "Failed: Evicted",
+  FAILED_START_ERROR: "Failed: Start Error",
+  FAILED_START_TIMEOUT: "Failed: Start Timeout",
+  FAILED_PREEMPTED: "Failed: Preempted",
 };
 
 /**
  * Get status display info (category and label).
+ * Falls back to "Unknown" category for unrecognized statuses.
  */
 export function getStatusDisplay(status: WorkflowStatus): { category: StatusCategory; label: string } {
   return {
-    category: STATUS_CATEGORY_MAP[status] ?? "waiting",
+    category: STATUS_CATEGORY_MAP[status] ?? "unknown",
     label: STATUS_LABELS[status] ?? status,
   };
 }
@@ -133,6 +134,13 @@ export const STATUS_STYLES: Record<
     icon: "text-red-500 dark:text-red-400",
     dot: "bg-red-500",
     border: "border-red-400 dark:border-red-500",
+  },
+  unknown: {
+    bg: "bg-amber-50 dark:bg-amber-950/60",
+    text: "text-amber-700 dark:text-amber-400",
+    icon: "text-amber-500 dark:text-amber-400",
+    dot: "bg-amber-500",
+    border: "border-amber-400 dark:border-amber-500",
   },
 };
 

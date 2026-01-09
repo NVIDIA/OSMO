@@ -38,6 +38,7 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
   running: Loader2,
   completed: CheckCircle2,
   failed: XCircle,
+  unknown: AlertTriangle,
 };
 
 // =============================================================================
