@@ -33,6 +33,25 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Prevent production code from importing experimental code
+  // Experimental code can import production code, but not vice versa
+  {
+    ignores: ["src/app/**/experimental/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/experimental/**", "@/app/**/experimental/**"],
+              message:
+                "Production code must not import from /experimental. Only experimental code may import production code.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
