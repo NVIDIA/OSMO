@@ -17,11 +17,13 @@
  */
 
 /**
- * PanelHeader Component
+ * PoolPanelHeader Component
  *
- * Two-row header layout:
- * Row 1: Title + View badge                              [Menu] [Close]
- * Row 2: Status indicator · Backend info
+ * Pool-specific header composing from canonical PanelHeader.
+ *
+ * Layout:
+ * Row 1: Title                                    [Pool badge] [Menu] [Close]
+ * Row 2: Status indicator · Backend info · Platform count
  */
 
 "use client";
@@ -30,53 +32,53 @@ import { memo } from "react";
 import { Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter";
-import { PanelHeaderContainer, PanelHeaderActions } from "@/components/panel";
+import { PanelHeader, PanelTitle, PanelHeaderActions } from "@/components/panel";
 import { getStatusDisplay, getStatusStyles } from "../../lib/constants";
 
-export interface PanelHeaderProps {
+export interface PoolPanelHeaderProps {
   pool: Pool;
   onClose: () => void;
   onWidthPreset: (pct: number) => void;
 }
 
-export const PanelHeader = memo(function PanelHeader({ pool, onClose, onWidthPreset }: PanelHeaderProps) {
+export const PoolPanelHeader = memo(function PoolPanelHeader({ pool, onClose, onWidthPreset }: PoolPanelHeaderProps) {
   const statusDisplay = getStatusDisplay(pool.status);
   const statusStyles = getStatusStyles(pool.status);
 
+  // Build subtitle content with status, backend, and platform count
+  const subtitleContent = (
+    <>
+      <span className="flex items-center gap-1.5">
+        <span className={cn("size-2 rounded-full", statusStyles.dot)} />
+        <span className="font-medium text-zinc-600 dark:text-zinc-300">{statusDisplay.label}</span>
+      </span>
+      <span className="text-zinc-400 dark:text-zinc-600">·</span>
+      <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
+        <Server className="size-3" />
+        {pool.backend}
+      </span>
+      {pool.platforms.length > 0 && (
+        <>
+          <span className="text-zinc-400 dark:text-zinc-600">·</span>
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {pool.platforms.length} platform{pool.platforms.length !== 1 ? "s" : ""}
+          </span>
+        </>
+      )}
+    </>
+  );
+
   return (
-    <PanelHeaderContainer>
-      {/* Row 1: Title row */}
-      <div className="flex items-center justify-between">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{pool.name}</h2>
-        </div>
+    <PanelHeader
+      title={<PanelTitle>{pool.name}</PanelTitle>}
+      actions={
         <PanelHeaderActions
           badge="Pool"
           onWidthPreset={onWidthPreset}
           onClose={onClose}
         />
-      </div>
-
-      {/* Row 2: Status + Backend info */}
-      <div className="mt-1.5 flex items-center gap-2 text-xs">
-        <span className="flex items-center gap-1.5">
-          <span className={cn("size-2 rounded-full", statusStyles.dot)} />
-          <span className="font-medium text-zinc-600 dark:text-zinc-300">{statusDisplay.label}</span>
-        </span>
-        <span className="text-zinc-400 dark:text-zinc-600">·</span>
-        <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
-          <Server className="size-3" />
-          {pool.backend}
-        </span>
-        {pool.platforms.length > 0 && (
-          <>
-            <span className="text-zinc-400 dark:text-zinc-600">·</span>
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {pool.platforms.length} platform{pool.platforms.length !== 1 ? "s" : ""}
-            </span>
-          </>
-        )}
-      </div>
-    </PanelHeaderContainer>
+      }
+      subtitle={subtitleContent}
+    />
   );
 });
