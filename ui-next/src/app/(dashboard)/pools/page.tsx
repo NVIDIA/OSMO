@@ -37,6 +37,7 @@
 
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsString } from "nuqs";
+import type { ResultsCount } from "@/components/smart-search";
 import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/shell";
 import { useUrlChips } from "@/hooks";
@@ -84,7 +85,8 @@ export default function PoolsPage() {
   // Filtering encapsulated in hook (ready for server-driven filtering)
   // ==========================================================================
 
-  const { pools, allPools, sharingGroups, isLoading, error, refetch } = usePoolsData({ searchChips });
+  const { pools, allPools, sharingGroups, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } =
+    usePoolsData({ searchChips });
 
   // ==========================================================================
   // Pool Selection
@@ -100,6 +102,15 @@ export default function PoolsPage() {
   const selectedPool = useMemo(
     () => (selectedPoolName ? (allPools.find((p) => p.name === selectedPoolName) ?? null) : null),
     [allPools, selectedPoolName],
+  );
+
+  // Results count for SmartSearch display
+  const resultsCount = useMemo<ResultsCount | undefined>(
+    () => ({
+      total,
+      filtered: hasActiveFilters ? filteredTotal : undefined,
+    }),
+    [total, filteredTotal, hasActiveFilters],
   );
 
   // ==========================================================================
@@ -127,6 +138,7 @@ export default function PoolsPage() {
               sharingGroups={sharingGroups}
               searchChips={searchChips}
               onSearchChipsChange={setSearchChips}
+              resultsCount={resultsCount}
             />
           </InlineErrorBoundary>
         </div>

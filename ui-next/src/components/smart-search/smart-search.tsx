@@ -65,6 +65,7 @@ function SmartSearchInner<T>({
   className,
   displayMode,
   presets,
+  resultsCount,
 }: SmartSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -223,7 +224,18 @@ function SmartSearchInner<T>({
         }
       }
     },
-    [focusedChipIndex, chips, inputValue, removeChip, isOpen, parsedInput, addChip, selectables, handleSelect, setValidationError],
+    [
+      focusedChipIndex,
+      chips,
+      inputValue,
+      removeChip,
+      isOpen,
+      parsedInput,
+      addChip,
+      selectables,
+      handleSelect,
+      setValidationError,
+    ],
   );
 
   const handleInputChange = useCallback(
@@ -354,6 +366,7 @@ function SmartSearchInner<T>({
             aria-haspopup="listbox"
           />
 
+          {/* Clear filters - on the right, before results count */}
           {chips.length > 0 && (
             <button
               type="button"
@@ -361,8 +374,29 @@ function SmartSearchInner<T>({
               className={cn(inputStyles.clearButton, dropdownStyles.muted, dropdownStyles.hoverBg)}
             >
               <X className="size-3" />
-              <span>Clear filters</span>
+              <span>Clear</span>
             </button>
+          )}
+
+          {/* Results count - always on the right */}
+          {resultsCount && (
+            <span className={cn("shrink-0 text-xs tabular-nums", dropdownStyles.muted)}>
+              {resultsCount.filtered !== undefined ? (
+                <>
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                    {resultsCount.filtered.toLocaleString()}
+                  </span>
+                  {" of "}
+                  {resultsCount.total.toLocaleString()}
+                  {" results"}
+                </>
+              ) : (
+                <>
+                  {resultsCount.total.toLocaleString()}
+                  {" results"}
+                </>
+              )}
+            </span>
           )}
         </div>
 

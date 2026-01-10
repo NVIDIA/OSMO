@@ -23,7 +23,7 @@ import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import type { SearchPreset, PresetRenderProps } from "@/components/smart-search";
+import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/smart-search";
 import { TableToolbar } from "@/components/data-table";
 import { usePoolsTableStore } from "../stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
@@ -42,6 +42,8 @@ export interface PoolsToolbarProps {
   sharingGroups?: string[][];
   searchChips: SearchChip[];
   onSearchChipsChange: (chips: SearchChip[]) => void;
+  /** Results count for displaying "N results" or "M of N results" */
+  resultsCount?: ResultsCount;
 }
 
 /** Status preset configurations */
@@ -56,6 +58,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
   sharingGroups = [],
   searchChips,
   onSearchChipsChange,
+  resultsCount,
 }: PoolsToolbarProps) {
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
@@ -110,6 +113,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search pools... (try 'pool:', 'platform:', 'status:')"
       searchPresets={[{ label: "Status", items: statusPresets }]}
+      resultsCount={resultsCount}
     />
   );
 });

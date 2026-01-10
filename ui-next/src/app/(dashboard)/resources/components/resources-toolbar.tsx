@@ -21,6 +21,7 @@
 import { memo } from "react";
 import type { Resource } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
+import type { ResultsCount } from "@/components/smart-search";
 import { TableToolbar } from "@/components/data-table";
 import { useResourcesTableStore } from "../stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/resource-columns";
@@ -30,12 +31,15 @@ export interface ResourcesToolbarProps {
   resources: Resource[];
   searchChips: SearchChip[];
   onSearchChipsChange: (chips: SearchChip[]) => void;
+  /** Results count for displaying "N results" or "M of N results" */
+  resultsCount?: ResultsCount;
 }
 
 export const ResourcesToolbar = memo(function ResourcesToolbar({
   resources,
   searchChips,
   onSearchChipsChange,
+  resultsCount,
 }: ResourcesToolbarProps) {
   const visibleColumnIds = useResourcesTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useResourcesTableStore((s) => s.toggleColumn);
@@ -50,6 +54,7 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
+      resultsCount={resultsCount}
     />
   );
 });
