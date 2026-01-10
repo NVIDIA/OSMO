@@ -20,13 +20,16 @@
  * Panel Components
  *
  * Shared components for resizable side panels:
- * - ResizablePanel: Main panel container with drag-to-resize
+ * - ResizablePanel: Main panel container with drag-to-resize and optional collapse
+ * - PanelCollapsedStrip: Generic collapsed state content with expand button
  * - PanelHeader: Base header with slot-based layout (title, actions, subtitle, expandable)
  * - PanelHeaderActions: Header controls (badge, menu, close)
  * - Helper components: PanelBackButton, PanelBadge, PanelCollapseButton, PanelTitle, PanelSubtitle
  */
 
 export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
+
+export { PanelCollapsedStrip, type PanelCollapsedStripProps } from "./panel-collapsed-strip";
 
 export { ResizeHandle, type ResizeHandleProps } from "./resize-handle";
 

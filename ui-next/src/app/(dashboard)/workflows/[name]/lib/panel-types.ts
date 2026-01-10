@@ -41,6 +41,8 @@ export type DetailsPanelView = "workflow" | "group" | "task";
 
 /**
  * Props for the main DetailsPanel container.
+ *
+ * Uses ResizablePanel from @/components/panel for resize/collapse functionality.
  */
 export interface DetailsPanelProps {
   /** Current view (workflow, group, or task) */
@@ -67,10 +69,6 @@ export interface DetailsPanelProps {
   panelPct: number;
   /** Callback to resize panel */
   onPanelResize: (pct: number) => void;
-  /** Whether the panel is being resized */
-  isDragging: boolean;
-  /** Bind function for resize handle (from @use-gesture/react) */
-  bindResizeHandle: () => React.HTMLAttributes<HTMLDivElement>;
   /** Whether the header details section is expanded */
   isDetailsExpanded: boolean;
   /** Toggle the details expansion state */
@@ -81,6 +79,8 @@ export interface DetailsPanelProps {
   onToggleCollapsed?: () => void;
   /** Callback when workflow cancel is requested */
   onCancelWorkflow?: () => void;
+  /** Main content to render behind the panel (DAG canvas) */
+  mainContent: React.ReactNode;
 }
 
 /**
