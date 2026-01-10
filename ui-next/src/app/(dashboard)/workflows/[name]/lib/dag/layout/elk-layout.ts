@@ -15,40 +15,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * ELK Layout Module
+ * Workflow ELK Layout Module
  *
- * Handles DAG layout using ELK.js (Eclipse Layout Kernel).
- * ELK provides better layout algorithms than dagre, including:
- * - Native support for variable-sized nodes
- * - Web worker support for non-blocking layout
- * - Better edge routing
+ * Workflow-specific layout calculations using ELK.js.
+ * Uses the generic ELK worker from @/components/dag and adds
+ * workflow-specific node building and edge styling.
  */
 
 import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
-import type { GroupWithLayout } from "../workflow-types";
-import type { LayoutDirection, GroupNodeData, NodeDimensions, LayoutResult, ElkGraph } from "../types/dag-layout";
-import { getStatusCategory } from "../utils/status";
 import {
-  NODE_COLLAPSED_WIDTH,
-  NODE_COLLAPSED_HEIGHT,
-  NODE_EXPANDED_WIDTH,
-  NODE_MAX_EXPANDED_HEIGHT,
-  NODE_HEADER_HEIGHT,
-  NODE_BORDER_WIDTH,
-  TASK_ROW_HEIGHT,
-  SPACING_NODES_TB,
-  SPACING_NODES_LR,
-  SPACING_RANKS_TB,
-  SPACING_RANKS_LR,
-  LAYOUT_MARGIN,
-  EDGE_STROKE_WIDTH,
-  EDGE_DASH_ARRAY,
-  ARROW_WIDTH,
-  ARROW_HEIGHT,
-  STATUS_STYLES,
-} from "../constants";
-import { elkWorker } from "./elk-worker-client";
+  elkWorker,
+  LAYOUT_CACHE,
+  NODE_DEFAULTS,
+  NODE_EXPANDED,
+  LAYOUT_SPACING,
+  EDGE_STYLE,
+  type LayoutDirection,
+  type NodeDimensions,
+  type ElkGraph,
+} from "@/components/dag";
+import type { GroupWithLayout } from "../workflow-types";
+import type { GroupNodeData, LayoutResult } from "../types/dag-layout";
+import { getStatusCategory } from "../utils/status";
+import { NODE_HEADER_HEIGHT, NODE_BORDER_WIDTH, TASK_ROW_HEIGHT, STATUS_STYLES } from "../constants";
 
 // ============================================================================
 // Layout Cache
@@ -71,7 +61,7 @@ function getLayoutCacheKey(groups: GroupWithLayout[], expandedGroups: Set<string
  * Caches LayoutPositionResult to avoid re-running ELK for identical inputs.
  */
 const layoutCache = new Map<string, LayoutPositionResult>();
-const CACHE_MAX_SIZE = 20; // Keep last 20 layouts
+const CACHE_MAX_SIZE = LAYOUT_CACHE.MAX_SIZE;
 
 /**
  * Add to cache with LRU eviction.
@@ -129,8 +119,8 @@ export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): 
     // Total height capped at max, plus node border (border-[1.5px] = 1.5px * 2 sides)
     const totalHeight = NODE_HEADER_HEIGHT + taskListHeight + collapseLipHeight + NODE_BORDER_WIDTH;
     return {
-      width: NODE_EXPANDED_WIDTH,
-      height: Math.min(totalHeight, NODE_MAX_EXPANDED_HEIGHT),
+      width: NODE_EXPANDED.width,
+      height: Math.min(totalHeight, NODE_EXPANDED.maxHeight),
     };
   }
 
@@ -139,14 +129,14 @@ export function getNodeDimensions(group: GroupWithLayout, isExpanded: boolean): 
     // Expand lip height: h-5 (20px) - reduced header bottom padding (6px saved)
     const expandLipHeight = 14;
     return {
-      width: NODE_COLLAPSED_WIDTH,
-      height: NODE_COLLAPSED_HEIGHT + expandLipHeight,
+      width: NODE_DEFAULTS.width,
+      height: NODE_DEFAULTS.height + expandLipHeight,
     };
   }
 
   return {
-    width: NODE_COLLAPSED_WIDTH,
-    height: NODE_COLLAPSED_HEIGHT,
+    width: NODE_DEFAULTS.width,
+    height: NODE_DEFAULTS.height,
   };
 }
 
@@ -165,9 +155,11 @@ function getElkLayoutOptions(direction: LayoutDirection): Record<string, string>
     "elk.algorithm": "layered",
     "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
     // Spacing between sibling nodes
-    "elk.spacing.nodeNode": String(direction === "TB" ? SPACING_NODES_TB : SPACING_NODES_LR),
+    "elk.spacing.nodeNode": String(direction === "TB" ? LAYOUT_SPACING.NODES_TB : LAYOUT_SPACING.NODES_LR),
     // Spacing between layers/ranks
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(direction === "TB" ? SPACING_RANKS_TB : SPACING_RANKS_LR),
+    "elk.layered.spacing.nodeNodeBetweenLayers": String(
+      direction === "TB" ? LAYOUT_SPACING.RANKS_TB : LAYOUT_SPACING.RANKS_LR,
+    ),
     // Node placement strategy - Brandes-Koepf produces more balanced layouts
     // with better parent-child centering than NETWORK_SIMPLEX
     "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
@@ -176,7 +168,7 @@ function getElkLayoutOptions(direction: LayoutDirection): Record<string, string>
     // Edge routing - orthogonal for clean 90-degree edges
     "elk.edgeRouting": "ORTHOGONAL",
     // Margins
-    "elk.padding": `[top=${LAYOUT_MARGIN},left=${LAYOUT_MARGIN},bottom=${LAYOUT_MARGIN},right=${LAYOUT_MARGIN}]`,
+    "elk.padding": `[top=${LAYOUT_SPACING.MARGIN},left=${LAYOUT_SPACING.MARGIN},bottom=${LAYOUT_SPACING.MARGIN},right=${LAYOUT_SPACING.MARGIN}]`,
     // Align nodes considering their sizes
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     // Center nodes within their layer
@@ -372,15 +364,15 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
       className: `dag-edge dag-edge--${category}`,
       // Minimal inline style - only what can't be done in CSS
       style: {
-        strokeWidth: EDGE_STROKE_WIDTH,
-        strokeDasharray: isTerminal || category === "running" ? undefined : EDGE_DASH_ARRAY,
+        strokeWidth: EDGE_STYLE.STROKE_WIDTH,
+        strokeDasharray: isTerminal || category === "running" ? undefined : EDGE_STYLE.DASH_ARRAY,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         // Marker color still needs inline - ReactFlow limitation
         color: STATUS_STYLES[category].color,
-        width: ARROW_WIDTH,
-        height: ARROW_HEIGHT,
+        width: EDGE_STYLE.ARROW_WIDTH,
+        height: EDGE_STYLE.ARROW_HEIGHT,
       },
       // Pass status data for potential future use
       data: { status: category },

@@ -15,10 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Re-export useAnnouncer from shared hooks.
+ * DAG Stores
  *
- * @deprecated Import directly from "@/hooks" instead.
- * This file exists for backwards compatibility during migration.
+ * Zustand stores for the workflow DAG visualization.
  */
 
-export { useAnnouncer, cleanupAnnouncer } from "@/hooks";
+export { useTaskTableStore } from "./task-table-store";

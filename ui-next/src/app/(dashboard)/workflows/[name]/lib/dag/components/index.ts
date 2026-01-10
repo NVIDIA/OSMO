@@ -17,15 +17,22 @@
 /**
  * Components Index
  *
- * Re-exports all components for cleaner imports.
+ * Re-exports components from both generic DAG and workflow-specific modules.
  */
 
-// DAG visualization components
+// Re-export generic components from @/components/dag
+export {
+  DAGControls,
+  DAGErrorBoundary,
+  FitViewOnLayoutChange,
+  MiniMapNode,
+  MINIMAP_COLORS,
+  type DAGControlsProps,
+  type FitViewOnLayoutChangeProps,
+} from "@/components/dag";
+
+// Workflow-specific components
 export { GroupNode, nodeTypes } from "./GroupNode";
-export { MiniMapNode } from "./MiniMapNode";
-export { FitViewOnLayoutChange } from "./FitViewOnLayoutChange";
-export { DAGErrorBoundary } from "./DAGErrorBoundary";
-export { DAGControls } from "./DAGControls";
 
 // Unified details panel
 export { DetailsPanel, GroupDetails, TaskDetails } from "./DetailsPanel";

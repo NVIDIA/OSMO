@@ -15,15 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * DAG Context
+ * Workflow DAG Context
  *
- * Provides handlers for node interactions without passing them through node data.
- * This prevents layout re-calculation when callbacks change.
- *
- * Navigation flow:
- * - onSelectGroup: Called when clicking a multi-task group node → Opens GroupPanel
- * - onSelectTask: Called when clicking a single-task node or task in GroupPanel → Opens DetailPanel
- * - onToggleExpand: Called when expanding/collapsing a group in the DAG view
+ * Workflow-specific DAG context that extends the generic DAG context.
+ * Provides handlers for workflow group and task interactions.
  */
 
 "use client";
@@ -31,7 +26,11 @@
 import { createContext, useContext } from "react";
 import type { TaskQueryResponse, GroupWithLayout } from "./workflow-types";
 
-interface DAGContextValue {
+// ============================================================================
+// Workflow-Specific Context
+// ============================================================================
+
+interface WorkflowDAGContextValue {
   /** Called when clicking on a multi-task group node - opens GroupPanel */
   onSelectGroup: (group: GroupWithLayout) => void;
   /** Called when clicking on a single-task node or a task within GroupPanel - opens DetailPanel */
@@ -40,21 +39,28 @@ interface DAGContextValue {
   onToggleExpand: (groupId: string) => void;
 }
 
-const DAGContext = createContext<DAGContextValue | null>(null);
+const WorkflowDAGContext = createContext<WorkflowDAGContextValue | null>(null);
 
 export function DAGProvider({
   children,
   onSelectGroup,
   onSelectTask,
   onToggleExpand,
-}: DAGContextValue & { children: React.ReactNode }) {
-  return <DAGContext.Provider value={{ onSelectGroup, onSelectTask, onToggleExpand }}>{children}</DAGContext.Provider>;
+}: WorkflowDAGContextValue & { children: React.ReactNode }) {
+  return (
+    <WorkflowDAGContext.Provider value={{ onSelectGroup, onSelectTask, onToggleExpand }}>
+      {children}
+    </WorkflowDAGContext.Provider>
+  );
 }
 
 export function useDAGContext() {
-  const context = useContext(DAGContext);
+  const context = useContext(WorkflowDAGContext);
   if (!context) {
     throw new Error("useDAGContext must be used within a DAGProvider");
   }
   return context;
 }
+
+// Re-export types for convenience
+export type { WorkflowDAGContextValue as DAGContextValue };
