@@ -73,14 +73,22 @@ function SmartSearchInner<T>({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ========== Core hooks (lib/) - never changes ==========
-  const { addChip, removeChip, clearChips, isPresetActive, togglePreset, validationError, clearValidationError } =
-    useChips({
-      chips,
-      onChipsChange,
-      data,
-      fields,
-      displayMode,
-    });
+  const {
+    addChip,
+    removeChip,
+    clearChips,
+    isPresetActive,
+    togglePreset,
+    validationError,
+    setValidationError,
+    clearValidationError,
+  } = useChips({
+    chips,
+    onChipsChange,
+    data,
+    fields,
+    displayMode,
+  });
 
   const { parsedInput, suggestions, flatPresets } = useSuggestions({
     inputValue,
@@ -185,12 +193,23 @@ function SmartSearchInner<T>({
             setIsOpen(false);
             inputRef.current?.focus();
           }
+        } else if (parsedInput.hasPrefix && parsedInput.field && !parsedInput.query.trim()) {
+          // User typed a prefix but no value (e.g., "platform:" or "name:")
+          // This is incomplete - show helpful message
+          e.preventDefault();
+          e.stopPropagation();
+          setValidationError(`Enter a value after "${parsedInput.field.prefix}"`);
         } else if (!isOpen) {
           // No field:value pattern and dropdown closed - just open it
           e.preventDefault();
           setIsOpen(true);
+        } else if (inputValue.trim() && selectables.length === 0) {
+          // User typed something that doesn't match any filter type and no suggestions
+          e.preventDefault();
+          e.stopPropagation();
+          setValidationError(`Use a filter prefix like "pool:" or "platform:" to create filters`);
         }
-        // Otherwise: dropdown is open, no field:value - let cmdk handle selection
+        // Otherwise: dropdown is open with suggestions - let cmdk handle selection
       } else if (e.key === "Tab" && !e.shiftKey && inputValue.trim()) {
         // Tab autocomplete: select single matching suggestion
         const valueItems = selectables.filter((s) => s.type === "value");
@@ -204,7 +223,7 @@ function SmartSearchInner<T>({
         }
       }
     },
-    [focusedChipIndex, chips, inputValue, removeChip, isOpen, parsedInput, addChip, selectables, handleSelect],
+    [focusedChipIndex, chips, inputValue, removeChip, isOpen, parsedInput, addChip, selectables, handleSelect, setValidationError],
   );
 
   const handleInputChange = useCallback(
@@ -239,12 +258,16 @@ function SmartSearchInner<T>({
   );
 
   // Close dropdown when clicking outside
-  const handleBlur = useCallback((e: React.FocusEvent) => {
-    // Check if focus is moving outside the container
-    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
-      setIsOpen(false);
-    }
-  }, []);
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      // Check if focus is moving outside the container
+      if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+        setIsOpen(false);
+        clearValidationError();
+      }
+    },
+    [clearValidationError],
+  );
 
   // Stable handler for input container click
   const handleContainerClick = useCallback(() => {
@@ -252,10 +275,14 @@ function SmartSearchInner<T>({
   }, []);
 
   // Stable handler for backdrop click
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsOpen(false);
-  }, []);
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsOpen(false);
+      clearValidationError();
+    },
+    [clearValidationError],
+  );
 
   // Stable handler for input change event
   const handleInputChangeEvent = useCallback(
