@@ -57,7 +57,7 @@ import {
 } from "../../lib/task-columns";
 import { createTaskColumns } from "../../lib/task-column-defs";
 import { SmartSearch, filterByChips, type SearchChip, type ResultsCount } from "@/components/smart-search";
-import { TASK_SEARCH_FIELDS, createTaskPresets } from "../../lib/task-search-fields";
+import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
 import { useTaskTableStore } from "../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
 import { GroupTimeline } from "./GroupTimeline";
@@ -194,8 +194,8 @@ export const GroupDetails = memo(function GroupDetails({
     return result;
   }, [tasksWithDuration, searchChips, sortComparator]);
 
-  // Create presets for state filtering
-  const taskPresets = useMemo(() => createTaskPresets(tasksWithDuration), [tasksWithDuration]);
+  // Static presets for state filtering (no data-dependent counts)
+  const taskPresets = TASK_PRESETS;
 
   // Results count for SmartSearch display
   const resultsCount = useMemo<ResultsCount>(

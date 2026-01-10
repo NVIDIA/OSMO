@@ -101,48 +101,36 @@ export interface SearchChip {
 
 /**
  * Props passed to the custom preset render function.
+ *
+ * SmartSearch is agnostic about preset content - the caller provides
+ * the render function and decides what to display (labels, counts, icons, etc.).
  */
 export interface PresetRenderProps {
   /** Whether the preset is currently active (has matching chip) */
   active: boolean;
   /** Whether the preset is focused via keyboard navigation */
   focused: boolean;
-  /** Count of matching items */
-  count: number;
-  /** The preset label */
-  label: string;
 }
 
 /**
  * A preset filter button shown at the top of the dropdown.
  * Used for quick-access filters like status categories.
- * @template T - The data item type being filtered
+ *
+ * SmartSearch practices dependency injection - the caller provides the render
+ * function and is responsible for all visual content (labels, counts, icons, etc.).
+ * This keeps the component agnostic about what presets display.
  */
-export interface SearchPreset<T> {
+export interface SearchPreset {
   /** Unique identifier */
   id: string;
-  /** Display label (e.g., "Online") */
-  label: string;
-  /** Function to count matching items */
-  count: (data: T[]) => number;
   /** The chip to add when this preset is clicked */
   chip: SearchChip;
   /**
-   * Custom render function for preset content.
-   * If provided, replaces the default dot + label + count rendering.
-   * The button wrapper and click handling are still managed by SmartSearch.
+   * Render function for preset content.
+   * The caller is responsible for all visual content (labels, icons, counts, etc.).
+   * SmartSearch only handles the button wrapper and click/keyboard interaction.
    */
-  render?: (props: PresetRenderProps) => React.ReactNode;
-  // ---- Default rendering props (used when render is not provided) ----
-  /** Tailwind class for the status dot color (e.g., "bg-emerald-500") */
-  dotColor?: string;
-  /** Tailwind classes for badge styling when active */
-  badgeColors?: {
-    /** Background color class (e.g., "bg-emerald-100 dark:bg-emerald-900/50") */
-    bg: string;
-    /** Text color class (e.g., "text-emerald-700 dark:text-emerald-300") */
-    text: string;
-  };
+  render: (props: PresetRenderProps) => React.ReactNode;
 }
 
 /**
@@ -187,7 +175,7 @@ export interface SmartSearchProps<T> {
     /** Group label (e.g., "Status") */
     label: string;
     /** Preset buttons in this group */
-    items: SearchPreset<T>[];
+    items: SearchPreset[];
   }[];
   /**
    * Results count for displaying "N results" or "M of N results".

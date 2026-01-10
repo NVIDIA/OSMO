@@ -48,7 +48,8 @@
  *
  * WHEN BACKEND IS UPDATED:
  * 1. Delete this file entirely
- * 2. Update fetchFilteredPools in hooks.ts to pass filters to API
+ * 2. Update useFilteredPools in hooks.ts to include filters in query key
+ *    and pass them to the API
  * 3. No changes needed in usePoolsData or UI components
  *
  * See: BACKEND_TODOS.md#12 for detailed backend requirements.
@@ -101,7 +102,7 @@ export interface PoolMetadata {
 }
 
 /**
- * Result from fetchFilteredPools.
+ * Result from applyPoolFiltersSync.
  */
 export interface FilteredPoolsResult {
   /** Filtered pools */
@@ -210,22 +211,26 @@ function computePoolMetadata(pools: Pool[]): PoolMetadata {
 // =============================================================================
 
 /**
- * SHIM: Fetch pools with client-side filtering.
+ * SHIM: Apply filters synchronously to cached pool data.
  *
- * When backend supports filtering, this function can be simplified to:
- * 1. Pass filters directly to API
- * 2. Return response without client-side processing
+ * This is designed for use in useMemo with React Query's cached data.
+ * The hook fetches once with a stable query key, then filters are applied
+ * client-side from the cache, preventing duplicate API calls.
  *
+ * When backend supports filtering:
+ * 1. Query key will include filter params
+ * 2. This function becomes unnecessary
+ * 3. Filtered data comes directly from API
+ *
+ * @param allPools - All pools from cache
  * @param params - Filter parameters
- * @param fetchAllFn - Function to fetch all pools from API
+ * @param sharingGroups - Sharing groups from cache
  */
-export async function fetchFilteredPools(
+export function applyPoolFiltersSync(
+  allPools: Pool[],
   params: PoolFilterParams,
-  fetchAllFn: () => Promise<{ pools: Pool[]; sharingGroups: string[][] }>,
-): Promise<FilteredPoolsResult> {
-  // SHIM: Fetch all pools (server will filter when ready)
-  const { pools: allPools, sharingGroups } = await fetchAllFn();
-
+  sharingGroups: string[][],
+): FilteredPoolsResult {
   // SHIM: Apply filters client-side
   const filteredPools = applyPoolFilters(allPools, params, sharingGroups);
 

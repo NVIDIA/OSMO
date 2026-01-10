@@ -61,7 +61,7 @@ export interface TableToolbarProps<T> {
   /** Preset filter buttons for SmartSearch dropdown */
   searchPresets?: {
     label: string;
-    items: SearchPreset<T>[];
+    items: SearchPreset[];
   }[];
   /** Show the free/used display mode toggle (default: true) */
   showDisplayModeToggle?: boolean;

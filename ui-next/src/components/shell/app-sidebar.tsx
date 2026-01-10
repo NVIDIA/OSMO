@@ -193,6 +193,7 @@ function NavSectionGroup({
           <SidebarGroupLabel
             className={cn(
               "h-auto px-3 py-2 text-xs font-semibold tracking-wider text-zinc-500 uppercase transition-all duration-200 ease-out dark:text-zinc-400",
+              "group-data-[collapsible=icon]:mt-0",
               collapsed && "h-0 py-0 opacity-0",
             )}
           >

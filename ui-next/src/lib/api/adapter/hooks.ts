@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   useGetPoolQuotasApiPoolQuotaGet,
   useGetResourcesApiResourcesGet,
@@ -30,7 +30,7 @@ import {
 import type { PoolResourcesResponse, AllResourcesResponse } from "./types";
 import { fetchPaginatedResources, invalidateResourcesCache, getResourceFilterOptions } from "./resources-shim";
 import {
-  fetchFilteredPools,
+  applyPoolFiltersSync,
   hasActiveFilters,
   type PoolFilterParams,
   type FilteredPoolsResult,
@@ -76,48 +76,41 @@ export function usePools() {
  *
  * Issue: BACKEND_TODOS.md#12
  *
+ * SHIM ARCHITECTURE:
+ * - Base query uses stable key (no filter params) so data is cached once
+ * - Filters are applied client-side in useMemo from cached data
+ * - When backend supports filtering, query key will include params and
+ *   filtering moves server-side
+ *
  * @param params - Filter parameters (status, platform, backend, search, sharedWith)
  */
 export function useFilteredPools(params: PoolFilterParams = {}) {
-  // Build stable query key from filter params
-  // Sorting ensures consistent key regardless of property order
-  const queryKey = useMemo(
-    () => [
-      "pools",
-      "filtered",
-      {
-        statuses: params.statuses?.sort().join(",") ?? "",
-        platforms: params.platforms?.sort().join(",") ?? "",
-        backends: params.backends?.sort().join(",") ?? "",
-        search: params.search ?? "",
-        sharedWith: params.sharedWith ?? "",
-      },
-    ],
-    [params.statuses, params.platforms, params.backends, params.search, params.sharedWith],
-  );
-
+  // SHIM: Use stable query key without filter params
+  // This ensures we don't refetch when filters change - filtering is client-side
+  // FUTURE: When backend supports filtering, include params in query key
   const query = useQuery({
-    queryKey,
-    queryFn: async (): Promise<FilteredPoolsResult> => {
-      // SHIM: Fetch all pools and filter client-side
-      // When backend supports filtering, this becomes a direct API call with params
-      return fetchFilteredPools(params, async () => {
-        const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
-        return transformPoolsResponse(rawResponse);
-      });
+    queryKey: ["pools", "all"],
+    queryFn: async () => {
+      const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
+      return transformPoolsResponse(rawResponse);
     },
     staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
-    // Keep previous data while fetching with new filters to prevent flash of empty state
-    placeholderData: keepPreviousData,
   });
 
+  // SHIM: Apply filters client-side from cached data
+  // FUTURE: When backend supports filtering, this becomes a passthrough
+  const filteredResult = useMemo((): FilteredPoolsResult | null => {
+    if (!query.data) return null;
+    return applyPoolFiltersSync(query.data.pools, params, query.data.sharingGroups);
+  }, [query.data, params]);
+
   return {
-    pools: query.data?.pools ?? [],
-    allPools: query.data?.allPools ?? [],
-    sharingGroups: query.data?.sharingGroups ?? [],
-    metadata: query.data?.metadata ?? null,
-    total: query.data?.total ?? 0,
-    filteredTotal: query.data?.filteredTotal ?? 0,
+    pools: filteredResult?.pools ?? [],
+    allPools: filteredResult?.allPools ?? [],
+    sharingGroups: filteredResult?.sharingGroups ?? [],
+    metadata: filteredResult?.metadata ?? null,
+    total: filteredResult?.total ?? 0,
+    filteredTotal: filteredResult?.filteredTotal ?? 0,
     hasActiveFilters: hasActiveFilters(params),
     isLoading: query.isLoading,
     error: query.error,
