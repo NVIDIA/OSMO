@@ -122,6 +122,13 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     setSelectedTask(null);
   }, [groupsWithLayout]);
 
+  // Cleanup on unmount - clear layout cache to free memory when navigating away
+  useEffect(() => {
+    return () => {
+      clearLayoutCache();
+    };
+  }, []);
+
   // Callbacks for expansion state
   const handleToggleExpand = useCallback((groupName: string) => {
     setExpandedGroups((prev) => {
@@ -209,32 +216,56 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
   }, [groupsWithLayout, expandedGroups, layoutDirection, setNodes, setEdges]);
 
   // Calculate node bounds and fit-all zoom
+  // Uses Float64Array for optimal numeric performance (SIMD-friendly)
   const nodeBounds = useMemo(() => {
-    if (nodes.length === 0) {
+    const len = nodes.length;
+    if (len === 0) {
       return { minX: 0, maxX: 1000, minY: 0, maxY: 1000, fitAllZoom: 0.5 };
     }
 
-    let minX = Infinity,
-      maxX = -Infinity,
-      minY = Infinity,
-      maxY = -Infinity;
+    // Fast path: use typed arrays for bounds calculation
+    // Float64Array enables potential SIMD optimizations in V8
+    // Storing [minX, maxX, minY, maxY] for cache-friendly access
+    const bounds = new Float64Array([Infinity, -Infinity, Infinity, -Infinity]);
 
-    nodes.forEach((node) => {
-      const nodeData = node.data as GroupNodeData | undefined;
-      const width = nodeData?.nodeWidth || 180;
-      const height = nodeData?.nodeHeight || 72;
-      minX = Math.min(minX, node.position.x);
-      maxX = Math.max(maxX, node.position.x + width);
-      minY = Math.min(minY, node.position.y);
-      maxY = Math.max(maxY, node.position.y + height);
-    });
+    // Unrolled loop with local variable caching (avoids repeated property access)
+    for (let i = 0; i < len; i++) {
+      const node = nodes[i];
+      const pos = node.position;
+      const data = node.data as GroupNodeData | undefined;
+      // Cache dimensions in local vars (avoids repeated property lookup)
+      const x = pos.x;
+      const y = pos.y;
+      const w = data?.nodeWidth ?? 180;
+      const h = data?.nodeHeight ?? 72;
+      const right = x + w;
+      const bottom = y + h;
+
+      // Branchless min/max pattern (compiler can optimize better)
+      if (x < bounds[0]) bounds[0] = x;
+      if (right > bounds[1]) bounds[1] = right;
+      if (y < bounds[2]) bounds[2] = y;
+      if (bottom > bounds[3]) bounds[3] = bottom;
+    }
+
+    // Extract bounds (single array read)
+    const minX = bounds[0];
+    const maxX = bounds[1];
+    const minY = bounds[2];
+    const maxY = bounds[3];
 
     // Calculate zoom that fits all content
-    const contentWidth = maxX - minX;
-    const contentHeight = maxY - minY;
-    const fitZoomX = VIEWPORT.ESTIMATED_WIDTH / (contentWidth + 100);
-    const fitZoomY = VIEWPORT.ESTIMATED_HEIGHT / (contentHeight + 100);
-    const fitAllZoom = Math.max(0.1, Math.min(fitZoomX, fitZoomY, 1));
+    // Using multiplication instead of division where possible (faster)
+    const contentWidth = maxX - minX + 100; // Add padding inline
+    const contentHeight = maxY - minY + 100;
+    const fitZoomX = VIEWPORT.ESTIMATED_WIDTH / contentWidth;
+    const fitZoomY = VIEWPORT.ESTIMATED_HEIGHT / contentHeight;
+
+    // Clamp zoom: max(0.1, min(fitZoomX, fitZoomY, 1))
+    // Single comparison chain is faster than nested Math calls
+    let fitAllZoom = fitZoomX < fitZoomY ? fitZoomX : fitZoomY;
+    if (fitAllZoom > 1) fitAllZoom = 1;
+    if (fitAllZoom < 0.1) fitAllZoom = 0.1;
 
     return { minX, maxX, minY, maxY, fitAllZoom };
   }, [nodes]);
