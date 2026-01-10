@@ -31,7 +31,7 @@
 
 import { useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
-import { useStableCallback } from "@/hooks";
+import { useStableCallback, useIsomorphicLayoutEffect } from "@/hooks";
 import { PANEL } from "./panel-header-controls";
 
 // ============================================================================
@@ -97,17 +97,20 @@ export function useResizablePanel({
   // Cache container rect at drag start to avoid layout reflows during drag
   const containerRectRef = useRef<{ left: number; width: number }>({ left: 0, width: 0 });
 
-  // Refs that MUST be updated synchronously during render (not in effects!)
-  // This is critical because useDrag's handler can be called during the same
-  // frame before any effects run, causing stale values.
+  // Refs synced via useLayoutEffect to ensure handlers have current values.
+  // useLayoutEffect runs synchronously after render, before paint, ensuring
+  // these are up-to-date before any gesture handlers execute.
   const minPctRef = useRef(minPct);
   const maxPctRef = useRef(maxPct);
   const panelPctRef = useRef(panelPct);
 
-  // SYNC update during render - critical for handler to have current values
-  minPctRef.current = minPct;
-  maxPctRef.current = maxPct;
-  panelPctRef.current = panelPct;
+  // Sync refs in useIsomorphicLayoutEffect - runs synchronously after render, before paint
+  // SSR-safe: falls back to useEffect on server to avoid hydration warnings
+  useIsomorphicLayoutEffect(() => {
+    minPctRef.current = minPct;
+    maxPctRef.current = maxPct;
+    panelPctRef.current = panelPct;
+  }, [minPct, maxPct, panelPct]);
 
   // Combined setter that also calls onResize - direct update for immediate response
   const setPanelPct = useStableCallback((pct: number) => {
@@ -138,12 +141,12 @@ export function useResizablePanel({
       if (active) {
         const { left, width } = containerRectRef.current;
         if (width === 0) return; // Safety check
-        
+
         const relativeX = x - left;
         // Panel is on the right side, so width = total - x position
         const rawPct = 100 - (relativeX / width) * 100;
         const clampedPct = Math.min(maxPctRef.current, Math.max(minPctRef.current, rawPct));
-        
+
         // Only update if there's an actual change (avoids redundant updates on click)
         if (Math.abs(clampedPct - panelPctRef.current) > 0.01) {
           setPanelPct(clampedPct);
