@@ -64,6 +64,7 @@ export function ResourcePanelLayout({
       minWidth={PANEL.MIN_WIDTH_PCT}
       maxWidth={PANEL.MAX_WIDTH_PCT}
       mainContent={children}
+      backdrop={false}
       aria-label={resource ? `Resource details: ${resource.name}` : undefined}
     >
       {resource && (

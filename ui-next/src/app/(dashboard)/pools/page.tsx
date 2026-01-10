@@ -115,7 +115,7 @@ export default function PoolsPage() {
       selectedPlatform={selectedPlatform}
       onPlatformSelect={setSelectedPlatform}
     >
-      <div className="flex h-full flex-col gap-4">
+      <div className="flex h-full flex-col gap-4 p-6">
         {/* Toolbar with search and controls */}
         <div className="shrink-0">
           <InlineErrorBoundary

@@ -96,6 +96,7 @@ export function PoolPanelLayout({
       width={panelWidth}
       onWidthChange={setPanelWidth}
       mainContent={children}
+      backdrop={false}
       aria-label={pool ? `Pool details: ${pool.name}` : undefined}
       className="pools-panel"
     >

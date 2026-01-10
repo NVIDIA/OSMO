@@ -45,6 +45,8 @@ export interface ResizablePanelProps {
   children: React.ReactNode;
   /** Main content to render behind the panel */
   mainContent: React.ReactNode;
+  /** Whether to show a backdrop overlay (default: true) */
+  backdrop?: boolean;
   /** Accessible label for the panel */
   "aria-label"?: string;
   /** Additional class for the panel */
@@ -56,17 +58,21 @@ export interface ResizablePanelProps {
 // =============================================================================
 
 /**
- * ResizablePanel - Generic overlay panel with drag-to-resize.
+ * ResizablePanel - Container-scoped overlay panel with drag-to-resize.
  *
  * Features:
- * - Resizable width via drag handle
- * - Backdrop with click-to-close
+ * - Resizable width via drag handle (percentage of container)
+ * - Optional backdrop with click-to-close
  * - Escape key to close (respects open dropdowns)
  * - Smooth slide-in/out animation
  * - Accessible with proper ARIA attributes
  *
+ * The panel is positioned absolutely within its container, making it suitable
+ * for embedding in any layout context (full page, split views, tabs, etc.).
+ *
  * @example
  * ```tsx
+ * // With backdrop (default) - good for tables/lists
  * <ResizablePanel
  *   open={!!selectedItem}
  *   onClose={() => setSelectedItem(null)}
@@ -75,8 +81,19 @@ export interface ResizablePanelProps {
  *   mainContent={<MainList />}
  *   aria-label={`Details for ${selectedItem?.name}`}
  * >
- *   <PanelHeader item={selectedItem} onClose={handleClose} />
  *   <PanelContent item={selectedItem} />
+ * </ResizablePanel>
+ *
+ * // Without backdrop - good for DAGs where content stays interactive
+ * <ResizablePanel
+ *   open={true}
+ *   onClose={handleClose}
+ *   width={panelWidth}
+ *   onWidthChange={setPanelWidth}
+ *   mainContent={<DAGCanvas />}
+ *   backdrop={false}
+ * >
+ *   <DetailsPanel />
  * </ResizablePanel>
  * ```
  */
@@ -90,6 +107,7 @@ export function ResizablePanel({
   minWidthPx = 320,
   children,
   mainContent,
+  backdrop = true,
   "aria-label": ariaLabel,
   className,
 }: ResizablePanelProps) {
@@ -182,15 +200,15 @@ export function ResizablePanel({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full"
+      className="relative h-full w-full overflow-hidden"
     >
       {/* Main content - always full width */}
       <div className="h-full w-full">{mainContent}</div>
 
-      {/* Backdrop - fixed to cover content area only (below header, right of sidebar) */}
-      {open && (
+      {/* Optional backdrop - absolute within container */}
+      {backdrop && open && (
         <div
-          className="fixed-below-header z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
+          className="absolute inset-0 z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
           onClick={() => {
             // Don't close if we're in the middle of a resize drag
             if (!isDragging) {
@@ -201,11 +219,24 @@ export function ResizablePanel({
         />
       )}
 
-      {/* Overlay panel - fixed to content area */}
+      {/* Resize Handle - positioned at panel edge within container */}
+      {open && (
+        <ResizeHandle
+          bindResizeHandle={bindResizeHandle}
+          isDragging={isDragging}
+          className="absolute top-0 z-[60] h-full"
+          style={{ left: `${100 - width}%` }}
+          aria-valuenow={width}
+          aria-valuemin={minWidth}
+          aria-valuemax={maxWidth}
+        />
+      )}
+
+      {/* Panel - absolute within container */}
       <aside
         ref={panelRef}
         className={cn(
-          "top-shell-header contain-layout-style fixed right-0 bottom-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
+          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
           className,
         )}
@@ -219,16 +250,6 @@ export function ResizablePanel({
         aria-hidden={!open}
         onKeyDown={handleKeyDown}
       >
-        {/* Resize Handle */}
-        <ResizeHandle
-          bindResizeHandle={bindResizeHandle}
-          isDragging={isDragging}
-          className="absolute inset-y-0 left-0 z-[60] -translate-x-1/2"
-          aria-valuenow={width}
-          aria-valuemin={minWidth}
-          aria-valuemax={maxWidth}
-        />
-
         {/* Panel content - overflow hidden here */}
         {open && <div className="flex h-full flex-col overflow-hidden">{children}</div>}
       </aside>

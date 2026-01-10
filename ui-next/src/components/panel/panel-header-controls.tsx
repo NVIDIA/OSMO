@@ -18,6 +18,7 @@
 
 import { memo } from "react";
 import { X, MoreVertical, PanelLeft, PanelLeftClose, Columns2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +61,98 @@ export const WIDTH_PRESET_ICONS: Record<number, React.FC<{ className?: string }>
 };
 
 // =============================================================================
+// Panel Header Container
+// =============================================================================
+
+export interface PanelHeaderContainerProps {
+  /** Header content */
+  children: React.ReactNode;
+  /** Additional className */
+  className?: string;
+}
+
+/**
+ * Sticky header container for panel headers.
+ * Provides consistent styling: sticky positioning, border, backdrop blur.
+ *
+ * @example
+ * ```tsx
+ * <PanelHeaderContainer>
+ *   <div className="flex items-center justify-between">
+ *     <h2>Title</h2>
+ *     <PanelCloseButton onClose={onClose} />
+ *   </div>
+ *   <div className="mt-1.5 text-xs">Status info</div>
+ * </PanelHeaderContainer>
+ * ```
+ */
+export const PanelHeaderContainer = memo(function PanelHeaderContainer({
+  children,
+  className,
+}: PanelHeaderContainerProps) {
+  return (
+    <header
+      className={cn(
+        "sticky top-0 z-10 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur",
+        "dark:border-zinc-700 dark:bg-zinc-900/95",
+        className,
+      )}
+    >
+      {children}
+    </header>
+  );
+});
+
+// =============================================================================
+// Width Preset Menu Items
+// =============================================================================
+
+export interface WidthPresetMenuItemsProps {
+  /** Callback when a width preset is selected */
+  onWidthPreset: (pct: number) => void;
+  /** Whether to include the "Snap to" label (default: true) */
+  showLabel?: boolean;
+}
+
+/**
+ * Menu items for panel width presets.
+ * Use inside a DropdownMenuContent for custom menus that include width presets.
+ *
+ * @example
+ * ```tsx
+ * <DropdownMenuContent>
+ *   <DropdownMenuItem>Custom action</DropdownMenuItem>
+ *   <DropdownMenuSeparator />
+ *   <WidthPresetMenuItems onWidthPreset={handleResize} />
+ * </DropdownMenuContent>
+ * ```
+ */
+export const WidthPresetMenuItems = memo(function WidthPresetMenuItems({
+  onWidthPreset,
+  showLabel = true,
+}: WidthPresetMenuItemsProps) {
+  return (
+    <>
+      {showLabel && (
+        <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">Snap to</DropdownMenuLabel>
+      )}
+      {PANEL.WIDTH_PRESETS.map((pct) => {
+        const Icon = WIDTH_PRESET_ICONS[pct];
+        return (
+          <DropdownMenuItem
+            key={pct}
+            onClick={() => onWidthPreset(pct)}
+          >
+            <Icon className="mr-2 size-4" />
+            <span>{pct}%</span>
+          </DropdownMenuItem>
+        );
+      })}
+    </>
+  );
+});
+
+// =============================================================================
 // Panel Width Menu
 // =============================================================================
 
@@ -83,19 +176,7 @@ export const PanelWidthMenu = memo(function PanelWidthMenu({ onWidthPreset }: Pa
         align="end"
         className="w-44"
       >
-        <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">Snap to</DropdownMenuLabel>
-        {PANEL.WIDTH_PRESETS.map((pct) => {
-          const Icon = WIDTH_PRESET_ICONS[pct];
-          return (
-            <DropdownMenuItem
-              key={pct}
-              onClick={() => onWidthPreset(pct)}
-            >
-              <Icon className="mr-2 size-4" />
-              <span>{pct}%</span>
-            </DropdownMenuItem>
-          );
-        })}
+        <WidthPresetMenuItems onWidthPreset={onWidthPreset} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

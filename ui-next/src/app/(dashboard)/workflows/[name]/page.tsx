@@ -381,8 +381,7 @@ export default function WorkflowDetailPage({ params }: WorkflowDetailPageProps) 
       title="Unable to display workflow"
       onReset={() => window.location.reload()}
     >
-      {/* Negate shell padding for edge-to-edge DAG layout */}
-      <div className="-m-6 h-[calc(100%+48px)]">
+      <div className="h-full">
         <ReactFlowProvider>
           <WorkflowDetailPageInner name={decodedName} />
         </ReactFlowProvider>
