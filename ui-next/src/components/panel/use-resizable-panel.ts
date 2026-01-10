@@ -31,7 +31,8 @@
 
 import { useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
-import { useStableCallback, useIsomorphicLayoutEffect } from "@/hooks";
+import { useIsomorphicLayoutEffect } from "@react-hookz/web";
+import { useStableCallback } from "@/hooks";
 import { PANEL } from "./panel-header-controls";
 
 // ============================================================================

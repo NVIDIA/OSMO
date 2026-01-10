@@ -31,7 +31,7 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from "react";
-import { useStableValue } from "@/hooks";
+import { useSyncedRef } from "@react-hookz/web";
 
 // =============================================================================
 // Types
@@ -86,8 +86,8 @@ export function useRowNavigation({
   const rafIdRef = useRef<number | null>(null);
 
   // Stable refs for callbacks to prevent stale closures and unnecessary re-renders
-  const onRowActivateRef = useStableValue(onRowActivate);
-  const onScrollToRowRef = useStableValue(onScrollToRow);
+  const onRowActivateRef = useSyncedRef(onRowActivate);
+  const onScrollToRowRef = useSyncedRef(onScrollToRow);
 
   // Cleanup RAF on unmount
   useEffect(() => {

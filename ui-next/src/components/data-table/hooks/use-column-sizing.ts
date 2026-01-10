@@ -26,7 +26,8 @@
 
 import { useCallback, useRef, useMemo, useEffect, useReducer, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
-import { useStableCallback, useStableValue, useRafCallback, useIsomorphicLayoutEffect } from "@/hooks";
+import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback } from "@react-hookz/web";
+import { useStableCallback } from "@/hooks";
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
 import type { ColumnSizeConfig } from "../types";
 import { logColumnSizingDebug, createDebugSnapshot, flushDebugBuffer } from "../utils/debug";
@@ -191,12 +192,12 @@ export function useColumnSizing({
   // =========================================================================
   // Stable Refs (for callbacks that need latest values without re-creating)
   // =========================================================================
-  const minSizesRef = useStableValue(minSizes);
-  const configuredSizesRef = useStableValue(configuredSizes);
-  const sizingPreferencesRef = useStableValue(sizingPreferences);
-  const contentWidthsRef = useStableValue(contentWidths);
-  const onPreferenceChangeRef = useStableValue(onPreferenceChange);
-  const stateRef = useStableValue(state);
+  const minSizesRef = useSyncedRef(minSizes);
+  const configuredSizesRef = useSyncedRef(configuredSizes);
+  const sizingPreferencesRef = useSyncedRef(sizingPreferences);
+  const contentWidthsRef = useSyncedRef(contentWidths);
+  const onPreferenceChangeRef = useSyncedRef(onPreferenceChange);
+  const stateRef = useSyncedRef(state);
 
   // For tracking resize timing (cooldown after resize ends)
   const lastResizeEndRef = useRef<number>(0);
