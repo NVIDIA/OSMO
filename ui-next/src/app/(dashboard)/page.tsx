@@ -22,7 +22,7 @@ export default function DashboardPage() {
   usePage({ title: "Dashboard" });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Stats cards - TODO: Wire to real API endpoints */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Active Workflows" />

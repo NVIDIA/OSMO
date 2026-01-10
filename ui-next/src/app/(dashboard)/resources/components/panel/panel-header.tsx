@@ -31,7 +31,7 @@ import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "../../lib/constants";
-import { PanelHeaderActions } from "@/components/panel";
+import { PanelHeaderContainer, PanelHeaderActions } from "@/components/panel";
 
 export interface ResourcePanelHeaderProps {
   resource: Resource;
@@ -47,7 +47,7 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
   const resourceTypeDisplay = getResourceAllocationTypeDisplay(resource.resourceType);
 
   return (
-    <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
+    <PanelHeaderContainer>
       {/* Row 1: Title row */}
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -84,6 +84,6 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
           </>
         )}
       </div>
-    </header>
+    </PanelHeaderContainer>
   );
 });

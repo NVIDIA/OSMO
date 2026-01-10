@@ -29,7 +29,7 @@
 "use client";
 
 import { memo, useState, useMemo, useCallback, useRef } from "react";
-import { X, ChevronLeft, ChevronDown, MoreVertical, Columns, Search, Check } from "lucide-react";
+import { ChevronLeft, ChevronDown, MoreVertical, Columns, Search, Check, ArrowRightToLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -43,7 +43,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
 } from "@/components/shadcn/dropdown-menu";
-import { PANEL, WIDTH_PRESET_ICONS } from "@/components/panel";
+import { PanelHeaderContainer, WidthPresetMenuItems } from "@/components/panel";
 import { getStatusIcon } from "../../lib/status";
 import type { DetailsPanelHeaderProps, SiblingTask } from "../../lib/panel-types";
 
@@ -150,7 +150,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   }, []);
 
   return (
-    <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+    <PanelHeaderContainer>
       {/* Row 1: Title row */}
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -306,34 +306,18 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
               >
                 {menuContent}
                 {menuContent && onPanelResize && <DropdownMenuSeparator />}
-                {onPanelResize && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-gray-500 dark:text-zinc-500">Snap to</DropdownMenuLabel>
-                    {PANEL.WIDTH_PRESETS.map((pct) => {
-                      const Icon = WIDTH_PRESET_ICONS[pct];
-                      return (
-                        <DropdownMenuItem
-                          key={pct}
-                          onClick={() => onPanelResize(pct)}
-                        >
-                          <Icon className="mr-2 size-4" />
-                          <span>{pct}%</span>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </>
-                )}
+                {onPanelResize && <WidthPresetMenuItems onWidthPreset={onPanelResize} />}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
 
-          {/* Close button */}
+          {/* Collapse button */}
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Close panel"
+            aria-label="Collapse panel"
           >
-            <X className="size-4" />
+            <ArrowRightToLine className="size-4" />
           </button>
         </div>
       </div>
@@ -365,7 +349,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           {expandableContent}
         </div>
       )}
-    </div>
+    </PanelHeaderContainer>
   );
 });
 

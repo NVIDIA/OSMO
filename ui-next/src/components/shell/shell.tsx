@@ -63,10 +63,12 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
         <Header />
 
         {/* Content - with optimized scrolling */}
+        {/* Note: Pages are responsible for their own padding. This allows pages */}
+        {/* with edge-to-edge layouts (like resizable panels) to use full space. */}
         <main
           id="main-content"
           tabIndex={-1}
-          className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 p-6 dark:bg-zinc-900"
+          className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
           aria-label="Main content"
         >
           <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
@@ -81,7 +83,7 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
  */
 function MainContentSkeleton() {
   return (
-    <div className="animate-in fade-in flex h-full flex-col gap-6 duration-300">
+    <div className="animate-in fade-in flex h-full flex-col gap-6 p-6 duration-300">
       {/* Page header skeleton */}
       <div className="shrink-0 space-y-2">
         <Skeleton className="h-8 w-48" />
