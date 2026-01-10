@@ -37,8 +37,4 @@ export {
   type PanelHeaderActionsProps,
 } from "./panel-header-controls";
 
-export {
-  useResizablePanel,
-  type UseResizablePanelOptions,
-  type UseResizablePanelReturn,
-} from "./use-resizable-panel";
+export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "./use-resizable-panel";

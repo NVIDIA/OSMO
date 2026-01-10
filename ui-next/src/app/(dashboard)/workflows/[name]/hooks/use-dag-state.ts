@@ -38,12 +38,7 @@ import type { Node, Edge } from "@xyflow/react";
 import { VIEWPORT, type LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
 import { transformGroups } from "../lib/workflow-adapter";
-import {
-  calculateLayout,
-  computeInitialExpandedGroups,
-  clearLayoutCache,
-  type GroupNodeData,
-} from "../lib/dag-layout";
+import { calculateLayout, computeInitialExpandedGroups, clearLayoutCache, type GroupNodeData } from "../lib/dag-layout";
 
 interface UseDAGStateOptions {
   /** Initial workflow groups from the API */
