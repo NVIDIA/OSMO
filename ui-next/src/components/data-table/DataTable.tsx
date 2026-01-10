@@ -31,7 +31,7 @@
 "use client";
 
 import { useMemo, useRef, useCallback } from "react";
-import { useStableValue } from "@/hooks";
+import { useSyncedRef } from "@react-hookz/web";
 import {
   useReactTable,
   getCoreRowModel,
@@ -213,9 +213,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
   const tableElementRef = useRef<HTMLTableElement>(null);
 
   // Stable refs for optional callbacks to prevent re-render loops
-  const onSortingChangeRef = useStableValue(onSortingChange);
-  const onRowClickRef = useStableValue(onRowClick);
-  const onLoadMoreRef = useStableValue(onLoadMore);
+  const onSortingChangeRef = useSyncedRef(onSortingChange);
+  const onRowClickRef = useSyncedRef(onRowClick);
+  const onLoadMoreRef = useSyncedRef(onLoadMore);
 
   // Get all data items (from sections or flat data)
   const allItems = useMemo(() => {
@@ -368,7 +368,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
     });
 
   // Stable access to table instance in callbacks
-  const tableRef = useStableValue(table);
+  const tableRef = useSyncedRef(table);
 
   // Map virtual row index to TanStack table row
   const getTableRow = useCallback(
