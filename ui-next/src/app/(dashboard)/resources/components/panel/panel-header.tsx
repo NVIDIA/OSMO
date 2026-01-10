@@ -19,8 +19,10 @@
 /**
  * ResourcePanelHeader Component
  *
- * Two-row header layout:
- * Row 1: Title + Resource type badge                    [Menu] [Close]
+ * Resource-specific header composing from canonical PanelHeader.
+ *
+ * Layout:
+ * Row 1: Title + Resource type badge            [Resource badge] [Menu] [Close]
  * Row 2: Platform · Backend · Pool count
  */
 
@@ -31,7 +33,7 @@ import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "../../lib/constants";
-import { PanelHeaderContainer, PanelHeaderActions } from "@/components/panel";
+import { PanelHeader, PanelTitle, PanelHeaderActions } from "@/components/panel";
 
 export interface ResourcePanelHeaderProps {
   resource: Resource;
@@ -46,44 +48,51 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
 }: ResourcePanelHeaderProps) {
   const resourceTypeDisplay = getResourceAllocationTypeDisplay(resource.resourceType);
 
-  return (
-    <PanelHeaderContainer>
-      {/* Row 1: Title row */}
-      <div className="flex items-center justify-between">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{resource.name}</h2>
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", resourceTypeDisplay.className)}>
-            {resourceTypeDisplay.label}
+  // Build title content with name and resource type badge
+  const titleContent = (
+    <>
+      <PanelTitle>{resource.name}</PanelTitle>
+      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", resourceTypeDisplay.className)}>
+        {resourceTypeDisplay.label}
+      </span>
+    </>
+  );
+
+  // Build subtitle content with platform, backend, and pool count
+  const subtitleContent = (
+    <>
+      <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+        <Cpu className="size-3" />
+        {resource.platform}
+      </span>
+      <span className="text-zinc-400 dark:text-zinc-600">·</span>
+      <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
+        <Server className="size-3" />
+        {resource.backend}
+      </span>
+      {resource.poolMemberships.length > 0 && (
+        <>
+          <span className="text-zinc-400 dark:text-zinc-600">·</span>
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {resource.poolMemberships.length} pool
+            {resource.poolMemberships.length !== 1 ? "s" : ""}
           </span>
-        </div>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <PanelHeader
+      title={titleContent}
+      actions={
         <PanelHeaderActions
           badge="Resource"
           onWidthPreset={onWidthPreset}
           onClose={onClose}
         />
-      </div>
-
-      {/* Row 2: Platform, Backend, Pool count */}
-      <div className="mt-1.5 flex items-center gap-2 text-xs">
-        <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
-          <Cpu className="size-3" />
-          {resource.platform}
-        </span>
-        <span className="text-zinc-400 dark:text-zinc-600">·</span>
-        <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
-          <Server className="size-3" />
-          {resource.backend}
-        </span>
-        {resource.poolMemberships.length > 0 && (
-          <>
-            <span className="text-zinc-400 dark:text-zinc-600">·</span>
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {resource.poolMemberships.length} pool
-              {resource.poolMemberships.length !== 1 ? "s" : ""}
-            </span>
-          </>
-        )}
-      </div>
-    </PanelHeaderContainer>
+      }
+      subtitle={subtitleContent}
+    />
   );
 });
