@@ -408,7 +408,9 @@ const STATE_PRESET_COLORS: Record<StateCategory, { dot: string; bg: string; text
 /**
  * Create preset buttons for quick state filtering.
  */
-export function createTaskPresets(tasks: TaskWithDuration[]): { label: string; items: SearchPreset<TaskWithDuration>[] }[] {
+export function createTaskPresets(
+  tasks: TaskWithDuration[],
+): { label: string; items: SearchPreset<TaskWithDuration>[] }[] {
   const presets: SearchPreset<TaskWithDuration>[] = STATE_CATEGORY_NAMES.map((state) => {
     const colors = STATE_PRESET_COLORS[state];
 
