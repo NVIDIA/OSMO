@@ -19,13 +19,13 @@
  *
  * Unified inspector panel for workflow, group, and task details with:
  * - Multi-layer navigation (workflow → group → task)
- * - Resizable width with drag handle
+ * - Resizable width with drag handle (via ResizablePanel)
  * - Collapsible to edge strip
  * - Breadcrumb navigation between layers
  * - Screen reader announcements
  *
  * Architecture:
- * - DetailsPanel (container): Resize handle, width management, view switching, collapsed state
+ * - DetailsPanel (container): Composes ResizablePanel, handles view switching
  * - WorkflowDetails (content): Workflow-level info (base layer)
  * - GroupDetails (content): Task list with search, sort, filter
  * - TaskDetails (content): Task info, actions, sibling navigation
@@ -33,9 +33,9 @@
 
 "use client";
 
-import { memo, useRef, useEffect, useCallback } from "react";
-import { ArrowLeftFromLine, FileText, BarChart3, Activity } from "lucide-react";
-import { ResizeHandle } from "@/components/panel";
+import { memo, useEffect, useCallback, useMemo } from "react";
+import { FileText, BarChart3, Activity } from "lucide-react";
+import { ResizablePanel, PanelCollapsedStrip } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
@@ -51,51 +51,33 @@ import { useAnnouncer } from "@/hooks";
 // Focus traps are only appropriate for modal dialogs that block interaction.
 
 // ============================================================================
-// Collapsed Edge Strip
+// Workflow Quick Links (domain-specific collapsed content)
 // ============================================================================
 
-interface CollapsedStripProps {
+interface WorkflowQuickLinksProps {
   workflow?: WorkflowQueryResponse;
-  onExpand: () => void;
 }
 
-const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: CollapsedStripProps) {
-  // Build quick action links
-  const quickLinks = workflow
-    ? [
-        { id: "logs", url: workflow.logs, icon: FileText, label: "Logs" },
-        { id: "dashboard", url: workflow.dashboard_url, icon: BarChart3, label: "Dashboard" },
-        { id: "grafana", url: workflow.grafana_url, icon: Activity, label: "Grafana" },
-      ].filter((link) => link.url)
-    : [];
+/**
+ * Quick action links shown in the collapsed strip.
+ * This is workflow-specific content that uses PanelCollapsedStrip's slot.
+ */
+const WorkflowQuickLinks = memo(function WorkflowQuickLinks({ workflow }: WorkflowQuickLinksProps) {
+  const quickLinks = useMemo(() => {
+    if (!workflow) return [];
+    return [
+      { id: "logs", url: workflow.logs, icon: FileText, label: "Logs" },
+      { id: "dashboard", url: workflow.dashboard_url, icon: BarChart3, label: "Dashboard" },
+      { id: "grafana", url: workflow.grafana_url, icon: Activity, label: "Grafana" },
+    ].filter((link) => link.url);
+  }, [workflow]);
+
+  if (quickLinks.length === 0) return null;
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center py-3">
-      {/* Expand button at top */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={onExpand}
-            className={cn(
-              "flex size-8 items-center justify-center rounded-lg",
-              "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-              "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-              "transition-colors",
-            )}
-            aria-label="Expand panel"
-          >
-            <ArrowLeftFromLine
-              className="size-4 shrink-0"
-              aria-hidden="true"
-            />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="left">Expand panel</TooltipContent>
-      </Tooltip>
-
+    <>
       {/* Separator */}
-      {quickLinks.length > 0 && <div className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700" />}
+      <div className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700" />
 
       {/* Quick action links */}
       <div className="flex flex-col items-center space-y-1">
@@ -127,7 +109,7 @@ const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: Coll
           );
         })}
       </div>
-    </div>
+    </>
   );
 });
 
@@ -148,37 +130,25 @@ export const DetailsPanel = memo(function DetailsPanel({
   onSelectGroup,
   panelPct,
   onPanelResize,
-  isDragging,
-  bindResizeHandle,
   isDetailsExpanded,
   onToggleDetailsExpanded,
   isCollapsed,
   onToggleCollapsed,
   onCancelWorkflow,
+  mainContent,
 }: DetailsPanelProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
   const announce = useAnnouncer();
 
-  // Handle Escape key - navigate back or close
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        const target = e.target as HTMLElement;
-        const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
-        if (!isInDropdown) {
-          // Navigate back through layers: task → group → workflow → collapse
-          if (view === "task") {
-            onBackToGroup();
-          } else if (view === "group") {
-            onBackToWorkflow();
-          } else if (onToggleCollapsed) {
-            onToggleCollapsed();
-          }
-        }
-      }
-    },
-    [view, onBackToGroup, onBackToWorkflow, onToggleCollapsed],
-  );
+  // Multi-layer escape key navigation: task → group → workflow → collapse
+  const handleEscapeKey = useCallback(() => {
+    if (view === "task") {
+      onBackToGroup();
+    } else if (view === "group") {
+      onBackToWorkflow();
+    } else if (onToggleCollapsed) {
+      onToggleCollapsed();
+    }
+  }, [view, onBackToGroup, onBackToWorkflow, onToggleCollapsed]);
 
   // Announce panel state changes to screen readers
   useEffect(() => {
@@ -200,100 +170,69 @@ export const DetailsPanel = memo(function DetailsPanel({
         ? `Group details: ${group?.name}`
         : `Task details: ${task?.name}`;
 
-  // Calculate panel width - animate between collapsed (40px) and expanded
-  const panelWidth = isCollapsed ? "40px" : `${panelPct}%`;
+  // Collapsed content with workflow quick links
+  const collapsedContent = onToggleCollapsed ? (
+    <PanelCollapsedStrip onExpand={onToggleCollapsed}>
+      <WorkflowQuickLinks workflow={workflow} />
+    </PanelCollapsedStrip>
+  ) : undefined;
 
   return (
-    <>
-      {/* Resize Handle - when expanded, positioned dynamically based on panel width */}
-      {!isCollapsed && (
-        <ResizeHandle
-          bindResizeHandle={bindResizeHandle}
-          isDragging={isDragging}
-          className="absolute top-0 z-20 h-full"
-          style={{ left: `${100 - panelPct}%` }}
-          aria-valuenow={panelPct}
-          aria-valuemin={20}
-          aria-valuemax={80}
+    <ResizablePanel
+      open={true}
+      onClose={onClose}
+      width={panelPct}
+      onWidthChange={onPanelResize}
+      mainContent={mainContent}
+      backdrop={false}
+      collapsible
+      isCollapsed={isCollapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      collapsedContent={collapsedContent}
+      onEscapeKey={handleEscapeKey}
+      aria-label={ariaLabel}
+      className="dag-details-panel"
+    >
+      {/* Workflow Details (base layer) */}
+      {view === "workflow" && workflow && (
+        <WorkflowDetails
+          workflow={workflow}
+          onClose={onToggleCollapsed ?? onClose}
+          onCancel={onCancelWorkflow}
+          onPanelResize={onPanelResize}
         />
       )}
 
-      {/* Panel Container - animates width like left nav (disabled during drag) */}
-      <aside
-        ref={panelRef}
-        className={cn(
-          "dag-details-panel absolute inset-y-0 right-0 z-10 flex flex-col overflow-hidden border-l border-gray-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95",
-          // Only animate when not dragging - prevents lag during manual resize
-          !isDragging && "transition-all duration-200 ease-out",
-        )}
-        style={{ width: panelWidth }}
-        role="complementary"
-        aria-label={ariaLabel}
-        onKeyDown={handleKeyDown}
-      >
-        {/* Collapsed content - always rendered but hidden when expanded */}
-        <div
-          className={cn(
-            "absolute inset-0 transition-opacity duration-200 ease-out",
-            isCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
-        >
-          <CollapsedStrip
-            workflow={workflow}
-            onExpand={onToggleCollapsed!}
-          />
-        </div>
+      {/* Group Details */}
+      {view === "group" && group && (
+        <GroupDetails
+          group={group}
+          allGroups={allGroups}
+          onSelectTask={onSelectTask}
+          onSelectGroup={onSelectGroup}
+          onClose={onToggleCollapsed ?? onClose}
+          onBack={onBackToWorkflow}
+          onPanelResize={onPanelResize}
+          isDetailsExpanded={isDetailsExpanded}
+          onToggleDetailsExpanded={onToggleDetailsExpanded}
+        />
+      )}
 
-        {/* Expanded content - always rendered but hidden when collapsed */}
-        <div
-          className={cn(
-            "relative flex h-full flex-col transition-opacity duration-200 ease-out",
-            isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
-          )}
-        >
-          {/* Workflow Details (base layer) */}
-          {view === "workflow" && workflow && (
-            <WorkflowDetails
-              workflow={workflow}
-              onClose={onToggleCollapsed ?? onClose}
-              onCancel={onCancelWorkflow}
-              onPanelResize={onPanelResize}
-            />
-          )}
-
-          {/* Group Details */}
-          {view === "group" && group && (
-            <GroupDetails
-              group={group}
-              allGroups={allGroups}
-              onSelectTask={onSelectTask}
-              onSelectGroup={onSelectGroup}
-              onClose={onToggleCollapsed ?? onClose}
-              onBack={onBackToWorkflow}
-              onPanelResize={onPanelResize}
-              isDetailsExpanded={isDetailsExpanded}
-              onToggleDetailsExpanded={onToggleDetailsExpanded}
-            />
-          )}
-
-          {/* Task Details */}
-          {view === "task" && task && group && (
-            <TaskDetails
-              group={group}
-              allGroups={allGroups}
-              task={task}
-              onBackToGroup={onBackToGroup}
-              onSelectTask={onSelectTask}
-              onSelectGroup={onSelectGroup}
-              onClose={onToggleCollapsed ?? onClose}
-              onPanelResize={onPanelResize}
-              isDetailsExpanded={isDetailsExpanded}
-              onToggleDetailsExpanded={onToggleDetailsExpanded}
-            />
-          )}
-
-        </div>
-      </aside>
-    </>
+      {/* Task Details */}
+      {view === "task" && task && group && (
+        <TaskDetails
+          group={group}
+          allGroups={allGroups}
+          task={task}
+          onBackToGroup={onBackToGroup}
+          onSelectTask={onSelectTask}
+          onSelectGroup={onSelectGroup}
+          onClose={onToggleCollapsed ?? onClose}
+          onPanelResize={onPanelResize}
+          isDetailsExpanded={isDetailsExpanded}
+          onToggleDetailsExpanded={onToggleDetailsExpanded}
+        />
+      )}
+    </ResizablePanel>
   );
 });

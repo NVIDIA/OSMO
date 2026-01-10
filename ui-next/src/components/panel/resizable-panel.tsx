@@ -51,6 +51,22 @@ export interface ResizablePanelProps {
   "aria-label"?: string;
   /** Additional class for the panel */
   className?: string;
+
+  // Collapsible mode
+  /** Enable collapsible mode (panel can collapse to edge strip) */
+  collapsible?: boolean;
+  /** Whether the panel is currently collapsed (controlled) */
+  isCollapsed?: boolean;
+  /** Callback to toggle collapsed state */
+  onToggleCollapsed?: () => void;
+  /** Content to render when collapsed (slot for domain-specific content) */
+  collapsedContent?: React.ReactNode;
+  /** Width when collapsed (default: 40px) */
+  collapsedWidth?: number | string;
+
+  // Custom escape handling
+  /** Custom escape key handler (overrides default close behavior for multi-layer navigation) */
+  onEscapeKey?: () => void;
 }
 
 // =============================================================================
@@ -64,6 +80,8 @@ export interface ResizablePanelProps {
  * - Resizable width via drag handle (percentage of container)
  * - Optional backdrop with click-to-close
  * - Escape key to close (respects open dropdowns)
+ * - Optional collapsible mode with edge strip
+ * - Custom escape key handling for multi-layer navigation
  * - Smooth slide-in/out animation
  * - Accessible with proper ARIA attributes
  *
@@ -84,7 +102,7 @@ export interface ResizablePanelProps {
  *   <PanelContent item={selectedItem} />
  * </ResizablePanel>
  *
- * // Without backdrop - good for DAGs where content stays interactive
+ * // Collapsible mode - panel collapses to edge strip instead of closing
  * <ResizablePanel
  *   open={true}
  *   onClose={handleClose}
@@ -92,6 +110,11 @@ export interface ResizablePanelProps {
  *   onWidthChange={setPanelWidth}
  *   mainContent={<DAGCanvas />}
  *   backdrop={false}
+ *   collapsible
+ *   isCollapsed={isCollapsed}
+ *   onToggleCollapsed={toggleCollapsed}
+ *   collapsedContent={<CollapsedStrip onExpand={toggleCollapsed} />}
+ *   onEscapeKey={handleMultiLayerEscape}
  * >
  *   <DetailsPanel />
  * </ResizablePanel>
@@ -110,6 +133,14 @@ export function ResizablePanel({
   backdrop = true,
   "aria-label": ariaLabel,
   className,
+  // Collapsible mode
+  collapsible = false,
+  isCollapsed = false,
+  onToggleCollapsed,
+  collapsedContent,
+  collapsedWidth = 40,
+  // Custom escape handling
+  onEscapeKey,
 }: ResizablePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,15 +158,16 @@ export function ResizablePanel({
   // Stable callbacks to prevent stale closures in effects and event handlers
   const stableOnClose = useStableCallback(onClose);
   const stableOnWidthChange = useStableCallback(onWidthChange);
+  const stableOnEscapeKey = useStableCallback(onEscapeKey ?? onClose);
 
   // Handle keyboard events on panel - using stable callback
   const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
-      // Only close if no dropdown/popover is open
+      // Only handle if no dropdown/popover is open
       const target = e.target as HTMLElement;
       const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
       if (!isInDropdown) {
-        stableOnClose();
+        stableOnEscapeKey();
       }
     }
   });
@@ -148,14 +180,14 @@ export function ResizablePanel({
       if (e.key === "Escape") {
         const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
         if (!isInDropdown) {
-          stableOnClose();
+          stableOnEscapeKey();
         }
       }
     };
 
     document.addEventListener("keydown", handleGlobalKeyDown);
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [open, stableOnClose]);
+  }, [open, stableOnEscapeKey]);
 
   // Resize drag handler using @use-gesture/react
   // Uses refs to avoid stale closures (useDrag memoizes the handler internally)
@@ -197,6 +229,14 @@ export function ResizablePanel({
     }
   }, [isDragging]);
 
+  // Calculate effective panel width based on collapsed state
+  const effectiveCollapsed = collapsible && isCollapsed;
+  const panelWidth = effectiveCollapsed
+    ? typeof collapsedWidth === "number"
+      ? `${collapsedWidth}px`
+      : collapsedWidth
+    : `${width}%`;
+
   return (
     <div
       ref={containerRef}
@@ -206,7 +246,7 @@ export function ResizablePanel({
       <div className="h-full w-full">{mainContent}</div>
 
       {/* Optional backdrop - absolute within container */}
-      {backdrop && open && (
+      {backdrop && open && !effectiveCollapsed && (
         <div
           className="absolute inset-0 z-40 bg-white/25 backdrop-blur-[2px] backdrop-saturate-50 transition-opacity duration-200 dark:bg-black/50"
           onClick={() => {
@@ -219,8 +259,8 @@ export function ResizablePanel({
         />
       )}
 
-      {/* Resize Handle - positioned at panel edge within container */}
-      {open && (
+      {/* Resize Handle - positioned at panel edge within container (hidden when collapsed) */}
+      {open && !effectiveCollapsed && (
         <ResizeHandle
           bindResizeHandle={bindResizeHandle}
           isDragging={isDragging}
@@ -236,22 +276,50 @@ export function ResizablePanel({
       <aside
         ref={panelRef}
         className={cn(
-          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-200 ease-out dark:border-zinc-700 dark:bg-zinc-900/95",
+          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col overflow-hidden border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
+          // Only animate transform, width animates separately when not dragging
+          !isDragging && "transition-all duration-200 ease-out",
+          isDragging && "transition-transform duration-200 ease-out",
           className,
         )}
         style={{
-          width: `${width}%`,
-          maxWidth: `${maxWidth}%`,
-          minWidth: `${minWidthPx}px`,
+          width: panelWidth,
+          ...(effectiveCollapsed
+            ? {}
+            : {
+                maxWidth: `${maxWidth}%`,
+                minWidth: `${minWidthPx}px`,
+              }),
         }}
         role="complementary"
         aria-label={ariaLabel}
         aria-hidden={!open}
         onKeyDown={handleKeyDown}
       >
-        {/* Panel content - overflow hidden here */}
-        {open && <div className="flex h-full flex-col overflow-hidden">{children}</div>}
+        {/* Collapsed content - visible when collapsed */}
+        {collapsible && (
+          <div
+            className={cn(
+              "absolute inset-0 transition-opacity duration-200 ease-out",
+              effectiveCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+          >
+            {collapsedContent}
+          </div>
+        )}
+
+        {/* Panel content - visible when expanded */}
+        {open && (
+          <div
+            className={cn(
+              "flex h-full flex-col overflow-hidden transition-opacity duration-200 ease-out",
+              effectiveCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+          >
+            {children}
+          </div>
+        )}
       </aside>
     </div>
   );
