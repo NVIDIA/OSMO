@@ -31,9 +31,13 @@ export { ResizeHandle, type ResizeHandleProps } from "./resize-handle";
 export {
   PANEL,
   WIDTH_PRESET_ICONS,
+  PanelHeaderContainer,
+  WidthPresetMenuItems,
   PanelWidthMenu,
   PanelCloseButton,
   PanelHeaderActions,
+  type PanelHeaderContainerProps,
+  type WidthPresetMenuItemsProps,
   type PanelWidthMenuProps,
   type PanelCloseButtonProps,
   type PanelHeaderActionsProps,
