@@ -47,9 +47,9 @@ export interface UseChipsReturn<T> {
   /** Clear all chips */
   clearChips: () => void;
   /** Check if a preset is currently active */
-  isPresetActive: (preset: SearchPreset<T>) => boolean;
+  isPresetActive: (preset: SearchPreset) => boolean;
   /** Toggle a preset on/off */
-  togglePreset: (preset: SearchPreset<T>) => void;
+  togglePreset: (preset: SearchPreset) => void;
   /** Current validation error (null if none) */
   validationError: string | null;
   /** Set a validation error manually */
@@ -149,14 +149,14 @@ export function useChips<T>({
   }, [onChipsChange]);
 
   const isPresetActive = useCallback(
-    (preset: SearchPreset<T>) => {
+    (preset: SearchPreset) => {
       return chips.some((c) => c.field === preset.chip.field && c.value === preset.chip.value);
     },
     [chips],
   );
 
   const togglePreset = useCallback(
-    (preset: SearchPreset<T>) => {
+    (preset: SearchPreset) => {
       if (isPresetActive(preset)) {
         onChipsChange(chips.filter((c) => !(c.field === preset.chip.field && c.value === preset.chip.value)));
       } else {

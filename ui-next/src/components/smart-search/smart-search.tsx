@@ -457,7 +457,6 @@ function SmartSearchInner<T>({
                       >
                         <PresetContent
                           preset={preset}
-                          data={data}
                           isActive={isPresetActive(preset)}
                         />
                       </CommandItem>

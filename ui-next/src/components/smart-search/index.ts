@@ -34,7 +34,7 @@
  *
  * UI Layer
  *   - smart-search.tsx: Main component using cmdk Command
- *   - components.tsx: ChipLabel, PresetButton/Group
+ *   - components.tsx: ChipLabel, PresetContent
  *   - styles.ts: Shared styles for chips and inputs
  */
 
@@ -75,7 +75,7 @@ export { useSuggestions, type UseSuggestionsOptions, type UseSuggestionsReturn }
 // UI Components
 // ============================================================================
 
-export { ChipLabel, PresetContent, PresetButton, PresetGroup } from "./components";
+export { ChipLabel, PresetContent } from "./components";
 
 // Styles
 export { dropdownStyles, inputStyles, chipStyles, chipVariantStyles } from "./styles";

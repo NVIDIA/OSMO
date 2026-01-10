@@ -28,7 +28,7 @@ import { TableToolbar } from "@/components/data-table";
 import { usePoolsTableStore } from "../stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
 import { createPoolSearchFields } from "../lib/pool-search-fields";
-import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "../lib/constants";
+import { STATUS_STYLES, type StatusCategory } from "../lib/constants";
 
 /** Status icons matching the table column badges */
 const STATUS_ICONS = {
@@ -68,18 +68,16 @@ export const PoolsToolbar = memo(function PoolsToolbar({
 
   // Create status presets for quick filtering with custom badge rendering
   const statusPresets = useMemo(
-    (): SearchPreset<Pool>[] =>
+    (): SearchPreset[] =>
       STATUS_PRESET_CONFIG.map(({ id, label }) => {
         const styles = STATUS_STYLES[id].badge;
         const Icon = STATUS_ICONS[id];
 
         return {
           id,
-          label,
-          count: (data: Pool[]) => data.filter((p) => getStatusDisplay(p.status).category === id).length,
           chip: { field: "status", value: id, label: `Status: ${label}` },
           // Custom render matching the table's status badge exactly
-          render: ({ active, focused, count }: PresetRenderProps) => (
+          render: ({ active, focused }: PresetRenderProps) => (
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
@@ -94,7 +92,6 @@ export const PoolsToolbar = memo(function PoolsToolbar({
             >
               <Icon className={cn("size-3.5", styles.icon)} />
               <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
-              <span className={cn("text-xs tabular-nums", styles.text, "opacity-60")}>{count}</span>
             </span>
           ),
         };
