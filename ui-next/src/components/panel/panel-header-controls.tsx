@@ -44,6 +44,8 @@ export const PANEL = {
   MAX_WIDTH_PCT: 80,
   /** Default panel width percentage */
   DEFAULT_WIDTH_PCT: 50,
+  /** Width of collapsed panel strip in pixels */
+  COLLAPSED_WIDTH_PX: 40,
 } as const;
 
 // =============================================================================
@@ -133,9 +135,7 @@ export const WidthPresetMenuItems = memo(function WidthPresetMenuItems({
 }: WidthPresetMenuItemsProps) {
   return (
     <>
-      {showLabel && (
-        <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">Snap to</DropdownMenuLabel>
-      )}
+      {showLabel && <DropdownMenuLabel className="text-xs text-zinc-500 dark:text-zinc-500">Snap to</DropdownMenuLabel>}
       {PANEL.WIDTH_PRESETS.map((pct) => {
         const Icon = WIDTH_PRESET_ICONS[pct];
         return (

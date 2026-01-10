@@ -16,11 +16,13 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useDrag } from "@use-gesture/react";
+import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStableCallback, useStableValue } from "@/hooks";
+import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
 import { ResizeHandle } from "./resize-handle";
+import { PANEL } from "./panel-header-controls";
 
 // =============================================================================
 // Types
@@ -125,8 +127,8 @@ export function ResizablePanel({
   onClose,
   width,
   onWidthChange,
-  minWidth = 20,
-  maxWidth = 80,
+  minWidth = PANEL.MIN_WIDTH_PCT,
+  maxWidth = PANEL.MAX_WIDTH_PCT,
   minWidthPx = 320,
   children,
   mainContent,
@@ -138,7 +140,7 @@ export function ResizablePanel({
   isCollapsed = false,
   onToggleCollapsed,
   collapsedContent,
-  collapsedWidth = 40,
+  collapsedWidth = PANEL.COLLAPSED_WIDTH_PX,
   // Custom escape handling
   onEscapeKey,
 }: ResizablePanelProps) {
@@ -149,6 +151,8 @@ export function ResizablePanel({
   const [isDragging, setIsDragging] = useState(false);
   // Store the width at drag start to calculate absolute new width from movement
   const startWidthRef = useRef(width);
+  // Cache container width at drag start to avoid layout reflows during drag
+  const containerWidthRef = useRef(0);
 
   // Stable refs to avoid stale closures in useDrag (which memoizes the handler)
   const widthRef = useStableValue(width);
@@ -159,6 +163,10 @@ export function ResizablePanel({
   const stableOnClose = useStableCallback(onClose);
   const stableOnWidthChange = useStableCallback(onWidthChange);
   const stableOnEscapeKey = useStableCallback(onEscapeKey ?? onClose);
+
+  // RAF-throttled width updates for buttery smooth 60fps resizing
+  // Uses throttle mode to process first value and skip intermediates
+  const [scheduleWidthUpdate] = useRafCallback(stableOnWidthChange, { throttle: true });
 
   // Handle keyboard events on panel - using stable callback
   const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
@@ -191,21 +199,28 @@ export function ResizablePanel({
 
   // Resize drag handler using @use-gesture/react
   // Uses refs to avoid stale closures (useDrag memoizes the handler internally)
+  // Performance optimizations:
+  // - Container width cached at drag start (avoids layout reflows)
+  // - Width updates RAF-throttled (buttery 60fps)
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
         setIsDragging(true);
         // Capture the width at drag start from ref (current value)
         startWidthRef.current = widthRef.current;
+        // Cache container width to avoid repeated offsetWidth reads (layout reflows)
+        containerWidthRef.current = containerRef.current?.offsetWidth ?? window.innerWidth;
       }
 
       if (active) {
-        const containerWidth = containerRef.current?.offsetWidth ?? window.innerWidth;
+        // Use cached container width - no DOM read during drag
+        const containerWidth = containerWidthRef.current;
         // Movement is negative when dragging left (making panel wider)
         // Use startWidth as the base, not current width
         const deltaPct = (-mx / containerWidth) * 100;
         const newWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, startWidthRef.current + deltaPct));
-        stableOnWidthChange(newWidth);
+        // RAF-throttled for smooth 60fps updates
+        scheduleWidthUpdate(newWidth);
       }
 
       if (last) {
@@ -236,6 +251,25 @@ export function ResizablePanel({
       ? `${collapsedWidth}px`
       : collapsedWidth
     : `${width}%`;
+
+  // Default collapsed content - a simple expand button
+  // Used when collapsible is enabled but no custom collapsedContent is provided
+  const defaultCollapsedContent = useMemo(
+    () =>
+      onToggleCollapsed ? (
+        <button
+          onClick={onToggleCollapsed}
+          className="flex h-full w-full items-center justify-center text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          aria-label="Expand panel"
+        >
+          <ChevronLeft className="size-5" />
+        </button>
+      ) : null,
+    [onToggleCollapsed],
+  );
+
+  // Use provided collapsedContent or fall back to default
+  const effectiveCollapsedContent = collapsedContent ?? defaultCollapsedContent;
 
   return (
     <div
@@ -278,13 +312,15 @@ export function ResizablePanel({
         className={cn(
           "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col overflow-hidden border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
-          // Only animate transform, width animates separately when not dragging
-          !isDragging && "transition-all duration-200 ease-out",
-          isDragging && "transition-transform duration-200 ease-out",
+          // Disable ALL transitions during drag for buttery smooth 60fps resizing
+          // Only enable transitions when not dragging (for open/close animations)
+          isDragging ? "transition-none" : "transition-all duration-200 ease-out",
           className,
         )}
         style={{
           width: panelWidth,
+          // GPU optimization: hint browser about upcoming width changes during drag
+          willChange: isDragging ? "width" : "auto",
           ...(effectiveCollapsed
             ? {}
             : {
@@ -298,14 +334,14 @@ export function ResizablePanel({
         onKeyDown={handleKeyDown}
       >
         {/* Collapsed content - visible when collapsed */}
-        {collapsible && (
+        {collapsible && effectiveCollapsedContent && (
           <div
             className={cn(
               "absolute inset-0 transition-opacity duration-200 ease-out",
               effectiveCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
             )}
           >
-            {collapsedContent}
+            {effectiveCollapsedContent}
           </div>
         )}
 

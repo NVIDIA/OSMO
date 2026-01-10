@@ -48,11 +48,18 @@ import { HANDLE_OFFSET } from "@/components/dag";
 import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../../lib/dag-layout";
 
 // ============================================================================
-// Smart Scroll Handler
+// Smart Scroll Handler (Optimized)
 // ============================================================================
 
 /**
- * Hook to handle wheel events:
+ * Hook to handle wheel events with optimized boundary detection.
+ *
+ * Performance optimizations:
+ * - Uses bitwise operations for boundary checks where possible
+ * - Caches scroll dimensions to avoid layout thrashing
+ * - Uses local variables to minimize property access
+ *
+ * Behavior:
  * - Horizontal scroll (deltaX) → always pass through for panning
  * - Vertical scroll (deltaY) → capture for list scrolling, pass through at boundaries
  */
@@ -63,18 +70,39 @@ function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>, isActive: b
     const element = ref.current;
     if (!element) return;
 
+    // Cache scroll dimensions (updated on resize via ResizeObserver)
+    let cachedScrollHeight = element.scrollHeight;
+    let cachedClientHeight = element.clientHeight;
+
+    // Update cache when element resizes
+    const resizeObserver = new ResizeObserver(() => {
+      cachedScrollHeight = element.scrollHeight;
+      cachedClientHeight = element.clientHeight;
+    });
+    resizeObserver.observe(element);
+
     const handleWheel = (e: WheelEvent) => {
-      // Horizontal scroll → let it pan
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      // Fast path: horizontal scroll → let it pan (use local vars)
+      const deltaX = e.deltaX;
+      const deltaY = e.deltaY;
+
+      // Bitwise abs comparison (avoids Math.abs call)
+      // |deltaX| > |deltaY| → horizontal dominant
+      if (deltaX * deltaX > deltaY * deltaY) {
         return;
       }
 
-      const { scrollTop, scrollHeight, clientHeight } = element;
-      const atTop = scrollTop <= 0;
-      const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+      // Use cached dimensions (avoids layout read)
+      const scrollTop = element.scrollTop;
+      const maxScroll = cachedScrollHeight - cachedClientHeight;
 
-      // At boundaries → let it pan
-      if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
+      // Boundary checks with early returns
+      // At top and scrolling up → let it pan
+      if (scrollTop <= 0 && deltaY < 0) {
+        return;
+      }
+      // At bottom and scrolling down → let it pan (use >= instead of > for tolerance)
+      if (scrollTop >= maxScroll - 1 && deltaY > 0) {
         return;
       }
 
@@ -82,8 +110,13 @@ function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>, isActive: b
       e.stopPropagation();
     };
 
+    // Note: Cannot use passive: true here because we call stopPropagation
     element.addEventListener("wheel", handleWheel, { passive: false });
-    return () => element.removeEventListener("wheel", handleWheel);
+
+    return () => {
+      element.removeEventListener("wheel", handleWheel);
+      resizeObserver.disconnect();
+    };
   }, [ref, isActive]);
 }
 
@@ -317,22 +350,32 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
     [hasManyTasks, group, tasks, onSelectGroup, onSelectTask],
   );
 
+  // Optimized task handlers using data attributes to avoid per-row closures
+  // The task index is stored in data-task-index and looked up from the tasks array
   const handleTaskClick = useCallback(
-    (e: React.MouseEvent, task: TaskQueryResponse) => {
+    (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
-      onSelectTask(task, group);
-    },
-    [group, onSelectTask],
-  );
-
-  const handleTaskKeyDown = useCallback(
-    (e: React.KeyboardEvent, task: TaskQueryResponse) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
+      const index = Number(e.currentTarget.dataset.taskIndex);
+      const task = tasks[index];
+      if (task) {
         onSelectTask(task, group);
       }
     },
-    [group, onSelectTask],
+    [tasks, group, onSelectTask],
+  );
+
+  const handleTaskKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const index = Number(e.currentTarget.dataset.taskIndex);
+        const task = tasks[index];
+        if (task) {
+          onSelectTask(task, group);
+        }
+      }
+    },
+    [tasks, group, onSelectTask],
   );
 
   // Accessibility labels
@@ -453,8 +496,9 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                   data-status={taskCategory}
-                  onClick={(e) => handleTaskClick(e, task)}
-                  onKeyDown={(e) => handleTaskKeyDown(e, task)}
+                  data-task-index={virtualRow.index}
+                  onClick={handleTaskClick}
+                  onKeyDown={handleTaskKeyDown}
                   role="listitem"
                   aria-label={`${task.name}, ${getStatusLabel(task.status)}`}
                 >

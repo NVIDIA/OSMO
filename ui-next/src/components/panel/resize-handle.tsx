@@ -16,9 +16,10 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PANEL } from "./panel-header-controls";
 
 // =============================================================================
 // Types
@@ -80,9 +81,20 @@ export const ResizeHandle = memo(function ResizeHandle({
   className,
   style,
   "aria-valuenow": ariaValueNow,
-  "aria-valuemin": ariaValueMin = 20,
-  "aria-valuemax": ariaValueMax = 80,
+  "aria-valuemin": ariaValueMin = PANEL.MIN_WIDTH_PCT,
+  "aria-valuemax": ariaValueMax = PANEL.MAX_WIDTH_PCT,
 }: ResizeHandleProps) {
+  // Memoize style object to avoid recreating on every render
+  // Dependencies: style.left for transform, isDragging for willChange, and spread style props
+  const computedStyle = useMemo(
+    () => ({
+      transform: style?.left ? "translateX(-50%)" : undefined,
+      willChange: isDragging ? "left" : "auto",
+      ...style,
+    }),
+    [style, isDragging],
+  );
+
   return (
     <div
       {...bindResizeHandle()}
@@ -96,11 +108,7 @@ export const ResizeHandle = memo(function ResizeHandle({
           : "before:bg-transparent hover:before:bg-zinc-300 dark:hover:before:bg-zinc-600",
         className,
       )}
-      style={{
-        transform: style?.left ? "translateX(-50%)" : undefined,
-        willChange: isDragging ? "left" : "auto",
-        ...style,
-      }}
+      style={computedStyle}
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize panel"
