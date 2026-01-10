@@ -33,21 +33,12 @@ import { useRouter } from "next/navigation";
 import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { cn } from "@/lib/utils";
+import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
 import { MANDATORY_COLUMN_IDS, asWorkflowColumnIds, WORKFLOW_COLUMN_SIZE_CONFIG } from "../../lib/workflow-columns";
 import { getStatusDisplay } from "../../lib/workflow-constants";
 import { createWorkflowColumns } from "./workflow-column-defs";
 import { useWorkflowsTableStore } from "../../stores/workflows-table-store";
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Row height for normal mode */
-const ROW_HEIGHT = 48;
-
-/** Row height for compact mode */
-const ROW_HEIGHT_COMPACT = 36;
 
 // =============================================================================
 // Types
@@ -109,7 +100,7 @@ export function WorkflowsDataTable({
   const columnSizingPreferences = useWorkflowsTableStore((s) => s.columnSizingPreferences);
   const setColumnSizingPreference = useWorkflowsTableStore((s) => s.setColumnSizingPreference);
 
-  const rowHeight = compactMode ? ROW_HEIGHT_COMPACT : ROW_HEIGHT;
+  const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Sort workflows
   const sortedWorkflows = useMemo(() => {

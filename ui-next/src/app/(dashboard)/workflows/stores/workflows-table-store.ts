@@ -39,7 +39,4 @@ export const useWorkflowsTableStore = createTableStore({
   defaultSort: DEFAULT_SORT,
 });
 
-// Re-export shared preferences for backwards compatibility
-export { useSharedPreferences } from "@/stores";
-
 export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";

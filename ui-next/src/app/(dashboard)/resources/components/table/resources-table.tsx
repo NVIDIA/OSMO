@@ -32,6 +32,7 @@ import type { Resource } from "@/lib/api/adapter";
 import { MANDATORY_COLUMN_IDS, asResourceColumnIds, RESOURCE_COLUMN_SIZE_CONFIG } from "../../lib/resource-columns";
 import { createResourceColumns } from "../../lib/resource-column-defs";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
+import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 
 // =============================================================================
 // Helpers
@@ -181,7 +182,7 @@ export function ResourcesTable({
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 
   // Row height based on compact mode
-  const rowHeight = compactMode ? 32 : 48;
+  const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT_SM : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Handle column sizing preference change
   const handleColumnSizingPreferenceChange = useCallback(

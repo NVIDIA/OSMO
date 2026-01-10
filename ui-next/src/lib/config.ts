@@ -112,3 +112,28 @@ export const QUERY_MAX_RETRY_DELAY_MS = 5000;
  * Refresh token this many seconds before it expires (lazy refresh in fetcher).
  */
 export const TOKEN_REFRESH_THRESHOLD_SECONDS = 60;
+
+// =============================================================================
+// UI Layout Constants
+// =============================================================================
+
+/**
+ * Standard table row heights in pixels.
+ *
+ * These are the canonical values used across all tables in the application.
+ * CSS variables should derive from these (or vice versa, staying consistent).
+ *
+ * Note: 48px = 3rem, 36px = 2.25rem, 32px = 2rem at 16px base.
+ */
+export const TABLE_ROW_HEIGHTS = {
+  /** Standard row height - good for touch targets and readability */
+  NORMAL: 48,
+  /** Compact row height - for dense data displays */
+  COMPACT: 36,
+  /** Extra compact row height - for very dense data */
+  COMPACT_SM: 32,
+  /** Section header height */
+  SECTION: 36,
+  /** Table header height */
+  HEADER: 44,
+} as const;

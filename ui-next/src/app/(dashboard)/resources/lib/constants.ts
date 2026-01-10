@@ -16,10 +16,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Re-export PANEL from canonical location
+// Re-export from canonical locations
 export { PANEL } from "@/components/panel";
+export { TABLE_ROW_HEIGHTS } from "@/lib/config";
 
 // Layout constants specific to resources table
+// Note: Use TABLE_ROW_HEIGHTS from @/lib/config for row heights.
+// This LAYOUT object is for legacy compatibility only.
 export const LAYOUT = {
   HEADER_HEIGHT: 41,
   ROW_HEIGHT: 48,
