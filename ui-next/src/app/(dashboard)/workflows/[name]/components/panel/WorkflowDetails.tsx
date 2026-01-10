@@ -23,21 +23,61 @@
  * Includes:
  * - Status, priority, and duration
  * - Vertical timeline (submitted → started → running/completed)
- * - Metadata (user, pool, tags)
+ * - Details (user, pool, backend, tags)
  * - External links (logs, dashboard, grafana, etc.)
  * - Actions (cancel workflow)
  */
 
 "use client";
 
-import { memo, useMemo, useState, useEffect } from "react";
-import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XCircle } from "lucide-react";
+import { memo, useMemo, useState, useEffect, useRef } from "react";
+import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XCircle, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/shadcn/card";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { formatDuration } from "../../lib/workflow-types";
 import { getStatusIcon } from "../../lib/status";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../lib/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
+
+// =============================================================================
+// Styling Constants (Single Source of Truth)
+// =============================================================================
+
+/** Minimum width per timeline phase (in pixels) for horizontal layout to be comfortable */
+const MIN_WIDTH_PER_PHASE = 120;
+
+/** Reusable style patterns for consistent styling across the component */
+const STYLES = {
+  /** Section header styling (matches pools panel) */
+  sectionHeader: "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase",
+  /** Timeline vertical layout padding */
+  timelineVertical: "px-2 pt-1",
+  /** Sub-header styling (e.g., Tags label) */
+  subHeader: "text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium",
+  /** Small label text */
+  smallLabel: "text-xs",
+  /** Muted text colors */
+  mutedText: "text-muted-foreground",
+  /** Secondary/subtle text */
+  subtleText: "text-xs text-muted-foreground/70",
+  /** Inline separator dot */
+  separator: "text-muted-foreground/50",
+  /** Divider styling */
+  divider: "border-border",
+  /** Tag pill styling */
+  tagPill: "rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground",
+  /** Timeline pending border */
+  timelinePending: "border-dashed border-border",
+  /** External link styling */
+  link: "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted",
+  /** Priority badge variants */
+  priority: {
+    HIGH: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    NORMAL: "bg-muted text-muted-foreground",
+    LOW: "bg-muted text-muted-foreground/70",
+  },
+} as const;
 
 // =============================================================================
 // Types
@@ -89,32 +129,25 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
 
   const duration = needsLiveUpdate ? liveDuration : staticDuration;
 
-  // Priority badge styling
-  const priorityStyles = {
-    HIGH: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    NORMAL: "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400",
-    LOW: "bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-zinc-500",
-  };
-
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className={cn("flex items-center gap-1 font-medium", statusStyles.text)}>
         {getStatusIcon(workflow.status, "size-3.5")}
         {workflow.status}
       </span>
-      <span className="text-gray-400 dark:text-zinc-600">·</span>
+      <span className={STYLES.separator}>·</span>
       <span
         className={cn(
-          "rounded px-1 py-0.5 text-[10px] font-medium",
-          priorityStyles[workflow.priority as keyof typeof priorityStyles] ?? priorityStyles.NORMAL,
+          "rounded px-1 py-0.5 text-xs font-medium",
+          STYLES.priority[workflow.priority as keyof typeof STYLES.priority] ?? STYLES.priority.NORMAL,
         )}
       >
         {workflow.priority}
       </span>
       {duration !== null && (
         <>
-          <span className="text-gray-400 dark:text-zinc-600">·</span>
-          <span className="font-mono text-gray-600 dark:text-zinc-400">
+          <span className={STYLES.separator}>·</span>
+          <span className="text-muted-foreground font-mono">
             {formatDuration(duration)}
             {isRunning && "..."}
           </span>
@@ -240,78 +273,101 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
     return result;
   }, [submitTime, startTime, endTime, queuedDuration, runningDuration, isCompleted, isFailed, isRunning]);
 
+  // Content-aware layout: measure container and switch layout based on phases
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [useHorizontal, setUseHorizontal] = useState(false);
+
+  // Calculate minimum width needed for horizontal layout based on number of phases
+  const minWidthForHorizontal = phases.length * MIN_WIDTH_PER_PHASE;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setUseHorizontal(width >= minWidthForHorizontal);
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [minWidthForHorizontal]);
+
   if (phases.length === 0) return null;
 
   return (
-    <div className="@container flex flex-col">
-      <h3 className="mb-2 text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">
-        Timeline
-      </h3>
+    <div
+      ref={containerRef}
+      className="flex flex-col"
+    >
+      <h3 className={STYLES.sectionHeader}>Timeline</h3>
 
-      {/* Vertical layout (default, for narrow containers) */}
-      <div className="@[340px]:hidden">
-        {phases.map((phase, index) => {
-          const isLast = index === phases.length - 1;
-          return (
-            <div
-              key={phase.id}
-              className="flex gap-3"
-            >
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "size-2 shrink-0 rounded-full border-2",
-                    phase.status === "completed" && "timeline-marker-completed",
-                    phase.status === "failed" && "timeline-marker-failed",
-                    phase.status === "active" && "timeline-marker-running animate-pulse",
-                    phase.status === "pending" && "timeline-marker-pending border-dashed",
-                  )}
-                />
-                {!isLast && (
+      {/* Vertical layout (for narrow containers or many phases) */}
+      {!useHorizontal && (
+        <div className={STYLES.timelineVertical}>
+          {phases.map((phase, index) => {
+            const isLast = index === phases.length - 1;
+            return (
+              <div
+                key={phase.id}
+                className="flex gap-3"
+              >
+                <div className="flex flex-col items-center">
                   <div
                     className={cn(
-                      "min-h-4 w-0.5 flex-1",
-                      phase.status === "completed" && "timeline-segment-completed",
-                      phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && "border-l border-dashed border-gray-300 dark:border-zinc-700",
+                      "size-2 shrink-0 rounded-full border-2",
+                      phase.status === "completed" && "timeline-marker-completed",
+                      phase.status === "failed" && "timeline-marker-failed",
+                      phase.status === "active" && "timeline-marker-running animate-pulse",
+                      phase.status === "pending" && "timeline-marker-pending border-dashed",
                     )}
                   />
-                )}
-              </div>
-              <div className={cn("flex flex-col pb-2", isLast && "pb-0")}>
-                <span
-                  className={cn(
-                    "text-xs font-medium",
-                    phase.status === "completed" && "timeline-text-completed",
-                    phase.status === "failed" && "timeline-text-failed",
-                    phase.status === "active" && "timeline-text-running",
-                    phase.status === "pending" && "timeline-text-pending",
+                  {!isLast && (
+                    <div
+                      className={cn(
+                        "min-h-6 w-0.5 flex-1",
+                        phase.status === "completed" && "timeline-segment-completed",
+                        phase.status === "active" && "timeline-active-segment",
+                        phase.status === "pending" && cn("border-l", STYLES.timelinePending),
+                      )}
+                    />
                   )}
-                >
-                  {phase.label}
-                </span>
-                {phase.time && (
-                  <span className="text-[11px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>
-                )}
-                {phase.annotation && (
+                </div>
+                <div className={cn("flex flex-col pb-4", isLast && "pb-0")}>
                   <span
                     className={cn(
-                      "text-[11px]",
-                      phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600",
+                      "text-xs font-medium",
+                      phase.status === "completed" && "timeline-text-completed",
+                      phase.status === "failed" && "timeline-text-failed",
+                      phase.status === "active" && "timeline-text-running",
+                      phase.status === "pending" && "timeline-text-pending",
                     )}
                   >
-                    {phase.annotation}
+                    {phase.label}
                   </span>
-                )}
+                  {phase.time && <span className={STYLES.subtleText}>{formatTime(phase.time)}</span>}
+                  {phase.annotation && (
+                    <span
+                      className={cn(
+                        STYLES.smallLabel,
+                        phase.status === "active" ? "timeline-text-running" : STYLES.mutedText,
+                      )}
+                    >
+                      {phase.annotation}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Horizontal layout (for wider containers) */}
+      {/* Horizontal layout (for wider containers with fewer phases) */}
       {/* Uses CSS Grid to keep timeline bar and labels aligned; flex-grow for proportional duration sizing */}
-      <div className="hidden @[340px]:block">
+      {useHorizontal && (
         <div
           className="grid"
           style={{
@@ -336,7 +392,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
                       "h-1 flex-1",
                       prevPhase.status === "completed" && "timeline-segment-completed",
                       prevPhase.status === "active" && "timeline-active-segment",
-                      prevPhase.status === "pending" && "border-t border-dashed border-gray-300 dark:border-zinc-700",
+                      prevPhase.status === "pending" && cn("border-t", STYLES.timelinePending),
                     )}
                   />
                 )}
@@ -357,7 +413,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
                       "h-1 flex-1",
                       phase.status === "completed" && "timeline-segment-completed",
                       phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && "border-t border-dashed border-gray-300 dark:border-zinc-700",
+                      phase.status === "pending" && cn("border-t", STYLES.timelinePending),
                     )}
                   />
                 )}
@@ -373,13 +429,14 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
                 key={`${phase.id}-label`}
                 className={cn(
                   "mt-1 flex flex-col whitespace-nowrap",
-                  // Add right padding for visual separation between phases; last phase is right-aligned
-                  isLast ? "items-end text-right" : "pr-3",
+                  // Add padding between phases; last phase is right-aligned
+                  isLast ? "items-end text-right" : "pr-4",
                 )}
               >
                 <span
                   className={cn(
-                    "text-[10px] font-medium",
+                    STYLES.smallLabel,
+                    "font-medium",
                     phase.status === "completed" && "timeline-text-completed",
                     phase.status === "failed" && "timeline-text-failed",
                     phase.status === "active" && "timeline-text-running",
@@ -388,14 +445,12 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
                 >
                   {phase.label}
                 </span>
-                {phase.time && (
-                  <span className="text-[10px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>
-                )}
+                {phase.time && <span className={STYLES.subtleText}>{formatTime(phase.time)}</span>}
                 {phase.annotation && (
                   <span
                     className={cn(
-                      "text-[10px]",
-                      phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600",
+                      STYLES.smallLabel,
+                      phase.status === "active" ? "timeline-text-running" : STYLES.mutedText,
                     )}
                   >
                     {phase.annotation}
@@ -405,47 +460,57 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
             );
           })}
         </div>
-      </div>
+      )}
     </div>
   );
 });
 
-/** Metadata section */
-const Metadata = memo(function Metadata({ workflow }: { workflow: WorkflowQueryResponse }) {
+/** Details section */
+const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryResponse }) {
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">Metadata</h3>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div>
-          <div className="text-[10px] text-gray-400 dark:text-zinc-600">User</div>
-          <div className="text-gray-900 dark:text-zinc-100">{workflow.submitted_by}</div>
-        </div>
-        {workflow.pool && (
-          <div>
-            <div className="text-[10px] text-gray-400 dark:text-zinc-600">Pool</div>
-            <div className="text-gray-900 dark:text-zinc-100">{workflow.pool}</div>
+    <section>
+      <h3 className={STYLES.sectionHeader}>Details</h3>
+      <Card className="gap-0 py-0">
+        <CardContent className="divide-border divide-y p-0">
+          <div className="p-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+              <span className="text-muted-foreground">User</span>
+              <span>{workflow.submitted_by}</span>
+              {workflow.pool && (
+                <>
+                  <span className="text-muted-foreground">Pool</span>
+                  <span>{workflow.pool}</span>
+                </>
+              )}
+              {workflow.backend && (
+                <>
+                  <span className="text-muted-foreground">Backend</span>
+                  <span>{workflow.backend}</span>
+                </>
+              )}
+            </div>
           </div>
-        )}
-        {workflow.backend && (
-          <div>
-            <div className="text-[10px] text-gray-400 dark:text-zinc-600">Backend</div>
-            <div className="text-gray-900 dark:text-zinc-100">{workflow.backend}</div>
-          </div>
-        )}
-      </div>
-      {workflow.tags && workflow.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
-          {workflow.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-zinc-800 dark:text-zinc-400"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
+          {workflow.tags && workflow.tags.length > 0 && (
+            <div className="p-3">
+              <div className={STYLES.subHeader}>
+                <Tag className="size-3" />
+                Tags
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {workflow.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={STYLES.tagPill}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </section>
   );
 });
 
@@ -463,7 +528,7 @@ const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryRespons
 
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="mb-1 text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">Links</h3>
+      <h3 className={STYLES.sectionHeader}>Links</h3>
       <div className="flex flex-wrap gap-2">
         {links.map((link) => {
           const Icon = link.icon;
@@ -473,7 +538,7 @@ const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryRespons
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              className={STYLES.link}
             >
               <Icon className="size-3.5" />
               {link.label}
@@ -518,15 +583,15 @@ export const WorkflowDetails = memo(function WorkflowDetails({
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-4 p-4">
           <Timeline workflow={workflow} />
-          <hr className="border-gray-200 dark:border-zinc-800" />
-          <Metadata workflow={workflow} />
-          <hr className="border-gray-200 dark:border-zinc-800" />
+          <hr className={STYLES.divider} />
+          <Details workflow={workflow} />
+          <hr className={STYLES.divider} />
           <Links workflow={workflow} />
 
           {/* Cancel action */}
           {canCancel && onCancel && (
             <>
-              <hr className="border-gray-200 dark:border-zinc-800" />
+              <hr className={STYLES.divider} />
               <button
                 type="button"
                 onClick={onCancel}
