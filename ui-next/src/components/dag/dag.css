@@ -204,6 +204,11 @@
    ReactFlow Overrides
    ========================================================================== */
 
+/* GPU-accelerate the viewport pane during interactions for smoother panning/zooming */
+.react-flow__viewport {
+  will-change: transform;
+}
+
 .react-flow__node {
   contain: layout style;
 }
@@ -290,7 +295,17 @@
 }
 
 /* ==========================================================================
-   Containment Utilities
+   Containment & GPU Acceleration
+   
+   CSS containment tells the browser what parts of the page are independent,
+   enabling massive optimization for layout, paint, and composite operations.
+   
+   Performance impact:
+   - contain: strict → Strongest isolation, best for virtualized items
+   - contain: layout style → Good balance for interactive elements
+   - contain: content → Equivalent to contain: layout style paint
+   - will-change: transform → Promotes element to GPU layer
+   - content-visibility: auto → Skip rendering of off-screen content
    ========================================================================== */
 
 .dag-details-panel {
@@ -307,11 +322,79 @@
 
 .dag-gpu-accelerated {
   will-change: transform;
+  /* Force GPU layer creation */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .dag-virtual-item {
   contain: strict;
   content-visibility: auto;
+  /* Hint intrinsic size for content-visibility */
+  contain-intrinsic-size: auto 28px;
+}
+
+/* ==========================================================================
+   Performance-Critical ReactFlow Containment
+   
+   These rules isolate ReactFlow's internal elements to prevent layout
+   thrashing during pan/zoom operations.
+   ========================================================================== */
+
+/* Nodes container - GPU accelerated for smooth transforms */
+.react-flow__nodes {
+  will-change: transform;
+  /* Note: No containment on nodes container to allow handles/edges to render properly */
+}
+
+/* Individual nodes - style containment only (layout containment breaks handles) */
+.react-flow__node {
+  contain: style;
+  /* Note: layout containment removed because handles need to overflow for edge connections */
+}
+
+/* Active/selected nodes get GPU layer promotion */
+.react-flow__node.selected,
+.react-flow__node:focus-within {
+  will-change: transform, opacity;
+}
+
+/* Edges container - NO paint containment (would clip arrow markers) */
+.react-flow__edges {
+  contain: layout style;
+  /* Note: paint containment removed because arrow markers overflow edge bounds */
+}
+
+/* Edge paths - optimized for animation */
+.react-flow__edge.animated path {
+  will-change: stroke-dashoffset;
+}
+
+/* Ensure markers/arrows are visible */
+.react-flow__edge-path {
+  overflow: visible;
+}
+
+/* MiniMap - fully isolated rendering */
+.react-flow__minimap {
+  contain: strict;
+  content-visibility: auto;
+  contain-intrinsic-size: 120px 80px;
+}
+
+/* Controls panel - isolated from main flow */
+.react-flow__controls {
+  contain: layout style paint;
+}
+
+/* ==========================================================================
+   Scroll Performance
+   ========================================================================== */
+
+.dag-scroll-container {
+  /* Optimized scrolling */
+  overscroll-behavior: contain;
+  scroll-behavior: auto; /* No smooth scroll during virtualized scrolling */
 }
 
 /* ==========================================================================
