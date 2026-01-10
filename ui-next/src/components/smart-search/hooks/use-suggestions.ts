@@ -38,7 +38,7 @@ export interface UseSuggestionsOptions<T> {
   /** Preset groups (for flattening for navigation) */
   presets?: {
     label: string;
-    items: SearchPreset<T>[];
+    items: SearchPreset[];
   }[];
 }
 
@@ -50,7 +50,7 @@ export interface UseSuggestionsReturn<T> {
   /** Suggestions that can be selected (excludes hints) */
   selectableSuggestions: Suggestion<T>[];
   /** Flattened preset items for navigation */
-  flatPresets: SearchPreset<T>[];
+  flatPresets: SearchPreset[];
   /** Total navigable items (presets + selectable suggestions) */
   totalNavigableCount: number;
 }

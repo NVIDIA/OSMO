@@ -21,7 +21,7 @@
  *
  * Core components for SmartSearch:
  * - ChipLabel: Chip display with variants
- * - PresetButton/PresetGroup: Preset filter buttons
+ * - PresetContent: Wrapper for caller-provided preset rendering
  *
  * Note: Dropdown rendering is handled by cmdk (shadcn/ui Command).
  */
@@ -87,9 +87,8 @@ export const ChipLabel = memo(function ChipLabel({ chip, onRemove, focused = fal
 // Preset Components
 // ============================================================================
 
-export interface PresetContentProps<T> {
-  preset: SearchPreset<T>;
-  data: T[];
+export interface PresetContentProps {
+  preset: SearchPreset;
   isActive: boolean;
   /** Whether this preset is focused via keyboard (cmdk provides this via data-selected) */
   isFocused?: boolean;
@@ -97,158 +96,11 @@ export interface PresetContentProps<T> {
 
 /**
  * Preset content for rendering inside CommandItem.
- * Supports custom render function or default badge styling.
+ *
+ * SmartSearch is agnostic about preset content - it delegates all rendering
+ * to the caller-provided render function. This enables dependency injection
+ * and keeps the component decoupled from data concerns like counts.
  */
-export const PresetContent = memo(function PresetContent<T>({
-  preset,
-  data,
-  isActive,
-  isFocused = false,
-}: PresetContentProps<T>) {
-  const count = preset.count(data);
-
-  // Custom render: user provides their own content
-  if (preset.render) {
-    return <>{preset.render({ active: isActive, focused: isFocused, count, label: preset.label })}</>;
-  }
-
-  // Default render: badge style with dot + label + count
-  const activeClasses = preset.badgeColors
-    ? cn(preset.badgeColors.bg, preset.badgeColors.text)
-    : "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200";
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-        isActive
-          ? activeClasses
-          : "bg-zinc-100 text-zinc-600 group-data-[selected=true]:bg-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:group-data-[selected=true]:bg-zinc-700 dark:hover:bg-zinc-700",
-      )}
-    >
-      <span className={cn("size-2 shrink-0 rounded-full", preset.dotColor)} />
-      <span>{preset.label}</span>
-      <span className="tabular-nums opacity-60">{count}</span>
-      {isActive && <span className="ml-0.5">✓</span>}
-    </span>
-  );
-}) as <T>(props: PresetContentProps<T>) => React.ReactElement;
-
-export interface PresetButtonProps<T> {
-  preset: SearchPreset<T>;
-  data: T[];
-  isActive: boolean;
-  isHighlighted: boolean;
-  highlightIndex: number;
-  onClick: () => void;
-  onMouseEnter: () => void;
-}
-
-/**
- * Preset filter button with optional custom render.
- * @deprecated Use PresetContent inside CommandItem for cmdk integration
- */
-export const PresetButton = memo(function PresetButton<T>({
-  preset,
-  data,
-  isActive,
-  isHighlighted,
-  highlightIndex,
-  onClick,
-  onMouseEnter,
-}: PresetButtonProps<T>) {
-  const count = preset.count(data);
-
-  // Custom render: user provides their own content and handles all visual states
-  if (preset.render) {
-    return (
-      <button
-        type="button"
-        data-highlight-index={highlightIndex}
-        onClick={onClick}
-        onMouseEnter={onMouseEnter}
-        className="rounded transition-all"
-      >
-        {preset.render({ active: isActive, focused: isHighlighted, count, label: preset.label })}
-      </button>
-    );
-  }
-
-  // Default render: dot + label + count
-  const activeClasses = preset.badgeColors
-    ? cn(preset.badgeColors.bg, preset.badgeColors.text)
-    : "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200";
-
-  return (
-    <button
-      type="button"
-      data-highlight-index={highlightIndex}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      className={cn(
-        "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-        isActive
-          ? activeClasses
-          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
-        isHighlighted && dropdownStyles.focusRing,
-      )}
-    >
-      <span className={cn("size-2 rounded-full", preset.dotColor)} />
-      <span>{preset.label}</span>
-      <span className="tabular-nums opacity-60">{count}</span>
-    </button>
-  );
-}) as <T>(props: PresetButtonProps<T>) => React.ReactElement;
-
-export interface PresetGroupProps<T> {
-  label: string;
-  items: SearchPreset<T>[];
-  data: T[];
-  highlightedIndex: number;
-  startIndex: number;
-  isPresetActive: (preset: SearchPreset<T>) => boolean;
-  onTogglePreset: (preset: SearchPreset<T>) => void;
-  onHighlight: (index: number) => void;
-}
-
-/**
- * Group of preset buttons with label.
- */
-export const PresetGroup = memo(function PresetGroup<T>({
-  label,
-  items,
-  data,
-  highlightedIndex,
-  startIndex,
-  isPresetActive,
-  onTogglePreset,
-  onHighlight,
-}: PresetGroupProps<T>) {
-  return (
-    <div
-      className={cn(
-        "grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 border-b px-3 py-2",
-        dropdownStyles.border,
-      )}
-    >
-      <span className={cn("text-xs font-medium", dropdownStyles.muted)}>{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((preset, index) => {
-          const currentIndex = startIndex + index;
-          return (
-            <PresetButton
-              key={preset.id}
-              preset={preset}
-              data={data}
-              isActive={isPresetActive(preset)}
-              isHighlighted={highlightedIndex === currentIndex}
-              highlightIndex={currentIndex}
-              onClick={() => onTogglePreset(preset)}
-              onMouseEnter={() => onHighlight(currentIndex)}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}) as <T>(props: PresetGroupProps<T>) => React.ReactElement;
+export const PresetContent = memo(function PresetContent({ preset, isActive, isFocused = false }: PresetContentProps) {
+  return <>{preset.render({ active: isActive, focused: isFocused })}</>;
+});
