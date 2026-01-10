@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import type { WorkflowListEntry } from "../../lib/workflow-search-fields";
 import { WORKFLOW_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type WorkflowColumnId } from "../../lib/workflow-columns";
 import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay, type StatusCategory } from "../../lib/workflow-constants";
+import { formatDuration } from "../../[name]/lib/workflow-types";
 
 // =============================================================================
 // Status Icons
@@ -59,18 +60,6 @@ const PRIORITY_ICONS: Record<string, React.ComponentType<{ className?: string }>
 function getMinSize(id: WorkflowColumnId): number {
   const col = WORKFLOW_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
-}
-
-/**
- * Format duration in seconds to human-readable string.
- */
-function formatDuration(seconds: number | undefined): string {
-  if (seconds === undefined || seconds === null) return "—";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.round((seconds % 3600) / 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
 /**
@@ -187,7 +176,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       minSize: getMinSize("duration"),
       enableSorting: true,
       cell: ({ row }) => {
-        const duration = row.original.duration;
+        const duration = row.original.duration ?? null;
         const isRunning = row.original.status === "RUNNING";
 
         return (
@@ -211,7 +200,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       enableSorting: true,
       cell: ({ row }) => (
         <span className="truncate font-mono text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
-          {formatDuration(row.original.queued_time)}
+          {formatDuration(row.original.queued_time ?? null)}
         </span>
       ),
     },

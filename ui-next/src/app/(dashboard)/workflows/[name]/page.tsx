@@ -47,34 +47,29 @@ import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/skeleton";
 
-// DAG components - local to workflow detail
+// Route-level components
 import {
   nodeTypes,
   MiniMapNode,
   FitViewOnLayoutChange,
   DAGErrorBoundary,
   DAGControls,
+  DAGProvider,
   DetailsPanel,
-} from "./lib/dag/components";
-import type { DetailsPanelView } from "./lib/dag/components/DetailsPanel";
-import {
-  useDAGState,
-  useResizablePanel,
-  useViewportBoundaries,
-} from "./lib/dag/hooks";
-import { DAGProvider } from "./lib/dag/context";
-import { VIEWPORT, MINIMAP, BACKGROUND } from "@/components/dag";
-import {
-  getMiniMapNodeColor,
-  getMiniMapStrokeColor,
-} from "./lib/dag/utils";
+  type DetailsPanelView,
+} from "./components";
 
-// Local hooks
+// DAG utilities
+import { VIEWPORT, MINIMAP, BACKGROUND, useResizablePanel, useViewportBoundaries } from "@/components/dag";
+import { getMiniMapNodeColor, getMiniMapStrokeColor } from "./lib/status";
+
+// Route-level hooks
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
 import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
+import { useDAGState } from "./hooks/use-dag-state";
 
-// CSS for DAG
-import "./lib/dag/dag.css";
+// CSS for DAG (from route-level styles)
+import "./styles/dag.css";
 
 // =============================================================================
 // Types
