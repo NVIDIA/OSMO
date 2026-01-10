@@ -85,7 +85,4 @@ export const usePoolsExtendedStore = create<PoolsExtendedState & PoolsExtendedAc
   ),
 );
 
-// Re-export shared preferences for backwards compatibility
-export { useSharedPreferences } from "@/stores";
-
 export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";

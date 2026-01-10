@@ -25,6 +25,3 @@ export {
 
 // Re-export Node type from ReactFlow for convenience
 export type { Node } from "@xyflow/react";
-
-// Re-export resizable panel hook from canonical panel component
-export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "@/components/panel";
