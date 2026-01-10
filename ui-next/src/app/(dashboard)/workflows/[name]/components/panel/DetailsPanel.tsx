@@ -34,7 +34,8 @@
 "use client";
 
 import { memo, useRef, useEffect, useCallback } from "react";
-import { GripVertical, ArrowLeftFromLine, ArrowRightToLine, FileText, BarChart3, Activity } from "lucide-react";
+import { ArrowLeftFromLine, ArrowRightToLine, FileText, BarChart3, Activity } from "lucide-react";
+import { ResizeHandle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
@@ -225,34 +226,15 @@ export const DetailsPanel = memo(function DetailsPanel({
     <>
       {/* Resize Handle - when expanded, positioned dynamically based on panel width */}
       {!isCollapsed && (
-        <div
-          className={cn(
-            "group absolute top-0 z-20 h-full w-0.5 cursor-ew-resize",
-            isDragging ? "bg-blue-500" : "bg-transparent hover:bg-gray-300 dark:hover:bg-zinc-600",
-          )}
-          {...bindResizeHandle()}
-          style={{
-            left: `${100 - panelPct}%`,
-            transform: "translateX(-50%)",
-            willChange: isDragging ? "left" : "auto",
-          }}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize panel"
+        <ResizeHandle
+          bindResizeHandle={bindResizeHandle}
+          isDragging={isDragging}
+          className="absolute top-0 z-20 h-full"
+          style={{ left: `${100 - panelPct}%` }}
           aria-valuenow={panelPct}
           aria-valuemin={20}
           aria-valuemax={80}
-        >
-          <div
-            className={cn(
-              "dag-details-panel-handle absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-gray-200 px-0.5 py-1 shadow transition-opacity duration-150 dark:bg-zinc-700",
-              isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-            )}
-            aria-hidden="true"
-          >
-            <GripVertical className="size-3.5 text-gray-500 dark:text-zinc-400" />
-          </div>
-        </div>
+        />
       )}
 
       {/* Panel Container - animates width like left nav (disabled during drag) */}

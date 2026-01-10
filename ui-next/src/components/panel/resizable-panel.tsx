@@ -18,9 +18,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useDrag } from "@use-gesture/react";
-import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStableCallback, useStableValue } from "@/hooks";
+import { ResizeHandle } from "./resize-handle";
 
 // =============================================================================
 // Types
@@ -219,37 +219,15 @@ export function ResizablePanel({
         aria-hidden={!open}
         onKeyDown={handleKeyDown}
       >
-        {/* Resize Handle - wide hit area, thin visible border */}
-        <div
-          {...bindResizeHandle()}
-          className={cn(
-            "group absolute inset-y-0 left-0 z-[60] w-4 -translate-x-1/2 cursor-ew-resize touch-none",
-            // Thin 2px border in the center of the hit area
-            "before:absolute before:inset-y-0 before:left-1/2 before:w-0.5 before:-translate-x-1/2 before:transition-colors",
-            isDragging
-              ? "before:bg-blue-500"
-              : "before:bg-transparent hover:before:bg-zinc-300 dark:hover:before:bg-zinc-600",
-          )}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize panel"
+        {/* Resize Handle */}
+        <ResizeHandle
+          bindResizeHandle={bindResizeHandle}
+          isDragging={isDragging}
+          className="absolute inset-y-0 left-0 z-[60] -translate-x-1/2"
           aria-valuenow={width}
           aria-valuemin={minWidth}
           aria-valuemax={maxWidth}
-        >
-          <div
-            className={cn(
-              "absolute top-1/2 left-1/2 z-[70] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150 dark:bg-zinc-800",
-              isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-            )}
-            aria-hidden="true"
-          >
-            <GripVertical
-              className="size-3 text-zinc-400 dark:text-zinc-500"
-              strokeWidth={1.5}
-            />
-          </div>
-        </div>
+        />
 
         {/* Panel content - overflow hidden here */}
         {open && <div className="flex h-full flex-col overflow-hidden">{children}</div>}
