@@ -21,7 +21,9 @@
  *
  * Shared components for resizable side panels:
  * - ResizablePanel: Main panel container with drag-to-resize
+ * - PanelHeader: Base header with slot-based layout (title, actions, subtitle, expandable)
  * - PanelHeaderActions: Header controls (badge, menu, close)
+ * - Helper components: PanelBackButton, PanelBadge, PanelCollapseButton, PanelTitle, PanelSubtitle
  */
 
 export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
@@ -42,5 +44,22 @@ export {
   type PanelCloseButtonProps,
   type PanelHeaderActionsProps,
 } from "./panel-header-controls";
+
+export {
+  PanelHeader,
+  PanelBackButton,
+  PanelCollapseButton,
+  PanelBadge,
+  PanelTitle,
+  PanelSubtitle,
+  type PanelHeaderProps,
+  type PanelHeaderExpandable,
+  type PanelBackButtonProps,
+  type PanelCollapseButtonProps,
+  type PanelBadgeProps,
+  type PanelBadgeVariant,
+  type PanelTitleProps,
+  type PanelSubtitleProps,
+} from "./panel-header";
 
 export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "./use-resizable-panel";
