@@ -254,27 +254,52 @@ interface StatusIconProps {
 const StatusIconLucide = memo(function StatusIconLucide({ status, size = "size-4", className }: StatusIconProps) {
   const category = getStatusCategory(status);
   const { Icon, className: iconClass } = ICON_CONFIG[category];
-  return <Icon className={cn(size, iconClass, className)} aria-hidden="true" />;
+  return (
+    <Icon
+      className={cn(size, iconClass, className)}
+      aria-hidden="true"
+    />
+  );
 });
 
 const StatusIconCompact = memo(function StatusIconCompact({ status, size = "size-3.5", className }: StatusIconProps) {
   const category = getStatusCategory(status);
   const config = COMPACT_ICON_CONFIG[category];
   if (!config) {
-    return <Circle className={cn(size, "text-gray-400 dark:text-zinc-400", className)} aria-hidden="true" />;
+    return (
+      <Circle
+        className={cn(size, "text-gray-400 dark:text-zinc-400", className)}
+        aria-hidden="true"
+      />
+    );
   }
   const { Icon, className: iconClass } = config;
-  return <Icon className={cn(size, iconClass, className)} aria-hidden="true" />;
+  return (
+    <Icon
+      className={cn(size, iconClass, className)}
+      aria-hidden="true"
+    />
+  );
 });
 
 /** Get the appropriate status icon for a given status. */
 export function getStatusIcon(status: string, size = "size-4") {
-  return <StatusIconLucide status={status} size={size} />;
+  return (
+    <StatusIconLucide
+      status={status}
+      size={size}
+    />
+  );
 }
 
 /** Get a compact status icon for table rows. */
 export function getStatusIconCompact(status: string, size = "size-3.5") {
-  return <StatusIconCompact status={status} size={size} />;
+  return (
+    <StatusIconCompact
+      status={status}
+      size={size}
+    />
+  );
 }
 
 // =============================================================================

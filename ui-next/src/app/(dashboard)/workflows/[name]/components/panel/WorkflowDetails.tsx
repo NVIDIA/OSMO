@@ -135,10 +135,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
     () => (workflow.submit_time ? new Date(workflow.submit_time) : null),
     [workflow.submit_time],
   );
-  const startTime = useMemo(
-    () => (workflow.start_time ? new Date(workflow.start_time) : null),
-    [workflow.start_time],
-  );
+  const startTime = useMemo(() => (workflow.start_time ? new Date(workflow.start_time) : null), [workflow.start_time]);
   const endTime = useMemo(() => (workflow.end_time ? new Date(workflow.end_time) : null), [workflow.end_time]);
 
   const queuedDuration = workflow.queued_time;
@@ -155,7 +152,13 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
     if (isToday) {
       return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
     }
-    return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   interface Phase {
@@ -218,13 +221,16 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
 
   return (
     <div className="flex flex-col">
-      <h3 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-zinc-600">
+      <h3 className="mb-2 text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">
         Timeline
       </h3>
       {phases.map((phase, index) => {
         const isLast = index === phases.length - 1;
         return (
-          <div key={phase.id} className="flex gap-3">
+          <div
+            key={phase.id}
+            className="flex gap-3"
+          >
             <div className="flex flex-col items-center">
               <div
                 className={cn(
@@ -238,7 +244,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
               {!isLast && (
                 <div
                   className={cn(
-                    "w-0.5 flex-1 min-h-[16px]",
+                    "min-h-[16px] w-0.5 flex-1",
                     phase.status === "completed" && "timeline-segment-completed",
                     phase.status === "active" && "timeline-active-segment",
                     phase.status === "pending" && "border-l border-dashed border-gray-300 dark:border-zinc-700",
@@ -258,9 +264,16 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
               >
                 {phase.label}
               </span>
-              {phase.time && <span className="text-[11px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>}
+              {phase.time && (
+                <span className="text-[11px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>
+              )}
               {phase.annotation && (
-                <span className={cn("text-[11px]", phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600")}>
+                <span
+                  className={cn(
+                    "text-[11px]",
+                    phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600",
+                  )}
+                >
                   {phase.annotation}
                 </span>
               )}
@@ -276,9 +289,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
 const Metadata = memo(function Metadata({ workflow }: { workflow: WorkflowQueryResponse }) {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-zinc-600">
-        Metadata
-      </h3>
+      <h3 className="text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">Metadata</h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
           <div className="text-[10px] text-gray-400 dark:text-zinc-600">User</div>
@@ -327,9 +338,7 @@ const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryRespons
 
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-zinc-600">
-        Links
-      </h3>
+      <h3 className="mb-1 text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">Links</h3>
       <div className="flex flex-wrap gap-2">
         {links.map((link) => {
           const Icon = link.icon;
@@ -387,7 +396,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
           <Metadata workflow={workflow} />
           <hr className="border-gray-200 dark:border-zinc-800" />
           <Links workflow={workflow} />
-          
+
           {/* Cancel action */}
           {canCancel && onCancel && (
             <>

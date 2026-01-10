@@ -177,10 +177,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const { panelPct, setPanelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel();
 
   // Determine current panel view (workflow is default, then group/task based on selection)
-  const currentPanelView: DetailsPanelView = 
-    dagPanelView === "task" && selectedTask ? "task" :
-    dagPanelView === "group" && selectedGroup ? "group" : 
-    "workflow";
+  const currentPanelView: DetailsPanelView =
+    dagPanelView === "task" && selectedTask ? "task" : dagPanelView === "group" && selectedGroup ? "group" : "workflow";
 
   // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
   const isPanelOpen = !isPanelCollapsed;

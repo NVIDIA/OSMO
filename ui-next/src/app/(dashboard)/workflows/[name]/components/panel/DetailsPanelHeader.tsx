@@ -29,15 +29,7 @@
 "use client";
 
 import { memo, useState, useMemo, useCallback, useRef } from "react";
-import {
-  X,
-  ChevronLeft,
-  ChevronDown,
-  MoreVertical,
-  Columns,
-  Search,
-  Check,
-} from "lucide-react";
+import { X, ChevronLeft, ChevronDown, MoreVertical, Columns, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -54,7 +46,6 @@ import {
 import { PANEL, WIDTH_PRESET_ICONS } from "@/components/panel";
 import { getStatusIcon } from "../../lib/status";
 import type { DetailsPanelHeaderProps, SiblingTask } from "../../lib/panel-types";
-
 
 // ============================================================================
 // Component
