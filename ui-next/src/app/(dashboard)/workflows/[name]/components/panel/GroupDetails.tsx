@@ -56,7 +56,7 @@ import {
   type TaskColumnId,
 } from "../../lib/task-columns";
 import { createTaskColumns } from "../../lib/task-column-defs";
-import { SmartSearch, filterByChips, type SearchChip } from "@/components/smart-search";
+import { SmartSearch, filterByChips, type SearchChip, type ResultsCount } from "@/components/smart-search";
 import { TASK_SEARCH_FIELDS, createTaskPresets } from "../../lib/task-search-fields";
 import { useTaskTableStore } from "../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
@@ -197,6 +197,15 @@ export const GroupDetails = memo(function GroupDetails({
   // Create presets for state filtering
   const taskPresets = useMemo(() => createTaskPresets(tasksWithDuration), [tasksWithDuration]);
 
+  // Results count for SmartSearch display
+  const resultsCount = useMemo<ResultsCount>(
+    () => ({
+      total: stats.total,
+      filtered: searchChips.length > 0 ? filteredTasks.length : undefined,
+    }),
+    [stats.total, filteredTasks.length, searchChips.length],
+  );
+
   // Callbacks
   const handleColumnOrderChange = useCallback(
     (newOrder: string[]) => {
@@ -221,10 +230,6 @@ export const GroupDetails = memo(function GroupDetails({
     },
     [group, onSelectTask],
   );
-
-  const handleClearFilters = useCallback(() => {
-    setSearchChips([]);
-  }, []);
 
   // Handle dependency pill click
   const handleSelectGroupByName = useCallback(
@@ -352,6 +357,7 @@ export const GroupDetails = memo(function GroupDetails({
               onChipsChange={setSearchChips}
               presets={taskPresets}
               placeholder="Filter by name, status:, ip:, duration:..."
+              resultsCount={resultsCount}
             />
           </div>
 
@@ -407,21 +413,6 @@ export const GroupDetails = memo(function GroupDetails({
             </DropdownMenu>
           </div>
         </div>
-
-        {/* Filter summary */}
-        {searchChips.length > 0 && (
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400">
-            <span>
-              Showing {filteredTasks.length} of {stats.total} tasks
-            </span>
-            <button
-              onClick={handleClearFilters}
-              className="text-blue-400 hover:text-blue-300"
-            >
-              Clear filters
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Task List - using canonical DataTable */}

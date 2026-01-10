@@ -27,7 +27,7 @@ import { memo, useMemo } from "react";
 import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores";
-import type { SearchPreset, PresetRenderProps } from "@/components/smart-search";
+import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/smart-search";
 import { TableToolbar } from "@/components/data-table";
 import { useWorkflowsTableStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
@@ -54,6 +54,8 @@ export interface WorkflowsToolbarProps {
   workflows: WorkflowListEntry[];
   searchChips: SearchChip[];
   onSearchChipsChange: (chips: SearchChip[]) => void;
+  /** Results count for displaying "N results" or "M of N results" */
+  resultsCount?: ResultsCount;
 }
 
 // =============================================================================
@@ -75,6 +77,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   workflows,
   searchChips,
   onSearchChipsChange,
+  resultsCount,
 }: WorkflowsToolbarProps) {
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useWorkflowsTableStore((s) => s.toggleColumn);
@@ -127,6 +130,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       placeholder="Search workflows... (try 'name:', 'status:', 'user:', 'pool:')"
       searchPresets={[{ label: "Presets:", items: statusPresets }]}
       showDisplayModeToggle={false}
+      resultsCount={resultsCount}
     />
   );
 });
