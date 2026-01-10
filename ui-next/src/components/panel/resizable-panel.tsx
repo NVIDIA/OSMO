@@ -20,7 +20,8 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useDrag } from "@use-gesture/react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStableCallback, useIsomorphicLayoutEffect } from "@/hooks";
+import { useIsomorphicLayoutEffect } from "@react-hookz/web";
+import { useStableCallback } from "@/hooks";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 

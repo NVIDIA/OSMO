@@ -16,43 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useSyncExternalStore } from "react";
-
-const MOBILE_BREAKPOINT = 768;
-
-/**
- * Get current mobile state from window width.
- */
-function getIsMobile(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.innerWidth < MOBILE_BREAKPOINT;
-}
-
-/**
- * Subscribe to window resize events for mobile detection.
- */
-function subscribeMobile(callback: () => void): () => void {
-  const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-  mql.addEventListener("change", callback);
-  return () => mql.removeEventListener("change", callback);
-}
-
-/**
- * Hook to detect if the viewport is mobile-sized.
- * Used by shadcn/ui Sidebar for responsive behavior.
- *
- * Uses useSyncExternalStore for proper React 18+ integration
- * with external browser APIs.
- */
-export function useIsMobile(): boolean {
-  const isMobile = useSyncExternalStore(
-    subscribeMobile,
-    getIsMobile,
-    () => false, // Server snapshot - assume not mobile during SSR
-  );
-
-  return isMobile;
-}
+import { useState } from "react";
 
 /**
  * Hook to detect if the user is on macOS.
