@@ -34,7 +34,7 @@
 "use client";
 
 import { memo, useRef, useEffect, useCallback } from "react";
-import { ArrowLeftFromLine, ArrowRightToLine, FileText, BarChart3, Activity } from "lucide-react";
+import { ArrowLeftFromLine, FileText, BarChart3, Activity } from "lucide-react";
 import { ResizeHandle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -44,7 +44,6 @@ import { GroupDetails } from "./GroupDetails";
 import { TaskDetails } from "./TaskDetails";
 import type { DetailsPanelProps } from "../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
-import { getStatusIcon } from "../../lib/status";
 
 // NOTE: We intentionally do NOT use a focus trap here.
 // This is a non-modal side panel (role="complementary"), not a dialog.
@@ -72,26 +71,33 @@ const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: Coll
 
   return (
     <div className="relative flex h-full w-full flex-col items-center py-3">
-      {/* Status icon at top - tooltip shows status text */}
-      {workflow && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={onExpand}
-              className="shrink-0 rounded p-1 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            >
-              {getStatusIcon(workflow.status, "size-5")}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left">{workflow.status}</TooltipContent>
-        </Tooltip>
-      )}
+      {/* Expand button at top */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onExpand}
+            className={cn(
+              "flex size-8 items-center justify-center rounded-lg",
+              "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+              "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+              "transition-colors",
+            )}
+            aria-label="Expand panel"
+          >
+            <ArrowLeftFromLine
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left">Expand panel</TooltipContent>
+      </Tooltip>
 
       {/* Separator */}
       {quickLinks.length > 0 && <div className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700" />}
 
-      {/* Quick action links - space-y-1 matches left nav */}
+      {/* Quick action links */}
       <div className="flex flex-col items-center space-y-1">
         {quickLinks.map((link) => {
           const Icon = link.icon;
@@ -121,31 +127,6 @@ const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: Coll
           );
         })}
       </div>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Expand button at bottom */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={onExpand}
-            className={cn(
-              "flex size-8 items-center justify-center rounded-lg",
-              "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-              "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-              "transition-all duration-200 ease-out",
-            )}
-          >
-            <ArrowLeftFromLine
-              className="size-4 shrink-0"
-              aria-hidden="true"
-            />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="left">Expand details</TooltipContent>
-      </Tooltip>
     </div>
   );
 });
@@ -311,20 +292,6 @@ export const DetailsPanel = memo(function DetailsPanel({
             />
           )}
 
-          {/* Shared Collapse Button - appears at bottom-left corner */}
-          {onToggleCollapsed && (
-            <button
-              onClick={onToggleCollapsed}
-              className="absolute bottom-3 left-3 z-20 flex h-8 items-center gap-2 rounded-lg bg-white/90 px-2 text-sm font-medium text-zinc-600 shadow-sm ring-1 ring-gray-200 backdrop-blur transition-all duration-200 ease-out hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-zinc-900/90 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              aria-label="Collapse panel"
-            >
-              <ArrowRightToLine
-                className="size-4 shrink-0"
-                aria-hidden="true"
-              />
-              <span>Collapse</span>
-            </button>
-          )}
         </div>
       </aside>
     </>
