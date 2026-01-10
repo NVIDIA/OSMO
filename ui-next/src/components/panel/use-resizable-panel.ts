@@ -17,13 +17,13 @@
 /**
  * useResizablePanel Hook
  *
- * Provides drag-to-resize functionality for panels using @use-gesture/react.
+ * Provides drag-to-resize functionality for right-side panels using @use-gesture/react.
  *
  * Features:
  * - Smooth dragging with RAF-throttled updates
  * - Percentage-based sizing
  * - Min/max constraints
- * - Optional persistence via usePersistedSettings
+ * - Optional persistence callback
  * - Touch support
  */
 
@@ -32,8 +32,7 @@
 import { useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
 import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
-import { PANEL } from "../constants";
-import { usePersistedSettings } from "./use-persisted-settings";
+import { PANEL } from "./panel-header-controls";
 
 // ============================================================================
 // Types
@@ -42,12 +41,12 @@ import { usePersistedSettings } from "./use-persisted-settings";
 export interface UseResizablePanelOptions {
   /** Initial panel width as percentage (default: 50) */
   initialPct?: number;
-  /** Minimum panel width as percentage (default: 25) */
+  /** Minimum panel width as percentage (default: 20) */
   minPct?: number;
   /** Maximum panel width as percentage (default: 80) */
   maxPct?: number;
-  /** Whether to persist the panel size (default: true) */
-  persist?: boolean;
+  /** Callback when panel is resized (for persistence) */
+  onResize?: (pct: number) => void;
 }
 
 export interface UseResizablePanelReturn {
@@ -68,19 +67,14 @@ export interface UseResizablePanelReturn {
 // ============================================================================
 
 /**
- * Hook for creating resizable panels.
- *
- * Features:
- * - Smooth drag tracking via @use-gesture/react
- * - RAF-throttled updates for 60fps performance
- * - Percentage-based sizing for responsive layouts
- * - Configurable min/max constraints
- * - Optional localStorage persistence
- * - Touch support
+ * Hook for creating resizable right-side panels.
  *
  * @example
  * ```tsx
- * const { panelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel();
+ * const { panelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel({
+ *   initialPct: 50,
+ *   onResize: (pct) => saveToLocalStorage(pct),
+ * });
  *
  * return (
  *   <div ref={containerRef} className="relative flex">
@@ -95,30 +89,26 @@ export function useResizablePanel({
   initialPct = PANEL.DEFAULT_WIDTH_PCT,
   minPct = PANEL.MIN_WIDTH_PCT,
   maxPct = PANEL.MAX_WIDTH_PCT,
-  persist = true,
+  onResize,
 }: UseResizablePanelOptions = {}): UseResizablePanelReturn {
-  // Use persisted state if persistence is enabled, otherwise regular state
-  const [persistedPanelPct, setPersistedPanelPct] = usePersistedSettings("panelPct", initialPct);
-  const [localPanelPct, setLocalPanelPct] = useState(initialPct);
-
-  const panelPct = persist ? persistedPanelPct : localPanelPct;
-  const setPanelPctInternal = persist ? setPersistedPanelPct : setLocalPanelPct;
-
-  // Stable callback to prevent stale closures
-  const stableSetPanelPct = useStableCallback((pct: number) => setPanelPctInternal(pct));
-
+  const [panelPct, setPanelPctState] = useState(initialPct);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Stable refs to avoid stale closures in useDrag (which memoizes the handler)
+  // Stable refs to avoid stale closures
   const minPctRef = useStableValue(minPct);
   const maxPctRef = useStableValue(maxPct);
 
-  // RAF-throttled panel resize for 60fps smooth dragging
-  const [schedulePanelResize] = useRafCallback(stableSetPanelPct, { throttle: true });
+  // Combined setter that also calls onResize
+  const setPanelPct = useStableCallback((pct: number) => {
+    setPanelPctState(pct);
+    onResize?.(pct);
+  });
 
-  // Drag gesture handler using @use-gesture/react
-  // Uses refs to avoid stale closures (useDrag memoizes the handler internally)
+  // RAF-throttled panel resize for 60fps smooth dragging
+  const [schedulePanelResize] = useRafCallback(setPanelPct, { throttle: true });
+
+  // Drag gesture handler
   const bindResizeHandle = useDrag(
     ({ active, xy: [x], first, last }) => {
       if (first) {
@@ -139,14 +129,13 @@ export function useResizablePanel({
       }
     },
     {
-      // Enable pointer events (handles mouse, touch, pen)
       pointer: { touch: true },
     },
   );
 
   return {
     panelPct,
-    setPanelPct: stableSetPanelPct,
+    setPanelPct,
     isDragging,
     bindResizeHandle,
     containerRef,

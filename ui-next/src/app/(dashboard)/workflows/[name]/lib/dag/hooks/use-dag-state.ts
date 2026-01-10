@@ -35,16 +35,12 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
+import { VIEWPORT, type LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../workflow-types";
 import { transformGroups } from "../adapters";
-import type { LayoutDirection, GroupNodeData } from "../types/dag-layout";
+import type { GroupNodeData } from "../types/dag-layout";
 import { calculateLayout, computeInitialExpandedGroups, clearLayoutCache } from "../layout/elk-layout";
-import {
-  ESTIMATED_VIEWPORT_WIDTH,
-  ESTIMATED_VIEWPORT_HEIGHT,
-  AUTO_COLLAPSE_TASK_THRESHOLD,
-  AUTO_COLLAPSE_GROUP_THRESHOLD,
-} from "../constants";
+import { AUTO_COLLAPSE_TASK_THRESHOLD, AUTO_COLLAPSE_GROUP_THRESHOLD } from "../constants";
 
 interface UseDAGStateOptions {
   /** Initial workflow groups from the API */
@@ -240,8 +236,8 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     // Calculate zoom that fits all content
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
-    const fitZoomX = ESTIMATED_VIEWPORT_WIDTH / (contentWidth + 100);
-    const fitZoomY = ESTIMATED_VIEWPORT_HEIGHT / (contentHeight + 100);
+    const fitZoomX = VIEWPORT.ESTIMATED_WIDTH / (contentWidth + 100);
+    const fitZoomY = VIEWPORT.ESTIMATED_HEIGHT / (contentHeight + 100);
     const fitAllZoom = Math.max(0.1, Math.min(fitZoomX, fitZoomY, 1));
 
     return { minX, maxX, minY, maxY, fitAllZoom };

@@ -17,11 +17,22 @@
 /**
  * Hooks Index
  *
- * Re-exports all hooks for cleaner imports.
+ * Re-exports hooks from both generic DAG and workflow-specific modules.
  */
 
+// Re-export generic hooks from @/components/dag
+export {
+  useViewportBoundaries,
+  useResizablePanel,
+  type UseViewportBoundariesOptions,
+  type ViewportBoundariesResult,
+  type NodeBounds,
+  type UseResizablePanelOptions,
+  type UseResizablePanelReturn,
+} from "@/components/dag";
+
+// Re-export from shared hooks
+export { useAnnouncer, cleanupAnnouncer } from "@/hooks";
+
+// Workflow-specific hooks
 export { useDAGState, type PanelView } from "./use-dag-state";
-export { usePersistedSettings, clearPersistedSettings, type PersistedSettings } from "./use-persisted-settings";
-export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "./use-resizable-panel";
-export { useViewportBoundaries } from "./use-viewport-boundaries";
-export { useAnnouncer, cleanupAnnouncer } from "./use-announcer";
