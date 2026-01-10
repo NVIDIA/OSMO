@@ -40,7 +40,4 @@ export const useResourcesTableStore = createTableStore({
   defaultPanelWidth: DEFAULT_PANEL_WIDTH,
 });
 
-// Re-export shared preferences for convenience
-export { useSharedPreferences } from "@/stores";
-
 export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";

@@ -24,23 +24,24 @@
  * Features:
  * - ELK.js layout with web worker support
  * - Viewport boundary management
- * - Resizable side panels
  * - Generic node/edge types for any domain
+ *
+ * Note: For resizable panels, import from `@/components/panel`.
+ * For domain-specific context (e.g., workflow DAG), create your own context.
  *
  * @example
  * ```tsx
- * import { DAGProvider, calculatePositions, buildEdges, DAGControls } from "@/components/dag";
+ * import { calculatePositions, buildEdges, DAGControls, VIEWPORT } from "@/components/dag";
+ * import { useResizablePanel } from "@/components/panel";
  *
  * function MyDAG() {
  *   const positions = await calculatePositions(nodes, "TB");
  *   const edges = buildEdges(nodes, getEdgeStyle);
  *
  *   return (
- *     <DAGProvider onSelectNode={handleSelect} onToggleExpand={handleToggle}>
- *       <ReactFlow nodes={flowNodes} edges={edges}>
- *         <DAGControls ... />
- *       </ReactFlow>
- *     </DAGProvider>
+ *     <ReactFlow nodes={flowNodes} edges={edges}>
+ *       <DAGControls ... />
+ *     </ReactFlow>
  *   );
  * }
  * ```
@@ -99,17 +100,11 @@ export {
 // Hooks
 export {
   useViewportBoundaries,
-  useResizablePanel,
   type UseViewportBoundariesOptions,
   type ViewportBoundariesResult,
   type NodeBounds,
-  type UseResizablePanelOptions,
-  type UseResizablePanelReturn,
 } from "./hooks";
 
 // Components
 export { DAGControls, DAGErrorBoundary, FitViewOnLayoutChange, MiniMapNode, MINIMAP_COLORS } from "./components";
 export type { DAGControlsProps, FitViewOnLayoutChangeProps } from "./components";
-
-// Context
-export { DAGProvider, useDAGContext, type DAGContextValue, type DAGProviderProps } from "./context";
