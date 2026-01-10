@@ -251,12 +251,7 @@ const BADGE_VARIANTS: Record<PanelBadgeVariant, string> = {
  * <PanelBadge label="Lead" variant="amber" title="Leader task" />
  * ```
  */
-export const PanelBadge = memo(function PanelBadge({
-  label,
-  variant = "neutral",
-  title,
-  className,
-}: PanelBadgeProps) {
+export const PanelBadge = memo(function PanelBadge({ label, variant = "neutral", title, className }: PanelBadgeProps) {
   return (
     <span
       className={cn(
@@ -305,7 +300,11 @@ export interface PanelSubtitleProps {
 /**
  * Subtitle text that appears after the title with optional separator.
  */
-export const PanelSubtitle = memo(function PanelSubtitle({ children, separator = true, className }: PanelSubtitleProps) {
+export const PanelSubtitle = memo(function PanelSubtitle({
+  children,
+  separator = true,
+  className,
+}: PanelSubtitleProps) {
   return (
     <>
       {separator && <span className="shrink-0 text-gray-400 dark:text-zinc-600">·</span>}

@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, memo } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { ZoomIn, ZoomOut, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,11 @@ export interface DAGControlsProps {
   className?: string;
 }
 
-export function DAGControls({
+/**
+ * Memoized DAGControls to prevent re-renders on parent state changes.
+ * Only re-renders when its specific props change.
+ */
+export const DAGControls = memo(function DAGControls({
   layoutDirection,
   onLayoutChange,
   showMinimap,
@@ -117,7 +121,7 @@ export function DAGControls({
       </div>
     </TooltipProvider>
   );
-}
+});
 
 // ============================================================================
 // Control Button Component
@@ -132,7 +136,11 @@ interface ControlButtonProps {
   active?: boolean;
 }
 
-function ControlButton({
+/**
+ * Memoized control button to prevent unnecessary re-renders.
+ * Each button only re-renders when its specific props change.
+ */
+const ControlButton = memo(function ControlButton({
   onClick,
   children,
   tooltip,
@@ -161,4 +169,4 @@ function ControlButton({
       <TooltipContent side="right">{tooltip}</TooltipContent>
     </Tooltip>
   );
-}
+});

@@ -21,8 +21,11 @@
  *
  * Custom node renderer for the ReactFlow MiniMap.
  * Renders nodes with correct dimensions and customizable colors.
+ *
+ * Performance: Memoized to prevent re-renders during viewport changes.
  */
 
+import { memo } from "react";
 import type { MiniMapNodeProps } from "@xyflow/react";
 import { NODE_DEFAULTS } from "../constants";
 
@@ -32,7 +35,15 @@ export const MINIMAP_COLORS = {
   stroke: "#3f3f46", // zinc-700
 } as const;
 
-export function MiniMapNode({ x, y, width, height, color, strokeColor, strokeWidth }: MiniMapNodeProps) {
+export const MiniMapNode = memo(function MiniMapNode({
+  x,
+  y,
+  width,
+  height,
+  color,
+  strokeColor,
+  strokeWidth,
+}: MiniMapNodeProps) {
   const nodeWidth = width || NODE_DEFAULTS.width;
   const nodeHeight = height || NODE_DEFAULTS.height;
 
@@ -50,4 +61,4 @@ export function MiniMapNode({ x, y, width, height, color, strokeColor, strokeWid
       aria-hidden="true"
     />
   );
-}
+});

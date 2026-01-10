@@ -91,3 +91,66 @@ class ELKLayoutClient {
 
 // Export singleton instance
 export const elkWorker = new ELKLayoutClient();
+
+// =============================================================================
+// Preloading & Cold Start Optimization
+// =============================================================================
+
+/** Track if preload has already been scheduled */
+let preloadScheduled = false;
+
+/**
+ * Preload the ELK worker during browser idle time.
+ *
+ * Uses requestIdleCallback to initialize the web worker without blocking
+ * the main thread. Falls back to setTimeout for Safari/older browsers.
+ *
+ * Call this early (e.g., on module load or route prefetch) to hide
+ * worker initialization latency from the user.
+ *
+ * @example
+ * ```tsx
+ * // At module level (runs once on import)
+ * if (typeof window !== "undefined") {
+ *   preloadElkWorker();
+ * }
+ * ```
+ */
+export function preloadElkWorker(): void {
+  // Only run in browser
+  if (typeof window === "undefined") return;
+
+  // Only schedule once
+  if (preloadScheduled) return;
+  preloadScheduled = true;
+
+  // Schedule preload during idle time to avoid blocking initial render
+  const doPreload = () => {
+    elkWorker
+      .layout({
+        id: "preload",
+        layoutOptions: {},
+        children: [],
+        edges: [],
+      })
+      .catch(() => {
+        // Ignore errors during preload (worker will retry on actual use)
+      });
+  };
+
+  // Use requestIdleCallback if available, otherwise setTimeout
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(doPreload, { timeout: 2000 });
+  } else {
+    // Fallback for Safari - use setTimeout with small delay
+    setTimeout(doPreload, 100);
+  }
+}
+
+/**
+ * Check if the ELK worker is ready (initialized).
+ * Useful for showing loading indicators.
+ */
+export function isElkWorkerReady(): boolean {
+  return elkWorker["elk"] !== null;
+}

@@ -89,6 +89,8 @@ export {
 // Layout utilities
 export {
   elkWorker,
+  preloadElkWorker,
+  isElkWorkerReady,
   calculatePositions,
   buildEdges,
   findRootNodes,
