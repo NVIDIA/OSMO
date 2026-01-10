@@ -136,7 +136,7 @@ export default function ResourcesPage() {
       selectedPool={selectedPoolConfig}
       onPoolSelect={setSelectedPoolConfig}
     >
-      <div className="flex h-full flex-col gap-4">
+      <div className="flex h-full flex-col gap-4 p-6">
         {/* Toolbar with SmartSearch */}
         <div className="shrink-0">
           <InlineErrorBoundary
