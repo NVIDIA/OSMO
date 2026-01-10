@@ -35,6 +35,7 @@ export type {
   SmartSearchProps,
   Suggestion,
   ParsedInput,
+  ResultsCount,
 } from "./types";
 
 // Pure functions
