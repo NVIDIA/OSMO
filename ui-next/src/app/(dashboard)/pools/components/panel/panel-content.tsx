@@ -25,7 +25,7 @@ import { Card, CardContent } from "@/components/shadcn/card";
 import { CapacityBar } from "@/components/capacity-bar";
 import { PlaceholderSection } from "@/components/placeholder-section";
 import type { Pool } from "@/lib/api/adapter";
-import { getSharingInfo } from "@/lib/api/adapter/transforms";
+import { getSharingInfo } from "@/lib/api/adapter";
 import { PlatformSelector } from "./platform-selector";
 import { PlatformConfigContent } from "./platform-config";
 import { SharedPoolsChips } from "./shared-pools-chips";
