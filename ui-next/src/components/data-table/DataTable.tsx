@@ -45,7 +45,8 @@ import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 
-import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
+import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
+import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { SortableCell } from "./SortableCell";
 import { SortButton } from "./SortButton";
 import { VirtualTableBody } from "./VirtualTableBody";
@@ -193,11 +194,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
   onLoadMore,
   isFetchingNextPage,
   totalCount,
-  // Row heights in pixels (virtualizer requires px, CSS vars define rem for styling)
-  // 48px = 3rem at 16px base - standard table row height for touch targets
-  rowHeight = 48,
-  // 36px = 2.25rem at 16px base - compact section header
-  sectionHeight = 36,
+  // Row heights use canonical constants from @/lib/config
+  rowHeight = TABLE_ROW_HEIGHTS.NORMAL,
+  sectionHeight = TABLE_ROW_HEIGHTS.SECTION,
   className,
   scrollClassName,
   compact = false,

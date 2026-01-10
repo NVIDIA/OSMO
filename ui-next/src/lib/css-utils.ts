@@ -23,6 +23,12 @@
  * rem/px values to numeric pixels.
  */
 
+import { useMemo } from "react";
+
+// =============================================================================
+// Pure Functions
+// =============================================================================
+
 /**
  * Parse a CSS value (rem or px) to pixels.
  */
@@ -46,4 +52,44 @@ export function getCssVarPx(name: string, fallbackRem: string): number {
   const rootFontSize = parseFloat(getComputedStyle(root).fontSize) || 16;
   const val = getComputedStyle(root).getPropertyValue(name).trim() || fallbackRem;
   return parseCssValue(val, rootFontSize);
+}
+
+// =============================================================================
+// Hooks
+// =============================================================================
+
+/**
+ * CSS variable configuration for useCssVarDimensions.
+ * Maps dimension names to [CSS variable, fallback value] pairs.
+ */
+export type CssVarConfig<T extends string> = Record<T, [cssVar: string, fallback: string]>;
+
+/**
+ * Generic hook to read multiple CSS custom properties as pixel values.
+ *
+ * Reads values once on mount (stable reference via useMemo).
+ * SSR-safe with fallback values.
+ *
+ * @example
+ * ```tsx
+ * const TABLE_DIMENSIONS = {
+ *   rowHeight: ["--table-row-height", "3rem"],
+ *   rowHeightCompact: ["--table-row-height-compact", "2rem"],
+ *   headerHeight: ["--table-header-height", "2.25rem"],
+ * } as const;
+ *
+ * // In component:
+ * const dims = useCssVarDimensions(TABLE_DIMENSIONS);
+ * // dims.rowHeight, dims.rowHeightCompact, dims.headerHeight are all numbers (px)
+ * ```
+ */
+export function useCssVarDimensions<T extends string>(config: CssVarConfig<T>): Record<T, number> {
+  return useMemo(() => {
+    const result = {} as Record<T, number>;
+    for (const key of Object.keys(config) as T[]) {
+      const [cssVar, fallback] = config[key];
+      result[key] = getCssVarPx(cssVar, fallback);
+    }
+    return result;
+  }, [config]);
 }

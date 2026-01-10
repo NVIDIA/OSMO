@@ -45,7 +45,7 @@ import "@xyflow/react/dist/style.css";
 
 import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
-import { Skeleton } from "@/components/skeleton";
+import { Skeleton } from "@/components/shadcn/skeleton";
 
 // Route-level components
 import {
@@ -60,7 +60,8 @@ import {
 } from "./components";
 
 // DAG utilities
-import { VIEWPORT, MINIMAP, BACKGROUND, useResizablePanel, useViewportBoundaries } from "@/components/dag";
+import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries } from "@/components/dag";
+import { useResizablePanel } from "@/components/panel";
 import { getMiniMapNodeColor, getMiniMapStrokeColor } from "./lib/status";
 
 // Route-level hooks

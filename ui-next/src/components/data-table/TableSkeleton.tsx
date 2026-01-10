@@ -28,6 +28,7 @@
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -102,7 +103,7 @@ const SkeletonRow = memo(function SkeletonRow({ columnCount, rowHeight, rowIndex
 export const TableSkeleton = memo(function TableSkeleton({
   columnCount = 5,
   rowCount = 10,
-  rowHeight = 48,
+  rowHeight = TABLE_ROW_HEIGHTS.NORMAL,
   headers,
   className,
   showHeader = true,

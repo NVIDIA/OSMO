@@ -27,7 +27,7 @@
 import { useCallback, useRef, useMemo, useEffect, useReducer, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
 import { useStableCallback, useStableValue, useRafCallback, useIsomorphicLayoutEffect } from "@/hooks";
-import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
+import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
 import type { ColumnSizeConfig } from "../types";
 import { logColumnSizingDebug, createDebugSnapshot, flushDebugBuffer } from "../utils/debug";
 import {

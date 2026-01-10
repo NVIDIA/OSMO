@@ -62,13 +62,11 @@ import { useTaskTableStore } from "../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
 import { GroupTimeline } from "./GroupTimeline";
 import { DependencyPills } from "./DependencyPills";
+import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 
 // =============================================================================
 // Constants
 // =============================================================================
-
-const ROW_HEIGHT = 48;
-const ROW_HEIGHT_COMPACT = 36;
 
 /** Stable row ID extractor */
 const getRowId = (task: TaskWithDuration) => task.name;
@@ -113,7 +111,7 @@ export const GroupDetails = memo(function GroupDetails({
   const setSort = useTaskTableStore((s) => s.setSort);
 
   // Row height based on compact mode
-  const rowHeight = compactMode ? ROW_HEIGHT_COMPACT : ROW_HEIGHT;
+  const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
   // Compute tasks with duration
   const tasksWithDuration: TaskWithDuration[] = useMemo(() => {
