@@ -20,7 +20,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useDrag } from "@use-gesture/react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStableCallback } from "@/hooks";
+import { useStableCallback, useIsomorphicLayoutEffect } from "@/hooks";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 
@@ -157,21 +157,25 @@ export function ResizablePanel({
   // Refs that MUST be updated synchronously during render (not in effects!)
   // This is critical because useDrag's bounds() function can be called
   // during the same frame before any effects run, causing stale values.
-  // We use refs instead of direct prop access because useDrag memoizes its handler.
+  // We use refs synced via useLayoutEffect because useDrag memoizes its handler.
   const widthRef = useRef(width);
   const minWidthRef = useRef(minWidth);
   const maxWidthRef = useRef(maxWidth);
 
-  // SYNC update during render - critical for bounds() to have current values
-  // This runs on every render, ensuring refs are always current before any callbacks
-  widthRef.current = width;
-  minWidthRef.current = minWidth;
-  maxWidthRef.current = maxWidth;
+  // Sync refs in useIsomorphicLayoutEffect - runs synchronously after render, before paint
+  // SSR-safe: falls back to useEffect on server to avoid hydration warnings
+  useIsomorphicLayoutEffect(() => {
+    widthRef.current = width;
+    minWidthRef.current = minWidth;
+    maxWidthRef.current = maxWidth;
+  }, [width, minWidth, maxWidth]);
 
   // Keep startWidthRef in sync when not dragging (for reference only)
-  if (!isDragging) {
-    startWidthRef.current = width;
-  }
+  useIsomorphicLayoutEffect(() => {
+    if (!isDragging) {
+      startWidthRef.current = width;
+    }
+  }, [isDragging, width]);
 
   // Stable callbacks to prevent stale closures in effects and event handlers
   const stableOnClose = useStableCallback(onClose);
@@ -208,7 +212,7 @@ export function ResizablePanel({
   }, [open, stableOnEscapeKey]);
 
   // Resize drag handler using @use-gesture/react
-  // 
+  //
   // CRITICAL DESIGN DECISIONS:
   // 1. NO bounds option - @use-gesture's bounds can cause unexpected behavior
   //    when movement values are constrained before our handler sees them
@@ -229,13 +233,13 @@ export function ResizablePanel({
       if (active) {
         const containerWidth = containerWidthRef.current;
         if (containerWidth === 0) return; // Safety check
-        
+
         // Calculate new width from movement
         // Movement is negative when dragging left (making panel wider)
         const deltaPct = (-mx / containerWidth) * 100;
         const rawWidth = startWidthRef.current + deltaPct;
         const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
-        
+
         // Only update if there's an actual change (avoids redundant updates on click)
         // Use threshold to handle floating point precision
         if (Math.abs(clampedWidth - widthRef.current) > 0.01) {
@@ -347,7 +351,7 @@ export function ResizablePanel({
           <ResizeHandle
             bindResizeHandle={bindResizeHandle}
             isDragging={isDragging}
-            className="absolute left-0 top-0 z-20 h-full -translate-x-1/2"
+            className="absolute top-0 left-0 z-20 h-full -translate-x-1/2"
             aria-valuenow={width}
             aria-valuemin={minWidth}
             aria-valuemax={maxWidth}
