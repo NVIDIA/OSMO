@@ -42,7 +42,8 @@ import { memo, useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
 import type { Header } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
-import { useStableCallback, useStableValue } from "@/hooks";
+import { useSyncedRef } from "@react-hookz/web";
+import { useStableCallback } from "@/hooks";
 
 // =============================================================================
 // Types
@@ -88,10 +89,10 @@ function ResizeHandleInner<TData>({
   const columnId = header.id;
 
   // Stable refs for callbacks to avoid stale closures in useDrag
-  const onResizeStartRef = useStableValue(onResizeStart);
-  const onResizeUpdateRef = useStableValue(onResizeUpdate);
-  const onResizeEndRef = useStableValue(onResizeEnd);
-  const onAutoFitRef = useStableValue(onAutoFit);
+  const onResizeStartRef = useSyncedRef(onResizeStart);
+  const onResizeUpdateRef = useSyncedRef(onResizeUpdate);
+  const onResizeEndRef = useSyncedRef(onResizeEnd);
+  const onAutoFitRef = useSyncedRef(onAutoFit);
 
   // ==========================================================================
   // Drag Gesture - @use-gesture/react as the canonical gesture handler

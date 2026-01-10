@@ -36,7 +36,8 @@
 
 import { useState, useCallback, useEffect, useRef, type RefObject } from "react";
 import { useReactFlow, type Node, type Viewport } from "@xyflow/react";
-import { useStableCallback, useStableValue } from "@/hooks";
+import { useSyncedRef } from "@react-hookz/web";
+import { useStableCallback } from "@/hooks";
 import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
 
 // ============================================================================
@@ -146,9 +147,9 @@ export function useViewportBoundaries({
   const boundsCache = useRef({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
 
   // Stable refs for values used in handlers to avoid stale closures
-  const nodeBoundsRef = useStableValue(nodeBounds);
-  const getVisibleWidthRef = useStableValue(getVisibleWidth);
-  const viewportRef = useStableValue(viewport);
+  const nodeBoundsRef = useSyncedRef(nodeBounds);
+  const getVisibleWidthRef = useSyncedRef(getVisibleWidth);
+  const viewportRef = useSyncedRef(viewport);
 
   // ---------------------------------------------------------------------------
   // Helpers

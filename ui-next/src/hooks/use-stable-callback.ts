@@ -40,7 +40,7 @@
  */
 
 import { useCallback, useRef } from "react";
-import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
+import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 
 /**
  * Returns a stable callback reference that always invokes the latest version of the callback.
@@ -88,31 +88,4 @@ export function useStableCallback<TArgs extends [], TReturn>(
   return useCallback(function stableCallback(...args: TArgs): TReturn {
     return callbackRef.current(...args);
   }, []);
-}
-
-/**
- * useStableValue - Returns a ref that always contains the latest value.
- *
- * Useful when you need to access a frequently-changing value inside a stable callback
- * without adding it to the callback's dependencies.
- *
- * @example
- * ```tsx
- * const itemsRef = useStableValue(items);
- *
- * const getItem = useCallback(
- *   (index) => itemsRef.current[index],
- *   [],  // Stable! No items dependency needed
- * );
- * ```
- *
- * @param value - The value to track
- * @returns A ref object with .current always set to the latest value
- */
-export function useStableValue<T>(value: T): React.RefObject<T> {
-  const ref = useRef(value);
-  useIsomorphicLayoutEffect(() => {
-    ref.current = value;
-  });
-  return ref;
 }
