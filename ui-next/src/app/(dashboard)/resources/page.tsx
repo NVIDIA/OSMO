@@ -37,6 +37,7 @@
 import { useMemo, useCallback } from "react";
 import { useQueryState, parseAsString } from "nuqs";
 import { usePage } from "@/components/shell";
+import type { ResultsCount } from "@/components/smart-search";
 import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
 import { useUrlChips } from "@/hooks";
 import type { Resource } from "@/lib/api/adapter";
@@ -93,6 +94,7 @@ export default function ResourcesPage() {
     resources,
     allResources,
     totalCount,
+    filteredCount,
     isLoading,
     error,
     refetch,
@@ -100,6 +102,18 @@ export default function ResourcesPage() {
     fetchNextPage,
     isFetchingNextPage,
   } = useResourcesData({ searchChips });
+
+  // Check if filters are active
+  const hasActiveFilters = searchChips.length > 0;
+
+  // Results count for SmartSearch display
+  const resultsCount = useMemo<ResultsCount | undefined>(
+    () => ({
+      total: totalCount ?? resources.length,
+      filtered: hasActiveFilters ? (filteredCount ?? resources.length) : undefined,
+    }),
+    [totalCount, filteredCount, resources.length, hasActiveFilters],
+  );
 
   // ==========================================================================
   // Resource Selection
@@ -147,6 +161,7 @@ export default function ResourcesPage() {
               resources={allResources}
               searchChips={searchChips}
               onSearchChipsChange={setSearchChips}
+              resultsCount={resultsCount}
             />
           </InlineErrorBoundary>
         </div>
