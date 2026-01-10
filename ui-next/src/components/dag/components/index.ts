@@ -16,29 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Panel Components
- *
- * Shared components for resizable side panels:
- * - ResizablePanel: Main panel container with drag-to-resize
- * - PanelHeaderActions: Header controls (badge, menu, close)
- */
-
-export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
-
-export {
-  PANEL,
-  WIDTH_PRESET_ICONS,
-  PanelWidthMenu,
-  PanelCloseButton,
-  PanelHeaderActions,
-  type PanelWidthMenuProps,
-  type PanelCloseButtonProps,
-  type PanelHeaderActionsProps,
-} from "./panel-header-controls";
-
-export {
-  useResizablePanel,
-  type UseResizablePanelOptions,
-  type UseResizablePanelReturn,
-} from "./use-resizable-panel";
+export { DAGControls, type DAGControlsProps } from "./DAGControls";
+export { DAGErrorBoundary } from "./DAGErrorBoundary";
+export { FitViewOnLayoutChange, type FitViewOnLayoutChangeProps } from "./FitViewOnLayoutChange";
+export { MiniMapNode, MINIMAP_COLORS } from "./MiniMapNode";

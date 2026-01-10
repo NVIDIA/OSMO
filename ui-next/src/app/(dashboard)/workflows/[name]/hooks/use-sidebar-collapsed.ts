@@ -16,52 +16,31 @@
 
 /**
  * Hook for managing workflow details sidebar collapsed state.
- * Persists user preference to localStorage.
+ * Uses the canonical usePersistedBoolean hook for localStorage persistence.
  */
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-
-const STORAGE_KEY = "workflow-details-sidebar-collapsed";
+import { useCallback } from "react";
+import { usePersistedBoolean } from "@/hooks";
 
 export function useSidebarCollapsed() {
-  // Initialize with false (expanded), will sync with localStorage in useEffect
-  const [collapsed, setCollapsed] = useState(false);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [collapsed, setCollapsed] = usePersistedBoolean("workflow-details-sidebar-collapsed", false);
 
-  // Sync with localStorage on mount (client-side only)
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "true") {
-      setCollapsed(true);
-    }
-    setIsHydrated(true);
-  }, []);
-
-  // Toggle function that persists to localStorage
   const toggle = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem(STORAGE_KEY, String(next));
-      return next;
-    });
-  }, []);
+    setCollapsed(!collapsed);
+  }, [collapsed, setCollapsed]);
 
-  // Explicit setters
   const expand = useCallback(() => {
     setCollapsed(false);
-    localStorage.setItem(STORAGE_KEY, "false");
-  }, []);
+  }, [setCollapsed]);
 
   const collapse = useCallback(() => {
     setCollapsed(true);
-    localStorage.setItem(STORAGE_KEY, "true");
-  }, []);
+  }, [setCollapsed]);
 
   return {
     collapsed,
-    isHydrated,
     toggle,
     expand,
     collapse,

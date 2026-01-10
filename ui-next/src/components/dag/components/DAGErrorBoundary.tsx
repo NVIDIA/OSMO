@@ -1,18 +1,20 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /**
  * DAGErrorBoundary Component
@@ -27,9 +29,14 @@ import { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 
-interface Props {
+interface DAGErrorBoundaryProps {
   children: ReactNode;
+  /** Callback when retry is clicked */
   onRetry?: () => void;
+  /** Custom error title */
+  title?: string;
+  /** Custom error description */
+  description?: string;
 }
 
 interface State {
@@ -37,8 +44,8 @@ interface State {
   error: Error | null;
 }
 
-export class DAGErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+export class DAGErrorBoundary extends Component<DAGErrorBoundaryProps, State> {
+  constructor(props: DAGErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -58,6 +65,8 @@ export class DAGErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const { title = "Visualization Error", description } = this.props;
+
       return (
         <div
           className="flex flex-1 flex-col items-center justify-center gap-4 bg-gray-50 p-8 dark:bg-zinc-950"
@@ -69,11 +78,11 @@ export class DAGErrorBoundary extends Component<Props, State> {
               className="h-8 w-8"
               aria-hidden="true"
             />
-            <h2 className="text-xl font-semibold">Visualization Error</h2>
+            <h2 className="text-xl font-semibold">{title}</h2>
           </div>
           <p className="max-w-md text-center text-gray-500 dark:text-zinc-400">
-            The DAG visualization encountered an error. This might be due to invalid workflow data or a layout
-            calculation failure.
+            {description ||
+              "The DAG visualization encountered an error. This might be due to invalid data or a layout calculation failure."}
           </p>
           {this.state.error && (
             <details className="max-w-lg text-sm text-gray-500 dark:text-zinc-500">
