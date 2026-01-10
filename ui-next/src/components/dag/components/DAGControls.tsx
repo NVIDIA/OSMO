@@ -1,18 +1,20 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /**
  * DAGControls Component
@@ -28,9 +30,9 @@ import { useReactFlow } from "@xyflow/react";
 import { ZoomIn, ZoomOut, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
-import type { LayoutDirection } from "../types/dag-layout";
+import type { LayoutDirection } from "../types";
 
-interface DAGControlsProps {
+export interface DAGControlsProps {
   /** Current layout direction */
   layoutDirection: LayoutDirection;
   /** Layout direction change callback */
@@ -39,9 +41,17 @@ interface DAGControlsProps {
   showMinimap: boolean;
   /** Minimap toggle callback */
   onToggleMinimap: () => void;
+  /** Additional class names */
+  className?: string;
 }
 
-export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onToggleMinimap }: DAGControlsProps) {
+export function DAGControls({
+  layoutDirection,
+  onLayoutChange,
+  showMinimap,
+  onToggleMinimap,
+  className,
+}: DAGControlsProps) {
   const { zoomIn, zoomOut } = useReactFlow();
 
   const handleZoomIn = useCallback(() => {
@@ -59,11 +69,13 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className="absolute bottom-4 left-4 z-10 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95"
+        className={cn(
+          "absolute bottom-4 left-4 z-10 flex flex-col gap-1 rounded-lg border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
+          className,
+        )}
         role="toolbar"
         aria-label="DAG controls"
       >
-        {/* Zoom Controls */}
         <ControlButton
           onClick={handleZoomIn}
           tooltip="Zoom In"
@@ -80,13 +92,11 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
           <ZoomOut className="h-4 w-4" />
         </ControlButton>
 
-        {/* Divider */}
         <div
           className="my-1 h-px bg-gray-200 dark:bg-zinc-700"
           aria-hidden="true"
         />
 
-        {/* Layout Direction Toggle - no active state, just shows current direction */}
         <ControlButton
           onClick={handleToggleLayout}
           tooltip="Toggle Direction"
@@ -95,7 +105,6 @@ export function DAGControls({ layoutDirection, onLayoutChange, showMinimap, onTo
           {layoutDirection === "TB" ? <ArrowDown className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
         </ControlButton>
 
-        {/* Minimap Toggle */}
         <ControlButton
           onClick={onToggleMinimap}
           tooltip="Toggle Minimap"

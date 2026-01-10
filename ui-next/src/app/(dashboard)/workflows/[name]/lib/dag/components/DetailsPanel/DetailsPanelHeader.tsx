@@ -34,9 +34,6 @@ import {
   ChevronLeft,
   ChevronDown,
   MoreVertical,
-  PanelLeftClose,
-  Columns2,
-  PanelLeft,
   Columns,
   Search,
   Check,
@@ -55,20 +52,10 @@ import {
   DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
 } from "@/components/shadcn/dropdown-menu";
-import { PANEL } from "../../constants";
+import { PANEL, WIDTH_PRESET_ICONS } from "@/components/panel";
 import { getStatusIcon } from "../../utils/status";
 import type { DetailsPanelHeaderProps, SiblingTask } from "../../types/panel";
-import type { ColumnId } from "../../types/table";
 
-// ============================================================================
-// Width Preset Configuration
-// ============================================================================
-
-const WIDTH_PRESET_ICONS = {
-  33: PanelLeftClose,
-  50: Columns2,
-  75: PanelLeft,
-} as const;
 
 // ============================================================================
 // Component
@@ -397,9 +384,9 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
 // ============================================================================
 
 interface ColumnMenuProps {
-  columns: Array<{ id: ColumnId; menuLabel: string }>;
-  visibleColumnIds: ColumnId[];
-  onToggleColumn: (columnId: ColumnId) => void;
+  columns: Array<{ id: string; menuLabel?: string; label: string }>;
+  visibleColumnIds: string[];
+  onToggleColumn: (columnId: string) => void;
 }
 
 export const ColumnMenuContent = memo(function ColumnMenuContent({
@@ -421,7 +408,7 @@ export const ColumnMenuContent = memo(function ColumnMenuContent({
             onCheckedChange={() => onToggleColumn(col.id)}
             onSelect={(e) => e.preventDefault()}
           >
-            {col.menuLabel}
+            {col.menuLabel ?? col.label}
           </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuSubContent>

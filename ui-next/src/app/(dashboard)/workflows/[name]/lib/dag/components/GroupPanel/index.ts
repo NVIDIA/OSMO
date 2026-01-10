@@ -17,10 +17,31 @@
 /**
  * GroupPanel Utilities
  *
- * Shared utilities for task tables: search, virtualization, columns.
+ * Shared utilities for task tables: search, columns, and column definitions.
  * The main GroupPanel component has been consolidated into DetailsPanel/GroupDetails.
  */
 
-export { SmartSearch, filterTasksByChips } from "./SmartSearch";
-export { VirtualizedTaskList } from "./TaskTable";
-export type { TaskWithDuration, SearchChip, ColumnId, SortState, SortColumn, ColumnDef } from "../../types/table";
+// Search fields and presets
+export { TASK_SEARCH_FIELDS, createTaskPresets, ensureChronoLoaded } from "./task-search-fields";
+
+// Column configuration
+export {
+  OPTIONAL_COLUMNS,
+  OPTIONAL_COLUMNS_ALPHABETICAL,
+  DEFAULT_VISIBLE_COLUMNS,
+  DEFAULT_COLUMN_ORDER,
+  MANDATORY_COLUMN_IDS,
+  TASK_COLUMN_SIZE_CONFIG,
+  COLUMN_LABELS,
+  COLUMN_MENU_LABELS,
+  isTaskColumnId,
+  asTaskColumnIds,
+  type TaskColumnId,
+} from "./task-columns";
+
+// Column definitions for TanStack Table
+export { createTaskColumns } from "./task-column-defs";
+
+// Types (re-export from workflow-types for convenience)
+export type { TaskWithDuration } from "../../workflow-types";
+export type { SearchChip } from "@/components/smart-search";

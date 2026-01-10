@@ -20,36 +20,62 @@
  * Content component for displaying group details within DetailsPanel.
  * Features:
  * - Smart search with chip-based filters
- * - Virtualized task table
+ * - Canonical DataTable with virtualization
  * - Sortable and reorderable columns
+ * - Compact/comfortable toggle (shared preference)
+ * - Column visibility controls (persisted via Zustand store)
  */
 
 "use client";
 
 import { useState, useMemo, useCallback, memo } from "react";
-import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
+import { Check, Loader2, AlertCircle, Clock, Rows3, Rows4, Columns } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DataTable, type SortState } from "@/components/data-table";
+import { useSharedPreferences } from "@/stores";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { Toggle } from "@/components/shadcn/toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { STATUS_SORT_ORDER } from "../../constants";
 import { calculateDuration, formatDuration } from "../../workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../utils/status";
-import { usePersistedSettings } from "../../hooks";
 import type { GroupDetailsProps } from "../../types/panel";
-import type { TaskWithDuration, ColumnDef, ColumnId, SortColumn, SearchChip } from "../../types/table";
+import type { TaskWithDuration } from "../../workflow-types";
 import {
-  MANDATORY_COLUMNS,
   OPTIONAL_COLUMNS_ALPHABETICAL,
-  OPTIONAL_COLUMN_MAP,
-  DEFAULT_VISIBLE_OPTIONAL,
-} from "../GroupPanel/column-config";
-import { SmartSearch, filterTasksByChips } from "../GroupPanel/SmartSearch";
-import { VirtualizedTaskList } from "../GroupPanel/TaskTable";
+  MANDATORY_COLUMN_IDS,
+  TASK_COLUMN_SIZE_CONFIG,
+  asTaskColumnIds,
+  type TaskColumnId,
+} from "../GroupPanel/task-columns";
+import { createTaskColumns } from "../GroupPanel/task-column-defs";
+import { SmartSearch, filterByChips, type SearchChip } from "@/components/smart-search";
+import { TASK_SEARCH_FIELDS, createTaskPresets } from "../GroupPanel/task-search-fields";
+import { useTaskTableStore } from "../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
 import { GroupTimeline } from "./GroupTimeline";
 import { DependencyPills } from "./DependencyPills";
 
-// ============================================================================
+// =============================================================================
+// Constants
+// =============================================================================
+
+const ROW_HEIGHT = 48;
+const ROW_HEIGHT_COMPACT = 36;
+
+/** Stable row ID extractor */
+const getRowId = (task: TaskWithDuration) => task.name;
+
+// =============================================================================
 // Component
-// ============================================================================
+// =============================================================================
 
 interface GroupDetailsInternalProps extends GroupDetailsProps {
   onClose: () => void;
@@ -74,12 +100,20 @@ export const GroupDetails = memo(function GroupDetails({
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
-  // Persisted settings
-  const [sort, setSort] = usePersistedSettings("sort", { column: "status", direction: "asc" });
-  const [visibleOptionalIds, setVisibleOptionalIds] = usePersistedSettings(
-    "visibleColumnIds",
-    DEFAULT_VISIBLE_OPTIONAL,
-  );
+  // Shared preferences (compact mode)
+  const compactMode = useSharedPreferences((s) => s.compactMode);
+  const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
+
+  // Task table store (column visibility, order, sort - persisted via Zustand)
+  const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
+  const columnOrder = asTaskColumnIds(useTaskTableStore((s) => s.columnOrder));
+  const setColumnOrder = useTaskTableStore((s) => s.setColumnOrder);
+  const toggleColumn = useTaskTableStore((s) => s.toggleColumn);
+  const sort = useTaskTableStore((s) => s.sort);
+  const setSort = useTaskTableStore((s) => s.setSort);
+
+  // Row height based on compact mode
+  const rowHeight = compactMode ? ROW_HEIGHT_COMPACT : ROW_HEIGHT;
 
   // Compute tasks with duration
   const tasksWithDuration: TaskWithDuration[] = useMemo(() => {
@@ -94,17 +128,27 @@ export const GroupDetails = memo(function GroupDetails({
   const groupStatus = useMemo(() => computeGroupStatus(stats), [stats]);
   const groupDuration = useMemo(() => computeGroupDuration(stats), [stats]);
 
-  // Build visible columns
-  const visibleColumns = useMemo(() => {
-    const optionalCols = (visibleOptionalIds as ColumnId[])
-      .map((id) => OPTIONAL_COLUMN_MAP.get(id))
-      .filter(Boolean) as ColumnDef[];
-    return [...MANDATORY_COLUMNS, ...optionalCols];
-  }, [visibleOptionalIds]);
+  // TanStack column definitions
+  const columns = useMemo(() => createTaskColumns(), []);
 
-  // Sort comparator
+  // Fixed columns (not draggable)
+  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
+
+  // Column visibility map for TanStack
+  const columnVisibility = useMemo(() => {
+    const visibility: Record<string, boolean> = {};
+    columnOrder.forEach((id) => {
+      visibility[id] = false;
+    });
+    visibleColumnIds.forEach((id) => {
+      visibility[id] = true;
+    });
+    return visibility;
+  }, [columnOrder, visibleColumnIds]);
+
+  // Sort comparator for client-side sorting
   const sortComparator = useMemo(() => {
-    if (!sort.column) return null;
+    if (!sort?.column) return null;
     const dir = sort.direction === "asc" ? 1 : -1;
 
     switch (sort.column) {
@@ -138,51 +182,38 @@ export const GroupDetails = memo(function GroupDetails({
       default:
         return null;
     }
-  }, [sort.column, sort.direction]);
+  }, [sort?.column, sort?.direction]);
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
-    let result = filterTasksByChips(tasksWithDuration, searchChips);
+    let result = filterByChips(tasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
     if (sortComparator) {
       result = [...result].sort(sortComparator);
     }
     return result;
   }, [tasksWithDuration, searchChips, sortComparator]);
 
+  // Create presets for state filtering
+  const taskPresets = useMemo(() => createTaskPresets(tasksWithDuration), [tasksWithDuration]);
+
   // Callbacks
-  const toggleColumn = useCallback(
-    (columnId: ColumnId) => {
-      setVisibleOptionalIds((prev) => {
-        if (prev.includes(columnId)) {
-          return prev.filter((id) => id !== columnId);
-        }
-        return [...prev, columnId];
-      });
+  const handleColumnOrderChange = useCallback(
+    (newOrder: string[]) => {
+      setColumnOrder(newOrder);
     },
-    [setVisibleOptionalIds],
+    [setColumnOrder],
   );
 
-  const reorderColumns = useCallback(
-    (newOrder: ColumnId[]) => {
-      setVisibleOptionalIds(newOrder);
-    },
-    [setVisibleOptionalIds],
-  );
-
-  const handleSort = useCallback(
-    (column: SortColumn) => {
-      setSort((prev) => {
-        if (prev.column === column) {
-          if (prev.direction === "asc") return { column, direction: "desc" };
-          return { column: null, direction: "asc" };
-        }
-        return { column, direction: "asc" };
-      });
+  const handleSortChange = useCallback(
+    (newSort: SortState<string>) => {
+      if (newSort.column) {
+        setSort(newSort.column);
+      }
     },
     [setSort],
   );
 
-  const handleSelectTask = useCallback(
+  const handleRowClick = useCallback(
     (task: TaskWithDuration) => {
       setSelectedTaskName(task.name);
       onSelectTask(task, group);
@@ -234,11 +265,11 @@ export const GroupDetails = memo(function GroupDetails({
     </div>
   );
 
-  // Menu content
+  // Menu content (columns submenu in header dropdown)
   const menuContent = (
     <ColumnMenuContent
       columns={OPTIONAL_COLUMNS_ALPHABETICAL}
-      visibleColumnIds={visibleOptionalIds}
+      visibleColumnIds={visibleColumnIds}
       onToggleColumn={toggleColumn}
     />
   );
@@ -274,6 +305,22 @@ export const GroupDetails = memo(function GroupDetails({
     </div>
   ) : undefined;
 
+  // Empty content for table
+  const emptyContent = useMemo(
+    () => (
+      <div className="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-zinc-400">
+        No tasks match your filters
+      </div>
+    ),
+    [],
+  );
+
+  // Convert store sort to DataTable format
+  const tableSorting = useMemo<SortState<string> | undefined>(() => {
+    if (!sort) return undefined;
+    return { column: sort.column, direction: sort.direction };
+  }, [sort]);
+
   return (
     <div className="relative flex h-full flex-col">
       {/* Header with expandable details */}
@@ -292,14 +339,75 @@ export const GroupDetails = memo(function GroupDetails({
         onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Search */}
+      {/* Toolbar: Search + Controls */}
       <div className="space-y-2 border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
-        <SmartSearch
-          tasks={tasksWithDuration}
-          chips={searchChips}
-          onChipsChange={setSearchChips}
-          placeholder="Filter by name, status:, ip:, duration:, and more..."
-        />
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="min-w-0 flex-1">
+            <SmartSearch
+              data={tasksWithDuration}
+              fields={TASK_SEARCH_FIELDS}
+              chips={searchChips}
+              onChipsChange={setSearchChips}
+              presets={taskPresets}
+              placeholder="Filter by name, status:, ip:, duration:..."
+            />
+          </div>
+
+          {/* Table controls */}
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Compact/Comfortable Toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Toggle
+                  size="sm"
+                  pressed={compactMode}
+                  onPressedChange={toggleCompactMode}
+                  aria-label={compactMode ? "Comfortable view" : "Compact view"}
+                >
+                  {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
+            </Tooltip>
+
+            {/* Column Visibility Dropdown */}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Toggle
+                      size="sm"
+                      aria-label="Toggle columns"
+                    >
+                      <Columns className="size-4" />
+                    </Toggle>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Toggle columns</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent
+                align="end"
+                className="w-40"
+              >
+                <DropdownMenuLabel>Columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {OPTIONAL_COLUMNS_ALPHABETICAL.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={visibleColumnIds.includes(column.id as TaskColumnId)}
+                    onCheckedChange={() => toggleColumn(column.id)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {column.menuLabel ?? column.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Filter summary */}
         {searchChips.length > 0 && (
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400">
             <span>
@@ -315,18 +423,32 @@ export const GroupDetails = memo(function GroupDetails({
         )}
       </div>
 
-      {/* Task List */}
-      <VirtualizedTaskList
-        tasks={filteredTasks}
-        columns={visibleColumns}
-        selectedTaskName={selectedTaskName}
-        onSelectTask={handleSelectTask}
-        sort={sort}
-        onSort={handleSort}
-        optionalColumnIds={visibleOptionalIds as ColumnId[]}
-        onReorderColumns={reorderColumns}
+      {/* Task List - using canonical DataTable */}
+      <DataTable<TaskWithDuration>
+        data={filteredTasks}
+        columns={columns}
+        getRowId={getRowId}
+        // Column management
+        columnOrder={columnOrder}
+        onColumnOrderChange={handleColumnOrderChange}
+        columnVisibility={columnVisibility}
+        fixedColumns={fixedColumns}
+        // Column sizing
+        columnSizeConfigs={TASK_COLUMN_SIZE_CONFIG}
+        // Sorting
+        sorting={tableSorting}
+        onSortingChange={handleSortChange}
+        // Layout
+        rowHeight={rowHeight}
+        compact={compactMode}
+        className="text-sm"
+        scrollClassName="flex-1"
+        // State
+        emptyContent={emptyContent}
+        // Interaction
+        onRowClick={handleRowClick}
+        selectedRowId={selectedTaskName ?? undefined}
       />
-
     </div>
   );
 });

@@ -1,29 +1,26 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /**
  * useViewportBoundaries Hook
  *
  * Manages dynamic viewport boundaries for ReactFlow.
  * Ensures outermost nodes can always be centered in the visible area.
- *
- * Why not translateExtent?
- * - translateExtent is in world coordinates (zoom-independent)
- * - Our constraint is viewport-dependent (changes with zoom + panel width)
- * - ReactFlow doesn't support dynamic viewport-space constraints natively
  *
  * This hook provides:
  * - onMove handler: Enforces bounds during panning
@@ -32,17 +29,17 @@
  * - Resize effect: Maintains bounds when panel resizes
  */
 
+"use client";
+
 import { useCallback, useEffect, useRef, type RefObject } from "react";
-import { useReactFlow } from "@xyflow/react";
-import { VIEWPORT, NODE_COLLAPSED, ANIMATION } from "../constants";
-import type { GroupNodeData } from "../types/dag-layout";
-import type { Node } from "@xyflow/react";
+import { useReactFlow, type Node } from "@xyflow/react";
+import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface NodeBounds {
+export interface NodeBounds {
   minX: number;
   maxX: number;
   minY: number;
@@ -50,7 +47,7 @@ interface NodeBounds {
   fitAllZoom: number;
 }
 
-interface UseViewportBoundariesOptions {
+export interface UseViewportBoundariesOptions {
   /** Computed bounds of all nodes */
   nodeBounds: NodeBounds;
   /** Panel width as percentage (0-100) */
@@ -59,15 +56,15 @@ interface UseViewportBoundariesOptions {
   isPanelOpen: boolean;
   /** Container element ref for measuring */
   containerRef: RefObject<HTMLDivElement | null>;
-  /** Currently selected group (for auto-pan) */
+  /** Currently selected node ID/name (for auto-pan) */
   selectedGroupName: string | null;
   /** Current panel view state */
-  panelView: "none" | "workflow" | "group" | "task";
+  panelView: string;
   /** All nodes (for finding selected node position) */
   nodes: Node[];
 }
 
-interface ViewportBoundariesResult {
+export interface ViewportBoundariesResult {
   /** Handler for ReactFlow onMove - enforces bounds during pan */
   handleMove: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void;
   /** Handler for ReactFlow onMoveEnd - final bound enforcement */
@@ -92,17 +89,13 @@ export function useViewportBoundaries({
   // Track previous selection to detect new selections vs resizes
   const prevSelectionRef = useRef<string | null>(null);
 
-  // Track "desired" viewport position (where user wants to be)
+  // Track "desired" viewport position
   const desiredViewportRef = useRef<{ x: number; y: number } | null>(null);
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Get current visible area dimensions (accounting for panel).
-   * Called fresh each time to avoid stale closures.
-   */
   const getVisibleArea = useCallback(() => {
     const container = containerRef.current;
     const containerWidth = container?.clientWidth || VIEWPORT.ESTIMATED_WIDTH;
@@ -114,15 +107,6 @@ export function useViewportBoundaries({
     };
   }, [containerRef, isPanelOpen, panelPct]);
 
-  /**
-   * Calculate viewport bounds that allow any outermost node to be centered.
-   *
-   * For a node at worldX to appear at screenX:
-   *   screenX = worldX * zoom + viewport.x
-   *
-   * For rightmost node at center: viewport.x = visWidth/2 - maxX * zoom (minVpX)
-   * For leftmost node at center: viewport.x = visWidth/2 - minX * zoom (maxVpX)
-   */
   const getViewportBounds = useCallback(
     (zoom: number, visWidth: number, visHeight: number) => {
       return {
@@ -136,13 +120,12 @@ export function useViewportBoundaries({
   );
 
   // ---------------------------------------------------------------------------
-  // Auto-pan to selected node (only on NEW selection, after panel renders)
+  // Auto-pan to selected node
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!selectedGroupName || panelView === "none") return;
 
-    // Only auto-pan on NEW selection
     const currentSelection = `${selectedGroupName}-${panelView}`;
     if (prevSelectionRef.current === currentSelection) return;
     prevSelectionRef.current = currentSelection;
@@ -150,21 +133,20 @@ export function useViewportBoundaries({
     const selectedNode = nodes.find((n) => n.id === selectedGroupName);
     if (!selectedNode) return;
 
-    // Double rAF ensures panel layout is complete before measuring
     let innerFrameId: number;
 
     const outerFrameId = requestAnimationFrame(() => {
       innerFrameId = requestAnimationFrame(() => {
-        const nodeData = selectedNode.data as GroupNodeData;
-        const nodeWidth = nodeData?.nodeWidth || NODE_COLLAPSED.width;
-        const nodeHeight = nodeData?.nodeHeight || NODE_COLLAPSED.height;
+        // Get node dimensions from data if available
+        const nodeData = selectedNode.data as Record<string, unknown> | undefined;
+        const nodeWidth = (nodeData?.nodeWidth as number) || NODE_DEFAULTS.width;
+        const nodeHeight = (nodeData?.nodeHeight as number) || NODE_DEFAULTS.height;
         const nodeCenterX = selectedNode.position.x + nodeWidth / 2;
         const nodeCenterY = selectedNode.position.y + nodeHeight / 2;
 
         const viewport = reactFlowInstance.getViewport();
         const { width, height } = getVisibleArea();
 
-        // Center node in visible area
         const targetX = -(nodeCenterX * viewport.zoom) + width / 2;
         const targetY = -(nodeCenterY * viewport.zoom) + height / 2;
 
@@ -184,7 +166,7 @@ export function useViewportBoundaries({
   }, [selectedGroupName, panelView, nodes, reactFlowInstance, getVisibleArea]);
 
   // ---------------------------------------------------------------------------
-  // Enforce boundaries when visible area changes (panel resize)
+  // Enforce boundaries when visible area changes
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
@@ -196,14 +178,12 @@ export function useViewportBoundaries({
     let newY = viewport.y;
     let needsUpdate = false;
 
-    // If we have a desired position, try to get as close to it as bounds allow
     if (desiredViewportRef.current) {
       const desired = desiredViewportRef.current;
       newX = Math.max(bounds.minX, Math.min(bounds.maxX, desired.x));
       newY = Math.max(bounds.minY, Math.min(bounds.maxY, desired.y));
       needsUpdate = Math.abs(newX - viewport.x) > 0.5 || Math.abs(newY - viewport.y) > 0.5;
     } else {
-      // No desired position - just clamp to bounds
       newX = Math.max(bounds.minX, Math.min(bounds.maxX, viewport.x));
       newY = Math.max(bounds.minY, Math.min(bounds.maxY, viewport.y));
       needsUpdate = newX !== viewport.x || newY !== viewport.y;
@@ -232,10 +212,6 @@ export function useViewportBoundaries({
   // Handlers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Enforce viewport bounds during panning.
-   * Prevents user from panning nodes out of visible area.
-   */
   const handleMove = useCallback(
     (_event: unknown, viewport: { x: number; y: number; zoom: number }) => {
       const { width, height } = getVisibleArea();
@@ -253,10 +229,6 @@ export function useViewportBoundaries({
     [reactFlowInstance, getVisibleArea, getViewportBounds],
   );
 
-  /**
-   * Final boundary enforcement after pan ends.
-   * Also stores position as "desired" for resize logic.
-   */
   const handleMoveEnd = useCallback(() => {
     const viewport = reactFlowInstance.getViewport();
     const { width, height } = getVisibleArea();
@@ -265,7 +237,6 @@ export function useViewportBoundaries({
     const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, viewport.x));
     const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, viewport.y));
 
-    // Store as desired position so resize respects it
     desiredViewportRef.current = { x: clampedX, y: clampedY };
 
     if (Math.abs(clampedX - viewport.x) > 0.5 || Math.abs(clampedY - viewport.y) > 0.5) {
