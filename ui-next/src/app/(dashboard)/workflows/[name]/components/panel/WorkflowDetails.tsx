@@ -124,7 +124,7 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
   );
 });
 
-/** Vertical timeline */
+/** Responsive timeline (horizontal when space allows, vertical otherwise) */
 const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryResponse }) {
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
@@ -169,13 +169,22 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
     time: Date | null;
     annotation?: string;
     status: "completed" | "active" | "pending" | "failed";
+    /** Duration of this phase in seconds (used for proportional width in horizontal layout) */
+    duration: number | null;
   }
 
   const phases = useMemo<Phase[]>(() => {
     const result: Phase[] = [];
 
     if (submitTime) {
-      result.push({ id: "submitted", label: "Submitted", time: submitTime, status: "completed" });
+      // Submitted phase duration = time spent queued (until started)
+      result.push({
+        id: "submitted",
+        label: "Submitted",
+        time: submitTime,
+        status: "completed",
+        duration: queuedDuration ?? null,
+      });
     }
 
     if (startTime) {
@@ -185,9 +194,18 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         time: startTime,
         annotation: queuedDuration ? `queued ${formatDuration(queuedDuration)}` : undefined,
         status: "completed",
+        // Started phase duration = time spent running (until completed/failed)
+        duration: runningDuration ?? null,
       });
     } else if (submitTime) {
-      result.push({ id: "started", label: "Started", time: null, annotation: "waiting...", status: "pending" });
+      result.push({
+        id: "started",
+        label: "Started",
+        time: null,
+        annotation: "waiting...",
+        status: "pending",
+        duration: null,
+      });
     }
 
     if (isCompleted && endTime) {
@@ -197,6 +215,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         time: endTime,
         annotation: runningDuration ? `ran ${formatDuration(runningDuration)}` : undefined,
         status: "completed",
+        duration: null, // Terminal phase, no duration needed
       });
     } else if (isFailed && endTime) {
       result.push({
@@ -205,6 +224,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         time: endTime,
         annotation: runningDuration ? `ran ${formatDuration(runningDuration)}` : undefined,
         status: "failed",
+        duration: null, // Terminal phase, no duration needed
       });
     } else if (isRunning && startTime) {
       result.push({
@@ -213,6 +233,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         time: null,
         annotation: runningDuration ? `${formatDuration(runningDuration)}...` : undefined,
         status: "active",
+        duration: null, // Active/terminal phase, no duration needed
       });
     }
 
@@ -222,67 +243,169 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
   if (phases.length === 0) return null;
 
   return (
-    <div className="flex flex-col">
+    <div className="@container flex flex-col">
       <h3 className="mb-2 text-[10px] font-medium tracking-wider text-gray-400 uppercase dark:text-zinc-600">
         Timeline
       </h3>
-      {phases.map((phase, index) => {
-        const isLast = index === phases.length - 1;
-        return (
-          <div
-            key={phase.id}
-            className="flex gap-3"
-          >
-            <div className="flex flex-col items-center">
-              <div
-                className={cn(
-                  "size-2 shrink-0 rounded-full border-2",
-                  phase.status === "completed" && "timeline-marker-completed",
-                  phase.status === "failed" && "timeline-marker-failed",
-                  phase.status === "active" && "timeline-marker-running animate-pulse",
-                  phase.status === "pending" && "timeline-marker-pending border-dashed",
-                )}
-              />
-              {!isLast && (
+
+      {/* Vertical layout (default, for narrow containers) */}
+      <div className="@[340px]:hidden">
+        {phases.map((phase, index) => {
+          const isLast = index === phases.length - 1;
+          return (
+            <div
+              key={phase.id}
+              className="flex gap-3"
+            >
+              <div className="flex flex-col items-center">
                 <div
                   className={cn(
-                    "min-h-[16px] w-0.5 flex-1",
-                    phase.status === "completed" && "timeline-segment-completed",
-                    phase.status === "active" && "timeline-active-segment",
-                    phase.status === "pending" && "border-l border-dashed border-gray-300 dark:border-zinc-700",
+                    "size-2 shrink-0 rounded-full border-2",
+                    phase.status === "completed" && "timeline-marker-completed",
+                    phase.status === "failed" && "timeline-marker-failed",
+                    phase.status === "active" && "timeline-marker-running animate-pulse",
+                    phase.status === "pending" && "timeline-marker-pending border-dashed",
                   )}
                 />
-              )}
-            </div>
-            <div className={cn("flex flex-col pb-2", isLast && "pb-0")}>
-              <span
-                className={cn(
-                  "text-xs font-medium",
-                  phase.status === "completed" && "timeline-text-completed",
-                  phase.status === "failed" && "timeline-text-failed",
-                  phase.status === "active" && "timeline-text-running",
-                  phase.status === "pending" && "timeline-text-pending",
+                {!isLast && (
+                  <div
+                    className={cn(
+                      "min-h-4 w-0.5 flex-1",
+                      phase.status === "completed" && "timeline-segment-completed",
+                      phase.status === "active" && "timeline-active-segment",
+                      phase.status === "pending" && "border-l border-dashed border-gray-300 dark:border-zinc-700",
+                    )}
+                  />
                 )}
-              >
-                {phase.label}
-              </span>
-              {phase.time && (
-                <span className="text-[11px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>
-              )}
-              {phase.annotation && (
+              </div>
+              <div className={cn("flex flex-col pb-2", isLast && "pb-0")}>
                 <span
                   className={cn(
-                    "text-[11px]",
-                    phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600",
+                    "text-xs font-medium",
+                    phase.status === "completed" && "timeline-text-completed",
+                    phase.status === "failed" && "timeline-text-failed",
+                    phase.status === "active" && "timeline-text-running",
+                    phase.status === "pending" && "timeline-text-pending",
                   )}
                 >
-                  {phase.annotation}
+                  {phase.label}
                 </span>
-              )}
+                {phase.time && (
+                  <span className="text-[11px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>
+                )}
+                {phase.annotation && (
+                  <span
+                    className={cn(
+                      "text-[11px]",
+                      phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600",
+                    )}
+                  >
+                    {phase.annotation}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* Horizontal layout (for wider containers) */}
+      {/* Uses CSS Grid to keep timeline bar and labels aligned; flex-grow for proportional duration sizing */}
+      <div className="hidden @[340px]:block">
+        <div
+          className="grid"
+          style={{
+            // Each phase gets a column; use duration for proportional sizing (fr units)
+            // Fallback to 1fr for phases without duration (terminal/pending states)
+            gridTemplateColumns: phases.map((p) => `minmax(max-content, ${p.duration ?? 1}fr)`).join(" "),
+          }}
+        >
+          {/* Row 1: Timeline bar with markers and segments */}
+          {phases.map((phase, index) => {
+            const isLast = index === phases.length - 1;
+            const prevPhase = index > 0 ? phases[index - 1] : null;
+            return (
+              <div
+                key={phase.id}
+                className="flex h-6 items-center"
+              >
+                {/* Connecting segment for last phase (uses previous phase's status for styling) */}
+                {isLast && prevPhase && (
+                  <div
+                    className={cn(
+                      "h-1 flex-1",
+                      prevPhase.status === "completed" && "timeline-segment-completed",
+                      prevPhase.status === "active" && "timeline-active-segment",
+                      prevPhase.status === "pending" && "border-t border-dashed border-gray-300 dark:border-zinc-700",
+                    )}
+                  />
+                )}
+                {/* Phase marker */}
+                <div
+                  className={cn(
+                    "relative z-10 size-2.5 shrink-0 rounded-full border-2",
+                    phase.status === "completed" && "timeline-marker-completed",
+                    phase.status === "failed" && "timeline-marker-failed",
+                    phase.status === "active" && "timeline-marker-running animate-pulse",
+                    phase.status === "pending" && "timeline-marker-pending border-dashed",
+                  )}
+                />
+                {/* Segment to next marker */}
+                {!isLast && (
+                  <div
+                    className={cn(
+                      "h-1 flex-1",
+                      phase.status === "completed" && "timeline-segment-completed",
+                      phase.status === "active" && "timeline-active-segment",
+                      phase.status === "pending" && "border-t border-dashed border-gray-300 dark:border-zinc-700",
+                    )}
+                  />
+                )}
+              </div>
+            );
+          })}
+
+          {/* Row 2: Phase labels (same grid ensures alignment with markers) */}
+          {phases.map((phase, index) => {
+            const isLast = index === phases.length - 1;
+            return (
+              <div
+                key={`${phase.id}-label`}
+                className={cn(
+                  "mt-1 flex flex-col whitespace-nowrap",
+                  // Add right padding for visual separation between phases; last phase is right-aligned
+                  isLast ? "items-end text-right" : "pr-3",
+                )}
+              >
+                <span
+                  className={cn(
+                    "text-[10px] font-medium",
+                    phase.status === "completed" && "timeline-text-completed",
+                    phase.status === "failed" && "timeline-text-failed",
+                    phase.status === "active" && "timeline-text-running",
+                    phase.status === "pending" && "timeline-text-pending",
+                  )}
+                >
+                  {phase.label}
+                </span>
+                {phase.time && (
+                  <span className="text-[10px] text-gray-500 dark:text-zinc-500">{formatTime(phase.time)}</span>
+                )}
+                {phase.annotation && (
+                  <span
+                    className={cn(
+                      "text-[10px]",
+                      phase.status === "active" ? "timeline-text-running" : "text-gray-400 dark:text-zinc-600",
+                    )}
+                  >
+                    {phase.annotation}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 });
