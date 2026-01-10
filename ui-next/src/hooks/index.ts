@@ -19,35 +19,30 @@
 /**
  * Shared React Hooks
  *
- * General-purpose hooks used across the application.
- * Domain-specific hooks live in their respective modules
- * (e.g., headless/ for data fetching, auth/ for authentication).
+ * Most hooks are imported directly from @react-hookz/web.
+ * Custom hooks are kept only when the library doesn't provide an equivalent.
  *
- * ## Stability Hooks
- * For preventing stale closures and ensuring callback stability:
- * - `useStableCallback` - Returns stable function reference that always calls latest version
- * - `useStableValue` - Returns ref that always contains latest value
+ * ## From @react-hookz/web (import directly)
  * - `useIsomorphicLayoutEffect` - SSR-safe useLayoutEffect
- * - `useEventListener` - Type-safe event listeners with automatic cleanup
+ * - `useSyncedRef` - Ref that always contains latest value
+ * - `useMediaQuery` - CSS media query state tracking
+ * - `useRafCallback` - RAF-throttled callback
  *
- * ## Performance Hooks
- * For 60fps interactions and RAF-throttled updates:
- * - `useRafCallback` - Simple RAF debounce/throttle primitive for smooth animations
+ * ## Custom Hooks
+ * - `useStableCallback` - Returns stable function reference (library lacks typed overloads)
+ * - `usePersistedBoolean` - localStorage-backed boolean with "osmo-" prefix
+ * - `useCopyToClipboard` - Copy with "copied" feedback state
  * - `useVirtualizerCompat` - React Compiler compatible virtualizer
- *
- * ## UI Hooks
- * - `useExpandableChips` - Responsive overflow for chip/pill lists
- * - `useUrlChips` - URL-synced search chips
- * - `usePersistedBoolean` - localStorage-backed boolean state
  */
 
+// =============================================================================
+// Custom Hooks
+// =============================================================================
+
 // Stability & Functional Correctness
-export { useStableCallback, useStableValue } from "./use-stable-callback";
-export { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
-export { useEventListener } from "./use-event-listener";
+export { useStableCallback } from "./use-stable-callback";
 
 // Performance & Animation
-export { useRafCallback } from "./use-raf-callback";
 export { useVirtualizerCompat } from "./use-virtualizer-compat";
 
 // UI Components
@@ -73,5 +68,5 @@ export {
 } from "./use-expandable-chips";
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
 
-// Mobile & Platform Detection
-export { useIsMobile, useIsMac } from "./use-mobile";
+// Platform Detection
+export { useIsMac } from "./use-mac";

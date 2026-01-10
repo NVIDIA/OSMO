@@ -30,7 +30,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useStableCallback, useStableValue } from "@/hooks";
+import { useSyncedRef } from "@react-hookz/web";
+import { useStableCallback } from "@/hooks";
 import type { Section } from "../types";
 import { VirtualItemTypes } from "../constants";
 
@@ -142,7 +143,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   }, [items, sections, rowHeight, sectionHeight]);
 
   // Stable refs for accessing changing data in stable callbacks
-  const virtualItemsRef = useStableValue(virtualItems);
+  const virtualItemsRef = useSyncedRef(virtualItems);
   const stableGetRowId = useStableCallback(getRowId);
 
   // Estimate size function - stable callback using ref
@@ -186,7 +187,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   }));
 
   // Stable ref for optional load more callback
-  const onLoadMoreRef = useStableValue(onLoadMore);
+  const onLoadMoreRef = useSyncedRef(onLoadMore);
 
   // Track if we've already triggered load more to prevent duplicate calls
   const loadMoreTriggeredRef = useRef(false);

@@ -18,8 +18,7 @@
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import type { RefObject } from "react";
-import { useRafCallback } from "./use-raf-callback";
-import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
+import { useIsomorphicLayoutEffect, useRafCallback } from "@react-hookz/web";
 import { useStableCallback } from "./use-stable-callback";
 
 // =============================================================================
@@ -192,7 +191,7 @@ export function useExpandableChips<T = string>({
   }, [sortedItems]);
 
   // RAF-throttled recalculation for smooth 60fps resize handling
-  const [scheduleRecalculate] = useRafCallback<null>(() => {
+  const [scheduleRecalculate] = useRafCallback(() => {
     setVisibleCount(calculateVisibleCount());
   });
 
@@ -207,7 +206,7 @@ export function useExpandableChips<T = string>({
     setVisibleCount(calculateVisibleCount());
 
     // Observe resize with RAF throttling
-    const observer = new ResizeObserver(() => scheduleRecalculate(null));
+    const observer = new ResizeObserver(() => scheduleRecalculate());
     observer.observe(container);
 
     return () => observer.disconnect();
