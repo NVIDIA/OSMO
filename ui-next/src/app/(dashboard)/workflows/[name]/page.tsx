@@ -63,12 +63,7 @@ import {
   useViewportBoundaries,
 } from "./lib/dag/hooks";
 import { DAGProvider } from "./lib/dag/context";
-import {
-  DEFAULT_ZOOM,
-  MAX_ZOOM,
-  MINIMAP,
-  BACKGROUND,
-} from "./lib/dag/constants";
+import { VIEWPORT, MINIMAP, BACKGROUND } from "@/components/dag";
 import {
   getMiniMapNodeColor,
   getMiniMapStrokeColor,
@@ -294,9 +289,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                 nodesFocusable={true}
                 selectNodesOnDrag={false}
                 // Viewport settings
-                defaultViewport={{ x: 100, y: 50, zoom: DEFAULT_ZOOM }}
+                defaultViewport={{ x: 100, y: 50, zoom: VIEWPORT.DEFAULT_ZOOM }}
                 minZoom={nodeBounds.fitAllZoom}
-                maxZoom={MAX_ZOOM}
+                maxZoom={VIEWPORT.MAX_ZOOM}
                 // Enforce boundaries during and after pan/zoom
                 onMove={handleMove}
                 onMoveEnd={handleMoveEnd}

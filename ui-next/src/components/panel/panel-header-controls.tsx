@@ -32,7 +32,7 @@ import {
 
 /**
  * Shared panel configuration for resizable detail panels.
- * Used by both pools and resources panels.
+ * Used by pools, resources, workflows/DAG panels.
  */
 export const PANEL = {
   /** Width presets for snap-to menu (percentage) */
@@ -41,6 +41,8 @@ export const PANEL = {
   MIN_WIDTH_PCT: 20,
   /** Maximum width percentage */
   MAX_WIDTH_PCT: 80,
+  /** Default panel width percentage */
+  DEFAULT_WIDTH_PCT: 50,
 } as const;
 
 // =============================================================================

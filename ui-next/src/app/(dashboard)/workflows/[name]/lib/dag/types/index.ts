@@ -18,13 +18,28 @@
  * DAG Types - Consolidated Exports
  *
  * Single entry point for all DAG-related types.
- * Organizes types into logical categories:
- *
- * 1. Backend types (from API generated code)
- * 2. Layout types (DAG visualization)
- * 3. Panel types (DetailsPanel, GroupDetails, TaskDetails)
- * 4. Table types (columns, sorting, search)
+ * Re-exports generic types from @/components/dag and adds workflow-specific types.
  */
+
+// ============================================================================
+// Generic Types (from @/components/dag)
+// ============================================================================
+
+export type {
+  LayoutDirection,
+  NodeDimensions,
+  LayoutResult,
+  LayoutPosition,
+  LayoutPositionResult,
+  ElkNode,
+  ElkEdge,
+  ElkGraph,
+  ElkLayoutNode,
+  ElkLayoutResult,
+  EdgeStyle,
+  OnNodeSelect,
+  OnNodeToggleExpand,
+} from "@/components/dag";
 
 // ============================================================================
 // Backend Types (from generated API)
@@ -38,20 +53,10 @@ export { TaskGroupStatus } from "@/lib/api/generated";
 export type { GroupWithLayout, WorkflowWithLayout } from "../workflow-types";
 
 // ============================================================================
-// Layout Types
+// Workflow-Specific Layout Types
 // ============================================================================
 
-export type {
-  LayoutDirection,
-  NodeDimensions,
-  GroupNodeData,
-  LayoutResult,
-  ElkNode,
-  ElkEdge,
-  ElkGraph,
-  ElkLayoutNode,
-  ElkLayoutResult,
-} from "./dag-layout";
+export type { GroupNodeData } from "./dag-layout";
 
 // ============================================================================
 // Panel Types
@@ -68,18 +73,14 @@ export type {
 } from "./panel";
 
 // ============================================================================
-// Table Types (columns, sorting, search)
+// Table Types
 // ============================================================================
 
-export type {
-  TaskWithDuration,
-  ColumnId,
-  ColumnWidth,
-  ColumnDef,
-  OptionalColumnDef,
-  SortColumn,
-  SortDirection,
-  SortState,
-  SearchChip,
-  SearchField,
-} from "./table";
+export type { TaskWithDuration } from "../workflow-types";
+
+// Column types are now defined in components/GroupPanel/task-columns.ts
+export type { TaskColumnId } from "../components/GroupPanel/task-columns";
+
+// Sort and search types are from canonical data-table and smart-search components
+export type { SortState, SortDirection } from "@/components/data-table";
+export type { SearchChip, SearchField } from "@/components/smart-search";

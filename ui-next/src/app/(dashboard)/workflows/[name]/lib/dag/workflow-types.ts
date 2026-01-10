@@ -36,6 +36,19 @@ export { TaskGroupStatus };
 export type { GroupQueryResponse, TaskQueryResponse, WorkflowQueryResponse };
 
 // ============================================================================
+// Task Types (with computed fields)
+// ============================================================================
+
+/**
+ * Task with computed duration for UI display.
+ * Extends the backend TaskQueryResponse with computed fields.
+ */
+export interface TaskWithDuration extends TaskQueryResponse {
+  /** Computed duration in seconds (from start_time/end_time) */
+  duration: number | null;
+}
+
+// ============================================================================
 // Computed Layout Types (derived from dependency graph)
 // ============================================================================
 

@@ -17,9 +17,10 @@
 /**
  * Layout Index
  *
- * Re-exports layout utilities for cleaner imports.
+ * Re-exports layout utilities from both generic DAG and workflow-specific modules.
  */
 
+// Re-export workflow-specific layout functions
 export {
   calculateLayout,
   calculatePositions,
@@ -31,3 +32,6 @@ export {
   type LayoutPosition,
   type LayoutPositionResult,
 } from "./elk-layout";
+
+// Re-export generic utilities that workflow code needs
+export { elkWorker, type EdgeStyleProvider } from "@/components/dag";

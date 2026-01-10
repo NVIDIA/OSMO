@@ -1,0 +1,330 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Generic DAG Visualization Styles
+ *
+ * Base styles for the DAG component that can be extended by consumers.
+ * Status colors and domain-specific styles should be defined separately.
+ *
+ * Features:
+ * - CSS custom properties for theming
+ * - Light/dark mode support via .dark class
+ * - ReactFlow overrides
+ * - Respects prefers-reduced-motion
+ */
+
+/* ==========================================================================
+   CSS Custom Properties - Light mode
+   ========================================================================== */
+
+:root {
+  /* Canvas */
+  --dag-canvas-bg: oklch(0.985 0 0);
+  --dag-canvas-dots: oklch(0.85 0 0);
+
+  /* Surfaces */
+  --dag-surface: oklch(1 0 0);
+  --dag-surface-elevated: oklch(0.98 0 0);
+  --dag-surface-hover: oklch(0.96 0 0);
+
+  /* Borders */
+  --dag-border: oklch(0.9 0 0);
+  --dag-border-strong: oklch(0.8 0 0);
+
+  /* Text */
+  --dag-text: oklch(0.2 0 0);
+  --dag-text-secondary: oklch(0.45 0 0);
+  --dag-text-tertiary: oklch(0.6 0 0);
+
+  /* Handles */
+  --dag-handle-bg: oklch(0.7 0 0);
+  --dag-handle-border: oklch(0.6 0 0);
+  --dag-handle-size: 0.5rem;
+
+  /* Selection */
+  --dag-selection-ring: oklch(0.6 0.15 250);
+
+  /* Scrollbar */
+  --dag-scrollbar-thumb: oklch(0.75 0 0);
+  --dag-scrollbar-thumb-hover: oklch(0.65 0 0);
+
+  /* Controls */
+  --dag-controls-bg: oklch(0.98 0 0);
+  --dag-controls-border: oklch(0.9 0 0);
+  --dag-controls-text: oklch(0.4 0 0);
+  --dag-controls-hover: oklch(0.94 0 0);
+
+  /* Minimap */
+  --dag-minimap-bg: oklch(0.97 0.008 80);
+  --dag-minimap-mask: oklch(0.45 0.02 250 / 0.15);
+  --dag-minimap-border: oklch(0.88 0.01 80);
+  --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* Dimensions */
+  --dag-edge-stroke-width: 0.125rem;
+  --dag-radius-sm: 0.25rem;
+  --dag-radius-md: 0.5rem;
+
+  /* Transitions */
+  --dag-transition-fast: 75ms ease-out;
+  --dag-transition-normal: 150ms ease-out;
+}
+
+/* ==========================================================================
+   CSS Custom Properties - Dark mode
+   ========================================================================== */
+
+.dark {
+  --dag-canvas-bg: oklch(0.12 0 0);
+  --dag-canvas-dots: oklch(0.25 0 0);
+
+  --dag-surface: oklch(0.16 0 0);
+  --dag-surface-elevated: oklch(0.2 0 0);
+  --dag-surface-hover: oklch(0.22 0 0);
+
+  --dag-border: oklch(0.28 0 0);
+  --dag-border-strong: oklch(0.35 0 0);
+
+  --dag-text: oklch(0.95 0 0);
+  --dag-text-secondary: oklch(0.7 0 0);
+  --dag-text-tertiary: oklch(0.5 0 0);
+
+  --dag-handle-bg: oklch(0.4 0 0);
+  --dag-handle-border: oklch(0.5 0 0);
+
+  --dag-selection-ring: oklch(0.7 0.15 195);
+
+  --dag-scrollbar-thumb: oklch(0.4 0 0);
+  --dag-scrollbar-thumb-hover: oklch(0.5 0 0);
+
+  --dag-controls-bg: oklch(0.2 0 0);
+  --dag-controls-border: oklch(0.3 0 0);
+  --dag-controls-text: oklch(0.64 0 0);
+  --dag-controls-hover: oklch(0.3 0 0);
+
+  --dag-minimap-bg: oklch(0.24 0.018 250);
+  --dag-minimap-mask: oklch(0.08 0.015 250 / 0.55);
+  --dag-minimap-border: oklch(0.32 0.02 250);
+  --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ==========================================================================
+   Base Node Styles
+   ========================================================================== */
+
+.dag-node {
+  overflow: visible;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.06);
+  transition:
+    box-shadow var(--dag-transition-normal),
+    border-color var(--dag-transition-normal);
+}
+
+.dark .dag-node {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Selection state */
+.dag-node[data-selected="true"] {
+  outline: 2px solid var(--dag-selection-ring);
+  outline-offset: 2px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dark .dag-node[data-selected="true"] {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.25),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   Connection Handles
+   ========================================================================== */
+
+.dag-handle {
+  width: var(--dag-handle-size) !important;
+  height: var(--dag-handle-size) !important;
+  min-width: var(--dag-handle-size) !important;
+  min-height: var(--dag-handle-size) !important;
+  background: var(--dag-handle-bg) !important;
+  border: 1.5px solid var(--dag-handle-border) !important;
+  border-radius: 50% !important;
+}
+
+/* ==========================================================================
+   Scroll Container
+   ========================================================================== */
+
+.dag-scroll-container {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dag-scrollbar-thumb) transparent;
+}
+
+.dag-scroll-container::-webkit-scrollbar {
+  width: 0.375rem;
+}
+
+.dag-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dag-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--dag-scrollbar-thumb);
+  border-radius: var(--dag-radius-sm);
+}
+
+.dag-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--dag-scrollbar-thumb-hover);
+}
+
+/* ==========================================================================
+   ReactFlow Overrides
+   ========================================================================== */
+
+.react-flow__node {
+  contain: layout style;
+}
+
+.react-flow__edge-path {
+  stroke-width: var(--dag-edge-stroke-width);
+  transition: stroke var(--dag-transition-normal);
+  vector-effect: non-scaling-stroke;
+}
+
+/* Edge animation */
+.react-flow__edge.animated path {
+  stroke-dasharray: 5;
+  animation: dag-edge-flow 0.5s linear infinite;
+}
+
+@keyframes dag-edge-flow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Controls panel */
+.react-flow__controls {
+  background: var(--dag-controls-bg);
+  border: 1px solid var(--dag-controls-border);
+  border-radius: var(--dag-radius-md);
+  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1);
+}
+
+.dark .react-flow__controls {
+  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.3);
+}
+
+.react-flow__controls-button {
+  background: var(--dag-controls-bg);
+  border: none;
+  border-bottom: 1px solid var(--dag-controls-border);
+  fill: var(--dag-controls-text);
+  color: var(--dag-controls-text);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--dag-controls-hover);
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+/* Minimap */
+.react-flow__minimap {
+  background: var(--dag-minimap-bg);
+  border: 1px solid var(--dag-minimap-border);
+  border-radius: var(--dag-radius-md);
+  box-shadow:
+    var(--dag-minimap-inner-shadow),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.dark .react-flow__minimap {
+  box-shadow:
+    var(--dag-minimap-inner-shadow),
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.react-flow__minimap-mask {
+  fill: var(--dag-minimap-mask);
+}
+
+.react-flow__attribution {
+  background: transparent;
+}
+
+.react-flow__attribution a {
+  color: var(--dag-text-tertiary);
+}
+
+/* ==========================================================================
+   Containment Utilities
+   ========================================================================== */
+
+.dag-details-panel {
+  contain: layout style;
+}
+
+.dag-table-header-wrapper {
+  contain: layout style paint;
+}
+
+.dag-dropdown {
+  contain: layout style;
+}
+
+.dag-gpu-accelerated {
+  will-change: transform;
+}
+
+.dag-virtual-item {
+  contain: strict;
+  content-visibility: auto;
+}
+
+/* ==========================================================================
+   Reduced Motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .dag-node,
+  .react-flow__edge-path {
+    transition: none;
+  }
+
+  .react-flow__edge.animated path {
+    animation: none;
+  }
+}
