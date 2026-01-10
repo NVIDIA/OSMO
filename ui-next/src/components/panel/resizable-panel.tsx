@@ -20,7 +20,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useDrag } from "@use-gesture/react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
+import { useStableCallback } from "@/hooks";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 
@@ -154,19 +154,29 @@ export function ResizablePanel({
   // Cache container width at drag start to avoid layout reflows during drag
   const containerWidthRef = useRef(0);
 
-  // Stable refs to avoid stale closures in useDrag (which memoizes the handler)
-  const widthRef = useStableValue(width);
-  const minWidthRef = useStableValue(minWidth);
-  const maxWidthRef = useStableValue(maxWidth);
+  // Refs that MUST be updated synchronously during render (not in effects!)
+  // This is critical because useDrag's bounds() function can be called
+  // during the same frame before any effects run, causing stale values.
+  // We use refs instead of direct prop access because useDrag memoizes its handler.
+  const widthRef = useRef(width);
+  const minWidthRef = useRef(minWidth);
+  const maxWidthRef = useRef(maxWidth);
+
+  // SYNC update during render - critical for bounds() to have current values
+  // This runs on every render, ensuring refs are always current before any callbacks
+  widthRef.current = width;
+  minWidthRef.current = minWidth;
+  maxWidthRef.current = maxWidth;
+
+  // Keep startWidthRef in sync when not dragging (for reference only)
+  if (!isDragging) {
+    startWidthRef.current = width;
+  }
 
   // Stable callbacks to prevent stale closures in effects and event handlers
   const stableOnClose = useStableCallback(onClose);
   const stableOnWidthChange = useStableCallback(onWidthChange);
   const stableOnEscapeKey = useStableCallback(onEscapeKey ?? onClose);
-
-  // RAF-throttled width updates for buttery smooth 60fps resizing
-  // Uses throttle mode to process first value and skip intermediates
-  const [scheduleWidthUpdate] = useRafCallback(stableOnWidthChange, { throttle: true });
 
   // Handle keyboard events on panel - using stable callback
   const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
@@ -198,29 +208,39 @@ export function ResizablePanel({
   }, [open, stableOnEscapeKey]);
 
   // Resize drag handler using @use-gesture/react
-  // Uses refs to avoid stale closures (useDrag memoizes the handler internally)
-  // Performance optimizations:
-  // - Container width cached at drag start (avoids layout reflows)
-  // - Width updates RAF-throttled (buttery 60fps)
+  // 
+  // CRITICAL DESIGN DECISIONS:
+  // 1. NO bounds option - @use-gesture's bounds can cause unexpected behavior
+  //    when movement values are constrained before our handler sees them
+  // 2. Clamping happens in handler - we control the math, no library magic
+  // 3. Skip redundant updates - don't call onWidthChange if value hasn't changed
+  // 4. All refs synced synchronously during render phase (above)
+  //
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
         setIsDragging(true);
-        // Capture the width at drag start from ref (current value)
+        // Capture current width at drag start - use ref which is synced during render
         startWidthRef.current = widthRef.current;
-        // Cache container width to avoid repeated offsetWidth reads (layout reflows)
+        // Cache container width to avoid layout reflows during drag
         containerWidthRef.current = containerRef.current?.offsetWidth ?? window.innerWidth;
       }
 
       if (active) {
-        // Use cached container width - no DOM read during drag
         const containerWidth = containerWidthRef.current;
+        if (containerWidth === 0) return; // Safety check
+        
+        // Calculate new width from movement
         // Movement is negative when dragging left (making panel wider)
-        // Use startWidth as the base, not current width
         const deltaPct = (-mx / containerWidth) * 100;
-        const newWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, startWidthRef.current + deltaPct));
-        // RAF-throttled for smooth 60fps updates
-        scheduleWidthUpdate(newWidth);
+        const rawWidth = startWidthRef.current + deltaPct;
+        const clampedWidth = Math.min(maxWidthRef.current, Math.max(minWidthRef.current, rawWidth));
+        
+        // Only update if there's an actual change (avoids redundant updates on click)
+        // Use threshold to handle floating point precision
+        if (Math.abs(clampedWidth - widthRef.current) > 0.01) {
+          stableOnWidthChange(clampedWidth);
+        }
       }
 
       if (last) {
@@ -228,8 +248,8 @@ export function ResizablePanel({
       }
     },
     {
-      // Enable pointer events (handles mouse, touch, pen)
       pointer: { touch: true },
+      // NO bounds - we handle clamping ourselves for predictable behavior
     },
   );
 
@@ -293,24 +313,12 @@ export function ResizablePanel({
         />
       )}
 
-      {/* Resize Handle - positioned at panel edge within container (hidden when collapsed) */}
-      {open && !effectiveCollapsed && (
-        <ResizeHandle
-          bindResizeHandle={bindResizeHandle}
-          isDragging={isDragging}
-          className="absolute top-0 z-[60] h-full"
-          style={{ left: `${100 - width}%` }}
-          aria-valuenow={width}
-          aria-valuemin={minWidth}
-          aria-valuemax={maxWidth}
-        />
-      )}
-
       {/* Panel - absolute within container */}
       <aside
         ref={panelRef}
         className={cn(
-          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col overflow-hidden border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
+          // Note: NO overflow-hidden here - allows resize handle to extend past left edge
+          "contain-layout-style absolute inset-y-0 right-0 z-50 flex flex-col border-l border-zinc-200 bg-white/95 shadow-2xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95",
           open ? "translate-x-0" : "translate-x-full",
           // Disable ALL transitions during drag for buttery smooth 60fps resizing
           // Only enable transitions when not dragging (for open/close animations)
@@ -333,11 +341,24 @@ export function ResizablePanel({
         aria-hidden={!open}
         onKeyDown={handleKeyDown}
       >
+        {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
+        {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
+        {open && !effectiveCollapsed && (
+          <ResizeHandle
+            bindResizeHandle={bindResizeHandle}
+            isDragging={isDragging}
+            className="absolute left-0 top-0 z-20 h-full -translate-x-1/2"
+            aria-valuenow={width}
+            aria-valuemin={minWidth}
+            aria-valuemax={maxWidth}
+          />
+        )}
+
         {/* Collapsed content - visible when collapsed */}
         {collapsible && effectiveCollapsedContent && (
           <div
             className={cn(
-              "absolute inset-0 transition-opacity duration-200 ease-out",
+              "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
               effectiveCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
             )}
           >
@@ -345,11 +366,11 @@ export function ResizablePanel({
           </div>
         )}
 
-        {/* Panel content - visible when expanded */}
+        {/* Panel content - visible when expanded (overflow-hidden for proper content clipping) */}
         {open && (
           <div
             className={cn(
-              "flex h-full flex-col overflow-hidden transition-opacity duration-200 ease-out",
+              "flex h-full w-full flex-col overflow-hidden transition-opacity duration-200 ease-out",
               effectiveCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
             )}
           >
