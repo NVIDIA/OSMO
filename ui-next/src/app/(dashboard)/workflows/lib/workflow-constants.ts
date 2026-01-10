@@ -15,10 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflow Status Constants
+ * Workflow-Level Status Constants
  *
- * Single source of truth for workflow status styling and categorization.
- * Aligned with the DAG visualizer constants for consistency.
+ * Single source of truth for WorkflowStatus (workflow-level status for the list view).
+ * Used by the workflows list (`/workflows`).
+ *
+ * Note: Task/group-level status utilities (TaskGroupStatus for the detail view) are in
+ * `./[name]/lib/status.tsx`. These are separate because:
+ * 1. They operate on different API types (WorkflowStatus vs TaskGroupStatus)
+ * 2. They have different status values and mappings
+ * 3. The detail view needs extra fields (color, strokeColor) for ReactFlow rendering
  */
 
 import type { WorkflowStatus } from "@/lib/api/generated";
