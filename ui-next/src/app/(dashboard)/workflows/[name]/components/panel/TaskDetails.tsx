@@ -337,7 +337,6 @@ export const TaskDetails = memo(function TaskDetails({
           )}
         </div>
       </div>
-
     </div>
   );
 });

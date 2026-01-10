@@ -61,11 +61,13 @@ interface CollapsedStripProps {
 
 const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: CollapsedStripProps) {
   // Build quick action links
-  const quickLinks = workflow ? [
-    { id: "logs", url: workflow.logs, icon: FileText, label: "Logs" },
-    { id: "dashboard", url: workflow.dashboard_url, icon: BarChart3, label: "Dashboard" },
-    { id: "grafana", url: workflow.grafana_url, icon: Activity, label: "Grafana" },
-  ].filter(link => link.url) : [];
+  const quickLinks = workflow
+    ? [
+        { id: "logs", url: workflow.logs, icon: FileText, label: "Logs" },
+        { id: "dashboard", url: workflow.dashboard_url, icon: BarChart3, label: "Dashboard" },
+        { id: "grafana", url: workflow.grafana_url, icon: Activity, label: "Grafana" },
+      ].filter((link) => link.url)
+    : [];
 
   return (
     <div className="relative flex h-full w-full flex-col items-center py-3">
@@ -81,16 +83,12 @@ const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: Coll
               {getStatusIcon(workflow.status, "size-5")}
             </button>
           </TooltipTrigger>
-          <TooltipContent side="left">
-            {workflow.status}
-          </TooltipContent>
+          <TooltipContent side="left">{workflow.status}</TooltipContent>
         </Tooltip>
       )}
 
       {/* Separator */}
-      {quickLinks.length > 0 && (
-        <div className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700" />
-      )}
+      {quickLinks.length > 0 && <div className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700" />}
 
       {/* Quick action links - space-y-1 matches left nav */}
       <div className="flex flex-col items-center space-y-1">
@@ -111,20 +109,21 @@ const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: Coll
                     "transition-colors",
                   )}
                 >
-                  <Icon className="size-4" aria-hidden="true" />
+                  <Icon
+                    className="size-4"
+                    aria-hidden="true"
+                  />
                 </a>
               </TooltipTrigger>
-              <TooltipContent side="left">
-                {link.label}
-              </TooltipContent>
+              <TooltipContent side="left">{link.label}</TooltipContent>
             </Tooltip>
           );
         })}
       </div>
-      
+
       {/* Spacer */}
       <div className="flex-1" />
-      
+
       {/* Expand button at bottom */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -138,12 +137,13 @@ const CollapsedStrip = memo(function CollapsedStrip({ workflow, onExpand }: Coll
               "transition-all duration-200 ease-out",
             )}
           >
-            <ArrowLeftFromLine className="size-4 shrink-0" aria-hidden="true" />
+            <ArrowLeftFromLine
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left">
-          Expand details
-        </TooltipContent>
+        <TooltipContent side="left">Expand details</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -211,11 +211,12 @@ export const DetailsPanel = memo(function DetailsPanel({
   }, [view, workflow, group, task, announce]);
 
   // Get aria label based on current view
-  const ariaLabel = view === "workflow" 
-    ? `Workflow details: ${workflow?.name}` 
-    : view === "group" 
-      ? `Group details: ${group?.name}` 
-      : `Task details: ${task?.name}`;
+  const ariaLabel =
+    view === "workflow"
+      ? `Workflow details: ${workflow?.name}`
+      : view === "group"
+        ? `Group details: ${group?.name}`
+        : `Task details: ${task?.name}`;
 
   // Calculate panel width - animate between collapsed (40px) and expanded
   const panelWidth = isCollapsed ? "40px" : `${panelPct}%`;
@@ -254,7 +255,6 @@ export const DetailsPanel = memo(function DetailsPanel({
         </div>
       )}
 
-
       {/* Panel Container - animates width like left nav (disabled during drag) */}
       <aside
         ref={panelRef}
@@ -275,8 +275,8 @@ export const DetailsPanel = memo(function DetailsPanel({
             isCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
-          <CollapsedStrip 
-            workflow={workflow} 
+          <CollapsedStrip
+            workflow={workflow}
             onExpand={onToggleCollapsed!}
           />
         </div>
@@ -333,10 +333,13 @@ export const DetailsPanel = memo(function DetailsPanel({
           {onToggleCollapsed && (
             <button
               onClick={onToggleCollapsed}
-              className="absolute left-3 bottom-3 z-20 flex h-8 items-center gap-2 rounded-lg bg-white/90 px-2 text-sm font-medium text-zinc-600 shadow-sm ring-1 ring-gray-200 backdrop-blur transition-all duration-200 ease-out hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-zinc-900/90 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              className="absolute bottom-3 left-3 z-20 flex h-8 items-center gap-2 rounded-lg bg-white/90 px-2 text-sm font-medium text-zinc-600 shadow-sm ring-1 ring-gray-200 backdrop-blur transition-all duration-200 ease-out hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-zinc-900/90 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
               aria-label="Collapse panel"
             >
-              <ArrowRightToLine className="size-4 shrink-0" aria-hidden="true" />
+              <ArrowRightToLine
+                className="size-4 shrink-0"
+                aria-hidden="true"
+              />
               <span>Collapse</span>
             </button>
           )}
