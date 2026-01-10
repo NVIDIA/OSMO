@@ -16,34 +16,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useMemo } from "react";
-import { getCssVarPx } from "@/lib/css-utils";
+import { useCssVarDimensions, type CssVarConfig } from "@/lib/css-utils";
 
 // =============================================================================
 // Table Layout Dimensions
 // =============================================================================
 
-interface LayoutDimensions {
-  headerHeight: number;
-  sectionHeight: number;
-  rowHeight: number;
-  rowHeightCompact: number;
-}
+/**
+ * CSS variable configuration for pools table dimensions.
+ * Single source of truth for CSS variable names and fallback values.
+ */
+const POOLS_DIMENSIONS_CONFIG = {
+  headerHeight: ["--pools-header-height", "2.25rem"],
+  sectionHeight: ["--pools-section-height", "2.25rem"],
+  rowHeight: ["--pools-row-height", "3rem"],
+  rowHeightCompact: ["--pools-row-height-compact", "2rem"],
+} as const satisfies CssVarConfig<string>;
+
+type PoolsDimensionKey = keyof typeof POOLS_DIMENSIONS_CONFIG;
 
 /**
- * Returns table layout dimensions from CSS custom properties.
+ * Returns pools table layout dimensions from CSS custom properties.
  *
- * Uses useMemo to read values once on mount (no re-render).
+ * Uses generic useCssVarDimensions hook for consistent behavior.
  * Fallbacks ensure correct values even during SSR/initial hydration.
  */
-export function useLayoutDimensions(): LayoutDimensions {
-  return useMemo(
-    () => ({
-      headerHeight: getCssVarPx("--pools-header-height", "2.25rem"),
-      sectionHeight: getCssVarPx("--pools-section-height", "2.25rem"),
-      rowHeight: getCssVarPx("--pools-row-height", "3rem"),
-      rowHeightCompact: getCssVarPx("--pools-row-height-compact", "2rem"),
-    }),
-    [],
-  );
+export function useLayoutDimensions(): Record<PoolsDimensionKey, number> {
+  return useCssVarDimensions(POOLS_DIMENSIONS_CONFIG);
 }
