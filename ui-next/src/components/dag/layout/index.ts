@@ -16,29 +16,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Panel Components
- *
- * Shared components for resizable side panels:
- * - ResizablePanel: Main panel container with drag-to-resize
- * - PanelHeaderActions: Header controls (badge, menu, close)
- */
-
-export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
-
+export { elkWorker } from "./elk-worker-client";
 export {
-  PANEL,
-  WIDTH_PRESET_ICONS,
-  PanelWidthMenu,
-  PanelCloseButton,
-  PanelHeaderActions,
-  type PanelWidthMenuProps,
-  type PanelCloseButtonProps,
-  type PanelHeaderActionsProps,
-} from "./panel-header-controls";
-
-export {
-  useResizablePanel,
-  type UseResizablePanelOptions,
-  type UseResizablePanelReturn,
-} from "./use-resizable-panel";
+  calculatePositions,
+  buildEdges,
+  findRootNodes,
+  computeInitialExpandedNodes,
+  clearLayoutCache,
+  type EdgeStyleProvider,
+} from "./elk-layout";

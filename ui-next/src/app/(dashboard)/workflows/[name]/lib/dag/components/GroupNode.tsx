@@ -44,7 +44,8 @@ import type { GroupNodeData } from "../types/dag-layout";
 import { useDAGContext } from "../context";
 import { getStatusIcon, getStatusCategory, getStatusLabel } from "../utils/status";
 import { calculateDuration, formatDuration } from "../workflow-types";
-import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT, HANDLE_OFFSET } from "../constants";
+import { HANDLE_OFFSET } from "@/components/dag";
+import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../constants";
 
 // ============================================================================
 // Smart Scroll Handler

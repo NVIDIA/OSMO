@@ -15,29 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * DAG Layout Types
+ * Workflow DAG Layout Types
  *
- * Type definitions for the ReactFlow DAG visualization layout.
+ * Workflow-specific type definitions for the DAG visualization.
  */
 
 import type { Node, Edge } from "@xyflow/react";
+import type { LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout } from "../workflow-types";
 
 // ============================================================================
-// Layout Types
-// ============================================================================
-
-/** Layout direction for the DAG */
-export type LayoutDirection = "TB" | "LR";
-
-/** Node dimensions */
-export interface NodeDimensions {
-  width: number;
-  height: number;
-}
-
-// ============================================================================
-// Node Data Types
+// Workflow-Specific Node Data
 // ============================================================================
 
 /**
@@ -74,49 +62,8 @@ export interface GroupNodeData extends Record<string, unknown> {
 // Layout Result Types
 // ============================================================================
 
-/** Result of the layout calculation */
+/** Result of the workflow layout calculation */
 export interface LayoutResult {
   nodes: Node<GroupNodeData>[];
   edges: Edge[];
-}
-
-// ============================================================================
-// ELK Layout Types
-// ============================================================================
-
-/** ELK node for layout input */
-export interface ElkNode {
-  id: string;
-  width: number;
-  height: number;
-  x?: number;
-  y?: number;
-}
-
-/** ELK edge for layout input */
-export interface ElkEdge {
-  id: string;
-  sources: string[];
-  targets: string[];
-}
-
-/** ELK graph structure */
-export interface ElkGraph {
-  id: string;
-  layoutOptions: Record<string, string>;
-  children: ElkNode[];
-  edges: ElkEdge[];
-}
-
-/** ELK layout result node */
-export interface ElkLayoutNode extends ElkNode {
-  x: number;
-  y: number;
-}
-
-/** ELK layout result */
-export interface ElkLayoutResult {
-  id: string;
-  children: ElkLayoutNode[];
-  edges: ElkEdge[];
 }
