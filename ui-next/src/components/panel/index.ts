@@ -26,6 +26,8 @@
 
 export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
 
+export { ResizeHandle, type ResizeHandleProps } from "./resize-handle";
+
 export {
   PANEL,
   WIDTH_PRESET_ICONS,
