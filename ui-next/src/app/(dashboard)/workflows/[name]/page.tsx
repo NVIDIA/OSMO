@@ -174,8 +174,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     initialDirection: "TB",
   });
 
-  // Resizable panel
-  const { panelPct, setPanelPct, isDragging, bindResizeHandle, containerRef } = useResizablePanel();
+  // Resizable panel state (ResizablePanel handles resize internally, we just need state + containerRef for viewport calc)
+  const { panelPct, setPanelPct, containerRef } = useResizablePanel();
 
   // Determine current panel view (workflow is default, then group/task based on selection)
   const currentPanelView: DetailsPanelView =
@@ -250,114 +250,111 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     );
   }
 
+  // DAG canvas as main content (passed to ResizablePanel via DetailsPanel)
+  const dagCanvas = (
+    <main
+      id="dag-canvas"
+      className="h-full w-full"
+      role="application"
+      aria-label="Workflow DAG visualization"
+    >
+      <DAGProvider
+        onSelectGroup={handleSelectGroup}
+        onSelectTask={handleSelectTask}
+        onToggleExpand={handleToggleExpand}
+      >
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          // Read-only DAG
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          edgesFocusable={false}
+          nodesFocusable={true}
+          selectNodesOnDrag={false}
+          // Viewport settings
+          defaultViewport={{ x: 100, y: 50, zoom: VIEWPORT.DEFAULT_ZOOM }}
+          minZoom={nodeBounds.fitAllZoom}
+          maxZoom={VIEWPORT.MAX_ZOOM}
+          // Enforce boundaries during and after pan/zoom
+          onMove={handleMove}
+          onMoveEnd={handleMoveEnd}
+          // Scroll behavior
+          panOnScroll={true}
+          zoomOnScroll={false}
+          panOnScrollMode={PanOnScrollMode.Free}
+          zoomOnPinch={true}
+          preventScrolling={true}
+          proOptions={{ hideAttribution: true }}
+        >
+          <FitViewOnLayoutChange
+            layoutDirection={layoutDirection}
+            rootNodeIds={rootNodeIds}
+          />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={BACKGROUND.GAP}
+            size={BACKGROUND.DOT_SIZE}
+            color={backgroundDotColor}
+          />
+          {/* Controls panel */}
+          <DAGControls
+            layoutDirection={layoutDirection}
+            onLayoutChange={handleLayoutChange}
+            showMinimap={showMinimap}
+            onToggleMinimap={handleToggleMinimap}
+          />
+          {/* Conditional minimap */}
+          {showMinimap && (
+            <MiniMap
+              pannable
+              zoomable
+              position="top-left"
+              style={{
+                width: MINIMAP.WIDTH,
+                height: MINIMAP.HEIGHT,
+              }}
+              nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
+              nodeComponent={MiniMapNode}
+              nodeColor={getMiniMapNodeColor}
+              nodeStrokeColor={getMiniMapStrokeColor}
+              aria-label="Workflow minimap"
+            />
+          )}
+        </ReactFlow>
+      </DAGProvider>
+    </main>
+  );
+
   return (
     <DAGErrorBoundary>
-      {/* Main Content: DAG + Unified Panel */}
-      <div className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950">
-        {/* DAG Canvas Area */}
-        <div
-          ref={containerRef}
-          className="relative flex flex-1 overflow-hidden"
-        >
-          {/* ReactFlow Canvas */}
-          <main
-            id="dag-canvas"
-            className="flex-1"
-            role="application"
-            aria-label="Workflow DAG visualization"
-          >
-            <DAGProvider
-              onSelectGroup={handleSelectGroup}
-              onSelectTask={handleSelectTask}
-              onToggleExpand={handleToggleExpand}
-            >
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                // Read-only DAG
-                nodesDraggable={false}
-                nodesConnectable={false}
-                elementsSelectable={true}
-                edgesFocusable={false}
-                nodesFocusable={true}
-                selectNodesOnDrag={false}
-                // Viewport settings
-                defaultViewport={{ x: 100, y: 50, zoom: VIEWPORT.DEFAULT_ZOOM }}
-                minZoom={nodeBounds.fitAllZoom}
-                maxZoom={VIEWPORT.MAX_ZOOM}
-                // Enforce boundaries during and after pan/zoom
-                onMove={handleMove}
-                onMoveEnd={handleMoveEnd}
-                // Scroll behavior
-                panOnScroll={true}
-                zoomOnScroll={false}
-                panOnScrollMode={PanOnScrollMode.Free}
-                zoomOnPinch={true}
-                preventScrolling={true}
-                proOptions={{ hideAttribution: true }}
-              >
-                <FitViewOnLayoutChange
-                  layoutDirection={layoutDirection}
-                  rootNodeIds={rootNodeIds}
-                />
-                <Background
-                  variant={BackgroundVariant.Dots}
-                  gap={BACKGROUND.GAP}
-                  size={BACKGROUND.DOT_SIZE}
-                  color={backgroundDotColor}
-                />
-                {/* Controls panel */}
-                <DAGControls
-                  layoutDirection={layoutDirection}
-                  onLayoutChange={handleLayoutChange}
-                  showMinimap={showMinimap}
-                  onToggleMinimap={handleToggleMinimap}
-                />
-                {/* Conditional minimap */}
-                {showMinimap && (
-                  <MiniMap
-                    pannable
-                    zoomable
-                    position="top-left"
-                    style={{
-                      width: MINIMAP.WIDTH,
-                      height: MINIMAP.HEIGHT,
-                    }}
-                    nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
-                    nodeComponent={MiniMapNode}
-                    nodeColor={getMiniMapNodeColor}
-                    nodeStrokeColor={getMiniMapStrokeColor}
-                    aria-label="Workflow minimap"
-                  />
-                )}
-              </ReactFlow>
-            </DAGProvider>
-          </main>
-
-          {/* Unified Multi-Layer Inspector Panel (right) */}
-          <DetailsPanel
-            view={currentPanelView}
-            workflow={workflow}
-            group={selectedGroup}
-            allGroups={dagGroups}
-            task={selectedTask}
-            onClose={handleClosePanel}
-            onBackToGroup={handleBackToGroup}
-            onBackToWorkflow={handleBackToWorkflow}
-            onSelectTask={handleSelectTask}
-            onSelectGroup={handleSelectGroup}
-            panelPct={panelPct}
-            onPanelResize={setPanelPct}
-            isDragging={isDragging}
-            bindResizeHandle={bindResizeHandle}
-            isDetailsExpanded={isDetailsExpanded}
-            onToggleDetailsExpanded={handleToggleDetailsExpanded}
-            isCollapsed={isPanelCollapsed}
-            onToggleCollapsed={togglePanelCollapsed}
-            onCancelWorkflow={handleCancel}
-          />
-        </div>
+      {/* Main Content: DAG + Unified Panel (ResizablePanel handles layout) */}
+      <div
+        ref={containerRef}
+        className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
+      >
+        <DetailsPanel
+          view={currentPanelView}
+          workflow={workflow}
+          group={selectedGroup}
+          allGroups={dagGroups}
+          task={selectedTask}
+          onClose={handleClosePanel}
+          onBackToGroup={handleBackToGroup}
+          onBackToWorkflow={handleBackToWorkflow}
+          onSelectTask={handleSelectTask}
+          onSelectGroup={handleSelectGroup}
+          panelPct={panelPct}
+          onPanelResize={setPanelPct}
+          isDetailsExpanded={isDetailsExpanded}
+          onToggleDetailsExpanded={handleToggleDetailsExpanded}
+          isCollapsed={isPanelCollapsed}
+          onToggleCollapsed={togglePanelCollapsed}
+          onCancelWorkflow={handleCancel}
+          mainContent={dagCanvas}
+        />
       </div>
     </DAGErrorBoundary>
   );
