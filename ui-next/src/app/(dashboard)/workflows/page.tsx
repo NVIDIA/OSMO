@@ -33,7 +33,9 @@
 
 "use client";
 
+import { useMemo } from "react";
 import { InlineErrorBoundary } from "@/components/error";
+import type { ResultsCount } from "@/components/smart-search";
 import { usePage } from "@/components/shell";
 import { useUrlChips } from "@/hooks";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
@@ -59,10 +61,30 @@ export default function WorkflowsPage() {
   // Data Fetching with SmartSearch filtering and pagination
   // ==========================================================================
 
-  const { workflows, allWorkflows, isLoading, error, refetch, hasMore, fetchNextPage, isFetchingNextPage, total } =
-    useWorkflowsData({
-      searchChips,
-    });
+  const {
+    workflows,
+    allWorkflows,
+    isLoading,
+    error,
+    refetch,
+    hasMore,
+    fetchNextPage,
+    isFetchingNextPage,
+    total,
+    filteredTotal,
+    hasActiveFilters,
+  } = useWorkflowsData({
+    searchChips,
+  });
+
+  // Results count for SmartSearch display
+  const resultsCount = useMemo<ResultsCount | undefined>(
+    () => ({
+      total,
+      filtered: hasActiveFilters ? filteredTotal : undefined,
+    }),
+    [total, filteredTotal, hasActiveFilters],
+  );
 
   // ==========================================================================
   // Render
@@ -80,6 +102,7 @@ export default function WorkflowsPage() {
             workflows={allWorkflows}
             searchChips={searchChips}
             onSearchChipsChange={setSearchChips}
+            resultsCount={resultsCount}
           />
         </InlineErrorBoundary>
       </div>

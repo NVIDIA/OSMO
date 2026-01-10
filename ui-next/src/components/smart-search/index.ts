@@ -58,6 +58,7 @@ export type {
   SmartSearchProps,
   Suggestion,
   ParsedInput,
+  ResultsCount,
 } from "./lib";
 
 // Pure functions

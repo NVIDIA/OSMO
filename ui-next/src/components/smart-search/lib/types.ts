@@ -146,6 +146,24 @@ export interface SearchPreset<T> {
 }
 
 /**
+ * Results count configuration for SmartSearch.
+ * Backend-driven counts for displaying "N results" or "M of N results".
+ */
+export interface ResultsCount {
+  /**
+   * Total count of all items (unfiltered).
+   * Shown as "N results" when no filters are active.
+   */
+  total: number;
+  /**
+   * Filtered count (when filters are active).
+   * When provided, shows "M of N results" format.
+   * Undefined means no filters are active.
+   */
+  filtered?: number;
+}
+
+/**
  * Props for the SmartSearch component.
  * @template T - The data item type being searched
  */
@@ -171,6 +189,12 @@ export interface SmartSearchProps<T> {
     /** Preset buttons in this group */
     items: SearchPreset<T>[];
   }[];
+  /**
+   * Results count for displaying "N results" or "M of N results".
+   * Backend-driven: total is the unfiltered count, filtered is the count after filters.
+   * This is independent of pagination/virtualization - it's the true total.
+   */
+  resultsCount?: ResultsCount;
 }
 
 /**

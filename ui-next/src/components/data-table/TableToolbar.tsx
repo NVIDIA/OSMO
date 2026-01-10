@@ -29,7 +29,7 @@ import {
 import { Toggle } from "@/components/shadcn/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useSharedPreferences, type SearchChip } from "@/stores";
-import { SmartSearch, type SearchField, type SearchPreset } from "@/components/smart-search";
+import { SmartSearch, type SearchField, type SearchPreset, type ResultsCount } from "@/components/smart-search";
 
 // =============================================================================
 // Types
@@ -67,6 +67,11 @@ export interface TableToolbarProps<T> {
   showDisplayModeToggle?: boolean;
   /** Additional content to render after standard controls */
   children?: React.ReactNode;
+  /**
+   * Results count for displaying "N results" or "M of N results".
+   * Backend-driven: total is the unfiltered count, filtered is the count after filters.
+   */
+  resultsCount?: ResultsCount;
 }
 
 // =============================================================================
@@ -108,6 +113,7 @@ function TableToolbarInner<T>({
   searchPresets,
   showDisplayModeToggle = true,
   children,
+  resultsCount,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
   const compactMode = useSharedPreferences((s) => s.compactMode);
@@ -125,6 +131,7 @@ function TableToolbarInner<T>({
           onChipsChange={onSearchChipsChange}
           placeholder={placeholder}
           presets={searchPresets}
+          resultsCount={resultsCount}
         />
       </div>
 
