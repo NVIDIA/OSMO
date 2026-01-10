@@ -24,6 +24,7 @@
  * - Duration and time parsing utilities
  */
 
+import { cn } from "@/lib/utils";
 import type { SearchField, SearchPreset, SearchChip } from "@/components/smart-search";
 import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, type StateCategory } from "./status";
 import type { TaskWithDuration } from "./workflow-types";
@@ -406,36 +407,42 @@ const STATE_PRESET_COLORS: Record<StateCategory, { dot: string; bg: string; text
 };
 
 /**
- * Create preset buttons for quick state filtering.
+ * Task state presets for quick filtering.
+ * Presets are static - no counts since data may be paginated.
  */
-export function createTaskPresets(
-  tasks: TaskWithDuration[],
-): { label: string; items: SearchPreset<TaskWithDuration>[] }[] {
-  const presets: SearchPreset<TaskWithDuration>[] = STATE_CATEGORY_NAMES.map((state) => {
-    const colors = STATE_PRESET_COLORS[state];
+export const TASK_PRESETS: { label: string; items: SearchPreset[] }[] = [
+  {
+    label: "State",
+    items: STATE_CATEGORY_NAMES.map((state) => {
+      const colors = STATE_PRESET_COLORS[state];
+      const label = state.charAt(0).toUpperCase() + state.slice(1);
 
-    return {
-      id: `state-${state}`,
-      label: state.charAt(0).toUpperCase() + state.slice(1),
-      count: (data: TaskWithDuration[]) => data.filter((t) => STATE_CATEGORIES[state].has(t.status)).length,
-      chip: {
-        field: "state",
-        value: state,
-        label: state,
-      },
-      dotColor: colors.dot,
-      badgeColors: {
-        bg: colors.bg,
-        text: colors.text,
-      },
-    };
-  });
-
-  // Only include presets with matching tasks
-  const activePresets = presets.filter((p) => p.count(tasks) > 0);
-
-  return activePresets.length > 0 ? [{ label: "State", items: activePresets }] : [];
-}
+      return {
+        id: `state-${state}`,
+        chip: {
+          field: "state",
+          value: state,
+          label: `State: ${label}`,
+        },
+        render: ({ active, focused }) => (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+              active
+                ? cn(colors.bg, colors.text)
+                : "bg-zinc-100 text-zinc-600 group-data-[selected=true]:bg-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:group-data-[selected=true]:bg-zinc-700 dark:hover:bg-zinc-700",
+              focused && "ring-2 ring-blue-500/50",
+            )}
+          >
+            <span className={cn("size-2 shrink-0 rounded-full", colors.dot)} />
+            <span>{label}</span>
+            {active && <span className="ml-0.5">✓</span>}
+          </span>
+        ),
+      };
+    }),
+  },
+];
 
 // ============================================================================
 // Re-export SearchChip type for convenience
