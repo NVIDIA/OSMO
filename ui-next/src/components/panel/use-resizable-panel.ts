@@ -31,7 +31,7 @@
 
 import { useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
-import { useStableCallback, useStableValue, useRafCallback } from "@/hooks";
+import { useStableCallback } from "@/hooks";
 import { PANEL } from "./panel-header-controls";
 
 // ============================================================================
@@ -97,28 +97,38 @@ export function useResizablePanel({
   // Cache container rect at drag start to avoid layout reflows during drag
   const containerRectRef = useRef<{ left: number; width: number }>({ left: 0, width: 0 });
 
-  // Stable refs to avoid stale closures
-  const minPctRef = useStableValue(minPct);
-  const maxPctRef = useStableValue(maxPct);
+  // Refs that MUST be updated synchronously during render (not in effects!)
+  // This is critical because useDrag's handler can be called during the same
+  // frame before any effects run, causing stale values.
+  const minPctRef = useRef(minPct);
+  const maxPctRef = useRef(maxPct);
+  const panelPctRef = useRef(panelPct);
 
-  // Combined setter that also calls onResize
+  // SYNC update during render - critical for handler to have current values
+  minPctRef.current = minPct;
+  maxPctRef.current = maxPct;
+  panelPctRef.current = panelPct;
+
+  // Combined setter that also calls onResize - direct update for immediate response
   const setPanelPct = useStableCallback((pct: number) => {
     setPanelPctState(pct);
     onResize?.(pct);
   });
 
-  // RAF-throttled panel resize for 60fps smooth dragging
-  const [schedulePanelResize] = useRafCallback(setPanelPct, { throttle: true });
-
   // Drag gesture handler
-  // Performance optimizations:
-  // - Container rect cached at drag start (avoids getBoundingClientRect during drag)
-  // - Width updates RAF-throttled (buttery 60fps)
+  //
+  // CRITICAL DESIGN DECISIONS:
+  // 1. NO bounds option - @use-gesture's bounds can cause unexpected behavior
+  //    when pointer positions are constrained before our handler sees them
+  // 2. Clamping happens in handler - we control the math, no library magic
+  // 3. Skip redundant updates - don't call setPanelPct if value hasn't changed
+  // 4. All refs synced synchronously during render phase (above)
+  //
   const bindResizeHandle = useDrag(
     ({ active, xy: [x], first, last }) => {
       if (first) {
         setIsDragging(true);
-        // Cache container rect to avoid repeated getBoundingClientRect calls (layout reflows)
+        // Cache container rect to avoid repeated getBoundingClientRect calls
         if (containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
           containerRectRef.current = { left: rect.left, width: rect.width };
@@ -126,13 +136,18 @@ export function useResizablePanel({
       }
 
       if (active) {
-        // Use cached container rect - no DOM read during drag
         const { left, width } = containerRectRef.current;
+        if (width === 0) return; // Safety check
+        
         const relativeX = x - left;
         // Panel is on the right side, so width = total - x position
-        const pct = 100 - (relativeX / width) * 100;
-        const clampedPct = Math.min(maxPctRef.current, Math.max(minPctRef.current, pct));
-        schedulePanelResize(clampedPct);
+        const rawPct = 100 - (relativeX / width) * 100;
+        const clampedPct = Math.min(maxPctRef.current, Math.max(minPctRef.current, rawPct));
+        
+        // Only update if there's an actual change (avoids redundant updates on click)
+        if (Math.abs(clampedPct - panelPctRef.current) > 0.01) {
+          setPanelPct(clampedPct);
+        }
       }
 
       if (last) {
@@ -141,6 +156,7 @@ export function useResizablePanel({
     },
     {
       pointer: { touch: true },
+      // NO bounds - we handle clamping ourselves for predictable behavior
     },
   );
 

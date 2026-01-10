@@ -85,11 +85,11 @@ export const ResizeHandle = memo(function ResizeHandle({
   "aria-valuemax": ariaValueMax = PANEL.MAX_WIDTH_PCT,
 }: ResizeHandleProps) {
   // Memoize style object to avoid recreating on every render
-  // Dependencies: style.left for transform, isDragging for willChange, and spread style props
+  // Note: transform is typically handled via className (e.g., -translate-x-1/2) for semantic positioning
+  // willChange hint is only needed during drag for styles that change dynamically
   const computedStyle = useMemo(
     () => ({
-      transform: style?.left ? "translateX(-50%)" : undefined,
-      willChange: isDragging ? "left" : "auto",
+      willChange: isDragging ? "transform" : "auto",
       ...style,
     }),
     [style, isDragging],
