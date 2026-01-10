@@ -94,6 +94,8 @@ export function useResizablePanel({
   const [panelPct, setPanelPctState] = useState(initialPct);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Cache container rect at drag start to avoid layout reflows during drag
+  const containerRectRef = useRef<{ left: number; width: number }>({ left: 0, width: 0 });
 
   // Stable refs to avoid stale closures
   const minPctRef = useStableValue(minPct);
@@ -109,17 +111,26 @@ export function useResizablePanel({
   const [schedulePanelResize] = useRafCallback(setPanelPct, { throttle: true });
 
   // Drag gesture handler
+  // Performance optimizations:
+  // - Container rect cached at drag start (avoids getBoundingClientRect during drag)
+  // - Width updates RAF-throttled (buttery 60fps)
   const bindResizeHandle = useDrag(
     ({ active, xy: [x], first, last }) => {
       if (first) {
         setIsDragging(true);
+        // Cache container rect to avoid repeated getBoundingClientRect calls (layout reflows)
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          containerRectRef.current = { left: rect.left, width: rect.width };
+        }
       }
 
-      if (active && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const relativeX = x - rect.left;
+      if (active) {
+        // Use cached container rect - no DOM read during drag
+        const { left, width } = containerRectRef.current;
+        const relativeX = x - left;
         // Panel is on the right side, so width = total - x position
-        const pct = 100 - (relativeX / rect.width) * 100;
+        const pct = 100 - (relativeX / width) * 100;
         const clampedPct = Math.min(maxPctRef.current, Math.max(minPctRef.current, pct));
         schedulePanelResize(clampedPct);
       }
