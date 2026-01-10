@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export { elkWorker } from "./elk-worker-client";
+export { elkWorker, preloadElkWorker, isElkWorkerReady } from "./elk-worker-client";
 export {
   calculatePositions,
   buildEdges,

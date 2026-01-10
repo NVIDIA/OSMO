@@ -56,7 +56,8 @@ export interface WorkflowDetailsProps {
 
 /** Status and duration display */
 const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: WorkflowQueryResponse }) {
-  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "unknown";
+  // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
+  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const statusStyles = STATUS_STYLES[statusCategory];
   const isRunning = statusCategory === "running";
 
@@ -125,7 +126,8 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
 
 /** Vertical timeline */
 const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryResponse }) {
-  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "unknown";
+  // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
+  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const isCompleted = statusCategory === "completed";
   const isFailed = statusCategory === "failed";
   const isRunning = statusCategory === "running";
@@ -371,7 +373,8 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   onCancel,
   onPanelResize,
 }: WorkflowDetailsProps) {
-  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "unknown";
+  // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
+  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const canCancel = statusCategory === "running" || statusCategory === "waiting";
 
   // Status content for header Row 2

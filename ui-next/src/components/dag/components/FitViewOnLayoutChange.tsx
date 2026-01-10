@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, memo } from "react";
 import { useReactFlow } from "@xyflow/react";
 import type { LayoutDirection } from "../types";
 import { ANIMATION, NODE_DEFAULTS } from "../constants";
@@ -39,7 +39,15 @@ export interface FitViewOnLayoutChangeProps {
   getNodeDimensions?: (nodeId: string) => { width: number; height: number } | null;
 }
 
-export function FitViewOnLayoutChange({ layoutDirection, rootNodeIds, getNodeDimensions }: FitViewOnLayoutChangeProps) {
+/**
+ * Memoized component to prevent re-renders during panning/zooming.
+ * Only re-renders when layout direction or root nodes change.
+ */
+export const FitViewOnLayoutChange = memo(function FitViewOnLayoutChange({
+  layoutDirection,
+  rootNodeIds,
+  getNodeDimensions,
+}: FitViewOnLayoutChangeProps) {
   const { setCenter, getNode } = useReactFlow();
   const prevLayout = useRef(layoutDirection);
   const hasInitialized = useRef(false);
@@ -80,4 +88,4 @@ export function FitViewOnLayoutChange({ layoutDirection, rootNodeIds, getNodeDim
   }, [layoutDirection, zoomToRoot]);
 
   return null;
-}
+});

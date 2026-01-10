@@ -36,7 +36,7 @@
 
 "use client";
 
-import { use, useState, useCallback } from "react";
+import { use, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -60,8 +60,14 @@ import {
 } from "./components";
 
 // DAG utilities
-import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries } from "@/components/dag";
-import { useResizablePanel } from "@/components/panel";
+import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries, preloadElkWorker } from "@/components/dag";
+import { useResizablePanel, PANEL } from "@/components/panel";
+
+// Preload ELK worker on module load (before first render)
+// This hides worker initialization latency from the user
+if (typeof window !== "undefined") {
+  preloadElkWorker();
+}
 import { getMiniMapNodeColor, getMiniMapStrokeColor } from "./lib/status";
 
 // Route-level hooks
@@ -184,16 +190,38 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
   const isPanelOpen = !isPanelCollapsed;
 
-  // Viewport boundary management
-  const { handleMove, handleMoveEnd } = useViewportBoundaries({
+  // Compute visible width for DAG (decoupled from panel internals)
+  // This callback is called by useViewportBoundaries to determine the visible area
+  const getVisibleWidth = useCallback(
+    (containerWidth: number) => {
+      const panelWidthPx = isPanelOpen ? (panelPct / 100) * containerWidth : PANEL.COLLAPSED_WIDTH_PX;
+      return containerWidth - panelWidthPx;
+    },
+    [isPanelOpen, panelPct],
+  );
+
+  // Viewport boundary management - controlled mode prevents jitter at boundaries
+  // DAG doesn't know about panel internals, just uses getVisibleWidth callback
+  const { viewport, onViewportChange } = useViewportBoundaries({
     nodeBounds,
-    panelPct: isPanelOpen ? panelPct : 3, // Use minimal width when collapsed
-    isPanelOpen,
     containerRef,
+    getVisibleWidth,
+    boundsDeps: [isPanelOpen, panelPct], // Re-clamp when these change
     selectedGroupName: selectedGroup?.name ?? null,
     panelView: currentPanelView,
     nodes,
   });
+
+  // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
+  // See: https://reactflow.dev/learn/advanced-use/performance
+  const proOptions = useMemo(() => ({ hideAttribution: true }), []);
+  const minimapStyle = useMemo(
+    () => ({
+      width: MINIMAP.WIDTH,
+      height: MINIMAP.HEIGHT,
+    }),
+    [],
+  );
 
   // Handlers
   const handleToggleMinimap = useCallback(() => {
@@ -274,20 +302,21 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           edgesFocusable={false}
           nodesFocusable={true}
           selectNodesOnDrag={false}
-          // Viewport settings
-          defaultViewport={{ x: 100, y: 50, zoom: VIEWPORT.DEFAULT_ZOOM }}
+          // Controlled viewport - boundaries enforced BEFORE render (no jitter)
+          viewport={viewport}
+          onViewportChange={onViewportChange}
           minZoom={nodeBounds.fitAllZoom}
           maxZoom={VIEWPORT.MAX_ZOOM}
-          // Enforce boundaries during and after pan/zoom
-          onMove={handleMove}
-          onMoveEnd={handleMoveEnd}
           // Scroll behavior
           panOnScroll={true}
           zoomOnScroll={false}
           panOnScrollMode={PanOnScrollMode.Free}
           zoomOnPinch={true}
           preventScrolling={true}
-          proOptions={{ hideAttribution: true }}
+          // Performance: Only render nodes/edges visible in viewport
+          // See: https://reactflow.dev/learn/advanced-use/performance
+          onlyRenderVisibleElements={true}
+          proOptions={proOptions}
         >
           <FitViewOnLayoutChange
             layoutDirection={layoutDirection}
@@ -312,10 +341,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
               pannable
               zoomable
               position="top-left"
-              style={{
-                width: MINIMAP.WIDTH,
-                height: MINIMAP.HEIGHT,
-              }}
+              style={minimapStyle}
               nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
               nodeComponent={MiniMapNode}
               nodeColor={getMiniMapNodeColor}
