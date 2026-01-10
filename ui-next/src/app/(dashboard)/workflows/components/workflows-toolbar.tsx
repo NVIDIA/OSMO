@@ -32,7 +32,7 @@ import { TableToolbar } from "@/components/data-table";
 import { useWorkflowsTableStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
 import { WORKFLOW_SEARCH_FIELDS, type WorkflowListEntry } from "../lib/workflow-search-fields";
-import { STATUS_STYLES, STATUS_CATEGORY_MAP, type StatusCategory } from "../lib/workflow-constants";
+import { STATUS_STYLES, type StatusCategory } from "../lib/workflow-constants";
 
 // =============================================================================
 // Status Icons
@@ -84,18 +84,16 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
 
   // Create status presets for quick filtering
   const statusPresets = useMemo(
-    (): SearchPreset<WorkflowListEntry>[] =>
+    (): SearchPreset[] =>
       STATUS_PRESET_CONFIG.map(({ id, label }) => {
         const styles = STATUS_STYLES[id];
         const Icon = STATUS_ICONS[id];
 
         return {
           id,
-          label,
-          count: (data: WorkflowListEntry[]) => data.filter((w) => STATUS_CATEGORY_MAP[w.status] === id).length,
           chip: { field: "status", value: id, label: `Status: ${label}` },
           // Custom render matching the table's status badge
-          render: ({ active, focused, count }: PresetRenderProps) => (
+          render: ({ active, focused }: PresetRenderProps) => (
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
@@ -110,7 +108,6 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
             >
               <Icon className={cn("size-3.5", styles.icon)} />
               <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
-              <span className={cn("text-xs tabular-nums", styles.text, "opacity-60")}>{count}</span>
             </span>
           ),
         };
