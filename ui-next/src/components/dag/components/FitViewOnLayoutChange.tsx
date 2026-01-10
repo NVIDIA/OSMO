@@ -39,11 +39,7 @@ export interface FitViewOnLayoutChangeProps {
   getNodeDimensions?: (nodeId: string) => { width: number; height: number } | null;
 }
 
-export function FitViewOnLayoutChange({
-  layoutDirection,
-  rootNodeIds,
-  getNodeDimensions,
-}: FitViewOnLayoutChangeProps) {
+export function FitViewOnLayoutChange({ layoutDirection, rootNodeIds, getNodeDimensions }: FitViewOnLayoutChangeProps) {
   const { setCenter, getNode } = useReactFlow();
   const prevLayout = useRef(layoutDirection);
   const hasInitialized = useRef(false);
@@ -74,14 +70,11 @@ export function FitViewOnLayoutChange({
 
   useEffect(() => {
     if (!hasInitialized.current || prevLayout.current !== layoutDirection) {
-      const timer = setTimeout(
-        () => {
-          zoomToRoot(hasInitialized.current ? ANIMATION.VIEWPORT_DURATION : ANIMATION.INITIAL_DURATION);
-          hasInitialized.current = true;
-          prevLayout.current = layoutDirection;
-        },
-        ANIMATION.DELAY,
-      );
+      const timer = setTimeout(() => {
+        zoomToRoot(hasInitialized.current ? ANIMATION.VIEWPORT_DURATION : ANIMATION.INITIAL_DURATION);
+        hasInitialized.current = true;
+        prevLayout.current = layoutDirection;
+      }, ANIMATION.DELAY);
       return () => clearTimeout(timer);
     }
   }, [layoutDirection, zoomToRoot]);
