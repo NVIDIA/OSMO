@@ -2,7 +2,7 @@
  * Login info from the backend auth endpoint.
  */
 
-import { getApiHostname, getAuthHostname, isSslEnabled, isBuildPhase, isMockMode } from "@/lib/config";
+import { getApiHostname, getAuthHostname, isSslEnabled, isBuildPhase } from "@/lib/config";
 import { logWarn } from "@/lib/logger";
 
 export interface LoginInfo {
@@ -35,19 +35,6 @@ export async function getLoginInfo(): Promise<LoginInfo> {
   // Avoid network calls during static generation
   if (isBuildPhase()) {
     return defaultLoginInfo;
-  }
-
-  // In mock mode, return mock login info without making network calls
-  if (isMockMode()) {
-    return {
-      auth_enabled: false,
-      device_endpoint: "",
-      device_client_id: "",
-      browser_endpoint: "",
-      browser_client_id: "mock-client",
-      token_endpoint: "",
-      logout_endpoint: "",
-    };
   }
 
   try {

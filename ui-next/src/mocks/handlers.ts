@@ -632,6 +632,39 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     });
   }),
 
+  // Next.js API routes for auth (these intercept client requests before they reach the server)
+  http.get("/auth/login_info", async () => {
+    await delay(MOCK_DELAY);
+
+    return HttpResponse.json({
+      auth_enabled: false,
+      device_endpoint: "",
+      device_client_id: "",
+      browser_endpoint: "",
+      browser_client_id: "mock-client",
+      token_endpoint: "",
+      logout_endpoint: "",
+    });
+  }),
+
+  http.get("/auth/refresh_token", async () => {
+    await delay(MOCK_DELAY);
+
+    return HttpResponse.json({
+      isFailure: false,
+      id_token: "mock-id-token-refreshed",
+      refresh_token: "mock-refresh-token-refreshed",
+    });
+  }),
+
+  http.get("/auth/logout", async () => {
+    await delay(MOCK_DELAY);
+
+    return HttpResponse.json({
+      redirectTo: null,
+    });
+  }),
+
   // ==========================================================================
   // Version
   // ==========================================================================

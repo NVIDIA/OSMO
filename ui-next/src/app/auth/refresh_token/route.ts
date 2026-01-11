@@ -14,6 +14,10 @@ export async function GET(request: Request) {
     return Response.json({ isFailure: true, error: "Token endpoint not configured" }, { status: 500 });
   }
 
+  if (!loginInfo.token_endpoint) {
+    return Response.json({ isFailure: true, error: "Token endpoint not configured" }, { status: 500 });
+  }
+
   // Build params - client_secret is required for confidential clients
   const params = new URLSearchParams({
     client_id: loginInfo.browser_client_id,
