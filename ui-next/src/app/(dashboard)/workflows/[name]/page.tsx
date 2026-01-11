@@ -22,11 +22,11 @@
  * - Unified multi-layer inspector panel (workflow → group → task)
  * - URL-synced navigation for shareable deep links
  *
- * Architecture:
- * - Uses useWorkflowDetail hook for data fetching
- * - Uses useNavigationState for URL-synced navigation (nuqs)
- * - Reuses DAG components from reactflow-dag
- * - Multi-layer panel navigation with breadcrumbs
+ * Architecture (Side-by-Side Model):
+ * - Uses flexbox layout with DAG and Panel as siblings
+ * - DAG canvas fills available space (flex-1)
+ * - Panel has fixed percentage width
+ * - Components are completely decoupled
  *
  * URL Navigation:
  * - /workflows/[name] → Workflow view
@@ -41,7 +41,7 @@
 
 "use client";
 
-import { use, useState, useMemo, useEffect } from "react";
+import { use, useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -52,12 +52,12 @@ import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { useStableCallback } from "@/hooks";
+import { PANEL } from "@/components/panel";
 
 // Route-level components
 import {
   nodeTypes,
   MiniMapNode,
-  FitViewOnLayoutChange,
   DAGErrorBoundary,
   DAGControls,
   DAGProvider,
@@ -67,7 +67,6 @@ import {
 
 // DAG utilities
 import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries, preloadElkWorker } from "@/components/dag";
-import { useResizablePanel, PANEL } from "@/components/panel";
 
 // Preload ELK worker on module load (before first render)
 // This hides worker initialization latency from the user
@@ -138,7 +137,13 @@ function PanelContentSkeleton() {
 function WorkflowDetailPageInner({ name }: { name: string }) {
   const [showMinimap, setShowMinimap] = useState(true);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const [panelPct, setPanelPct] = useState<number>(PANEL.DEFAULT_WIDTH_PCT);
   const { resolvedTheme } = useTheme();
+
+  // Container ref for the main layout (used by panel for resize calculations)
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Separate ref for the DAG canvas container (used by viewport boundaries)
+  const dagContainerRef = useRef<HTMLDivElement>(null);
 
   // Background color based on theme
   const backgroundDotColor = resolvedTheme === "dark" ? BACKGROUND.COLOR_DARK : BACKGROUND.COLOR_LIGHT;
@@ -199,33 +204,26 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     onSelectTask: navigateToTask,
   });
 
-  // Resizable panel state (ResizablePanel handles resize internally, we just need state + containerRef for viewport calc)
-  const { panelPct, setPanelPct, containerRef } = useResizablePanel();
-
   // Determine current panel view from URL navigation state
   const currentPanelView: DetailsPanelView =
     navView === "task" && selectedTask ? "task" : navView === "group" && selectedGroup ? "group" : "workflow";
 
   // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
-  const isPanelOpen = !isPanelCollapsed;
+  // Note: isPanelCollapsed is used for keyboard shortcuts and panel state
 
-  // Compute visible width for DAG (decoupled from panel internals)
-  // This callback is called by useViewportBoundaries to determine the visible area
-  const getVisibleWidth = useStableCallback((containerWidth: number) => {
-    const panelWidthPx = isPanelOpen ? (panelPct / 100) * containerWidth : PANEL.COLLAPSED_WIDTH_PX;
-    return containerWidth - panelWidthPx;
-  });
-
-  // Viewport boundary management - controlled mode prevents jitter at boundaries
-  // DAG doesn't know about panel internals, just uses getVisibleWidth callback
+  // Viewport boundary management - now uses DAG container directly
+  // The DAG container IS the visible area - no panel math needed
   const { viewport, onViewportChange } = useViewportBoundaries({
     nodeBounds,
-    containerRef,
-    getVisibleWidth,
-    boundsDeps: [isPanelOpen, panelPct], // Re-clamp when these change
+    containerRef: dagContainerRef, // Use DAG container, not the outer wrapper
+    // No getVisibleWidth needed - container dimensions ARE visible dimensions
     selectedGroupName: selectedGroup?.name ?? null,
     panelView: currentPanelView,
     nodes,
+    // Initial load & layout direction change
+    layoutDirection,
+    rootNodeIds,
+    initialSelectedNodeId: selectedGroupName,
   });
 
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
@@ -297,87 +295,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Determine content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
 
-  // DAG canvas: skeleton during loading, actual canvas when ready
-  // Always render container structure so dimensions are measurable
-  const dagCanvas = isReady ? (
-    <main
-      id="dag-canvas"
-      className="h-full w-full"
-      role="application"
-      aria-label="Workflow DAG visualization"
-    >
-      <DAGProvider
-        onSelectGroup={handleSelectGroup}
-        onSelectTask={handleSelectTask}
-        onToggleExpand={handleToggleExpand}
-      >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          // Read-only DAG
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={true}
-          edgesFocusable={false}
-          nodesFocusable={true}
-          selectNodesOnDrag={false}
-          // Controlled viewport - boundaries enforced BEFORE render (no jitter)
-          viewport={viewport}
-          onViewportChange={onViewportChange}
-          minZoom={nodeBounds.fitAllZoom}
-          maxZoom={VIEWPORT.MAX_ZOOM}
-          // Scroll behavior
-          panOnScroll={true}
-          zoomOnScroll={false}
-          panOnScrollMode={PanOnScrollMode.Free}
-          zoomOnPinch={true}
-          preventScrolling={true}
-          // Performance: Only render nodes/edges visible in viewport
-          // See: https://reactflow.dev/learn/advanced-use/performance
-          onlyRenderVisibleElements={true}
-          proOptions={proOptions}
-        >
-          <FitViewOnLayoutChange
-            layoutDirection={layoutDirection}
-            rootNodeIds={rootNodeIds}
-            initialSelectedNodeId={selectedGroupName}
-          />
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={BACKGROUND.GAP}
-            size={BACKGROUND.DOT_SIZE}
-            color={backgroundDotColor}
-          />
-          {/* Controls panel */}
-          <DAGControls
-            layoutDirection={layoutDirection}
-            onLayoutChange={handleLayoutChange}
-            showMinimap={showMinimap}
-            onToggleMinimap={handleToggleMinimap}
-          />
-          {/* Conditional minimap */}
-          {showMinimap && (
-            <MiniMap
-              pannable
-              zoomable
-              position="top-left"
-              style={minimapStyle}
-              nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
-              nodeComponent={MiniMapNode}
-              nodeColor={getMiniMapNodeColor}
-              nodeStrokeColor={getMiniMapStrokeColor}
-              aria-label="Workflow minimap"
-            />
-          )}
-        </ReactFlow>
-      </DAGProvider>
-    </main>
-  ) : (
-    // Skeleton for loading state, error/not found are shown in panel area
-    <DAGCanvasSkeleton />
-  );
-
   // Panel content: skeleton during loading, error/not found states, or actual content
   const renderPanelContent = () => {
     if (isLoading) {
@@ -427,11 +344,91 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   return (
     <DAGErrorBoundary>
-      {/* Main Content: DAG + Unified Panel (ResizablePanel handles layout) */}
+      {/* Main Content: Side-by-Side Layout (DAG + Panel) */}
       <div
         ref={containerRef}
         className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
       >
+        {/* DAG Canvas - fills remaining space */}
+        <div
+          ref={dagContainerRef}
+          className="min-w-0 flex-1"
+        >
+          {isReady ? (
+            <main
+              id="dag-canvas"
+              className="h-full w-full"
+              role="application"
+              aria-label="Workflow DAG visualization"
+            >
+              <DAGProvider
+                onSelectGroup={handleSelectGroup}
+                onSelectTask={handleSelectTask}
+                onToggleExpand={handleToggleExpand}
+              >
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  // Read-only DAG
+                  nodesDraggable={false}
+                  nodesConnectable={false}
+                  elementsSelectable={true}
+                  edgesFocusable={false}
+                  nodesFocusable={true}
+                  selectNodesOnDrag={false}
+                  // Controlled viewport - boundaries enforced BEFORE render (no jitter)
+                  viewport={viewport}
+                  onViewportChange={onViewportChange}
+                  minZoom={nodeBounds.fitAllZoom}
+                  maxZoom={VIEWPORT.MAX_ZOOM}
+                  // Scroll behavior
+                  panOnScroll={true}
+                  zoomOnScroll={false}
+                  panOnScrollMode={PanOnScrollMode.Free}
+                  zoomOnPinch={true}
+                  preventScrolling={true}
+                  // Performance: Only render nodes/edges visible in viewport
+                  // See: https://reactflow.dev/learn/advanced-use/performance
+                  onlyRenderVisibleElements={true}
+                  proOptions={proOptions}
+                >
+                  <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={BACKGROUND.GAP}
+                    size={BACKGROUND.DOT_SIZE}
+                    color={backgroundDotColor}
+                  />
+                  {/* Controls panel */}
+                  <DAGControls
+                    layoutDirection={layoutDirection}
+                    onLayoutChange={handleLayoutChange}
+                    showMinimap={showMinimap}
+                    onToggleMinimap={handleToggleMinimap}
+                  />
+                  {/* Conditional minimap */}
+                  {showMinimap && (
+                    <MiniMap
+                      pannable
+                      zoomable
+                      position="top-left"
+                      style={minimapStyle}
+                      nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
+                      nodeComponent={MiniMapNode}
+                      nodeColor={getMiniMapNodeColor}
+                      nodeStrokeColor={getMiniMapStrokeColor}
+                      aria-label="Workflow minimap"
+                    />
+                  )}
+                </ReactFlow>
+              </DAGProvider>
+            </main>
+          ) : (
+            <DAGCanvasSkeleton />
+          )}
+        </div>
+
+        {/* Details Panel - fixed width, sibling to DAG */}
         <DetailsPanel
           view={currentPanelView}
           workflow={workflow ?? undefined}
@@ -450,8 +447,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           isCollapsed={isPanelCollapsed}
           onToggleCollapsed={togglePanelCollapsed}
           onCancelWorkflow={handleCancel}
-          mainContent={dagCanvas}
           fallbackContent={panelOverrideContent}
+          containerRef={containerRef}
         />
       </div>
     </DAGErrorBoundary>

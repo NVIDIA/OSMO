@@ -19,17 +19,21 @@
  *
  * Unified inspector panel for workflow, group, and task details with:
  * - Multi-layer navigation (workflow → group → task)
- * - Resizable width with drag handle (via ResizablePanel)
+ * - Resizable width with drag handle (via SidePanel)
  * - Collapsible to edge strip
  * - Breadcrumb navigation between layers
  * - Screen reader announcements
  * - URL-synced navigation for shareable deep links
  *
- * Architecture:
- * - DetailsPanel (container): Composes ResizablePanel, handles view switching
- * - WorkflowDetails (content): Workflow-level info (base layer)
- * - GroupDetails (content): Task list with search, sort, filter
- * - TaskDetails (content): Task info, actions, sibling navigation
+ * Architecture (Side-by-Side Model):
+ * - DetailsPanel wraps SidePanel for resize/collapse functionality
+ * - Used as a sibling to the DAG canvas in a flexbox layout
+ * - DAG and Panel are completely decoupled
+ *
+ * Content Views:
+ * - WorkflowDetails: Workflow-level info (base layer)
+ * - GroupDetails: Task list with search, sort, filter
+ * - TaskDetails: Task info, actions, sibling navigation
  *
  * Keyboard Navigation:
  * - Escape → Collapse panel (URL navigation handles back via browser)
@@ -40,7 +44,7 @@
 
 import { memo, useEffect, useCallback, useMemo } from "react";
 import { FileText, BarChart3, Activity } from "lucide-react";
-import { ResizablePanel, PanelCollapsedStrip } from "@/components/panel";
+import { SidePanel, PanelCollapsedStrip } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
@@ -140,13 +144,12 @@ export const DetailsPanel = memo(function DetailsPanel({
   isCollapsed,
   onToggleCollapsed,
   onCancelWorkflow,
-  mainContent,
   fallbackContent,
+  containerRef,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
   // Escape key collapses the panel
-  // Back navigation is handled via browser back button (URL-synced via nuqs)
   const handleEscapeKey = useCallback(() => {
     if (onToggleCollapsed) {
       onToggleCollapsed();
@@ -181,20 +184,16 @@ export const DetailsPanel = memo(function DetailsPanel({
   ) : undefined;
 
   return (
-    <ResizablePanel
-      open={true}
-      onClose={onClose}
+    <SidePanel
       width={panelPct}
       onWidthChange={onPanelResize}
-      mainContent={mainContent}
-      backdrop={false}
-      collapsible
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}
       collapsedContent={collapsedContent}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}
       className="dag-details-panel"
+      containerRef={containerRef}
     >
       {/* Workflow Details (base layer) */}
       {view === "workflow" && workflow && (
@@ -239,6 +238,6 @@ export const DetailsPanel = memo(function DetailsPanel({
 
       {/* Fallback content (loading/error states) */}
       {fallbackContent}
-    </ResizablePanel>
+    </SidePanel>
   );
 });

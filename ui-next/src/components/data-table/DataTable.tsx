@@ -152,6 +152,13 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   // === Interaction ===
   /** Row click handler */
   onRowClick?: (row: TData) => void;
+  /**
+   * Get the href for a row (if clicking navigates to a page).
+   * Used for middle-click behavior:
+   * - If getRowHref returns a URL → middle-click opens in new tab
+   * - If getRowHref returns undefined or is not provided → middle-click calls onRowClick (shows overlay)
+   */
+  getRowHref?: (row: TData) => string | undefined;
   /** Selected row ID */
   selectedRowId?: string;
   /** Custom row class name */
@@ -203,6 +210,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
   isLoading,
   emptyContent,
   onRowClick,
+  getRowHref,
   selectedRowId,
   rowClassName,
   columnSizeConfigs,
@@ -619,6 +627,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 getItem={getItem}
                 columnCount={visibleColumnCount}
                 onRowClick={onRowClick}
+                getRowHref={getRowHref}
                 selectedRowId={selectedRowId}
                 getRowId={getRowId}
                 rowClassName={rowClassName}
