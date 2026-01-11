@@ -38,6 +38,7 @@ export { DataTable, type DataTableProps } from "./DataTable";
 export { VirtualTableBody, type VirtualTableBodyProps } from "./VirtualTableBody";
 export { TableSkeleton, type TableSkeletonProps } from "./TableSkeleton";
 export { TableToolbar, type TableToolbarProps, type ColumnDefinition } from "./TableToolbar";
+export { DisplayModeToggle } from "./DisplayModeToggle";
 export { SortButton } from "./SortButton";
 export { SortableCell } from "./SortableCell";
 export { ResizeHandle, type ResizeHandleProps } from "./ResizeHandle";

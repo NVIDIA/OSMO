@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/smart-search";
-import { TableToolbar } from "@/components/data-table";
+import { TableToolbar, DisplayModeToggle } from "@/components/data-table";
 import { usePoolsTableStore } from "../stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/pool-columns";
 import { createPoolSearchFields } from "../lib/pool-search-fields";
@@ -111,6 +111,8 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       placeholder="Search pools... (try 'pool:', 'platform:', 'status:')"
       searchPresets={[{ label: "Status", items: statusPresets }]}
       resultsCount={resultsCount}
-    />
+    >
+      <DisplayModeToggle />
+    </TableToolbar>
   );
 });

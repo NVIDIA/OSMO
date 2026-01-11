@@ -17,7 +17,7 @@
 "use client";
 
 import { memo } from "react";
-import { MonitorCheck, MonitorX, Rows3, Rows4, Columns } from "lucide-react";
+import { Rows3, Rows4, Columns } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,9 +63,7 @@ export interface TableToolbarProps<T> {
     label: string;
     items: SearchPreset[];
   }[];
-  /** Show the free/used display mode toggle (default: true) */
-  showDisplayModeToggle?: boolean;
-  /** Additional content to render after standard controls */
+  /** Additional content to render before standard controls (e.g., display mode toggle) */
   children?: React.ReactNode;
   /**
    * Results count for displaying "N results" or "M of N results".
@@ -83,9 +81,9 @@ export interface TableToolbarProps<T> {
  *
  * Provides:
  * - SmartSearch with chip filtering
- * - Display mode toggle (free/used)
  * - Compact mode toggle
  * - Column visibility dropdown
+ * - Slot for additional controls via children
  *
  * @example
  * ```tsx
@@ -98,7 +96,9 @@ export interface TableToolbarProps<T> {
  *   searchChips={searchChips}
  *   onSearchChipsChange={setSearchChips}
  *   placeholder="Search pools..."
- * />
+ * >
+ *   <DisplayModeToggle />
+ * </TableToolbar>
  * ```
  */
 function TableToolbarInner<T>({
@@ -111,15 +111,12 @@ function TableToolbarInner<T>({
   onSearchChipsChange,
   placeholder = "Search...",
   searchPresets,
-  showDisplayModeToggle = true,
   children,
   resultsCount,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
   const compactMode = useSharedPreferences((s) => s.compactMode);
   const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
-  const displayMode = useSharedPreferences((s) => s.displayMode);
-  const toggleDisplayMode = useSharedPreferences((s) => s.toggleDisplayMode);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -136,21 +133,7 @@ function TableToolbarInner<T>({
       </div>
 
       <div className="flex items-center gap-1">
-        {showDisplayModeToggle && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Toggle
-                size="sm"
-                pressed={displayMode === "free"}
-                onPressedChange={toggleDisplayMode}
-                aria-label={displayMode === "free" ? "Show used" : "Show available"}
-              >
-                {displayMode === "free" ? <MonitorCheck className="size-4" /> : <MonitorX className="size-4" />}
-              </Toggle>
-            </TooltipTrigger>
-            <TooltipContent>{displayMode === "free" ? "Show used" : "Show available"}</TooltipContent>
-          </Tooltip>
-        )}
+        {children}
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -158,12 +141,12 @@ function TableToolbarInner<T>({
               size="sm"
               pressed={compactMode}
               onPressedChange={toggleCompactMode}
-              aria-label={compactMode ? "Comfortable view" : "Compact view"}
+              aria-label={compactMode ? "Compact view" : "Comfortable view"}
             >
               {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
             </Toggle>
           </TooltipTrigger>
-          <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
+          <TooltipContent>{compactMode ? "Compact view" : "Comfortable view"}</TooltipContent>
         </Tooltip>
 
         <DropdownMenu>
@@ -198,8 +181,6 @@ function TableToolbarInner<T>({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {children}
       </div>
     </div>
   );

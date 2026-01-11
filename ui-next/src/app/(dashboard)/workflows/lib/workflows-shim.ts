@@ -15,42 +15,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflows Filtering Shim - Client-side filtering for workflows.
+ * Workflows API Adapter
  *
- * =============================================================================
- * IDEAL BACKEND API (what we're coding toward):
- * =============================================================================
+ * Converts UI filter state (SearchChips) to backend API parameters.
+ * The backend supports full server-side filtering and pagination.
  *
- * GET /api/workflow?status=running,waiting&user=alice&pool=ml-team&offset=0&limit=50
- *
- * Response:
- * {
- *   "workflows": [...filtered workflows...],
- *   "total": 100,
- *   "filtered_total": 25,
- *   "more_entries": true
- * }
- *
- * =============================================================================
- * CURRENT SHIM (what this file does):
- * =============================================================================
- *
- * 1. Fetches workflows from backend with offset-based pagination
- * 2. Applies SmartSearch filters client-side
- * 3. Returns paginated, filtered results
- *
- * WHEN BACKEND IS UPDATED to support server-side filtering:
- * 1. Update fetchPaginatedWorkflows to pass filter params to API
- * 2. Remove client-side filtering
- * 3. No changes needed in useWorkflowsData or UI components
+ * NOTE: Contains workaround for backend bug where `more_entries` is always false.
+ * See BACKEND_TODOS.md Issue #14 for details.
  */
 
 import type { SearchChip } from "@/stores";
-import { filterByChips } from "@/components/smart-search";
 import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination";
-import { listWorkflowApiWorkflowGet, type ListWorkflowApiWorkflowGetParams } from "@/lib/api/generated";
+import {
+  listWorkflowApiWorkflowGet,
+  type ListWorkflowApiWorkflowGetParams,
+  type ListOrder,
+  type WorkflowStatus,
+  type WorkflowPriority,
+} from "@/lib/api/generated";
 import type { WorkflowListEntry } from "./workflow-search-fields";
-import { WORKFLOW_SEARCH_FIELDS } from "./workflow-search-fields";
 
 // =============================================================================
 // Types
@@ -59,6 +42,10 @@ import { WORKFLOW_SEARCH_FIELDS } from "./workflow-search-fields";
 export interface WorkflowFilterParams {
   /** Search chips from SmartSearch */
   searchChips: SearchChip[];
+  /** Show all users' workflows (default: false = current user only) */
+  showAllUsers?: boolean;
+  /** Sort direction */
+  sortDirection?: "ASC" | "DESC";
 }
 
 export interface RawWorkflowsResponse {
@@ -67,21 +54,56 @@ export interface RawWorkflowsResponse {
 }
 
 // =============================================================================
-// SHIM: Client-side filtering (to be removed when backend supports filtering)
+// Helpers
 // =============================================================================
 
 /**
- * SHIM: Apply client-side filters to workflows.
- *
- * This function handles all filtering that should ideally be done server-side.
- * When backend supports filtering, this function can be removed and filters
- * passed directly to the API.
- *
- * @internal
+ * Get all chip values for a specific field.
  */
-function applyWorkflowFilters(workflows: WorkflowListEntry[], searchChips: SearchChip[]): WorkflowListEntry[] {
-  if (searchChips.length === 0) return workflows;
-  return filterByChips(workflows, searchChips, WORKFLOW_SEARCH_FIELDS);
+function getChipValues(chips: SearchChip[], field: string): string[] {
+  return chips.filter((c) => c.field === field).map((c) => c.value);
+}
+
+/**
+ * Get the first chip value for a field (for single-value filters).
+ */
+function getFirstChipValue(chips: SearchChip[], field: string): string | undefined {
+  return chips.find((c) => c.field === field)?.value;
+}
+
+/**
+ * Build API parameters from search chips and options.
+ */
+function buildApiParams(
+  chips: SearchChip[],
+  showAllUsers: boolean,
+  offset: number,
+  limit: number,
+  sortDirection: ListOrder,
+): ListWorkflowApiWorkflowGetParams {
+  const poolChips = getChipValues(chips, "pool");
+  const statusChips = getChipValues(chips, "status");
+  const userChips = getChipValues(chips, "user");
+  const priorityChips = getChipValues(chips, "priority");
+  const tagChips = getChipValues(chips, "tag");
+
+  return {
+    offset,
+    limit,
+    order: sortDirection,
+    // Filters - only include if chips exist
+    users: userChips.length > 0 ? userChips : undefined,
+    statuses: statusChips.length > 0 ? (statusChips as WorkflowStatus[]) : undefined,
+    pools: poolChips.length > 0 ? poolChips : undefined,
+    name: getFirstChipValue(chips, "name"),
+    app: getFirstChipValue(chips, "app"),
+    priority: priorityChips.length > 0 ? (priorityChips as WorkflowPriority[]) : undefined,
+    tags: tagChips.length > 0 ? tagChips : undefined,
+    // Toggles
+    all_users: showAllUsers,
+    // all_pools is implicit: true when no pool filter, false when pool filter exists
+    all_pools: poolChips.length === 0,
+  };
 }
 
 // =============================================================================
@@ -106,42 +128,35 @@ export function parseWorkflowsResponse(rawData: unknown): RawWorkflowsResponse |
 }
 
 /**
- * Fetch paginated workflows with client-side filtering.
+ * Fetch paginated workflows with server-side filtering.
  *
- * Uses offset-based pagination matching the backend API.
- * When backend supports server-side filtering, this can be updated to pass
- * filter params directly to the API.
+ * Passes all filter parameters directly to the backend API.
  *
  * @param params - Pagination and filter parameters
  */
 export async function fetchPaginatedWorkflows(
   params: PaginationParams & WorkflowFilterParams,
 ): Promise<PaginatedResponse<WorkflowListEntry>> {
-  const { offset = 0, limit, searchChips } = params;
+  const { offset = 0, limit, searchChips, showAllUsers = false, sortDirection = "DESC" } = params;
 
-  // Build API params
-  const apiParams: ListWorkflowApiWorkflowGetParams = {
-    offset,
-    limit,
-    order: "DESC", // Most recent first
-  };
+  // Build API params from chips
+  const apiParams = buildApiParams(searchChips, showAllUsers, offset, limit, sortDirection as ListOrder);
 
   // Fetch from API
   const rawData = await listWorkflowApiWorkflowGet(apiParams);
   const parsed = parseWorkflowsResponse(rawData);
-  const allWorkflows = parsed?.workflows ?? [];
-  const hasMore = parsed?.more_entries ?? false;
+  const workflows = parsed?.workflows ?? [];
 
-  // SHIM: Apply filters client-side
-  // When backend supports filtering, remove this and pass filters to API
-  const filteredWorkflows = applyWorkflowFilters(allWorkflows, searchChips);
+  // WORKAROUND: Backend more_entries is always false due to bug (Issue #14)
+  // Infer hasMore from item count: if we got exactly limit items, likely more exist
+  // See BACKEND_TODOS.md Issue #14 for details
+  const hasMore = workflows.length === limit;
 
   return {
-    items: filteredWorkflows,
+    items: workflows,
     hasMore,
     nextOffset: hasMore ? offset + limit : undefined,
-    // Note: We don't have server-side totals, so these are approximations
-    // When backend supports filtering, it will return accurate totals
+    // Backend doesn't return totals, so these remain undefined
     total: undefined,
     filteredTotal: undefined,
   };
@@ -157,9 +172,13 @@ export function hasActiveFilters(searchChips: SearchChip[]): boolean {
 
 /**
  * Build a stable query key for React Query caching.
- * Sorting ensures consistent key regardless of chip order.
+ * Includes all params that affect the query results.
  */
-export function buildWorkflowsQueryKey(searchChips: SearchChip[]): readonly unknown[] {
+export function buildWorkflowsQueryKey(
+  searchChips: SearchChip[],
+  showAllUsers: boolean = false,
+  sortDirection: string = "DESC",
+): readonly unknown[] {
   return [
     "workflows",
     "paginated",
@@ -168,6 +187,8 @@ export function buildWorkflowsQueryKey(searchChips: SearchChip[]): readonly unkn
         .map((c) => `${c.field}:${c.value}`)
         .sort()
         .join(","),
+      showAllUsers,
+      sortDirection,
     },
   ] as const;
 }
