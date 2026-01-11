@@ -24,14 +24,21 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Toggle } from "@/components/shadcn/toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { SearchChip } from "@/stores";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/smart-search";
 import { TableToolbar } from "@/components/data-table";
-import { useWorkflowsTableStore } from "../stores/workflows-table-store";
+import { useWorkflowsTableStore, useWorkflowsPreferencesStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";
-import { WORKFLOW_SEARCH_FIELDS, type WorkflowListEntry } from "../lib/workflow-search-fields";
+import {
+  WORKFLOW_SEARCH_FIELDS,
+  createPresetChips,
+  type WorkflowListEntry,
+  type StatusPresetId,
+} from "../lib/workflow-search-fields";
 import { STATUS_STYLES, type StatusCategory } from "../lib/workflow-constants";
 
 // =============================================================================
@@ -62,12 +69,39 @@ export interface WorkflowsToolbarProps {
 // Status Preset Configuration
 // =============================================================================
 
-const STATUS_PRESET_CONFIG: { id: StatusCategory; label: string }[] = [
+const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
   { id: "running", label: "Running" },
   { id: "waiting", label: "Waiting" },
   { id: "completed", label: "Completed" },
   { id: "failed", label: "Failed" },
 ];
+
+// =============================================================================
+// User Toggle Component
+// =============================================================================
+
+interface UserToggleProps {
+  showAllUsers: boolean;
+  onToggle: () => void;
+}
+
+const UserToggle = memo(function UserToggle({ showAllUsers, onToggle }: UserToggleProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Toggle
+          size="sm"
+          pressed={showAllUsers}
+          onPressedChange={onToggle}
+          aria-label={showAllUsers ? "Show my workflows only" : "Show all users' workflows"}
+        >
+          {showAllUsers ? <Users className="size-4" /> : <User className="size-4" />}
+        </Toggle>
+      </TooltipTrigger>
+      <TooltipContent side="top">{showAllUsers ? "All Users' Workflows" : "My Workflows"}</TooltipContent>
+    </Tooltip>
+  );
+});
 
 // =============================================================================
 // Component
@@ -82,7 +116,10 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   const visibleColumnIds = useWorkflowsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useWorkflowsTableStore((s) => s.toggleColumn);
 
-  // Create status presets for quick filtering
+  const showAllUsers = useWorkflowsPreferencesStore((s) => s.showAllUsers);
+  const toggleShowAllUsers = useWorkflowsPreferencesStore((s) => s.toggleShowAllUsers);
+
+  // Create status presets that expand to multiple chips
   const statusPresets = useMemo(
     (): SearchPreset[] =>
       STATUS_PRESET_CONFIG.map(({ id, label }) => {
@@ -91,14 +128,15 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
 
         return {
           id,
-          chip: { field: "status", value: id, label: `Status: ${label}` },
+          // Multi-chip preset: clicking adds/removes all statuses in the category
+          chips: createPresetChips(id),
           // Custom render matching the table's status badge
           render: ({ active, focused }: PresetRenderProps) => (
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
                 styles.bg,
-                // Active state (has chip): white inner ring
+                // Active state (all chips present): white inner ring
                 active && "ring-2 ring-white/40 ring-inset dark:ring-white/20",
                 // Focused state (keyboard nav): scale up + shadow
                 focused && "scale-105 shadow-lg",
@@ -125,9 +163,13 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search workflows... (try 'name:', 'status:', 'user:', 'pool:')"
-      searchPresets={[{ label: "Presets:", items: statusPresets }]}
-      showDisplayModeToggle={false}
+      searchPresets={[{ label: "Status:", items: statusPresets }]}
       resultsCount={resultsCount}
-    />
+    >
+      <UserToggle
+        showAllUsers={showAllUsers}
+        onToggle={toggleShowAllUsers}
+      />
+    </TableToolbar>
   );
 });

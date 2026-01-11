@@ -15,17 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Data hook for workflows page with SmartSearch chip filtering and infinite scroll.
+ * Data hook for workflows page with server-side filtering and infinite scroll.
  *
  * Architecture:
  * - Uses usePaginatedData for offset-based pagination with infinite scroll
- * - Converts SmartSearch chips to filter logic via shim layer
- * - Returns paginated, filtered data for UI
+ * - Passes SmartSearch chips directly to backend API for server-side filtering
+ * - Returns paginated data for UI
  *
- * SHIM NOTE:
- * Currently filtering happens client-side in workflows-shim.ts.
- * When backend supports filtering, the shim will pass filters to the API
- * and this hook remains unchanged.
+ * Server-side filtering:
+ * - All filters (status, user, pool, etc.) are passed to the backend
+ * - Backend handles filtering and pagination
+ * - No client-side filtering needed
  */
 
 "use client";
@@ -34,20 +34,30 @@ import { useMemo } from "react";
 import type { SearchChip } from "@/stores";
 import { usePaginatedData, type PaginationParams, type PaginatedResponse } from "@/lib/api/pagination";
 import type { WorkflowListEntry } from "../lib/workflow-search-fields";
-import { fetchPaginatedWorkflows, buildWorkflowsQueryKey, hasActiveFilters } from "../lib/workflows-shim";
+import {
+  fetchPaginatedWorkflows,
+  buildWorkflowsQueryKey,
+  hasActiveFilters,
+  type WorkflowFilterParams,
+} from "../lib/workflows-shim";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 interface UseWorkflowsDataParams {
+  /** Search chips from SmartSearch */
   searchChips: SearchChip[];
+  /** Show all users' workflows (default: false = current user only) */
+  showAllUsers?: boolean;
+  /** Sort direction (default: DESC = most recent first) */
+  sortDirection?: "ASC" | "DESC";
   /** Number of workflows per page (default: 50) */
   pageSize?: number;
 }
 
 interface UseWorkflowsDataReturn {
-  /** Filtered workflows (after applying search chips) */
+  /** Workflows from the current query */
   workflows: WorkflowListEntry[];
   /** All loaded workflows (for suggestions in SmartSearch) */
   allWorkflows: WorkflowListEntry[];
@@ -75,9 +85,17 @@ interface UseWorkflowsDataReturn {
 // Hook
 // =============================================================================
 
-export function useWorkflowsData({ searchChips, pageSize = 50 }: UseWorkflowsDataParams): UseWorkflowsDataReturn {
-  // Build stable query key - changes when filters change, which resets pagination
-  const queryKey = useMemo(() => buildWorkflowsQueryKey(searchChips), [searchChips]);
+export function useWorkflowsData({
+  searchChips,
+  showAllUsers = false,
+  sortDirection = "DESC",
+  pageSize = 50,
+}: UseWorkflowsDataParams): UseWorkflowsDataReturn {
+  // Build stable query key - changes when filters/options change, which resets pagination
+  const queryKey = useMemo(
+    () => buildWorkflowsQueryKey(searchChips, showAllUsers, sortDirection),
+    [searchChips, showAllUsers, sortDirection],
+  );
 
   // Use paginated data hook for infinite scroll
   const {
@@ -90,14 +108,12 @@ export function useWorkflowsData({ searchChips, pageSize = 50 }: UseWorkflowsDat
     isLoading,
     error,
     refetch,
-  } = usePaginatedData<WorkflowListEntry, { searchChips: SearchChip[] }>({
+  } = usePaginatedData<WorkflowListEntry, WorkflowFilterParams>({
     queryKey,
-    queryFn: async (
-      params: PaginationParams & { searchChips: SearchChip[] },
-    ): Promise<PaginatedResponse<WorkflowListEntry>> => {
+    queryFn: async (params: PaginationParams & WorkflowFilterParams): Promise<PaginatedResponse<WorkflowListEntry>> => {
       return fetchPaginatedWorkflows(params);
     },
-    params: { searchChips },
+    params: { searchChips, showAllUsers, sortDirection },
     config: {
       pageSize,
       staleTime: 60_000, // 1 minute

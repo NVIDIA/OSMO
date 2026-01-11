@@ -44,7 +44,7 @@ MIGRATION PATH:
 
 ### 1. Incorrect Response Types for Pool/Resource APIs
 
-**Priority:** High  
+**Priority:** High
 **Status:** Active workaround in `transforms.ts` and `hooks.ts`
 
 Several API endpoints have incorrect response types in the OpenAPI schema. They're typed as returning `string` but actually return structured JSON objects.
@@ -108,7 +108,7 @@ This will cause the OpenAPI spec to correctly reference the schema:
 
 ### 2. ResourceUsage Fields Are Strings Instead of Numbers
 
-**Priority:** Medium  
+**Priority:** Medium
 **Status:** Active workaround in `transforms.ts`
 
 The `ResourceUsage` interface has all numeric fields typed as `string`:
@@ -136,7 +136,7 @@ function parseNumber(value: string | number | undefined | null): number {
 
 ### 3. Auth Configuration Embedded in OpenAPI Schema
 
-**Priority:** Low  
+**Priority:** Low
 **Status:** No workaround needed (schema hygiene issue)
 
 The `service_auth` field in `ServiceConfigs` has a default value that embeds RSA keys into the OpenAPI schema.
@@ -150,7 +150,7 @@ The `service_auth` field in `ServiceConfigs` has a default value that embeds RSA
 
 ### 4. Version Endpoint Returns Unknown Type
 
-**Priority:** Low  
+**Priority:** Low
 **Status:** Active workaround in `transforms.ts`
 
 The `GET /api/version` endpoint has no response type defined in the OpenAPI schema.
@@ -172,7 +172,7 @@ export interface Version {
 
 ### 5. Resource Fields Use Untyped Dictionaries
 
-**Priority:** Medium  
+**Priority:** Medium
 **Status:** Active workaround in `transforms.ts`
 
 `allocatable_fields` and `usage_fields` are typed as `{ [key: string]: unknown }`.
@@ -192,7 +192,7 @@ function getFieldValue(fields: Record<string, unknown> | undefined, key: string)
 
 ### 6. Memory and Storage Values Need Unit Conversion
 
-**Priority:** Medium  
+**Priority:** Medium
 **Status:** Active workaround in `transforms.ts`
 
 Values returned in different units:
@@ -216,7 +216,7 @@ storage: extractCapacity(resource, "storage", "bytesToGiB"),
 
 ### 7. pool_platform_labels Filtered by Query Parameters
 
-**Priority:** Medium  
+**Priority:** Medium
 **Status:** Active workaround in `hooks.ts` (`useResourceInfo`)
 
 When querying `/api/resources` with specific pools, `pool_platform_labels` only contains memberships for queried pools, not ALL pools the resource belongs to.
@@ -234,7 +234,7 @@ When querying `/api/resources` with specific pools, `pool_platform_labels` only 
 
 ### 8. Resources API `concise` Parameter Changes Response Structure
 
-**Priority:** Low  
+**Priority:** Low
 **Status:** Documented (avoid usage)
 
 When `concise=true` is passed to `/api/resources`, response structure changes:
@@ -251,7 +251,7 @@ When `concise=true` is passed to `/api/resources`, response structure changes:
 
 ### 9. No Single-Resource Endpoint with Full Details
 
-**Priority:** Medium  
+**Priority:** Medium
 **Status:** Active workaround in `hooks.ts` (`useResourceInfo`)
 
 To display full resource details (including all pool memberships and task configs), the UI currently needs:
@@ -278,7 +278,7 @@ interface ResourceDetail {
 }
 ```
 
-**Current workaround:** 
+**Current workaround:**
 - `useResourceInfo()` queries all resources with `all_pools=true` and filters client-side
 - Only fetched for SHARED resources (RESERVED belong to single pool)
 - Result cached for 5 minutes to reduce API calls
@@ -289,7 +289,7 @@ interface ResourceDetail {
 
 ### 10. Pool Detail Requires Two API Calls
 
-**Priority:** Low  
+**Priority:** Low
 **Status:** Optimization opportunity
 
 Currently, viewing a pool's detail page requires two separate API calls:
@@ -332,7 +332,7 @@ export function usePoolDetail({ poolName }) {
 
 ### 11. Resources API Needs Pagination and Server-Side Filtering
 
-**Priority:** High  
+**Priority:** High
 **Status:** Active workaround in `pagination.ts` and `use-resources.ts`
 
 The `/api/resources` endpoint currently returns all resources at once with no pagination or server-side filtering. For clusters with 500+ resources, this causes slow initial page loads and high memory usage.
@@ -417,7 +417,7 @@ GET /api/resources?limit=50&cursor=abc&search=dgx&resource_types=SHARED&pools=pr
 
 ### 12. Summary Aggregates Need Server-Side Calculation
 
-**Priority:** High  
+**Priority:** High
 **Status:** Anti-pattern in UI (aggregates loaded data only)
 
 The `AdaptiveSummary` component displays aggregated totals (GPU, CPU, Memory, Storage) for resources. Currently, it reduces over whatever resources are loaded client-side:
@@ -511,7 +511,7 @@ const summary = serverSummary ?? aggregateLoadedResources(resources);
 
 ### 13. Pools API Needs Server-Side Filtering
 
-**Priority:** Medium  
+**Priority:** Medium
 **Status:** Active workaround in `pools-shim.ts`
 
 The `/api/pools` endpoint currently returns all pools at once with no filtering. While pool counts are typically smaller than resources (10-100 vs 1000+), server-side filtering would improve consistency and prepare for scale.
@@ -582,6 +582,110 @@ GET /api/pools?status=online,maintenance&platform=dgx&search=ml-team
 
 ---
 
+### 14. Workflow List API `more_entries` Always Returns False
+
+**Priority:** High
+**Status:** Active workaround in `workflows-shim.ts`
+
+The `/api/workflow` list endpoint has a bug where `more_entries` is always `false`, preventing infinite scroll pagination from working.
+
+**Root cause:** In `workflow_service.py` lines 569-577:
+
+```python
+# Fetch limit+1 to check if there are more
+rows = helpers.get_workflows(..., limit+1, ...)
+
+# Slice to limit rows
+if order == connectors.ListOrder.DESC:
+    rows = rows[:limit]
+elif len(rows) > limit:
+    rows = rows[1:]
+
+# BUG: Check AFTER slicing - always returns False!
+return objects.ListResponse.from_db_rows(rows, service_url,
+                                         more_entries=len(rows) > limit)
+```
+
+After slicing, `len(rows)` is at most `limit`, so `len(rows) > limit` is always `False`.
+
+**Fix required:**
+```python
+has_more = len(rows) > limit  # Check BEFORE slicing
+if order == connectors.ListOrder.DESC:
+    rows = rows[:limit]
+elif has_more:
+    rows = rows[1:]
+return objects.ListResponse.from_db_rows(rows, service_url, more_entries=has_more)
+```
+
+**Current UI workaround:**
+```typescript
+// workflows-shim.ts - Infer hasMore from item count
+const hasMore = workflows.length === limit;
+```
+
+If we received exactly `limit` items, assume there are more. Only set `hasMore: false` when we receive fewer than `limit` items.
+
+**Impact:** Without workaround, UI only makes one API request and never fetches additional pages.
+
+**When fixed:**
+1. Remove workaround in `workflows-shim.ts`
+2. Use `more_entries` from API response directly
+
+---
+
+### 15. Workflow List Response Missing Tags Field
+
+**Priority:** Low
+**Status:** Filter available, column not possible
+
+The `/api/workflow` list endpoint accepts `tags` as a filter parameter, but the response (`SrcServiceCoreWorkflowObjectsListEntry`) does not include tags in each workflow entry.
+
+**Current response fields:**
+```typescript
+interface SrcServiceCoreWorkflowObjectsListEntry {
+  user: string;
+  name: string;
+  workflow_uuid: string;
+  submit_time: string;
+  start_time?: string;
+  end_time?: string;
+  queued_time: number;
+  duration?: number;
+  status: WorkflowStatus;
+  pool?: string;
+  priority: string;
+  app_name?: string;
+  // ... other fields
+  // tags: string[];  // ← MISSING
+}
+```
+
+**Impact:**
+- Users can filter workflows by tag (backend filters correctly)
+- Users cannot see which tags a workflow has in the table (no column possible)
+- This creates a confusing UX: "I filtered by tag:foo but can't see which workflows have that tag"
+
+**Current UI workaround:**
+- Tag filter is available in SmartSearch
+- No tag column in the workflows table (data not available)
+- Search field notes: "Tags aren't in the list response, so no suggestions from data"
+
+**Ideal response:**
+```typescript
+interface WorkflowListEntry {
+  // ... existing fields ...
+  tags?: string[];  // Add tags array
+}
+```
+
+**When fixed:**
+1. Add `tags` column to `workflow-columns.ts`
+2. Add `tags` column renderer in `workflow-column-defs.tsx`
+3. Update `getValues` in tag search field to extract from loaded workflows
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -599,6 +703,8 @@ GET /api/pools?status=online,maintenance&platform=dgx&search=ml-team
 | #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
 | #12 Server-side summary aggregates | **High** | resource-summary-card.tsx | Use server summary |
 | #13 Pools server-side filtering | Medium | pools-shim.ts | Delete shim, pass filters to API |
+| #14 Workflow more_entries bug | **High** | workflows-shim.ts | Use more_entries directly |
+| #15 Workflow list missing tags | Low | workflow-search-fields.ts | Add tags column |
 
 ### Priority Guide
 

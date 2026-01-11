@@ -148,22 +148,66 @@ export function useChips<T>({
     onChipsChange([]);
   }, [onChipsChange]);
 
+  /**
+   * Get the chips for a preset (supports both single and multi-chip presets).
+   */
+  const getPresetChips = useCallback((preset: SearchPreset): SearchChip[] => {
+    if (preset.chips && preset.chips.length > 0) {
+      return preset.chips;
+    }
+    if (preset.chip) {
+      return [preset.chip];
+    }
+    return [];
+  }, []);
+
+  /**
+   * Check if a preset is currently active.
+   * For multi-chip presets, ALL chips must be present for the preset to be active.
+   */
   const isPresetActive = useCallback(
     (preset: SearchPreset) => {
-      return chips.some((c) => c.field === preset.chip.field && c.value === preset.chip.value);
+      const presetChips = getPresetChips(preset);
+      if (presetChips.length === 0) return false;
+
+      // All preset chips must be present
+      return presetChips.every((presetChip) =>
+        chips.some((c) => c.field === presetChip.field && c.value === presetChip.value),
+      );
     },
-    [chips],
+    [chips, getPresetChips],
   );
 
+  /**
+   * Toggle a preset on/off.
+   * For multi-chip presets:
+   * - If active (all present): remove ALL preset chips
+   * - If inactive: add ALL missing preset chips
+   */
   const togglePreset = useCallback(
     (preset: SearchPreset) => {
+      const presetChips = getPresetChips(preset);
+      if (presetChips.length === 0) return;
+
       if (isPresetActive(preset)) {
-        onChipsChange(chips.filter((c) => !(c.field === preset.chip.field && c.value === preset.chip.value)));
+        // Remove all preset chips
+        const presetChipSet = new Set(presetChips.map((c) => `${c.field}:${c.value}`));
+        onChipsChange(chips.filter((c) => !presetChipSet.has(`${c.field}:${c.value}`)));
       } else {
-        onChipsChange([...chips, preset.chip]);
+        // Add missing preset chips
+        const existingSet = new Set(chips.map((c) => `${c.field}:${c.value}`));
+        const newChips = [...chips];
+
+        for (const presetChip of presetChips) {
+          if (!existingSet.has(`${presetChip.field}:${presetChip.value}`)) {
+            newChips.push(presetChip);
+          }
+        }
+
+        onChipsChange(newChips);
       }
     },
-    [chips, onChipsChange, isPresetActive],
+    [chips, onChipsChange, isPresetActive, getPresetChips],
   );
 
   const clearValidationError = useCallback(() => {

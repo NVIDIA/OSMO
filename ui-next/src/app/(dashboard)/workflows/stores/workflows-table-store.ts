@@ -22,8 +22,11 @@
  * - Column sizing
  * - Sort state
  * - Compact mode
+ * - Show all users toggle
  */
 
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { createTableStore } from "@/stores";
 import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT } from "../lib/workflow-columns";
 
@@ -38,5 +41,45 @@ export const useWorkflowsTableStore = createTableStore({
   defaultColumnOrder: DEFAULT_COLUMN_ORDER,
   defaultSort: DEFAULT_SORT,
 });
+
+// =============================================================================
+// Workflows Preferences Store
+// =============================================================================
+
+interface WorkflowsPreferencesState {
+  /**
+   * Show all users' workflows (true) or only current user's (false).
+   * Default: false (my workflows only)
+   */
+  showAllUsers: boolean;
+}
+
+interface WorkflowsPreferencesActions {
+  setShowAllUsers: (show: boolean) => void;
+  toggleShowAllUsers: () => void;
+}
+
+type WorkflowsPreferencesStore = WorkflowsPreferencesState & WorkflowsPreferencesActions;
+
+/**
+ * Workflows-specific preferences store.
+ * Persisted to localStorage.
+ */
+export const useWorkflowsPreferencesStore = create<WorkflowsPreferencesStore>()(
+  persist(
+    (set) => ({
+      // State
+      showAllUsers: false, // Default: show only my workflows
+
+      // Actions
+      setShowAllUsers: (show) => set({ showAllUsers: show }),
+      toggleShowAllUsers: () => set((state) => ({ showAllUsers: !state.showAllUsers })),
+    }),
+    {
+      name: "workflows-preferences",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
 
 export type { TableState, TableActions, TableStore, SearchChip } from "@/stores";

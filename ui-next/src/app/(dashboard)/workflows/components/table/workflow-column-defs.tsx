@@ -19,6 +19,9 @@
  *
  * TanStack Table column definitions for the workflows table.
  * Contains JSX cell renderers - colocated with workflows-data-table.tsx.
+ *
+ * NOTE: Only submit_time is sortable (backend limitation).
+ * See BACKEND_TODOS.md for details on backend ordering constraints.
  */
 
 import type { ColumnDef } from "@tanstack/react-table";
@@ -63,24 +66,23 @@ function getMinSize(id: WorkflowColumnId): number {
 }
 
 /**
- * Format timestamp to relative time string.
+ * Format timestamp to succinct ISO format in user timezone.
+ * Examples: "1/10 2:30p" (same year) or "1/10/25 2:30p" (different year)
  */
-function formatRelativeTime(isoString: string): string {
+function formatSuccinctDate(isoString: string): string {
   const date = new Date(isoString);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "p" : "a";
+  const hour12 = hours % 12 || 12;
 
-  if (diffSecs < 60) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  // Format as date for older items
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${month}/${day} ${hour12}:${minutes}${ampm}`;
+  }
+  return `${month}/${day}/${date.getFullYear() % 100} ${hour12}:${minutes}${ampm}`;
 }
 
 /**
@@ -106,6 +108,7 @@ function formatFullDate(isoString: string): string {
  * Create TanStack Table column definitions for workflows.
  *
  * Uses plain object notation (not helper.accessor) for correct type inference.
+ * Only submit_time is sortable (backend limitation - hardcoded ORDER BY submit_time).
  *
  * @returns Array of column definitions compatible with DataTable
  */
@@ -116,7 +119,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "name",
       header: COLUMN_LABELS.name,
       minSize: getMinSize("name"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => (
         <span className="truncate font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {row.original.name}
@@ -128,7 +131,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "status",
       header: COLUMN_LABELS.status,
       minSize: getMinSize("status"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => {
         const { category, label } = getStatusDisplay(row.original.status);
         const styles = STATUS_STYLES[category];
@@ -147,7 +150,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "user",
       header: COLUMN_LABELS.user,
       minSize: getMinSize("user"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.user}</span>,
     },
     {
@@ -155,7 +158,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "submit_time",
       header: COLUMN_LABELS.submit_time,
       minSize: getMinSize("submit_time"),
-      enableSorting: true,
+      enableSorting: true, // Only sortable column (server-side)
       cell: ({ row }) => {
         const submitTime = row.original.submit_time;
         if (!submitTime) return <span className="text-sm text-zinc-400">—</span>;
@@ -164,7 +167,45 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
             className="truncate text-sm text-zinc-500 dark:text-zinc-400"
             title={formatFullDate(submitTime)}
           >
-            {formatRelativeTime(submitTime)}
+            {formatSuccinctDate(submitTime)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "start_time",
+      accessorKey: "start_time",
+      header: COLUMN_LABELS.start_time,
+      minSize: getMinSize("start_time"),
+      enableSorting: false, // Backend only sorts by submit_time
+      cell: ({ row }) => {
+        const startTime = row.original.start_time;
+        if (!startTime) return <span className="text-sm text-zinc-400">—</span>;
+        return (
+          <span
+            className="truncate text-sm text-zinc-500 dark:text-zinc-400"
+            title={formatFullDate(startTime)}
+          >
+            {formatSuccinctDate(startTime)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "end_time",
+      accessorKey: "end_time",
+      header: COLUMN_LABELS.end_time,
+      minSize: getMinSize("end_time"),
+      enableSorting: false, // Backend only sorts by submit_time
+      cell: ({ row }) => {
+        const endTime = row.original.end_time;
+        if (!endTime) return <span className="text-sm text-zinc-400">—</span>;
+        return (
+          <span
+            className="truncate text-sm text-zinc-500 dark:text-zinc-400"
+            title={formatFullDate(endTime)}
+          >
+            {formatSuccinctDate(endTime)}
           </span>
         );
       },
@@ -174,7 +215,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "duration",
       header: COLUMN_LABELS.duration,
       minSize: getMinSize("duration"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => {
         const duration = row.original.duration ?? null;
         const isRunning = row.original.status === "RUNNING";
@@ -197,7 +238,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "queued_time",
       header: COLUMN_LABELS.queued_time,
       minSize: getMinSize("queued_time"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => (
         <span className="truncate font-mono text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
           {formatDuration(row.original.queued_time ?? null)}
@@ -209,7 +250,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "pool",
       header: COLUMN_LABELS.pool,
       minSize: getMinSize("pool"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => (
         <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.pool || "—"}</span>
       ),
@@ -219,7 +260,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       accessorKey: "priority",
       header: COLUMN_LABELS.priority,
       minSize: getMinSize("priority"),
-      enableSorting: true,
+      enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => {
         const priority = row.original.priority;
         const display = getPriorityDisplay(priority);
@@ -238,6 +279,16 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
           </span>
         );
       },
+    },
+    {
+      id: "app_name",
+      accessorKey: "app_name",
+      header: COLUMN_LABELS.app_name,
+      minSize: getMinSize("app_name"),
+      enableSorting: false, // Backend only sorts by submit_time
+      cell: ({ row }) => (
+        <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">{row.original.app_name || "—"}</span>
+      ),
     },
   ];
 }

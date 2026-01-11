@@ -102,35 +102,8 @@ export function WorkflowsDataTable({
 
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
-  // Sort workflows
-  const sortedWorkflows = useMemo(() => {
-    if (!sortState?.column) return workflows;
-
-    const sorted = [...workflows].sort((a, b) => {
-      const column = sortState.column as keyof WorkflowListEntry;
-      const aVal = a[column];
-      const bVal = b[column];
-
-      // Handle undefined/null
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-
-      // Compare values
-      let cmp = 0;
-      if (typeof aVal === "string" && typeof bVal === "string") {
-        cmp = aVal.localeCompare(bVal);
-      } else if (typeof aVal === "number" && typeof bVal === "number") {
-        cmp = aVal - bVal;
-      } else {
-        cmp = String(aVal).localeCompare(String(bVal));
-      }
-
-      return sortState.direction === "desc" ? -cmp : cmp;
-    });
-
-    return sorted;
-  }, [workflows, sortState]);
+  // NOTE: Sorting is done server-side now (only submit_time is sortable)
+  // The workflows prop is already sorted by the backend based on the sort direction in the query
 
   // Create column visibility map
   const columnVisibility = useMemo(() => {
@@ -235,7 +208,7 @@ export function WorkflowsDataTable({
   return (
     <div className="table-container relative flex h-full flex-col">
       <DataTable<WorkflowListEntry>
-        data={sortedWorkflows}
+        data={workflows}
         columns={columns}
         getRowId={getRowId}
         // Column management
