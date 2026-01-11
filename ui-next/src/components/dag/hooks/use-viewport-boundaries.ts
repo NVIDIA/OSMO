@@ -416,10 +416,13 @@ export function useViewportBoundaries({
     // Only pan when the GROUP changes, not when switching between group/task view
     // of the same group. The node position is the same either way.
     if (prevSelectionRef.current === selectedGroupName) return;
-    prevSelectionRef.current = selectedGroupName;
 
     const selectedNode = nodes.find((n) => n.id === selectedGroupName);
+    // If node not found yet (still loading/layouting), don't set ref - retry when nodes update
     if (!selectedNode) return;
+
+    // Mark this selection as handled (node was found and we're about to pan)
+    prevSelectionRef.current = selectedGroupName;
 
     // Use double RAF to ensure layout is complete (panel expansion animation, etc.)
     let innerFrameId: number;
