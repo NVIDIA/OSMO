@@ -31,7 +31,7 @@ import { useMemo, useCallback, memo } from "react";
 import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
-import { useCopyToClipboard } from "@/hooks";
+import { useCopy } from "@/hooks";
 import { calculateDuration, formatDuration } from "../../lib/workflow-types";
 import type { GroupWithLayout } from "../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../lib/status";
@@ -45,7 +45,7 @@ import type { TaskDetailsProps, SiblingTask } from "../../lib/panel-types";
 // ============================================================================
 
 function CopyButton({ value, label }: { value: string; label: string }) {
-  const { copied, copy } = useCopyToClipboard();
+  const { copied, copy } = useCopy();
 
   return (
     <button

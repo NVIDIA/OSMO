@@ -18,7 +18,7 @@
 
 import { ChevronDown, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCopyToClipboard } from "@/hooks";
+import { useCopy } from "@/hooks";
 import { Card } from "@/components/shadcn/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
 
@@ -36,7 +36,7 @@ interface ErrorDetailsProps {
  * error.tsx files and inline error components.
  */
 export function ErrorDetails({ error, className }: ErrorDetailsProps) {
-  const { copied, copy } = useCopyToClipboard();
+  const { copied, copy } = useCopy();
 
   // Parse stack trace (remove the first line which is the error message)
   const stackLines = error.stack?.split("\n").slice(1).join("\n").trim();

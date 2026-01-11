@@ -20,9 +20,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
 import { useNavigation, type NavItem as NavItemType, type NavSection } from "@/lib/navigation";
-import { useIsMac } from "@/hooks";
 import { NvidiaLogo } from "./nvidia-logo";
-import { cn } from "@/lib/utils";
+import { cn, isMac } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -129,7 +128,6 @@ export function AppSidebar() {
  */
 function CollapseButton({ collapsed }: { collapsed: boolean }) {
   const { toggleSidebar } = useSidebar();
-  const isMac = useIsMac();
   const shortcutKey = isMac ? "⌘B" : "Ctrl+B";
 
   return (
