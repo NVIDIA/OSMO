@@ -767,7 +767,9 @@ export function useColumnSizing({
       const rawWidth = sizing[colId] ?? 150;
       const minWidth = minSizes?.[colId] ?? 0;
       const width = Math.max(rawWidth, minWidth);
-      vars[`--col-${colId}`] = `${width}px`;
+      // Use Math.floor to prevent subpixel rounding from causing horizontal overflow
+      // (cells have flexShrink: 0, so any cumulative rounding up causes overflow)
+      vars[`--col-${colId}`] = `${Math.floor(width)}px`;
     }
     return vars as React.CSSProperties;
   }, [sizing, columnIds, minSizes]);
