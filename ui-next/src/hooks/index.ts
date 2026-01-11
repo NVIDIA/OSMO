@@ -19,20 +19,17 @@
 /**
  * Shared React Hooks
  *
- * Most hooks are imported directly from @react-hookz/web.
- * Custom hooks are kept only when the library doesn't provide an equivalent.
+ * Most hooks are imported directly from libraries:
+ * - `@react-hookz/web` - useIsomorphicLayoutEffect, useSyncedRef, useMediaQuery, useRafCallback
+ * - `usehooks-ts` - useLocalStorage, useCopyToClipboard (base)
  *
- * ## From @react-hookz/web (import directly)
- * - `useIsomorphicLayoutEffect` - SSR-safe useLayoutEffect
- * - `useSyncedRef` - Ref that always contains latest value
- * - `useMediaQuery` - CSS media query state tracking
- * - `useRafCallback` - RAF-throttled callback
- *
- * ## Custom Hooks
- * - `useStableCallback` - Returns stable function reference (library lacks typed overloads)
- * - `usePersistedBoolean` - localStorage-backed boolean with "osmo-" prefix
- * - `useCopyToClipboard` - Copy with "copied" feedback state
- * - `useVirtualizerCompat` - React Compiler compatible virtualizer
+ * ## Custom Hooks (kept for specific reasons)
+ * - `useStableCallback` - TypeScript overloads preserve arg/return types (library versions use `any`)
+ * - `useVirtualizerCompat` - React Compiler workaround for @tanstack/react-virtual
+ * - `useAnnouncer` - Avoids adding React Aria parallel to Radix ecosystem
+ * - `useCopy` - Thin wrapper on usehooks-ts with auto-reset for UI feedback
+ * - `useExpandableChips` - Unique measurement logic for chip overflow
+ * - `useUrlChips` - URL state management for SmartSearch chips
  */
 
 // =============================================================================
@@ -45,8 +42,8 @@ export { useStableCallback } from "./use-stable-callback";
 // Performance & Animation
 export { useVirtualizerCompat } from "./use-virtualizer-compat";
 
-// UI Components
-export { usePersistedBoolean } from "./use-persisted-boolean";
+// Clipboard
+export { useCopy, type UseCopyOptions, type UseCopyReturn } from "./use-copy";
 
 // Accessibility
 export {
@@ -57,16 +54,8 @@ export {
   type AnnounceFunction,
 } from "./use-announcer";
 export {
-  useCopyToClipboard,
-  type UseCopyToClipboardOptions,
-  type UseCopyToClipboardReturn,
-} from "./use-copy-to-clipboard";
-export {
   useExpandableChips,
   type UseExpandableChipsOptions,
   type UseExpandableChipsResult,
 } from "./use-expandable-chips";
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
-
-// Platform Detection
-export { useIsMac } from "./use-mac";
