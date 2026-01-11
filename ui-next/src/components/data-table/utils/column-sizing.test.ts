@@ -118,30 +118,30 @@ describe("calculateColumnWidths", () => {
   });
 
   describe("user preferences", () => {
-    it("truncate mode: floor = persisted width (can shrink to persisted size)", () => {
+    it("truncate mode: floor = min (user accepts truncation, can shrink to min)", () => {
       const prefs: ColumnSizingPreferences = {
         col1: { mode: PreferenceModes.TRUNCATE, width: 100 }, // User shrunk col1 to 100
       };
-      const containerWidth = 400;
+      const containerWidth = 300; // Forces heavy shrinking
 
       const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, prefs);
 
-      // col1's floor is now 100 (persisted width), clamped to min
-      // col2, col3 have no preference, floor = min = 80
-      // Algorithm should respect col1 being locked at 100+
-      expect(result.col1).toBeGreaterThanOrEqual(100);
+      // col1's floor is now min (80), user accepts truncation
+      // Column can shrink below persisted width but not below min
+      expect(result.col1).toBeGreaterThanOrEqual(80);
     });
 
-    it("no-truncate mode: floor = max(preferred, min)", () => {
+    it("no-truncate mode: floor = pref.width (protects user's explicit width choice)", () => {
       const prefs: ColumnSizingPreferences = {
-        col1: { mode: PreferenceModes.NO_TRUNCATE, width: 180 }, // User expanded col1
+        col1: { mode: PreferenceModes.NO_TRUNCATE, width: 180 }, // User auto-fit or expanded col1
       };
       const containerWidth = 400;
 
       const result = calculateColumnWidths(["col1", "col2", "col3"], containerWidth, minSizes, configuredSizes, prefs);
 
-      // col1 should stay at least at preferred (150) or width (180)
-      expect(result.col1).toBeGreaterThanOrEqual(150);
+      // col1's floor = pref.width (180) when no contentWidth measured
+      // This protects the user's explicit choice
+      expect(result.col1).toBeGreaterThanOrEqual(180);
     });
 
     it("columns without preference can shrink from preferred to min", () => {
@@ -228,8 +228,8 @@ describe("calculateColumnWidths", () => {
     const mins = { name: 80, description: 100, status: 60 };
     const configured = { name: 150, description: 200, status: 100 };
 
-    it("NO_TRUNCATE uses max(contentWidth, configuredWidth) as floor", () => {
-      // Description has measured content wider than configured
+    it("NO_TRUNCATE uses contentWidth as floor (protects measured content)", () => {
+      // Description has measured content
       const prefs: ColumnSizingPreferences = {
         description: { mode: PreferenceModes.NO_TRUNCATE, width: 400 },
       };
@@ -237,52 +237,52 @@ describe("calculateColumnWidths", () => {
 
       // Total targets: name=150, description=400, status=100 = 650
       // Container = 450, which forces shrinking
-      // Without contentWidths, floor = max(configured=200, min=100) = 200
-      // With contentWidths, floor = max(350, 200) = 350 (content is wider)
-      // Algorithm: shrink from target (400) but not below floor (350)
+      // floor = contentWidth (350), not max(contentWidth, configured)
       const result = calculateColumnWidths(cols, 450, mins, configured, prefs, contentWidths);
 
       // Description should not go below contentWidth (350)
       expect(result.description).toBeGreaterThanOrEqual(350);
     });
 
-    it("NO_TRUNCATE uses configuredWidth as floor when contentWidth is smaller", () => {
+    it("NO_TRUNCATE uses contentWidth as floor even when smaller than configured", () => {
       const prefs: ColumnSizingPreferences = {
         description: { mode: PreferenceModes.NO_TRUNCATE, width: 250 },
       };
       const contentWidths = { description: 150 }; // Content is smaller than configured
 
-      // floor = max(150, 200) = 200 (configuredWidth wins)
-      const result = calculateColumnWidths(cols, 600, mins, configured, prefs, contentWidths);
+      // floor = contentWidth (150), NOT max(150, 200)
+      // This allows column to shrink below configured if content fits
+      const result = calculateColumnWidths(cols, 400, mins, configured, prefs, contentWidths);
 
-      expect(result.description).toBeGreaterThanOrEqual(200);
+      // Floor is 150 (contentWidth), column can shrink to it
+      expect(result.description).toBeGreaterThanOrEqual(150);
     });
 
-    it("NO_TRUNCATE with unmeasured content (0) uses configuredWidth as floor", () => {
+    it("NO_TRUNCATE with unmeasured content uses pref.width as floor", () => {
       const prefs: ColumnSizingPreferences = {
         description: { mode: PreferenceModes.NO_TRUNCATE, width: 250 },
       };
       // No contentWidths entry = unmeasured = 0
 
-      // floor = max(0, 200) = 200
+      // floor = pref.width (250) as fallback when contentWidth is 0
       const result = calculateColumnWidths(cols, 600, mins, configured, prefs, {});
 
-      expect(result.description).toBeGreaterThanOrEqual(200);
+      expect(result.description).toBeGreaterThanOrEqual(250);
     });
 
-    it("TRUNCATE mode ignores contentWidths", () => {
+    it("TRUNCATE mode: floor = min (user accepts truncation)", () => {
       const prefs: ColumnSizingPreferences = {
         description: { mode: PreferenceModes.TRUNCATE, width: 120 },
       };
       const contentWidths = { description: 350 }; // Content is wide
 
-      // TRUNCATE mode: floor = max(pref.width, min) = max(120, 100) = 120
-      // contentWidths should be ignored
-      const result = calculateColumnWidths(cols, 400, mins, configured, prefs, contentWidths);
+      // TRUNCATE mode: floor = min (100), user accepts content being truncated
+      // contentWidths is ignored for TRUNCATE mode
+      const result = calculateColumnWidths(cols, 300, mins, configured, prefs, contentWidths);
 
-      // Description can shrink below contentWidth (120 < 350)
+      // Description can shrink to min (100), ignoring contentWidth
+      expect(result.description).toBeGreaterThanOrEqual(100);
       expect(result.description).toBeLessThan(350);
-      expect(result.description).toBeGreaterThanOrEqual(120);
     });
 
     it("columns without preference ignore contentWidths", () => {
@@ -298,19 +298,19 @@ describe("calculateColumnWidths", () => {
       expect(result.name).toBeGreaterThanOrEqual(80);
     });
 
-    it("multiple NO_TRUNCATE columns respect floor when container forces shrinking", () => {
+    it("multiple NO_TRUNCATE columns respect contentWidth floors", () => {
       const prefs: ColumnSizingPreferences = {
         name: { mode: PreferenceModes.NO_TRUNCATE, width: 250 },
         description: { mode: PreferenceModes.NO_TRUNCATE, width: 350 },
       };
       const contentWidths = {
-        name: 180, // Smaller than configured (150), floor = max(180, 150) = 180
-        description: 400, // Larger than configured (200), floor = max(400, 200) = 400
+        name: 180, // floor = 180 (contentWidth)
+        description: 400, // floor = 400 (contentWidth)
       };
 
       // Total targets: 250 + 350 + 100 = 700
       // Total floors: 180 + 400 + 60 = 640
-      // Container = 500 forces shrinking below targets but above floors
+      // Container = 640 equals totalFloor
       const result = calculateColumnWidths(cols, 640, mins, configured, prefs, contentWidths);
 
       // When container = totalFloor, all columns get their floor
