@@ -108,5 +108,5 @@ export {
 } from "./hooks";
 
 // Components
-export { DAGControls, DAGErrorBoundary, FitViewOnLayoutChange, MiniMapNode, MINIMAP_COLORS } from "./components";
-export type { DAGControlsProps, FitViewOnLayoutChangeProps } from "./components";
+export { DAGControls, DAGErrorBoundary, MiniMapNode, MINIMAP_COLORS } from "./components";
+export type { DAGControlsProps } from "./components";
