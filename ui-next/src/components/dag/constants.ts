@@ -91,8 +91,10 @@ export const LAYOUT_SPACING = {
 // ============================================================================
 
 export const VIEWPORT = {
-  /** Default zoom level */
+  /** Default zoom level (used for initial viewport state before centering) */
   DEFAULT_ZOOM: 0.8,
+  /** Zoom level used when centering on a node (initial load, layout change) */
+  INITIAL_ZOOM: 1.0,
   /** Maximum zoom level */
   MAX_ZOOM: 1.5,
   /** Minimum zoom level */

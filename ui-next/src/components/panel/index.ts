@@ -29,6 +29,8 @@
 
 export { ResizablePanel, type ResizablePanelProps } from "./resizable-panel";
 
+export { SidePanel, type SidePanelProps } from "./side-panel";
+
 export { PanelCollapsedStrip, type PanelCollapsedStripProps } from "./panel-collapsed-strip";
 
 export { ResizeHandle, type ResizeHandleProps } from "./resize-handle";

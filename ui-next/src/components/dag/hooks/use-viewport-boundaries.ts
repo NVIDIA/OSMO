@@ -19,26 +19,37 @@
 /**
  * useViewportBoundaries Hook
  *
- * Manages dynamic viewport boundaries for ReactFlow using CONTROLLED MODE.
- * Ensures outermost nodes can always be centered in the visible area.
+ * **Single source of truth** for all viewport management in ReactFlow DAGs.
+ * Handles:
+ * - Initial viewport centering (on root node or deep-linked node)
+ * - Layout direction change re-centering
+ * - Selection-based auto-pan
+ * - Dynamic boundary clamping
  *
  * Key insight: By controlling the viewport state ourselves, we clamp BEFORE
  * ReactFlow renders, eliminating any flicker or jitter at boundaries.
+ *
+ * Architecture (Side-by-Side Model):
+ * - The DAG container IS the visible area (no overlay math needed)
+ * - Container dimensions directly determine viewport boundaries
+ * - Panel changes cause container resize → ReactFlow handles naturally
  *
  * This hook provides:
  * - Controlled viewport state (pass to ReactFlow's `viewport` prop)
  * - onViewportChange handler (pass to ReactFlow's `onViewportChange` prop)
  * - Auto-pan effect: Centers selected node after panel opens
- * - Dynamic bounds: Adjusts when panel opens/closes/resizes
+ * - Dynamic bounds: Adjusts when container resizes
  */
 
 "use client";
 
 import { useState, useCallback, useEffect, useRef, type RefObject } from "react";
 import { useReactFlow, type Node, type Viewport } from "@xyflow/react";
-import { useSyncedRef } from "@react-hookz/web";
+import { useSyncedRef, useRafCallback } from "@react-hookz/web";
+import { useResizeObserver } from "usehooks-ts";
 import { useStableCallback } from "@/hooks";
 import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
+import type { LayoutDirection } from "../types";
 
 // ============================================================================
 // Performance Constants
@@ -62,43 +73,27 @@ export interface NodeBounds {
 export interface UseViewportBoundariesOptions {
   /** Computed bounds of all nodes */
   nodeBounds: NodeBounds;
-  /** Container element ref for measuring */
+  /** Container element ref for measuring (the DAG container) */
   containerRef: RefObject<HTMLDivElement | null>;
-  /**
-   * Compute visible width from container width.
-   * This allows the parent to control how visible area is calculated
-   * (e.g., accounting for overlays, panels, sidebars).
-   *
-   * @param containerWidth - The full container width in pixels
-   * @returns The visible width in pixels
-   *
-   * @example
-   * // Full width (default)
-   * getVisibleWidth: (w) => w
-   *
-   * // Right panel taking 30%
-   * getVisibleWidth: (w) => w * 0.7
-   *
-   * // Fixed sidebar of 300px
-   * getVisibleWidth: (w) => w - 300
-   */
-  getVisibleWidth?: (containerWidth: number) => number;
-  /**
-   * Dependencies that should trigger viewport re-clamping.
-   * When any value in this array changes, bounds are recalculated.
-   * Use this to pass values that affect getVisibleWidth results.
-   *
-   * @example
-   * // Re-clamp when panel state changes
-   * boundsDeps: [isPanelOpen, panelPct]
-   */
-  boundsDeps?: unknown[];
   /** Currently selected node ID/name (for auto-pan) */
   selectedGroupName?: string | null;
   /** Current panel view state (for auto-pan trigger) */
   panelView?: string;
   /** All nodes (for finding selected node position) */
   nodes: Node[];
+
+  // --- Initial load & layout direction change ---
+
+  /** Current layout direction (TB or LR) - triggers re-center on change */
+  layoutDirection: LayoutDirection;
+  /** IDs of root nodes (nodes with no incoming edges) - for initial centering */
+  rootNodeIds: string[];
+  /**
+   * Optional: Node ID to center on during initial load (from URL).
+   * When provided, initial view will center on this node instead of the first root node.
+   * Useful for deep-linking to a specific node.
+   */
+  initialSelectedNodeId?: string | null;
 }
 
 export interface ViewportBoundariesResult {
@@ -112,17 +107,15 @@ export interface ViewportBoundariesResult {
 // Hook Implementation
 // ============================================================================
 
-/** Default: full container width is visible */
-const defaultGetVisibleWidth = (containerWidth: number) => containerWidth;
-
 export function useViewportBoundaries({
   nodeBounds,
   containerRef,
-  getVisibleWidth = defaultGetVisibleWidth,
-  boundsDeps = [],
   selectedGroupName = null,
   panelView = "none",
   nodes,
+  layoutDirection,
+  rootNodeIds,
+  initialSelectedNodeId,
 }: UseViewportBoundariesOptions): ViewportBoundariesResult {
   const reactFlowInstance = useReactFlow();
 
@@ -133,7 +126,18 @@ export function useViewportBoundaries({
     zoom: VIEWPORT.DEFAULT_ZOOM,
   });
 
-  // Track previous selection to detect new selections
+  // ---------------------------------------------------------------------------
+  // Initialization & Layout Direction Tracking
+  // ---------------------------------------------------------------------------
+
+  /** Track if initial centering has been performed */
+  const hasInitializedRef = useRef(false);
+  /** Track previous layout direction for detecting changes */
+  const prevLayoutDirectionRef = useRef(layoutDirection);
+  /** Track if we've handled the initial selected node (only try once per deep link) */
+  const hasHandledInitialSelectionRef = useRef(false);
+
+  // Track previous selection to detect new selections (for auto-pan on selection)
   const prevSelectionRef = useRef<string | null>(null);
 
   // Flag to indicate animation is in progress - skip clamping during animation
@@ -145,14 +149,6 @@ export function useViewportBoundaries({
   // Reusable viewport object to avoid allocations in hot path
   const clampedViewportCache = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
 
-  // Detect pending animation during render (before effects run)
-  // This allows us to skip re-clamping when we're about to animate
-  const hasPendingAnimation =
-    selectedGroupName !== null &&
-    panelView !== "none" &&
-    panelView !== "workflow" &&
-    prevSelectionRef.current !== selectedGroupName;
-
   // Cache container dimensions to avoid repeated DOM reads during pan
   const containerDimsRef = useRef<{ width: number; height: number }>({
     width: VIEWPORT.ESTIMATED_WIDTH as number,
@@ -160,43 +156,43 @@ export function useViewportBoundaries({
   });
 
   // Reusable objects to avoid allocations in hot path
-  const visibleAreaCache = useRef({ width: 0, height: 0 });
   const boundsCache = useRef({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
 
   // Stable refs for values used in handlers to avoid stale closures
   const nodeBoundsRef = useSyncedRef(nodeBounds);
-  const getVisibleWidthRef = useSyncedRef(getVisibleWidth);
   const viewportRef = useSyncedRef(viewport);
+  const nodesRef = useSyncedRef(nodes);
 
   // ---------------------------------------------------------------------------
-  // Helpers
+  // Container Resize Detection (via usehooks-ts)
   // ---------------------------------------------------------------------------
 
-  // Update cached container dimensions
-  const updateContainerDims = useCallback(() => {
-    const container = containerRef.current;
+  // Use useResizeObserver for efficient container dimension tracking
+  // This handles both window resize and panel-induced container resize automatically
+  // Note: Cast to RefObject<HTMLElement> since usehooks-ts types don't accept null
+  const { width: containerWidth = VIEWPORT.ESTIMATED_WIDTH, height: containerHeight = VIEWPORT.ESTIMATED_HEIGHT } =
+    useResizeObserver({ ref: containerRef as React.RefObject<HTMLElement>, box: "border-box" });
+
+  // Update cached dimensions when container size changes
+  // This keeps the hot path fast by avoiding DOM reads during pan/zoom
+  useEffect(() => {
     containerDimsRef.current = {
-      width: container?.clientWidth || VIEWPORT.ESTIMATED_WIDTH,
-      height: container?.clientHeight || VIEWPORT.ESTIMATED_HEIGHT,
+      width: containerWidth,
+      height: containerHeight,
     };
-  }, [containerRef]);
+  }, [containerWidth, containerHeight]);
 
   // ---------------------------------------------------------------------------
   // Helpers - Optimized for Hot Path (no allocations)
   // ---------------------------------------------------------------------------
 
   /**
-   * Get visible area using cached dimensions (no DOM read during pan).
-   * MUTATES visibleAreaCache to avoid allocations in hot path.
+   * Get visible area from container dimensions.
+   * In the side-by-side model, the container IS the visible area.
    */
   const getVisibleArea = useCallback(() => {
-    const { width: containerWidth, height: containerHeight } = containerDimsRef.current;
-    const visibleWidth = getVisibleWidthRef.current(containerWidth);
-    // Mutate cached object instead of creating new one
-    visibleAreaCache.current.width = Math.max(100, visibleWidth);
-    visibleAreaCache.current.height = containerHeight;
-    return visibleAreaCache.current;
-  }, [getVisibleWidthRef]);
+    return containerDimsRef.current;
+  }, []);
 
   /**
    * Calculate viewport bounds based on visible area and zoom.
@@ -247,6 +243,54 @@ export function useViewportBoundaries({
     [getVisibleArea, getViewportBounds],
   );
 
+  /**
+   * Get node dimensions from node data, falling back to defaults.
+   */
+  const getNodeDimensions = useCallback(
+    (nodeId: string): { width: number; height: number } => {
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      if (!node) {
+        return { width: NODE_DEFAULTS.width, height: NODE_DEFAULTS.height };
+      }
+      const data = node.data as Record<string, unknown> | undefined;
+      return {
+        width: (data?.nodeWidth as number) || NODE_DEFAULTS.width,
+        height: (data?.nodeHeight as number) || NODE_DEFAULTS.height,
+      };
+    },
+    [nodesRef],
+  );
+
+  /**
+   * Center viewport on a specific node with animation.
+   * Uses the node's actual dimensions from data.
+   *
+   * @returns true if the node was found and centered, false otherwise.
+   */
+  const centerOnNode = useCallback(
+    (nodeId: string, zoom: number, duration: number): boolean => {
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      if (!node) return false;
+
+      const dims = getNodeDimensions(nodeId);
+      const centerX = node.position.x + dims.width / 2;
+      const centerY = node.position.y + dims.height / 2;
+
+      // Enable animation mode
+      isAnimatingRef.current = true;
+
+      reactFlowInstance.setCenter(centerX, centerY, { zoom, duration });
+
+      // Disable animation mode after animation completes
+      setTimeout(() => {
+        isAnimatingRef.current = false;
+      }, duration + ANIMATION.BUFFER);
+
+      return true;
+    },
+    [nodesRef, getNodeDimensions, reactFlowInstance],
+  );
+
   // ---------------------------------------------------------------------------
   // Viewport change handler (clamps before state update = no flicker)
   // ---------------------------------------------------------------------------
@@ -282,10 +326,9 @@ export function useViewportBoundaries({
     // Cache local references to avoid repeated property access
     const dims = containerDimsRef.current;
     const bounds = nodeBoundsRef.current;
-    const getVisWidth = getVisibleWidthRef.current;
 
-    // Calculate visible area (inline to avoid function call overhead)
-    const visWidth = Math.max(100, getVisWidth(dims.width));
+    // Calculate visible area (inline - container IS visible area now)
+    const visWidth = Math.max(100, dims.width);
     const visHeight = dims.height;
 
     // Calculate viewport limits (inline)
@@ -357,54 +400,106 @@ export function useViewportBoundaries({
   });
 
   // ---------------------------------------------------------------------------
-  // Update container dimensions on mount, panel changes, and window resize
+  // Re-clamp viewport when bounds change (node bounds or container size)
+  // Uses useRafCallback to defer setState per React Compiler guidelines
   // ---------------------------------------------------------------------------
 
+  // RAF-throttled viewport update - triggers on next animation frame
+  const [scheduleReclamp, cancelReclamp] = useRafCallback(() => {
+    setViewport((prev) => clampViewport(prev));
+  });
+
+  // Re-clamp when container size or node bounds change
   useEffect(() => {
-    updateContainerDims();
+    // Check for pending animation inside effect (not during render)
+    const hasPendingAnimation =
+      selectedGroupName !== null &&
+      panelView !== "none" &&
+      panelView !== "workflow" &&
+      prevSelectionRef.current !== selectedGroupName;
 
-    // Throttled resize handler using RAF to avoid excessive updates
-    let rafId: number | null = null;
-    const handleResize = () => {
-      // RAF throttle: skip if already scheduled
-      if (rafId !== null) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        updateContainerDims();
-      });
-    };
-
-    // Use passive: true for resize listener (better scroll perf on mobile)
-    window.addEventListener("resize", handleResize, { passive: true });
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [updateContainerDims]);
-
-  // ---------------------------------------------------------------------------
-  // Re-clamp viewport when bounds change (visible area change, node layout change)
-  // Update container dims FIRST to ensure clamp uses current dimensions
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
     // Skip re-clamping if animation is in progress or pending
-    // The animation will end at a valid clamped position anyway
     if (isAnimatingRef.current || hasPendingAnimation) {
-      // Still update container dimensions for the upcoming animation
-      updateContainerDims();
       return;
     }
 
-    // Update container dimensions before clamping to avoid stale values
-    updateContainerDims();
-    setViewport((prev) => clampViewport(prev));
-    // Re-run when nodeBounds changes or any boundsDeps value changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeBounds, clampViewport, updateContainerDims, hasPendingAnimation, ...boundsDeps]);
+    // Schedule viewport re-clamp on next animation frame
+    scheduleReclamp();
+
+    return () => cancelReclamp();
+  }, [nodeBounds, containerWidth, containerHeight, selectedGroupName, panelView, scheduleReclamp, cancelReclamp]);
 
   // ---------------------------------------------------------------------------
-  // Auto-pan to selected node
+  // Initial Load Centering
+  // Waits for nodes to be ready, then centers on:
+  // 1. Deep-linked node (initialSelectedNodeId) if provided and found
+  // 2. First root node otherwise
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    // Skip if already initialized
+    if (hasInitializedRef.current) return;
+
+    // Wait for nodes to be available (layout must be complete)
+    if (nodes.length === 0) return;
+    if (rootNodeIds.length === 0) return;
+
+    // Delay to ensure container dimensions are measured (via useResizeObserver)
+    const timer = setTimeout(() => {
+      // Try to center on deep-linked node first
+      if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
+        hasHandledInitialSelectionRef.current = true;
+        const found = centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION);
+        if (found) {
+          hasInitializedRef.current = true;
+          prevLayoutDirectionRef.current = layoutDirection;
+          // Mark this selection as handled so auto-pan doesn't trigger again
+          prevSelectionRef.current = initialSelectedNodeId;
+          return;
+        }
+        // Node not found - fall through to root
+      }
+
+      // Default: center on first root node
+      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION);
+      hasInitializedRef.current = true;
+      prevLayoutDirectionRef.current = layoutDirection;
+    }, ANIMATION.DELAY);
+
+    return () => clearTimeout(timer);
+  }, [
+    nodes.length,
+    rootNodeIds,
+    layoutDirection,
+    initialSelectedNodeId,
+    centerOnNode,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // Layout Direction Change Re-centering
+  // When layout direction changes (after initial load), re-center on root
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    // Skip if not initialized yet (initial load handles this)
+    if (!hasInitializedRef.current) return;
+
+    // Skip if layout direction hasn't changed
+    if (prevLayoutDirectionRef.current === layoutDirection) return;
+
+    // Layout direction changed - re-center on root after layout settles
+    const timer = setTimeout(() => {
+      if (rootNodeIds.length > 0) {
+        centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION);
+      }
+      prevLayoutDirectionRef.current = layoutDirection;
+    }, ANIMATION.DELAY);
+
+    return () => clearTimeout(timer);
+  }, [layoutDirection, rootNodeIds, centerOnNode]);
+
+  // ---------------------------------------------------------------------------
+  // Auto-pan to selected node (selection change after initial load)
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
@@ -424,19 +519,15 @@ export function useViewportBoundaries({
     // Mark this selection as handled (node was found and we're about to pan)
     prevSelectionRef.current = selectedGroupName;
 
-    // Use double RAF to ensure layout is complete (panel expansion animation, etc.)
+    // Use double RAF to ensure layout is complete
     let innerFrameId: number;
     let animationTimeoutId: ReturnType<typeof setTimeout>;
     const outerFrameId = requestAnimationFrame(() => {
       innerFrameId = requestAnimationFrame(() => {
-        updateContainerDims();
-
-        // Get node dimensions from data if available
-        const nodeData = selectedNode.data as Record<string, unknown> | undefined;
-        const nodeWidth = (nodeData?.nodeWidth as number) || NODE_DEFAULTS.width;
-        const nodeHeight = (nodeData?.nodeHeight as number) || NODE_DEFAULTS.height;
-        const nodeCenterX = selectedNode.position.x + nodeWidth / 2;
-        const nodeCenterY = selectedNode.position.y + nodeHeight / 2;
+        // Get node dimensions from data
+        const dims = getNodeDimensions(selectedGroupName);
+        const nodeCenterX = selectedNode.position.x + dims.width / 2;
+        const nodeCenterY = selectedNode.position.y + dims.height / 2;
 
         const currentViewport = reactFlowInstance.getViewport();
         const { width, height } = getVisibleArea();
@@ -471,7 +562,15 @@ export function useViewportBoundaries({
       clearTimeout(animationTimeoutId);
       isAnimatingRef.current = false;
     };
-  }, [selectedGroupName, panelView, nodes, reactFlowInstance, getVisibleArea, clampViewport, updateContainerDims]);
+  }, [
+    selectedGroupName,
+    panelView,
+    nodes,
+    reactFlowInstance,
+    getVisibleArea,
+    clampViewport,
+    getNodeDimensions,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Clear refs when selection is cleared (back to workflow view)
