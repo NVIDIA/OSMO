@@ -129,7 +129,8 @@ function formatState(snapshot: DebugSnapshot): Record<string, unknown> {
     columns: snapshot.columnIds.map((id) => {
       const contentWidth = snapshot.contentWidths[id] ?? 0;
       const configuredWidth = snapshot.configuredSizes[id] ?? 150;
-      const threshold = getTruncationThreshold(contentWidth, configuredWidth);
+      // Threshold is just contentWidth (no longer max with configuredWidth)
+      const threshold = getTruncationThreshold(contentWidth);
       return {
         id,
         current: snapshot.columnSizing[id] ?? "undefined",

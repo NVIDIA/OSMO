@@ -104,18 +104,16 @@ export function getColumnCSSValue(columnId: string, fallback: number = 150): str
  * Get the truncation threshold for a column.
  * This is the width below which content will be truncated.
  *
- * Single source of truth used for:
- * - Mode detection in endResize (TRUNCATE vs NO_TRUNCATE)
- * - Floor calculation in calculateColumnWidths (NO_TRUNCATE mode)
- * - Auto-fit target validation
- * - Debug snapshot formatting
+ * Used for mode detection in endResize (TRUNCATE vs NO_TRUNCATE).
+ * When user resizes a column:
+ * - If newWidth < contentWidth → user accepts truncation (TRUNCATE mode)
+ * - If newWidth >= contentWidth → user wants full content (NO_TRUNCATE mode)
  *
  * @param contentWidth - Measured content width (0 if not measured)
- * @param configuredWidth - Default/preferred width from column config
- * @returns The larger of the two - ensures we don't truncate measured content
+ * @returns The content width - this is what we're protecting from truncation
  */
-export function getTruncationThreshold(contentWidth: number, configuredWidth: number): number {
-  return Math.max(contentWidth, configuredWidth);
+export function getTruncationThreshold(contentWidth: number): number {
+  return contentWidth;
 }
 
 // =============================================================================
@@ -160,14 +158,16 @@ export function calculateColumnWidths(
     if (pref) {
       switch (pref.mode) {
         case PreferenceModes.NO_TRUNCATE: {
-          // Use truncation threshold as floor to prevent content truncation
-          // getTruncationThreshold returns max(contentWidth, configuredWidth)
-          const threshold = getTruncationThreshold(contentWidth ?? 0, configuredWidth);
-          floor = Math.max(threshold, min);
+          // NO_TRUNCATE: protect content from truncation
+          // Floor = measured contentWidth, or pref.width (from auto-fit) as fallback
+          // This ensures we honor the user's explicit "show full content" intent
+          const protectedWidth = (contentWidth ?? 0) > 0 ? contentWidth : pref.width;
+          floor = Math.max(protectedWidth, min);
           break;
         }
         case PreferenceModes.TRUNCATE:
-          floor = Math.max(pref.width, min);
+          // TRUNCATE: user accepts truncation, can shrink to min
+          floor = min;
           break;
         default:
           assertNever(pref.mode);
