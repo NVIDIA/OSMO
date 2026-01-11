@@ -35,8 +35,9 @@
 
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useLocalStorage } from "usehooks-ts";
+import { useStableCallback } from "@/hooks";
 
 export interface UseSidebarCollapsedOptions {
   /** Whether there's an active group/task selection from URL */
@@ -45,70 +46,83 @@ export interface UseSidebarCollapsedOptions {
   selectionKey: string | null;
 }
 
+/**
+ * Internal state shape that tracks both session collapsed state and the selection key
+ * that was active when the user last manually changed the collapsed state.
+ */
+interface SessionState {
+  /** Whether the user has manually collapsed/expanded during this selection */
+  collapsed: boolean | null;
+  /** The selection key when the user last manually toggled */
+  forSelectionKey: string | null;
+}
+
+const INITIAL_SESSION_STATE: SessionState = {
+  collapsed: null,
+  forSelectionKey: null,
+};
+
 export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCollapsedOptions) {
   // User preference for default state (used when no selection)
-  const [preferredCollapsed, setPreferredCollapsed] = useLocalStorage(
-    "osmo-workflow-details-sidebar-collapsed",
-    false,
-  );
+  const [preferredCollapsed, setPreferredCollapsed] = useLocalStorage("osmo-workflow-details-sidebar-collapsed", false);
 
-  // Current collapsed state (may differ from preference during navigation)
-  const [sessionCollapsed, setSessionCollapsed] = useState<boolean | null>(null);
+  // Session state tracks manual collapse/expand AND the selection it applies to
+  const [sessionState, setSessionState] = useState<SessionState>(INITIAL_SESSION_STATE);
 
-  // Track the previous selection key to detect navigation changes
-  const prevSelectionKeyRef = useRef<string | null>(null);
+  // Determine if the current session state applies to the current selection
+  // If the selection has changed, the previous session state is stale
+  const isSessionStateValid = sessionState.forSelectionKey === selectionKey;
 
-  // Determine effective collapsed state
-  // - If no selection: use user preference
-  // - If selection and session state set: use session state
-  // - If selection but no session state yet: expanded (auto-expand on first navigation)
-  const collapsed = hasSelection
-    ? sessionCollapsed ?? false // Default to expanded when navigating to selection
-    : preferredCollapsed;
+  // Get effective session collapsed value (null if stale or not set)
+  const effectiveSessionCollapsed = isSessionStateValid ? sessionState.collapsed : null;
 
-  // Auto-expand when navigating to a NEW selection
-  // This runs when selectionKey changes (user clicked different group/task or navigated via URL)
-  useEffect(() => {
-    if (selectionKey !== prevSelectionKeyRef.current) {
-      if (selectionKey !== null) {
-        // Navigating to a new selection: auto-expand
-        setSessionCollapsed(false);
-      } else {
-        // Navigating away from selection (back to workflow): reset session state
-        setSessionCollapsed(null);
-      }
-      prevSelectionKeyRef.current = selectionKey;
+  // Determine effective collapsed state using useMemo for stable reference
+  const collapsed = useMemo(() => {
+    if (!hasSelection) {
+      // No selection: use user preference
+      return preferredCollapsed;
     }
-  }, [selectionKey]);
+    // Has selection: use session state if valid, otherwise default to expanded
+    return effectiveSessionCollapsed ?? false;
+  }, [hasSelection, preferredCollapsed, effectiveSessionCollapsed]);
 
-  // Toggle collapsed state
-  const toggle = useCallback(() => {
+  // Toggle collapsed state - stable callback for memoized children
+  const toggle = useStableCallback(() => {
     if (hasSelection) {
-      // During selection: update session state
-      setSessionCollapsed((prev) => !(prev ?? false));
+      // During selection: update session state with current selection key
+      setSessionState((prev) => ({
+        collapsed: !(prev.forSelectionKey === selectionKey ? (prev.collapsed ?? false) : false),
+        forSelectionKey: selectionKey,
+      }));
     } else {
       // Workflow view: update preference
       setPreferredCollapsed((prev) => !prev);
     }
-  }, [hasSelection, setPreferredCollapsed]);
+  });
 
-  // Expand panel
-  const expand = useCallback(() => {
+  // Expand panel - stable callback for memoized children
+  const expand = useStableCallback(() => {
     if (hasSelection) {
-      setSessionCollapsed(false);
+      setSessionState({
+        collapsed: false,
+        forSelectionKey: selectionKey,
+      });
     } else {
       setPreferredCollapsed(false);
     }
-  }, [hasSelection, setPreferredCollapsed]);
+  });
 
-  // Collapse panel
-  const collapse = useCallback(() => {
+  // Collapse panel - stable callback for memoized children
+  const collapse = useStableCallback(() => {
     if (hasSelection) {
-      setSessionCollapsed(true);
+      setSessionState({
+        collapsed: true,
+        forSelectionKey: selectionKey,
+      });
     } else {
       setPreferredCollapsed(true);
     }
-  }, [hasSelection, setPreferredCollapsed]);
+  });
 
   return {
     /** Current collapsed state (considering preference and navigation) */
