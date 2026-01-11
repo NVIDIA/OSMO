@@ -41,4 +41,3 @@ export const MOCK_ENABLED_STORAGE_KEY = "osmo_use_mock_data";
 export function MockProvider({ children }: MockProviderProps) {
   return <>{children}</>;
 }
-
