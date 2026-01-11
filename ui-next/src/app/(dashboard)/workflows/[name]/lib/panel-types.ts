@@ -81,6 +81,11 @@ export interface DetailsPanelProps {
   onCancelWorkflow?: () => void;
   /** Main content to render behind the panel (DAG canvas) */
   mainContent: React.ReactNode;
+  /**
+   * Fallback content to render in the panel when no view matches.
+   * Used for loading skeletons, error states, etc.
+   */
+  fallbackContent?: React.ReactNode;
 }
 
 /**

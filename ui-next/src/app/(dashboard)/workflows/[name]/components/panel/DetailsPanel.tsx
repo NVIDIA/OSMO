@@ -141,6 +141,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   onToggleCollapsed,
   onCancelWorkflow,
   mainContent,
+  fallbackContent,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
@@ -235,6 +236,9 @@ export const DetailsPanel = memo(function DetailsPanel({
           onToggleDetailsExpanded={onToggleDetailsExpanded}
         />
       )}
+
+      {/* Fallback content (loading/error states) */}
+      {fallbackContent}
     </ResizablePanel>
   );
 });
