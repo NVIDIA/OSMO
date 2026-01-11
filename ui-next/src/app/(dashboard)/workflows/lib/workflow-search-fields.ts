@@ -19,13 +19,102 @@
  *
  * Defines searchable fields for the workflow list page.
  * Used by SmartSearch component for autocomplete and filtering.
+ *
+ * NOTE: Filtering is done server-side. The `match` functions are stubs
+ * since we pass filters directly to the backend API.
  */
 
-import type { SearchField } from "@/components/smart-search";
+import type { SearchField, SearchChip } from "@/components/smart-search";
 import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
-import { STATUS_CATEGORY_MAP, matchStatus, getStatusSuggestions, ALL_WORKFLOW_STATUSES } from "./workflow-constants";
+import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
+
+// =============================================================================
+// Status Presets
+// =============================================================================
+
+/**
+ * Status category presets.
+ * Each preset expands to multiple status chips when selected.
+ */
+export const STATUS_PRESETS = {
+  running: ["RUNNING"] as const,
+  waiting: ["PENDING", "WAITING"] as const,
+  completed: ["COMPLETED"] as const,
+  failed: [
+    "FAILED",
+    "FAILED_SUBMISSION",
+    "FAILED_SERVER_ERROR",
+    "FAILED_EXEC_TIMEOUT",
+    "FAILED_QUEUE_TIMEOUT",
+    "FAILED_CANCELED",
+    "FAILED_BACKEND_ERROR",
+    "FAILED_IMAGE_PULL",
+    "FAILED_EVICTED",
+    "FAILED_START_ERROR",
+    "FAILED_START_TIMEOUT",
+    "FAILED_PREEMPTED",
+  ] as const,
+} as const;
+
+export type StatusPresetId = keyof typeof STATUS_PRESETS;
+
+/**
+ * Create chips for a status preset.
+ */
+export function createPresetChips(presetId: StatusPresetId): SearchChip[] {
+  const statuses = STATUS_PRESETS[presetId];
+  return statuses.map((status) => ({
+    field: "status",
+    value: status,
+    label: `Status: ${STATUS_LABELS[status] ?? status}`,
+  }));
+}
+
+/**
+ * Check if a preset is fully satisfied by the current chips.
+ * A preset is active only if ALL its statuses are present.
+ */
+export function isPresetActive(presetId: StatusPresetId, chips: SearchChip[]): boolean {
+  const presetStatuses = STATUS_PRESETS[presetId];
+  const statusChips = chips.filter((c) => c.field === "status");
+  const statusValues = new Set(statusChips.map((c) => c.value));
+
+  return presetStatuses.every((status) => statusValues.has(status));
+}
+
+/**
+ * Toggle a preset on/off.
+ * - If active (all statuses present): remove all preset statuses
+ * - If inactive: add all preset statuses
+ */
+export function togglePreset(presetId: StatusPresetId, chips: SearchChip[]): SearchChip[] {
+  const isActive = isPresetActive(presetId, chips);
+  const presetStatusArray = STATUS_PRESETS[presetId];
+  const presetStatusSet = new Set<string>(presetStatusArray);
+
+  if (isActive) {
+    // Remove all preset statuses
+    return chips.filter((c) => !(c.field === "status" && presetStatusSet.has(c.value)));
+  } else {
+    // Add missing preset statuses
+    const existingStatuses = new Set(chips.filter((c) => c.field === "status").map((c) => c.value));
+    const newChips = [...chips];
+
+    for (const status of presetStatusArray) {
+      if (!existingStatuses.has(status)) {
+        newChips.push({
+          field: "status",
+          value: status,
+          label: `Status: ${STATUS_LABELS[status] ?? status}`,
+        });
+      }
+    }
+
+    return newChips;
+  }
+}
 
 // =============================================================================
 // Search Fields
@@ -33,68 +122,28 @@ export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 
 /**
  * Pre-built workflow search fields (frozen to prevent accidental mutation).
+ *
+ * NOTE: Filtering is done server-side. No `match` functions needed.
+ * Chips are converted to API params in workflows-shim.ts.
  */
 export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze([
   {
     id: "name",
     label: "Name",
-    hint: "workflow name",
+    hint: "workflow name (substring match)",
     prefix: "name:",
     freeFormHint: "Type any name, press Enter",
     getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
-    match: (workflow, value) => workflow.name.toLowerCase().includes(value.toLowerCase()),
   },
   {
     id: "status",
     label: "Status",
-    hint: "status or category (e.g., failed, FAILED_IMAGE_PULL)",
+    hint: "workflow status",
     prefix: "status:",
-    // Static enum - suggestions are exhaustive (all valid statuses)
+    // Only real status values are valid - use presets for categories
     getValues: () => [...ALL_WORKFLOW_STATUSES],
     exhaustive: true,
-    match: (workflow, value) => {
-      const valueLower = value.toLowerCase();
-
-      // 1. Category match (running, waiting, completed, failed)
-      const category = STATUS_CATEGORY_MAP[workflow.status];
-      if (category === valueLower) {
-        return true;
-      }
-
-      // 2. Fuzzy status match using pre-computed index
-      const result = matchStatus(value);
-      if (result.status) {
-        return workflow.status === result.status;
-      }
-
-      // 3. Partial match - check if any candidate matches
-      return result.candidates.includes(workflow.status);
-    },
-    // Custom validation that normalizes input to canonical form
-    validate: (value) => {
-      const valueLower = value.toLowerCase();
-
-      // Allow category values directly
-      if (["running", "waiting", "completed", "failed"].includes(valueLower)) {
-        return true;
-      }
-
-      // Try fuzzy match
-      const result = matchStatus(value);
-
-      // Accept if we have any candidates (will filter to matching workflows)
-      if (result.candidates.length > 0) {
-        return true;
-      }
-
-      // Suggest similar statuses
-      const suggestions = getStatusSuggestions(value.slice(0, 3), 3);
-      if (suggestions.length > 0) {
-        return `Unknown status. Did you mean: ${suggestions.join(", ")}?`;
-      }
-
-      return `Unknown status "${value}"`;
-    },
+    requiresValidValue: true,
   },
   {
     id: "user",
@@ -103,7 +152,6 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     prefix: "user:",
     freeFormHint: "Type any username, press Enter",
     getValues: (workflows) => [...new Set(workflows.map((w) => w.user))].sort().slice(0, 20),
-    match: (workflow, value) => workflow.user.toLowerCase().includes(value.toLowerCase()),
   },
   {
     id: "pool",
@@ -112,7 +160,6 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     prefix: "pool:",
     freeFormHint: "Type any pool, press Enter",
     getValues: (workflows) => [...new Set(workflows.map((w) => w.pool).filter((p): p is string => !!p))].sort(),
-    match: (workflow, value) => workflow.pool?.toLowerCase().includes(value.toLowerCase()) ?? false,
   },
   {
     id: "priority",
@@ -121,7 +168,6 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     prefix: "priority:",
     getValues: () => ["HIGH", "NORMAL", "LOW"],
     exhaustive: true,
-    match: (workflow, value) => workflow.priority.toUpperCase() === value.toUpperCase(),
     requiresValidValue: true,
   },
   {
@@ -131,6 +177,14 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     prefix: "app:",
     freeFormHint: "Type any app, press Enter",
     getValues: (workflows) => [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(),
-    match: (workflow, value) => workflow.app_name?.toLowerCase().includes(value.toLowerCase()) ?? false,
+  },
+  {
+    id: "tag",
+    label: "Tag",
+    hint: "workflow tag",
+    prefix: "tag:",
+    freeFormHint: "Type any tag, press Enter",
+    // Tags aren't in the list response, so no suggestions from data
+    getValues: () => [],
   },
 ]);

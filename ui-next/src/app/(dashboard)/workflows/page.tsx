@@ -41,6 +41,7 @@ import { useUrlChips } from "@/hooks";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
 import { WorkflowsToolbar } from "./components/workflows-toolbar";
 import { useWorkflowsData } from "./hooks/use-workflows-data";
+import { useWorkflowsPreferencesStore, useWorkflowsTableStore } from "./stores/workflows-table-store";
 
 // =============================================================================
 // Main Page Component
@@ -56,6 +57,13 @@ export default function WorkflowsPage() {
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
+
+  // Show all users toggle from preferences store
+  const showAllUsers = useWorkflowsPreferencesStore((s) => s.showAllUsers);
+
+  // Sort direction from table store (only submit_time is sortable server-side)
+  const sortState = useWorkflowsTableStore((s) => s.sort);
+  const sortDirection = (sortState?.direction === "asc" ? "ASC" : "DESC") as "ASC" | "DESC";
 
   // ==========================================================================
   // Data Fetching with SmartSearch filtering and pagination
@@ -75,6 +83,8 @@ export default function WorkflowsPage() {
     hasActiveFilters,
   } = useWorkflowsData({
     searchChips,
+    showAllUsers,
+    sortDirection,
   });
 
   // Results count for SmartSearch display
