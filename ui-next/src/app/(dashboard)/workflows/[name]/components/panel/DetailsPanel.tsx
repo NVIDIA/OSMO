@@ -23,12 +23,17 @@
  * - Collapsible to edge strip
  * - Breadcrumb navigation between layers
  * - Screen reader announcements
+ * - URL-synced navigation for shareable deep links
  *
  * Architecture:
  * - DetailsPanel (container): Composes ResizablePanel, handles view switching
  * - WorkflowDetails (content): Workflow-level info (base layer)
  * - GroupDetails (content): Task list with search, sort, filter
  * - TaskDetails (content): Task info, actions, sibling navigation
+ *
+ * Keyboard Navigation:
+ * - Escape → Collapse panel (URL navigation handles back via browser)
+ * - Enter → Expand panel (when collapsed, handled in page.tsx)
  */
 
 "use client";
@@ -139,16 +144,13 @@ export const DetailsPanel = memo(function DetailsPanel({
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
-  // Multi-layer escape key navigation: task → group → workflow → collapse
+  // Escape key collapses the panel
+  // Back navigation is handled via browser back button (URL-synced via nuqs)
   const handleEscapeKey = useCallback(() => {
-    if (view === "task") {
-      onBackToGroup();
-    } else if (view === "group") {
-      onBackToWorkflow();
-    } else if (onToggleCollapsed) {
+    if (onToggleCollapsed) {
       onToggleCollapsed();
     }
-  }, [view, onBackToGroup, onBackToWorkflow, onToggleCollapsed]);
+  }, [onToggleCollapsed]);
 
   // Announce panel state changes to screen readers
   useEffect(() => {
