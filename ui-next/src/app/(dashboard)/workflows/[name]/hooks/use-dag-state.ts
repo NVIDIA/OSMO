@@ -29,9 +29,10 @@
 
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
+import { useStableCallback } from "@/hooks";
 import { VIEWPORT, type LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
 import { transformGroups } from "../lib/workflow-adapter";
@@ -118,8 +119,8 @@ export function useDAGState({
     };
   }, []);
 
-  // Callbacks for expansion state
-  const handleToggleExpand = useCallback((groupName: string) => {
+  // Callbacks for expansion state - stable callbacks for memoized children
+  const handleToggleExpand = useStableCallback((groupName: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupName)) {
@@ -129,31 +130,25 @@ export function useDAGState({
       }
       return next;
     });
-  }, []);
+  });
 
-  const handleExpandAll = useCallback(() => {
+  const handleExpandAll = useStableCallback(() => {
     const expandableNames = groupsWithLayout.filter((g) => (g.tasks || []).length > 1).map((g) => g.name);
     setExpandedGroups(new Set(expandableNames));
-  }, [groupsWithLayout]);
+  });
 
-  const handleCollapseAll = useCallback(() => {
+  const handleCollapseAll = useStableCallback(() => {
     setExpandedGroups(new Set());
-  }, []);
+  });
 
   // Selection handlers - delegate to external navigation callbacks
-  const handleSelectGroup = useCallback(
-    (group: GroupWithLayout) => {
-      onSelectGroup?.(group);
-    },
-    [onSelectGroup],
-  );
+  const handleSelectGroup = useStableCallback((group: GroupWithLayout) => {
+    onSelectGroup?.(group);
+  });
 
-  const handleSelectTask = useCallback(
-    (task: TaskQueryResponse, group: GroupWithLayout) => {
-      onSelectTask?.(task, group);
-    },
-    [onSelectTask],
-  );
+  const handleSelectTask = useStableCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+    onSelectTask?.(task, group);
+  });
 
   // ReactFlow state - typed for our node data
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
