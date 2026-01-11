@@ -30,8 +30,9 @@
  * - Enter/Space: Activate row (trigger click)
  */
 
-import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useLayoutEffect } from "react";
 import { useSyncedRef } from "@react-hookz/web";
+import { useUnmount } from "usehooks-ts";
 
 // =============================================================================
 // Types
@@ -90,13 +91,11 @@ export function useRowNavigation({
   const onScrollToRowRef = useSyncedRef(onScrollToRow);
 
   // Cleanup RAF on unmount
-  useEffect(() => {
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-    };
-  }, []);
+  useUnmount(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+  });
 
   // Clamp index to valid range
   const clampIndex = useCallback((index: number): number => Math.max(0, Math.min(rowCount - 1, index)), [rowCount]);

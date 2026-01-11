@@ -16,12 +16,13 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useMemo } from "react";
+import { useEventListener, useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 
@@ -149,7 +150,7 @@ export function ResizablePanel({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Drag state for resize handle
-  const [isDragging, setIsDragging] = useState(false);
+  const { value: isDragging, setTrue: startDragging, setFalse: stopDragging } = useBoolean(false);
   // Store the width at drag start to calculate absolute new width from movement
   const startWidthRef = useRef(width);
   // Cache container width at drag start to avoid layout reflows during drag
@@ -179,12 +180,12 @@ export function ResizablePanel({
   }, [isDragging, width]);
 
   // Stable callbacks to prevent stale closures in effects and event handlers
-  const stableOnClose = useStableCallback(onClose);
-  const stableOnWidthChange = useStableCallback(onWidthChange);
-  const stableOnEscapeKey = useStableCallback(onEscapeKey ?? onClose);
+  const stableOnClose = useEventCallback(onClose);
+  const stableOnWidthChange = useEventCallback(onWidthChange);
+  const stableOnEscapeKey = useEventCallback(onEscapeKey ?? onClose);
 
   // Handle keyboard events on panel - using stable callback
-  const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       // Only handle if no dropdown/popover is open
       const target = e.target as HTMLElement;
@@ -196,21 +197,20 @@ export function ResizablePanel({
   });
 
   // Global escape key handler when panel is open
-  useEffect(() => {
-    if (!open) return;
-
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+  useEventListener(
+    "keydown",
+    (e: KeyboardEvent) => {
+      if (!open) return;
       if (e.key === "Escape") {
         const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
         if (!isInDropdown) {
           stableOnEscapeKey();
         }
       }
-    };
-
-    document.addEventListener("keydown", handleGlobalKeyDown);
-    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [open, stableOnEscapeKey]);
+    },
+    undefined,
+    { passive: true },
+  );
 
   // Resize drag handler using @use-gesture/react
   //
@@ -224,7 +224,7 @@ export function ResizablePanel({
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
-        setIsDragging(true);
+        startDragging();
         // Capture current width at drag start - use ref which is synced during render
         startWidthRef.current = widthRef.current;
         // Cache container width to avoid layout reflows during drag
@@ -249,7 +249,7 @@ export function ResizablePanel({
       }
 
       if (last) {
-        setIsDragging(false);
+        stopDragging();
       }
     },
     {

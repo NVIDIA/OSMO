@@ -30,8 +30,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useSyncedRef } from "@react-hookz/web";
-import { useStableCallback } from "@/hooks";
+import { useSyncedRef, usePrevious } from "@react-hookz/web";
 import type { Section } from "../types";
 import { VirtualItemTypes } from "../constants";
 
@@ -143,8 +142,10 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   }, [items, sections, rowHeight, sectionHeight]);
 
   // Stable refs for accessing changing data in stable callbacks
+  // Note: Use useSyncedRef (not useEventCallback) for getRowId because it's called
+  // during render by getItemKey. useEventCallback throws when called during render.
   const virtualItemsRef = useSyncedRef(virtualItems);
-  const stableGetRowId = useStableCallback(getRowId);
+  const getRowIdRef = useSyncedRef(getRowId);
 
   // Estimate size function - stable callback using ref
   const estimateSize = useCallback(
@@ -153,14 +154,15 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   );
 
   // Get item key - stable callback using refs
+  // Called during render by virtualizer, so must use refs (not useEventCallback)
   const getItemKey = useCallback(
     (index: number) => {
       const item = virtualItemsRef.current[index];
       if (!item) return index;
       if (item.type === VirtualItemTypes.SECTION) return `section-${item.section.id}`;
-      return stableGetRowId(item.item);
+      return getRowIdRef.current(item.item);
     },
-    [virtualItemsRef, stableGetRowId],
+    [virtualItemsRef, getRowIdRef],
   );
 
   // Create virtualizer with stable callbacks
@@ -195,14 +197,13 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   // Reset the trigger flag when new data arrives (item count changes).
   // This single mechanism works for both slow network responses and instant
   // cached responses, making the logic agnostic of data source timing.
-  const prevItemCountRef = useRef(items?.length ?? 0);
+  const currentItemCount = items?.length ?? 0;
+  const prevItemCount = usePrevious(currentItemCount);
   useEffect(() => {
-    const currentCount = items?.length ?? 0;
-    if (currentCount !== prevItemCountRef.current) {
-      prevItemCountRef.current = currentCount;
+    if (currentItemCount !== prevItemCount) {
       loadMoreTriggeredRef.current = false;
     }
-  }, [items?.length]);
+  }, [currentItemCount, prevItemCount]);
 
   useEffect(() => {
     if (!hasNextPage || isFetchingNextPage) return;
