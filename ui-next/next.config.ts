@@ -15,6 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { NextConfig } from "next";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 // =============================================================================
 // Backend API Configuration
@@ -44,16 +49,15 @@ const nextConfig: NextConfig = {
   // Enable standalone output for containerized deployments
   output: "standalone",
 
-  // Source maps in production for debugging
-  productionBrowserSourceMaps: true,
+  // Source maps in production for debugging (disable to speed up builds ~30%)
+  // Enable temporarily when debugging production issues
+  productionBrowserSourceMaps: process.env.ENABLE_SOURCE_MAPS === "true",
 
   // =============================================================================
   // Performance Optimizations
   // =============================================================================
 
   experimental: {
-    // Optimize package imports - tree-shake large icon libraries
-    optimizePackageImports: ["lucide-react", "@radix-ui/react-icons"],
     // CSS optimization - extract and inline critical CSS
     optimizeCss: true,
   },
@@ -75,6 +79,9 @@ const nextConfig: NextConfig = {
             // Replace debug utilities with no-op stubs in production
             // This eliminates all debug code from the production bundle
             "./utils/debug": "./utils/debug.production",
+            // Replace MockProvider with production stub to eliminate faker/msw (~400KB+)
+            // This completely removes dev dependencies from the production bundle
+            "@/mocks/MockProvider": "@/mocks/MockProvider.production",
           }
         : {},
   },
@@ -129,4 +136,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
