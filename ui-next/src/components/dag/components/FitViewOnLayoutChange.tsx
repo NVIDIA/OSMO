@@ -37,6 +37,12 @@ export interface FitViewOnLayoutChangeProps {
   rootNodeIds: string[];
   /** Function to get node dimensions by ID */
   getNodeDimensions?: (nodeId: string) => { width: number; height: number } | null;
+  /**
+   * Optional: Node ID to center on during initial load.
+   * When provided (e.g., from URL via nuqs), initial view will center on this node
+   * instead of the first root node. Useful for deep-linking to a specific node.
+   */
+  initialSelectedNodeId?: string | null;
 }
 
 /**
@@ -47,44 +53,84 @@ export const FitViewOnLayoutChange = memo(function FitViewOnLayoutChange({
   layoutDirection,
   rootNodeIds,
   getNodeDimensions,
+  initialSelectedNodeId,
 }: FitViewOnLayoutChangeProps) {
   const { setCenter, getNode } = useReactFlow();
   const prevLayout = useRef(layoutDirection);
   const hasInitialized = useRef(false);
+  // Track if we've handled the initial selected node (only try once)
+  const hasHandledInitialSelection = useRef(false);
+
+  /**
+   * Center on a specific node with animation.
+   * Returns true if the node was found and centered, false otherwise.
+   */
+  const centerOnNode = useCallback(
+    (nodeId: string, duration: number = ANIMATION.INITIAL_DURATION): boolean => {
+      const node = getNode(nodeId);
+      if (!node) return false;
+
+      const dims = getNodeDimensions?.(nodeId) ?? {
+        width: NODE_DEFAULTS.width,
+        height: NODE_DEFAULTS.height,
+      };
+      const centerX = node.position.x + dims.width / 2;
+      const centerY = node.position.y + dims.height / 2;
+
+      setCenter(centerX, centerY, {
+        zoom: 1,
+        duration,
+      });
+      return true;
+    },
+    [getNode, setCenter, getNodeDimensions],
+  );
 
   const zoomToRoot = useCallback(
     (duration: number = ANIMATION.INITIAL_DURATION) => {
       if (rootNodeIds.length === 0) return;
-
-      const firstRootId = rootNodeIds[0];
-      const rootNode = getNode(firstRootId);
-
-      if (rootNode) {
-        const dims = getNodeDimensions?.(firstRootId) ?? {
-          width: NODE_DEFAULTS.width,
-          height: NODE_DEFAULTS.height,
-        };
-        const centerX = rootNode.position.x + dims.width / 2;
-        const centerY = rootNode.position.y + dims.height / 2;
-
-        setCenter(centerX, centerY, {
-          zoom: 1,
-          duration,
-        });
-      }
+      centerOnNode(rootNodeIds[0], duration);
     },
-    [rootNodeIds, getNode, setCenter, getNodeDimensions],
+    [rootNodeIds, centerOnNode],
   );
 
+  // Handle initial load: center on selected node (from URL) or root node
   useEffect(() => {
-    if (!hasInitialized.current || prevLayout.current !== layoutDirection) {
-      const timer = setTimeout(() => {
-        zoomToRoot(hasInitialized.current ? ANIMATION.VIEWPORT_DURATION : ANIMATION.INITIAL_DURATION);
-        hasInitialized.current = true;
-        prevLayout.current = layoutDirection;
-      }, ANIMATION.DELAY);
-      return () => clearTimeout(timer);
-    }
+    if (hasInitialized.current) return;
+
+    const timer = setTimeout(() => {
+      // If there's an initial selection from URL, center on that node
+      if (initialSelectedNodeId && !hasHandledInitialSelection.current) {
+        hasHandledInitialSelection.current = true;
+        const found = centerOnNode(initialSelectedNodeId, ANIMATION.INITIAL_DURATION);
+        if (found) {
+          hasInitialized.current = true;
+          prevLayout.current = layoutDirection;
+          return;
+        }
+        // Node not found (maybe not rendered yet) - fall through to root
+      }
+
+      // Default: center on first root node
+      zoomToRoot(ANIMATION.INITIAL_DURATION);
+      hasInitialized.current = true;
+      prevLayout.current = layoutDirection;
+    }, ANIMATION.DELAY);
+
+    return () => clearTimeout(timer);
+  }, [layoutDirection, zoomToRoot, initialSelectedNodeId, centerOnNode]);
+
+  // Handle layout direction changes (after initial load)
+  useEffect(() => {
+    if (!hasInitialized.current) return;
+    if (prevLayout.current === layoutDirection) return;
+
+    const timer = setTimeout(() => {
+      zoomToRoot(ANIMATION.VIEWPORT_DURATION);
+      prevLayout.current = layoutDirection;
+    }, ANIMATION.DELAY);
+
+    return () => clearTimeout(timer);
   }, [layoutDirection, zoomToRoot]);
 
   return null;

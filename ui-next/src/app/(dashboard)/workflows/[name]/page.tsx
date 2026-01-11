@@ -94,55 +94,39 @@ interface WorkflowDetailPageProps {
 }
 
 // =============================================================================
-// Loading Skeleton
+// Loading Skeletons
 // =============================================================================
 
-function WorkflowDetailSkeleton() {
+/**
+ * Skeleton for the DAG canvas area (shown while workflow data loads).
+ * Rendered INSIDE the container so container dimensions are available.
+ */
+function DAGCanvasSkeleton() {
   return (
-    <div className="relative flex h-full bg-gray-50 dark:bg-zinc-950">
-      {/* DAG skeleton */}
-      <div className="flex flex-1 items-center justify-center">
-        <div className="text-center text-gray-500 dark:text-zinc-500">
-          <Skeleton className="mx-auto mb-4 h-32 w-32 rounded-lg" />
-          <p>Loading workflow...</p>
-        </div>
-      </div>
-      {/* Right panel skeleton */}
-      <div className="absolute inset-y-0 right-0 w-[33%] border-l border-gray-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <Skeleton className="mb-4 h-6 w-3/4" />
-        <Skeleton className="mb-2 h-4 w-1/2" />
-        <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
-        <Skeleton className="mb-2 h-4 w-20" />
-        <Skeleton className="mb-2 h-16 w-full" />
-        <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
-        <Skeleton className="mb-2 h-4 w-20" />
-        <Skeleton className="mb-2 h-4 w-24" />
-        <Skeleton className="h-4 w-16" />
+    <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+      <div className="text-center text-gray-500 dark:text-zinc-500">
+        <Skeleton className="mx-auto mb-4 h-32 w-32 rounded-lg" />
+        <p>Loading workflow...</p>
       </div>
     </div>
   );
 }
 
-// =============================================================================
-// Not Found State
-// =============================================================================
-
-function WorkflowNotFound({ name }: { name: string }) {
+/**
+ * Skeleton for the panel content (shown while workflow data loads).
+ */
+function PanelContentSkeleton() {
   return (
-    <div className="flex h-full flex-col items-center justify-center">
-      <div className="text-center">
-        <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-zinc-100">Workflow Not Found</h2>
-        <p className="mb-4 text-gray-500 dark:text-zinc-400">
-          The workflow <code className="rounded bg-gray-100 px-2 py-1 font-mono dark:bg-zinc-800">{name}</code> does not
-          exist.
-        </p>
-        <Link
-          href="/workflows"
-          className="text-blue-600 hover:underline dark:text-blue-400"
-        >
-          ← Back to workflows
-        </Link>
-      </div>
+    <div className="p-4">
+      <Skeleton className="mb-4 h-6 w-3/4" />
+      <Skeleton className="mb-2 h-4 w-1/2" />
+      <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
+      <Skeleton className="mb-2 h-4 w-20" />
+      <Skeleton className="mb-2 h-16 w-full" />
+      <div className="my-4 h-px bg-gray-200 dark:bg-zinc-800" />
+      <Skeleton className="mb-2 h-4 w-20" />
+      <Skeleton className="mb-2 h-4 w-24" />
+      <Skeleton className="h-4 w-16" />
     </div>
   );
 }
@@ -310,36 +294,12 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isPanelCollapsed, togglePanelCollapsed]);
 
-  // Loading state
-  if (isLoading) {
-    return <WorkflowDetailSkeleton />;
-  }
+  // Determine content state: loading, error, not found, or ready
+  const isReady = !isLoading && !error && !isNotFound && workflow;
 
-  // Not found state
-  if (isNotFound || !workflow) {
-    return <WorkflowNotFound name={name} />;
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center">
-        <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Workflow</h2>
-          <p className="mb-4 text-gray-500 dark:text-zinc-400">{error.message}</p>
-          <button
-            onClick={() => refetch()}
-            className="text-blue-600 hover:underline dark:text-blue-400"
-          >
-            Try again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // DAG canvas as main content (passed to ResizablePanel via DetailsPanel)
-  const dagCanvas = (
+  // DAG canvas: skeleton during loading, actual canvas when ready
+  // Always render container structure so dimensions are measurable
+  const dagCanvas = isReady ? (
     <main
       id="dag-canvas"
       className="h-full w-full"
@@ -381,6 +341,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           <FitViewOnLayoutChange
             layoutDirection={layoutDirection}
             rootNodeIds={rootNodeIds}
+            initialSelectedNodeId={selectedGroupName}
           />
           <Background
             variant={BackgroundVariant.Dots}
@@ -412,7 +373,57 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
         </ReactFlow>
       </DAGProvider>
     </main>
+  ) : (
+    // Skeleton for loading state, error/not found are shown in panel area
+    <DAGCanvasSkeleton />
   );
+
+  // Panel content: skeleton during loading, error/not found states, or actual content
+  const renderPanelContent = () => {
+    if (isLoading) {
+      return <PanelContentSkeleton />;
+    }
+    if (isNotFound) {
+      return (
+        <div className="flex h-full items-center justify-center p-4">
+          <div className="text-center">
+            <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-zinc-100">Workflow Not Found</h2>
+            <p className="mb-4 text-gray-500 dark:text-zinc-400">
+              The workflow <code className="rounded bg-gray-100 px-2 py-1 font-mono dark:bg-zinc-800">{name}</code> does
+              not exist.
+            </p>
+            <Link
+              href="/workflows"
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
+              ← Back to workflows
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className="flex h-full items-center justify-center p-4">
+          <div className="text-center">
+            <h2 className="mb-2 text-xl font-semibold text-red-600 dark:text-red-400">Error Loading Workflow</h2>
+            <p className="mb-4 text-gray-500 dark:text-zinc-400">{error.message}</p>
+            <button
+              onClick={() => refetch()}
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    // Normal content - rendered by DetailsPanel based on view
+    return null;
+  };
+
+  // Custom panel content for loading/error states
+  const panelOverrideContent = renderPanelContent();
 
   return (
     <DAGErrorBoundary>
@@ -423,7 +434,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
       >
         <DetailsPanel
           view={currentPanelView}
-          workflow={workflow}
+          workflow={workflow ?? undefined}
           group={selectedGroup}
           allGroups={dagGroups}
           task={selectedTask}
@@ -440,6 +451,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           onToggleCollapsed={togglePanelCollapsed}
           onCancelWorkflow={handleCancel}
           mainContent={dagCanvas}
+          fallbackContent={panelOverrideContent}
         />
       </div>
     </DAGErrorBoundary>
