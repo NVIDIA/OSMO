@@ -18,8 +18,8 @@
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import type { RefObject } from "react";
-import { useIsomorphicLayoutEffect, useRafCallback } from "@react-hookz/web";
-import { useStableCallback } from "./use-stable-callback";
+import { useRafCallback, useIsomorphicLayoutEffect } from "@react-hookz/web";
+import { useResizeObserver, useEventCallback } from "usehooks-ts";
 
 // =============================================================================
 // Types
@@ -96,7 +96,7 @@ export function useExpandableChips<T = string>({
   const expanded = expandedState.items === items ? expandedState.value : false;
 
   // Stable setter that updates with current items reference
-  const setExpanded = useStableCallback((value: boolean) => {
+  const setExpanded = useEventCallback((value: boolean) => {
     setExpandedState({ items, value });
   });
 
@@ -195,22 +195,25 @@ export function useExpandableChips<T = string>({
     setVisibleCount(calculateVisibleCount());
   });
 
-  // Observe container resize and recalculate
+  // Initial calculation on mount (when not expanded)
+  // useIsomorphicLayoutEffect runs synchronously after DOM mutations but before paint,
+  // which is the correct timing for DOM measurements to avoid visual flicker
   useIsomorphicLayoutEffect(() => {
-    if (expanded) return;
+    if (!expanded) {
+      setVisibleCount(calculateVisibleCount());
+    }
+  }, [calculateVisibleCount, expanded]);
 
-    const container = containerRef.current;
-    if (!container) return;
-
-    // Initial calculation
-    setVisibleCount(calculateVisibleCount());
-
-    // Observe resize with RAF throttling
-    const observer = new ResizeObserver(() => scheduleRecalculate());
-    observer.observe(container);
-
-    return () => observer.disconnect();
-  }, [calculateVisibleCount, expanded, scheduleRecalculate]);
+  // Observe container resize and recalculate using useResizeObserver
+  useResizeObserver({
+    ref: containerRef as RefObject<HTMLElement>,
+    onResize: () => {
+      if (!expanded) {
+        scheduleRecalculate();
+      }
+    },
+    box: "border-box",
+  });
 
   // ==========================================================================
   // Return (computed values, no DOM access)

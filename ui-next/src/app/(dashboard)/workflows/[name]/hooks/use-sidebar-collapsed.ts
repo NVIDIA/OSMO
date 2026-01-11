@@ -37,7 +37,7 @@
 
 import { useState, useMemo } from "react";
 import { useLocalStorage } from "usehooks-ts";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 
 export interface UseSidebarCollapsedOptions {
   /** Whether there's an active group/task selection from URL */
@@ -87,7 +87,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   }, [hasSelection, preferredCollapsed, effectiveSessionCollapsed]);
 
   // Toggle collapsed state - stable callback for memoized children
-  const toggle = useStableCallback(() => {
+  const toggle = useEventCallback(() => {
     if (hasSelection) {
       // During selection: update session state with current selection key
       setSessionState((prev) => ({
@@ -101,7 +101,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   });
 
   // Expand panel - stable callback for memoized children
-  const expand = useStableCallback(() => {
+  const expand = useEventCallback(() => {
     if (hasSelection) {
       setSessionState({
         collapsed: false,
@@ -113,7 +113,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   });
 
   // Collapse panel - stable callback for memoized children
-  const collapse = useStableCallback(() => {
+  const collapse = useEventCallback(() => {
     if (hasSelection) {
       setSessionState({
         collapsed: true,

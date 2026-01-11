@@ -25,8 +25,8 @@
 
 import { useCallback, useRef, useMemo, useEffect, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
-import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback } from "@react-hookz/web";
-import { useStableCallback } from "@/hooks";
+import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback, usePrevious } from "@react-hookz/web";
+import { useEventCallback } from "usehooks-ts";
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores";
 import type { ColumnSizeConfig } from "../types";
 import { logColumnSizingDebug, createDebugSnapshot, flushDebugBuffer } from "../utils/debug";
@@ -171,7 +171,7 @@ export function useColumnSizing({
   // =========================================================================
   const [contentWidths, setContentWidths] = useState<Record<string, number>>({});
   const measuredDataLengthRef = useRef<number>(0);
-  const prevPreferencesRef = useRef<ColumnSizingPreferences | undefined>(undefined);
+  const prevPreferences = usePrevious(sizingPreferences);
 
   // =========================================================================
   // Computed Sizes (min/preferred from configs or props)
@@ -307,17 +307,15 @@ export function useColumnSizing({
   // Remeasure when a column becomes NO_TRUNCATE
   useEffect(() => {
     const container = containerRef?.current;
-    const prev = prevPreferencesRef.current;
     const current = sizingPreferences;
-    prevPreferencesRef.current = current;
 
-    if (!container || !prev || dataLength === 0) {
+    if (!container || !prevPreferences || dataLength === 0) {
       return;
     }
 
     const newNoTruncateColumns: string[] = [];
     for (const columnId of columnIds) {
-      const prevMode = prev[columnId]?.mode;
+      const prevMode = prevPreferences[columnId]?.mode;
       const currentMode = current[columnId]?.mode;
       if (currentMode === PreferenceModes.NO_TRUNCATE && prevMode !== PreferenceModes.NO_TRUNCATE) {
         if (!contentWidthsRef.current[columnId]) {
@@ -357,12 +355,12 @@ export function useColumnSizing({
         pendingIdleCallbackRef.current = null;
       }
     };
-  }, [sizingPreferences, columnIds, dataLength, containerRef, contentWidthsRef]);
+  }, [sizingPreferences, columnIds, dataLength, containerRef, contentWidthsRef, prevPreferences]);
 
   // =========================================================================
   // Calculate Sizing
   // =========================================================================
-  const calculateAndApply = useStableCallback((animate: boolean, providedWidth: number | undefined) => {
+  const calculateAndApply = useEventCallback((animate: boolean, providedWidth: number | undefined) => {
     const container = containerRef?.current;
     if (!container) return;
 
@@ -696,7 +694,7 @@ export function useColumnSizing({
     ],
   );
 
-  const recalculate = useStableCallback(() => {
+  const recalculate = useEventCallback(() => {
     calculateAndApply(false, undefined);
   });
 

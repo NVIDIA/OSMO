@@ -41,7 +41,8 @@
 
 "use client";
 
-import { use, useState, useMemo, useEffect, useRef } from "react";
+import { use, useState, useMemo, useRef } from "react";
+import { useEventListener } from "usehooks-ts";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -51,7 +52,7 @@ import "@xyflow/react/dist/style.css";
 import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 import { PANEL } from "@/components/panel";
 
 // Route-level components
@@ -238,59 +239,54 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   );
 
   // Handlers - stable callbacks for memoized children
-  const handleToggleMinimap = useStableCallback(() => {
+  const handleToggleMinimap = useEventCallback(() => {
     setShowMinimap((prev) => !prev);
   });
 
-  const handleToggleDetailsExpanded = useStableCallback(() => {
+  const handleToggleDetailsExpanded = useEventCallback(() => {
     setIsDetailsExpanded((prev) => !prev);
   });
 
-  const handleLayoutChange = useStableCallback((direction: "TB" | "LR") => {
+  const handleLayoutChange = useEventCallback((direction: "TB" | "LR") => {
     setLayoutDirection(direction);
   });
 
-  const handleCancel = useStableCallback(() => {
+  const handleCancel = useEventCallback(() => {
     // TODO: Implement workflow cancellation
     // This will need a confirmation dialog and API call
     console.log("Cancel workflow:", name);
   });
 
   // Navigate back from group to workflow (URL navigation)
-  const handleBackToWorkflow = useStableCallback(() => {
+  const handleBackToWorkflow = useEventCallback(() => {
     navigateToWorkflow();
   });
 
   // Close panel handler (for panel close button)
   // This navigates back to workflow view and optionally collapses
-  const handleClosePanel = useStableCallback(() => {
+  const handleClosePanel = useEventCallback(() => {
     navigateToWorkflow();
   });
 
   // Global keyboard shortcuts for panel collapse/expand
-  // Escape → collapse panel, Enter → expand panel (when focused on DAG area)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if focus is in an input, textarea, or contenteditable
-      const target = e.target as HTMLElement;
-      const isInteractiveElement =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable ||
-        target.closest("[data-radix-popper-content-wrapper]");
+  // Enter → expand panel (when focused on DAG area and collapsed)
+  useEventListener("keydown", (e: KeyboardEvent) => {
+    // Skip if focus is in an input, textarea, or contenteditable
+    const target = e.target as HTMLElement;
+    const isInteractiveElement =
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable ||
+      target.closest("[data-radix-popper-content-wrapper]");
 
-      if (isInteractiveElement) return;
+    if (isInteractiveElement) return;
 
-      // Enter key expands the panel when collapsed
-      if (e.key === "Enter" && isPanelCollapsed) {
-        e.preventDefault();
-        togglePanelCollapsed();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isPanelCollapsed, togglePanelCollapsed]);
+    // Enter key expands the panel when collapsed
+    if (e.key === "Enter" && isPanelCollapsed) {
+      e.preventDefault();
+      togglePanelCollapsed();
+    }
+  });
 
   // Determine content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
