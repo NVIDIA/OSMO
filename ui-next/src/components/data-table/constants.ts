@@ -97,29 +97,7 @@ export type SortDirection = (typeof SortDirections)[keyof typeof SortDirections]
 export const SORT_DIRECTION_VALUES = Object.values(SortDirections);
 
 // =============================================================================
-// Sizing State Machine Modes
-// =============================================================================
-
-/**
- * State machine modes for column sizing.
- *
- * - IDLE: No active user interaction
- * - RESIZING: User is actively dragging a resize handle
- */
-export const SizingModes = {
-  /** No active user interaction */
-  IDLE: "IDLE",
-  /** User is actively dragging a resize handle */
-  RESIZING: "RESIZING",
-} as const;
-
-export type SizingMode = (typeof SizingModes)[keyof typeof SizingModes];
-
-/** All valid sizing modes for iteration/validation */
-export const SIZING_MODE_VALUES = Object.values(SizingModes);
-
-// =============================================================================
-// Sizing State Machine Events
+// Sizing Event Types (used by debug system)
 // =============================================================================
 
 /**
