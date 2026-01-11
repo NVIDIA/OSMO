@@ -25,10 +25,4 @@ export { GroupNode, nodeTypes } from "./GroupNode";
 export { DAGProvider, useDAGContext, type DAGContextValue } from "./dag-context";
 
 // Re-export generic DAG components from @/components/dag
-export {
-  DAGControls,
-  DAGErrorBoundary,
-  MiniMapNode,
-  MINIMAP_COLORS,
-  type DAGControlsProps,
-} from "@/components/dag";
+export { DAGControls, DAGErrorBoundary, MiniMapNode, MINIMAP_COLORS, type DAGControlsProps } from "@/components/dag";
