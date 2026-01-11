@@ -30,10 +30,13 @@ export type WorkflowColumnId =
   | "status"
   | "user"
   | "submit_time"
+  | "start_time"
+  | "end_time"
   | "duration"
   | "queued_time"
   | "pool"
-  | "priority";
+  | "priority"
+  | "app_name";
 
 /** Set of all valid workflow column IDs for type validation */
 const VALID_COLUMN_IDS = new Set<string>([
@@ -41,10 +44,13 @@ const VALID_COLUMN_IDS = new Set<string>([
   "status",
   "user",
   "submit_time",
+  "start_time",
+  "end_time",
   "duration",
   "queued_time",
   "pool",
   "priority",
+  "app_name",
 ]);
 
 /** Type guard to check if a string is a valid WorkflowColumnId */
@@ -66,10 +72,13 @@ export const COLUMN_LABELS: Record<WorkflowColumnId, string> = {
   status: "Status",
   user: "User",
   submit_time: "Submitted",
+  start_time: "Started",
+  end_time: "Ended",
   duration: "Duration",
   queued_time: "Queue Time",
   pool: "Pool",
   priority: "Priority",
+  app_name: "App",
 };
 
 // =============================================================================
@@ -81,10 +90,13 @@ export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
   { id: "status", label: "Status", menuLabel: "Status" },
   { id: "user", label: "User", menuLabel: "User" },
   { id: "submit_time", label: "Submitted", menuLabel: "Submitted" },
+  { id: "start_time", label: "Started", menuLabel: "Started" },
+  { id: "end_time", label: "Ended", menuLabel: "Ended" },
   { id: "duration", label: "Duration", menuLabel: "Duration" },
   { id: "queued_time", label: "Queue Time", menuLabel: "Queue Time" },
   { id: "pool", label: "Pool", menuLabel: "Pool" },
   { id: "priority", label: "Priority", menuLabel: "Priority" },
+  { id: "app_name", label: "App", menuLabel: "App" },
 ];
 
 /** Default visible columns */
@@ -104,10 +116,13 @@ export const DEFAULT_COLUMN_ORDER: WorkflowColumnId[] = [
   "status",
   "user",
   "submit_time",
+  "start_time",
+  "end_time",
   "duration",
   "queued_time",
   "pool",
   "priority",
+  "app_name",
 ];
 
 /** Columns that cannot be hidden */
@@ -146,6 +161,16 @@ export const WORKFLOW_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
     preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
   },
   {
+    id: "start_time",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
+  },
+  {
+    id: "end_time",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
+  },
+  {
     id: "duration",
     minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
     preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
@@ -162,6 +187,11 @@ export const WORKFLOW_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   },
   {
     id: "priority",
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+  },
+  {
+    id: "app_name",
     minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
     preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
   },

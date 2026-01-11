@@ -22,7 +22,7 @@ import { memo } from "react";
 import type { Resource } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
 import type { ResultsCount } from "@/components/smart-search";
-import { TableToolbar } from "@/components/data-table";
+import { TableToolbar, DisplayModeToggle } from "@/components/data-table";
 import { useResourcesTableStore } from "../stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/resource-columns";
 import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
@@ -55,6 +55,8 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
       onSearchChipsChange={onSearchChipsChange}
       placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
       resultsCount={resultsCount}
-    />
+    >
+      <DisplayModeToggle />
+    </TableToolbar>
   );
 });
