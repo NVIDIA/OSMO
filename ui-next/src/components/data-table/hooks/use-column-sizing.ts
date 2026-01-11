@@ -199,8 +199,7 @@ export function useColumnSizing({
   const onPreferenceChangeRef = useSyncedRef(onPreferenceChange);
   const stateRef = useSyncedRef(state);
 
-  // For tracking resize timing (cooldown after resize ends)
-  const lastResizeEndRef = useRef<number>(0);
+  // For tracking container width changes (avoid recalc on tiny changes)
   const lastContainerWidthRef = useRef<number>(0);
   // Track auto-fit timing (cooldown to ignore TanStack echo)
   const lastAutoFitRef = useRef<number>(0);
@@ -446,15 +445,11 @@ export function useColumnSizing({
 
     let timeoutId: ReturnType<typeof setTimeout>;
     let pendingWidth: number | null = null;
-    const RESIZE_COOLDOWN_MS = 300;
 
     const observer = new ResizeObserver((entries) => {
       // State machine handles this guard: RESIZING mode ignores CONTAINER_RESIZE
       // But we also check here to avoid unnecessary calculations
       if (stateRef.current.mode === SizingModes.RESIZING) return;
-
-      const timeSinceResizeEnd = Date.now() - lastResizeEndRef.current;
-      if (timeSinceResizeEnd < RESIZE_COOLDOWN_MS) return;
 
       const entry = entries[0];
       if (!entry) return;
@@ -545,7 +540,6 @@ export function useColumnSizing({
 
   const endResize = useCallback(() => {
     cancelColumnUpdate();
-    lastResizeEndRef.current = Date.now();
 
     const finalSizing = stateRef.current.sizing;
     const beforeResize = stateRef.current.resizing?.beforeResize ?? {};
@@ -582,7 +576,8 @@ export function useColumnSizing({
         }
 
         const configuredWidth = configuredSizesRef.current[colId] ?? 150;
-        const threshold = getTruncationThreshold(contentWidth, configuredWidth);
+        // Threshold is just contentWidth - if user resizes below it, they accept truncation
+        const threshold = getTruncationThreshold(contentWidth);
         const mode = newWidth < threshold ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
 
         // Store for later persistence
