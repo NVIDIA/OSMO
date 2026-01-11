@@ -57,6 +57,10 @@ const nextConfig: NextConfig = {
   // Performance Optimizations
   // =============================================================================
 
+  // Exclude MSW from server bundling - it's only used in instrumentation for dev mocking
+  // This prevents Turbopack from trying to bundle Node.js-specific MSW code for Edge runtime
+  serverExternalPackages: ["msw", "@mswjs/interceptors"],
+
   experimental: {
     // CSS optimization - extract and inline critical CSS
     optimizeCss: true,
