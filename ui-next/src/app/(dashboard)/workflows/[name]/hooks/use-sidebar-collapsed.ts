@@ -16,16 +16,16 @@
 
 /**
  * Hook for managing workflow details sidebar collapsed state.
- * Uses the canonical usePersistedBoolean hook for localStorage persistence.
+ * Uses useLocalStorage from usehooks-ts for localStorage persistence.
  */
 
 "use client";
 
 import { useCallback } from "react";
-import { usePersistedBoolean } from "@/hooks";
+import { useLocalStorage } from "usehooks-ts";
 
 export function useSidebarCollapsed() {
-  const [collapsed, setCollapsed] = usePersistedBoolean("workflow-details-sidebar-collapsed", false);
+  const [collapsed, setCollapsed] = useLocalStorage("osmo-workflow-details-sidebar-collapsed", false);
 
   const toggle = useCallback(() => {
     setCollapsed(!collapsed);

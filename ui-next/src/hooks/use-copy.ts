@@ -17,17 +17,16 @@
  */
 
 /**
- * useCopyToClipboard - Hook for copying text to clipboard with feedback state.
+ * useCopy - Thin wrapper around usehooks-ts/useCopyToClipboard with auto-reset.
  *
  * Provides a consistent copy-to-clipboard pattern across the app with:
  * - Copied state for UI feedback
  * - Automatic reset after delay
- * - Error handling with console warning
  *
  * @example
  * ```tsx
  * function CopyButton({ value }: { value: string }) {
- *   const { copied, copy } = useCopyToClipboard();
+ *   const { copied, copy } = useCopy();
  *
  *   return (
  *     <button onClick={() => copy(value)}>
@@ -38,24 +37,19 @@
  * ```
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect } from "react";
+import { useCopyToClipboard } from "usehooks-ts";
 
-export interface UseCopyToClipboardOptions {
+export interface UseCopyOptions {
   /** Delay in ms before resetting copied state (default: 2000) */
   resetDelay?: number;
-  /** Callback when copy succeeds */
-  onSuccess?: () => void;
-  /** Callback when copy fails */
-  onError?: (error: unknown) => void;
 }
 
-export interface UseCopyToClipboardReturn {
+export interface UseCopyReturn {
   /** Whether text was recently copied */
   copied: boolean;
   /** Copy text to clipboard */
-  copy: (text: string) => Promise<void>;
-  /** Reset copied state manually */
-  reset: () => void;
+  copy: (text: string) => Promise<boolean>;
 }
 
 /**
@@ -64,9 +58,9 @@ export interface UseCopyToClipboardReturn {
  * @param options - Configuration options
  * @returns Object with copied state and copy function
  */
-export function useCopyToClipboard(options: UseCopyToClipboardOptions = {}): UseCopyToClipboardReturn {
-  const { resetDelay = 2000, onSuccess, onError } = options;
-  const [copied, setCopied] = useState(false);
+export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
+  const { resetDelay = 2000 } = options;
+  const [copiedText, copyToClipboard] = useCopyToClipboard();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup timeout on unmount
@@ -79,35 +73,29 @@ export function useCopyToClipboard(options: UseCopyToClipboardOptions = {}): Use
   }, []);
 
   const copy = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<boolean> => {
       // Clear any existing timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
 
-      try {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        onSuccess?.();
+      const success = await copyToClipboard(text);
 
+      if (success) {
         // Auto-reset after delay
         timeoutRef.current = setTimeout(() => {
-          setCopied(false);
+          // Reset by copying empty string (usehooks-ts tracks last copied value)
+          copyToClipboard("");
         }, resetDelay);
-      } catch (error) {
-        console.warn("Clipboard API not available:", error);
-        onError?.(error);
       }
+
+      return success;
     },
-    [resetDelay, onSuccess, onError],
+    [copyToClipboard, resetDelay],
   );
 
-  const reset = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setCopied(false);
-  }, []);
-
-  return { copied, copy, reset };
+  return {
+    copied: Boolean(copiedText),
+    copy,
+  };
 }

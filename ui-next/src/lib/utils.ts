@@ -6,6 +6,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // =============================================================================
+// Platform Detection
+// =============================================================================
+
+/**
+ * Whether the current platform is macOS.
+ * SSR-safe - returns false on the server.
+ *
+ * This is a static value (platform never changes during a session),
+ * so it's a constant rather than a hook.
+ *
+ * @example
+ * ```tsx
+ * const shortcutKey = isMac ? "⌘B" : "Ctrl+B";
+ * ```
+ */
+export const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
+
+// =============================================================================
 // Search Utilities
 // =============================================================================
 
