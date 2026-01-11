@@ -41,7 +41,7 @@
 
 "use client";
 
-import { use, useState, useCallback, useMemo, useEffect } from "react";
+import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -51,6 +51,7 @@ import "@xyflow/react/dist/style.css";
 import { usePage } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { useStableCallback } from "@/hooks";
 
 // Route-level components
 import {
@@ -226,13 +227,10 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   // Compute visible width for DAG (decoupled from panel internals)
   // This callback is called by useViewportBoundaries to determine the visible area
-  const getVisibleWidth = useCallback(
-    (containerWidth: number) => {
-      const panelWidthPx = isPanelOpen ? (panelPct / 100) * containerWidth : PANEL.COLLAPSED_WIDTH_PX;
-      return containerWidth - panelWidthPx;
-    },
-    [isPanelOpen, panelPct],
-  );
+  const getVisibleWidth = useStableCallback((containerWidth: number) => {
+    const panelWidthPx = isPanelOpen ? (panelPct / 100) * containerWidth : PANEL.COLLAPSED_WIDTH_PX;
+    return containerWidth - panelWidthPx;
+  });
 
   // Viewport boundary management - controlled mode prevents jitter at boundaries
   // DAG doesn't know about panel internals, just uses getVisibleWidth callback
@@ -257,38 +255,35 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     [],
   );
 
-  // Handlers
-  const handleToggleMinimap = useCallback(() => {
+  // Handlers - stable callbacks for memoized children
+  const handleToggleMinimap = useStableCallback(() => {
     setShowMinimap((prev) => !prev);
-  }, []);
+  });
 
-  const handleToggleDetailsExpanded = useCallback(() => {
+  const handleToggleDetailsExpanded = useStableCallback(() => {
     setIsDetailsExpanded((prev) => !prev);
-  }, []);
+  });
 
-  const handleLayoutChange = useCallback(
-    (direction: "TB" | "LR") => {
-      setLayoutDirection(direction);
-    },
-    [setLayoutDirection],
-  );
+  const handleLayoutChange = useStableCallback((direction: "TB" | "LR") => {
+    setLayoutDirection(direction);
+  });
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useStableCallback(() => {
     // TODO: Implement workflow cancellation
     // This will need a confirmation dialog and API call
     console.log("Cancel workflow:", name);
-  }, [name]);
+  });
 
   // Navigate back from group to workflow (URL navigation)
-  const handleBackToWorkflow = useCallback(() => {
+  const handleBackToWorkflow = useStableCallback(() => {
     navigateToWorkflow();
-  }, [navigateToWorkflow]);
+  });
 
   // Close panel handler (for panel close button)
   // This navigates back to workflow view and optionally collapses
-  const handleClosePanel = useCallback(() => {
+  const handleClosePanel = useStableCallback(() => {
     navigateToWorkflow();
-  }, [navigateToWorkflow]);
+  });
 
   // Global keyboard shortcuts for panel collapse/expand
   // Escape → collapse panel, Enter → expand panel (when focused on DAG area)

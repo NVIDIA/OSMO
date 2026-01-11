@@ -34,8 +34,9 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQueryState, parseAsString, parseAsInteger } from "nuqs";
+import { useStableCallback } from "@/hooks";
 import type { GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
 
 // =============================================================================
@@ -198,51 +199,45 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
     return "workflow";
   }, [groupName, taskName, selectedGroup, selectedTask]);
 
-  // Navigation functions
-  const navigateToGroup = useCallback(
-    (group: GroupWithLayout) => {
-      // For single-task groups, navigate directly to the task
-      if (group.tasks && group.tasks.length === 1) {
-        const task = group.tasks[0];
-        setGroupName(group.name);
-        setTaskName(task.name);
-        setTaskRetryId(task.retry_id);
-      } else {
-        // Multi-task group: show group view
-        setGroupName(group.name);
-        setTaskName(null);
-        setTaskRetryId(null);
-      }
-    },
-    [setGroupName, setTaskName, setTaskRetryId],
-  );
-
-  const navigateToTask = useCallback(
-    (task: TaskQueryResponse, group: GroupWithLayout) => {
+  // Navigation functions - use stable callbacks for memoized children
+  const navigateToGroup = useStableCallback((group: GroupWithLayout) => {
+    // For single-task groups, navigate directly to the task
+    if (group.tasks && group.tasks.length === 1) {
+      const task = group.tasks[0];
       setGroupName(group.name);
       setTaskName(task.name);
       setTaskRetryId(task.retry_id);
-    },
-    [setGroupName, setTaskName, setTaskRetryId],
-  );
+    } else {
+      // Multi-task group: show group view
+      setGroupName(group.name);
+      setTaskName(null);
+      setTaskRetryId(null);
+    }
+  });
 
-  const navigateToWorkflow = useCallback(() => {
+  const navigateToTask = useStableCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+    setGroupName(group.name);
+    setTaskName(task.name);
+    setTaskRetryId(task.retry_id);
+  });
+
+  const navigateToWorkflow = useStableCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
-  }, [setGroupName, setTaskName, setTaskRetryId]);
+  });
 
-  const navigateBackToGroup = useCallback(() => {
+  const navigateBackToGroup = useStableCallback(() => {
     // Keep group, clear task
     setTaskName(null);
     setTaskRetryId(null);
-  }, [setTaskName, setTaskRetryId]);
+  });
 
-  const clearNavigation = useCallback(() => {
+  const clearNavigation = useStableCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
-  }, [setGroupName, setTaskName, setTaskRetryId]);
+  });
 
   // Clear stale URL params if referenced group/task no longer exists
   // This handles cases like workflow refresh where structure changed
