@@ -20,23 +20,28 @@
  * Displays a single workflow with:
  * - DAG visualization of workflow groups and their dependencies
  * - Unified multi-layer inspector panel (workflow → group → task)
+ * - URL-synced navigation for shareable deep links
  *
  * Architecture:
  * - Uses useWorkflowDetail hook for data fetching
+ * - Uses useNavigationState for URL-synced navigation (nuqs)
  * - Reuses DAG components from reactflow-dag
  * - Multi-layer panel navigation with breadcrumbs
  *
- * Panel Navigation Flow:
- * - Default: WorkflowDetails (base layer)
- * - Click GROUP node → GroupDetails layer
- * - Click task in GroupDetails → TaskDetails layer
- * - Click back/breadcrumb → Navigate up layers
- * - Click X → Collapse to edge strip
+ * URL Navigation:
+ * - /workflows/[name] → Workflow view
+ * - /workflows/[name]?group=step-1 → Group view
+ * - /workflows/[name]?group=step-1&task=my-task&retry=0 → Task view
+ *
+ * Keyboard Navigation:
+ * - Escape → Collapse panel (when expanded)
+ * - Enter → Expand panel (when collapsed)
+ * - Browser back/forward → Navigate through URL history
  */
 
 "use client";
 
-import { use, useState, useCallback, useMemo } from "react";
+import { use, useState, useCallback, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -74,6 +79,7 @@ import { getMiniMapNodeColor, getMiniMapStrokeColor } from "./lib/status";
 import { useWorkflowDetail } from "./hooks/use-workflow-detail";
 import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
 import { useDAGState } from "./hooks/use-dag-state";
+import { useNavigationState } from "./hooks/use-navigation-state";
 
 // CSS for DAG (from route-level styles)
 import "./styles/dag.css";
@@ -149,16 +155,46 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const { resolvedTheme } = useTheme();
 
-  // Panel collapsed state (persisted)
-  const { collapsed: isPanelCollapsed, toggle: togglePanelCollapsed } = useSidebarCollapsed();
-
   // Background color based on theme
   const backgroundDotColor = resolvedTheme === "dark" ? BACKGROUND.COLOR_DARK : BACKGROUND.COLOR_LIGHT;
 
   // Fetch workflow data
   const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound } = useWorkflowDetail({ name });
 
-  // DAG state management
+  // URL-synced navigation state (nuqs)
+  const {
+    view: navView,
+    selectedGroup,
+    selectedTask,
+    selectedGroupName,
+    selectedTaskName,
+    selectedTaskRetryId,
+    navigateToGroup,
+    navigateToTask,
+    navigateToWorkflow,
+    navigateBackToGroup,
+  } = useNavigationState({ groups: groupsWithLayout });
+
+  // Compute selection key for panel collapse behavior
+  // This changes when user navigates to a different group/task, triggering auto-expand
+  const hasSelection = navView !== "workflow";
+  const selectionKey = useMemo(() => {
+    if (selectedTaskName && selectedGroupName) {
+      return `task:${selectedGroupName}:${selectedTaskName}:${selectedTaskRetryId ?? 0}`;
+    }
+    if (selectedGroupName) {
+      return `group:${selectedGroupName}`;
+    }
+    return null;
+  }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
+
+  // Panel collapsed state (reconciles user preference with navigation intent)
+  const { collapsed: isPanelCollapsed, toggle: togglePanelCollapsed } = useSidebarCollapsed({
+    hasSelection,
+    selectionKey,
+  });
+
+  // DAG state management (layout, expansion)
   const {
     nodes,
     edges,
@@ -169,23 +205,21 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     handleSelectGroup,
     handleSelectTask,
     handleToggleExpand,
-    panelView: dagPanelView,
-    selectedGroup,
-    selectedTask,
-    handleClosePanel,
-    handleBackToGroup,
     nodeBounds,
   } = useDAGState({
     groups: groupsWithLayout,
     initialDirection: "TB",
+    // Wire DAG selection to URL navigation
+    onSelectGroup: navigateToGroup,
+    onSelectTask: navigateToTask,
   });
 
   // Resizable panel state (ResizablePanel handles resize internally, we just need state + containerRef for viewport calc)
   const { panelPct, setPanelPct, containerRef } = useResizablePanel();
 
-  // Determine current panel view (workflow is default, then group/task based on selection)
+  // Determine current panel view from URL navigation state
   const currentPanelView: DetailsPanelView =
-    dagPanelView === "task" && selectedTask ? "task" : dagPanelView === "group" && selectedGroup ? "group" : "workflow";
+    navView === "task" && selectedTask ? "task" : navView === "group" && selectedGroup ? "group" : "workflow";
 
   // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
   const isPanelOpen = !isPanelCollapsed;
@@ -245,10 +279,41 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     console.log("Cancel workflow:", name);
   }, [name]);
 
-  // Navigate back from group to workflow (deselect group)
+  // Navigate back from group to workflow (URL navigation)
   const handleBackToWorkflow = useCallback(() => {
-    handleClosePanel();
-  }, [handleClosePanel]);
+    navigateToWorkflow();
+  }, [navigateToWorkflow]);
+
+  // Close panel handler (for panel close button)
+  // This navigates back to workflow view and optionally collapses
+  const handleClosePanel = useCallback(() => {
+    navigateToWorkflow();
+  }, [navigateToWorkflow]);
+
+  // Global keyboard shortcuts for panel collapse/expand
+  // Escape → collapse panel, Enter → expand panel (when focused on DAG area)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if focus is in an input, textarea, or contenteditable
+      const target = e.target as HTMLElement;
+      const isInteractiveElement =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        target.closest("[data-radix-popper-content-wrapper]");
+
+      if (isInteractiveElement) return;
+
+      // Enter key expands the panel when collapsed
+      if (e.key === "Enter" && isPanelCollapsed) {
+        e.preventDefault();
+        togglePanelCollapsed();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isPanelCollapsed, togglePanelCollapsed]);
 
   // Loading state
   if (isLoading) {
@@ -368,10 +433,10 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           allGroups={dagGroups}
           task={selectedTask}
           onClose={handleClosePanel}
-          onBackToGroup={handleBackToGroup}
+          onBackToGroup={navigateBackToGroup}
           onBackToWorkflow={handleBackToWorkflow}
-          onSelectTask={handleSelectTask}
-          onSelectGroup={handleSelectGroup}
+          onSelectTask={navigateToTask}
+          onSelectGroup={navigateToGroup}
           panelPct={panelPct}
           onPanelResize={setPanelPct}
           isDetailsExpanded={isDetailsExpanded}

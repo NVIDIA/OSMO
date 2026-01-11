@@ -20,14 +20,11 @@
  * Manages state for the DAG visualization including:
  * - Layout direction
  * - Expanded groups
- * - Selected group (for GroupPanel)
- * - Selected task (for DetailPanel)
- * - Layout calculation
+ * - Layout calculation (ELK)
+ * - Node bounds computation
  *
- * Navigation flow:
- * - Click GROUP node (multi-task) → Opens GroupPanel
- * - Click task in GroupPanel → Opens DetailPanel
- * - Click SINGLE-TASK node → Opens DetailPanel directly
+ * Navigation state is now managed externally via useNavigationState (URL-synced).
+ * This hook receives selection handlers as callbacks to update URL state.
  */
 
 "use client";
@@ -40,20 +37,20 @@ import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../
 import { transformGroups } from "../lib/workflow-adapter";
 import { calculateLayout, computeInitialExpandedGroups, clearLayoutCache, type GroupNodeData } from "../lib/dag-layout";
 
+// =============================================================================
+// Types
+// =============================================================================
+
 interface UseDAGStateOptions {
   /** Initial workflow groups from the API */
   groups: GroupQueryResponse[];
   /** Initial layout direction */
   initialDirection?: LayoutDirection;
+  /** Callback when a group is selected (for URL navigation) */
+  onSelectGroup?: (group: GroupWithLayout) => void;
+  /** Callback when a task is selected (for URL navigation) */
+  onSelectTask?: (task: TaskQueryResponse, group: GroupWithLayout) => void;
 }
-
-/**
- * Panel view state for navigation.
- * - "none" → No panel open
- * - "group" → GroupPanel showing task list
- * - "task" → DetailPanel showing single task
- */
-export type PanelView = "none" | "group" | "task";
 
 interface UseDAGStateReturn {
   // Layout
@@ -72,16 +69,9 @@ interface UseDAGStateReturn {
   handleExpandAll: () => void;
   handleCollapseAll: () => void;
 
-  // Panel navigation state
-  panelView: PanelView;
-  selectedGroup: GroupWithLayout | null;
-  selectedTask: TaskQueryResponse | null;
-
-  // Panel actions
+  // Selection handlers (delegates to external navigation)
   handleSelectGroup: (group: GroupWithLayout) => void;
   handleSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
-  handleClosePanel: () => void;
-  handleBackToGroup: () => void;
 
   // Node bounds (actual min/max positions) with computed fit-all zoom
   nodeBounds: { minX: number; maxX: number; minY: number; maxY: number; fitAllZoom: number };
@@ -90,16 +80,20 @@ interface UseDAGStateReturn {
   isLayouting: boolean;
 }
 
-export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOptions): UseDAGStateReturn {
+// =============================================================================
+// Hook
+// =============================================================================
+
+export function useDAGState({
+  groups,
+  initialDirection = "TB",
+  onSelectGroup,
+  onSelectTask,
+}: UseDAGStateOptions): UseDAGStateReturn {
   // Core state
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(initialDirection);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isLayouting, setIsLayouting] = useState(false);
-
-  // Panel navigation state
-  const [panelView, setPanelView] = useState<PanelView>("none");
-  const [selectedGroup, setSelectedGroup] = useState<GroupWithLayout | null>(null);
-  const [selectedTask, setSelectedTask] = useState<TaskQueryResponse | null>(null);
 
   // Compute topological levels from dependency graph
   const groupsWithLayout = useMemo(() => transformGroups(groups), [groups]);
@@ -114,12 +108,7 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
   useEffect(() => {
     // Clear layout cache when workflow fundamentally changes
     clearLayoutCache();
-
     setExpandedGroups(computeInitialExpandedGroups(groupsWithLayout));
-    // Clear selection on workflow change
-    setPanelView("none");
-    setSelectedGroup(null);
-    setSelectedTask(null);
   }, [groupsWithLayout]);
 
   // Cleanup on unmount - clear layout cache to free memory when navigating away
@@ -151,36 +140,20 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     setExpandedGroups(new Set());
   }, []);
 
-  // Panel navigation callbacks
-  const handleSelectGroup = useCallback((group: GroupWithLayout) => {
-    setSelectedGroup(group);
-    // Single-task groups go directly to task details (consistent with node click behavior)
-    if (group.tasks && group.tasks.length === 1) {
-      setSelectedTask(group.tasks[0]);
-      setPanelView("task");
-    } else {
-      setSelectedTask(null);
-      setPanelView("group");
-    }
-  }, []);
+  // Selection handlers - delegate to external navigation callbacks
+  const handleSelectGroup = useCallback(
+    (group: GroupWithLayout) => {
+      onSelectGroup?.(group);
+    },
+    [onSelectGroup],
+  );
 
-  const handleSelectTask = useCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
-    setSelectedGroup(group);
-    setSelectedTask(task);
-    setPanelView("task");
-  }, []);
-
-  const handleClosePanel = useCallback(() => {
-    setPanelView("none");
-    setSelectedGroup(null);
-    setSelectedTask(null);
-  }, []);
-
-  const handleBackToGroup = useCallback(() => {
-    // Go back from task detail to group panel
-    setSelectedTask(null);
-    setPanelView("group");
-  }, []);
+  const handleSelectTask = useCallback(
+    (task: TaskQueryResponse, group: GroupWithLayout) => {
+      onSelectTask?.(task, group);
+    },
+    [onSelectTask],
+  );
 
   // ReactFlow state - typed for our node data
   const [nodes, setNodes] = useNodesState<Node<GroupNodeData>>([]);
@@ -281,13 +254,8 @@ export function useDAGState({ groups, initialDirection = "TB" }: UseDAGStateOpti
     handleToggleExpand,
     handleExpandAll,
     handleCollapseAll,
-    panelView,
-    selectedGroup,
-    selectedTask,
     handleSelectGroup,
     handleSelectTask,
-    handleClosePanel,
-    handleBackToGroup,
     nodeBounds,
     isLayouting,
   };
