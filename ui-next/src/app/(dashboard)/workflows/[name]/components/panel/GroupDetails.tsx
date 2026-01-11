@@ -370,12 +370,12 @@ export const GroupDetails = memo(function GroupDetails({
                   size="sm"
                   pressed={compactMode}
                   onPressedChange={toggleCompactMode}
-                  aria-label={compactMode ? "Comfortable view" : "Compact view"}
+                  aria-label={compactMode ? "Compact view" : "Comfortable view"}
                 >
                   {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>{compactMode ? "Comfortable view" : "Compact view"}</TooltipContent>
+              <TooltipContent>{compactMode ? "Compact view" : "Comfortable view"}</TooltipContent>
             </Tooltip>
 
             {/* Column Visibility Dropdown */}
