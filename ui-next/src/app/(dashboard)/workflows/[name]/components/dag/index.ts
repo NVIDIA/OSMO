@@ -28,9 +28,7 @@ export { DAGProvider, useDAGContext, type DAGContextValue } from "./dag-context"
 export {
   DAGControls,
   DAGErrorBoundary,
-  FitViewOnLayoutChange,
   MiniMapNode,
   MINIMAP_COLORS,
   type DAGControlsProps,
-  type FitViewOnLayoutChangeProps,
 } from "@/components/dag";

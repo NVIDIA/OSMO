@@ -18,5 +18,4 @@
 
 export { DAGControls, type DAGControlsProps } from "./DAGControls";
 export { DAGErrorBoundary } from "./DAGErrorBoundary";
-export { FitViewOnLayoutChange, type FitViewOnLayoutChangeProps } from "./FitViewOnLayoutChange";
 export { MiniMapNode, MINIMAP_COLORS } from "./MiniMapNode";

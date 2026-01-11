@@ -29,12 +29,10 @@ export {
   useDAGContext,
   DAGControls,
   DAGErrorBoundary,
-  FitViewOnLayoutChange,
   MiniMapNode,
   MINIMAP_COLORS,
   type DAGContextValue,
   type DAGControlsProps,
-  type FitViewOnLayoutChangeProps,
 } from "./dag";
 
 // Panel components

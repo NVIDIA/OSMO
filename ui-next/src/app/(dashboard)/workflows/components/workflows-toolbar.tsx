@@ -131,17 +131,17 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
           // Multi-chip preset: clicking adds/removes all statuses in the category
           chips: createPresetChips(id),
           // Custom render matching the table's status badge
-          render: ({ active, focused }: PresetRenderProps) => (
+          render: ({ active }: PresetRenderProps) => (
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
                 styles.bg,
                 // Active state (all chips present): white inner ring
                 active && "ring-2 ring-white/40 ring-inset dark:ring-white/20",
-                // Focused state (keyboard nav): scale up + shadow
-                focused && "scale-105 shadow-lg",
-                // Inactive + unfocused: slightly muted
-                !active && !focused && "opacity-70 hover:opacity-100",
+                // Focused state (keyboard nav via CSS): scale up + shadow
+                "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
+                // Inactive: slightly muted, full opacity on hover or keyboard focus
+                !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
               )}
             >
               <Icon className={cn("size-3.5", styles.icon)} />

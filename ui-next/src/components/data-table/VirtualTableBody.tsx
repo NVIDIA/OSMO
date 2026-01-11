@@ -52,6 +52,13 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   columnCount: number;
   /** Row click handler */
   onRowClick?: (item: TData, index: number) => void;
+  /**
+   * Get the href for a row (if clicking navigates to a page).
+   * Used for middle-click behavior:
+   * - If getRowHref returns a URL → middle-click opens in new tab
+   * - If getRowHref returns undefined or is not provided → middle-click calls onRowClick (shows overlay)
+   */
+  getRowHref?: (item: TData) => string | undefined;
   /** Selected row ID */
   selectedRowId?: string;
   /** Get row ID for comparison */
@@ -83,6 +90,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   getItem,
   columnCount,
   onRowClick,
+  getRowHref,
   selectedRowId,
   getRowId,
   rowClassName,
@@ -147,6 +155,23 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         // Keyboard navigation support
         const tabIndex = getRowTabIndex?.(virtualRow.index) ?? (onRowClick ? 0 : undefined);
 
+        // Middle-click handler:
+        // - If row has an href (navigates to page) → open in new tab
+        // - If no href (shows overlay) → call onRowClick
+        const handleAuxClick = (e: React.MouseEvent) => {
+          // Only handle middle-click (button === 1)
+          if (e.button !== 1) return;
+
+          const href = getRowHref?.(rowData);
+          if (href) {
+            // Row navigates to a page → open in new tab
+            window.open(href, "_blank", "noopener,noreferrer");
+          } else if (onRowClick) {
+            // Row shows overlay → trigger normal click behavior
+            onRowClick(rowData, virtualRow.index);
+          }
+        };
+
         // Use virtual index in key to guarantee uniqueness even with duplicate data
         return (
           <tr
@@ -159,6 +184,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             aria-selected={isSelected ? true : undefined}
             tabIndex={tabIndex}
             onClick={onRowClick ? () => onRowClick(rowData, virtualRow.index) : undefined}
+            onAuxClick={onRowClick || getRowHref ? handleAuxClick : undefined}
             onFocus={onRowFocus ? () => onRowFocus(virtualRow.index) : undefined}
             onKeyDown={onRowKeyDown ? (e) => onRowKeyDown(e, virtualRow.index) : undefined}
             className={cn(

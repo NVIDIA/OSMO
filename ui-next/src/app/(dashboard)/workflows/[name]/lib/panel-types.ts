@@ -42,7 +42,8 @@ export type DetailsPanelView = "workflow" | "group" | "task";
 /**
  * Props for the main DetailsPanel container.
  *
- * Uses ResizablePanel from @/components/panel for resize/collapse functionality.
+ * Uses SidePanel from @/components/panel for resize/collapse functionality.
+ * Designed for side-by-side (master/detail) layout with DAG canvas.
  */
 export interface DetailsPanelProps {
   /** Current view (workflow, group, or task) */
@@ -79,13 +80,16 @@ export interface DetailsPanelProps {
   onToggleCollapsed?: () => void;
   /** Callback when workflow cancel is requested */
   onCancelWorkflow?: () => void;
-  /** Main content to render behind the panel (DAG canvas) */
-  mainContent: React.ReactNode;
   /**
    * Fallback content to render in the panel when no view matches.
    * Used for loading skeletons, error states, etc.
    */
   fallbackContent?: React.ReactNode;
+  /**
+   * Ref to the parent container (for resize calculations).
+   * Should be the flex container wrapping both DAG and panel.
+   */
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
