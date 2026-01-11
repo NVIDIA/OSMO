@@ -31,6 +31,7 @@ import { ZoomIn, ZoomOut, ArrowDown, ArrowRight, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { LayoutDirection } from "../types";
+import { ANIMATION } from "../constants";
 
 export interface DAGControlsProps {
   /** Current layout direction */
@@ -59,11 +60,11 @@ export const DAGControls = memo(function DAGControls({
   const { zoomIn, zoomOut } = useReactFlow();
 
   const handleZoomIn = useCallback(() => {
-    zoomIn({ duration: 200 });
+    zoomIn({ duration: ANIMATION.ZOOM });
   }, [zoomIn]);
 
   const handleZoomOut = useCallback(() => {
-    zoomOut({ duration: 200 });
+    zoomOut({ duration: ANIMATION.ZOOM });
   }, [zoomOut]);
 
   const handleToggleLayout = useCallback(() => {

@@ -136,6 +136,23 @@ export function useViewportBoundaries({
   // Track previous selection to detect new selections
   const prevSelectionRef = useRef<string | null>(null);
 
+  // Flag to indicate animation is in progress - skip clamping during animation
+  const isAnimatingRef = useRef(false);
+
+  // Track if we're currently at a boundary (for sync optimization)
+  const isAtBoundaryRef = useRef(false);
+
+  // Reusable viewport object to avoid allocations in hot path
+  const clampedViewportCache = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
+
+  // Detect pending animation during render (before effects run)
+  // This allows us to skip re-clamping when we're about to animate
+  const hasPendingAnimation =
+    selectedGroupName !== null &&
+    panelView !== "none" &&
+    panelView !== "workflow" &&
+    prevSelectionRef.current !== selectedGroupName;
+
   // Cache container dimensions to avoid repeated DOM reads during pan
   const containerDimsRef = useRef<{ width: number; height: number }>({
     width: VIEWPORT.ESTIMATED_WIDTH as number,
@@ -235,39 +252,107 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
 
   /**
-   * Check if two viewports are close enough to be considered equal.
-   * Uses epsilon comparison to handle floating-point precision.
-   */
-  const viewportsEqual = useCallback(
-    (a: Viewport, b: Viewport): boolean =>
-      Math.abs(a.x - b.x) < VIEWPORT_EPSILON &&
-      Math.abs(a.y - b.y) < VIEWPORT_EPSILON &&
-      Math.abs(a.zoom - b.zoom) < VIEWPORT_EPSILON,
-    [],
-  );
-
-  /**
    * Viewport change handler - synchronous for controlled mode.
    *
-   * In controlled mode, we MUST update synchronously or ReactFlow will
-   * render the old viewport, causing visible lag. The performance gain
-   * comes from:
-   * 1. Skipping redundant updates (same viewport = no re-render)
-   * 2. Optimized clamp calculation (reuses cached objects)
-   * 3. clampViewport returns same object if no clamping needed
+   * PERFORMANCE OPTIMIZATIONS:
+   * 1. Minimal object allocations (reuses cached viewport object)
+   * 2. Early exits for common cases (no change, animation in progress)
+   * 3. Inline math to avoid function call overhead
+   * 4. Only sync ReactFlow when transitioning to/at boundary (not every frame)
+   * 5. Container dims cached and only refreshed when at boundary
+   *
+   * During animation (isAnimatingRef = true), we pass through values
+   * without clamping to allow smooth animated transitions.
    */
   const onViewportChange = useStableCallback((newViewport: Viewport) => {
-    const clamped = clampViewport(newViewport);
-
-    // Fast path: clampViewport returns same object if no clamping needed
-    // AND viewport hasn't changed → skip entirely
-    if (clamped === newViewport && viewportsEqual(viewportRef.current, clamped)) {
+    // Fast path: During animation, pass through without clamping
+    if (isAnimatingRef.current) {
+      const prev = viewportRef.current;
+      // Inline equality check to avoid function call
+      if (
+        Math.abs(prev.x - newViewport.x) >= VIEWPORT_EPSILON ||
+        Math.abs(prev.y - newViewport.y) >= VIEWPORT_EPSILON ||
+        Math.abs(prev.zoom - newViewport.zoom) >= VIEWPORT_EPSILON
+      ) {
+        setViewport(newViewport);
+      }
       return;
     }
 
-    // Only update state if the viewport actually changed
-    if (!viewportsEqual(viewportRef.current, clamped)) {
-      setViewport(clamped);
+    // Cache local references to avoid repeated property access
+    const dims = containerDimsRef.current;
+    const bounds = nodeBoundsRef.current;
+    const getVisWidth = getVisibleWidthRef.current;
+
+    // Calculate visible area (inline to avoid function call overhead)
+    const visWidth = Math.max(100, getVisWidth(dims.width));
+    const visHeight = dims.height;
+
+    // Calculate viewport limits (inline)
+    const zoom = newViewport.zoom;
+    const halfVisWidth = visWidth * 0.5;
+    const halfVisHeight = visHeight * 0.5;
+    const minX = halfVisWidth - bounds.maxX * zoom;
+    const maxX = halfVisWidth - bounds.minX * zoom;
+    const minY = halfVisHeight - bounds.maxY * zoom;
+    const maxY = halfVisHeight - bounds.minY * zoom;
+
+    // Clamp values (branchless-friendly pattern)
+    const rawX = newViewport.x;
+    const rawY = newViewport.y;
+    const clampedX = rawX < minX ? minX : rawX > maxX ? maxX : rawX;
+    const clampedY = rawY < minY ? minY : rawY > maxY ? maxY : rawY;
+
+    // Check if clamping occurred
+    const deltaX = rawX - clampedX;
+    const deltaY = rawY - clampedY;
+    const needsClamp =
+      deltaX < -VIEWPORT_EPSILON ||
+      deltaX > VIEWPORT_EPSILON ||
+      deltaY < -VIEWPORT_EPSILON ||
+      deltaY > VIEWPORT_EPSILON;
+
+    // Reuse cached object for clamped viewport (avoid allocation in hot path)
+    let clamped: Viewport;
+    if (needsClamp) {
+      clampedViewportCache.current.x = clampedX;
+      clampedViewportCache.current.y = clampedY;
+      clampedViewportCache.current.zoom = zoom;
+      clamped = clampedViewportCache.current;
+    } else {
+      clamped = newViewport;
+    }
+
+    // Check if state update is needed
+    const prev = viewportRef.current;
+    const stateChanged =
+      Math.abs(prev.x - clamped.x) >= VIEWPORT_EPSILON ||
+      Math.abs(prev.y - clamped.y) >= VIEWPORT_EPSILON ||
+      Math.abs(prev.zoom - clamped.zoom) >= VIEWPORT_EPSILON;
+
+    if (stateChanged) {
+      // Must create new object for React state (can't reuse cache)
+      setViewport({ x: clamped.x, y: clamped.y, zoom: clamped.zoom });
+    }
+
+    // Sync ReactFlow's internal state when at boundary
+    // Only sync when we transition TO boundary or are actively being pushed against it
+    if (needsClamp) {
+      // Track that we're at boundary
+      if (!isAtBoundaryRef.current) {
+        isAtBoundaryRef.current = true;
+        // Refresh container dimensions when we first hit boundary
+        const container = containerRef.current;
+        if (container) {
+          containerDimsRef.current.width = container.clientWidth;
+          containerDimsRef.current.height = container.clientHeight;
+        }
+      }
+      // Sync ReactFlow to prevent internal state divergence
+      reactFlowInstance.setViewport(clamped, { duration: 0 });
+    } else {
+      // No longer at boundary
+      isAtBoundaryRef.current = false;
     }
   });
 
@@ -303,29 +388,42 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
+    // Skip re-clamping if animation is in progress or pending
+    // The animation will end at a valid clamped position anyway
+    if (isAnimatingRef.current || hasPendingAnimation) {
+      // Still update container dimensions for the upcoming animation
+      updateContainerDims();
+      return;
+    }
+
     // Update container dimensions before clamping to avoid stale values
     updateContainerDims();
     setViewport((prev) => clampViewport(prev));
     // Re-run when nodeBounds changes or any boundsDeps value changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeBounds, clampViewport, updateContainerDims, ...boundsDeps]);
+  }, [nodeBounds, clampViewport, updateContainerDims, hasPendingAnimation, ...boundsDeps]);
 
   // ---------------------------------------------------------------------------
   // Auto-pan to selected node
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!selectedGroupName || panelView === "none") return;
+    // Only auto-pan when there's a selection (group or task view)
+    // Skip when in workflow view (no selection)
+    if (!selectedGroupName) return;
+    if (panelView === "none" || panelView === "workflow") return;
 
-    const currentSelection = `${selectedGroupName}-${panelView}`;
-    if (prevSelectionRef.current === currentSelection) return;
-    prevSelectionRef.current = currentSelection;
+    // Only pan when the GROUP changes, not when switching between group/task view
+    // of the same group. The node position is the same either way.
+    if (prevSelectionRef.current === selectedGroupName) return;
+    prevSelectionRef.current = selectedGroupName;
 
     const selectedNode = nodes.find((n) => n.id === selectedGroupName);
     if (!selectedNode) return;
 
-    // Use double RAF to ensure layout is complete
+    // Use double RAF to ensure layout is complete (panel expansion animation, etc.)
     let innerFrameId: number;
+    let animationTimeoutId: ReturnType<typeof setTimeout>;
     const outerFrameId = requestAnimationFrame(() => {
       innerFrameId = requestAnimationFrame(() => {
         updateContainerDims();
@@ -350,29 +448,39 @@ export function useViewportBoundaries({
           zoom: currentViewport.zoom,
         });
 
-        // Animate to the target (ReactFlow handles the animation)
+        // Enable animation mode - onViewportChange will pass through without clamping
+        isAnimatingRef.current = true;
+
+        // Animate to the target (ReactFlow handles smooth animation)
+        // ReactFlow will call onViewportChange with intermediate values
         reactFlowInstance.setViewport(targetViewport, { duration: ANIMATION.NODE_CENTER });
 
-        // Also update our controlled state
-        setViewport(targetViewport);
+        // Disable animation mode after animation completes
+        animationTimeoutId = setTimeout(() => {
+          isAnimatingRef.current = false;
+        }, ANIMATION.NODE_CENTER + ANIMATION.BUFFER);
       });
     });
 
     return () => {
       cancelAnimationFrame(outerFrameId);
       cancelAnimationFrame(innerFrameId);
+      clearTimeout(animationTimeoutId);
+      isAnimatingRef.current = false;
     };
   }, [selectedGroupName, panelView, nodes, reactFlowInstance, getVisibleArea, clampViewport, updateContainerDims]);
 
   // ---------------------------------------------------------------------------
-  // Clear refs when panel closes
+  // Clear refs when selection is cleared (back to workflow view)
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (panelView === "none") {
+    // Clear prevSelectionRef when no selection, so re-selecting the same node
+    // will trigger auto-pan again
+    if (!selectedGroupName) {
       prevSelectionRef.current = null;
     }
-  }, [panelView]);
+  }, [selectedGroupName]);
 
   return { viewport, onViewportChange };
 }
