@@ -77,8 +77,6 @@ export interface UseViewportBoundariesOptions {
   containerRef: RefObject<HTMLDivElement | null>;
   /** Currently selected node ID/name (for auto-pan) */
   selectedGroupName?: string | null;
-  /** Current panel view state (for auto-pan trigger) */
-  panelView?: string;
   /** All nodes (for finding selected node position) */
   nodes: Node[];
 
@@ -111,7 +109,6 @@ export function useViewportBoundaries({
   nodeBounds,
   containerRef,
   selectedGroupName = null,
-  panelView = "none",
   nodes,
   layoutDirection,
   rootNodeIds,
@@ -412,11 +409,8 @@ export function useViewportBoundaries({
   // Re-clamp when container size or node bounds change
   useEffect(() => {
     // Check for pending animation inside effect (not during render)
-    const hasPendingAnimation =
-      selectedGroupName !== null &&
-      panelView !== "none" &&
-      panelView !== "workflow" &&
-      prevSelectionRef.current !== selectedGroupName;
+    // A pending animation exists when there's a new selection that hasn't been centered yet
+    const hasPendingAnimation = selectedGroupName !== null && prevSelectionRef.current !== selectedGroupName;
 
     // Skip re-clamping if animation is in progress or pending
     if (isAnimatingRef.current || hasPendingAnimation) {
@@ -427,7 +421,7 @@ export function useViewportBoundaries({
     scheduleReclamp();
 
     return () => cancelReclamp();
-  }, [nodeBounds, containerWidth, containerHeight, selectedGroupName, panelView, scheduleReclamp, cancelReclamp]);
+  }, [nodeBounds, containerWidth, containerHeight, selectedGroupName, scheduleReclamp, cancelReclamp]);
 
   // ---------------------------------------------------------------------------
   // Initial Load Centering
@@ -497,10 +491,10 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    // Only auto-pan when there's a selection (group or task view)
-    // Skip when in workflow view (no selection)
+    // Only auto-pan when there's a selection
+    // selectedGroupName being non-null is the authoritative signal for selection
+    // (panelView can have intermediate states during navigation transitions)
     if (!selectedGroupName) return;
-    if (panelView === "none" || panelView === "workflow") return;
 
     // Only pan when the GROUP changes, not when switching between group/task view
     // of the same group. The node position is the same either way.
@@ -510,8 +504,9 @@ export function useViewportBoundaries({
     // If node not found yet (still loading/layouting), don't set ref - retry when nodes update
     if (!selectedNode) return;
 
-    // Mark this selection as handled (node was found and we're about to pan)
-    prevSelectionRef.current = selectedGroupName;
+    // Capture values for use inside RAF callbacks (avoid stale closure issues)
+    const nodeId = selectedGroupName;
+    const nodePosition = { x: selectedNode.position.x, y: selectedNode.position.y };
 
     // Use double RAF to ensure layout is complete
     let innerFrameId: number;
@@ -519,9 +514,9 @@ export function useViewportBoundaries({
     const outerFrameId = requestAnimationFrame(() => {
       innerFrameId = requestAnimationFrame(() => {
         // Get node dimensions from data
-        const dims = getNodeDimensions(selectedGroupName);
-        const nodeCenterX = selectedNode.position.x + dims.width / 2;
-        const nodeCenterY = selectedNode.position.y + dims.height / 2;
+        const dims = getNodeDimensions(nodeId);
+        const nodeCenterX = nodePosition.x + dims.width / 2;
+        const nodeCenterY = nodePosition.y + dims.height / 2;
 
         const currentViewport = reactFlowInstance.getViewport();
         const { width, height } = getVisibleArea();
@@ -538,6 +533,11 @@ export function useViewportBoundaries({
 
         // Enable animation mode - onViewportChange will pass through without clamping
         isAnimatingRef.current = true;
+
+        // Mark this selection as handled ONLY when centering actually executes
+        // This must be set AFTER we're sure the centering will happen (inside RAF)
+        // to avoid race conditions where cleanup cancels the RAF but ref is already set
+        prevSelectionRef.current = nodeId;
 
         // Animate to the target (ReactFlow handles smooth animation)
         // ReactFlow will call onViewportChange with intermediate values
@@ -556,7 +556,7 @@ export function useViewportBoundaries({
       clearTimeout(animationTimeoutId);
       isAnimatingRef.current = false;
     };
-  }, [selectedGroupName, panelView, nodes, reactFlowInstance, getVisibleArea, clampViewport, getNodeDimensions]);
+  }, [selectedGroupName, nodes, reactFlowInstance, getVisibleArea, clampViewport, getNodeDimensions]);
 
   // ---------------------------------------------------------------------------
   // Clear refs when selection is cleared (back to workflow view)
