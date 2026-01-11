@@ -36,7 +36,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useQueryState, parseAsString, parseAsInteger } from "nuqs";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 import type { GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
 
 // =============================================================================
@@ -200,7 +200,7 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
   }, [groupName, taskName, selectedGroup, selectedTask]);
 
   // Navigation functions - use stable callbacks for memoized children
-  const navigateToGroup = useStableCallback((group: GroupWithLayout) => {
+  const navigateToGroup = useEventCallback((group: GroupWithLayout) => {
     // For single-task groups, navigate directly to the task
     if (group.tasks && group.tasks.length === 1) {
       const task = group.tasks[0];
@@ -215,25 +215,25 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
     }
   });
 
-  const navigateToTask = useStableCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+  const navigateToTask = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
     setGroupName(group.name);
     setTaskName(task.name);
     setTaskRetryId(task.retry_id);
   });
 
-  const navigateToWorkflow = useStableCallback(() => {
+  const navigateToWorkflow = useEventCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
   });
 
-  const navigateBackToGroup = useStableCallback(() => {
+  const navigateBackToGroup = useEventCallback(() => {
     // Keep group, clear task
     setTaskName(null);
     setTaskRetryId(null);
   });
 
-  const clearNavigation = useStableCallback(() => {
+  const clearNavigation = useEventCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);

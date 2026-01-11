@@ -47,7 +47,7 @@ import { useState, useCallback, useEffect, useRef, type RefObject } from "react"
 import { useReactFlow, type Node, type Viewport } from "@xyflow/react";
 import { useSyncedRef, useRafCallback } from "@react-hookz/web";
 import { useResizeObserver } from "usehooks-ts";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
 import type { LayoutDirection } from "../types";
 
@@ -308,7 +308,7 @@ export function useViewportBoundaries({
    * During animation (isAnimatingRef = true), we pass through values
    * without clamping to allow smooth animated transitions.
    */
-  const onViewportChange = useStableCallback((newViewport: Viewport) => {
+  const onViewportChange = useEventCallback((newViewport: Viewport) => {
     // Fast path: During animation, pass through without clamping
     if (isAnimatingRef.current) {
       const prev = viewportRef.current;
@@ -467,13 +467,7 @@ export function useViewportBoundaries({
     }, ANIMATION.DELAY);
 
     return () => clearTimeout(timer);
-  }, [
-    nodes.length,
-    rootNodeIds,
-    layoutDirection,
-    initialSelectedNodeId,
-    centerOnNode,
-  ]);
+  }, [nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode]);
 
   // ---------------------------------------------------------------------------
   // Layout Direction Change Re-centering
@@ -562,15 +556,7 @@ export function useViewportBoundaries({
       clearTimeout(animationTimeoutId);
       isAnimatingRef.current = false;
     };
-  }, [
-    selectedGroupName,
-    panelView,
-    nodes,
-    reactFlowInstance,
-    getVisibleArea,
-    clampViewport,
-    getNodeDimensions,
-  ]);
+  }, [selectedGroupName, panelView, nodes, reactFlowInstance, getVisibleArea, clampViewport, getNodeDimensions]);
 
   // ---------------------------------------------------------------------------
   // Clear refs when selection is cleared (back to workflow view)

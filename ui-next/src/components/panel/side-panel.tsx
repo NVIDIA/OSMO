@@ -49,12 +49,13 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useMemo, type RefObject } from "react";
+import { useRef, useMemo, useEffect, type RefObject } from "react";
+import { useEventListener, useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 
@@ -127,7 +128,7 @@ export function SidePanel({
   const containerRef = externalContainerRef ?? internalContainerRef;
 
   // Drag state for resize handle
-  const [isDragging, setIsDragging] = useState(false);
+  const { value: isDragging, setTrue: startDragging, setFalse: stopDragging } = useBoolean(false);
   // Store the width at drag start to calculate absolute new width from movement
   const startWidthRef = useRef(width);
   // Cache container width at drag start to avoid layout reflows during drag
@@ -153,11 +154,11 @@ export function SidePanel({
   }, [isDragging, width]);
 
   // Stable callbacks
-  const stableOnWidthChange = useStableCallback(onWidthChange);
-  const stableOnEscapeKey = useStableCallback(onEscapeKey ?? (() => {}));
+  const stableOnWidthChange = useEventCallback(onWidthChange);
+  const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
 
   // Handle keyboard events - escape key
-  const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
     if (e.key === "Escape" && onEscapeKey) {
       const target = e.target as HTMLElement;
       const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
@@ -168,27 +169,26 @@ export function SidePanel({
   });
 
   // Global escape key handler
-  useEffect(() => {
-    if (!onEscapeKey) return;
-
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+  useEventListener(
+    "keydown",
+    (e: KeyboardEvent) => {
+      if (!onEscapeKey) return;
       if (e.key === "Escape") {
         const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
         if (!isInDropdown) {
           stableOnEscapeKey();
         }
       }
-    };
-
-    document.addEventListener("keydown", handleGlobalKeyDown);
-    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [onEscapeKey, stableOnEscapeKey]);
+    },
+    undefined,
+    { passive: true },
+  );
 
   // Resize drag handler
   const bindResizeHandle = useDrag(
     ({ active, first, last, movement: [mx] }) => {
       if (first) {
-        setIsDragging(true);
+        startDragging();
         startWidthRef.current = widthRef.current;
         // Get container width from parent element
         const container = containerRef?.current ?? panelRef.current?.parentElement;
@@ -210,7 +210,7 @@ export function SidePanel({
       }
 
       if (last) {
-        setIsDragging(false);
+        stopDragging();
       }
     },
     {
@@ -312,4 +312,3 @@ export function SidePanel({
     </aside>
   );
 }
-

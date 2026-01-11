@@ -32,7 +32,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
-import { useStableCallback } from "@/hooks";
+import { useUnmount } from "usehooks-ts";
+import { useEventCallback } from "usehooks-ts";
 import { VIEWPORT, type LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
 import { transformGroups } from "../lib/workflow-adapter";
@@ -113,14 +114,12 @@ export function useDAGState({
   }, [groupsWithLayout]);
 
   // Cleanup on unmount - clear layout cache to free memory when navigating away
-  useEffect(() => {
-    return () => {
-      clearLayoutCache();
-    };
-  }, []);
+  useUnmount(() => {
+    clearLayoutCache();
+  });
 
   // Callbacks for expansion state - stable callbacks for memoized children
-  const handleToggleExpand = useStableCallback((groupName: string) => {
+  const handleToggleExpand = useEventCallback((groupName: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupName)) {
@@ -132,21 +131,21 @@ export function useDAGState({
     });
   });
 
-  const handleExpandAll = useStableCallback(() => {
+  const handleExpandAll = useEventCallback(() => {
     const expandableNames = groupsWithLayout.filter((g) => (g.tasks || []).length > 1).map((g) => g.name);
     setExpandedGroups(new Set(expandableNames));
   });
 
-  const handleCollapseAll = useStableCallback(() => {
+  const handleCollapseAll = useEventCallback(() => {
     setExpandedGroups(new Set());
   });
 
   // Selection handlers - delegate to external navigation callbacks
-  const handleSelectGroup = useStableCallback((group: GroupWithLayout) => {
+  const handleSelectGroup = useEventCallback((group: GroupWithLayout) => {
     onSelectGroup?.(group);
   });
 
-  const handleSelectTask = useStableCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+  const handleSelectTask = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
     onSelectTask?.(task, group);
   });
 

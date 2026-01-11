@@ -32,7 +32,8 @@
 import { useState, useRef } from "react";
 import { useDrag } from "@use-gesture/react";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
-import { useStableCallback } from "@/hooks";
+import { useBoolean } from "usehooks-ts";
+import { useEventCallback } from "usehooks-ts";
 import { PANEL } from "./panel-header-controls";
 
 // ============================================================================
@@ -93,7 +94,7 @@ export function useResizablePanel({
   onResize,
 }: UseResizablePanelOptions = {}): UseResizablePanelReturn {
   const [panelPct, setPanelPctState] = useState(initialPct);
-  const [isDragging, setIsDragging] = useState(false);
+  const { value: isDragging, setTrue: startDragging, setFalse: stopDragging } = useBoolean(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // Cache container rect at drag start to avoid layout reflows during drag
   const containerRectRef = useRef<{ left: number; width: number }>({ left: 0, width: 0 });
@@ -114,7 +115,7 @@ export function useResizablePanel({
   }, [minPct, maxPct, panelPct]);
 
   // Combined setter that also calls onResize - direct update for immediate response
-  const setPanelPct = useStableCallback((pct: number) => {
+  const setPanelPct = useEventCallback((pct: number) => {
     setPanelPctState(pct);
     onResize?.(pct);
   });
@@ -131,7 +132,7 @@ export function useResizablePanel({
   const bindResizeHandle = useDrag(
     ({ active, xy: [x], first, last }) => {
       if (first) {
-        setIsDragging(true);
+        startDragging();
         // Cache container rect to avoid repeated getBoundingClientRect calls
         if (containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
@@ -155,7 +156,7 @@ export function useResizablePanel({
       }
 
       if (last) {
-        setIsDragging(false);
+        stopDragging();
       }
     },
     {

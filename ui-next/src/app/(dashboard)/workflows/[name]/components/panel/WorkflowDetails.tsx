@@ -30,7 +30,9 @@
 
 "use client";
 
-import { memo, useMemo, useState, useEffect, useRef } from "react";
+import { memo, useMemo, useState, useRef } from "react";
+import { useInterval, useResizeObserver } from "usehooks-ts";
+import { useDocumentVisibility } from "@react-hookz/web";
 import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XCircle, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
@@ -119,13 +121,13 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
     needsLiveUpdate ? (Date.now() - startTimeMs) / 1000 : 0,
   );
 
-  useEffect(() => {
-    if (!needsLiveUpdate) return;
-    const interval = setInterval(() => {
-      setLiveDuration((Date.now() - startTimeMs) / 1000);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [needsLiveUpdate, startTimeMs]);
+  // Only update when tab is visible (saves resources when user switches tabs)
+  // useDocumentVisibility returns true when document is visible
+  const isTabVisible = useDocumentVisibility();
+
+  // useInterval handles the interval lifecycle - pass null to disable
+  // Pause interval when tab is not visible
+  useInterval(() => setLiveDuration((Date.now() - startTimeMs) / 1000), needsLiveUpdate && isTabVisible ? 1000 : null);
 
   const duration = needsLiveUpdate ? liveDuration : staticDuration;
 
@@ -275,25 +277,17 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
 
   // Content-aware layout: measure container and switch layout based on phases
   const containerRef = useRef<HTMLDivElement>(null);
-  const [useHorizontal, setUseHorizontal] = useState(false);
 
   // Calculate minimum width needed for horizontal layout based on number of phases
   const minWidthForHorizontal = phases.length * MIN_WIDTH_PER_PHASE;
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Use useResizeObserver for efficient container dimension tracking
+  const { width: containerWidth = 0 } = useResizeObserver({
+    ref: containerRef as React.RefObject<HTMLElement>,
+    box: "content-box",
+  });
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        setUseHorizontal(width >= minWidthForHorizontal);
-      }
-    });
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [minWidthForHorizontal]);
+  const useHorizontal = containerWidth >= minWidthForHorizontal;
 
   if (phases.length === 0) return null;
 
