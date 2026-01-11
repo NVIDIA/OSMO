@@ -157,6 +157,12 @@ export function WorkflowsDataTable({
     [router],
   );
 
+  // Get row href for middle-click support (opens in new tab)
+  const getRowHref = useCallback(
+    (workflow: WorkflowListEntry) => `/workflows/${encodeURIComponent(workflow.name)}`,
+    [],
+  );
+
   // Row class for status styling
   const rowClassName = useCallback((workflow: WorkflowListEntry) => {
     const { category } = getStatusDisplay(workflow.status);
@@ -238,6 +244,7 @@ export function WorkflowsDataTable({
         emptyContent={emptyContent}
         // Interaction
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
         rowClassName={rowClassName}
       />
     </div>
