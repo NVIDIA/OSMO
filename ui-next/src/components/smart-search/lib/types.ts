@@ -41,8 +41,11 @@ export interface SearchField<T> {
   prefix: string;
   /** Extract autocomplete values from data */
   getValues: (data: T[]) => string[];
-  /** Check if an item matches this field's value */
-  match: (item: T, value: string) => boolean;
+  /**
+   * Check if an item matches this field's value (for client-side filtering).
+   * Optional - omit when using server-side filtering.
+   */
+  match?: (item: T, value: string) => boolean;
   /**
    * If true, only values from getValues are valid - free text not allowed.
    * User must select from suggestions; typed values that don't match are rejected.
@@ -119,12 +122,29 @@ export interface PresetRenderProps {
  * SmartSearch practices dependency injection - the caller provides the render
  * function and is responsible for all visual content (labels, counts, icons, etc.).
  * This keeps the component agnostic about what presets display.
+ *
+ * Supports both single-chip and multi-chip presets:
+ * - Single: use `chip` field (backwards compatible)
+ * - Multi: use `chips` field (for category presets like "Failed" → 12 status chips)
+ *
+ * Multi-chip preset behavior:
+ * - Click: Add ALL chips if not all present, remove ALL if all present
+ * - Active: Only when ALL chips are present
+ * - Partial: If some chips are removed, preset becomes inactive
  */
 export interface SearchPreset {
   /** Unique identifier */
   id: string;
-  /** The chip to add when this preset is clicked */
-  chip: SearchChip;
+  /**
+   * Single chip to add when this preset is clicked.
+   * @deprecated Use `chips` for new implementations.
+   */
+  chip?: SearchChip;
+  /**
+   * Multiple chips to add when this preset is clicked.
+   * All chips are added/removed together. Preset is active only when ALL are present.
+   */
+  chips?: SearchChip[];
   /**
    * Render function for preset content.
    * The caller is responsible for all visual content (labels, icons, counts, etc.).

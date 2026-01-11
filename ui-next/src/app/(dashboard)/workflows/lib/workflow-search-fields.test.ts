@@ -18,17 +18,24 @@
  * Workflow Search Fields Tests
  *
  * Tests the workflow list search functionality:
- * - Status matching (exact, fuzzy, category)
- * - Validation logic
- * - Suggestions
- * - Field matching behavior
+ * - Field structure and properties
+ * - Value extraction (getValues)
+ * - Status presets for multi-chip toggling
  *
- * Complements workflow-constants tests by testing the search field integration.
+ * NOTE: Filtering is done server-side. The `match` functions are stubs that
+ * always return true. Chips are converted to API params in workflows-shim.ts.
  */
 
 import { describe, it, expect } from "vitest";
-import { WORKFLOW_SEARCH_FIELDS } from "./workflow-search-fields";
+import {
+  WORKFLOW_SEARCH_FIELDS,
+  STATUS_PRESETS,
+  createPresetChips,
+  isPresetActive,
+  togglePreset,
+} from "./workflow-search-fields";
 import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
+import type { SearchChip } from "@/stores";
 
 // =============================================================================
 // Test Helpers
@@ -60,6 +67,13 @@ function getField(id: string) {
   return field;
 }
 
+/**
+ * Create a status chip for testing.
+ */
+function statusChip(value: string): SearchChip {
+  return { field: "status", value, label: `Status: ${value}` };
+}
+
 // =============================================================================
 // Field Structure Tests
 // =============================================================================
@@ -74,6 +88,7 @@ describe("WORKFLOW_SEARCH_FIELDS structure", () => {
     expect(fieldIds).toContain("pool");
     expect(fieldIds).toContain("priority");
     expect(fieldIds).toContain("app");
+    expect(fieldIds).toContain("tag");
   });
 
   it("all fields have required properties", () => {
@@ -82,9 +97,14 @@ describe("WORKFLOW_SEARCH_FIELDS structure", () => {
       expect(field).toHaveProperty("label");
       expect(field).toHaveProperty("prefix");
       expect(field).toHaveProperty("getValues");
-      expect(field).toHaveProperty("match");
-      expect(typeof field.match).toBe("function");
       expect(typeof field.getValues).toBe("function");
+    }
+  });
+
+  it("fields do not have match functions (server-side filtering)", () => {
+    // Filtering is done server-side, so no match functions are needed
+    for (const field of WORKFLOW_SEARCH_FIELDS) {
+      expect(field.match).toBeUndefined();
     }
   });
 
@@ -95,6 +115,7 @@ describe("WORKFLOW_SEARCH_FIELDS structure", () => {
     expect(getField("pool").prefix).toBe("pool:");
     expect(getField("priority").prefix).toBe("priority:");
     expect(getField("app").prefix).toBe("app:");
+    expect(getField("tag").prefix).toBe("tag:");
   });
 });
 
@@ -104,29 +125,6 @@ describe("WORKFLOW_SEARCH_FIELDS structure", () => {
 
 describe("name field", () => {
   const nameField = getField("name");
-
-  it("matches substring in workflow name", () => {
-    const workflow = createWorkflow({ name: "data-processing-pipeline" });
-
-    expect(nameField.match(workflow, "data")).toBe(true);
-    expect(nameField.match(workflow, "processing")).toBe(true);
-    expect(nameField.match(workflow, "pipeline")).toBe(true);
-  });
-
-  it("matches case-insensitively", () => {
-    const workflow = createWorkflow({ name: "DataProcessing" });
-
-    expect(nameField.match(workflow, "dataprocessing")).toBe(true);
-    expect(nameField.match(workflow, "DATAPROCESSING")).toBe(true);
-    expect(nameField.match(workflow, "DaTaPrOcEsSiNg")).toBe(true);
-  });
-
-  it("does not match unrelated strings", () => {
-    const workflow = createWorkflow({ name: "data-pipeline" });
-
-    expect(nameField.match(workflow, "workflow")).toBe(false);
-    expect(nameField.match(workflow, "xyz")).toBe(false);
-  });
 
   it("extracts values from workflows", () => {
     const workflows = [
@@ -141,6 +139,14 @@ describe("name field", () => {
     expect(values).toContain("beta");
     expect(values).toContain("gamma");
   });
+
+  it("limits values to 20 suggestions", () => {
+    const workflows = Array.from({ length: 30 }, (_, i) => createWorkflow({ name: `workflow-${i}` }));
+
+    const values = nameField.getValues(workflows);
+
+    expect(values.length).toBe(20);
+  });
 });
 
 // =============================================================================
@@ -150,94 +156,22 @@ describe("name field", () => {
 describe("status field", () => {
   const statusField = getField("status");
 
-  describe("exact status matching", () => {
-    it("matches exact status string", () => {
-      const workflow = createWorkflow({ status: "FAILED_IMAGE_PULL" });
-
-      expect(statusField.match(workflow, "FAILED_IMAGE_PULL")).toBe(true);
-    });
+  it("is marked as exhaustive", () => {
+    expect(statusField.exhaustive).toBe(true);
   });
 
-  describe("category matching", () => {
-    it("matches 'running' category", () => {
-      const runningWorkflow = createWorkflow({ status: "RUNNING" });
-
-      expect(statusField.match(runningWorkflow, "running")).toBe(true);
-    });
-
-    it("matches 'failed' category for all failed statuses", () => {
-      const failedWorkflow = createWorkflow({ status: "FAILED" });
-      const imagePullWorkflow = createWorkflow({ status: "FAILED_IMAGE_PULL" });
-
-      expect(statusField.match(failedWorkflow, "failed")).toBe(true);
-      expect(statusField.match(imagePullWorkflow, "failed")).toBe(true);
-    });
-
-    it("matches 'completed' category", () => {
-      const completedWorkflow = createWorkflow({ status: "COMPLETED" });
-
-      expect(statusField.match(completedWorkflow, "completed")).toBe(true);
-    });
-
-    it("matches 'waiting' category", () => {
-      const waitingWorkflow = createWorkflow({ status: "WAITING" });
-      const pendingWorkflow = createWorkflow({ status: "PENDING" });
-
-      expect(statusField.match(waitingWorkflow, "waiting")).toBe(true);
-      expect(statusField.match(pendingWorkflow, "waiting")).toBe(true);
-    });
+  it("requires valid values", () => {
+    expect(statusField.requiresValidValue).toBe(true);
   });
 
-  describe("fuzzy matching", () => {
-    it("matches partial status tokens", () => {
-      const workflow = createWorkflow({ status: "FAILED_IMAGE_PULL" });
+  it("returns all workflow statuses", () => {
+    const values = statusField.getValues([]);
 
-      expect(statusField.match(workflow, "image")).toBe(true);
-      expect(statusField.match(workflow, "pull")).toBe(true);
-    });
-  });
-
-  describe("validation", () => {
-    it("accepts valid status values", () => {
-      expect(statusField.validate?.("RUNNING")).toBe(true);
-      expect(statusField.validate?.("FAILED")).toBe(true);
-      expect(statusField.validate?.("COMPLETED")).toBe(true);
-    });
-
-    it("accepts category values", () => {
-      expect(statusField.validate?.("running")).toBe(true);
-      expect(statusField.validate?.("failed")).toBe(true);
-      expect(statusField.validate?.("completed")).toBe(true);
-      expect(statusField.validate?.("waiting")).toBe(true);
-    });
-
-    it("accepts partial matches", () => {
-      expect(statusField.validate?.("image")).toBe(true);
-      expect(statusField.validate?.("timeout")).toBe(true);
-    });
-
-    it("returns error message for invalid status", () => {
-      const result = statusField.validate?.("xyz123invalid");
-
-      expect(typeof result).toBe("string");
-      expect(result).toContain("Unknown status");
-    });
-  });
-
-  describe("exhaustive values", () => {
-    it("marks status field as exhaustive", () => {
-      expect(statusField.exhaustive).toBe(true);
-    });
-
-    it("returns all workflow statuses", () => {
-      const values = statusField.getValues([]);
-
-      expect(values).toContain("RUNNING");
-      expect(values).toContain("COMPLETED");
-      expect(values).toContain("FAILED");
-      expect(values).toContain("FAILED_IMAGE_PULL");
-      expect(values.length).toBeGreaterThan(5);
-    });
+    expect(values).toContain("RUNNING");
+    expect(values).toContain("COMPLETED");
+    expect(values).toContain("FAILED");
+    expect(values).toContain("FAILED_IMAGE_PULL");
+    expect(values.length).toBeGreaterThan(5);
   });
 });
 
@@ -247,21 +181,6 @@ describe("status field", () => {
 
 describe("user field", () => {
   const userField = getField("user");
-
-  it("matches substring in user name", () => {
-    const workflow = createWorkflow({ user: "john.doe" });
-
-    expect(userField.match(workflow, "john")).toBe(true);
-    expect(userField.match(workflow, "doe")).toBe(true);
-    expect(userField.match(workflow, "john.doe")).toBe(true);
-  });
-
-  it("matches case-insensitively", () => {
-    const workflow = createWorkflow({ user: "JohnDoe" });
-
-    expect(userField.match(workflow, "johndoe")).toBe(true);
-    expect(userField.match(workflow, "JOHNDOE")).toBe(true);
-  });
 
   it("extracts unique users from workflows", () => {
     const workflows = [
@@ -286,19 +205,6 @@ describe("user field", () => {
 describe("pool field", () => {
   const poolField = getField("pool");
 
-  it("matches substring in pool name", () => {
-    const workflow = createWorkflow({ pool: "production-gpu" });
-
-    expect(poolField.match(workflow, "production")).toBe(true);
-    expect(poolField.match(workflow, "gpu")).toBe(true);
-  });
-
-  it("handles workflows without pool", () => {
-    const workflow = createWorkflow({ pool: undefined });
-
-    expect(poolField.match(workflow, "anything")).toBe(false);
-  });
-
   it("extracts pools, filtering out undefined", () => {
     const workflows = [
       createWorkflow({ pool: "pool-a" }),
@@ -320,24 +226,6 @@ describe("pool field", () => {
 
 describe("priority field", () => {
   const priorityField = getField("priority");
-
-  it("matches exact priority (case-insensitive)", () => {
-    const highWorkflow = createWorkflow({ priority: "HIGH" });
-    const normalWorkflow = createWorkflow({ priority: "NORMAL" });
-    const lowWorkflow = createWorkflow({ priority: "LOW" });
-
-    expect(priorityField.match(highWorkflow, "HIGH")).toBe(true);
-    expect(priorityField.match(highWorkflow, "high")).toBe(true);
-    expect(priorityField.match(normalWorkflow, "normal")).toBe(true);
-    expect(priorityField.match(lowWorkflow, "low")).toBe(true);
-  });
-
-  it("does not match substring", () => {
-    const workflow = createWorkflow({ priority: "NORMAL" });
-
-    // Priority requires exact match (via toUpperCase comparison)
-    expect(priorityField.match(workflow, "norm")).toBe(false);
-  });
 
   it("is marked as exhaustive", () => {
     expect(priorityField.exhaustive).toBe(true);
@@ -361,27 +249,7 @@ describe("priority field", () => {
 describe("app field", () => {
   const appField = getField("app");
 
-  it("matches substring in app name", () => {
-    const workflow = createWorkflow({ app_name: "ml-training-v2" });
-
-    expect(appField.match(workflow, "ml")).toBe(true);
-    expect(appField.match(workflow, "training")).toBe(true);
-    expect(appField.match(workflow, "v2")).toBe(true);
-  });
-
-  it("matches case-insensitively", () => {
-    const workflow = createWorkflow({ app_name: "MLTraining" });
-
-    expect(appField.match(workflow, "mltraining")).toBe(true);
-  });
-
-  it("handles workflows without app_name", () => {
-    const workflow = createWorkflow({ app_name: undefined });
-
-    expect(appField.match(workflow, "anything")).toBe(false);
-  });
-
-  it("extracts unique app names", () => {
+  it("extracts unique app names, filtering out undefined", () => {
     const workflows = [
       createWorkflow({ app_name: "app-a" }),
       createWorkflow({ app_name: "app-b" }),
@@ -393,5 +261,172 @@ describe("app field", () => {
     expect(values).toContain("app-a");
     expect(values).toContain("app-b");
     expect(values).not.toContain(undefined);
+  });
+});
+
+// =============================================================================
+// Tag Field Tests
+// =============================================================================
+
+describe("tag field", () => {
+  const tagField = getField("tag");
+
+  it("returns empty values (tags not in list response)", () => {
+    const workflows = [createWorkflow()];
+
+    const values = tagField.getValues(workflows);
+
+    expect(values).toEqual([]);
+  });
+
+  it("has freeFormHint for user input", () => {
+    expect(tagField.freeFormHint).toBeDefined();
+  });
+});
+
+// =============================================================================
+// Status Preset Tests
+// =============================================================================
+
+describe("STATUS_PRESETS", () => {
+  it("contains expected preset categories", () => {
+    expect(STATUS_PRESETS).toHaveProperty("running");
+    expect(STATUS_PRESETS).toHaveProperty("waiting");
+    expect(STATUS_PRESETS).toHaveProperty("completed");
+    expect(STATUS_PRESETS).toHaveProperty("failed");
+  });
+
+  it("running preset contains RUNNING", () => {
+    expect(STATUS_PRESETS.running).toContain("RUNNING");
+  });
+
+  it("waiting preset contains PENDING and WAITING", () => {
+    expect(STATUS_PRESETS.waiting).toContain("PENDING");
+    expect(STATUS_PRESETS.waiting).toContain("WAITING");
+  });
+
+  it("completed preset contains COMPLETED", () => {
+    expect(STATUS_PRESETS.completed).toContain("COMPLETED");
+  });
+
+  it("failed preset contains multiple failure statuses", () => {
+    expect(STATUS_PRESETS.failed).toContain("FAILED");
+    expect(STATUS_PRESETS.failed).toContain("FAILED_IMAGE_PULL");
+    expect(STATUS_PRESETS.failed).toContain("FAILED_CANCELED");
+    expect(STATUS_PRESETS.failed.length).toBeGreaterThan(5);
+  });
+});
+
+describe("createPresetChips", () => {
+  it("creates chips for running preset", () => {
+    const chips = createPresetChips("running");
+
+    expect(chips).toHaveLength(1);
+    expect(chips[0].field).toBe("status");
+    expect(chips[0].value).toBe("RUNNING");
+  });
+
+  it("creates chips for waiting preset", () => {
+    const chips = createPresetChips("waiting");
+
+    expect(chips).toHaveLength(2);
+    expect(chips.map((c) => c.value)).toContain("PENDING");
+    expect(chips.map((c) => c.value)).toContain("WAITING");
+  });
+
+  it("creates chips for failed preset with all failure statuses", () => {
+    const chips = createPresetChips("failed");
+
+    expect(chips.length).toBe(STATUS_PRESETS.failed.length);
+    expect(chips.every((c) => c.field === "status")).toBe(true);
+  });
+});
+
+describe("isPresetActive", () => {
+  it("returns false when no chips", () => {
+    expect(isPresetActive("running", [])).toBe(false);
+  });
+
+  it("returns true when all preset chips are present", () => {
+    const chips = [statusChip("RUNNING")];
+
+    expect(isPresetActive("running", chips)).toBe(true);
+  });
+
+  it("returns true when waiting preset chips are all present", () => {
+    const chips = [statusChip("PENDING"), statusChip("WAITING")];
+
+    expect(isPresetActive("waiting", chips)).toBe(true);
+  });
+
+  it("returns false when only some preset chips are present", () => {
+    const chips = [statusChip("PENDING")]; // Missing WAITING
+
+    expect(isPresetActive("waiting", chips)).toBe(false);
+  });
+
+  it("returns true when all failed preset chips are present", () => {
+    const chips = STATUS_PRESETS.failed.map((s) => statusChip(s));
+
+    expect(isPresetActive("failed", chips)).toBe(true);
+  });
+
+  it("returns false when one failed status is missing", () => {
+    const allButOne = STATUS_PRESETS.failed.slice(0, -1);
+    const chips = allButOne.map((s) => statusChip(s));
+
+    expect(isPresetActive("failed", chips)).toBe(false);
+  });
+
+  it("ignores chips from other fields", () => {
+    const chips = [statusChip("RUNNING"), { field: "user", value: "alice", label: "User: alice" }];
+
+    expect(isPresetActive("running", chips)).toBe(true);
+  });
+});
+
+describe("togglePreset", () => {
+  it("adds all preset chips when inactive", () => {
+    const result = togglePreset("running", []);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].value).toBe("RUNNING");
+  });
+
+  it("removes all preset chips when active", () => {
+    const chips = [statusChip("RUNNING")];
+    const result = togglePreset("running", chips);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("adds missing waiting chips", () => {
+    const chips = [statusChip("PENDING")]; // Has one, missing one
+    const result = togglePreset("waiting", chips);
+
+    // Should still add WAITING since preset wasn't fully active
+    expect(result.map((c) => c.value)).toContain("PENDING");
+    expect(result.map((c) => c.value)).toContain("WAITING");
+  });
+
+  it("removes all waiting chips when fully active", () => {
+    const chips = [statusChip("PENDING"), statusChip("WAITING")];
+    const result = togglePreset("waiting", chips);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("preserves chips from other fields", () => {
+    const chips = [statusChip("RUNNING"), { field: "user", value: "alice", label: "User: alice" }];
+    const result = togglePreset("running", chips);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].field).toBe("user");
+  });
+
+  it("adds all failed preset chips", () => {
+    const result = togglePreset("failed", []);
+
+    expect(result.length).toBe(STATUS_PRESETS.failed.length);
   });
 });

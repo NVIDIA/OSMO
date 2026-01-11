@@ -60,9 +60,11 @@ export function filterByChips<T>(items: T[], chips: SearchChip[], fields: readon
     // AND across different fields
     for (const [fieldId, values] of chipGroups) {
       const field = fields.find((f) => f.id === fieldId);
-      if (!field) continue;
-      // OR within same field
-      if (!values.some((v) => field.match(item, v))) return false;
+      // Skip fields without match function (server-side filtering)
+      if (!field?.match) continue;
+      // OR within same field - capture match function for type safety
+      const matchFn = field.match;
+      if (!values.some((v) => matchFn(item, v))) return false;
     }
     return true;
   });
