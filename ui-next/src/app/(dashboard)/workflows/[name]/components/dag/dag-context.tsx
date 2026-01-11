@@ -24,7 +24,7 @@
 "use client";
 
 import { createContext, useContext, useMemo } from "react";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-types";
 
 // ============================================================================
@@ -46,7 +46,7 @@ const WorkflowDAGContext = createContext<WorkflowDAGContextValue | null>(null);
  * DAGProvider - Provides workflow-specific DAG handlers to child components.
  *
  * Performance optimizations:
- * - Callbacks are stabilized with useStableCallback to prevent stale closures
+ * - Callbacks are stabilized with useEventCallback to prevent stale closures
  * - Context value is memoized to prevent unnecessary re-renders
  */
 export function DAGProvider({
@@ -56,9 +56,9 @@ export function DAGProvider({
   onToggleExpand,
 }: WorkflowDAGContextValue & { children: React.ReactNode }) {
   // Stabilize callbacks to prevent context value from changing
-  const stableOnSelectGroup = useStableCallback(onSelectGroup);
-  const stableOnSelectTask = useStableCallback(onSelectTask);
-  const stableOnToggleExpand = useStableCallback(onToggleExpand);
+  const stableOnSelectGroup = useEventCallback(onSelectGroup);
+  const stableOnSelectTask = useEventCallback(onSelectTask);
+  const stableOnToggleExpand = useEventCallback(onToggleExpand);
 
   // Memoize context value - stable callbacks mean this never changes
   const value = useMemo<WorkflowDAGContextValue>(

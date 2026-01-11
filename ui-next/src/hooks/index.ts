@@ -19,12 +19,27 @@
 /**
  * Shared React Hooks
  *
- * Most hooks are imported directly from libraries:
- * - `@react-hookz/web` - useIsomorphicLayoutEffect, useSyncedRef, useMediaQuery, useRafCallback
- * - `usehooks-ts` - useLocalStorage, useCopyToClipboard (base)
+ * ## Library Hooks (import directly where needed)
+ *
+ * ### @react-hookz/web
+ * - `useIsomorphicLayoutEffect` - SSR-safe useLayoutEffect
+ * - `useSyncedRef` - Ref synced to value
+ * - `useMediaQuery` - CSS media query state
+ * - `useRafCallback` - RAF-throttled callback
+ * - `usePrevious` - Previous value tracking
+ * - `useDocumentVisibility` - Tab visibility detection
+ *
+ * ### usehooks-ts
+ * - `useLocalStorage` - localStorage sync
+ * - `useCopyToClipboard` - Clipboard API
+ * - `useEventListener` - DOM event listener
+ * - `useEventCallback` - Stable callback reference (replaces custom useStableCallback)
+ * - `useResizeObserver` - Element resize observer
+ * - `useInterval` - setInterval wrapper
+ * - `useUnmount` - Unmount callback
+ * - `useBoolean` - Boolean state with toggle/on/off
  *
  * ## Custom Hooks (kept for specific reasons)
- * - `useStableCallback` - TypeScript overloads preserve arg/return types (library versions use `any`)
  * - `useVirtualizerCompat` - React Compiler workaround for @tanstack/react-virtual
  * - `useAnnouncer` - Avoids adding React Aria parallel to Radix ecosystem
  * - `useCopy` - Thin wrapper on usehooks-ts with auto-reset for UI feedback
@@ -35,9 +50,6 @@
 // =============================================================================
 // Custom Hooks
 // =============================================================================
-
-// Stability & Functional Correctness
-export { useStableCallback } from "./use-stable-callback";
 
 // Performance & Animation
 export { useVirtualizerCompat } from "./use-virtualizer-compat";
@@ -53,9 +65,13 @@ export {
   type AnnouncerPoliteness,
   type AnnounceFunction,
 } from "./use-announcer";
+
+// Expandable Chips
 export {
   useExpandableChips,
   type UseExpandableChipsOptions,
   type UseExpandableChipsResult,
 } from "./use-expandable-chips";
+
+// URL Chips
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";

@@ -43,7 +43,7 @@ import { useDrag } from "@use-gesture/react";
 import type { Header } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import { useSyncedRef } from "@react-hookz/web";
-import { useStableCallback } from "@/hooks";
+import { useEventCallback } from "usehooks-ts";
 
 // =============================================================================
 // Types
@@ -144,14 +144,14 @@ function ResizeHandleInner<TData>({
   // Click Events - Auto-fit
   // ==========================================================================
 
-  const handleDoubleClick = useStableCallback((e: React.MouseEvent) => {
+  const handleDoubleClick = useEventCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onAutoFitRef.current?.(columnId);
   });
 
   // Keyboard support for accessibility
-  const handleKeyDown = useStableCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onAutoFitRef.current?.(columnId);

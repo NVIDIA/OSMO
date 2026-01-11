@@ -37,8 +37,8 @@
  * ```
  */
 
-import { useCallback, useRef, useEffect } from "react";
-import { useCopyToClipboard } from "usehooks-ts";
+import { useCallback, useRef } from "react";
+import { useCopyToClipboard, useUnmount } from "usehooks-ts";
 
 export interface UseCopyOptions {
   /** Delay in ms before resetting copied state (default: 2000) */
@@ -64,13 +64,11 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+  useUnmount(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+  });
 
   const copy = useCallback(
     async (text: string): Promise<boolean> => {
