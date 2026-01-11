@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,13 +18,12 @@
  * Column Sizing Hook
  *
  * React hook for managing column sizing with TanStack Table.
- * Uses a state machine pattern for clarity and correctness.
+ * Handles initial sizing, container resize, user resize, and auto-fit.
  *
- * @see ./column-sizing-reducer.ts for state machine details
  * @see https://tanstack.com/table/v8/docs/guide/column-sizing
  */
 
-import { useCallback, useRef, useMemo, useEffect, useReducer, useState } from "react";
+import { useCallback, useRef, useMemo, useEffect, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
 import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback } from "@react-hookz/web";
 import { useStableCallback } from "@/hooks";
@@ -38,11 +37,10 @@ import {
   getTruncationThreshold,
   getRemToPx,
 } from "../utils/column-sizing";
-import { SizingModes, SizingEventTypes, PreferenceModes, type PreferenceMode } from "../constants";
-import { sizingReducer, INITIAL_STATE } from "../utils/column-sizing-reducer";
+import { PreferenceModes, type PreferenceMode } from "../constants";
 
 // =============================================================================
-// Types - External API
+// Types
 // =============================================================================
 
 export interface UseColumnSizingOptions {
@@ -107,29 +105,38 @@ export interface UseColumnSizingResult {
 }
 
 // =============================================================================
-// Re-exports for backwards compatibility and testing
+// Constants
 // =============================================================================
 
-// From reducer module (in utils/)
-export {
-  sizingReducer,
-  INITIAL_STATE,
-  DEFAULT_COLUMN_SIZING_INFO,
-  type SizingState,
-  type SizingEvent,
-  type ResizingContext,
-} from "../utils/column-sizing-reducer";
+const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
+  startOffset: null,
+  startSize: null,
+  deltaOffset: null,
+  deltaPercentage: null,
+  isResizingColumn: false,
+  columnSizingStart: [],
+};
 
-// From constants
-export type { SizingMode } from "../constants";
+// =============================================================================
+// Re-exports for external use
+// =============================================================================
 
-// From utils
 export {
   calculateColumnWidths,
   getRemToPx,
   _invalidateRemToPxCache,
   getTruncationThreshold,
 } from "../utils/column-sizing";
+
+// =============================================================================
+// Resizing Context (for tracking resize state)
+// =============================================================================
+
+interface ResizingContext {
+  columnId: string;
+  startWidth: number;
+  beforeResize: ColumnSizingState;
+}
 
 // =============================================================================
 // Hook
@@ -149,13 +156,18 @@ export function useColumnSizing({
   isLoading = false,
 }: UseColumnSizingOptions): UseColumnSizingResult {
   // =========================================================================
-  // State Machine
+  // Core State (simplified from useReducer)
   // =========================================================================
-  const [state, dispatch] = useReducer(sizingReducer, INITIAL_STATE);
+  const [sizing, setSizing] = useState<ColumnSizingState>({});
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [columnSizingInfo, setColumnSizingInfo] = useState<ColumnSizingInfoState>(DEFAULT_COLUMN_SIZING_INFO);
+
+  // Resizing context stored in ref (only needed during resize, not for render)
+  const resizingContextRef = useRef<ResizingContext | null>(null);
 
   // =========================================================================
   // Content Width Measurement State
-  // Tracks measured widths for NO_TRUNCATE columns to prevent truncation
   // =========================================================================
   const [contentWidths, setContentWidths] = useState<Record<string, number>>({});
   const measuredDataLengthRef = useRef<number>(0);
@@ -190,24 +202,23 @@ export function useColumnSizing({
   }, [columnIds, columnConfigs, minSizesProp, configuredSizesProp]);
 
   // =========================================================================
-  // Stable Refs (for callbacks that need latest values without re-creating)
+  // Stable Refs
   // =========================================================================
   const minSizesRef = useSyncedRef(minSizes);
   const configuredSizesRef = useSyncedRef(configuredSizes);
   const sizingPreferencesRef = useSyncedRef(sizingPreferences);
   const contentWidthsRef = useSyncedRef(contentWidths);
   const onPreferenceChangeRef = useSyncedRef(onPreferenceChange);
-  const stateRef = useSyncedRef(state);
+  const sizingRef = useSyncedRef(sizing);
+  const isResizingRef = useSyncedRef(isResizing);
+  const columnSizingInfoRef = useSyncedRef(columnSizingInfo);
 
-  // For tracking container width changes (avoid recalc on tiny changes)
+  // Other refs
   const lastContainerWidthRef = useRef<number>(0);
-  // Track auto-fit timing (cooldown to ignore TanStack echo)
   const lastAutoFitRef = useRef<number>(0);
-  // Track transition timeout for cleanup
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // RAF-throttled DOM update for 60fps performance during drag
-  // Optimization #2/#4: Only update the single changing column to avoid object allocation
   const [scheduleColumnUpdate, cancelColumnUpdate] = useRafCallback(
     ({ columnId, width }: { columnId: string; width: number }) => {
       const table = tableRef?.current;
@@ -226,26 +237,26 @@ export function useColumnSizing({
     if (!table) return;
 
     // Only update if NOT currently resizing (RAF handles that)
-    if (state.mode === SizingModes.RESIZING) return;
+    if (isResizing) return;
 
-    for (const [colId, width] of Object.entries(state.sizing)) {
+    for (const [colId, width] of Object.entries(sizing)) {
       const minWidth = minSizes[colId] ?? 0;
       const clampedWidth = Math.max(width, minWidth);
       table.style.setProperty(`--col-${colId}`, `${clampedWidth}px`);
     }
-  }, [state.sizing, state.mode, tableRef, minSizes]);
+  }, [sizing, isResizing, tableRef, minSizes]);
 
   // Effect: Toggle is-resizing class
   useEffect(() => {
     const container = containerRef?.current;
     if (!container) return;
 
-    if (state.mode === SizingModes.RESIZING) {
+    if (isResizing) {
       container.classList.add("is-resizing");
     } else {
       container.classList.remove("is-resizing");
     }
-  }, [state.mode, containerRef]);
+  }, [isResizing, containerRef]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -262,7 +273,6 @@ export function useColumnSizing({
 
   // =========================================================================
   // Content Width Measurement Effects
-  // Measures visible cells for NO_TRUNCATE columns to set accurate floors
   // =========================================================================
 
   // Identify columns with NO_TRUNCATE preference
@@ -273,25 +283,19 @@ export function useColumnSizing({
     });
   }, [columnIds, sizingPreferences]);
 
-  // Measure NO_TRUNCATE columns when data arrives or changes significantly
-  // Uses useIsomorphicLayoutEffect for SSR safety (runs synchronously before paint)
+  // Measure NO_TRUNCATE columns when data arrives or changes
   useIsomorphicLayoutEffect(() => {
     const container = containerRef?.current;
-    // Skip if no container, no data, still loading, or no NO_TRUNCATE columns
     if (!container || dataLength === 0 || isLoading || noTruncateColumnIds.length === 0) {
       return;
     }
 
-    // Only remeasure if data length changed (new data loaded)
     if (measuredDataLengthRef.current === dataLength) {
       return;
     }
     measuredDataLengthRef.current = dataLength;
 
-    // Measure each NO_TRUNCATE column using the utility function
     const newWidths = measureMultipleColumns(container, noTruncateColumnIds);
-
-    // Batch update if we measured anything
     if (Object.keys(newWidths).length > 0) {
       setContentWidths((prev) => ({ ...prev, ...newWidths }));
     }
@@ -300,27 +304,22 @@ export function useColumnSizing({
   // Track pending idle callback for cleanup
   const pendingIdleCallbackRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
 
-  // Remeasure when a column becomes NO_TRUNCATE (after user resize)
-  // Uses useEffect (not layout effect) since measurement can happen after paint
+  // Remeasure when a column becomes NO_TRUNCATE
   useEffect(() => {
     const container = containerRef?.current;
     const prev = prevPreferencesRef.current;
     const current = sizingPreferences;
     prevPreferencesRef.current = current;
 
-    // Skip on first render or if no data/container
     if (!container || !prev || dataLength === 0) {
       return;
     }
 
-    // Find columns that just became NO_TRUNCATE
     const newNoTruncateColumns: string[] = [];
     for (const columnId of columnIds) {
       const prevMode = prev[columnId]?.mode;
       const currentMode = current[columnId]?.mode;
       if (currentMode === PreferenceModes.NO_TRUNCATE && prevMode !== PreferenceModes.NO_TRUNCATE) {
-        // Column just became NO_TRUNCATE - needs measurement
-        // Use ref to avoid effect re-runs when contentWidths changes
         if (!contentWidthsRef.current[columnId]) {
           newNoTruncateColumns.push(columnId);
         }
@@ -331,7 +330,6 @@ export function useColumnSizing({
       return;
     }
 
-    // Measure using requestIdleCallback for non-blocking behavior
     const measureNewColumns = () => {
       pendingIdleCallbackRef.current = null;
       const containerEl = containerRef?.current;
@@ -343,14 +341,12 @@ export function useColumnSizing({
       }
     };
 
-    // Schedule measurement with proper cleanup tracking
     if (typeof requestIdleCallback !== "undefined") {
       pendingIdleCallbackRef.current = requestIdleCallback(measureNewColumns, { timeout: 500 });
     } else {
       pendingIdleCallbackRef.current = setTimeout(measureNewColumns, 0);
     }
 
-    // Cleanup: cancel pending callback on unmount or re-run
     return () => {
       if (pendingIdleCallbackRef.current !== null) {
         if (typeof cancelIdleCallback !== "undefined" && typeof pendingIdleCallbackRef.current === "number") {
@@ -364,78 +360,72 @@ export function useColumnSizing({
   }, [sizingPreferences, columnIds, dataLength, containerRef, contentWidthsRef]);
 
   // =========================================================================
-  // Calculate Sizing (used by INIT and CONTAINER_RESIZE)
-  // Optimization #3: Accept containerWidth to avoid forced layout when available
+  // Calculate Sizing
   // =========================================================================
-  const calculateAndDispatch = useStableCallback(
-    (eventType: "INIT" | "CONTAINER_RESIZE", animate: boolean, providedWidth: number | undefined) => {
-      const container = containerRef?.current;
-      if (!container) return;
+  const calculateAndApply = useStableCallback((animate: boolean, providedWidth: number | undefined) => {
+    const container = containerRef?.current;
+    if (!container) return;
 
-      // Use provided width (from ResizeObserver) or read (forces layout - only for INIT)
-      const containerWidth = providedWidth ?? container.clientWidth;
-      if (containerWidth <= 0) return;
+    const containerWidth = providedWidth ?? container.clientWidth;
+    if (containerWidth <= 0) return;
 
-      const sizing = calculateColumnWidths(
-        columnIds,
-        containerWidth,
-        minSizesRef.current,
-        configuredSizesRef.current,
-        sizingPreferencesRef.current,
-        contentWidthsRef.current,
-      );
+    const newSizing = calculateColumnWidths(
+      columnIds,
+      containerWidth,
+      minSizesRef.current,
+      configuredSizesRef.current,
+      sizingPreferencesRef.current,
+      contentWidthsRef.current,
+    );
 
-      // Debug logging (lazy to avoid allocation when disabled)
-      logColumnSizingDebug(() =>
-        createDebugSnapshot(
-          eventType,
-          {
-            columnIds,
-            containerRef,
-            columnSizing: sizing,
-            preferences: sizingPreferencesRef.current,
-            minSizes: minSizesRef.current,
-            configuredSizes: configuredSizesRef.current,
-            isResizing: stateRef.current.mode === SizingModes.RESIZING,
-            isInitialized: stateRef.current.isInitialized,
-          },
-          { animate, containerWidth },
-        ),
-      );
+    // Debug logging
+    logColumnSizingDebug(() =>
+      createDebugSnapshot(
+        "INIT",
+        {
+          columnIds,
+          containerRef,
+          columnSizing: newSizing,
+          preferences: sizingPreferencesRef.current,
+          minSizes: minSizesRef.current,
+          configuredSizes: configuredSizesRef.current,
+          isResizing: isResizingRef.current,
+          isInitialized,
+        },
+        { animate, containerWidth },
+      ),
+    );
 
-      // Handle animation class with proper cleanup
-      if (animate && container) {
-        // Cancel any pending transition timeout
-        if (transitionTimeoutRef.current) {
-          clearTimeout(transitionTimeoutRef.current);
-        }
-        container.classList.add("is-transitioning");
-        transitionTimeoutRef.current = setTimeout(() => {
-          container.classList.remove("is-transitioning");
-          transitionTimeoutRef.current = null;
-        }, 150);
+    // Handle animation class
+    if (animate && container) {
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
       }
+      container.classList.add("is-transitioning");
+      transitionTimeoutRef.current = setTimeout(() => {
+        container.classList.remove("is-transitioning");
+        transitionTimeoutRef.current = null;
+      }, 150);
+    }
 
-      dispatch({ type: eventType, sizing });
-    },
-  );
+    setSizing(newSizing);
+    setIsInitialized(true);
+  });
 
   // =========================================================================
   // Initial Sizing Effect
-  // Optimization #6: Memoize columnSetKey to avoid allocation on every render
   // =========================================================================
   const columnSetKey = useMemo(() => [...columnIds].sort().join(","), [columnIds]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      calculateAndDispatch("INIT", false, undefined);
+      calculateAndApply(false, undefined);
     });
     return () => cancelAnimationFrame(frame);
-  }, [columnSetKey, calculateAndDispatch]);
+  }, [columnSetKey, calculateAndApply]);
 
   // =========================================================================
   // Container Resize Effect
-  // Optimization #3: Pass ResizeObserver width directly to avoid forced layout
   // =========================================================================
   useEffect(() => {
     const container = containerRef?.current;
@@ -447,9 +437,8 @@ export function useColumnSizing({
     let pendingWidth: number | null = null;
 
     const observer = new ResizeObserver((entries) => {
-      // State machine handles this guard: RESIZING mode ignores CONTAINER_RESIZE
-      // But we also check here to avoid unnecessary calculations
-      if (stateRef.current.mode === SizingModes.RESIZING) return;
+      // Ignore container resize during user resize
+      if (isResizingRef.current) return;
 
       const entry = entries[0];
       if (!entry) return;
@@ -458,12 +447,11 @@ export function useColumnSizing({
       if (widthDelta < 1) return;
 
       lastContainerWidthRef.current = newWidth;
-      pendingWidth = newWidth; // Capture width from ResizeObserver
+      pendingWidth = newWidth;
 
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        // Pass captured width directly - no forced layout!
-        calculateAndDispatch("CONTAINER_RESIZE", true, pendingWidth ?? undefined);
+        calculateAndApply(true, pendingWidth ?? undefined);
         pendingWidth = null;
       }, resizeDebounceMs);
     });
@@ -474,30 +462,29 @@ export function useColumnSizing({
       clearTimeout(timeoutId);
       observer.disconnect();
     };
-  }, [containerRef, calculateAndDispatch, resizeDebounceMs, stateRef]);
+  }, [containerRef, calculateAndApply, resizeDebounceMs, isResizingRef]);
 
   // =========================================================================
-  // Resize Control API
+  // Debug Helper
   // =========================================================================
-
   const getDebugState = useCallback(
     () => ({
       columnIds,
       containerRef,
-      columnSizing: state.sizing,
+      columnSizing: sizing,
       preferences: sizingPreferencesRef.current,
       minSizes: minSizesRef.current,
       configuredSizes: configuredSizesRef.current,
       contentWidths: contentWidthsRef.current,
-      isResizing: state.mode === SizingModes.RESIZING,
-      isInitialized: state.isInitialized,
+      isResizing,
+      isInitialized,
     }),
     [
       columnIds,
       containerRef,
-      state.sizing,
-      state.mode,
-      state.isInitialized,
+      sizing,
+      isResizing,
+      isInitialized,
       sizingPreferencesRef,
       minSizesRef,
       configuredSizesRef,
@@ -505,113 +492,116 @@ export function useColumnSizing({
     ],
   );
 
+  // =========================================================================
+  // Resize Control API
+  // =========================================================================
+
   const startResize = useCallback(
     (columnId: string): number => {
-      const currentSizing = stateRef.current.sizing;
+      const currentSizing = sizingRef.current;
       const startWidth = currentSizing[columnId] ?? 150;
 
-      dispatch({
-        type: SizingEventTypes.RESIZE_START,
+      // Store context for endResize
+      resizingContextRef.current = {
         columnId,
         startWidth,
-        currentSizing,
+        beforeResize: { ...currentSizing },
+      };
+
+      // Update state
+      setIsResizing(true);
+      setColumnSizingInfo({
+        startOffset: 0,
+        startSize: startWidth,
+        deltaOffset: 0,
+        deltaPercentage: 0,
+        isResizingColumn: columnId,
+        columnSizingStart: [[columnId, startWidth]],
       });
 
       logColumnSizingDebug(() => createDebugSnapshot("RESIZE_START", getDebugState(), { columnId, startWidth }));
 
       return startWidth;
     },
-    [stateRef, getDebugState],
+    [sizingRef, getDebugState],
   );
 
   const updateResize = useCallback(
     (columnId: string, newWidth: number) => {
+      // Ignore if not resizing
+      if (!isResizingRef.current) return;
+
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
       const clampedWidth = Math.max(newWidth, minWidth);
 
-      dispatch({ type: SizingEventTypes.RESIZE_MOVE, columnId, newWidth: clampedWidth });
+      setSizing((prev) => {
+        if (prev[columnId] === clampedWidth) return prev;
+        return { ...prev, [columnId]: clampedWidth };
+      });
 
       // RAF-throttled DOM update for 60fps
-      // Optimization #4: Only pass the changing column, not the entire sizing object
       scheduleColumnUpdate({ columnId, width: clampedWidth });
     },
-    [minSizesRef, scheduleColumnUpdate],
+    [isResizingRef, minSizesRef, scheduleColumnUpdate],
   );
 
   const endResize = useCallback(() => {
     cancelColumnUpdate();
 
-    const finalSizing = stateRef.current.sizing;
-    const beforeResize = stateRef.current.resizing?.beforeResize ?? {};
+    const finalSizing = sizingRef.current;
+    const beforeResize = resizingContextRef.current?.beforeResize ?? {};
 
-    dispatch({ type: SizingEventTypes.RESIZE_END });
+    // Reset state
+    setIsResizing(false);
+    setColumnSizingInfo(DEFAULT_COLUMN_SIZING_INFO);
+    resizingContextRef.current = null;
 
-    // IMPORTANT: Capture mode determination SYNCHRONOUSLY to avoid race conditions
-    // We compute the mode now and store it, so requestIdleCallback uses the same values
+    // Determine mode for each changed column
     const preferencesToPersist: Array<{ columnId: string; mode: PreferenceMode; width: number }> = [];
     const changes: Record<
       string,
       { from: number; to: number; mode: string; contentWidth: number; configuredWidth: number; threshold: number }
     > = {};
-
-    // Get container for measurement
     const container = containerRef?.current;
-
-    // Collect newly measured widths to batch the state update
     const newlyMeasuredWidths: Record<string, number> = {};
 
     for (const [colId, newWidth] of Object.entries(finalSizing)) {
       const oldWidth = beforeResize[colId];
       if (oldWidth !== undefined && oldWidth !== newWidth) {
-        // Get cached contentWidth, or measure now if not available
         let contentWidth = contentWidthsRef.current[colId] ?? 0;
 
-        // If no contentWidth cached, measure it now to make accurate mode decision
         if (contentWidth === 0 && container) {
           contentWidth = measureColumnContentWidth(container, colId);
-          // Collect for batched state update
           if (contentWidth > 0) {
             newlyMeasuredWidths[colId] = contentWidth;
           }
         }
 
         const configuredWidth = configuredSizesRef.current[colId] ?? 150;
-        // Threshold is just contentWidth - if user resizes below it, they accept truncation
         const threshold = getTruncationThreshold(contentWidth);
         const mode = newWidth < threshold ? PreferenceModes.TRUNCATE : PreferenceModes.NO_TRUNCATE;
 
-        // Store for later persistence
         preferencesToPersist.push({ columnId: colId, mode, width: newWidth });
-
-        // Store for debug
         changes[colId] = { from: oldWidth, to: newWidth, mode, contentWidth, configuredWidth, threshold };
       }
     }
 
-    // Batch update all newly measured content widths
     if (Object.keys(newlyMeasuredWidths).length > 0) {
       setContentWidths((prev) => ({ ...prev, ...newlyMeasuredWidths }));
     }
 
-    // Debug logging
     logColumnSizingDebug(() =>
-      createDebugSnapshot("RESIZE_END", getDebugState(), {
-        changes,
-        beforeResize,
-        finalSizing,
-      }),
+      createDebugSnapshot("RESIZE_END", getDebugState(), { changes, beforeResize, finalSizing }),
     );
     flushDebugBuffer();
 
-    // Optimization #7: Use requestIdleCallback for non-critical preference persistence
-    // Mode is already determined above - we just persist the captured values
+    // Persist preferences asynchronously
     const persistPreferences = () => {
       for (const pref of preferencesToPersist) {
         onPreferenceChangeRef.current?.(pref.columnId, { mode: pref.mode, width: pref.width });
       }
     };
 
-    // Prefer idle callback, fall back to setTimeout for browsers without support
     if (typeof requestIdleCallback !== "undefined") {
       requestIdleCallback(persistPreferences, { timeout: 1000 });
     } else {
@@ -619,7 +609,7 @@ export function useColumnSizing({
     }
   }, [
     cancelColumnUpdate,
-    stateRef,
+    sizingRef,
     containerRef,
     configuredSizesRef,
     contentWidthsRef,
@@ -633,34 +623,43 @@ export function useColumnSizing({
 
   const setColumnSize = useCallback(
     (columnId: string, size: number) => {
+      // Ignore during resize
+      if (isResizingRef.current) return;
+
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
       const clampedSize = Math.max(size, minWidth);
 
       cancelColumnUpdate();
-      dispatch({ type: SizingEventTypes.SET_SIZE, columnId, width: clampedSize });
+      setSizing((prev) => {
+        if (prev[columnId] === clampedSize) return prev;
+        return { ...prev, [columnId]: clampedSize };
+      });
 
-      // Direct DOM update for immediate feedback
       const table = tableRef?.current;
       if (table) {
         table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
       }
     },
-    [minSizesRef, cancelColumnUpdate, tableRef],
+    [isResizingRef, minSizesRef, cancelColumnUpdate, tableRef],
   );
 
   const autoFit = useCallback(
     (columnId: string, measuredWidth: number) => {
+      // Ignore during resize
+      if (isResizingRef.current) return;
+
       const minWidth = minSizesRef.current?.[columnId] ?? 0;
       const configuredWidth = configuredSizesRef.current?.[columnId] ?? 150;
       const clampedSize = Math.max(measuredWidth, minWidth);
 
-      // Set cooldown to ignore TanStack echo events
       lastAutoFitRef.current = Date.now();
 
       cancelColumnUpdate();
-      dispatch({ type: SizingEventTypes.AUTO_FIT, columnId, width: clampedSize });
+      setSizing((prev) => {
+        if (prev[columnId] === clampedSize) return prev;
+        return { ...prev, [columnId]: clampedSize };
+      });
 
-      // Direct DOM update for immediate feedback
       const table = tableRef?.current;
       if (table) {
         table.style.setProperty(`--col-${columnId}`, `${clampedSize}px`);
@@ -676,24 +675,29 @@ export function useColumnSizing({
         }),
       );
 
-      // Cache measured content width internally
       setContentWidths((prev) => {
         if (prev[columnId] === clampedSize) return prev;
         return { ...prev, [columnId]: clampedSize };
       });
 
-      // Persist preference synchronously to avoid race conditions
-      // Unlike resize end, auto-fit is a discrete action that should complete immediately
       onPreferenceChangeRef.current?.(columnId, {
         mode: PreferenceModes.NO_TRUNCATE,
         width: clampedSize,
       });
     },
-    [minSizesRef, configuredSizesRef, cancelColumnUpdate, tableRef, onPreferenceChangeRef, getDebugState],
+    [
+      isResizingRef,
+      minSizesRef,
+      configuredSizesRef,
+      cancelColumnUpdate,
+      tableRef,
+      onPreferenceChangeRef,
+      getDebugState,
+    ],
   );
 
   const recalculate = useStableCallback(() => {
-    calculateAndDispatch("INIT", false, undefined);
+    calculateAndApply(false, undefined);
   });
 
   // =========================================================================
@@ -702,46 +706,55 @@ export function useColumnSizing({
 
   const onColumnSizingChange = useCallback(
     (updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => {
-      // Cooldown after autoFit/resize - ignore TanStack echo events
-      // This prevents TanStack from overwriting the width we just set
+      // Cooldown after autoFit - ignore TanStack echo events
       const AUTO_FIT_COOLDOWN_MS = 100;
       const timeSinceAutoFit = Date.now() - lastAutoFitRef.current;
       if (timeSinceAutoFit < AUTO_FIT_COOLDOWN_MS) {
-        return; // Ignore TanStack update during cooldown
+        return;
       }
 
-      const currentSizing = stateRef.current.sizing;
+      const currentSizing = sizingRef.current;
       const newSizing = typeof updater === "function" ? updater(currentSizing) : updater;
 
-      dispatch({ type: SizingEventTypes.TANSTACK_SIZING_CHANGE, sizing: newSizing });
-
-      // Find changed columns for logging and DOM updates
-      const changedColumns: Record<string, { from: number | undefined; to: number }> = {};
-      for (const [columnId, width] of Object.entries(newSizing)) {
-        if (currentSizing[columnId] !== width) {
-          changedColumns[columnId] = { from: currentSizing[columnId], to: width };
-        }
-      }
+      setSizing(newSizing);
 
       // During resize, also update DOM via RAF
-      // Update only changed columns to match new scheduleColumnUpdate signature
-      if (stateRef.current.mode === "RESIZING") {
-        for (const columnId of Object.keys(changedColumns)) {
-          scheduleColumnUpdate({ columnId, width: newSizing[columnId] });
+      if (isResizingRef.current) {
+        for (const [columnId, width] of Object.entries(newSizing)) {
+          if (currentSizing[columnId] !== width) {
+            scheduleColumnUpdate({ columnId, width });
+          }
         }
       }
     },
-    [stateRef, scheduleColumnUpdate],
+    [sizingRef, isResizingRef, scheduleColumnUpdate],
   );
 
   const onColumnSizingInfoChange = useCallback(
     (updater: ColumnSizingInfoState | ((old: ColumnSizingInfoState) => ColumnSizingInfoState)) => {
-      const currentInfo = stateRef.current.columnSizingInfo;
+      const currentInfo = columnSizingInfoRef.current;
       const newInfo = typeof updater === "function" ? updater(currentInfo) : updater;
 
-      dispatch({ type: SizingEventTypes.TANSTACK_INFO_CHANGE, info: newInfo });
+      // Handle TanStack starting resize
+      if (!currentInfo.isResizingColumn && newInfo.isResizingColumn) {
+        const columnId = String(newInfo.isResizingColumn);
+        resizingContextRef.current = {
+          columnId,
+          startWidth: sizingRef.current[columnId] ?? 150,
+          beforeResize: { ...sizingRef.current },
+        };
+        setIsResizing(true);
+      }
+
+      // Handle TanStack ending resize
+      if (currentInfo.isResizingColumn && !newInfo.isResizingColumn) {
+        setIsResizing(false);
+        resizingContextRef.current = null;
+      }
+
+      setColumnSizingInfo(newInfo);
     },
-    [stateRef],
+    [columnSizingInfoRef, sizingRef],
   );
 
   // =========================================================================
@@ -751,29 +764,29 @@ export function useColumnSizing({
   const cssVariables = useMemo((): React.CSSProperties => {
     const vars: Record<string, string> = {};
     for (const colId of columnIds) {
-      const rawWidth = state.sizing[colId] ?? 150;
+      const rawWidth = sizing[colId] ?? 150;
       const minWidth = minSizes?.[colId] ?? 0;
       const width = Math.max(rawWidth, minWidth);
       vars[`--col-${colId}`] = `${width}px`;
     }
     return vars as React.CSSProperties;
-  }, [state.sizing, columnIds, minSizes]);
+  }, [sizing, columnIds, minSizes]);
 
   // =========================================================================
   // Return API
   // =========================================================================
 
   return {
-    columnSizing: state.sizing,
+    columnSizing: sizing,
     onColumnSizingChange,
-    columnSizingInfo: state.columnSizingInfo,
+    columnSizingInfo,
     onColumnSizingInfoChange,
     startResize,
     updateResize,
     endResize,
     setColumnSize,
     autoFit,
-    isInitialized: state.isInitialized,
+    isInitialized,
     recalculate,
     cssVariables,
   };
