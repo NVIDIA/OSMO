@@ -27,7 +27,7 @@
 
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCopyToClipboard } from "@/hooks";
+import { useCopy } from "@/hooks";
 
 // =============================================================================
 // CopyableValue - Inline copyable text
@@ -49,7 +49,7 @@ export interface CopyableValueProps {
  * ```
  */
 export function CopyableValue({ value, className }: CopyableValueProps) {
-  const { copied, copy } = useCopyToClipboard({ resetDelay: 1500 });
+  const { copied, copy } = useCopy({ resetDelay: 1500 });
 
   return (
     <button
@@ -95,7 +95,7 @@ export interface CopyableBlockProps {
  * ```
  */
 export function CopyableBlock({ value, className }: CopyableBlockProps) {
-  const { copied, copy } = useCopyToClipboard({ resetDelay: 1500 });
+  const { copied, copy } = useCopy({ resetDelay: 1500 });
 
   return (
     <button
