@@ -219,7 +219,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     containerRef: dagContainerRef, // Use DAG container, not the outer wrapper
     // No getVisibleWidth needed - container dimensions ARE visible dimensions
     selectedGroupName: selectedGroup?.name ?? null,
-    panelView: currentPanelView,
     nodes,
     // Initial load & layout direction change
     layoutDirection,
