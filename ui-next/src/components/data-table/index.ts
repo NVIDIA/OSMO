@@ -65,16 +65,9 @@ export {
   useColumnSizing,
   type UseColumnSizingOptions,
   type UseColumnSizingResult,
-  // Pure functions and types for testing
-  sizingReducer,
+  // Pure functions for testing
   calculateColumnWidths,
   getRemToPx,
-  type SizingState,
-  type SizingEvent,
-  type SizingMode,
-  type ResizingContext,
-  INITIAL_STATE,
-  DEFAULT_COLUMN_SIZING_INFO,
 } from "./hooks/use-column-sizing";
 
 export {
@@ -143,10 +136,7 @@ export {
   // Sort directions
   SortDirections,
   SORT_DIRECTION_VALUES,
-  // Sizing state machine modes
-  SizingModes,
-  SIZING_MODE_VALUES,
-  // Sizing events
+  // Sizing events (used by debug system)
   SizingEventTypes,
   type SizingEventType,
   SIZING_EVENT_TYPE_VALUES,
