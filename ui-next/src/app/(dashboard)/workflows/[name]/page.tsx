@@ -50,7 +50,7 @@ import { useTheme } from "next-themes";
 
 import "@xyflow/react/dist/style.css";
 
-import { usePage } from "@/components/shell";
+import { usePage, useSidebar, SIDEBAR } from "@/components/shell";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { useEventCallback } from "usehooks-ts";
@@ -143,6 +143,10 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const [isPanelDragging, setIsPanelDragging] = useState(false);
   const { resolvedTheme } = useTheme();
 
+  // Sidebar state for viewport re-centering
+  const { state: sidebarState } = useSidebar();
+  const isSidebarCollapsed = sidebarState === "collapsed";
+
   // Container ref for the main layout (used by panel for resize calculations)
   const containerRef = useRef<HTMLDivElement>(null);
   // Separate ref for the DAG canvas container (used by viewport boundaries)
@@ -218,31 +222,62 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Viewport Re-centering (decoupled from hook - consumer controls when/where)
   // ---------------------------------------------------------------------------
 
-  // Track panel state changes to trigger re-centering
+  // Track layout state changes to trigger re-centering
   const [reCenterTrigger, setReCenterTrigger] = useState(0);
   const prevPanelCollapsed = usePrevious(isPanelCollapsed);
   const prevPanelDragging = usePrevious(isPanelDragging);
+  const prevSidebarCollapsed = usePrevious(isSidebarCollapsed);
 
-  // Trigger re-center when panel state changes (collapse/expand or drag ends)
-  // Using useIsomorphicLayoutEffect for synchronous layout-related state updates
-  // This is the correct pattern for layout changes that need immediate re-render
+  // Trigger re-center when layout changes:
+  // - Panel collapse/expand (immediate - hook handles expected area)
+  // - Panel drag ends (immediate)
+  // - Sidebar collapse/expand (delayed - wait for translateExtent to update)
   useIsomorphicLayoutEffect(() => {
-    const collapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
-    const dragEnded = prevPanelDragging === true && isPanelDragging === false;
+    const panelCollapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
+    const panelDragEnded = prevPanelDragging === true && isPanelDragging === false;
 
-    if (collapsedChanged || dragEnded) {
+    // Panel changes trigger immediately - the hook uses getExpectedVisibleArea
+    if (panelCollapsedChanged || panelDragEnded) {
       setReCenterTrigger((t) => t + 1);
     }
   }, [isPanelCollapsed, isPanelDragging, prevPanelCollapsed, prevPanelDragging]);
 
-  // Compute expected visible area based on panel state (for smooth centering during transitions)
+  // Sidebar changes need to wait for CSS transition to complete
+  // so that translateExtent has updated to the new container dimensions
+  useIsomorphicLayoutEffect(() => {
+    const sidebarCollapsedChanged = prevSidebarCollapsed !== undefined && prevSidebarCollapsed !== isSidebarCollapsed;
+
+    if (sidebarCollapsedChanged) {
+      const timer = setTimeout(() => {
+        setReCenterTrigger((t) => t + 1);
+      }, SIDEBAR.TRANSITION_MS + 50); // Wait for transition + small buffer
+
+      return () => clearTimeout(timer);
+    }
+  }, [isSidebarCollapsed, prevSidebarCollapsed]);
+
+  // Compute expected visible area based on layout state (for smooth centering during transitions)
+  // We CALCULATE expected dimensions rather than reading from DOM, because during
+  // CSS transitions the DOM values are mid-animation and not yet at their final values.
   const getExpectedVisibleArea = useCallback(() => {
-    const outerWidth = containerRef.current?.offsetWidth ?? VIEWPORT.ESTIMATED_WIDTH;
+    // Calculate expected sidebar width based on state
+    const sidebarWidth = isSidebarCollapsed ? SIDEBAR.COLLAPSED_PX : SIDEBAR.EXPANDED_PX;
+
+    // Main area width = window width minus sidebar
+    const windowWidth = typeof window !== "undefined" ? window.innerWidth : VIEWPORT.ESTIMATED_WIDTH;
+    const mainAreaWidth = windowWidth - sidebarWidth;
+
+    // Panel width calculation
+    const panelWidth = isPanelCollapsed ? PANEL.COLLAPSED_WIDTH_PX : (mainAreaWidth * panelPct) / 100;
+
+    // DAG container = main area minus panel
+    const width = Math.max(100, mainAreaWidth - panelWidth);
+
+    // Height is usually stable, can read from DOM
     const height = dagContainerRef.current?.offsetHeight ?? VIEWPORT.ESTIMATED_HEIGHT;
-    const panelWidth = isPanelCollapsed ? PANEL.COLLAPSED_WIDTH_PX : (outerWidth * panelPct) / 100;
-    const width = Math.max(100, outerWidth - panelWidth);
+
     return { width, height };
-  }, [isPanelCollapsed, panelPct]);
+  }, [isSidebarCollapsed, isPanelCollapsed, panelPct]);
 
   // Viewport boundary management via translateExtent (instant clamp)
   // React Flow enforces bounds natively via d3-zoom - no snap-back animation
