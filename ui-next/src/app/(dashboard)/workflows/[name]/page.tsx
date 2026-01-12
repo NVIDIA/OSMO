@@ -139,6 +139,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const [showMinimap, setShowMinimap] = useState(true);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [panelPct, setPanelPct] = useState<number>(PANEL.DEFAULT_WIDTH_PCT);
+  const [isPanelDragging, setIsPanelDragging] = useState(false);
   const { resolvedTheme } = useTheme();
 
   // Container ref for the main layout (used by panel for resize calculations)
@@ -214,16 +215,22 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   // Viewport boundary management - now uses DAG container directly
   // The DAG container IS the visible area - no panel math needed
-  const { viewport, onViewportChange } = useViewportBoundaries({
+  const { viewport, onViewportChange, onUserInteractionStart } = useViewportBoundaries({
     nodeBounds,
     containerRef: dagContainerRef, // Use DAG container, not the outer wrapper
-    // No getVisibleWidth needed - container dimensions ARE visible dimensions
     selectedGroupName: selectedGroup?.name ?? null,
     nodes,
     // Initial load & layout direction change
     layoutDirection,
     rootNodeIds,
     initialSelectedNodeId: selectedGroupName,
+    // Panel state for accurate centering calculations during transitions
+    outerContainerRef: containerRef,
+    panelWidthPct: panelPct,
+    isPanelCollapsed,
+    collapsedPanelWidthPx: PANEL.COLLAPSED_WIDTH_PX,
+    // Manual resize state - defer centering until drag ends
+    isPanelDragging,
   });
 
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
@@ -357,6 +364,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
               aria-label="Workflow DAG visualization"
             >
               <DAGProvider
+                selectedNodeId={selectedGroup?.name ?? null}
                 onSelectGroup={handleSelectGroup}
                 onSelectTask={handleSelectTask}
                 onToggleExpand={handleToggleExpand}
@@ -375,6 +383,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                   // Controlled viewport - boundaries enforced BEFORE render (no jitter)
                   viewport={viewport}
                   onViewportChange={onViewportChange}
+                  // Cancel pending auto-pan when user starts interacting
+                  onMoveStart={onUserInteractionStart}
                   minZoom={nodeBounds.fitAllZoom}
                   maxZoom={VIEWPORT.MAX_ZOOM}
                   // Scroll behavior
@@ -444,6 +454,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
           onCancelWorkflow={handleCancel}
           fallbackContent={panelOverrideContent}
           containerRef={containerRef}
+          onDraggingChange={setIsPanelDragging}
         />
       </div>
     </DAGErrorBoundary>
