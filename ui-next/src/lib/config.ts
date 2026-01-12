@@ -18,13 +18,6 @@ export function isLocalDev(): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
-/**
- * Check if running in a build phase (SSG/SSR).
- */
-export function isBuildPhase(): boolean {
-  return process.env.NEXT_PHASE === "phase-production-build" || process.env.NEXT_PHASE === "phase-export";
-}
-
 // =============================================================================
 // API Configuration
 // =============================================================================
@@ -35,14 +28,6 @@ export function isBuildPhase(): boolean {
  */
 export function getApiHostname(): string {
   return process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
-}
-
-/**
- * Get the auth hostname.
- * Set NEXT_PUBLIC_OSMO_AUTH_HOSTNAME in .env.local
- */
-export function getAuthHostname(): string {
-  return process.env.NEXT_PUBLIC_OSMO_AUTH_HOSTNAME || "localhost:8081";
 }
 
 /**

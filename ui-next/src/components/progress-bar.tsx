@@ -100,6 +100,8 @@ export function ProgressBar({
   className,
   ...props
 }: ProgressBarProps) {
+  // Ensure max is always > 0 for Radix primitive (it requires positive values)
+  const safeMax = max > 0 ? max : 100;
   const percent = max > 0 ? (value / max) * 100 : 0;
   const clampedPercent = Math.min(percent, 100);
 
@@ -109,8 +111,8 @@ export function ProgressBar({
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
-      value={value}
-      max={max}
+      value={max > 0 ? value : 0}
+      max={safeMax}
       className={cn(
         "relative w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800",
         SIZE_CLASSES[size],
