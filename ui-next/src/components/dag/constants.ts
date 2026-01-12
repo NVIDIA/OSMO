@@ -158,16 +158,10 @@ export const ANIMATION = {
   INITIAL_DURATION: 500,
   /** Delay before initial animation (ms) */
   DELAY: 100,
-  /** Duration for centering on a node when selected (ms) */
-  NODE_CENTER: 300,
   /** Duration for zoom in/out button animations (ms) */
   ZOOM: 200,
   /** Duration for boundary enforcement during resize (ms) */
   BOUNDARY_ENFORCE: 100,
-  /** Duration for move end cleanup (ms) */
-  MOVE_END: 150,
-  /** Buffer time added after animations to ensure completion (ms) */
-  BUFFER: 50,
   /**
    * Duration matching the panel CSS transition (ease-out 200ms).
    * Used for re-centering during panel resize/collapse to create
