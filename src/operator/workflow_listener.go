@@ -28,7 +28,6 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/encoding/protojson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -505,30 +504,20 @@ func createPodUpdateMessage(
 		})
 	}
 
-	// Marshal to JSON using protojson with proto field names (snake_case)
-	// UseProtoNames ensures field names match the .proto file
-	// EmitDefaultValues ensures bool fields with false values are included
-	data, err := protojson.MarshalOptions{
-		UseProtoNames:     true,
-		EmitDefaultValues: true,
-	}.Marshal(podUpdate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal pod update: %w", err)
-	}
-
 	// Generate random UUID (matching Python's uuid.uuid4().hex format)
 	messageUUID := strings.ReplaceAll(uuid.New().String(), "-", "")
 
 	msg := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      messageUUID,
 		Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05.999999"),
-		Body:      string(data),
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: podUpdate,
+		},
 	}
 
 	log.Printf(
-		"Sent %s: (pod=%s, status=%s)",
-		msg.Type.String(), pod.Name, podUpdate.Status,
+		"Sent update_pod: (pod=%s, status=%s)",
+		pod.Name, podUpdate.Status,
 	)
 
 	return msg, nil
