@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 ################################################################
 #                      Backend Listener                        #
@@ -285,6 +287,166 @@ oci_push(
     name = "backend_worker_push_arm64",
     image = ":backend_worker_image_arm64",
     repository = BASE_IMAGE_URL + "backend-worker",
+    remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
+    visibility = ["//visibility:public"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+################################################################
+#                    Workflow Listener                         #
+################################################################
+
+go_library(
+    name = "workflow_listener_lib",
+    srcs = [
+        "main.go",
+        "workflow_listener.go",
+    ],
+    importpath = "go.corp.nvidia.com/osmo/operator",
+    visibility = ["//src/operator:__subpackages__"],
+    deps = [
+        "//src/lib/utils:utils",
+        "//src/operator/utils:utils",
+        "//src/proto/operator:operator_go_proto",
+        "@com_github_google_uuid//:uuid",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//tools/cache",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//encoding/protojson",
+    ],
+)
+
+go_test(
+    name = "workflow_listener_test",
+    srcs = ["workflow_listener_test.go"],
+    embed = [":workflow_listener_lib"],
+    deps = [
+        "//src/operator/utils:utils",
+        "//src/proto/operator:operator_go_proto",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+################
+#    x86_64    #
+################
+
+go_binary(
+    name = "workflow_listener_x86_64",
+    basename = "workflow_listener",
+    embed = [":workflow_listener_lib"],
+    goarch = "amd64",
+    goos = "linux",
+    pure = "on",
+    visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+pkg_tar(
+    name = "workflow_listener_x86_64_pkg",
+    srcs = [":workflow_listener_x86_64"],
+    mode = "0755",
+    package_dir = "/usr/local/bin",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+oci_image(
+    name = "workflow_listener_image_x86_64",
+    base = "//src:osmo_docker_distroless_image_amd64",
+    tars = [":workflow_listener_x86_64_pkg"],
+    entrypoint = ["/usr/local/bin/workflow_listener"],
+    visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+oci_load(
+    name = "workflow_listener_image_load_x86_64",
+    image = ":workflow_listener_image_x86_64",
+    repo_tags = ["osmo.local/workflow-listener:latest-x86_64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+oci_push(
+    name = "workflow_listener_push_x86_64",
+    image = ":workflow_listener_image_x86_64",
+    repository = BASE_IMAGE_URL + "workflow-listener",
+    remote_tags = [IMAGE_TAG + "-amd64"] if IMAGE_TAG else None,
+    visibility = ["//visibility:public"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+###############
+#    arm64    #
+###############
+
+go_binary(
+    name = "workflow_listener_arm64",
+    basename = "workflow_listener",
+    embed = [":workflow_listener_lib"],
+    goarch = "arm64",
+    goos = "linux",
+    pure = "on",
+    visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+pkg_tar(
+    name = "workflow_listener_arm64_pkg",
+    srcs = [":workflow_listener_arm64"],
+    mode = "0755",
+    package_dir = "/usr/local/bin",
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+oci_image(
+    name = "workflow_listener_image_arm64",
+    base = "//src:osmo_docker_distroless_image_arm64",
+    tars = [":workflow_listener_arm64_pkg"],
+    entrypoint = ["/usr/local/bin/workflow_listener"],
+    visibility = ["//visibility:public"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+oci_load(
+    name = "workflow_listener_image_load_arm64",
+    image = ":workflow_listener_image_arm64",
+    repo_tags = ["osmo.local/workflow-listener:latest-arm64"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+    ],
+)
+
+oci_push(
+    name = "workflow_listener_push_arm64",
+    image = ":workflow_listener_image_arm64",
+    repository = BASE_IMAGE_URL + "workflow-listener",
     remote_tags = [IMAGE_TAG + "-arm64"] if IMAGE_TAG else None,
     visibility = ["//visibility:public"],
     tags = ["manual"],

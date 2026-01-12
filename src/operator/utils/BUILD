@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 
 osmo_py_library(
@@ -37,4 +38,24 @@ osmo_py_library(
         "//src/utils/metrics:metrics",
     ],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "utils",
+    srcs = [
+        "helpers.go",
+        "k8s_helpers.go",
+        "listener_args.go",
+        "unack_messages.go",
+    ],
+    importpath = "go.corp.nvidia.com/osmo/operator/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//src/proto/operator:operator_go_proto",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//rest",
+        "@io_k8s_client_go//tools/clientcmd",
+    ],
 )

@@ -2,6 +2,9 @@
 bazel-*
 MODULE.bazel.lock
 
+# Ignore protobuf generated files
+*.pb.go
+
 # Ignore python cache files
 **/__pycache__
 

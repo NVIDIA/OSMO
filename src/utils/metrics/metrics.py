@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -77,6 +78,11 @@ class MetricsCreatorConfig(pydantic.BaseModel):
         command_line='method',
         default=None,
         description='If set to "dev", use ConsoleMetricExporter')
+    metrics_otel_log_file: str = pydantic.Field(
+        command_line='metrics_otel_log_file',
+        env='METRICS_OTEL_LOG_FILE',
+        default='/dev/null',
+        description='The file to write metrics to')
 
     @property
     def metrics_url(self):
@@ -106,7 +112,7 @@ class MetricCreator:
         exporter: Any = OTLPMetricExporter(endpoint=config.metrics_url, insecure=True)
         if self._config.method == 'dev':
             exporter = ConsoleMetricExporter(
-                out=open('/dev/null', 'w', encoding='utf-8')
+                out=open(self._config.metrics_otel_log_file, 'w', encoding='utf-8')
             )
         reader = PeriodicExportingMetricReader( \
             exporter=exporter, export_interval_millis= \

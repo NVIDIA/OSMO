@@ -1,0 +1,79 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package operator;
+
+option go_package = "go.corp.nvidia.com/osmo/proto/operator;operator";
+
+// ListenerMessage represents messages sent from workflow backends to the operator service
+message ListenerMessage {
+  // Possible message types for listener communication
+  enum MessageType {
+    unspecified = 0;
+    update_pod = 1;    // Pod update from backend to operator
+  }
+
+  MessageType type = 1;
+
+  // UUID uniquely identifies this message for correlation and acknowledgment
+  string uuid = 2;
+
+  // Timestamp when the message was created (ISO 8601 format, e.g., "2025-01-15T10:30:00Z")
+  string timestamp = 3;
+
+  string body = 4;
+}
+
+// AckMessage represents acknowledgment messages sent from the operator service to workflow backends
+message AckMessage {
+  // UUID of the client message being acknowledged
+  string ack_uuid = 1;
+}
+
+// ConditionMessage represents a pod condition
+message ConditionMessage {
+  string reason = 1;
+  string message = 2;
+  string timestamp = 3;  // ISO 8601 timestamp (e.g., "2025-01-15T10:30:00Z")
+  bool status = 4;
+  string type = 5;
+}
+
+// UpdatePodBody represents the pod update message body
+message UpdatePodBody {
+  string workflow_uuid = 1;
+  string task_uuid = 2;
+  int32 retry_id = 3;
+  string container = 4;
+  string node = 5;
+  string pod_ip = 6;
+  string message = 7;
+  string status = 8;
+  int32 exit_code = 9;  // Use -1 to represent None/null
+  string backend = 10;
+  repeated ConditionMessage conditions = 11;
+}
+
+// InitBody represents the initialization message body
+message InitBody {
+  string k8s_uid = 1;
+  string k8s_namespace = 2;
+  string name = 3;
+  string version = 4;
+  string node_condition_prefix = 5;
+}
