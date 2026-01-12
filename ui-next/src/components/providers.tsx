@@ -23,6 +23,7 @@ import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 import { PageProvider } from "@/components/shell/page-context";
+import { ConfigProvider, ServiceProvider } from "@/contexts";
 import { AuthProvider, UserProvider } from "@/lib/auth";
 import { MockProvider } from "@/mocks/MockProvider";
 import { isApiError } from "@/lib/api/fetcher";
@@ -85,23 +86,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <MockProvider>
-      <NuqsAdapter>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <AuthProvider>
-              <UserProvider>
-                <PageProvider>{children}</PageProvider>
-              </UserProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
-      </NuqsAdapter>
-    </MockProvider>
+    <ConfigProvider>
+      <ServiceProvider>
+        <MockProvider>
+          <NuqsAdapter>
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                <AuthProvider>
+                  <UserProvider>
+                    <PageProvider>{children}</PageProvider>
+                  </UserProvider>
+                </AuthProvider>
+              </ThemeProvider>
+            </QueryClientProvider>
+          </NuqsAdapter>
+        </MockProvider>
+      </ServiceProvider>
+    </ConfigProvider>
   );
 }

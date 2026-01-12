@@ -75,3 +75,9 @@ export {
 
 // URL Chips
 export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./use-url-chips";
+
+// URL State (consolidated patterns for nuqs)
+export { useSelectionState, useConfigState, usePanelState, type UsePanelStateReturn } from "./use-url-state";
+
+// Results Count (for SmartSearch display)
+export { useResultsCount, type UseResultsCountOptions } from "./use-results-count";
