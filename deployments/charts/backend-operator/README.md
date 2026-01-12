@@ -105,7 +105,8 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendListener.initContainers` | Init containers for backend listener | `[]` |
 | `services.backendListener.serviceAccount` | Service account name | `backend-listener` |
 | `services.backendListener.max_unacked_messages` | Maximum unacked messages | `100` |
-| `services.backendListener.podCacheTtl` | Pod cache TTL in seconds | `15` |
+| `services.backendListener.podCacheTtl` | Pod cache TTL in minutes | `15` |
+| `services.backendListener.nodeCacheTtl` | Node cache TTL in minutes | `15` |
 | `services.backendListener.extraArgs` | Additional arguments | `[]` |
 | `services.backendListener.extraEnvs` | Additional environment variables | `[]` |
 | `services.backendListener.extraPodAnnotations` | Additional pod annotations | `{}` |
