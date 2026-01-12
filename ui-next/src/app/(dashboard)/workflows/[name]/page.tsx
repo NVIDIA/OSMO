@@ -213,14 +213,13 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
   // Note: isPanelCollapsed is used for keyboard shortcuts and panel state
 
-  // Viewport boundary management - now uses DAG container directly
-  // The DAG container IS the visible area - no panel math needed
-  const { viewport, onViewportChange, onUserInteractionStart } = useViewportBoundaries({
+  // Viewport boundary management (uncontrolled mode)
+  // ReactFlow manages viewport internally - we just enforce boundaries and handle centering
+  const { onViewportChange } = useViewportBoundaries({
     nodeBounds,
-    containerRef: dagContainerRef, // Use DAG container, not the outer wrapper
+    containerRef: dagContainerRef,
     selectedGroupName: selectedGroup?.name ?? null,
     nodes,
-    // Initial load & layout direction change
     layoutDirection,
     rootNodeIds,
     initialSelectedNodeId: selectedGroupName,
@@ -229,7 +228,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     panelWidthPct: panelPct,
     isPanelCollapsed,
     collapsedPanelWidthPx: PANEL.COLLAPSED_WIDTH_PX,
-    // Manual resize state - defer centering until drag ends
     isPanelDragging,
   });
 
@@ -380,11 +378,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                   edgesFocusable={false}
                   nodesFocusable={true}
                   selectNodesOnDrag={false}
-                  // Controlled viewport - boundaries enforced BEFORE render (no jitter)
-                  viewport={viewport}
+                  // Uncontrolled viewport - ReactFlow handles internally
+                  // onViewportChange enforces boundaries when user pans outside
                   onViewportChange={onViewportChange}
-                  // Cancel pending auto-pan when user starts interacting
-                  onMoveStart={onUserInteractionStart}
                   minZoom={nodeBounds.fitAllZoom}
                   maxZoom={VIEWPORT.MAX_ZOOM}
                   // Scroll behavior
