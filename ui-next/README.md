@@ -409,7 +409,6 @@ grep -r "LocalDevLogin" .next/static/chunks/ # Should find nothing
 # 1. Create .env.local
 cat > .env.local << 'EOF'
 NEXT_PUBLIC_OSMO_API_HOSTNAME=staging.example.com
-NEXT_PUBLIC_OSMO_AUTH_HOSTNAME=auth.example.com
 AUTH_CLIENT_SECRET=your-keycloak-secret
 EOF
 
@@ -428,7 +427,6 @@ Edit `.env.local` → restart `pnpm dev`
 | Variable | Required | Default |
 |----------|----------|---------|
 | `NEXT_PUBLIC_OSMO_API_HOSTNAME` | Yes | `localhost:8080` |
-| `NEXT_PUBLIC_OSMO_AUTH_HOSTNAME` | Yes | `localhost:8081` |
 | `AUTH_CLIENT_SECRET` | Yes | — |
 | `NEXT_PUBLIC_OSMO_SSL_ENABLED` | No | Auto (false for localhost) |
 | `NEXT_PUBLIC_MOCK_API` | No | `false` |
