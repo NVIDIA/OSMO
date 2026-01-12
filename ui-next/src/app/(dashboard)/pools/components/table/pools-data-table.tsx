@@ -30,7 +30,13 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
+import {
+  DataTable,
+  TableLoadingSkeleton,
+  TableErrorState,
+  type SortState,
+  type ColumnSizingPreference,
+} from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
@@ -211,39 +217,25 @@ export function PoolsDataTable({
     [],
   );
 
-  // Loading state
+  // Loading state (using consolidated component)
   if (isLoading && pools.length === 0) {
     return (
-      <div className="pools-table-container table-container h-full">
-        <div className="flex flex-1 flex-col gap-2 p-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="h-12 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800"
-            />
-          ))}
-        </div>
-      </div>
+      <TableLoadingSkeleton
+        className="pools-table-container"
+        rowHeight={rowHeight}
+      />
     );
   }
 
-  // Error state
+  // Error state (using consolidated component)
   if (error) {
     return (
-      <div className="pools-table-container table-container h-full">
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-          <div className="text-sm text-red-600 dark:text-red-400">Unable to load pools</div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">{error.message}</div>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-            >
-              Try again
-            </button>
-          )}
-        </div>
-      </div>
+      <TableErrorState
+        error={error}
+        title="Unable to load pools"
+        onRetry={onRetry}
+        className="pools-table-container"
+      />
     );
   }
 

@@ -35,11 +35,9 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsString } from "nuqs";
 import { usePage } from "@/components/shell";
-import type { ResultsCount } from "@/components/smart-search";
 import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
-import { useUrlChips } from "@/hooks";
+import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
 import type { Resource } from "@/lib/api/adapter";
 import { useSharedPreferences } from "@/stores";
 import { ResourcesTable } from "./components/table/resources-table";
@@ -64,24 +62,14 @@ export default function ResourcesPage() {
   // URL: /resources?view=my-resource&config=pool-name&f=platform:dgx&f=pool:ml-team
   // ==========================================================================
 
-  // Panel state
-  const [selectedResourceName, setSelectedResourceName] = useQueryState(
-    "view",
-    parseAsString.withOptions({
-      shallow: true,
-      history: "push",
-      clearOnDefault: true,
-    }),
-  );
-
-  const [selectedPoolConfig, setSelectedPoolConfig] = useQueryState(
-    "config",
-    parseAsString.withOptions({
-      shallow: true,
-      history: "replace",
-      clearOnDefault: true,
-    }),
-  );
+  // Panel state (consolidated URL state hooks)
+  const {
+    selection: selectedResourceName,
+    setSelection: setSelectedResourceName,
+    config: selectedPoolConfig,
+    setConfig: setSelectedPoolConfig,
+    clear: clearSelectedResource,
+  } = usePanelState();
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
@@ -106,14 +94,12 @@ export default function ResourcesPage() {
   // Check if filters are active
   const hasActiveFilters = searchChips.length > 0;
 
-  // Results count for SmartSearch display
-  const resultsCount = useMemo<ResultsCount | undefined>(
-    () => ({
-      total: totalCount ?? resources.length,
-      filtered: hasActiveFilters ? (filteredCount ?? resources.length) : undefined,
-    }),
-    [totalCount, filteredCount, resources.length, hasActiveFilters],
-  );
+  // Results count for SmartSearch display (consolidated hook)
+  const resultsCount = useResultsCount({
+    total: totalCount ?? resources.length,
+    filteredTotal: filteredCount ?? resources.length,
+    hasActiveFilters,
+  });
 
   // ==========================================================================
   // Resource Selection
@@ -124,12 +110,6 @@ export default function ResourcesPage() {
     () => (selectedResourceName ? (resources.find((r) => r.name === selectedResourceName) ?? null) : null),
     [resources, selectedResourceName],
   );
-
-  // Clear panel and config
-  const clearSelectedResource = useCallback(() => {
-    setSelectedResourceName(null);
-    setSelectedPoolConfig(null);
-  }, [setSelectedResourceName, setSelectedPoolConfig]);
 
   // Handle resource click
   const handleResourceClick = useCallback(
