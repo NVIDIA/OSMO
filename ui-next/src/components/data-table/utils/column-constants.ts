@@ -67,6 +67,9 @@ export const COLUMN_MIN_WIDTHS_REM = {
 
   /** Status badge column */
   STATUS_BADGE: 6,
+
+  /** Status badge column - long text */
+  STATUS_BADGE_LONG: 8,
 } as const;
 
 /**
@@ -98,6 +101,9 @@ export const COLUMN_PREFERRED_WIDTHS_REM = {
 
   /** Status badge column - dot + text */
   STATUS_BADGE: 8,
+
+  /** Status badge column - long text */
+  STATUS_BADGE_LONG: 12,
 
   /** Progress bar column - bar + percentage */
   PROGRESS_BAR: 12,
