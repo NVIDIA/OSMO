@@ -2161,6 +2161,8 @@ class TaskGroup(pydantic.BaseModel):
             backend_config = connectors.Backend.fetch_from_db(
                 self.database, self.spec.tasks[0].backend)
 
+        assert data_endpoints is not None
+
         files = task_spec.get_filemounts(self.group_uuid, k8s_factory)
         all_files = {file.digest: file for file in files}
         labels = self._task_labels(user, workflow_uuid, task_obj, task_spec, pool, priority)
@@ -2607,10 +2609,10 @@ def decode_hstore(tasks: str) -> Set[str]:
 
 def fetch_creds(
     user: str,
-    data_creds: dict[str, credentials.StaticDataCredential],
+    data_creds: dict[str, credentials.DataCredential],
     path: str,
     disabled_data: list[str] | None = None,
-) -> credentials.StaticDataCredential | None:
+) -> credentials.DataCredential | None:
     backend_info = storage.construct_storage_backend(path)
 
     if backend_info.profile not in data_creds:
