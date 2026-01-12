@@ -90,6 +90,11 @@ export interface DetailsPanelProps {
    * Should be the flex container wrapping both DAG and panel.
    */
   containerRef?: React.RefObject<HTMLDivElement | null>;
+  /**
+   * Callback when panel drag state changes (for viewport centering coordination).
+   * Called with true when resize drag starts, false when it ends.
+   */
+  onDraggingChange?: (isDragging: boolean) => void;
 }
 
 /**

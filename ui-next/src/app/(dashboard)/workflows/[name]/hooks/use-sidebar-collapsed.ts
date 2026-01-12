@@ -17,25 +17,25 @@
 /**
  * Hook for managing workflow details sidebar collapsed state.
  *
- * Reconciles user preference with navigation intent:
+ * Single collapse/expand state (NOT per-node):
  * - User preference (localStorage): Default collapsed state for workflow overview
- * - Navigation intent: Clicking a node or URL navigation should show the content
+ * - Session state: Single collapsed state that persists across node selections
  *
  * Behavior:
  * - Workflow view (no selection): Uses user preference
- * - Group/Task view: Auto-expands on navigation, user can manually collapse
- * - New navigation: Resets to expanded (shows the content user navigated to)
+ * - Any navigation to a selection: Auto-expands panel (new node = show details)
+ * - User can manually collapse: State persists until next navigation
+ * - Navigating to different nodes: Always expands (user clicked to see details)
  * - Escape key: Collapses panel
  * - Enter key: Expands panel
  *
  * @param hasSelection - Whether there's an active group/task selection
- * @param selectionKey - Unique key for current selection (e.g., "group:step-1" or "task:step-1:my-task")
- *                       Changes to this key trigger auto-expand behavior
+ * @param selectionKey - Unique key for current selection (changes trigger auto-expand)
  */
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { useEventCallback } from "usehooks-ts";
 
@@ -46,56 +46,42 @@ export interface UseSidebarCollapsedOptions {
   selectionKey: string | null;
 }
 
-/**
- * Internal state shape that tracks both session collapsed state and the selection key
- * that was active when the user last manually changed the collapsed state.
- */
-interface SessionState {
-  /** Whether the user has manually collapsed/expanded during this selection */
-  collapsed: boolean | null;
-  /** The selection key when the user last manually toggled */
-  forSelectionKey: string | null;
-}
-
-const INITIAL_SESSION_STATE: SessionState = {
-  collapsed: null,
-  forSelectionKey: null,
-};
-
 export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCollapsedOptions) {
   // User preference for default state (used when no selection)
   const [preferredCollapsed, setPreferredCollapsed] = useLocalStorage("osmo-workflow-details-sidebar-collapsed", false);
 
-  // Session state tracks manual collapse/expand AND the selection it applies to
-  const [sessionState, setSessionState] = useState<SessionState>(INITIAL_SESSION_STATE);
+  // Single session collapsed state (NOT per-node)
+  const [sessionCollapsed, setSessionCollapsed] = useState(false);
 
-  // Determine if the current session state applies to the current selection
-  // If the selection has changed, the previous session state is stale
-  const isSessionStateValid = sessionState.forSelectionKey === selectionKey;
+  // Track the previous selection key to detect navigation changes
+  const prevSelectionKeyRef = useRef<string | null>(null);
 
-  // Get effective session collapsed value (null if stale or not set)
-  const effectiveSessionCollapsed = isSessionStateValid ? sessionState.collapsed : null;
+  // Auto-expand on navigation to a new selection
+  // This runs AFTER render, so we set the state for next render
+  useEffect(() => {
+    const prevKey = prevSelectionKeyRef.current;
+    prevSelectionKeyRef.current = selectionKey;
 
-  // Determine effective collapsed state using useMemo for stable reference
-  const collapsed = useMemo(() => {
-    if (!hasSelection) {
-      // No selection: use user preference
-      return preferredCollapsed;
+    // If we now have a selection (or selection changed), auto-expand
+    // This covers:
+    // - Clicking a node when panel is collapsed → expand
+    // - Navigating via URL to a node → expand
+    // - Clicking a different node → expand
+    if (selectionKey !== null && selectionKey !== prevKey) {
+      setSessionCollapsed(false);
     }
-    // Has selection: use session state if valid, otherwise default to expanded
-    return effectiveSessionCollapsed ?? false;
-  }, [hasSelection, preferredCollapsed, effectiveSessionCollapsed]);
+  }, [selectionKey]);
+
+  // Determine effective collapsed state
+  // - No selection: use user preference
+  // - Has selection: use session state
+  const collapsed = hasSelection ? sessionCollapsed : preferredCollapsed;
 
   // Toggle collapsed state - stable callback for memoized children
   const toggle = useEventCallback(() => {
     if (hasSelection) {
-      // During selection: update session state with current selection key
-      setSessionState((prev) => ({
-        collapsed: !(prev.forSelectionKey === selectionKey ? (prev.collapsed ?? false) : false),
-        forSelectionKey: selectionKey,
-      }));
+      setSessionCollapsed((prev) => !prev);
     } else {
-      // Workflow view: update preference
       setPreferredCollapsed((prev) => !prev);
     }
   });
@@ -103,10 +89,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   // Expand panel - stable callback for memoized children
   const expand = useEventCallback(() => {
     if (hasSelection) {
-      setSessionState({
-        collapsed: false,
-        forSelectionKey: selectionKey,
-      });
+      setSessionCollapsed(false);
     } else {
       setPreferredCollapsed(false);
     }
@@ -115,10 +98,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   // Collapse panel - stable callback for memoized children
   const collapse = useEventCallback(() => {
     if (hasSelection) {
-      setSessionState({
-        collapsed: true,
-        forSelectionKey: selectionKey,
-      });
+      setSessionCollapsed(true);
     } else {
       setPreferredCollapsed(true);
     }
