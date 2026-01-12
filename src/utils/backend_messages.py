@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,6 +75,7 @@ class MessageBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     type: MessageType
     body: Dict | LoggingBody
     uuid: str = pydantic.Field(default_factory=common.generate_unique_id)
+    timestamp: datetime.datetime = pydantic.Field(default_factory=common.current_time)
 
 
 class InitBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):

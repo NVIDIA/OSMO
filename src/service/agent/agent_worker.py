@@ -1,0 +1,269 @@
+"""
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+"""
+
+import json
+import logging
+import os
+import socket
+import sys
+import time
+import traceback
+
+import pydantic
+import redis  # type: ignore
+
+from src.lib.utils import common, osmo_errors
+import src.lib.utils.logging
+from src.service.agent import helpers
+from src.utils import connectors, backend_messages, static_config
+from src.utils.metrics import metrics
+
+
+# Redis Stream name for operator messages from backends
+OPERATOR_STREAM_NAME = '{osmo}:{message-queue}:operator_messages'
+# Consumer group name for agent workers
+CONSUMER_GROUP_NAME = 'agent_workers'
+# Time in milliseconds before a pending message is considered abandoned (5 minutes)
+MESSAGE_CLAIM_IDLE_TIME_MS = 300000
+
+
+class AgentWorkerConfig(static_config.StaticConfig, connectors.RedisConfig,
+                        connectors.PostgresConfig, src.lib.utils.logging.LoggingConfig,
+                        metrics.MetricsCreatorConfig):
+    """Configuration for the agent worker."""
+
+
+class AgentWorker:
+    """
+    An Agent Worker subscribes to the operator Redis Stream and processes messages
+    from all backend agents using consumer groups for reliability.
+    """
+    def __init__(self, config: AgentWorkerConfig):
+        self.config = config
+        self.postgres = connectors.PostgresConnector(self.config)
+        self.redis_client = connectors.RedisConnector.get_instance().client
+        self.metric_creator = metrics.MetricCreator.get_meter_instance()
+        # Get workflow config once during initialization
+        self.workflow_config = self.postgres.get_workflow_configs()
+
+        # Redis Stream configuration
+        self.stream_name = OPERATOR_STREAM_NAME
+        self.group_name = CONSUMER_GROUP_NAME
+        self.consumer_name = f'worker-{socket.gethostname()}-{os.getpid()}'
+
+        # Create consumer group if it doesn't exist
+        self._ensure_consumer_group()
+
+        logging.info('Agent worker initialized: stream=%s, group=%s, consumer=%s',
+                    self.stream_name, self.group_name, self.consumer_name)
+
+    def _ensure_consumer_group(self):
+        """Create the consumer group if it doesn't exist."""
+        try:
+            self.redis_client.xgroup_create(
+                self.stream_name,
+                self.group_name,
+                id='0',
+                mkstream=True
+            )
+            logging.info('Created consumer group %s for stream %s',
+                        self.group_name, self.stream_name)
+        except redis.exceptions.ResponseError as e:
+            if 'BUSYGROUP' in str(e):
+                # Group already exists, this is fine
+                logging.debug('Consumer group %s already exists', self.group_name)
+            else:
+                raise
+
+    def process_message(self, message_id: str, message_json: str):
+        """
+        Process a message from the operator stream.
+
+        Args:
+            message_id: The Redis Stream message ID
+            message_json: The message JSON string from the backend
+        """
+        try:
+            # Parse the protobuf JSON message
+            protobuf_msg = json.loads(message_json)
+
+            # Parse nested JSON body field if it's a string
+            if 'body' in protobuf_msg and isinstance(protobuf_msg['body'], str):
+                protobuf_msg['body'] = json.loads(protobuf_msg['body'])
+
+            message = backend_messages.MessageBody(**protobuf_msg)
+
+            logging.info('Processing message id=%s type=%s uuid=%s',
+                        message_id, message.type.value, message.uuid)
+
+            # Process the message based on type
+            if message.type == backend_messages.MessageType.UPDATE_POD:
+                if isinstance(message.body, dict):
+                    helpers.queue_update_group_job(self.postgres,
+                                                   backend_messages.UpdatePodBody(**message.body))
+                else:
+                    logging.error('Invalid body type for UPDATE_POD message: %s',
+                                  type(message.body))
+            else:
+                logging.error('Ignoring invalid backend listener message type %s, uuid %s',
+                              message.type.value, message.uuid)
+
+            # Acknowledge the message (remove from pending)
+            self.redis_client.xack(self.stream_name, self.group_name, message_id)
+            logging.debug('Acknowledged message id=%s', message_id)
+
+            # Record metrics
+            processing_time = (common.current_time() - message.timestamp).total_seconds()
+            self.metric_creator.send_counter(
+                name='osmo_backend_event_processing_time', value=processing_time,
+                unit='seconds',
+                description='Time taken to process an event from a backend.',
+                tags={'type': message.type.value}
+            )
+            self.metric_creator.send_counter(
+                name='osmo_backend_event_count', value=1, unit='count',
+                description='Number of event sent from the backend',
+                tags={'type': message.type.value}
+            )
+
+        except json.JSONDecodeError as err:
+            logging.error('Invalid JSON in message id=%s: %s, raw: %s',
+                         message_id, str(err), message_json)
+            # Ack invalid JSON to prevent infinite retries
+            self.redis_client.xack(self.stream_name, self.group_name, message_id)
+        except pydantic.ValidationError as err:
+            logging.error('Invalid message format id=%s: %s, raw: %s',
+                         message_id, str(err), message_json)
+            # Ack invalid messages to prevent infinite retries
+            self.redis_client.xack(self.stream_name, self.group_name, message_id)
+        except osmo_errors.OSMODatabaseError as db_err:
+            logging.error(
+                'Database error processing message id=%s: %s',
+                message_id, db_err.message)
+            # Don't ack - let it be retried by another worker
+        except Exception as error:  # pylint: disable=broad-except
+            error_message = f'{type(error).__name__}: {error}'
+            logging.error('Fatal exception processing message id=%s: %s\n%s',
+                         message_id, error_message, traceback.format_exc())
+            # Don't ack - let it be retried by another worker
+
+    def _claim_abandoned_messages(self):
+        """
+        Claim messages that have been pending for too long (worker crashed/stuck).
+        This provides automatic recovery without a separate reaper job.
+        """
+        try:
+            # Claim messages pending for more than the configured idle time
+            result = self.redis_client.xautoclaim(
+                self.stream_name,
+                self.group_name,
+                self.consumer_name,
+                min_idle_time=MESSAGE_CLAIM_IDLE_TIME_MS,
+                start_id='0-0',
+                count=10
+            )
+
+            # result is (next_id, claimed_messages, deleted_message_ids)
+            if result and result[1]:
+                claimed_messages = result[1]
+                logging.warning('Claimed %d abandoned messages from other workers',
+                              len(claimed_messages))
+
+                # Process claimed messages
+                for message_id, message_data in claimed_messages:
+                    if b'message' in message_data:
+                        message_json = message_data[b'message'].decode('utf-8')
+                        self.process_message(message_id.decode('utf-8'), message_json)
+
+        except Exception as error:  # pylint: disable=broad-except
+            logging.error('Error claiming abandoned messages: %s', error)
+
+    def run(self):
+        """
+        Main loop to consume messages from Redis Stream.
+        Uses consumer groups for reliability and load balancing across workers.
+        """
+        logging.info('Agent worker starting, listening on stream: %s', self.stream_name)
+
+        iteration = 0
+        while True:
+            try:
+                iteration += 1
+
+                # Periodically try to claim abandoned messages (every 10th iteration)
+                # This provides automatic recovery from worker crashes
+                if iteration % 10 == 0:
+                    self._claim_abandoned_messages()
+
+                # Read new messages from the stream
+                # '>' means only new messages not yet delivered to any consumer
+                messages = self.redis_client.xreadgroup(
+                    groupname=self.group_name,
+                    consumername=self.consumer_name,
+                    streams={self.stream_name: '>'},
+                    count=1,
+                    block=1000  # Block for 1 second if no messages
+                )
+
+                if not messages:
+                    continue
+
+                # Process each message
+                for _, stream_messages in messages:
+                    for message_id, message_data in stream_messages:
+                        if b'message' in message_data:
+                            message_json = message_data[b'message'].decode('utf-8')
+                            self.process_message(
+                                message_id.decode('utf-8'),
+                                message_json
+                            )
+
+            except KeyboardInterrupt:
+                logging.info('Received interrupt signal, shutting down...')
+                break
+            except redis.exceptions.ConnectionError as error:
+                logging.error('Redis connection error: %s', error)
+                time.sleep(1)  # Brief pause before retrying
+            except Exception as error:  # pylint: disable=broad-except
+                logging.error('Error in worker main loop: %s\n%s',
+                            error, traceback.format_exc())
+                time.sleep(1)  # Brief pause before retrying
+
+        logging.info('Agent worker stopped')
+
+
+def main():
+    config = AgentWorkerConfig.load()
+    src.lib.utils.logging.init_logger('agent_worker', config)
+
+    # Initialize connectors (except Postgres, which AgentWorker will create)
+    connectors.RedisConnector(config)
+    metrics.MetricCreator(config=config)
+
+    logging.info('Starting operator agent worker...')
+
+    try:
+        worker = AgentWorker(config)
+        worker.run()
+    except KeyboardInterrupt:
+        logging.info('Operator agent worker shutting down...')
+        sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
