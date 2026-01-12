@@ -101,7 +101,11 @@ class TestBackends(unittest.TestCase):
         )
 
         # Act
-        s3.create_client(data_cred=data_cred, scheme='s3', extra_headers=extra_headers)
+        s3.create_client(
+            data_cred=data_cred,
+            scheme='s3',
+            extra_headers=extra_headers
+        )
 
         # Assert
         self.assertEqual(mock_events.register.call_count, len(extra_headers))
@@ -281,6 +285,39 @@ class ExtractStorageAccountTest(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             azure._extract_storage_account_from_endpoint('invalid://endpoint')
         self.assertIn('Cannot extract storage account', str(context.exception))
+
+
+class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
+    """Tests for account key extraction from Azure connection strings."""
+
+    def test_standard_connection_string(self):
+        """Test extraction from standard Azure Storage connection string."""
+        conn_str = (
+            'DefaultEndpointsProtocol=https;'
+            'AccountName=mystorageaccount;'
+            'AccountKey=abc123def456ghi789;'
+            'EndpointSuffix=core.windows.net'
+        )
+        result = azure._extract_account_key_from_connection_string(conn_str)
+        self.assertEqual(result, 'abc123def456ghi789')
+
+    def test_connection_string_with_base64_key(self):
+        """Test extraction when key contains base64 characters including equals."""
+        conn_str = (
+            'DefaultEndpointsProtocol=https;'
+            'AccountName=mystorageaccount;'
+            'AccountKey=abc123+def/456==;'
+            'EndpointSuffix=core.windows.net'
+        )
+        result = azure._extract_account_key_from_connection_string(conn_str)
+        self.assertEqual(result, 'abc123+def/456==')
+
+    def test_missing_account_key_raises(self):
+        """Test that missing AccountKey raises ValueError."""
+        conn_str = 'DefaultEndpointsProtocol=https;AccountName=mystorageaccount'
+        with self.assertRaises(ValueError) as context:
+            azure._extract_account_key_from_connection_string(conn_str)
+        self.assertIn('AccountKey not found', str(context.exception))
 
 
 class WorkflowConfigCredentialTest(unittest.TestCase):
