@@ -207,6 +207,8 @@
 /* GPU-accelerate the viewport pane during interactions for smoother panning/zooming */
 .react-flow__viewport {
   will-change: transform;
+  /* Create isolated stacking context - prevents compositing with parent layers */
+  isolation: isolate;
 }
 
 .react-flow__node {
@@ -215,14 +217,16 @@
 
 .react-flow__edge-path {
   stroke-width: var(--dag-edge-stroke-width);
-  transition: stroke var(--dag-transition-normal);
   vector-effect: non-scaling-stroke;
+  /* Note: No transition on stroke - causes repaint during pan/zoom */
 }
 
-/* Edge animation */
+/* Edge animation - GPU accelerated */
 .react-flow__edge.animated path {
   stroke-dasharray: 5;
   animation: dag-edge-flow 0.5s linear infinite;
+  /* Prevent hit testing during animation (reduces compositor work) */
+  pointer-events: none;
 }
 
 @keyframes dag-edge-flow {
@@ -350,6 +354,8 @@
 /* Individual nodes - style containment only (layout containment breaks handles) */
 .react-flow__node {
   contain: style;
+  /* Force GPU layer for each node - smoother transforms during pan/zoom */
+  transform: translateZ(0);
   /* Note: layout containment removed because handles need to overflow for edge connections */
 }
 

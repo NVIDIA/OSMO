@@ -48,6 +48,21 @@ import { HANDLE_OFFSET } from "@/components/dag";
 import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "../../lib/dag-layout";
 
 // ============================================================================
+// Static Style Objects (Avoid Object Allocation in Render)
+// ============================================================================
+
+/** Pre-computed handle position styles to avoid object allocation per render */
+const HANDLE_STYLES = {
+  targetVertical: { top: -HANDLE_OFFSET } as const,
+  targetHorizontal: { left: -HANDLE_OFFSET } as const,
+  sourceVertical: { bottom: -HANDLE_OFFSET } as const,
+  sourceHorizontal: { right: -HANDLE_OFFSET } as const,
+} as const;
+
+/** Pre-computed header height style */
+const HEADER_STYLE = { height: NODE_HEADER_HEIGHT } as const;
+
+// ============================================================================
 // Smart Scroll Handler (Optimized)
 // ============================================================================
 
@@ -411,14 +426,14 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
         </span>
       )}
 
-      {/* Handles */}
+      {/* Handles - use static style objects to avoid allocation */}
       {hasIncomingEdges && (
         <Handle
           type="target"
           position={targetPosition}
           id="target"
           className="dag-handle"
-          style={isVertical ? { top: -HANDLE_OFFSET } : { left: -HANDLE_OFFSET }}
+          style={isVertical ? HANDLE_STYLES.targetVertical : HANDLE_STYLES.targetHorizontal}
           aria-hidden="true"
         />
       )}
@@ -428,7 +443,7 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
           position={sourcePosition}
           id="source"
           className="dag-handle"
-          style={isVertical ? { bottom: -HANDLE_OFFSET } : { right: -HANDLE_OFFSET }}
+          style={isVertical ? HANDLE_STYLES.sourceVertical : HANDLE_STYLES.sourceHorizontal}
           aria-hidden="true"
         />
       )}
@@ -441,7 +456,7 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
           !isExpanded && hasManyTasks && "pt-3 pb-1.5",
           isExpanded && hasManyTasks && "dag-node-header-expanded py-3",
         )}
-        style={isExpanded && hasManyTasks ? { height: NODE_HEADER_HEIGHT } : undefined}
+        style={isExpanded && hasManyTasks ? HEADER_STYLE : undefined}
         onClick={handleNodeClick}
       >
         <div className="flex items-center gap-2">
