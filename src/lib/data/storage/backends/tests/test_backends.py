@@ -260,29 +260,38 @@ class ExtractStorageAccountTest(unittest.TestCase):
 
     def test_azure_scheme_simple(self):
         """Test extraction from simple azure:// scheme."""
+        # pylint: disable=protected-access
         result = azure._extract_storage_account_from_endpoint('azure://mystorageaccount')
         self.assertEqual(result, 'mystorageaccount')
 
     def test_azure_scheme_with_container(self):
         """Test extraction from azure:// scheme with container path."""
-        result = azure._extract_storage_account_from_endpoint('azure://mystorageaccount/container/path')
+        # pylint: disable=protected-access
+        result = azure._extract_storage_account_from_endpoint(
+            'azure://mystorageaccount/container/path',
+        )
         self.assertEqual(result, 'mystorageaccount')
 
     def test_https_blob_url(self):
         """Test extraction from https blob.core.windows.net URL."""
-        result = azure._extract_storage_account_from_endpoint('https://mystorageaccount.blob.core.windows.net')
+        # pylint: disable=protected-access
+        result = azure._extract_storage_account_from_endpoint(
+            'https://mystorageaccount.blob.core.windows.net',
+        )
         self.assertEqual(result, 'mystorageaccount')
 
     def test_https_blob_url_with_path(self):
         """Test extraction from https blob URL with path."""
+        # pylint: disable=protected-access
         result = azure._extract_storage_account_from_endpoint(
-            'https://mystorageaccount.blob.core.windows.net/container/blob'
+            'https://mystorageaccount.blob.core.windows.net/container/blob',
         )
         self.assertEqual(result, 'mystorageaccount')
 
     def test_invalid_endpoint_raises(self):
         """Test that invalid endpoints raise ValueError."""
         with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
             azure._extract_storage_account_from_endpoint('invalid://endpoint')
         self.assertIn('Cannot extract storage account', str(context.exception))
 
@@ -298,6 +307,7 @@ class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
             'AccountKey=abc123def456ghi789;'
             'EndpointSuffix=core.windows.net'
         )
+        # pylint: disable=protected-access
         result = azure._extract_account_key_from_connection_string(conn_str)
         self.assertEqual(result, 'abc123def456ghi789')
 
@@ -309,6 +319,7 @@ class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
             'AccountKey=abc123+def/456==;'
             'EndpointSuffix=core.windows.net'
         )
+        # pylint: disable=protected-access
         result = azure._extract_account_key_from_connection_string(conn_str)
         self.assertEqual(result, 'abc123+def/456==')
 
@@ -316,6 +327,7 @@ class ExtractAccountKeyFromConnectionStringTest(unittest.TestCase):
         """Test that missing AccountKey raises ValueError."""
         conn_str = 'DefaultEndpointsProtocol=https;AccountName=mystorageaccount'
         with self.assertRaises(ValueError) as context:
+            # pylint: disable=protected-access
             azure._extract_account_key_from_connection_string(conn_str)
         self.assertIn('AccountKey not found', str(context.exception))
 

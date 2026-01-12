@@ -24,6 +24,8 @@ import logging
 import os
 import re
 from typing import Any, Callable, Generator, Iterator, List, Tuple, Type
+from urllib.parse import urlparse
+
 from typing_extensions import assert_never, override
 
 from azure.core import exceptions
@@ -284,8 +286,6 @@ def _extract_storage_account_from_endpoint(endpoint: str) -> str:
         parts = endpoint.replace('azure://', '').split('/')
         return parts[0]
     if '.blob.core.windows.net' in endpoint:
-        from urllib.parse import urlparse
-
         parsed = urlparse(endpoint)
         return parsed.netloc.split('.')[0]
     raise ValueError(f'Cannot extract storage account from endpoint: {endpoint}')
@@ -314,7 +314,7 @@ def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClie
             )
         case credentials.DefaultDataCredential():
             storage_account = _extract_storage_account_from_endpoint(data_cred.endpoint)
-            account_url = f"https://{storage_account}.blob.core.windows.net"
+            account_url = f'https://{storage_account}.blob.core.windows.net'
             return blob.BlobServiceClient(
                 account_url=account_url,
                 credential=DefaultAzureCredential(),
