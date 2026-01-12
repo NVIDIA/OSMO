@@ -147,8 +147,8 @@ export const WORKFLOW_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   },
   {
     id: "status",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.STATUS_BADGE,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.STATUS_BADGE_LONG,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE_LONG,
   },
   {
     id: "user",
