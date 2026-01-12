@@ -22,6 +22,3 @@ export {
   type ViewportBoundariesResult,
   type NodeBounds,
 } from "./use-viewport-boundaries";
-
-// Re-export Node type from ReactFlow for convenience
-export type { Node } from "@xyflow/react";
