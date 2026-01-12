@@ -44,6 +44,12 @@ import {
 import { usePaginatedData } from "@/lib/api/pagination";
 import type { SearchChip } from "@/stores";
 import { filterByChips } from "@/components/smart-search";
+import {
+  chipsToParams,
+  filterChipsByFields,
+  chipsToCacheKey,
+  type ChipMappingConfig,
+} from "@/lib/api/chip-filter-utils";
 import { RESOURCE_SEARCH_FIELDS } from "../lib/resource-search-fields";
 
 // =============================================================================
@@ -70,66 +76,43 @@ interface UseResourcesDataReturn {
 }
 
 // =============================================================================
-// Chip to Filter Conversion
+// Chip to Filter Configuration
 // =============================================================================
 
 /** Fields handled by the shim (these get converted to params) */
 const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "name", "hostname"]);
 
 /**
- * Convert SmartSearch chips to resource filter params.
+ * Mapping of SmartSearch chip fields to resource filter params.
  *
  * This mapping stays the same whether filtering is client or server side.
  * The adapter handles where the filtering actually happens.
  */
-function chipsToFilterParams(chips: SearchChip[]): ResourceFilterParams {
-  const params: ResourceFilterParams = {};
-
-  for (const chip of chips) {
-    switch (chip.field) {
-      case "pool":
-        params.pools = [...(params.pools ?? []), chip.value];
-        break;
-      case "platform":
-        params.platforms = [...(params.platforms ?? []), chip.value];
-        break;
-      case "type":
-        params.resourceTypes = [...(params.resourceTypes ?? []), chip.value];
-        break;
-      case "backend":
-        params.backends = [...(params.backends ?? []), chip.value];
-        break;
-      case "name":
-        // Name maps to search (substring match in shim)
-        params.search = chip.value;
-        break;
-      case "hostname":
-        params.hostname = chip.value;
-        break;
-    }
-  }
-
-  return params;
-}
-
-/**
- * Get chips that need client-side filtering (not handled by shim).
- * These are numeric filters that require % calculations.
- */
-function getClientOnlyChips(chips: SearchChip[]): SearchChip[] {
-  return chips.filter((chip) => !SHIM_HANDLED_FIELDS.has(chip.field));
-}
+const RESOURCE_CHIP_MAPPING: ChipMappingConfig<ResourceFilterParams> = {
+  pool: { type: "array", paramKey: "pools" },
+  platform: { type: "array", paramKey: "platforms" },
+  type: { type: "array", paramKey: "resourceTypes" },
+  backend: { type: "array", paramKey: "backends" },
+  name: { type: "single", paramKey: "search" },
+  hostname: { type: "single", paramKey: "hostname" },
+};
 
 // =============================================================================
 // Hook
 // =============================================================================
 
 export function useResourcesData({ searchChips }: UseResourcesDataParams): UseResourcesDataReturn {
-  // Convert chips to filter params for the shim
-  const filterParams = useMemo(() => chipsToFilterParams(searchChips), [searchChips]);
+  // Convert chips to filter params using shared utility
+  const filterParams = useMemo(
+    () => chipsToParams(searchChips, RESOURCE_CHIP_MAPPING) as ResourceFilterParams,
+    [searchChips],
+  );
 
   // Get chips that shim doesn't handle (numeric filters with % calculations)
-  const clientOnlyChips = useMemo(() => getClientOnlyChips(searchChips), [searchChips]);
+  const clientOnlyChips = useMemo(
+    () => filterChipsByFields(searchChips, SHIM_HANDLED_FIELDS, /* exclude */ true),
+    [searchChips],
+  );
 
   // Build query key from filter params (stable key for cache)
   const queryKey = useMemo(
@@ -144,10 +127,7 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
         search: filterParams.search ?? "",
         hostname: filterParams.hostname ?? "",
         // Include client-only chips in key for proper cache invalidation
-        clientFilters: clientOnlyChips
-          .map((c) => `${c.field}:${c.value}`)
-          .sort()
-          .join(","),
+        clientFilters: chipsToCacheKey(clientOnlyChips),
       },
     ],
     [filterParams, clientOnlyChips],
