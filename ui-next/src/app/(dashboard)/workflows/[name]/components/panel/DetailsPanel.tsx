@@ -146,6 +146,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   onCancelWorkflow,
   fallbackContent,
   containerRef,
+  onDraggingChange,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
@@ -194,6 +195,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       aria-label={ariaLabel}
       className="dag-details-panel"
       containerRef={containerRef}
+      onDraggingChange={onDraggingChange}
     >
       {/* Workflow Details (base layer) */}
       {view === "workflow" && workflow && (
