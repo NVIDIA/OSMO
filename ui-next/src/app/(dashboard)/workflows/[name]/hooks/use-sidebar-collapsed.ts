@@ -17,15 +17,15 @@
 /**
  * Hook for managing workflow details sidebar collapsed state.
  *
- * Single collapse/expand state (NOT per-node):
+ * GLOBAL collapse/expand state (NOT per-node):
  * - User preference (localStorage): Default collapsed state for workflow overview
- * - Session state: Single collapsed state that persists across node selections
+ * - Session state: Single global collapsed state, NOT tied to specific nodes
  *
  * Behavior:
  * - Workflow view (no selection): Uses user preference
- * - Any navigation to a selection: Auto-expands panel (new node = show details)
- * - User can manually collapse: State persists until next navigation
- * - Navigating to different nodes: Always expands (user clicked to see details)
+ * - Any navigation (node click OR URL change): Auto-expands panel
+ * - User can manually collapse: Stays collapsed until next navigation
+ * - Panel state is GLOBAL - no per-node memory
  * - Escape key: Collapses panel
  * - Enter key: Expands panel
  *
@@ -35,9 +35,8 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
-import { useLocalStorage } from "usehooks-ts";
-import { useEventCallback } from "usehooks-ts";
+import { useState, useRef } from "react";
+import { useLocalStorage, useEventCallback, useIsomorphicLayoutEffect } from "usehooks-ts";
 
 export interface UseSidebarCollapsedOptions {
   /** Whether there's an active group/task selection from URL */
@@ -50,30 +49,38 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   // User preference for default state (used when no selection)
   const [preferredCollapsed, setPreferredCollapsed] = useLocalStorage("osmo-workflow-details-sidebar-collapsed", false);
 
-  // Track the selection key that the user has explicitly collapsed on
-  // When selectionKey !== collapsedOnKey, the panel auto-expands (derived state)
-  // This avoids setState in useEffect by deriving the expanded state from comparison
-  const [collapsedOnKey, setCollapsedOnKey] = useState<string | null>(null);
+  // Global collapsed state - NOT tied to any specific node
+  // This is the user's manual collapse action that persists until next navigation
+  const [userCollapsed, setUserCollapsed] = useState(false);
 
-  // Derive collapsed state without needing an effect:
-  // - No selection: use user preference
-  // - Has selection AND user explicitly collapsed on this exact key: collapsed
-  // - Has selection but different key (navigation occurred): auto-expand
-  const collapsed = useMemo(() => {
-    if (!hasSelection) {
-      return preferredCollapsed;
+  // Track previous selection key to detect navigation
+  const prevSelectionKeyRef = useRef<string | null>(null);
+
+  // Auto-expand on ANY navigation (click or URL change)
+  // Using layout effect to update state before render to avoid flicker
+  useIsomorphicLayoutEffect(() => {
+    // Detect if selection changed (navigation occurred)
+    const prevKey = prevSelectionKeyRef.current;
+    const navigationOccurred = selectionKey !== prevKey && selectionKey !== null;
+
+    if (navigationOccurred) {
+      // Any navigation auto-expands the panel
+      setUserCollapsed(false);
     }
-    // Auto-expand if the selection changed (navigation to new node)
-    // Only stay collapsed if user explicitly collapsed on this exact selection
-    return selectionKey === collapsedOnKey;
-  }, [hasSelection, preferredCollapsed, selectionKey, collapsedOnKey]);
+
+    // Update ref for next comparison
+    prevSelectionKeyRef.current = selectionKey;
+  }, [selectionKey]);
+
+  // Derive collapsed state:
+  // - No selection: use user preference
+  // - Has selection: use global userCollapsed state
+  const collapsed = hasSelection ? userCollapsed : preferredCollapsed;
 
   // Toggle collapsed state - stable callback for memoized children
   const toggle = useEventCallback(() => {
     if (hasSelection) {
-      // Toggle: if currently collapsed, clear the key to expand
-      // If currently expanded, set the key to collapse
-      setCollapsedOnKey(collapsed ? null : selectionKey);
+      setUserCollapsed((prev) => !prev);
     } else {
       setPreferredCollapsed((prev) => !prev);
     }
@@ -82,8 +89,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   // Expand panel - stable callback for memoized children
   const expand = useEventCallback(() => {
     if (hasSelection) {
-      // Clear the collapsed key to trigger expand
-      setCollapsedOnKey(null);
+      setUserCollapsed(false);
     } else {
       setPreferredCollapsed(false);
     }
@@ -92,8 +98,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   // Collapse panel - stable callback for memoized children
   const collapse = useEventCallback(() => {
     if (hasSelection) {
-      // Set the collapsed key to current selection to mark as collapsed
-      setCollapsedOnKey(selectionKey);
+      setUserCollapsed(true);
     } else {
       setPreferredCollapsed(true);
     }
