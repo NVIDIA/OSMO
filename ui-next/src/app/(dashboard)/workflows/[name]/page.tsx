@@ -41,8 +41,9 @@
 
 "use client";
 
-import { use, useState, useMemo, useRef } from "react";
+import { use, useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useEventListener } from "usehooks-ts";
+import { usePrevious } from "@react-hookz/web";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -213,22 +214,48 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Panel is always "open" (shows workflow when nothing selected), but can be collapsed
   // Note: isPanelCollapsed is used for keyboard shortcuts and panel state
 
-  // Viewport boundary management (uncontrolled mode)
-  // ReactFlow manages viewport internally - we just enforce boundaries and handle centering
-  const { onViewportChange } = useViewportBoundaries({
+  // ---------------------------------------------------------------------------
+  // Viewport Re-centering (decoupled from hook - consumer controls when/where)
+  // ---------------------------------------------------------------------------
+
+  // Track panel state changes to trigger re-centering
+  const [reCenterTrigger, setReCenterTrigger] = useState(0);
+  const prevPanelCollapsed = usePrevious(isPanelCollapsed);
+  const prevPanelDragging = usePrevious(isPanelDragging);
+
+  // Trigger re-center when panel state changes (collapse/expand or drag ends)
+  useEffect(() => {
+    const collapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
+    const dragEnded = prevPanelDragging === true && isPanelDragging === false;
+
+    if (collapsedChanged || dragEnded) {
+      setReCenterTrigger((t) => t + 1);
+    }
+  }, [isPanelCollapsed, isPanelDragging, prevPanelCollapsed, prevPanelDragging]);
+
+  // Compute expected visible area based on panel state (for smooth centering during transitions)
+  const getExpectedVisibleArea = useCallback(() => {
+    const outerWidth = containerRef.current?.offsetWidth ?? VIEWPORT.ESTIMATED_WIDTH;
+    const height = dagContainerRef.current?.offsetHeight ?? VIEWPORT.ESTIMATED_HEIGHT;
+    const panelWidth = isPanelCollapsed ? PANEL.COLLAPSED_WIDTH_PX : (outerWidth * panelPct) / 100;
+    const width = Math.max(100, outerWidth - panelWidth);
+    return { width, height };
+  }, [isPanelCollapsed, panelPct]);
+
+  // Viewport boundary management via translateExtent (instant clamp)
+  // React Flow enforces bounds natively via d3-zoom - no snap-back animation
+  // Bounds based on "any node can be centered" principle
+  const { translateExtent, onViewportChange } = useViewportBoundaries({
     nodeBounds,
     containerRef: dagContainerRef,
-    selectedGroupName: selectedGroup?.name ?? null,
+    selectedNodeId: selectedGroup?.name ?? null,
     nodes,
     layoutDirection,
     rootNodeIds,
     initialSelectedNodeId: selectedGroupName,
-    // Panel state for accurate centering calculations during transitions
-    outerContainerRef: containerRef,
-    panelWidthPct: panelPct,
-    isPanelCollapsed,
-    collapsedPanelWidthPx: PANEL.COLLAPSED_WIDTH_PX,
-    isPanelDragging,
+    // Generic re-centering - consumer controls when/where
+    getExpectedVisibleArea,
+    reCenterTrigger,
   });
 
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
@@ -378,8 +405,10 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                   edgesFocusable={false}
                   nodesFocusable={true}
                   selectNodesOnDrag={false}
-                  // Uncontrolled viewport - ReactFlow handles internally
-                  // onViewportChange enforces boundaries when user pans outside
+                  // Viewport boundaries via translateExtent (instant clamp)
+                  // React Flow enforces natively via d3-zoom - no snap-back
+                  translateExtent={translateExtent}
+                  // Track zoom changes for dynamic translateExtent
                   onViewportChange={onViewportChange}
                   minZoom={nodeBounds.fitAllZoom}
                   maxZoom={VIEWPORT.MAX_ZOOM}
