@@ -97,6 +97,9 @@ export interface SidePanelProps {
 
   /** Ref to the parent container (for resize calculations) */
   containerRef?: RefObject<HTMLDivElement | null>;
+
+  /** Callback when drag state changes (for coordinating with viewport centering) */
+  onDraggingChange?: (isDragging: boolean) => void;
 }
 
 // =============================================================================
@@ -120,6 +123,7 @@ export function SidePanel({
   // Escape key handling
   onEscapeKey,
   containerRef: externalContainerRef,
+  onDraggingChange,
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
@@ -228,6 +232,11 @@ export function SidePanel({
       document.body.style.cursor = "";
     }
   }, [isDragging]);
+
+  // Notify parent of drag state changes (for coordinating with viewport centering)
+  useEffect(() => {
+    onDraggingChange?.(isDragging);
+  }, [isDragging, onDraggingChange]);
 
   // Calculate panel width based on collapsed state
   const panelWidth = isCollapsed

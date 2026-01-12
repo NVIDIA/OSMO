@@ -32,6 +32,8 @@ import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-type
 // ============================================================================
 
 interface WorkflowDAGContextValue {
+  /** Currently selected node ID (group name) - for visual selection state */
+  selectedNodeId: string | null;
   /** Called when clicking on a multi-task group node - opens GroupPanel */
   onSelectGroup: (group: GroupWithLayout) => void;
   /** Called when clicking on a single-task node or a task within GroupPanel - opens DetailPanel */
@@ -42,6 +44,19 @@ interface WorkflowDAGContextValue {
 
 const WorkflowDAGContext = createContext<WorkflowDAGContextValue | null>(null);
 
+/** Props for DAGProvider - separates state from callbacks */
+interface DAGProviderProps {
+  children: React.ReactNode;
+  /** Currently selected node ID (group name) - for visual selection state */
+  selectedNodeId?: string | null;
+  /** Called when clicking on a multi-task group node */
+  onSelectGroup: (group: GroupWithLayout) => void;
+  /** Called when clicking on a single-task node or a task within GroupPanel */
+  onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
+  /** Called when expanding/collapsing a group */
+  onToggleExpand: (groupId: string) => void;
+}
+
 /**
  * DAGProvider - Provides workflow-specific DAG handlers to child components.
  *
@@ -51,23 +66,25 @@ const WorkflowDAGContext = createContext<WorkflowDAGContextValue | null>(null);
  */
 export function DAGProvider({
   children,
+  selectedNodeId = null,
   onSelectGroup,
   onSelectTask,
   onToggleExpand,
-}: WorkflowDAGContextValue & { children: React.ReactNode }) {
+}: DAGProviderProps) {
   // Stabilize callbacks to prevent context value from changing
   const stableOnSelectGroup = useEventCallback(onSelectGroup);
   const stableOnSelectTask = useEventCallback(onSelectTask);
   const stableOnToggleExpand = useEventCallback(onToggleExpand);
 
-  // Memoize context value - stable callbacks mean this never changes
+  // Memoize context value - include selectedNodeId for selection state
   const value = useMemo<WorkflowDAGContextValue>(
     () => ({
+      selectedNodeId,
       onSelectGroup: stableOnSelectGroup,
       onSelectTask: stableOnSelectTask,
       onToggleExpand: stableOnToggleExpand,
     }),
-    [stableOnSelectGroup, stableOnSelectTask, stableOnToggleExpand],
+    [selectedNodeId, stableOnSelectGroup, stableOnSelectTask, stableOnToggleExpand],
   );
 
   return <WorkflowDAGContext.Provider value={value}>{children}</WorkflowDAGContext.Provider>;
