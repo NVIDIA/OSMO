@@ -30,7 +30,13 @@
 
 import { useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { DataTable, type SortState, type ColumnSizingPreference } from "@/components/data-table";
+import {
+  DataTable,
+  TableLoadingSkeleton,
+  TableErrorState,
+  type SortState,
+  type ColumnSizingPreference,
+} from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
@@ -175,39 +181,19 @@ export function WorkflowsDataTable({
     [],
   );
 
-  // Loading state
+  // Loading state (using consolidated component)
   if (isLoading && workflows.length === 0) {
-    return (
-      <div className="table-container flex h-full flex-col">
-        <div className="flex flex-1 flex-col gap-2 p-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="h-12 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800"
-            />
-          ))}
-        </div>
-      </div>
-    );
+    return <TableLoadingSkeleton rowHeight={rowHeight} />;
   }
 
-  // Error state
+  // Error state (using consolidated component)
   if (error) {
     return (
-      <div className="table-container flex h-full flex-col">
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-          <div className="text-sm text-red-600 dark:text-red-400">Unable to load workflows</div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">{error.message}</div>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-            >
-              Try again
-            </button>
-          )}
-        </div>
-      </div>
+      <TableErrorState
+        error={error}
+        title="Unable to load workflows"
+        onRetry={onRetry}
+      />
     );
   }
 

@@ -41,9 +41,9 @@
 
 "use client";
 
-import { use, useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { use, useState, useMemo, useRef, useCallback } from "react";
 import { useEventListener } from "usehooks-ts";
-import { usePrevious } from "@react-hookz/web";
+import { usePrevious, useIsomorphicLayoutEffect } from "@react-hookz/web";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 import { useTheme } from "next-themes";
@@ -224,7 +224,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const prevPanelDragging = usePrevious(isPanelDragging);
 
   // Trigger re-center when panel state changes (collapse/expand or drag ends)
-  useEffect(() => {
+  // Using useIsomorphicLayoutEffect for synchronous layout-related state updates
+  // This is the correct pattern for layout changes that need immediate re-render
+  useIsomorphicLayoutEffect(() => {
     const collapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
     const dragEnded = prevPanelDragging === true && isPanelDragging === false;
 

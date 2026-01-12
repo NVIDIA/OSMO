@@ -38,6 +38,7 @@ import { useMemo } from "react";
 import { useFilteredPools, type PoolFilterParams, type PoolMetadata } from "@/lib/api/adapter";
 import type { Pool } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
+import { chipsToParams, type ChipMappingConfig } from "@/lib/api/chip-filter-utils";
 
 // =============================================================================
 // Types
@@ -71,50 +72,31 @@ interface UsePoolsDataReturn {
 }
 
 // =============================================================================
-// Chip to Filter Conversion
+// Chip to Filter Mapping
 // =============================================================================
 
 /**
- * Convert SmartSearch chips to pool filter params.
+ * Mapping of SmartSearch chip fields to pool filter params.
  *
  * This mapping stays the same whether filtering is client or server side.
  * The adapter handles where the filtering actually happens.
  */
-function chipsToFilterParams(chips: SearchChip[]): PoolFilterParams {
-  const params: PoolFilterParams = {};
-
-  for (const chip of chips) {
-    switch (chip.field) {
-      case "status":
-        params.statuses = [...(params.statuses ?? []), chip.value];
-        break;
-      case "platform":
-        params.platforms = [...(params.platforms ?? []), chip.value];
-        break;
-      case "backend":
-        params.backends = [...(params.backends ?? []), chip.value];
-        break;
-      case "shared":
-        params.sharedWith = chip.value;
-        break;
-      case "search":
-      case "name":
-        // Both search and name fields map to text search
-        params.search = chip.value;
-        break;
-    }
-  }
-
-  return params;
-}
+const POOL_CHIP_MAPPING: ChipMappingConfig<PoolFilterParams> = {
+  status: { type: "array", paramKey: "statuses" },
+  platform: { type: "array", paramKey: "platforms" },
+  backend: { type: "array", paramKey: "backends" },
+  shared: { type: "single", paramKey: "sharedWith" },
+  search: { type: "single", paramKey: "search" },
+  name: { type: "single", paramKey: "search" }, // Both search and name map to search
+};
 
 // =============================================================================
 // Hook
 // =============================================================================
 
 export function usePoolsData({ searchChips }: UsePoolsDataParams): UsePoolsDataReturn {
-  // Convert chips to filter params
-  const filterParams = useMemo(() => chipsToFilterParams(searchChips), [searchChips]);
+  // Convert chips to filter params using shared utility
+  const filterParams = useMemo(() => chipsToParams(searchChips, POOL_CHIP_MAPPING) as PoolFilterParams, [searchChips]);
 
   // Use adapter hook (handles client/server filtering transparently)
   const {

@@ -35,12 +35,10 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsString } from "nuqs";
-import type { ResultsCount } from "@/components/smart-search";
+import { useMemo } from "react";
 import { InlineErrorBoundary } from "@/components/error";
 import { usePage } from "@/components/shell";
-import { useUrlChips } from "@/hooks";
+import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
 import { PoolsDataTable } from "./components/table/pools-data-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
 import { PoolsToolbar } from "./components/pools-toolbar";
@@ -58,24 +56,14 @@ export default function PoolsPage() {
   // URL: /pools?view=my-pool&config=dgx&f=status:ONLINE&f=platform:dgx
   // ==========================================================================
 
-  // Panel state
-  const [selectedPoolName, setSelectedPoolName] = useQueryState(
-    "view",
-    parseAsString.withOptions({
-      shallow: true,
-      history: "push",
-      clearOnDefault: true,
-    }),
-  );
-
-  const [selectedPlatform, setSelectedPlatform] = useQueryState(
-    "config",
-    parseAsString.withOptions({
-      shallow: true,
-      history: "replace",
-      clearOnDefault: true,
-    }),
-  );
+  // Panel state (consolidated URL state hooks)
+  const {
+    selection: selectedPoolName,
+    setSelection: setSelectedPoolName,
+    config: selectedPlatform,
+    setConfig: setSelectedPlatform,
+    clear: clearSelectedPool,
+  } = usePanelState();
 
   // Filter chips - URL-synced via shared hook
   const { searchChips, setSearchChips } = useUrlChips();
@@ -92,26 +80,14 @@ export default function PoolsPage() {
   // Pool Selection
   // ==========================================================================
 
-  // Clear panel and optionally platform
-  const clearSelectedPool = useCallback(() => {
-    setSelectedPoolName(null);
-    setSelectedPlatform(null);
-  }, [setSelectedPoolName, setSelectedPlatform]);
-
   // Find selected pool (search in allPools so selection persists through filtering)
   const selectedPool = useMemo(
     () => (selectedPoolName ? (allPools.find((p) => p.name === selectedPoolName) ?? null) : null),
     [allPools, selectedPoolName],
   );
 
-  // Results count for SmartSearch display
-  const resultsCount = useMemo<ResultsCount | undefined>(
-    () => ({
-      total,
-      filtered: hasActiveFilters ? filteredTotal : undefined,
-    }),
-    [total, filteredTotal, hasActiveFilters],
-  );
+  // Results count for SmartSearch display (consolidated hook)
+  const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
   // ==========================================================================
   // Render

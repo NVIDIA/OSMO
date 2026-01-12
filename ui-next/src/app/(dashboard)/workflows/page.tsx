@@ -33,11 +33,9 @@
 
 "use client";
 
-import { useMemo } from "react";
 import { InlineErrorBoundary } from "@/components/error";
-import type { ResultsCount } from "@/components/smart-search";
 import { usePage } from "@/components/shell";
-import { useUrlChips } from "@/hooks";
+import { useUrlChips, useResultsCount } from "@/hooks";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
 import { WorkflowsToolbar } from "./components/workflows-toolbar";
 import { useWorkflowsData } from "./hooks/use-workflows-data";
@@ -87,14 +85,8 @@ export default function WorkflowsPage() {
     sortDirection,
   });
 
-  // Results count for SmartSearch display
-  const resultsCount = useMemo<ResultsCount | undefined>(
-    () => ({
-      total,
-      filtered: hasActiveFilters ? filteredTotal : undefined,
-    }),
-    [total, filteredTotal, hasActiveFilters],
-  );
+  // Results count for SmartSearch display (consolidated hook)
+  const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
   // ==========================================================================
   // Render

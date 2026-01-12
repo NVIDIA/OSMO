@@ -29,20 +29,10 @@
 "use client";
 
 import { useState, useMemo, useCallback, memo } from "react";
-import { Check, Loader2, AlertCircle, Clock, Rows3, Rows4, Columns } from "lucide-react";
+import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DataTable, type SortState } from "@/components/data-table";
+import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
-import { Toggle } from "@/components/shadcn/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { STATUS_SORT_ORDER } from "../../lib/status";
 import { calculateDuration, formatDuration } from "../../lib/workflow-types";
 import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../lib/status";
@@ -53,16 +43,16 @@ import {
   MANDATORY_COLUMN_IDS,
   TASK_COLUMN_SIZE_CONFIG,
   asTaskColumnIds,
-  type TaskColumnId,
 } from "../../lib/task-columns";
 import { createTaskColumns } from "../../lib/task-column-defs";
-import { SmartSearch, filterByChips, type SearchChip, type ResultsCount } from "@/components/smart-search";
+import { filterByChips, type SearchChip } from "@/components/smart-search";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
 import { useTaskTableStore } from "../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
 import { GroupTimeline } from "./GroupTimeline";
 import { DependencyPills } from "./DependencyPills";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
+import { useResultsCount } from "@/hooks";
 
 // =============================================================================
 // Constants
@@ -98,9 +88,9 @@ export const GroupDetails = memo(function GroupDetails({
   const [searchChips, setSearchChips] = useState<SearchChip[]>([]);
   const [selectedTaskName, setSelectedTaskName] = useState<string | null>(null);
 
-  // Shared preferences (compact mode)
+  // Shared preferences (compact mode - used for row height calculation)
+  // Note: toggleCompactMode is handled internally by TableToolbar
   const compactMode = useSharedPreferences((s) => s.compactMode);
-  const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
 
   // Task table store (column visibility, order, sort - persisted via Zustand)
   const visibleColumnIds = asTaskColumnIds(useTaskTableStore((s) => s.visibleColumnIds));
@@ -197,14 +187,12 @@ export const GroupDetails = memo(function GroupDetails({
   // Static presets for state filtering (no data-dependent counts)
   const taskPresets = TASK_PRESETS;
 
-  // Results count for SmartSearch display
-  const resultsCount = useMemo<ResultsCount>(
-    () => ({
-      total: stats.total,
-      filtered: searchChips.length > 0 ? filteredTasks.length : undefined,
-    }),
-    [stats.total, filteredTasks.length, searchChips.length],
-  );
+  // Results count for SmartSearch display (using consolidated hook)
+  const resultsCount = useResultsCount({
+    total: stats.total,
+    filteredTotal: filteredTasks.length,
+    hasActiveFilters: searchChips.length > 0,
+  });
 
   // Callbacks
   const handleColumnOrderChange = useCallback(
@@ -345,74 +333,20 @@ export const GroupDetails = memo(function GroupDetails({
         onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Toolbar: Search + Controls */}
-      <div className="space-y-2 border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
-        <div className="flex items-center gap-2">
-          {/* Search */}
-          <div className="min-w-0 flex-1">
-            <SmartSearch
-              data={tasksWithDuration}
-              fields={TASK_SEARCH_FIELDS}
-              chips={searchChips}
-              onChipsChange={setSearchChips}
-              presets={taskPresets}
-              placeholder="Filter by name, status:, ip:, duration:..."
-              resultsCount={resultsCount}
-            />
-          </div>
-
-          {/* Table controls */}
-          <div className="flex shrink-0 items-center gap-1">
-            {/* Compact/Comfortable Toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle
-                  size="sm"
-                  pressed={compactMode}
-                  onPressedChange={toggleCompactMode}
-                  aria-label={compactMode ? "Compact view" : "Comfortable view"}
-                >
-                  {compactMode ? <Rows4 className="size-4" /> : <Rows3 className="size-4" />}
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>{compactMode ? "Compact view" : "Comfortable view"}</TooltipContent>
-            </Tooltip>
-
-            {/* Column Visibility Dropdown */}
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Toggle
-                      size="sm"
-                      aria-label="Toggle columns"
-                    >
-                      <Columns className="size-4" />
-                    </Toggle>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Toggle columns</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent
-                align="end"
-                className="w-40"
-              >
-                <DropdownMenuLabel>Columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {OPTIONAL_COLUMNS_ALPHABETICAL.map((column) => (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    checked={visibleColumnIds.includes(column.id as TaskColumnId)}
-                    onCheckedChange={() => toggleColumn(column.id)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {column.menuLabel ?? column.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+      {/* Toolbar: Search + Controls (using shared TableToolbar) */}
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
+        <TableToolbar
+          data={tasksWithDuration}
+          searchFields={TASK_SEARCH_FIELDS}
+          columns={OPTIONAL_COLUMNS_ALPHABETICAL}
+          visibleColumnIds={visibleColumnIds}
+          onToggleColumn={toggleColumn}
+          searchChips={searchChips}
+          onSearchChipsChange={setSearchChips}
+          placeholder="Filter by name, status:, ip:, duration:..."
+          searchPresets={taskPresets}
+          resultsCount={resultsCount}
+        />
       </div>
 
       {/* Task List - using canonical DataTable */}
