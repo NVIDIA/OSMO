@@ -22,3 +22,12 @@ export { Header } from "./header";
 
 // Re-export useSidebar from shadcn/ui for consumers
 export { useSidebar } from "@/components/shadcn/sidebar";
+
+// Sidebar constants - single source of truth for layout calculations
+export {
+  SIDEBAR,
+  SIDEBAR_WIDTH_EXPANDED_PX,
+  SIDEBAR_WIDTH_COLLAPSED_PX,
+  SIDEBAR_TRANSITION_MS,
+  SIDEBAR_CSS_VARS,
+} from "./constants";

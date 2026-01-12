@@ -17,6 +17,7 @@
 import { memo, Suspense } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { Header } from "./header";
+import { SIDEBAR_CSS_VARS } from "./constants";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/shadcn/card";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
@@ -39,12 +40,7 @@ export const Shell = memo(function Shell({ children }: ShellProps) {
     <SidebarProvider
       defaultOpen={true}
       className="h-screen overflow-hidden"
-      style={
-        {
-          "--sidebar-width": "12rem",
-          "--sidebar-width-icon": "3.25rem",
-        } as React.CSSProperties
-      }
+      style={SIDEBAR_CSS_VARS as React.CSSProperties}
     >
       {/* Skip to main content link - WCAG 2.1 bypass block */}
       <a
