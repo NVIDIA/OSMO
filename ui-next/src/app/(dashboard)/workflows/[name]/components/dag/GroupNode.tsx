@@ -265,18 +265,20 @@ function getFailureHint(task: TaskQueryResponse): string {
 
 interface GroupNodeProps {
   data: GroupNodeData;
-  selected?: boolean;
 }
 
 /**
  * Memoized GroupNode component.
  * Only re-renders when data props actually change.
  */
-export const GroupNode = memo(function GroupNode({ data, selected = false }: GroupNodeProps) {
+export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
   const { group, isExpanded, layoutDirection, nodeWidth, nodeHeight, hasIncomingEdges, hasOutgoingEdges } = data;
 
-  // Get handlers from context (not props) to prevent re-renders
-  const { onSelectGroup, onSelectTask, onToggleExpand } = useDAGContext();
+  // Get handlers and selection state from context (not props) to prevent re-renders
+  const { selectedNodeId, onSelectGroup, onSelectTask, onToggleExpand } = useDAGContext();
+
+  // Determine if this node is selected (based on URL navigation state via context)
+  const isSelected = group.name === selectedNodeId;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -391,11 +393,11 @@ export const GroupNode = memo(function GroupNode({ data, selected = false }: Gro
       )}
       style={{ width: nodeWidth, height: nodeHeight }}
       data-status={category}
-      data-selected={selected}
+      data-selected={isSelected}
       role="treeitem"
       aria-label={ariaLabel}
       aria-expanded={hasManyTasks ? isExpanded : undefined}
-      aria-selected={selected}
+      aria-selected={isSelected}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >

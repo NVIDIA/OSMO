@@ -168,6 +168,12 @@ export const ANIMATION = {
   MOVE_END: 150,
   /** Buffer time added after animations to ensure completion (ms) */
   BUFFER: 50,
+  /**
+   * Duration matching the panel CSS transition (ease-out 200ms).
+   * Used for re-centering during panel resize/collapse to create
+   * a seamless single-motion animation.
+   */
+  PANEL_TRANSITION: 200,
 } as const;
 
 // ============================================================================
