@@ -83,6 +83,9 @@ import { useSidebarCollapsed } from "./hooks/use-sidebar-collapsed";
 import { useDAGState } from "./hooks/use-dag-state";
 import { useNavigationState } from "./hooks/use-navigation-state";
 
+// Types
+import type { GroupWithLayout, TaskQueryResponse } from "./lib/workflow-types";
+
 // CSS for DAG (from route-level styles)
 import "./styles/dag.css";
 
@@ -186,9 +189,47 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
 
   // Panel collapsed state (reconciles user preference with navigation intent)
-  const { collapsed: isPanelCollapsed, toggle: togglePanelCollapsed } = useSidebarCollapsed({
+  const { collapsed: isPanelCollapsed, toggle: togglePanelCollapsed, expand: expandPanel } = useSidebarCollapsed({
     hasSelection,
     selectionKey,
+  });
+
+  // Re-center trigger state (moved here so wrapped handlers can access it)
+  const [reCenterTrigger, setReCenterTrigger] = useState(0);
+
+  // Wrapped navigation handlers that handle re-clicking on already selected nodes
+  // When clicking on an already-selected node:
+  // 1. Expand the panel if it's collapsed
+  // 2. Trigger re-center to ensure the node is visible
+  const handleNavigateToGroup = useEventCallback((group: GroupWithLayout) => {
+    const isAlreadySelected = selectedGroupName === group.name && !selectedTaskName;
+    if (isAlreadySelected) {
+      // Re-clicking on already selected node: expand panel and re-center
+      if (isPanelCollapsed) {
+        expandPanel();
+      }
+      // Trigger re-center even if panel is already expanded (to center if node moved out of view)
+      setReCenterTrigger((t) => t + 1);
+    } else {
+      // New selection: navigate normally (useSidebarCollapsed will auto-expand)
+      navigateToGroup(group);
+    }
+  });
+
+  const handleNavigateToTask = useEventCallback((task: TaskQueryResponse, group: GroupWithLayout) => {
+    const isAlreadySelected =
+      selectedGroupName === group.name && selectedTaskName === task.name && selectedTaskRetryId === task.retry_id;
+    if (isAlreadySelected) {
+      // Re-clicking on already selected node: expand panel and re-center
+      if (isPanelCollapsed) {
+        expandPanel();
+      }
+      // Trigger re-center even if panel is already expanded
+      setReCenterTrigger((t) => t + 1);
+    } else {
+      // New selection: navigate normally (useSidebarCollapsed will auto-expand)
+      navigateToTask(task, group);
+    }
   });
 
   // DAG state management (layout, expansion)
@@ -206,9 +247,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   } = useDAGState({
     groups: groupsWithLayout,
     initialDirection: "TB",
-    // Wire DAG selection to URL navigation
-    onSelectGroup: navigateToGroup,
-    onSelectTask: navigateToTask,
+    // Wire DAG selection to wrapped navigation handlers
+    onSelectGroup: handleNavigateToGroup,
+    onSelectTask: handleNavigateToTask,
   });
 
   // Determine current panel view from URL navigation state
@@ -223,7 +264,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // ---------------------------------------------------------------------------
 
   // Track layout state changes to trigger re-centering
-  const [reCenterTrigger, setReCenterTrigger] = useState(0);
   const prevPanelCollapsed = usePrevious(isPanelCollapsed);
   const prevPanelDragging = usePrevious(isPanelDragging);
   const prevSidebarCollapsed = usePrevious(isSidebarCollapsed);
