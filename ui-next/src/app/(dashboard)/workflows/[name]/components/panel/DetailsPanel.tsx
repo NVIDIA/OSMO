@@ -44,7 +44,7 @@
 
 import { memo, useEffect, useCallback, useMemo } from "react";
 import { FileText, BarChart3, Activity } from "lucide-react";
-import { SidePanel, PanelCollapsedStrip } from "@/components/panel";
+import { SidePanel, PanelCollapsedStrip, PanelHeader, PanelCollapseButton, PanelTitle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
@@ -241,8 +241,16 @@ export const DetailsPanel = memo(function DetailsPanel({
         />
       )}
 
-      {/* Fallback content (loading/error states) */}
-      {fallbackContent}
+      {/* Fallback content (loading/error states) - with minimal header for collapse */}
+      {fallbackContent && (
+        <>
+          <PanelHeader
+            title={<PanelTitle>{workflow?.name ?? "Workflow Details"}</PanelTitle>}
+            actions={<PanelCollapseButton onCollapse={onToggleCollapsed ?? onClose} />}
+          />
+          {fallbackContent}
+        </>
+      )}
     </SidePanel>
   );
 });
