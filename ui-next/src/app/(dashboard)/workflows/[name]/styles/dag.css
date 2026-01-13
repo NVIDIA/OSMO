@@ -260,6 +260,10 @@
   background-color: var(--dag-status-completed-color);
 }
 
+.timeline-segment-failed {
+  background-color: var(--dag-status-failed-color);
+}
+
 .timeline-active-segment {
   background: linear-gradient(
     90deg,

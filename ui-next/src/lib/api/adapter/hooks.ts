@@ -401,3 +401,73 @@ export function useResourceDetail(
     },
   };
 }
+
+// =============================================================================
+// Workflow Hooks
+// =============================================================================
+
+import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "../generated";
+import { normalizeWorkflowTimestamps } from "./utils";
+
+interface UseWorkflowParams {
+  /** Workflow name (unique identifier) */
+  name: string;
+  /** Whether to fetch full task details (default: true) */
+  verbose?: boolean;
+}
+
+interface UseWorkflowReturn {
+  /** The workflow data with normalized timestamps */
+  workflow: WorkflowQueryResponse | null;
+  /** Loading state */
+  isLoading: boolean;
+  /** Error state */
+  error: Error | null;
+  /** Refetch function */
+  refetch: () => void;
+  /** Whether the workflow was found */
+  isNotFound: boolean;
+}
+
+/**
+ * Fetch a single workflow by name.
+ *
+ * Returns ideal WorkflowQueryResponse with:
+ * - All timestamps normalized to have explicit UTC timezone (Issue: BACKEND_TODOS.md#16)
+ * - Parsed from string response (Issue: BACKEND_TODOS.md#1)
+ *
+ * UI components receive clean data and can use `new Date(str)` directly.
+ */
+export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWorkflowReturn {
+  const { data, isLoading, error, refetch } = useGetWorkflowApiWorkflowNameGet(name, { verbose });
+
+  // Parse and transform the workflow response
+  // WORKAROUND: API returns string that needs parsing (BACKEND_TODOS.md#1)
+  // WORKAROUND: Timestamps may lack timezone suffix (BACKEND_TODOS.md#16)
+  const workflow = useMemo(() => {
+    if (!data) return null;
+    try {
+      const parsed = typeof data === "string" ? JSON.parse(data) : data;
+      // Normalize timestamps at the API boundary so UI gets clean data
+      return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
+    } catch {
+      console.error("Failed to parse workflow response:", data);
+      return null;
+    }
+  }, [data]);
+
+  // Check if workflow was not found (404 error)
+  const isNotFound = useMemo(() => {
+    if (!error) return false;
+    const status = (error as { status?: number })?.status;
+    return status === 404;
+  }, [error]);
+
+  return {
+    workflow,
+    isLoading,
+    error: error as Error | null,
+    refetch,
+    isNotFound,
+  };
+}

@@ -105,6 +105,8 @@ export { isFailedStatus, getStatusCategory } from "./status";
 
 /**
  * Calculate duration in seconds from start/end time strings.
+ * Timestamps are normalized in the adapter layer (useWorkflow hook),
+ * so we can safely use new Date() directly.
  */
 export function calculateDuration(startTime?: string | null, endTime?: string | null): number | null {
   if (!startTime) return null;
