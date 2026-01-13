@@ -40,6 +40,7 @@ export {
   useAllResources,
   useVersion,
   useResourceDetail,
+  useWorkflow,
   // Resource fetchers and cache utilities
   fetchResources,
   invalidateResourcesCache,
@@ -54,6 +55,8 @@ export type { PaginatedResourcesResult, ResourceFilterParams } from "./resources
 
 // Utilities
 export { deriveResourceTypes } from "./utils";
+// Note: normalizeTimestamp, normalizeWorkflowTimestamps are internal -
+// useWorkflow() applies them automatically so UI doesn't need to call them
 
 // Transform utilities
 export { getSharingInfo } from "./transforms";
