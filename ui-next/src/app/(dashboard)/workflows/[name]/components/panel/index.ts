@@ -59,4 +59,5 @@ export type {
   TaskDetailsProps,
   DetailsPanelHeaderProps,
   SiblingTask,
+  BreadcrumbSegment,
 } from "../../lib/panel-types";

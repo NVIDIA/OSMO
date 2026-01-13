@@ -38,7 +38,7 @@ import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "./DependencyPills";
-import type { TaskDetailsProps, SiblingTask } from "../../lib/panel-types";
+import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../lib/panel-types";
 
 // ============================================================================
 // Copy Button Component
@@ -66,6 +66,8 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 interface TaskDetailsInternalProps extends TaskDetailsProps {
   allGroups: GroupWithLayout[];
   onClose: () => void;
+  /** Navigate back to workflow view */
+  onBackToWorkflow?: () => void;
   onPanelResize: (pct: number) => void;
   onSelectGroup?: (group: GroupWithLayout) => void;
   isDetailsExpanded: boolean;
@@ -77,6 +79,7 @@ export const TaskDetails = memo(function TaskDetails({
   allGroups,
   task,
   onBackToGroup,
+  onBackToWorkflow,
   onSelectTask,
   onSelectGroup,
   onClose,
@@ -185,16 +188,34 @@ export const TaskDetails = memo(function TaskDetails({
     </div>
   ) : undefined;
 
+  // Build breadcrumbs for hierarchical navigation
+  // For tasks within a group: Workflow / Group > Task
+  // For standalone tasks: Workflow > Task
+  const breadcrumbs = useMemo((): BreadcrumbSegment[] => {
+    const segments: BreadcrumbSegment[] = [];
+
+    // Always add "Workflow" as the first segment if we can navigate back
+    if (onBackToWorkflow) {
+      segments.push({ label: "Workflow", onClick: onBackToWorkflow });
+    }
+
+    // Add group segment for multi-task groups
+    if (isFromGroup && onBackToGroup) {
+      segments.push({ label: group.name, onClick: onBackToGroup });
+    }
+
+    return segments;
+  }, [onBackToWorkflow, onBackToGroup, isFromGroup, group.name]);
+
   return (
     <div className="relative flex h-full flex-col">
       {/* Header - aligned with GroupDetails layout */}
       <DetailsPanelHeader
         viewType="task"
         isLead={task.lead}
-        breadcrumb={isFromGroup ? group.name : undefined}
+        breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
         title={task.name}
         statusContent={statusContent}
-        onBack={isFromGroup ? onBackToGroup : undefined}
         onClose={onClose}
         onPanelResize={onPanelResize}
         siblingTasks={isFromGroup ? siblingTasks : undefined}

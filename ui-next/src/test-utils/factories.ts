@@ -40,6 +40,7 @@
  */
 
 import type { Pool, Resource } from "@/lib/api/adapter";
+import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 
 // =============================================================================
 // Counter for unique IDs
@@ -82,7 +83,7 @@ export function createMockPool(overrides: Partial<Pool> = {}): Pool {
   return {
     name,
     description: `Description for ${name}`,
-    status: "ONLINE",
+    status: PoolStatus.ONLINE,
     quota: {
       used: 2,
       free: 6,
@@ -208,10 +209,10 @@ export function createMockWorkflow(overrides: Partial<MockWorkflow> = {}): MockW
 
   return {
     name,
-    status: "RUNNING",
+    status: WorkflowStatus.RUNNING,
     user: "test-user",
     pool: "default-pool",
-    priority: "NORMAL",
+    priority: WorkflowPriority.NORMAL,
     submit_time: new Date().toISOString(),
     ...overrides,
   };
