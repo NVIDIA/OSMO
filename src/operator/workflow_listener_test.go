@@ -17,7 +17,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -243,11 +242,12 @@ func TestCreatePodUpdateMessage(t *testing.T) {
 		t.Fatal("createPodUpdateMessage() returned nil message")
 	}
 
-	// Parse pod update from message body
-	var podUpdate pb.UpdatePodBody
-	if err := json.Unmarshal([]byte(msg.Body), &podUpdate); err != nil {
-		t.Fatalf("failed to unmarshal pod update: %v", err)
+	// Get pod update from message body (oneof)
+	updatePod, ok := msg.Body.(*pb.ListenerMessage_UpdatePod)
+	if !ok {
+		t.Fatal("message body is not UpdatePod type")
 	}
+	podUpdate := updatePod.UpdatePod
 
 	// Check podUpdate fields
 	if podUpdate.WorkflowUuid != "wf-123" {
@@ -691,10 +691,12 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			t.Fatalf("createPodUpdateMessage() error = %v", err)
 		}
 
-		var podUpdate pb.UpdatePodBody
-		if err := json.Unmarshal([]byte(msg.Body), &podUpdate); err != nil {
-			t.Fatalf("failed to unmarshal: %v", err)
+		// Get pod update from message body (oneof)
+		updatePod, ok := msg.Body.(*pb.ListenerMessage_UpdatePod)
+		if !ok {
+			t.Fatal("message body is not UpdatePod type")
 		}
+		podUpdate := updatePod.UpdatePod
 
 		// Should use first container
 		if podUpdate.Container != "first-container" {
@@ -748,10 +750,12 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			t.Fatalf("createPodUpdateMessage() error = %v", err)
 		}
 
-		var podUpdate pb.UpdatePodBody
-		if err := json.Unmarshal([]byte(msg.Body), &podUpdate); err != nil {
-			t.Fatalf("failed to unmarshal: %v", err)
+		// Get pod update from message body (oneof)
+		updatePod, ok := msg.Body.(*pb.ListenerMessage_UpdatePod)
+		if !ok {
+			t.Fatal("message body is not UpdatePod type")
 		}
+		podUpdate := updatePod.UpdatePod
 
 		// Should have all 3 conditions
 		if len(podUpdate.Conditions) != 3 {
@@ -811,10 +815,12 @@ func TestCreatePodUpdateMessage_EdgeCases(t *testing.T) {
 			t.Fatalf("createPodUpdateMessage() error = %v", err)
 		}
 
-		var podUpdate pb.UpdatePodBody
-		if err := json.Unmarshal([]byte(msg.Body), &podUpdate); err != nil {
-			t.Fatalf("failed to unmarshal: %v", err)
+		// Get pod update from message body (oneof)
+		updatePod, ok := msg.Body.(*pb.ListenerMessage_UpdatePod)
+		if !ok {
+			t.Fatal("message body is not UpdatePod type")
 		}
+		podUpdate := updatePod.UpdatePod
 
 		// Verify defaults
 		if podUpdate.RetryId != 0 {

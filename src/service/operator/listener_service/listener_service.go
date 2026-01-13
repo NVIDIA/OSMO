@@ -71,7 +71,12 @@ func (ls *ListenerService) pushMessageToRedis(
 	msg *pb.ListenerMessage,
 ) error {
 	// Convert the protobuf message to JSON
-	messageJSON, err := protojson.Marshal(msg)
+	// UseProtoNames ensures field names match the .proto file (snake_case)
+	// EmitDefaultValues ensures bool fields with false values are included
+	messageJSON, err := protojson.MarshalOptions{
+		UseProtoNames:     true,
+		EmitDefaultValues: true,
+	}.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message to JSON: %w", err)
 	}

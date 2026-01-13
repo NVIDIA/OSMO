@@ -20,23 +20,34 @@ package operator;
 
 option go_package = "go.corp.nvidia.com/osmo/proto/operator;operator";
 
+// LoggingType represents different logging levels
+enum LoggingType {
+  INFO = 0;
+  DEBUG = 1;
+  WARNING = 2;
+  EXCEPTION = 3;
+}
+
+// LoggingBody represents a logging message
+message LoggingBody {
+  LoggingType type = 1;
+  string text = 2;
+  string workflow_uuid = 3;  // Empty string represents non-workflow logging
+}
+
 // ListenerMessage represents messages sent from workflow backends to the operator service
 message ListenerMessage {
-  // Possible message types for listener communication
-  enum MessageType {
-    unspecified = 0;
-    update_pod = 1;    // Pod update from backend to operator
-  }
-
-  MessageType type = 1;
-
   // UUID uniquely identifies this message for correlation and acknowledgment
-  string uuid = 2;
+  string uuid = 1;
 
   // Timestamp when the message was created (ISO 8601 format, e.g., "2025-01-15T10:30:00Z")
-  string timestamp = 3;
+  string timestamp = 2;
 
-  string body = 4;
+  // Message body - exactly one of these must be set
+  oneof body {
+    UpdatePodBody update_pod = 3;
+    LoggingBody logging = 4;
+  }
 }
 
 // AckMessage represents acknowledgment messages sent from the operator service to workflow backends

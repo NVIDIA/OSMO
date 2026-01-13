@@ -102,23 +102,38 @@ class AgentWorker:
             # Parse the protobuf JSON message
             protobuf_msg = json.loads(message_json)
 
-            # Parse nested JSON body field if it's a string
-            if 'body' in protobuf_msg and isinstance(protobuf_msg['body'], str):
-                protobuf_msg['body'] = json.loads(protobuf_msg['body'])
+            # Determine message type from oneof field
+            message_type = None
+            body_data = None
 
-            message = backend_messages.MessageBody(**protobuf_msg)
+            # Check which oneof field is set
+            if 'update_pod' in protobuf_msg:
+                message_type = backend_messages.MessageType.UPDATE_POD
+                body_data = protobuf_msg['update_pod']
+            else:
+                logging.error('Unknown message type in protobuf message id=%s', message_id)
+                # Ack invalid message to prevent infinite retries
+                self.redis_client.xack(self.stream_name, self.group_name, message_id)
+                return
+
+            # Convert protobuf format to MessageBody format for consistent handling
+            message_body_dict = {
+                'type': message_type.value,
+                'body': body_data,
+                'uuid': protobuf_msg.get('uuid'),
+                'timestamp': protobuf_msg.get('timestamp')
+            }
+            message = backend_messages.MessageBody(**message_body_dict)
 
             logging.info('Processing message id=%s type=%s uuid=%s',
                         message_id, message.type.value, message.uuid)
 
             # Process the message based on type
-            if message.type == backend_messages.MessageType.UPDATE_POD:
-                if isinstance(message.body, dict):
-                    helpers.queue_update_group_job(self.postgres,
-                                                   backend_messages.UpdatePodBody(**message.body))
-                else:
-                    logging.error('Invalid body type for UPDATE_POD message: %s',
-                                  type(message.body))
+            message_options = {message.type.value: message.body}
+            message_body = backend_messages.MessageOptions(**message_options)
+
+            if message_body.update_pod:
+                helpers.queue_update_group_job(self.postgres, message_body.update_pod)
             else:
                 logging.error('Ignoring invalid backend listener message type %s, uuid %s',
                               message.type.value, message.uuid)
