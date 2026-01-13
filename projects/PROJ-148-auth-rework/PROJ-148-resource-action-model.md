@@ -601,6 +601,14 @@ Once migration is complete (Phase 4), the old format will be removed. This is a 
 
 ---
 
+## Alternatives Considered
+
+### [Casbin](https://www.casbin.org/)
+
+
+---
+
+
 ## Performance
 
 No significant performance implications are expected

@@ -828,30 +828,6 @@ Add the new role management actions to the action registry:
 },
 ```
 
-### CLI Commands [WIP]
-
-The OSMO CLI provides commands for managing user roles:
-
-```bash
-# List roles for a user
-osmo user roles list user@example.com
-
-# Assign a role to a user
-osmo user roles add user@example.com --role osmo-ml-team
-
-# Assign a role with expiration
-osmo user roles add user@example.com --role osmo-ml-team --expires 2025-12-31
-
-# Remove a role from a user
-osmo user roles remove user@example.com --role osmo-ml-team
-
-# List all users with a role
-osmo role users list osmo-ml-team
-
-# Bulk assign a role to multiple users
-osmo role users add osmo-ml-team --users user1@example.com,user2@example.com
-```
-
 ### Database Migration
 
 WIP
@@ -965,7 +941,7 @@ jwt:
 
 We plan on supporting these other IDPs in the future, but might be beyond the scope of the inital feature.
 
-* Okta
+* Okta (Might be moved to higher importance)
 * auth0
 
 ## Troubleshooting
