@@ -118,6 +118,17 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
+    // Add terminal state phase if completed or failed
+    if ((isCompleted || isFailed) && endTime) {
+      result.push({
+        id: isFailed ? "failed" : "done",
+        label: isFailed ? "Failed" : "Done",
+        time: endTime,
+        duration: null, // Terminal phases are instantaneous milestones
+        status: isFailed ? "failed" : "completed",
+      });
+    }
+
     // Sort phases by start time to ensure chronological order
     result.sort((a, b) => {
       if (!a.time) return 1; // Phases without start time go to the end
@@ -138,9 +149,15 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
         // Any phase followed by another phase is completed
         phase.status = "completed";
       } else if (isLastPhase) {
-        // Last phase: ends at group end time (for completed/failed) or now (for running)
-        const rawDuration = calculatePhaseDuration(phase.time, endTime);
-        phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
+        // Terminal phases (done/failed) are instantaneous milestones
+        const isTerminalPhase = phase.id === "done" || phase.id === "failed";
+        if (isTerminalPhase) {
+          phase.duration = null;
+        } else {
+          // Last phase: ends at group end time (for completed/failed) or now (for running)
+          const rawDuration = calculatePhaseDuration(phase.time, endTime);
+          phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
+        }
         // Last phase status depends on group state
         if (isRunning && !endTime) {
           phase.status = "active";
