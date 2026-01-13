@@ -43,6 +43,20 @@ import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../lib/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Parse timestamp string to Date.
+ * Timestamps are normalized in the adapter layer (useWorkflow hook),
+ * so we can safely use new Date() directly.
+ */
+function parseTime(timeStr?: string | null): Date | null {
+  if (!timeStr) return null;
+  return new Date(timeStr);
+}
+
+// =============================================================================
 // Styling Constants (Single Source of Truth)
 // =============================================================================
 
@@ -103,20 +117,20 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
   const statusStyles = STATUS_STYLES[statusCategory];
   const isRunning = statusCategory === "running";
 
-  // Calculate static duration
+  // Calculate static duration (timestamps normalized at API boundary)
   const staticDuration = useMemo(() => {
     if (workflow.duration) return workflow.duration;
-    if (workflow.start_time && workflow.end_time) {
-      const start = new Date(workflow.start_time).getTime();
-      const end = new Date(workflow.end_time).getTime();
-      return (end - start) / 1000;
+    const start = parseTime(workflow.start_time);
+    const end = parseTime(workflow.end_time);
+    if (start && end) {
+      return (end.getTime() - start.getTime()) / 1000;
     }
     return null;
   }, [workflow.duration, workflow.start_time, workflow.end_time]);
 
   // Live duration for running workflows
   const needsLiveUpdate = isRunning && workflow.start_time && !workflow.end_time;
-  const startTimeMs = workflow.start_time ? new Date(workflow.start_time).getTime() : 0;
+  const startTimeMs = parseTime(workflow.start_time)?.getTime() ?? 0;
   const [liveDuration, setLiveDuration] = useState<number>(() =>
     needsLiveUpdate ? (Date.now() - startTimeMs) / 1000 : 0,
   );
@@ -149,10 +163,7 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
       {duration !== null && (
         <>
           <span className={STYLES.separator}>·</span>
-          <span className="text-muted-foreground font-mono">
-            {formatDuration(duration)}
-            {isRunning && "..."}
-          </span>
+          <span className="text-muted-foreground font-mono">{formatDuration(duration)}</span>
         </>
       )}
     </div>
@@ -168,12 +179,10 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
   const isRunning = statusCategory === "running";
 
   // Memoize time computations to prevent dependency changes on every render
-  const submitTime = useMemo(
-    () => (workflow.submit_time ? new Date(workflow.submit_time) : null),
-    [workflow.submit_time],
-  );
-  const startTime = useMemo(() => (workflow.start_time ? new Date(workflow.start_time) : null), [workflow.start_time]);
-  const endTime = useMemo(() => (workflow.end_time ? new Date(workflow.end_time) : null), [workflow.end_time]);
+  // Timestamps are normalized in the adapter layer (useWorkflow hook)
+  const submitTime = useMemo(() => parseTime(workflow.submit_time), [workflow.submit_time]);
+  const startTime = useMemo(() => parseTime(workflow.start_time), [workflow.start_time]);
+  const endTime = useMemo(() => parseTime(workflow.end_time), [workflow.end_time]);
 
   const queuedDuration = workflow.queued_time;
   const runningDuration = useMemo(() => {
@@ -237,7 +246,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         id: "started",
         label: "Started",
         time: null,
-        annotation: "waiting...",
+        annotation: "queued",
         status: "pending",
         duration: null,
       });
@@ -266,7 +275,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         id: "running",
         label: "Running",
         time: null,
-        annotation: runningDuration ? `${formatDuration(runningDuration)}...` : undefined,
+        annotation: runningDuration ? formatDuration(runningDuration) : undefined,
         status: "active",
         duration: null, // Active/terminal phase, no duration needed
       });
@@ -303,6 +312,7 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
         <div className={STYLES.timelineVertical}>
           {phases.map((phase, index) => {
             const isLast = index === phases.length - 1;
+            const nextPhase = phases[index + 1];
             return (
               <div
                 key={phase.id}
@@ -318,13 +328,15 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
                       phase.status === "pending" && "timeline-marker-pending border-dashed",
                     )}
                   />
-                  {!isLast && (
+                  {/* Segment styled based on NEXT phase (destination) */}
+                  {!isLast && nextPhase && (
                     <div
                       className={cn(
                         "min-h-6 w-0.5 flex-1",
-                        phase.status === "completed" && "timeline-segment-completed",
-                        phase.status === "active" && "timeline-active-segment",
-                        phase.status === "pending" && cn("border-l", STYLES.timelinePending),
+                        nextPhase.status === "completed" && "timeline-segment-completed",
+                        nextPhase.status === "failed" && "timeline-segment-failed",
+                        nextPhase.status === "active" && "timeline-active-segment",
+                        nextPhase.status === "pending" && cn("border-l", STYLES.timelinePending),
                       )}
                     />
                   )}
@@ -373,20 +385,21 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
           {/* Row 1: Timeline bar with markers and segments */}
           {phases.map((phase, index) => {
             const isLast = index === phases.length - 1;
-            const prevPhase = index > 0 ? phases[index - 1] : null;
+            const nextPhase = phases[index + 1];
             return (
               <div
                 key={phase.id}
                 className="flex h-6 items-center"
               >
-                {/* Connecting segment for last phase (uses previous phase's status for styling) */}
-                {isLast && prevPhase && (
+                {/* Connecting segment for last phase (styled based on current/destination phase) */}
+                {isLast && index > 0 && (
                   <div
                     className={cn(
                       "h-1 flex-1",
-                      prevPhase.status === "completed" && "timeline-segment-completed",
-                      prevPhase.status === "active" && "timeline-active-segment",
-                      prevPhase.status === "pending" && cn("border-t", STYLES.timelinePending),
+                      phase.status === "completed" && "timeline-segment-completed",
+                      phase.status === "failed" && "timeline-segment-failed",
+                      phase.status === "active" && "timeline-active-segment",
+                      phase.status === "pending" && cn("border-t", STYLES.timelinePending),
                     )}
                   />
                 )}
@@ -400,14 +413,15 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
                     phase.status === "pending" && "timeline-marker-pending border-dashed",
                   )}
                 />
-                {/* Segment to next marker */}
-                {!isLast && (
+                {/* Segment to next marker (styled based on next/destination phase) */}
+                {!isLast && nextPhase && (
                   <div
                     className={cn(
                       "h-1 flex-1",
-                      phase.status === "completed" && "timeline-segment-completed",
-                      phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && cn("border-t", STYLES.timelinePending),
+                      nextPhase.status === "completed" && "timeline-segment-completed",
+                      nextPhase.status === "failed" && "timeline-segment-failed",
+                      nextPhase.status === "active" && "timeline-active-segment",
+                      nextPhase.status === "pending" && cn("border-t", STYLES.timelinePending),
                     )}
                   />
                 )}

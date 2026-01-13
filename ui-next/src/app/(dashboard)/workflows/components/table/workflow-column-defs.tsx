@@ -228,7 +228,6 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
             )}
           >
             {formatDuration(duration)}
-            {isRunning && "..."}
           </span>
         );
       },
