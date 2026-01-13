@@ -86,15 +86,19 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
     prevHasSelectionRef.current = hasSelection;
   }, [selectionKey, hasSelection, hasNavigatedThisSession]);
 
-  // Derive collapsed state:
-  // - No selection + never navigated this session: use user preference (initial page load)
-  // - No selection + has navigated this session: use userCollapsed (keep panel open after back-nav)
-  // - Has selection: use userCollapsed
-  const collapsed = hasSelection || hasNavigatedThisSession ? userCollapsed : preferredCollapsed;
+  // Determine which state to use: session state (userCollapsed) or preference
+  // - Has selection OR has navigated this session → use session state
+  // - Initial page load with no selection → use user preference
+  // This single flag is used by both the derived state AND all action functions
+  // to prevent drift between them.
+  const usesSessionState = hasSelection || hasNavigatedThisSession;
+
+  // Derive collapsed state from the appropriate source
+  const collapsed = usesSessionState ? userCollapsed : preferredCollapsed;
 
   // Toggle collapsed state - stable callback for memoized children
   const toggle = useEventCallback(() => {
-    if (hasSelection) {
+    if (usesSessionState) {
       setUserCollapsed((prev) => !prev);
     } else {
       setPreferredCollapsed((prev) => !prev);
@@ -103,7 +107,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
 
   // Expand panel - stable callback for memoized children
   const expand = useEventCallback(() => {
-    if (hasSelection) {
+    if (usesSessionState) {
       setUserCollapsed(false);
     } else {
       setPreferredCollapsed(false);
@@ -112,7 +116,7 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
 
   // Collapse panel - stable callback for memoized children
   const collapse = useEventCallback(() => {
-    if (hasSelection) {
+    if (usesSessionState) {
       setUserCollapsed(true);
     } else {
       setPreferredCollapsed(true);
