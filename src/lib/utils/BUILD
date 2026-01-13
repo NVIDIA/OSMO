@@ -72,8 +72,6 @@ osmo_py_library(
         requirement("pyyaml"),
         ":cache",
         ":common",
-        ":credentials",
-        ":osmo_errors",
     ],
 )
 
@@ -96,7 +94,8 @@ osmo_py_library(
     deps = [
         requirement("pydantic"),
         ":osmo_errors",
-        "//src/lib/data/constants",
+        "//src/lib/data/storage/constants",
+        "//src/lib/data/storage/credentials",
     ],
 )
 
@@ -158,7 +157,7 @@ osmo_py_library(
     deps = [
         ":common",
         ":osmo_errors",
-        "//src/lib/data/constants",
+        "//src/lib/data/storage/constants",
     ],
 )
 

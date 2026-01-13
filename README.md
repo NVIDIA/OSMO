@@ -156,10 +156,11 @@ Select one of the deployment options below depending on your needs and environme
 
 ## Community & Support
 
-**Join the community.** We welcome contributions, feedback, and collaboration from AI teams worldwide.
+**Join the community.** We welcome contributions, feedback, and collaboration from developers and AI teams worldwide.
 
 🐛 **[Report Issues](https://github.com/NVIDIA/OSMO/issues)** – Bugs, feature requests or technical help
 
+🤝 **[Contributing Guide](./CONTRIBUTING.md)** - How to develop OSMO and make contributions
 
 ## Roadmap
 ### Short term (Q1 2026)

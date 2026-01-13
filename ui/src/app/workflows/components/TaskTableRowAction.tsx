@@ -13,7 +13,7 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 
 import { Tag, TagSizes, Colors } from "~/components/Tag";
 import { formatForWrapping } from "~/utils/string";
@@ -21,6 +21,7 @@ import { formatForWrapping } from "~/utils/string";
 import { type ToolParamUpdaterProps } from "../hooks/useToolParamUpdater";
 
 interface TaskTableRowActionProps {
+  id: string;
   name: string;
   retry_id: number | null;
   lead: boolean;
@@ -28,10 +29,10 @@ interface TaskTableRowActionProps {
   verbose?: boolean;
   updateUrl: (params: ToolParamUpdaterProps) => void;
   extraParams?: Record<string, string>;
-  disableScrollIntoView?: boolean;
 }
 
 export const TaskTableRowAction = ({
+  id,
   name,
   retry_id,
   lead,
@@ -39,18 +40,12 @@ export const TaskTableRowAction = ({
   verbose,
   updateUrl,
   extraParams,
-  disableScrollIntoView = false,
 }: TaskTableRowActionProps) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (buttonRef.current && selected && !disableScrollIntoView) {
-      buttonRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [selected, disableScrollIntoView]);
-
   return (
     <button
+      id={id}
       className={`btn ${selected ? "btn-primary disabled:opacity-100" : "btn-secondary"} relative border-gray-400 enabled:hover:border-black`}
       ref={buttonRef}
       onClick={() => {
@@ -60,13 +55,12 @@ export const TaskTableRowAction = ({
           ...extraParams,
         });
       }}
-      disabled={selected}
     >
       {formatForWrapping(name)}
       {lead && (
         <Tag
           color={Colors.tag}
-          className="pt-[1px]! px-[2px]! shadow-md z-10 absolute top-[-0.4rem] right-[-0.8rem] rounded-none!"
+          className="tag-top tag-medium"
           size={TagSizes.xxs}
         >
           Lead
@@ -75,7 +69,7 @@ export const TaskTableRowAction = ({
       {verbose && retry_id !== null && (
         <Tag
           color={Colors.tag}
-          className="pt-[1px]! px-[2px]! shadow-md z-10 absolute bottom-[-0.4rem] right-[-0.4rem] rounded-none!"
+          className="tag-bottom tag-small"
           size={TagSizes.xxs}
         >
           {retry_id}

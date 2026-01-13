@@ -164,6 +164,7 @@ export const DatasetVersionsTable = ({ dataset, selectedVersion, visible }: Data
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => row.version,
     enableMultiSort: true,
     enableSortingRemoval: false,
     state: { sorting },
@@ -176,18 +177,15 @@ export const DatasetVersionsTable = ({ dataset, selectedVersion, visible }: Data
   });
 
   return (
-    <div className="h-full w-full">
-      <TableBase
-        columns={columns}
+    <TableBase
+      columns={columns}
+      table={table}
+      visible={visible}
+    >
+      <TablePagination
         table={table}
-        paddingOffset={10}
-        visible={visible}
-      >
-        <TablePagination
-          table={table}
-          totalRows={dataset.versions.length}
-        />
-      </TableBase>
-    </div>
+        totalRows={dataset.versions.length}
+      />
+    </TableBase>
   );
 };

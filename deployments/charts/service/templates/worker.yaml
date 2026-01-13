@@ -54,8 +54,10 @@ spec:
         {{- end}}
       tolerations:
       {{ toYaml .Values.services.worker.tolerations | nindent 8 }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
       serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.worker.serviceAccountName "Values" .Values) }}
       {{- with .Values.services.worker.initContainers }}
       initContainers:

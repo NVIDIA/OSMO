@@ -39,10 +39,12 @@ export default function TaskActions({
     <div
       className={`dag-actions body-footer ${className}`}
       aria-label="Task Actions"
+      id="task-actions-list"
     >
       <div
         className="flex flex-col gap-1"
         role="list"
+        aria-labelledby="task-actions-list"
       >
         {task.logs && (
           <button
@@ -78,6 +80,7 @@ export default function TaskActions({
       <div
         className="flex flex-col gap-1"
         role="list"
+        aria-labelledby="task-actions-list"
       >
         {task.dashboard_url && (
           <a

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { InlineBanner } from "./InlineBanner";
 
 export const getTaskHistoryUrl = (nodeName: string) => {
-  return `/tasks?allUsers=true&allPools=true&nodes=${nodeName}&allNodes=false&allStatuses=true`;
+  return `/tasks?allUsers=true&allPools=true&nodes=${nodeName}&allNodes=false&statusFilterType=all`;
 };
 
 export const TaskHistoryBanner = ({ nodeName }: { nodeName: string }) => {

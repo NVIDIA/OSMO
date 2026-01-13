@@ -15,7 +15,6 @@
 //SPDX-License-Identifier: Apache-2.0
 import { type PropsWithChildren } from "react";
 
-import { Layout } from "~/components/Layout";
 import { env } from "~/env.mjs";
 
 export const metadata = {
@@ -23,5 +22,5 @@ export const metadata = {
 };
 
 export default function ResourcesLayout({ children }: PropsWithChildren) {
-  return <Layout>{children}</Layout>;
+  return children;
 }

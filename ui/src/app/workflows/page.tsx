@@ -21,21 +21,25 @@ import Link from "next/link";
 
 import { useAuth } from "~/components/AuthProvider";
 import { customDateRange, defaultDateRange } from "~/components/DateRangePicker";
+import { FilterButton } from "~/components/FilterButton";
 import { FilledIcon } from "~/components/Icon";
 import { PageError } from "~/components/PageError";
+import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
 import { Spinner } from "~/components/Spinner";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { UrlTypes, WORKFLOW_PINNED_KEY } from "~/components/StoreProvider";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { type Task, type WorkflowListItem } from "~/models";
+import { type WorkflowStatusType, type Task, type WorkflowListItem } from "~/models";
 import { api } from "~/trpc/react";
 
+import { getWorkflowStatusArray } from "./components/StatusFilter";
 import { ToolsModal } from "./components/ToolsModal";
 import WorkflowDetails from "./components/WorkflowDetails";
 import { useWorkflow } from "./components/WorkflowLoader";
 import { WorkflowsFilters, type WorkflowsFiltersDataProps } from "./components/WorkflowsFilters";
-import { WorkflowsTable } from "./components/WorkflowsTable";
+import { getActionId, WorkflowsTable } from "./components/WorkflowsTable";
 import useToolParamUpdater, { type ToolType } from "./hooks/useToolParamUpdater";
 
 export default function Workflows() {
@@ -44,8 +48,8 @@ export default function Workflows() {
     updateUrl,
     userFilter,
     poolFilter,
+    statusFilterType,
     statusFilter,
-    allStatuses,
     userType,
     isSelectAllPoolsChecked,
     nameFilter,
@@ -62,19 +66,16 @@ export default function Workflows() {
     selectedTaskName,
     retryId,
   } = useToolParamUpdater(UrlTypes.Workflows, username, {
-    allStatuses: "true",
-    status: "",
+    statusFilterType: StatusFilterType.ALL,
     dateRange: defaultDateRange.toString(),
   });
-  const headerRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const [workflowPinned, setWorkflowPinned] = useState(false);
   const selectedWorkflow = useWorkflow(selectedWorkflowName, true, false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
-
+  const focusReturnIdRef = useRef<string | undefined>(undefined);
   // Initialize localStorage values after component mounts
   useEffect(() => {
     try {
@@ -110,27 +111,22 @@ export default function Workflows() {
 
   const validateFilters = useCallback(
     ({
-      selectedUsers,
-      userType,
       isSelectAllPoolsChecked,
       selectedPools,
       dateRange,
       submittedAfter,
       submittedBefore,
-      allStatuses,
+      statusFilterType,
       statuses,
     }: WorkflowsFiltersDataProps): string[] => {
       const errors: string[] = [];
-      if (selectedUsers.length === 0 && userType !== UserFilterType.ALL) {
-        errors.push("Please select at least one user");
-      }
       if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
         errors.push("Please select at least one pool");
       }
       if (dateRange === customDateRange && (submittedAfter === undefined || submittedBefore === undefined)) {
         errors.push("Please select a date range");
       }
-      if (!allStatuses && !statuses?.length) {
+      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
         errors.push("Please select at least one status");
       }
       return errors;
@@ -140,7 +136,7 @@ export default function Workflows() {
 
   // Show filters if the params are not valid
   useEffect(() => {
-    if (allStatuses === undefined || statusFilter === undefined) {
+    if (statusFilterType === undefined) {
       return; // Params not read yet
     }
 
@@ -153,7 +149,7 @@ export default function Workflows() {
       submittedAfter: dateAfterFilter,
       submittedBefore: dateBeforeFilter,
       name: nameFilter,
-      allStatuses: allStatuses,
+      statusFilterType,
       statuses: statusFilter,
     });
 
@@ -169,7 +165,7 @@ export default function Workflows() {
     dateAfterFilter,
     dateBeforeFilter,
     nameFilter,
-    allStatuses,
+    statusFilterType,
     statusFilter,
     validateFilters,
     updateUrl,
@@ -184,6 +180,12 @@ export default function Workflows() {
     }
   }, [workflowPinned, selectedWorkflowName]);
 
+  useEffect(() => {
+    if (selectedWorkflowName) {
+      focusReturnIdRef.current = getActionId(selectedWorkflowName);
+    }
+  }, [selectedWorkflowName]);
+
   const {
     data: workflows,
     isSuccess,
@@ -197,7 +199,10 @@ export default function Workflows() {
       pools: isSelectAllPoolsChecked ? [] : poolFilter.split(","),
       submitted_after: dateRangeDates?.fromDate?.toISOString(),
       submitted_before: dateRangeDates?.toDate?.toISOString(),
-      statuses: allStatuses ? [] : (statusFilter?.split(",") ?? []),
+      statuses:
+        statusFilterType === StatusFilterType.CUSTOM
+          ? (statusFilter?.split(",") as WorkflowStatusType[])
+          : getWorkflowStatusArray(statusFilterType),
       name: nameFilter,
       priority: priority,
     },
@@ -233,36 +238,29 @@ export default function Workflows() {
 
   return (
     <>
-      <div
-        className="page-header mb-3"
-        ref={headerRef}
-      >
-        <h1>Workflows</h1>
-        <div className="flex items-center gap-3">
-          <Link
-            className="btn btn-primary"
-            href="/workflows/submit"
-          >
-            Submit a Workflow
-          </Link>
-          <button
-            className={`btn ${showFilters ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowFilters(!showFilters);
-            }}
-          >
-            <FilledIcon name="filter_list" />
-            Filters {filterCount > 0 ? `(${filterCount})` : ""}
-          </button>
-        </div>
+      <PageHeader>
+        <Link
+          className="btn"
+          aria-label="Submit Workflow"
+          href="/workflows/submit"
+        >
+          <FilledIcon name="send" />
+          <span className="hidden lg:block">Submit Workflow</span>
+        </Link>
+        <FilterButton
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          filterCount={filterCount}
+          aria-controls="workflows-filters"
+        />
+      </PageHeader>
+      <div className={`${gridClass} h-full w-full overflow-hidden relative`}>
         <SlideOut
           id="workflows-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
           className="w-100 border-t-0"
-          containerRef={headerRef}
-          top={headerRef.current?.offsetHeight ?? 0}
-          dimBackground={false}
+          aria-label="Workflows Filter"
         >
           <WorkflowsFilters
             selectedUsers={userFilter ?? ""}
@@ -270,7 +268,7 @@ export default function Workflows() {
             dateRange={dateRange}
             submittedAfter={dateAfterFilter}
             submittedBefore={dateBeforeFilter}
-            allStatuses={allStatuses ?? true}
+            statusFilterType={statusFilterType}
             statuses={statusFilter ?? ""}
             selectedPools={poolFilter}
             isSelectAllPoolsChecked={isSelectAllPoolsChecked}
@@ -282,11 +280,6 @@ export default function Workflows() {
             updateUrl={updateUrl}
           />
         </SlideOut>
-      </div>
-      <div
-        ref={containerRef}
-        className={`${gridClass} h-full w-full overflow-x-auto relative px-3 gap-3`}
-      >
         <WorkflowsTable
           processResources={processResources}
           isLoading={isFetching}
@@ -294,6 +287,7 @@ export default function Workflows() {
           updateUrl={updateUrl}
         />
         <SlideOut
+          animate={true}
           header={
             selectedWorkflowName && (
               <Link
@@ -302,16 +296,21 @@ export default function Workflows() {
                 href={`/workflows/${selectedWorkflowName}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Open in new tab"
+                aria-label={`Workflow Details for ${selectedWorkflowName} - Open in new tab`}
               >
                 <span className="font-semibold">Workflow Details</span>
                 <FilledIcon name="open_in_new" />
               </Link>
             )
           }
-          id="details-slideout"
+          id="workflow-details"
           open={!!selectedWorkflowName}
           onClose={() => {
+            setSafeTimeout(() => {
+              // focus-trap-react does not work well with useReactTable as the ref for button inside the table that triggered the slideout is not persistent
+              const el = focusReturnIdRef.current ? document.getElementById(focusReturnIdRef.current) : undefined;
+              el?.focus();
+            }, 500);
             updateUrl({ workflow: null });
           }}
           canPin={true}
@@ -323,18 +322,16 @@ export default function Workflows() {
           className="workflow-details-slideout border-t-0"
           headerClassName="brand-header"
           bodyClassName="dag-details-body"
-          containerRef={containerRef}
-          heightOffset={10}
+          ariaLabel={`Workflow Details for ${selectedWorkflowName}`}
         >
           {selectedWorkflow.isLoading ? (
-            <div className="flex justify-center items-center h-full">
+            <div className="flex justify-center items-center h-full w-full">
               <Spinner description="Loading workflow..." />
             </div>
           ) : selectedWorkflow.error ? (
             <PageError
               title="Error loading workflow"
               errorMessage={selectedWorkflow.error.message}
-              subText={selectedWorkflowName}
               size="md"
             />
           ) : selectedWorkflow.data ? (
