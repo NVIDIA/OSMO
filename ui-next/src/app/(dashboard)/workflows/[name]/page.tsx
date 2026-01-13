@@ -189,7 +189,11 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   }, [selectedGroupName, selectedTaskName, selectedTaskRetryId]);
 
   // Panel collapsed state (reconciles user preference with navigation intent)
-  const { collapsed: isPanelCollapsed, toggle: togglePanelCollapsed, expand: expandPanel } = useSidebarCollapsed({
+  const {
+    collapsed: isPanelCollapsed,
+    toggle: togglePanelCollapsed,
+    expand: expandPanel,
+  } = useSidebarCollapsed({
     hasSelection,
     selectionKey,
   });

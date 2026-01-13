@@ -20,21 +20,15 @@
  * Displays a sequential timeline showing the group lifecycle phases:
  * Scheduled → Initializing → Processing → Done/Failed
  *
- * Visual states:
- * - Completed phases: solid segments with checkmarks
- * - Active phase: pulsing/animated segment
- * - Future phases: dotted segments
- * - Failed: red X marker at failure point
+ * Uses the shared Timeline component with group-specific phase logic.
  */
 
 "use client";
 
 import { memo, useMemo } from "react";
-import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { GroupWithLayout } from "../../lib/workflow-types";
 import { getStatusCategory } from "../../lib/status";
-import { formatDuration } from "../../lib/workflow-types";
+import { Timeline, type TimelinePhase } from "./Timeline";
 
 // ============================================================================
 // Types
@@ -42,16 +36,6 @@ import { formatDuration } from "../../lib/workflow-types";
 
 interface GroupTimelineProps {
   group: GroupWithLayout;
-}
-
-interface TimelinePhase {
-  id: string;
-  label: string;
-  shortLabel: string;
-  startTime: Date | null;
-  endTime: Date | null;
-  duration: number | null;
-  status: "completed" | "active" | "pending";
 }
 
 // ============================================================================
@@ -66,19 +50,6 @@ interface TimelinePhase {
 function parseTime(timeStr?: string | null): Date | null {
   if (!timeStr) return null;
   return new Date(timeStr);
-}
-
-function formatTimeFull(date: Date | null): string {
-  if (!date) return "";
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
 }
 
 function calculatePhaseDuration(start: Date | null, end: Date | null): number | null {
@@ -105,7 +76,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
   const startTime = parseTime(group.start_time);
   const endTime = parseTime(group.end_time);
 
-  // Compute phases
+  // Compute phases for the Timeline component
   const phases = useMemo<TimelinePhase[]>(() => {
     const result: TimelinePhase[] = [];
 
@@ -115,9 +86,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       result.push({
         id: "scheduling",
         label: "Scheduling",
-        shortLabel: "Sched",
-        startTime: schedulingStart,
-        endTime: schedEnd,
+        time: schedulingStart,
         duration: calculatePhaseDuration(schedulingStart, schedEnd),
         status: schedEnd ? "completed" : "active",
       });
@@ -130,9 +99,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       result.push({
         id: "initializing",
         label: "Initializing",
-        shortLabel: "Init",
-        startTime: initializingStart,
-        endTime: initEnd,
+        time: initializingStart,
         duration: calculatePhaseDuration(initializingStart, initEnd),
         status: initActive ? "active" : initEnd ? "completed" : "pending",
       });
@@ -145,9 +112,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       result.push({
         id: "processing",
         label: "Processing",
-        shortLabel: "Proc",
-        startTime: procStart,
-        endTime: endTime,
+        time: procStart,
         duration: calculatePhaseDuration(procStart, endTime),
         status: isActive ? "active" : endTime ? "completed" : "pending",
       });
@@ -155,229 +120,43 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
 
     // Sort phases by start time to ensure chronological order
     result.sort((a, b) => {
-      if (!a.startTime) return 1; // Phases without start time go to the end
-      if (!b.startTime) return -1;
-      return a.startTime.getTime() - b.startTime.getTime();
+      if (!a.time) return 1; // Phases without start time go to the end
+      if (!b.time) return -1;
+      return a.time.getTime() - b.time.getTime();
     });
 
-    // Recalculate endTime, duration, and status to ensure contiguous segments
-    // Each phase's end time should be the next phase's start time
+    // Recalculate duration and status to ensure contiguous segments
     for (let i = 0; i < result.length; i++) {
       const phase = result[i];
       const nextPhase = result[i + 1];
       const isLastPhase = i === result.length - 1;
 
-      if (nextPhase?.startTime) {
+      if (nextPhase?.time) {
         // This phase ends when the next phase starts
-        phase.endTime = nextPhase.startTime;
+        const rawDuration = calculatePhaseDuration(phase.time, nextPhase.time);
+        phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
         // Any phase followed by another phase is completed
         phase.status = "completed";
       } else if (isLastPhase) {
         // Last phase: ends at group end time (for completed/failed) or now (for running)
-        phase.endTime = endTime;
+        const rawDuration = calculatePhaseDuration(phase.time, endTime);
+        phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
         // Last phase status depends on group state
         if (isRunning && !endTime) {
           phase.status = "active";
         } else if (endTime) {
-          phase.status = "completed";
+          phase.status = isCompleted ? "completed" : isFailed ? "failed" : "completed";
         }
       }
-
-      // Recalculate duration based on corrected endTime (minimum 1 second for layout)
-      const rawDuration = calculatePhaseDuration(phase.startTime, phase.endTime);
-      phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
     }
 
     return result;
-  }, [schedulingStart, initializingStart, processingStart, startTime, endTime, isRunning]);
-
-  // No timeline data
-  if (phases.length === 0) {
-    if (isPending) {
-      return (
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-500">
-          <span className="inline-block size-2 rounded-full border border-dashed border-gray-400 dark:border-zinc-600" />
-          <span>Waiting for upstream dependencies</span>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  // Build accessible description
-  const accessibleDescription = phases
-    .map((phase) => {
-      const time = phase.startTime ? formatTimeFull(phase.startTime) : "";
-      const dur = phase.duration !== null ? formatDuration(phase.duration) : "";
-      return `${phase.label}: ${phase.status}${dur ? `, ${dur}` : ""}${time ? ` (${time})` : ""}`;
-    })
-    .join(". ");
+  }, [schedulingStart, initializingStart, processingStart, startTime, endTime, isRunning, isCompleted, isFailed]);
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="space-y-1">
-        {/* Screen reader description */}
-        <div
-          className="sr-only"
-          role="img"
-          aria-label={`Timeline: ${accessibleDescription}`}
-        >
-          {accessibleDescription}
-        </div>
-
-        {/* Timeline visualization */}
-        <div
-          className="relative"
-          aria-hidden="true"
-        >
-          {/* Timeline bar */}
-          <div className="flex h-6 items-center gap-0">
-            {phases.map((phase, index) => {
-              const isLast = index === phases.length - 1;
-              const showEndMarker = isLast && (isCompleted || isFailed);
-              const markerLabel = `${phase.label}${phase.startTime ? `: ${formatTimeFull(phase.startTime)}` : ""}`;
-              // Calculate flex grow based on duration, minWidth ensures mouse targets are usable
-              const phaseDuration = phase.duration ?? 1;
-
-              return (
-                <div
-                  key={phase.id}
-                  className="flex items-center"
-                  style={{
-                    flex: phaseDuration,
-                    minWidth: "3.5rem", // ~56px - comfortable click/hover target
-                  }}
-                >
-                  {/* Start marker with tooltip - focusable button */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={markerLabel}
-                        className={cn(
-                          "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
-                          phase.status === "completed" && "timeline-marker-completed",
-                          phase.status === "active" && "timeline-marker-running animate-pulse",
-                          phase.status === "pending" && "timeline-marker-pending border-dashed",
-                        )}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      className="text-xs"
-                    >
-                      <div className="font-medium">{phase.label}</div>
-                      {phase.startTime && (
-                        <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(phase.startTime)}</div>
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-
-                  {/* Segment - styled based on destination (outcome for last phase) */}
-                  <div
-                    className={cn(
-                      "h-1 flex-1",
-                      // Last phase segment reflects the final outcome
-                      isLast && isFailed && "timeline-segment-failed",
-                      isLast && isCompleted && "timeline-segment-completed",
-                      // Non-last phase segments use their own status
-                      !isLast && phase.status === "completed" && "timeline-segment-completed",
-                      phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && "border-t border-dashed border-gray-400 dark:border-zinc-600",
-                    )}
-                  />
-
-                  {/* End marker (only for last phase) with tooltip - focusable button */}
-                  {showEndMarker && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label={`${isCompleted ? "Completed" : "Failed"}${endTime ? `: ${formatTimeFull(endTime)}` : ""}`}
-                          className={cn(
-                            "relative z-10 size-2.5 shrink-0 cursor-help rounded-full border-2 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-white focus:outline-none dark:focus:ring-offset-zinc-900",
-                            isCompleted && "timeline-marker-completed",
-                            isFailed && "timeline-marker-failed",
-                          )}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        className="text-xs"
-                      >
-                        <div className="font-medium">{isCompleted ? "Completed" : "Failed"}</div>
-                        {endTime && <div className="text-gray-500 dark:text-zinc-400">{formatTimeFull(endTime)}</div>}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-
-                  {/* Running indicator (inside last phase for proper flex distribution) */}
-                  {isLast && isRunning && (
-                    <div
-                      className="timeline-marker-running relative z-10 size-2.5 shrink-0 animate-pulse rounded-full border-2"
-                      aria-hidden="true"
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Phase labels */}
-          <div className="mt-1 flex gap-0">
-            {phases.map((phase, index) => {
-              const isLast = index === phases.length - 1;
-              const phaseDuration = phase.duration ?? 1;
-              return (
-                <div
-                  key={`${phase.id}-label`}
-                  className="flex flex-col"
-                  style={{
-                    flex: phaseDuration,
-                    minWidth: "3.5rem",
-                  }}
-                >
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium",
-                      phase.status === "completed" && "timeline-text-completed",
-                      phase.status === "active" && "timeline-text-running",
-                      phase.status === "pending" && "timeline-text-pending",
-                    )}
-                  >
-                    {phase.shortLabel}
-                  </span>
-                  {phase.duration !== null && (
-                    <span
-                      className={cn(
-                        "text-[10px] opacity-70",
-                        phase.status === "active" ? "timeline-text-running" : "timeline-text-pending",
-                      )}
-                    >
-                      {formatDuration(phase.duration)}
-                    </span>
-                  )}
-                  {/* End label for last phase */}
-                  {isLast && (isCompleted || isFailed) && (
-                    <span
-                      className={cn(
-                        "absolute right-0 text-[10px] font-medium",
-                        isCompleted && "timeline-text-completed",
-                        isFailed && "timeline-text-failed",
-                      )}
-                    >
-                      {isCompleted ? "Done" : "Failed"}
-                    </span>
-                  )}
-                  {isLast && isRunning && (
-                    <span className="timeline-text-running absolute right-0 text-[10px] font-medium">now</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </TooltipProvider>
+    <Timeline
+      phases={phases}
+      emptyMessage={isPending ? "Waiting for upstream dependencies" : undefined}
+    />
   );
 });
