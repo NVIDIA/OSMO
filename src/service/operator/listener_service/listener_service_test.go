@@ -154,16 +154,32 @@ func TestWorkflowListenerStream_HappyPath(t *testing.T) {
 
 	// Add test messages
 	msg1 := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid-1",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body:      `{"test": "data"}`,
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "test-workflow",
+				TaskUuid:     "test-task",
+				RetryId:      0,
+				Container:    "test-container",
+				Status:       "running",
+				Backend:      "test-backend",
+			},
+		},
 	}
 	msg2 := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid-2",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body:      `{"test": "data2"}`,
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "test-workflow",
+				TaskUuid:     "test-task-2",
+				RetryId:      0,
+				Container:    "test-container",
+				Status:       "completed",
+				Backend:      "test-backend",
+			},
+		},
 	}
 
 	stream.addRecvMessage(msg1)
@@ -272,10 +288,18 @@ func TestWorkflowListenerStream_SendError(t *testing.T) {
 
 	// Add a message to receive
 	msg := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body:      `{"test": "data"}`,
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "test-workflow",
+				TaskUuid:     "test-task",
+				RetryId:      0,
+				Container:    "test-container",
+				Status:       "running",
+				Backend:      "test-backend",
+			},
+		},
 	}
 	stream.addRecvMessage(msg)
 
@@ -302,10 +326,18 @@ func TestWorkflowListenerStream_LatencyCalculation(t *testing.T) {
 	// Create a message with a timestamp in the past
 	pastTime := time.Now().Add(-100 * time.Millisecond)
 	msg := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid",
 		Timestamp: pastTime.Format(time.RFC3339Nano),
-		Body:      `{"test": "data"}`,
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "test-workflow",
+				TaskUuid:     "test-task",
+				RetryId:      0,
+				Container:    "test-container",
+				Status:       "running",
+				Backend:      "test-backend",
+			},
+		},
 	}
 	stream.addRecvMessage(msg)
 
@@ -347,10 +379,18 @@ func TestWorkflowListenerStream_MultipleMessages(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		msg := &pb.ListenerMessage{
-			Type:      pb.ListenerMessage_update_pod,
 			Uuid:      "test-uuid-" + string(rune(i)),
 			Timestamp: time.Now().Format(time.RFC3339Nano),
-			Body:      `{"test": "data"}`,
+			Body: &pb.ListenerMessage_UpdatePod{
+				UpdatePod: &pb.UpdatePodBody{
+					WorkflowUuid: "test-workflow",
+					TaskUuid:     "test-task",
+					RetryId:      int32(i),
+					Container:    "test-container",
+					Status:       "running",
+					Backend:      "test-backend",
+				},
+			},
 		}
 		stream.addRecvMessage(msg)
 	}
@@ -486,10 +526,18 @@ func TestWorkflowListenerStream_WithCanceledContext(t *testing.T) {
 
 	// Add a message
 	msg := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body:      `{"test": "data"}`,
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "test-workflow",
+				TaskUuid:     "test-task",
+				RetryId:      0,
+				Container:    "test-container",
+				Status:       "running",
+				Backend:      "test-backend",
+			},
+		},
 	}
 	stream.addRecvMessage(msg)
 
@@ -512,10 +560,18 @@ func TestWorkflowListenerStream_EmptyData(t *testing.T) {
 
 	// Add message with empty data
 	msg := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body:      "",
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "",
+				TaskUuid:     "",
+				RetryId:      0,
+				Container:    "",
+				Status:       "",
+				Backend:      "",
+			},
+		},
 	}
 	stream.addRecvMessage(msg)
 
@@ -556,10 +612,18 @@ func TestWorkflowListenerStream_WithBackendNameMetadata(t *testing.T) {
 
 	// Add a message
 	msg := &pb.ListenerMessage{
-		Type:      pb.ListenerMessage_update_pod,
 		Uuid:      "test-uuid",
 		Timestamp: time.Now().Format(time.RFC3339Nano),
-		Body:      `{"test":"data"}`,
+		Body: &pb.ListenerMessage_UpdatePod{
+			UpdatePod: &pb.UpdatePodBody{
+				WorkflowUuid: "test-workflow",
+				TaskUuid:     "test-task",
+				RetryId:      0,
+				Container:    "test-container",
+				Status:       "running",
+				Backend:      "test-backend",
+			},
+		},
 	}
 	stream.addRecvMessage(msg)
 
