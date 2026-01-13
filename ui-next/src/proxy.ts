@@ -15,10 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Next.js Middleware for Security Headers
+ * Next.js Proxy for Security Headers
  *
  * Adds Content Security Policy (CSP) and other security headers to all responses.
- * This runs on the Edge runtime for optimal performance.
+ * This runs in the Node.js runtime.
  *
  * Security headers implemented:
  * - Content-Security-Policy: Prevents XSS and injection attacks
@@ -27,7 +27,7 @@
  * - Referrer-Policy: Controls referrer information
  * - Permissions-Policy: Restricts browser features
  *
- * @see https://nextjs.org/docs/app/building-your-application/routing/middleware
+ * @see https://nextjs.org/docs/app/building-your-application/routing/proxy
  * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
  */
 
@@ -101,7 +101,7 @@ const permissionsPolicy = [
   "usb=()",
 ].join(", ");
 
-export function middleware(_request: NextRequest) {
+export function proxy(_request: NextRequest) {
   const response = NextResponse.next();
 
   // Content Security Policy
@@ -122,7 +122,7 @@ export function middleware(_request: NextRequest) {
   return response;
 }
 
-// Configure which routes the middleware applies to
+// Configure which routes the proxy applies to
 // Exclude static files, API routes (handled by rewrites), and Next.js internals
 export const config = {
   matcher: [
