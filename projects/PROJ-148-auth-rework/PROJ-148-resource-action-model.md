@@ -620,25 +620,6 @@ to optimization issues).
 
 ---
 
-
-## Performance
-
-No significant performance implications are expected
-
----
-
-## Operations
-
-No significant operational changes)
-
----
-
-## Security
-
-No new security concerns introduced
-
----
-
 ## Documentation
 
 The following documentation will need to be created or updated:
