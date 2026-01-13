@@ -21,12 +21,12 @@ export const AuthKeySchema = z.object({
 });
 
 export const LoginInfoSchema = z.object({
-  device_endpoint: z.string(),
-  device_client_id: z.string(),
-  browser_endpoint: z.string(),
-  browser_client_id: z.string(),
-  token_endpoint: z.string(),
-  logout_endpoint: z.string(),
+  device_endpoint: z.string().nullable(),
+  device_client_id: z.string().nullable(),
+  browser_endpoint: z.string().nullable(),
+  browser_client_id: z.string().nullable(),
+  token_endpoint: z.string().nullable(),
+  logout_endpoint: z.string().nullable(),
 });
 
 export const ServiceAuthSchema = z.object({
@@ -41,8 +41,8 @@ export const ServiceAuthSchema = z.object({
 });
 
 export const CliConfigSchema = z.object({
-  latest_version: z.string(),
-  min_supported_version: z.string(),
+  latest_version: z.string().nullable(),
+  min_supported_version: z.string().nullable(),
 });
 
 export const ServiceConfigSchema = z.object({
