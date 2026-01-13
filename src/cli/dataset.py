@@ -24,7 +24,6 @@ import hashlib
 import logging
 import os
 import re
-import sys
 import textwrap
 from typing import Any, Dict, List
 import yaml
