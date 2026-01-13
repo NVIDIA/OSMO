@@ -16,153 +16,226 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
+<!-- 🚨 AGENT: The CRITICAL section below contains NON-NEGOTIABLE rules. Verify compliance before writing ANY code. -->
+
 # OSMO UI Rules
 
 > Next.js 15, React 19, TailwindCSS 4, TanStack Query/Table/Virtual, Zustand, nuqs, shadcn/ui
 
-## Critical: Check Before Creating
+---
 
-| Need | Check First |
-|------|-------------|
-| UI primitives | `@/components/shadcn/` |
-| Composed components | `@/components/` (DataTable, SmartSearch, Panel) |
-| Custom hooks | `@/hooks/` |
-| Store factories | `@/stores/createTableStore` |
-| Utilities | `@/lib/utils.ts` |
-| Library hooks | `usehooks-ts`, `@react-hookz/web` |
+## 🚨 CRITICAL - STOP AND CHECK BEFORE EVERY ACTION
 
-**If it exists, use it. If it's close, compose it. Only then create.**
+**These 5 rules are NON-NEGOTIABLE. Verify each one before writing code:**
 
-## ALWAYS
+| Before You... | STOP and CHECK | Violation = Rejected Code |
+|---------------|----------------|---------------------------|
+| Create a component | Search `@/components/` - does it exist? | Creating duplicate components |
+| Import a type | Is it from `@/lib/api/adapter`? | Importing from `generated.ts` |
+| Add a hook | Check `@/hooks/` and `usehooks-ts` first | Reinventing existing hooks |
+| Fetch data | Using TanStack Query via adapter? | useState + useEffect + fetch |
+| Make something clickable | Using `<Button>` or semantic HTML? | `<div onClick>` or `<span onClick>` |
 
-- Use shadcn/ui from `@/components/shadcn/` - accessible by default
-- Import from feature public APIs: `import { X } from "@/app/(dashboard)/pools"`
-- Import API types from adapter: `import { usePools, type Pool } from "@/lib/api/adapter"`
-- Use generated enums: `PoolStatus.ONLINE` not `"ONLINE"`
-- Pass data as props (no internal fetching in components)
-- Use Tailwind + CSS variables (not inline styles)
-- Use `transform`/`opacity` for animations (GPU-accelerated)
-- Make keyboard accessible: Enter/Space to activate, Arrow keys to navigate
-- Add NVIDIA copyright header to new files
-- Unit test pure functions (transforms, validators, formatters)
+---
 
-## NEVER
+## FORBIDDEN PATTERNS - HARD STOPS
 
-- Reimplement library functionality (TanStack Query/Table/Virtual, nuqs, Zustand)
-- Create parallel implementations - find the canonical module
-- Use magic numbers/strings - extract to constants
-- Deep import: `@/app/(dashboard)/pools/hooks/use-pools-data` ❌
-- Import from `@/lib/api/generated.ts` directly (except enums)
-- Fetch data inside presentational components
-- Use div/span for buttons - use `<button>` or shadcn `<Button>`
-- Create click-only interactions (must work with keyboard)
-- Animate `width`/`height`/`margin` (causes reflow)
+You MUST NOT do these. They will break the codebase:
+
+```tsx
+// ❌ FORBIDDEN: Deep imports bypass public API
+import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
+
+// ✅ REQUIRED: Import from feature's public API (index.ts)
+import { usePoolsData } from "@/app/(dashboard)/pools";
+```
+
+```tsx
+// ❌ FORBIDDEN: Types from generated change without notice
+import type { Pool } from "@/lib/api/generated";
+
+// ✅ REQUIRED: Types from adapter are stable
+import type { Pool } from "@/lib/api/adapter";
+```
+
+```tsx
+// ❌ FORBIDDEN: String literals for enums
+if (pool.status === "ONLINE") { ... }
+
+// ✅ REQUIRED: Use generated enums for type safety
+import { PoolStatus } from "@/lib/api/generated";
+if (pool.status === PoolStatus.ONLINE) { ... }
+```
+
+```tsx
+// ❌ FORBIDDEN: Manual fetch patterns
+const [data, setData] = useState(null);
+const [loading, setLoading] = useState(true);
+useEffect(() => { fetch(...).then(setData); }, []);
+
+// ✅ REQUIRED: TanStack Query via adapter hooks
+const { pools, isLoading, error } = usePools();
+```
+
+```tsx
+// ❌ FORBIDDEN: Non-semantic interactive elements
+<div onClick={handleClick}>Click me</div>
+<span role="button" onClick={handleClick}>Action</span>
+
+// ✅ REQUIRED: Semantic HTML or shadcn components
+<Button onClick={handleClick}>Click me</Button>
+<button onClick={handleClick}>Action</button>
+```
+
+---
+
+## REQUIRED - Check These Locations First
+
+Before creating ANYTHING, search these directories:
+
+| Need | Check First | Common Files |
+|------|-------------|--------------|
+| UI primitives | `@/components/shadcn/` | button, dialog, input, select, tooltip, popover |
+| Composed components | `@/components/` | DataTable, SmartSearch, Panel, TableToolbar |
+| Hooks | `@/hooks/` | useCopy, useAnnouncer, useServices, usePanelState |
+| Table stores | `@/stores/` | createTableStore factory |
+| Utilities | `@/lib/utils.ts` | cn, formatters, validators |
+| Library hooks | `usehooks-ts`, `@react-hookz/web` | useDebounce, useLocalStorage, etc. |
+
+**Rule: If it exists, USE it. If it's close, EXTEND it. Only then CREATE.**
+
+---
 
 ## Single Source of Truth
 
-| What | Source |
-|------|--------|
-| Row heights, spacing | `useConfig()` → `table.rowHeights` |
-| Panel widths | `useConfig()` → `panel.*` |
-| API types/hooks | `@/lib/api/adapter/` |
-| Enums | `@/lib/api/generated.ts` |
-| CSS variables | `globals.css` |
-| Feature constants | `feature/lib/constants.ts` |
-| Column configs | `feature/lib/feature-columns.ts` |
-| Clipboard ops | `useServices().clipboard` |
-| Announcements | `useServices().announcer` |
-| URL state | `usePanelState()`, `useUrlChips()` |
+NEVER hardcode these values. ALWAYS use the designated source:
 
-## Delegate to Libraries
+| What | Source | NOT |
+|------|--------|-----|
+| Row heights, spacing | `useConfig()` → `table.rowHeights` | Magic numbers like `48` |
+| Panel widths | `useConfig()` → `panel.*` | Hardcoded `320px` |
+| API types | `@/lib/api/adapter/` | `@/lib/api/generated.ts` |
+| Enums ONLY | `@/lib/api/generated.ts` | String literals |
+| CSS variables | `globals.css` | Inline hex colors |
+| Feature constants | `feature/lib/constants.ts` | Scattered magic strings |
+| Column configs | `feature/lib/feature-columns.ts` | Inline column definitions |
+| Clipboard operations | `useServices().clipboard` | `navigator.clipboard` directly |
+| Screen reader announcements | `useServices().announcer` | Manual aria-live regions |
+| URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
 
-| Need | Library | NOT |
-|------|---------|-----|
-| Data fetching | TanStack Query | useState + useEffect + fetch |
-| Table sort/filter | TanStack Table | Manual array operations |
-| Virtual scroll | TanStack Virtual | Custom scroll handlers |
-| Form state | React Hook Form + Zod | Custom form state |
-| URL state | nuqs | Custom useSearchParams |
-| Client state | Zustand | Context + reducer |
-| UI primitives | shadcn/ui | Custom buttons, dialogs |
+---
+
+## Delegate to Libraries - NEVER Reimplement
+
+| Need | MUST Use | NEVER Do |
+|------|----------|----------|
+| Data fetching/caching | TanStack Query | useState + useEffect + fetch |
+| Table sort/filter/pagination | TanStack Table | Manual array.sort/filter |
+| Virtual scrolling | TanStack Virtual | Custom scroll handlers |
+| Form state + validation | React Hook Form + Zod | Custom form reducers |
+| URL query state | nuqs | Custom useSearchParams wrappers |
+| Client state | Zustand stores | Context + useReducer |
+| UI primitives | shadcn/ui | Custom buttons, dialogs, inputs |
+
+---
 
 ## Architecture
 
 ```
 Page → Headless Hook → Adapter Hook → Generated API
            ↓
-    Components (receive data as props)
+    Components (receive data as props, NEVER fetch internally)
 ```
+
+**Key principle:** Components are PURE. They receive data as props and render it. They do NOT fetch data.
+
+---
 
 ## Feature Structure
 
+Every feature follows this structure:
+
 ```
 feature/
-├── index.ts           # PUBLIC API - export here only
-├── page.tsx
-├── hooks/use-feature-data.ts
+├── index.ts              # PUBLIC API - ONLY export from here
+├── page.tsx              # Next.js page component
+├── hooks/
+│   └── use-feature-data.ts
 ├── lib/
-│   ├── constants.ts
+│   ├── constants.ts      # Feature-specific constants
 │   ├── feature-columns.ts
-│   └── transforms.ts + transforms.test.ts
+│   ├── transforms.ts     # Pure transform functions
+│   └── transforms.test.ts # Co-located tests
 ├── components/
-└── stores/feature-table-store.ts
+│   └── FeatureTable.tsx
+└── stores/
+    └── feature-table-store.ts
 ```
 
-## State Management
+---
+
+## State Management Patterns
 
 ```tsx
-// Server state → TanStack Query
-const { pools, isLoading } = usePools();
+// Server state → TanStack Query (via adapter)
+const { pools, isLoading, error } = usePools();
 
-// Table UI → Zustand
-const { visibleColumnIds } = usePoolsTableStore();
+// Table UI state → Zustand
+const { visibleColumnIds, setVisibleColumnIds } = usePoolsTableStore();
 
-// URL state → nuqs
-const { selection, setSelection } = usePanelState();
+// URL state → nuqs (via consolidated hooks)
+const { selection, setSelection, clear } = usePanelState();
 
-// Config → Context
+// App config → Context
 const { table } = useConfig();
 ```
 
-## Consolidated Patterns
+---
+
+## Consolidated Patterns - USE THESE
 
 ```tsx
-// URL state - use this, not raw useQueryState
+// URL-synced panel state
 const { selection, setSelection, clear } = usePanelState();
 
-// Results count
+// Results count with filter awareness
 const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
-// Table states
+// Table loading/error states
 if (isLoading) return <TableLoadingSkeleton rowHeight={rowHeight} />;
-if (error) return <TableErrorState error={error} title="Unable to load" onRetry={refetch} />;
+if (error) return <TableErrorState error={error} title="Unable to load pools" onRetry={refetch} />;
 
-// Chip filters
+// Chip-based filtering
 const filterParams = chipsToParams(searchChips, POOL_CHIP_MAPPING);
 ```
 
+---
+
 ## Adapter Pattern
 
-UI expects ideal types. Adapter isolates backend quirks:
+The adapter layer isolates UI from backend quirks. UI expects ideal types:
 
 ```tsx
 // src/lib/api/adapter/hooks.ts
-export function useFeatures() {
-  const query = useGetApiFeatures(); // generated
+export function usePools() {
+  const query = useGetApiPools(); // generated hook
   return {
-    features: query.data?.features?.map(transformFeature) ?? [],
+    pools: query.data?.pools?.map(transformPool) ?? [],
     isLoading: query.isLoading,
     error: query.error,
+    refetch: query.refetch,
   };
 }
 ```
 
-Document backend issues in `BACKEND_TODOS.md`, not UI workarounds.
+**Document backend issues in `BACKEND_TODOS.md`, not as UI workarounds.**
+
+---
 
 ## Composition Pattern
 
 ```tsx
-// ✅ Compose shadcn primitives
+// ✅ CORRECT: Compose shadcn primitives
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
 
@@ -179,41 +252,66 @@ export function CopyButton({ text }: { text: string }) {
     </Tooltip>
   );
 }
-
-// ❌ Don't build from scratch
-<button className="custom-btn...">...</button>
 ```
 
-## Accessibility
+```tsx
+// ❌ FORBIDDEN: Building from scratch
+<button className="custom-btn px-4 py-2 bg-blue-500...">...</button>
+```
 
-- All interactive elements keyboard accessible
-- Use `useAnnouncer()` for dynamic changes
-- Focus visible: use `.focus-nvidia` class
-- Semantic HTML + ARIA attributes
+---
+
+## Accessibility Requirements
+
+All interactive elements MUST be keyboard accessible:
+
+- **Enter/Space**: Activate buttons and controls
+- **Arrow keys**: Navigate within composite widgets
+- **Escape**: Close modals, cancel operations
+- **Tab**: Move between focusable elements
 
 ```tsx
-// ✅ Screen reader announcements
+// ✅ REQUIRED: Screen reader announcements for dynamic changes
 const { announcer } = useServices();
 await clipboard.copy(text);
 announcer.announce("Copied to clipboard", "polite");
 ```
 
-## Performance
+```tsx
+// ✅ REQUIRED: Focus visible styling
+<Button className="focus-nvidia">...</Button>
+```
 
-- Lists >50 items: TanStack Virtual + `contain-strict`
-- Search inputs: `useDeferredValue`
-- Heavy renders: `startTransition`
-- Scroll containers: `overscroll-behavior: contain`
+---
+
+## Performance Requirements
+
+| Scenario | MUST Use | Reason |
+|----------|----------|--------|
+| Lists > 50 items | TanStack Virtual + `contain-strict` | Prevent DOM bloat |
+| Search inputs | `useDeferredValue` | Don't block typing |
+| Heavy state updates | `startTransition` | Keep UI responsive |
+| Scroll containers | `overscroll-behavior: contain` | Prevent scroll chaining |
 
 ```tsx
-// Virtual items
-<div className="contain-strict content-visibility-auto"
-     style={{ containIntrinsicSize: 'auto 48px' }}>
+// Virtual list container
+<div
+  className="contain-strict content-visibility-auto"
+  style={{ containIntrinsicSize: 'auto 48px' }}
+>
+  {virtualRows.map(...)}
+</div>
 ```
+
+**Animation rules:**
+- ✅ Animate: `transform`, `opacity` (GPU-accelerated)
+- ❌ NEVER animate: `width`, `height`, `margin`, `padding` (causes reflow)
+
+---
 
 ## Testing
 
-Unit test pure functions, co-locate with source:
+Unit test pure functions. Co-locate tests with source:
 
 ```
 lib/
@@ -222,23 +320,49 @@ lib/
 ```
 
 ```bash
-pnpm test              # Run all
-pnpm test:watch        # Watch mode
+pnpm test              # Run all tests
+pnpm test:watch        # Watch mode for development
 ```
+
+---
 
 ## Commands
 
 ```bash
-pnpm dev               # Dev server
-pnpm dev:mock          # Mock data (no backend)
-pnpm generate-api      # Regenerate API types
-pnpm type-check        # TypeScript
+pnpm dev               # Development server
+pnpm dev:mock          # Mock data mode (no backend required)
+pnpm generate-api      # Regenerate API types from OpenAPI spec
+pnpm type-check        # TypeScript type checking
 pnpm lint              # ESLint
-pnpm test              # Unit tests
+pnpm test              # Run unit tests
 ```
 
-## Pre-Commit
+---
+
+## Pre-Commit Checklist
 
 ```bash
+# REQUIRED before committing:
 pnpm type-check && pnpm lint && pnpm test && pnpm build
 ```
+
+**When fixing errors:**
+- ❌ NEVER suppress with `@ts-ignore` or `eslint-disable`
+- ❌ NEVER use `any` type
+- ✅ ALWAYS resolve the root cause properly
+
+---
+
+## 🔍 Final Verification - ASK YOURSELF
+
+Before submitting any code, verify:
+
+- [ ] Did I check `@/components/` before creating a new component?
+- [ ] Are ALL imports from public APIs (`index.ts` exports)?
+- [ ] Are types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
+- [ ] Is every interactive element keyboard accessible?
+- [ ] Did I use TanStack/Zustand/nuqs instead of manual state?
+- [ ] Are there any magic numbers that should be constants or config values?
+- [ ] Does the new file have the NVIDIA copyright header?
+
+**If any answer is NO, fix it before proceeding.**
