@@ -68,7 +68,7 @@ import {
 } from "./components";
 
 // DAG utilities
-import { VIEWPORT, MINIMAP, BACKGROUND, ANIMATION, useViewportBoundaries, preloadElkWorker } from "@/components/dag";
+import { VIEWPORT, MINIMAP, BACKGROUND, useViewportBoundaries, preloadElkWorker } from "@/components/dag";
 
 // Preload ELK worker on module load (before first render)
 // This hides worker initialization latency from the user
@@ -272,6 +272,34 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const prevPanelDragging = usePrevious(isPanelDragging);
   const prevSidebarCollapsed = usePrevious(isSidebarCollapsed);
 
+  // Trigger re-center when layout changes:
+  // - Panel collapse/expand (immediate - hook handles expected area)
+  // - Panel drag ends (immediate)
+  // - Sidebar collapse/expand (delayed - wait for translateExtent to update)
+  useIsomorphicLayoutEffect(() => {
+    const panelCollapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
+    const panelDragEnded = prevPanelDragging === true && isPanelDragging === false;
+
+    // Panel changes trigger immediately - the hook uses getExpectedVisibleArea
+    if (panelCollapsedChanged || panelDragEnded) {
+      setReCenterTrigger((t) => t + 1);
+    }
+  }, [isPanelCollapsed, isPanelDragging, prevPanelCollapsed, prevPanelDragging]);
+
+  // Sidebar changes need to wait for CSS transition to complete
+  // so that translateExtent has updated to the new container dimensions
+  useIsomorphicLayoutEffect(() => {
+    const sidebarCollapsedChanged = prevSidebarCollapsed !== undefined && prevSidebarCollapsed !== isSidebarCollapsed;
+
+    if (sidebarCollapsedChanged) {
+      const timer = setTimeout(() => {
+        setReCenterTrigger((t) => t + 1);
+      }, SIDEBAR.TRANSITION_MS + 50); // Wait for transition + small buffer
+
+      return () => clearTimeout(timer);
+    }
+  }, [isSidebarCollapsed, prevSidebarCollapsed]);
+
   // Compute expected visible area based on layout state (for smooth centering during transitions)
   // We CALCULATE expected dimensions rather than reading from DOM, because during
   // CSS transitions the DOM values are mid-animation and not yet at their final values.
@@ -295,54 +323,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     return { width, height };
   }, [isSidebarCollapsed, isPanelCollapsed, panelPct]);
 
-  // ---------------------------------------------------------------------------
-  // Transition Lock: Computed Synchronously During Render
-  // ---------------------------------------------------------------------------
-  //
-  // We detect layout transitions DURING RENDER (not in an effect) so that
-  // translateExtent gets the locked dimensions on the SAME render cycle.
-  // This prevents stutters from resize observer values during CSS transitions.
-
-  // Track when a transition started (timestamp) to know when to unlock
-  const transitionStartRef = useRef<number | null>(null);
-
-  // Detect if this render is the START of a transition
-  const isTransitionStart = useMemo(() => {
-    const panelCollapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
-    const panelDragEnded = prevPanelDragging === true && isPanelDragging === false;
-    const sidebarCollapsedChanged = prevSidebarCollapsed !== undefined && prevSidebarCollapsed !== isSidebarCollapsed;
-    return panelCollapsedChanged || panelDragEnded || sidebarCollapsedChanged;
-  }, [isPanelCollapsed, isPanelDragging, isSidebarCollapsed, prevPanelCollapsed, prevPanelDragging, prevSidebarCollapsed]);
-
-  // Compute locked dimensions synchronously during render
-  // This ensures translateExtent uses them on THIS render, not the next one
-  const transitionLockedDims = useMemo(() => {
-    const now = Date.now();
-    const transitionDuration = ANIMATION.PANEL_TRANSITION + 50; // 250ms
-
-    if (isTransitionStart) {
-      // Starting a new transition - record timestamp and return expected dims
-      transitionStartRef.current = now;
-      return getExpectedVisibleArea();
-    }
-
-    // Check if we're still within an active transition window
-    if (transitionStartRef.current && now - transitionStartRef.current < transitionDuration) {
-      return getExpectedVisibleArea();
-    }
-
-    // No active transition
-    transitionStartRef.current = null;
-    return null;
-  }, [isTransitionStart, getExpectedVisibleArea]);
-
-  // Trigger re-center animation when layout changes
-  useIsomorphicLayoutEffect(() => {
-    if (isTransitionStart) {
-      setReCenterTrigger((t) => t + 1);
-    }
-  }, [isTransitionStart]);
-
   // Viewport boundary management via translateExtent (instant clamp)
   // React Flow enforces bounds natively via d3-zoom - no snap-back animation
   // Bounds based on "any node can be centered" principle
@@ -357,8 +337,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     // Generic re-centering - consumer controls when/where
     getExpectedVisibleArea,
     reCenterTrigger,
-    // Lock translateExtent during CSS transitions to prevent stutters
-    transitionLockedDims,
   });
 
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
