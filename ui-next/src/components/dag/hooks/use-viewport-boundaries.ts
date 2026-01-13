@@ -21,16 +21,13 @@
  *
  * **Single source of truth** for viewport management in ReactFlow DAGs.
  *
- * ## Boundary Enforcement: translateExtent + Proactive Clamping
+ * ## Boundary Enforcement: translateExtent Only
  *
  * Uses React Flow's native `translateExtent` for instant boundary clamping.
+ * No callbacks, no snap-back animations - just solid boundaries enforced by d3-zoom.
+ *
  * The translateExtent is calculated based on the principle:
  * **"Any node can be centered in the viewport"**
- *
- * Additionally, this hook provides **proactive animated clamping** when container
- * dimensions change (window resize, panel resize, sidebar toggle). If the current
- * viewport is outside the new bounds, it animates smoothly to a valid position
- * instead of waiting for user interaction (which would cause a jarring snap).
  *
  * ## Architecture: Dependency Injection
  *
@@ -124,28 +121,6 @@ export interface UseViewportBoundariesOptions {
    * ```
    */
   reCenterTrigger?: number;
-
-  /**
-   * Optional: Lock translateExtent to specific dimensions during CSS transitions.
-   * When set, translateExtent uses these dimensions instead of observed container
-   * dimensions, preventing stutters from intermediate resize observer values.
-   *
-   * Set this at the same time as incrementing reCenterTrigger for synchronized
-   * panel/sidebar animations. Clear it after the CSS transition completes.
-   *
-   * @example
-   * ```tsx
-   * const [transitionDims, setTransitionDims] = useState<{ width: number; height: number } | null>(null);
-   *
-   * // When starting a CSS transition:
-   * setTransitionDims(getExpectedVisibleArea());
-   * setReCenterTrigger(t => t + 1);
-   *
-   * // After transition completes:
-   * setTimeout(() => setTransitionDims(null), TRANSITION_MS);
-   * ```
-   */
-  transitionLockedDims?: { width: number; height: number } | null;
 }
 
 export interface ViewportBoundariesResult {
@@ -178,7 +153,6 @@ export function useViewportBoundaries({
   initialSelectedNodeId,
   getExpectedVisibleArea,
   reCenterTrigger = 0,
-  transitionLockedDims = null,
 }: UseViewportBoundariesOptions): ViewportBoundariesResult {
   const reactFlowInstance = useReactFlow();
 
@@ -215,10 +189,6 @@ export function useViewportBoundaries({
   // Track previous re-center trigger to detect changes
   const prevReCenterTriggerRef = useRef(reCenterTrigger);
 
-  // Track previous container dimensions for resize-based clamping
-  const prevContainerDimsRef = useRef<{ width: number; height: number } | null>(null);
-
-
   // Flag to indicate animation is in progress
   const isAnimatingRef = useRef(false);
 
@@ -254,25 +224,17 @@ export function useViewportBoundaries({
    * At zoom Z with container size W×H:
    * - Visible area in flow coords = (W/Z) × (H/Z)
    * - To center a node at the edge, we need padding of (W/2)/Z or (H/2)/Z
-   *
-   * During synchronized animations (panel/sidebar transitions), we use
-   * transitionLockedDims to prevent continuous recalculation from intermediate
-   * resize observer values (which causes stutters).
    */
   const translateExtent = useMemo((): CoordinateExtent | undefined => {
-    // During synchronized animations, use locked dimensions to prevent stutters
-    const width = transitionLockedDims?.width ?? containerWidth;
-    const height = transitionLockedDims?.height ?? containerHeight;
-
-    if (!nodeBounds || !width || !height) {
+    if (!nodeBounds || !containerWidth || !containerHeight) {
       return undefined;
     }
 
     // Padding in flow coordinates that allows edge nodes to be centered
     // Use current zoom to calculate how much padding is needed
     const zoom = currentZoom || VIEWPORT.DEFAULT_ZOOM;
-    const paddingX = width / (2 * zoom);
-    const paddingY = height / (2 * zoom);
+    const paddingX = containerWidth / (2 * zoom);
+    const paddingY = containerHeight / (2 * zoom);
 
     // The pannable area in flow coordinates
     // Any point within this area can be brought into view
@@ -280,7 +242,7 @@ export function useViewportBoundaries({
       [nodeBounds.minX - paddingX, nodeBounds.minY - paddingY],
       [nodeBounds.maxX + paddingX, nodeBounds.maxY + paddingY],
     ];
-  }, [nodeBounds, containerWidth, containerHeight, currentZoom, transitionLockedDims]);
+  }, [nodeBounds, containerWidth, containerHeight, currentZoom]);
 
   // ---------------------------------------------------------------------------
   // Helpers for Centering
@@ -372,55 +334,20 @@ export function useViewportBoundaries({
   // ---------------------------------------------------------------------------
   // Re-center on trigger change (generic - consumer controls when to trigger)
   // ---------------------------------------------------------------------------
-  //
-  // Handles both:
-  // - With selection: Center on the selected node
-  // - Without selection: Clamp viewport if outside new bounds
-  //
-  // Uses getExpectedVisibleArea() when available to synchronize with CSS transitions.
-  // Consumer should also set transitionLockedDims to prevent translateExtent stutters.
 
   useEffect(() => {
     if (prevReCenterTriggerRef.current === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
 
+    if (!selectedNodeId) return;
     if (isAnimatingRef.current) return;
 
     // Use consumer-provided expected area, or fall back to measured container
     const visibleArea = getExpectedVisibleAreaRef.current?.() ?? getVisibleArea();
-    const currentViewport = reactFlowInstance.getViewport();
+    const zoom = reactFlowInstance.getViewport().zoom;
 
-    if (selectedNodeId) {
-      // With selection: center on the selected node
-      centerOnNode(selectedNodeId, currentViewport.zoom, ANIMATION.PANEL_TRANSITION, visibleArea);
-    } else {
-      // Without selection: clamp viewport if outside new bounds
-      const clampedViewport = clampViewport(currentViewport, visibleArea);
-
-      const needsClamp =
-        Math.abs(currentViewport.x - clampedViewport.x) > 1 || Math.abs(currentViewport.y - clampedViewport.y) > 1;
-
-      if (!needsClamp) return;
-
-      isAnimatingRef.current = true;
-      const currentGeneration = ++animationGenerationRef.current;
-
-      reactFlowInstance.setViewport(clampedViewport, { duration: ANIMATION.PANEL_TRANSITION }).then(() => {
-        if (animationGenerationRef.current !== currentGeneration) {
-          return;
-        }
-        isAnimatingRef.current = false;
-      });
-    }
-  }, [
-    reCenterTrigger,
-    selectedNodeId,
-    getVisibleArea,
-    centerOnNode,
-    clampViewport,
-    reactFlowInstance,
-    getExpectedVisibleAreaRef,
-  ]);
+    centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, visibleArea);
+  }, [reCenterTrigger, selectedNodeId, getVisibleArea, centerOnNode, reactFlowInstance, getExpectedVisibleAreaRef]);
 
   // ---------------------------------------------------------------------------
   // Initial Load Centering
@@ -498,64 +425,6 @@ export function useViewportBoundaries({
       prevSelectionRef.current = null;
     }
   }, [selectedNodeId]);
-
-  // ---------------------------------------------------------------------------
-  // Proactive Animated Clamp on Container Resize (Window Resize Fallback)
-  // ---------------------------------------------------------------------------
-  //
-  // This handles cases where we DON'T know the expected size ahead of time,
-  // primarily window resize (user drags continuously, no predictable final size).
-  //
-  // For panel/sidebar changes, the reCenterTrigger effect above handles clamping
-  // with getExpectedVisibleArea() for synchronized animations.
-  //
-  // This effect is reactive (fires after resize) and uses a shorter duration
-  // since it's not synchronized with any CSS transition.
-
-  useEffect(() => {
-    // Skip on initial render (no previous dimensions to compare)
-    if (!prevContainerDimsRef.current) {
-      prevContainerDimsRef.current = { width: containerWidth, height: containerHeight };
-      return;
-    }
-
-    // Skip if dimensions haven't actually changed
-    const prevDims = prevContainerDimsRef.current;
-    if (prevDims.width === containerWidth && prevDims.height === containerHeight) {
-      return;
-    }
-
-    // Update tracked dimensions
-    prevContainerDimsRef.current = { width: containerWidth, height: containerHeight };
-
-    // Skip if not yet initialized or already animating
-    if (!hasInitializedRef.current) return;
-    if (isAnimatingRef.current) return;
-
-    // Get current viewport
-    const currentViewport = reactFlowInstance.getViewport();
-
-    // Calculate clamped position with new container dimensions
-    const visibleArea = { width: containerWidth, height: containerHeight };
-    const clampedViewport = clampViewport(currentViewport, visibleArea);
-
-    // Check if viewport needs adjustment (is outside new bounds)
-    const needsClamp =
-      Math.abs(currentViewport.x - clampedViewport.x) > 1 || Math.abs(currentViewport.y - clampedViewport.y) > 1;
-
-    if (!needsClamp) return;
-
-    // Animate to clamped position
-    isAnimatingRef.current = true;
-    const currentGeneration = ++animationGenerationRef.current;
-
-    reactFlowInstance.setViewport(clampedViewport, { duration: ANIMATION.BOUNDARY_ENFORCE }).then(() => {
-      if (animationGenerationRef.current !== currentGeneration) {
-        return;
-      }
-      isAnimatingRef.current = false;
-    });
-  }, [containerWidth, containerHeight, clampViewport, reactFlowInstance]);
 
   return {
     translateExtent,
