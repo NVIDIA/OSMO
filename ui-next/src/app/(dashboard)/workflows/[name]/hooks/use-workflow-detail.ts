@@ -19,13 +19,19 @@
  *
  * Fetches workflow detail with verbose=true to include full group and task data.
  * Used by the workflow detail page to render the DAG and details panel.
+ *
+ * Uses the adapter layer's useWorkflow hook which handles:
+ * - Parsing the API response
+ * - Normalizing timestamps to have explicit UTC timezone
+ *
+ * This hook adds UI-specific logic (DAG layout computation).
  */
 
 "use client";
 
 import { useMemo } from "react";
-import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
-import { transformGroups, type GroupWithLayout } from "../lib/workflow-types";
+import { useWorkflow } from "@/lib/api/adapter";
+import { transformGroups, type GroupWithLayout, type WorkflowQueryResponse } from "../lib/workflow-types";
 
 // =============================================================================
 // Types
@@ -39,7 +45,7 @@ interface UseWorkflowDetailParams {
 }
 
 interface UseWorkflowDetailReturn {
-  /** The workflow data */
+  /** The workflow data (with normalized timestamps from adapter) */
   workflow: WorkflowQueryResponse | null;
   /** Groups with computed layout information */
   groupsWithLayout: GroupWithLayout[];
@@ -58,41 +64,21 @@ interface UseWorkflowDetailReturn {
 // =============================================================================
 
 export function useWorkflowDetail({ name, verbose = true }: UseWorkflowDetailParams): UseWorkflowDetailReturn {
-  // Fetch workflow with groups and tasks
-  const { data, isLoading, error, refetch } = useGetWorkflowApiWorkflowNameGet(name, { verbose });
+  // Use adapter hook - handles parsing and timestamp normalization
+  const { workflow, isLoading, error, refetch, isNotFound } = useWorkflow({ name, verbose });
 
-  // Parse the workflow response (API returns string that needs parsing)
-  const workflow = useMemo(() => {
-    if (!data) return null;
-    try {
-      // The API returns a string, so we need to parse it
-      const parsed = typeof data === "string" ? JSON.parse(data) : data;
-      return parsed as WorkflowQueryResponse;
-    } catch {
-      console.error("Failed to parse workflow response:", data);
-      return null;
-    }
-  }, [data]);
-
-  // Transform groups for DAG visualization
+  // Transform groups for DAG visualization (UI-specific logic)
+  const groups = workflow?.groups;
   const groupsWithLayout = useMemo(() => {
-    if (!workflow?.groups) return [];
-    return transformGroups(workflow.groups);
-  }, [workflow?.groups]);
-
-  // Check if workflow was not found (404 error)
-  const isNotFound = useMemo(() => {
-    if (!error) return false;
-    // Check for 404 status in error
-    const status = (error as { status?: number })?.status;
-    return status === 404;
-  }, [error]);
+    if (!groups) return [];
+    return transformGroups(groups);
+  }, [groups]);
 
   return {
     workflow,
     groupsWithLayout,
     isLoading,
-    error: error as Error | null,
+    error,
     refetch,
     isNotFound,
   };

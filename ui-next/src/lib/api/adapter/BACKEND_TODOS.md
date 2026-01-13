@@ -686,6 +686,108 @@ interface WorkflowListEntry {
 
 ---
 
+### 16. Timestamps Missing Explicit Timezone
+
+**Priority:** Medium
+**Status:** Active workaround in `utils.ts`
+
+Backend timestamps may be returned without explicit timezone information, causing inconsistent parsing across different user timezones.
+
+**Current behavior (problematic):**
+```json
+{
+  "start_time": "2024-01-15T10:30:00",      // No timezone - ambiguous!
+  "end_time": "2024-01-15T10:35:00"         // Is this UTC? Local? Unknown.
+}
+```
+
+When JavaScript parses `new Date("2024-01-15T10:30:00")` without a timezone suffix:
+- Chrome/Safari: Treats as **local time**
+- Some environments: Treats as **UTC**
+- Result: Duration calculations can be off by hours depending on user's timezone
+
+**Ideal behavior (explicit UTC):**
+```json
+{
+  "start_time": "2024-01-15T10:30:00Z",      // Explicit UTC with 'Z' suffix
+  "end_time": "2024-01-15T10:35:00Z"         // Unambiguous
+}
+```
+
+Or with offset:
+```json
+{
+  "start_time": "2024-01-15T10:30:00+00:00", // Explicit UTC offset
+  "end_time": "2024-01-15T10:35:00+00:00"
+}
+```
+
+**Affected fields (all timestamp strings in API responses):**
+- `submit_time`, `start_time`, `end_time` (workflows, tasks, groups)
+- `scheduling_start_time`, `initializing_start_time`, `processing_start_time`
+- `input_download_start_time`, `input_download_end_time`
+- `output_upload_start_time`
+- Any other `*_time` fields
+
+**Current adapter workaround:**
+```typescript
+// hooks.ts - useWorkflow adapter hook normalizes timestamps
+export function useWorkflow({ name, verbose }: UseWorkflowParams): UseWorkflowReturn {
+  const { data, ... } = useGetWorkflowApiWorkflowNameGet(name, { verbose });
+  
+  const workflow = useMemo(() => {
+    const parsed = typeof data === "string" ? JSON.parse(data) : data;
+    // Normalize timestamps at the API boundary
+    return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
+  }, [data]);
+  
+  return { workflow, ... };
+}
+
+// utils.ts - Timestamp normalization utility
+export function normalizeWorkflowTimestamps<T>(workflow: T): T {
+  // Recursively normalizes all timestamp fields in workflow/group/task data
+  // Appends 'Z' suffix to timestamps without timezone info
+}
+
+// Feature hooks just use the adapter hook - no workarounds
+import { useWorkflow } from "@/lib/api/adapter";
+
+// UI components receive clean data, use new Date(str) directly
+```
+
+**Fix (backend):**
+
+In Python/FastAPI, ensure all datetime fields are timezone-aware UTC:
+```python
+from datetime import datetime, timezone
+
+# When creating timestamps
+timestamp = datetime.now(timezone.utc)
+
+# When serializing (Pydantic)
+class MyModel(BaseModel):
+    start_time: datetime
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+```
+
+For timezone-aware datetimes, Python's `isoformat()` will include the offset (e.g., `+00:00`).
+Alternatively, explicitly format with 'Z':
+```python
+timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+```
+
+**When fixed:**
+1. Remove `parseTimestamp()` workaround from `utils.ts`
+2. Use `new Date(timeStr)` directly throughout codebase
+3. All duration/timeline calculations work correctly regardless of user timezone
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -705,6 +807,7 @@ interface WorkflowListEntry {
 | #13 Pools server-side filtering | Medium | pools-shim.ts | Delete shim, pass filters to API |
 | #14 Workflow more_entries bug | **High** | workflows-shim.ts | Use more_entries directly |
 | #15 Workflow list missing tags | Low | workflow-search-fields.ts | Add tags column |
+| #16 Timestamps missing timezone | Medium | hooks.ts (useWorkflow), utils.ts | Remove normalizeWorkflowTimestamps |
 
 ### Priority Guide
 

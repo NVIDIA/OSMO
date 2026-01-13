@@ -22,6 +22,7 @@
  * Defines column structure for the resources DataTable component.
  */
 
+import { memo, useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import { getResourceAllocationTypeDisplay } from "./constants";
@@ -30,6 +31,7 @@ import type { DisplayMode } from "@/stores";
 import { CapacityCell } from "../components/cells/capacity-cell";
 import { type ResourceColumnId, COLUMN_LABELS, RESOURCE_COLUMN_SIZE_CONFIG } from "./resource-columns";
 import { remToPx } from "@/components/data-table";
+import { ExpandableChips } from "@/components/expandable-chips";
 
 // =============================================================================
 // Column Cell Components
@@ -50,18 +52,12 @@ function ResourceTypeCell({ value }: { value: string }) {
   );
 }
 
-/** Pools membership cell */
-function PoolsCell({ resource }: { resource: Resource }) {
-  const pool = resource.poolMemberships[0]?.pool;
-  const extra = resource.poolMemberships.length - 1;
-
-  return (
-    <span className="truncate text-zinc-500 dark:text-zinc-400">
-      {pool ?? "—"}
-      {extra > 0 && <span className="ml-1 text-xs text-zinc-400">+{extra}</span>}
-    </span>
-  );
-}
+/** Pools membership cell using expandable chips */
+const PoolsCell = memo(function PoolsCell({ resource }: { resource: Resource }) {
+  // Memoize the pools array to maintain stable reference for useExpandableChips
+  const pools = useMemo(() => resource.poolMemberships.map((m) => m.pool), [resource.poolMemberships]);
+  return <ExpandableChips items={pools} />;
+});
 
 /** Text cell (platform, backend) */
 function TextCell({ value }: { value: string }) {
