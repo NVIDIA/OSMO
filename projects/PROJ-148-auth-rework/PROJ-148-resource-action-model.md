@@ -660,8 +660,6 @@ The following documentation will need to be created or updated:
 ## Complete Action Registry
 
 ```go
-package server
-
 // ActionRegistry maps resource:action pairs to API endpoint patterns
 var ActionRegistry = map[string][]EndpointPattern{
     // ==================== WORKFLOW ====================
