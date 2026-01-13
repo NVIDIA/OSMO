@@ -25,7 +25,7 @@
  */
 
 import type { SearchField, SearchChip } from "@/components/smart-search";
-import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
+import { WorkflowStatus, WorkflowPriority, type SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
 import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
@@ -37,24 +37,25 @@ export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 /**
  * Status category presets.
  * Each preset expands to multiple status chips when selected.
+ * Uses generated WorkflowStatus enum values for type safety.
  */
 export const STATUS_PRESETS = {
-  running: ["RUNNING"] as const,
-  waiting: ["PENDING", "WAITING"] as const,
-  completed: ["COMPLETED"] as const,
+  running: [WorkflowStatus.RUNNING] as const,
+  waiting: [WorkflowStatus.PENDING, WorkflowStatus.WAITING] as const,
+  completed: [WorkflowStatus.COMPLETED] as const,
   failed: [
-    "FAILED",
-    "FAILED_SUBMISSION",
-    "FAILED_SERVER_ERROR",
-    "FAILED_EXEC_TIMEOUT",
-    "FAILED_QUEUE_TIMEOUT",
-    "FAILED_CANCELED",
-    "FAILED_BACKEND_ERROR",
-    "FAILED_IMAGE_PULL",
-    "FAILED_EVICTED",
-    "FAILED_START_ERROR",
-    "FAILED_START_TIMEOUT",
-    "FAILED_PREEMPTED",
+    WorkflowStatus.FAILED,
+    WorkflowStatus.FAILED_SUBMISSION,
+    WorkflowStatus.FAILED_SERVER_ERROR,
+    WorkflowStatus.FAILED_EXEC_TIMEOUT,
+    WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+    WorkflowStatus.FAILED_CANCELED,
+    WorkflowStatus.FAILED_BACKEND_ERROR,
+    WorkflowStatus.FAILED_IMAGE_PULL,
+    WorkflowStatus.FAILED_EVICTED,
+    WorkflowStatus.FAILED_START_ERROR,
+    WorkflowStatus.FAILED_START_TIMEOUT,
+    WorkflowStatus.FAILED_PREEMPTED,
   ] as const,
 } as const;
 
@@ -166,7 +167,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     label: "Priority",
     hint: "HIGH, NORMAL, LOW",
     prefix: "priority:",
-    getValues: () => ["HIGH", "NORMAL", "LOW"],
+    getValues: () => Object.values(WorkflowPriority),
     exhaustive: true,
     requiresValidValue: true,
   },

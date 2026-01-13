@@ -53,6 +53,7 @@ import { GroupTimeline } from "./GroupTimeline";
 import { DependencyPills } from "./DependencyPills";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/hooks";
+import type { BreadcrumbSegment } from "../../lib/panel-types";
 
 // =============================================================================
 // Constants
@@ -315,6 +316,12 @@ export const GroupDetails = memo(function GroupDetails({
     return { column: sort.column, direction: sort.direction };
   }, [sort]);
 
+  // Build breadcrumbs for hierarchical navigation (Workflow > Group)
+  const breadcrumbs = useMemo((): BreadcrumbSegment[] => {
+    if (!onBack) return [];
+    return [{ label: "Workflow", onClick: onBack }];
+  }, [onBack]);
+
   return (
     <div className="relative flex h-full flex-col">
       {/* Header with expandable details */}
@@ -323,8 +330,7 @@ export const GroupDetails = memo(function GroupDetails({
         title={group.name}
         subtitle={`${stats.total} tasks`}
         statusContent={statusContent}
-        breadcrumb={onBack ? "Workflow" : undefined}
-        onBack={onBack}
+        breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
         onClose={onClose}
         onPanelResize={onPanelResize}
         menuContent={menuContent}
