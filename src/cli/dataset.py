@@ -31,7 +31,7 @@ import yaml
 
 import ijson
 import shtab
-from tqdm import tqdm # type: ignore
+from tqdm import tqdm  # type: ignore
 
 from src.lib.data import (
     dataset as dataset_lib,
@@ -372,8 +372,8 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
                 prompt_info = f'the latest version of Dataset {dataset.name} from bucket ' +\
                               f'{dataset.bucket}'
             confirm = common.prompt_user(f'Are you sure you want to mark {prompt_info} '
-                                          'as PENDING_DELETE? The storage objects will not be '
-                                          'deleted yet.')
+                                         'as PENDING_DELETE? The storage objects will not be '
+                                         'deleted yet.')
         if not confirm:
             return
 
@@ -393,7 +393,7 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
             f'All versions of {dataset.name} has been marked as PENDING_DELETE.'
             'Do you want to delete the storage objects and wipe the dataset?\n'
             'Note: Any concurrent uploads to this dataset may be effected.'
-            )
+        )
     elif delete_objects and args.force:
         confirm_delete_objects = True
 
@@ -416,7 +416,7 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
                 print(json.dumps(json_output, indent=common.JSON_INDENT_SIZE))
             else:
                 for version in delete_result['versions']:
-                    print(f'Dataset {dataset.name} version ' +\
+                    print(f'Dataset {dataset.name} version ' +
                           f'{version} bucket {dataset.bucket} has been marked as '
                           f'PENDING_DELETE.')
         return
@@ -527,7 +527,7 @@ def _run_collect_command(service_client: client.ServiceClient, args: argparse.Na
     if not collection.bucket:
         collection.bucket = dataset_lib.get_user_bucket(service_client)
 
-    payload = {'datasets': [common.DatasetStructure(dataset).to_dict()\
+    payload = {'datasets': [common.DatasetStructure(dataset).to_dict()
                             for dataset in args.datasets]}
     service_client.request(
         client.RequestMethod.POST,
@@ -552,9 +552,9 @@ def _run_recollect_command(service_client: client.ServiceClient, args: argparse.
 
     remove_datasets = []
     if args.remove:
-        remove_datasets = [common.DatasetStructure(dataset).to_dict()\
+        remove_datasets = [common.DatasetStructure(dataset).to_dict()
                            for dataset in args.remove]
-    payload = {'add_datasets': [common.DatasetStructure(dataset).to_dict()\
+    payload = {'add_datasets': [common.DatasetStructure(dataset).to_dict()
                                 for dataset in args.add],
                'remove_datasets': remove_datasets}
     result = service_client.request(
@@ -602,7 +602,7 @@ def _get_metadata_from_file(file_path: str) -> Dict | List:
     if isinstance(content, list):
         if not all(isinstance(x, (int, float)) for x in content) and \
            not all(isinstance(x, str) for x in content):
-            raise osmo_errors.OSMOError('All elements in an array should be of same type: str or'\
+            raise osmo_errors.OSMOError('All elements in an array should be of same type: str or'
                                         ' numeric.')
     elif isinstance(content, bool):
         content = [str(content)]
@@ -746,7 +746,7 @@ def _run_rename_command(service_client: client.ServiceClient, args: argparse.Nam
         client.RequestMethod.POST,
         f'api/bucket/{old_dataset.bucket}/dataset/{old_dataset.name}/attribute',
         params=params)
-    print(f'{old_dataset.name} has been renamed to {new_dataset.name} in bucket ' +\
+    print(f'{old_dataset.name} has been renamed to {new_dataset.name} in bucket ' +
           f'{old_dataset.bucket}')
 
 
@@ -823,10 +823,10 @@ def _run_checksum_command(service_client: client.ServiceClient, args: argparse.N
                 for file in objects:
                     # Add Relative Path + checksum path_checksums
                     path_checksums.append(file[len(path.rsplit('/', 1)[0]) + 1:] +
-                                            ' ' + common.etag_checksum(file))
+                                          ' ' + common.etag_checksum(file))
                     file_size_uploaded = file_information.get(file, 0)
                     t.set_postfix(file_name=file.split('/')[-1],
-                                    file_size=f'{file_size_uploaded} B', refresh=True)
+                                  file_size=f'{file_size_uploaded} B', refresh=True)
                     t.update(file_size_uploaded)
 
     path_checksums.sort()
@@ -1007,21 +1007,10 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
 
         # Auth check passed
         print(json.dumps({'status': 'pass'}))
-        sys.exit(0)
 
     except osmo_errors.OSMOCredentialError as err:
         # Auth check failed (credentials issue)
         print(json.dumps({'status': 'fail', 'error': str(err)}))
-        sys.exit(0)
-
-    except osmo_errors.OSMOError as err:
-        # Execution error (service issue, network problem, etc.)
-        print(json.dumps({'status': 'error', 'error': str(err)}))
-        sys.exit(1)
-
-    except Exception as err:  # pylint: disable=broad-except
-        print(json.dumps({'status': 'error', 'error': f'Unexpected error: {str(err)}'}))
-        sys.exit(1)
 
 
 def setup_parser(parser: argparse._SubParsersAction):
@@ -1080,12 +1069,12 @@ def setup_parser(parser: argparse._SubParsersAction):
     upload_parser.add_argument('--metadata', '-m',
                                nargs='+',
                                default=[],
-                               help='Yaml files of metadata to '\
+                               help='Yaml files of metadata to '
                                     'assign to dataset version').complete = shtab.FILE
     upload_parser.add_argument('--labels', '-l',
                                nargs='+',
                                default=[],
-                               help='Yaml files of labels to '\
+                               help='Yaml files of labels to '
                                     'assign to dataset').complete = shtab.FILE
     upload_parser.add_argument('--regex', '-x',
                                type=validation.is_regex,
@@ -1145,7 +1134,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                                       '[bucket/]DS[:tag/version].')
     download_parser.add_argument('path', type=validation.valid_path,
                                  help='Location where the dataset is downloaded to.').complete = \
-                                    shtab.FILE
+        shtab.FILE
     download_parser.add_argument('--regex', '-x',
                                  type=validation.is_regex,
                                  help='Regex to filter which types of files to download')
@@ -1312,15 +1301,15 @@ def setup_parser(parser: argparse._SubParsersAction):
                               dest='set',
                               nargs='+',
                               default=[],
-                              help='Set label for dataset in the form '\
-                                   '"<key>:<type>:<value>" where type is '\
-                                   'string or numeric'\
+                              help='Set label for dataset in the form '
+                                   '"<key>:<type>:<value>" where type is '
+                                   'string or numeric'
                                    'or the file-path').complete = shtab.FILE
     label_parser.add_argument('--delete', '-d',
                               dest='delete',
                               nargs='+',
                               default=[],
-                              help='Delete labels from dataset in the form "<key>"'\
+                              help='Delete labels from dataset in the form "<key>"'
                                    'or the file-path').complete = shtab.FILE
     label_parser.add_argument('--format-type', '-t',
                               dest='format_type',
@@ -1346,7 +1335,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  default=[],
                                  help='Set metadata from dataset in the form '
                                       '"<key>:<type>:<value>" where type is '
-                                      'string or numeric'\
+                                      'string or numeric'
                                       'or the file-path').complete = shtab.FILE
     metadata_parser.add_argument('--delete', '-d',
                                  dest='delete',
@@ -1402,9 +1391,9 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     # Handle 'inspect' command
     inspect_parser = subparsers.add_parser('inspect',
-                                        help='Display Dataset Directory',
-                                        epilog='Ex. osmo dataset inspect DS1:latest ' +
-                                               '--format-type json')
+                                           help='Display Dataset Directory',
+                                           epilog='Ex. osmo dataset inspect DS1:latest ' +
+                                           '--format-type json')
     inspect_parser.add_argument('name',
                                 help='Dataset name. Specify bucket and ' +
                                      'tag/version with [bucket/]DS[:tag/version].')

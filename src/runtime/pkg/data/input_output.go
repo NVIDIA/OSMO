@@ -937,11 +937,6 @@ func ValidateDataAuth(value string, userConfig string, osmoChan chan string) err
 		osmoChan <- fmt.Sprintf("Data auth validation successful for %s", logInfo)
 		return nil
 
-	case "error":
-		errMsg := fmt.Sprintf("Data auth validation error for %s: %s", logInfo, result.Error)
-		osmoChan <- errMsg
-		return fmt.Errorf("%s", errMsg)
-
 	case "fail":
 		errMsg := fmt.Sprintf("Data auth validation failed for %s: %s", logInfo, result.Error)
 		osmoChan <- errMsg
