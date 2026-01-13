@@ -64,6 +64,37 @@ const nextConfig: NextConfig = {
   experimental: {
     // CSS optimization - extract and inline critical CSS
     optimizeCss: true,
+
+    // Optimize package imports for libraries with many named exports
+    // This ensures only used exports are bundled, reducing bundle size
+    // Note: lucide-react is auto-optimized by Next.js
+    // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/optimizePackageImports
+    optimizePackageImports: [
+      // Radix UI components (many named exports per package)
+      "@radix-ui/react-collapsible",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-progress",
+      "@radix-ui/react-select",
+      "@radix-ui/react-separator",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-toggle",
+      "@radix-ui/react-tooltip",
+      // TanStack libraries
+      "@tanstack/react-table",
+      // Drag and drop
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@dnd-kit/utilities",
+      // Hooks libraries
+      "usehooks-ts",
+      "@react-hookz/web",
+      // Other utilities
+      "cmdk",
+      "nuqs",
+      "class-variance-authority",
+    ],
   },
 
   // Compiler optimizations
