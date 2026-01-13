@@ -54,6 +54,11 @@ interface TimelinePhase {
 // Helper Functions
 // ============================================================================
 
+/**
+ * Parse timestamp string to Date.
+ * Timestamps are normalized in the adapter layer (useWorkflow hook),
+ * so we can safely use new Date() directly.
+ */
 function parseTime(timeStr?: string | null): Date | null {
   if (!timeStr) return null;
   return new Date(timeStr);
@@ -89,7 +94,7 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
   const isRunning = statusCategory === "running";
   const isPending = statusCategory === "waiting";
 
-  // Parse timestamps
+  // Parse timestamps (normalized in adapter layer)
   const schedulingStart = parseTime(task.scheduling_start_time);
   const initializingStart = parseTime(task.initializing_start_time);
   const inputDownloadStart = parseTime(task.input_download_start_time);
@@ -176,6 +181,41 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
         duration: calculatePhaseDuration(outputUploadStart, uploadEnd),
         status: uploadActive ? "active" : uploadEnd ? "completed" : "pending",
       });
+    }
+
+    // Sort phases by start time to ensure chronological order
+    result.sort((a, b) => {
+      if (!a.startTime) return 1; // Phases without start time go to the end
+      if (!b.startTime) return -1;
+      return a.startTime.getTime() - b.startTime.getTime();
+    });
+
+    // Recalculate endTime, duration, and status to ensure contiguous segments
+    // Each phase's end time should be the next phase's start time
+    for (let i = 0; i < result.length; i++) {
+      const phase = result[i];
+      const nextPhase = result[i + 1];
+      const isLastPhase = i === result.length - 1;
+
+      if (nextPhase?.startTime) {
+        // This phase ends when the next phase starts
+        phase.endTime = nextPhase.startTime;
+        // Any phase followed by another phase is completed
+        phase.status = "completed";
+      } else if (isLastPhase) {
+        // Last phase: ends at task end time (for completed/failed) or now (for running)
+        phase.endTime = endTime;
+        // Last phase status depends on task state
+        if (isRunning && !endTime) {
+          phase.status = "active";
+        } else if (endTime) {
+          phase.status = "completed";
+        }
+      }
+
+      // Recalculate duration based on corrected endTime (minimum 1 second for layout)
+      const rawDuration = calculatePhaseDuration(phase.startTime, phase.endTime);
+      phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
     }
 
     return result;
@@ -272,11 +312,15 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
                     </TooltipContent>
                   </Tooltip>
 
-                  {/* Segment */}
+                  {/* Segment - styled based on destination (outcome for last phase) */}
                   <div
                     className={cn(
                       "h-1 flex-1",
-                      phase.status === "completed" && "timeline-segment-completed",
+                      // Last phase segment reflects the final outcome
+                      isLast && isFailed && "timeline-segment-failed",
+                      isLast && isCompleted && "timeline-segment-completed",
+                      // Non-last phase segments use their own status
+                      !isLast && phase.status === "completed" && "timeline-segment-completed",
                       phase.status === "active" && "timeline-active-segment",
                       phase.status === "pending" && "border-t border-dashed border-gray-400 dark:border-zinc-600",
                     )}
@@ -305,17 +349,17 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
                       </TooltipContent>
                     </Tooltip>
                   )}
+
+                  {/* Running indicator (inside last phase for proper flex distribution) */}
+                  {isLast && isRunning && (
+                    <div
+                      className="timeline-marker-running relative z-10 size-2.5 shrink-0 animate-pulse rounded-full border-2"
+                      aria-hidden="true"
+                    />
+                  )}
                 </div>
               );
             })}
-
-            {/* Running indicator */}
-            {isRunning && (
-              <div
-                className="timeline-marker-running relative z-10 size-2.5 shrink-0 animate-pulse rounded-full border-2"
-                aria-hidden="true"
-              />
-            )}
           </div>
 
           {/* Phase labels */}
@@ -350,9 +394,9 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
                       )}
                     >
                       {formatDuration(phase.duration)}
-                      {phase.status === "active" && "..."}
                     </span>
                   )}
+                  {/* End label for last phase */}
                   {isLast && (isCompleted || isFailed) && (
                     <span
                       className={cn(
@@ -364,14 +408,12 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
                       {isCompleted ? "Done" : "Failed"}
                     </span>
                   )}
+                  {isLast && isRunning && (
+                    <span className="timeline-text-running absolute right-0 text-[10px] font-medium">now</span>
+                  )}
                 </div>
               );
             })}
-            {isRunning && (
-              <div className="flex flex-col">
-                <span className="timeline-text-running text-[10px] font-medium">now</span>
-              </div>
-            )}
           </div>
         </div>
       </div>
