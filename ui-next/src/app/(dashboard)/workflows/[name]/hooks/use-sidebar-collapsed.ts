@@ -53,29 +53,44 @@ export function useSidebarCollapsed({ hasSelection, selectionKey }: UseSidebarCo
   // This is the user's manual collapse action that persists until next navigation
   const [userCollapsed, setUserCollapsed] = useState(false);
 
+  // Track whether we've navigated during this session (to distinguish initial load from back-navigation)
+  const [hasNavigatedThisSession, setHasNavigatedThisSession] = useState(false);
+
   // Track previous selection key to detect navigation
   const prevSelectionKeyRef = useRef<string | null>(null);
+  const prevHasSelectionRef = useRef<boolean>(hasSelection);
 
   // Auto-expand on ANY navigation (click or URL change)
   // Using layout effect to update state before render to avoid flicker
   useIsomorphicLayoutEffect(() => {
     // Detect if selection changed (navigation occurred)
     const prevKey = prevSelectionKeyRef.current;
+    const prevHasSelection = prevHasSelectionRef.current;
     const navigationOccurred = selectionKey !== prevKey && selectionKey !== null;
 
     if (navigationOccurred) {
       // Any navigation auto-expands the panel
       setUserCollapsed(false);
+      setHasNavigatedThisSession(true);
     }
 
-    // Update ref for next comparison
+    // When navigating BACK to workflow (from selection to no selection),
+    // keep the panel expanded (don't snap back to preference)
+    if (prevHasSelection && !hasSelection && hasNavigatedThisSession) {
+      // We're navigating back to workflow view - keep panel expanded
+      setUserCollapsed(false);
+    }
+
+    // Update refs for next comparison
     prevSelectionKeyRef.current = selectionKey;
-  }, [selectionKey]);
+    prevHasSelectionRef.current = hasSelection;
+  }, [selectionKey, hasSelection, hasNavigatedThisSession]);
 
   // Derive collapsed state:
-  // - No selection: use user preference
-  // - Has selection: use global userCollapsed state
-  const collapsed = hasSelection ? userCollapsed : preferredCollapsed;
+  // - No selection + never navigated this session: use user preference (initial page load)
+  // - No selection + has navigated this session: use userCollapsed (keep panel open after back-nav)
+  // - Has selection: use userCollapsed
+  const collapsed = hasSelection || hasNavigatedThisSession ? userCollapsed : preferredCollapsed;
 
   // Toggle collapsed state - stable callback for memoized children
   const toggle = useEventCallback(() => {

@@ -28,19 +28,20 @@
 
 import { faker } from "@faker-js/faker";
 
-// Import status enums from generated API spec - prevents drift!
-import { WorkflowStatus, TaskGroupStatus } from "@/lib/api/generated";
+// Import status and priority enums from generated API spec - prevents drift!
+import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/generated";
 
 import { MOCK_CONFIG, type WorkflowPatterns } from "../seed";
 
-// Re-export status enums
-export { WorkflowStatus, TaskGroupStatus };
+// Re-export status and priority enums
+export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
 // ============================================================================
 // Mock Types (spec-compatible but simplified for mock generation)
 // ============================================================================
 
-export type Priority = "LOW" | "NORMAL" | "HIGH";
+/** Priority type derived from generated WorkflowPriority enum */
+export type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
 
 export interface MockTask {
   name: string;

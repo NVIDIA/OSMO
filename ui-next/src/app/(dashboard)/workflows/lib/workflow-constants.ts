@@ -27,7 +27,7 @@
  * 3. The detail view needs extra fields (color, strokeColor) for ReactFlow rendering
  */
 
-import type { WorkflowStatus } from "@/lib/api/generated";
+import { WorkflowStatus, WorkflowPriority, type WorkflowStatus as WorkflowStatusType } from "@/lib/api/generated";
 
 // =============================================================================
 // Status Categories
@@ -38,57 +38,59 @@ export type StatusCategory = "waiting" | "running" | "completed" | "failed" | "u
 /**
  * Map workflow status to display category.
  * Categories are used for styling and grouping.
+ * Uses generated WorkflowStatus enum values for type safety.
  */
-export const STATUS_CATEGORY_MAP: Record<WorkflowStatus, StatusCategory> = {
+export const STATUS_CATEGORY_MAP: Record<WorkflowStatusType, StatusCategory> = {
   // Waiting states
-  PENDING: "waiting",
-  WAITING: "waiting",
+  [WorkflowStatus.PENDING]: "waiting",
+  [WorkflowStatus.WAITING]: "waiting",
   // Running states
-  RUNNING: "running",
+  [WorkflowStatus.RUNNING]: "running",
   // Completed states
-  COMPLETED: "completed",
+  [WorkflowStatus.COMPLETED]: "completed",
   // Failed states
-  FAILED: "failed",
-  FAILED_SUBMISSION: "failed",
-  FAILED_SERVER_ERROR: "failed",
-  FAILED_EXEC_TIMEOUT: "failed",
-  FAILED_QUEUE_TIMEOUT: "failed",
-  FAILED_CANCELED: "failed",
-  FAILED_BACKEND_ERROR: "failed",
-  FAILED_IMAGE_PULL: "failed",
-  FAILED_EVICTED: "failed",
-  FAILED_START_ERROR: "failed",
-  FAILED_START_TIMEOUT: "failed",
-  FAILED_PREEMPTED: "failed",
+  [WorkflowStatus.FAILED]: "failed",
+  [WorkflowStatus.FAILED_SUBMISSION]: "failed",
+  [WorkflowStatus.FAILED_SERVER_ERROR]: "failed",
+  [WorkflowStatus.FAILED_EXEC_TIMEOUT]: "failed",
+  [WorkflowStatus.FAILED_QUEUE_TIMEOUT]: "failed",
+  [WorkflowStatus.FAILED_CANCELED]: "failed",
+  [WorkflowStatus.FAILED_BACKEND_ERROR]: "failed",
+  [WorkflowStatus.FAILED_IMAGE_PULL]: "failed",
+  [WorkflowStatus.FAILED_EVICTED]: "failed",
+  [WorkflowStatus.FAILED_START_ERROR]: "failed",
+  [WorkflowStatus.FAILED_START_TIMEOUT]: "failed",
+  [WorkflowStatus.FAILED_PREEMPTED]: "failed",
 };
 
 /**
- * Human-readable labels for workflow statuses (lowercase, actual status names).
+ * Human-readable labels for workflow statuses.
+ * Uses generated WorkflowStatus enum values for type safety.
  */
-export const STATUS_LABELS: Record<WorkflowStatus, string> = {
-  PENDING: "Pending",
-  WAITING: "Waiting",
-  RUNNING: "Running",
-  COMPLETED: "Completed",
-  FAILED: "Failed",
-  FAILED_SUBMISSION: "Failed: Submission",
-  FAILED_SERVER_ERROR: "Failed: Server Error",
-  FAILED_EXEC_TIMEOUT: "Failed: Exec Timeout",
-  FAILED_QUEUE_TIMEOUT: "Failed: Queue Timeout",
-  FAILED_CANCELED: "Failed: Canceled",
-  FAILED_BACKEND_ERROR: "Failed: Backend Error",
-  FAILED_IMAGE_PULL: "Failed: Image Pull",
-  FAILED_EVICTED: "Failed: Evicted",
-  FAILED_START_ERROR: "Failed: Start Error",
-  FAILED_START_TIMEOUT: "Failed: Start Timeout",
-  FAILED_PREEMPTED: "Failed: Preempted",
+export const STATUS_LABELS: Record<WorkflowStatusType, string> = {
+  [WorkflowStatus.PENDING]: "Pending",
+  [WorkflowStatus.WAITING]: "Waiting",
+  [WorkflowStatus.RUNNING]: "Running",
+  [WorkflowStatus.COMPLETED]: "Completed",
+  [WorkflowStatus.FAILED]: "Failed",
+  [WorkflowStatus.FAILED_SUBMISSION]: "Failed: Submission",
+  [WorkflowStatus.FAILED_SERVER_ERROR]: "Failed: Server Error",
+  [WorkflowStatus.FAILED_EXEC_TIMEOUT]: "Failed: Exec Timeout",
+  [WorkflowStatus.FAILED_QUEUE_TIMEOUT]: "Failed: Queue Timeout",
+  [WorkflowStatus.FAILED_CANCELED]: "Failed: Canceled",
+  [WorkflowStatus.FAILED_BACKEND_ERROR]: "Failed: Backend Error",
+  [WorkflowStatus.FAILED_IMAGE_PULL]: "Failed: Image Pull",
+  [WorkflowStatus.FAILED_EVICTED]: "Failed: Evicted",
+  [WorkflowStatus.FAILED_START_ERROR]: "Failed: Start Error",
+  [WorkflowStatus.FAILED_START_TIMEOUT]: "Failed: Start Timeout",
+  [WorkflowStatus.FAILED_PREEMPTED]: "Failed: Preempted",
 };
 
 /**
  * Get status display info (category and label).
  * Falls back to "Unknown" category for unrecognized statuses.
  */
-export function getStatusDisplay(status: WorkflowStatus): { category: StatusCategory; label: string } {
+export function getStatusDisplay(status: WorkflowStatusType): { category: StatusCategory; label: string } {
   return {
     category: STATUS_CATEGORY_MAP[status] ?? "unknown",
     label: STATUS_LABELS[status] ?? status,
@@ -154,9 +156,14 @@ export const STATUS_STYLES: Record<
 // Priority Styling
 // =============================================================================
 
-export type Priority = "HIGH" | "NORMAL" | "LOW";
+/**
+ * Priority type - derived from generated WorkflowPriority enum.
+ * Using the generated type ensures type safety with backend.
+ */
+export type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
 
-const VALID_PRIORITIES: ReadonlySet<string> = new Set(["HIGH", "NORMAL", "LOW"]);
+/** Valid priorities set derived from generated enum for O(1) lookup */
+const VALID_PRIORITIES: ReadonlySet<string> = new Set(Object.values(WorkflowPriority));
 
 /** Type guard for Priority */
 function isPriority(value: string): value is Priority {
@@ -171,17 +178,17 @@ export const PRIORITY_STYLES: Record<
     label: string;
   }
 > = {
-  HIGH: {
+  [WorkflowPriority.HIGH]: {
     bg: "bg-red-100 dark:bg-red-950/60",
     text: "text-red-700 dark:text-red-400",
     label: "High",
   },
-  NORMAL: {
+  [WorkflowPriority.NORMAL]: {
     bg: "bg-zinc-100 dark:bg-zinc-800/60",
     text: "text-zinc-600 dark:text-zinc-400",
     label: "Normal",
   },
-  LOW: {
+  [WorkflowPriority.LOW]: {
     bg: "bg-zinc-100 dark:bg-zinc-800/60",
     text: "text-zinc-500 dark:text-zinc-500",
     label: "Low",
@@ -193,106 +200,98 @@ export function getPriorityDisplay(priority: string): { label: string; bg: strin
   if (isPriority(normalized)) {
     return PRIORITY_STYLES[normalized];
   }
-  return PRIORITY_STYLES.NORMAL;
+  return PRIORITY_STYLES[WorkflowPriority.NORMAL];
 }
 
 // =============================================================================
 // Status Fuzzy Search Index (Fully Static - Zero Runtime Computation)
 // =============================================================================
 
-/** All valid workflow statuses (static array) */
-export const ALL_WORKFLOW_STATUSES: readonly WorkflowStatus[] = [
-  "PENDING",
-  "WAITING",
-  "RUNNING",
-  "COMPLETED",
-  "FAILED",
-  "FAILED_SUBMISSION",
-  "FAILED_SERVER_ERROR",
-  "FAILED_EXEC_TIMEOUT",
-  "FAILED_QUEUE_TIMEOUT",
-  "FAILED_CANCELED",
-  "FAILED_BACKEND_ERROR",
-  "FAILED_IMAGE_PULL",
-  "FAILED_EVICTED",
-  "FAILED_START_ERROR",
-  "FAILED_START_TIMEOUT",
-  "FAILED_PREEMPTED",
-] as const;
+/**
+ * All valid workflow statuses derived from generated enum.
+ * This ensures the list stays in sync with backend automatically.
+ */
+export const ALL_WORKFLOW_STATUSES: readonly WorkflowStatusType[] = Object.values(
+  WorkflowStatus,
+) as WorkflowStatusType[];
 
-/** Static lookup: lowercase label → canonical status */
-const LABEL_TO_STATUS: Readonly<Record<string, WorkflowStatus>> = {
-  pending: "PENDING",
-  waiting: "WAITING",
-  running: "RUNNING",
-  completed: "COMPLETED",
-  failed: "FAILED",
-  "failed: submission": "FAILED_SUBMISSION",
-  "failed: server error": "FAILED_SERVER_ERROR",
-  "failed: exec timeout": "FAILED_EXEC_TIMEOUT",
-  "failed: queue timeout": "FAILED_QUEUE_TIMEOUT",
-  "failed: canceled": "FAILED_CANCELED",
-  "failed: backend error": "FAILED_BACKEND_ERROR",
-  "failed: image pull": "FAILED_IMAGE_PULL",
-  "failed: evicted": "FAILED_EVICTED",
-  "failed: start error": "FAILED_START_ERROR",
-  "failed: start timeout": "FAILED_START_TIMEOUT",
-  "failed: preempted": "FAILED_PREEMPTED",
+/** Static lookup: lowercase label → canonical status (using generated enum values) */
+const LABEL_TO_STATUS: Readonly<Record<string, WorkflowStatusType>> = {
+  pending: WorkflowStatus.PENDING,
+  waiting: WorkflowStatus.WAITING,
+  running: WorkflowStatus.RUNNING,
+  completed: WorkflowStatus.COMPLETED,
+  failed: WorkflowStatus.FAILED,
+  "failed: submission": WorkflowStatus.FAILED_SUBMISSION,
+  "failed: server error": WorkflowStatus.FAILED_SERVER_ERROR,
+  "failed: exec timeout": WorkflowStatus.FAILED_EXEC_TIMEOUT,
+  "failed: queue timeout": WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+  "failed: canceled": WorkflowStatus.FAILED_CANCELED,
+  "failed: backend error": WorkflowStatus.FAILED_BACKEND_ERROR,
+  "failed: image pull": WorkflowStatus.FAILED_IMAGE_PULL,
+  "failed: evicted": WorkflowStatus.FAILED_EVICTED,
+  "failed: start error": WorkflowStatus.FAILED_START_ERROR,
+  "failed: start timeout": WorkflowStatus.FAILED_START_TIMEOUT,
+  "failed: preempted": WorkflowStatus.FAILED_PREEMPTED,
 };
 
-/** Static lookup: token → statuses containing that token */
-const TOKEN_TO_STATUSES: Readonly<Record<string, readonly WorkflowStatus[]>> = {
-  pending: ["PENDING"],
-  waiting: ["WAITING"],
-  running: ["RUNNING"],
-  completed: ["COMPLETED"],
+/** Static lookup: token → statuses containing that token (using generated enum values) */
+const TOKEN_TO_STATUSES: Readonly<Record<string, readonly WorkflowStatusType[]>> = {
+  pending: [WorkflowStatus.PENDING],
+  waiting: [WorkflowStatus.WAITING],
+  running: [WorkflowStatus.RUNNING],
+  completed: [WorkflowStatus.COMPLETED],
   failed: [
-    "FAILED",
-    "FAILED_SUBMISSION",
-    "FAILED_SERVER_ERROR",
-    "FAILED_EXEC_TIMEOUT",
-    "FAILED_QUEUE_TIMEOUT",
-    "FAILED_CANCELED",
-    "FAILED_BACKEND_ERROR",
-    "FAILED_IMAGE_PULL",
-    "FAILED_EVICTED",
-    "FAILED_START_ERROR",
-    "FAILED_START_TIMEOUT",
-    "FAILED_PREEMPTED",
+    WorkflowStatus.FAILED,
+    WorkflowStatus.FAILED_SUBMISSION,
+    WorkflowStatus.FAILED_SERVER_ERROR,
+    WorkflowStatus.FAILED_EXEC_TIMEOUT,
+    WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+    WorkflowStatus.FAILED_CANCELED,
+    WorkflowStatus.FAILED_BACKEND_ERROR,
+    WorkflowStatus.FAILED_IMAGE_PULL,
+    WorkflowStatus.FAILED_EVICTED,
+    WorkflowStatus.FAILED_START_ERROR,
+    WorkflowStatus.FAILED_START_TIMEOUT,
+    WorkflowStatus.FAILED_PREEMPTED,
   ],
-  submission: ["FAILED_SUBMISSION"],
-  server: ["FAILED_SERVER_ERROR"],
-  error: ["FAILED_SERVER_ERROR", "FAILED_BACKEND_ERROR", "FAILED_START_ERROR"],
-  exec: ["FAILED_EXEC_TIMEOUT"],
-  timeout: ["FAILED_EXEC_TIMEOUT", "FAILED_QUEUE_TIMEOUT", "FAILED_START_TIMEOUT"],
-  queue: ["FAILED_QUEUE_TIMEOUT"],
-  canceled: ["FAILED_CANCELED"],
-  backend: ["FAILED_BACKEND_ERROR"],
-  image: ["FAILED_IMAGE_PULL"],
-  pull: ["FAILED_IMAGE_PULL"],
-  evicted: ["FAILED_EVICTED"],
-  start: ["FAILED_START_ERROR", "FAILED_START_TIMEOUT"],
-  preempted: ["FAILED_PREEMPTED"],
+  submission: [WorkflowStatus.FAILED_SUBMISSION],
+  server: [WorkflowStatus.FAILED_SERVER_ERROR],
+  error: [WorkflowStatus.FAILED_SERVER_ERROR, WorkflowStatus.FAILED_BACKEND_ERROR, WorkflowStatus.FAILED_START_ERROR],
+  exec: [WorkflowStatus.FAILED_EXEC_TIMEOUT],
+  timeout: [
+    WorkflowStatus.FAILED_EXEC_TIMEOUT,
+    WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+    WorkflowStatus.FAILED_START_TIMEOUT,
+  ],
+  queue: [WorkflowStatus.FAILED_QUEUE_TIMEOUT],
+  canceled: [WorkflowStatus.FAILED_CANCELED],
+  backend: [WorkflowStatus.FAILED_BACKEND_ERROR],
+  image: [WorkflowStatus.FAILED_IMAGE_PULL],
+  pull: [WorkflowStatus.FAILED_IMAGE_PULL],
+  evicted: [WorkflowStatus.FAILED_EVICTED],
+  start: [WorkflowStatus.FAILED_START_ERROR, WorkflowStatus.FAILED_START_TIMEOUT],
+  preempted: [WorkflowStatus.FAILED_PREEMPTED],
 };
 
-/** Static lookup: status → its tokens (for scoring) */
-const STATUS_TOKENS: Readonly<Record<WorkflowStatus, readonly string[]>> = {
-  PENDING: ["pending"],
-  WAITING: ["waiting"],
-  RUNNING: ["running"],
-  COMPLETED: ["completed"],
-  FAILED: ["failed"],
-  FAILED_SUBMISSION: ["failed", "submission"],
-  FAILED_SERVER_ERROR: ["failed", "server", "error"],
-  FAILED_EXEC_TIMEOUT: ["failed", "exec", "timeout"],
-  FAILED_QUEUE_TIMEOUT: ["failed", "queue", "timeout"],
-  FAILED_CANCELED: ["failed", "canceled"],
-  FAILED_BACKEND_ERROR: ["failed", "backend", "error"],
-  FAILED_IMAGE_PULL: ["failed", "image", "pull"],
-  FAILED_EVICTED: ["failed", "evicted"],
-  FAILED_START_ERROR: ["failed", "start", "error"],
-  FAILED_START_TIMEOUT: ["failed", "start", "timeout"],
-  FAILED_PREEMPTED: ["failed", "preempted"],
+/** Static lookup: status → its tokens (for scoring). Uses generated enum values. */
+const STATUS_TOKENS: Readonly<Record<WorkflowStatusType, readonly string[]>> = {
+  [WorkflowStatus.PENDING]: ["pending"],
+  [WorkflowStatus.WAITING]: ["waiting"],
+  [WorkflowStatus.RUNNING]: ["running"],
+  [WorkflowStatus.COMPLETED]: ["completed"],
+  [WorkflowStatus.FAILED]: ["failed"],
+  [WorkflowStatus.FAILED_SUBMISSION]: ["failed", "submission"],
+  [WorkflowStatus.FAILED_SERVER_ERROR]: ["failed", "server", "error"],
+  [WorkflowStatus.FAILED_EXEC_TIMEOUT]: ["failed", "exec", "timeout"],
+  [WorkflowStatus.FAILED_QUEUE_TIMEOUT]: ["failed", "queue", "timeout"],
+  [WorkflowStatus.FAILED_CANCELED]: ["failed", "canceled"],
+  [WorkflowStatus.FAILED_BACKEND_ERROR]: ["failed", "backend", "error"],
+  [WorkflowStatus.FAILED_IMAGE_PULL]: ["failed", "image", "pull"],
+  [WorkflowStatus.FAILED_EVICTED]: ["failed", "evicted"],
+  [WorkflowStatus.FAILED_START_ERROR]: ["failed", "start", "error"],
+  [WorkflowStatus.FAILED_START_TIMEOUT]: ["failed", "start", "timeout"],
+  [WorkflowStatus.FAILED_PREEMPTED]: ["failed", "preempted"],
 };
 
 /** Valid status set for O(1) exact match lookup */
@@ -313,11 +312,11 @@ function tokenize(str: string): string[] {
  */
 export interface StatusMatchResult {
   /** The canonical status if matched, null if no match */
-  status: WorkflowStatus | null;
+  status: WorkflowStatusType | null;
   /** Confidence score: 1.0 = exact/full match, 0-1 = partial */
   confidence: number;
   /** All statuses that partially match (for suggestions) */
-  candidates: WorkflowStatus[];
+  candidates: WorkflowStatusType[];
 }
 
 /**
@@ -341,7 +340,7 @@ export function matchStatus(input: string): StatusMatchResult {
   // 1. Exact match (fastest path) - O(1) Set lookup
   const exactUpper = trimmed.toUpperCase();
   if (VALID_STATUSES.has(exactUpper)) {
-    const status = exactUpper as WorkflowStatus;
+    const status = exactUpper as WorkflowStatusType;
     return { status, confidence: 1.0, candidates: [status] };
   }
 
@@ -358,7 +357,7 @@ export function matchStatus(input: string): StatusMatchResult {
   }
 
   // Find statuses that contain ALL input tokens (intersection)
-  let candidates: WorkflowStatus[] | null = null;
+  let candidates: WorkflowStatusType[] | null = null;
 
   for (const token of inputTokens) {
     const matching = TOKEN_TO_STATUSES[token];
@@ -395,7 +394,7 @@ export function matchStatus(input: string): StatusMatchResult {
   }
 
   // Multiple candidates - find best match by token coverage
-  let bestStatus: WorkflowStatus | null = null;
+  let bestStatus: WorkflowStatusType | null = null;
   let bestConfidence = 0;
 
   for (const status of candidateArray) {
@@ -422,7 +421,7 @@ export function matchStatus(input: string): StatusMatchResult {
  * @param limit - Maximum suggestions to return
  * @returns Array of matching statuses, best matches first
  */
-export function getStatusSuggestions(input: string, limit = 10): WorkflowStatus[] {
+export function getStatusSuggestions(input: string, limit = 10): WorkflowStatusType[] {
   const result = matchStatus(input);
 
   // Sort candidates: higher confidence (more tokens matched) first
@@ -445,7 +444,7 @@ export function getStatusSuggestions(input: string, limit = 10): WorkflowStatus[
  * @param input - Current user input
  * @returns The status to autocomplete to, or null if not confident enough
  */
-export function shouldTabComplete(input: string): WorkflowStatus | null {
+export function shouldTabComplete(input: string): WorkflowStatusType | null {
   const result = matchStatus(input);
 
   // Tab complete if:

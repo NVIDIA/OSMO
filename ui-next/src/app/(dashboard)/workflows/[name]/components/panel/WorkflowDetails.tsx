@@ -30,8 +30,8 @@
 
 "use client";
 
-import { memo, useMemo, useState, useRef } from "react";
-import { useInterval, useResizeObserver } from "usehooks-ts";
+import { memo, useMemo, useState } from "react";
+import { useInterval } from "usehooks-ts";
 import { useDocumentVisibility } from "@react-hookz/web";
 import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XCircle, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,7 @@ import { formatDuration } from "../../lib/workflow-types";
 import { getStatusIcon } from "../../lib/status";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../lib/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
+import { Timeline, type TimelinePhase } from "./Timeline";
 
 // =============================================================================
 // Helper Functions
@@ -60,31 +61,18 @@ function parseTime(timeStr?: string | null): Date | null {
 // Styling Constants (Single Source of Truth)
 // =============================================================================
 
-/** Minimum width per timeline phase (in pixels) for horizontal layout to be comfortable */
-const MIN_WIDTH_PER_PHASE = 120;
-
 /** Reusable style patterns for consistent styling across the component */
 const STYLES = {
   /** Section header styling (matches pools panel) */
   sectionHeader: "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase",
-  /** Timeline vertical layout padding */
-  timelineVertical: "px-2 pt-1",
   /** Sub-header styling (e.g., Tags label) */
   subHeader: "text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium",
-  /** Small label text */
-  smallLabel: "text-xs",
-  /** Muted text colors */
-  mutedText: "text-muted-foreground",
-  /** Secondary/subtle text */
-  subtleText: "text-xs text-muted-foreground/70",
   /** Inline separator dot */
   separator: "text-muted-foreground/50",
   /** Divider styling */
   divider: "border-border",
   /** Tag pill styling */
   tagPill: "rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground",
-  /** Timeline pending border */
-  timelinePending: "border-dashed border-border",
   /** External link styling */
   link: "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted",
   /** Priority badge variants */
@@ -104,6 +92,10 @@ export interface WorkflowDetailsProps {
   onClose: () => void;
   onCancel?: () => void;
   onPanelResize?: (pct: number) => void;
+  /** Whether the header details section is expanded (global for page) */
+  isDetailsExpanded?: boolean;
+  /** Toggle the details expansion state (global for page) */
+  onToggleDetailsExpanded?: () => void;
 }
 
 // =============================================================================
@@ -170,8 +162,8 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
   );
 });
 
-/** Responsive timeline (horizontal when space allows, vertical otherwise) */
-const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryResponse }) {
+/** Workflow timeline using the shared Timeline component */
+const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow: WorkflowQueryResponse }) {
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const isCompleted = statusCategory === "completed";
@@ -191,34 +183,9 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
     return Math.floor((end.getTime() - startTime.getTime()) / 1000);
   }, [startTime, endTime]);
 
-  const formatTime = (date: Date | null) => {
-    if (!date) return "";
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    if (isToday) {
-      return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-    }
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  interface Phase {
-    id: string;
-    label: string;
-    time: Date | null;
-    annotation?: string;
-    status: "completed" | "active" | "pending" | "failed";
-    /** Duration of this phase in seconds (used for proportional width in horizontal layout) */
-    duration: number | null;
-  }
-
-  const phases = useMemo<Phase[]>(() => {
-    const result: Phase[] = [];
+  // Build phases for the Timeline component
+  const phases = useMemo<TimelinePhase[]>(() => {
+    const result: TimelinePhase[] = [];
 
     if (submitTime) {
       // Submitted phase duration = time spent queued (until started)
@@ -284,192 +251,14 @@ const Timeline = memo(function Timeline({ workflow }: { workflow: WorkflowQueryR
     return result;
   }, [submitTime, startTime, endTime, queuedDuration, runningDuration, isCompleted, isFailed, isRunning]);
 
-  // Content-aware layout: measure container and switch layout based on phases
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Calculate minimum width needed for horizontal layout based on number of phases
-  const minWidthForHorizontal = phases.length * MIN_WIDTH_PER_PHASE;
-
-  // Use useResizeObserver for efficient container dimension tracking
-  const { width: containerWidth = 0 } = useResizeObserver({
-    ref: containerRef as React.RefObject<HTMLElement>,
-    box: "content-box",
-  });
-
-  const useHorizontal = containerWidth >= minWidthForHorizontal;
-
   if (phases.length === 0) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-col"
-    >
-      <h3 className={STYLES.sectionHeader}>Timeline</h3>
-
-      {/* Vertical layout (for narrow containers or many phases) */}
-      {!useHorizontal && (
-        <div className={STYLES.timelineVertical}>
-          {phases.map((phase, index) => {
-            const isLast = index === phases.length - 1;
-            const nextPhase = phases[index + 1];
-            return (
-              <div
-                key={phase.id}
-                className="flex gap-3"
-              >
-                <div className="flex flex-col items-center">
-                  <div
-                    className={cn(
-                      "size-2 shrink-0 rounded-full border-2",
-                      phase.status === "completed" && "timeline-marker-completed",
-                      phase.status === "failed" && "timeline-marker-failed",
-                      phase.status === "active" && "timeline-marker-running animate-pulse",
-                      phase.status === "pending" && "timeline-marker-pending border-dashed",
-                    )}
-                  />
-                  {/* Segment styled based on NEXT phase (destination) */}
-                  {!isLast && nextPhase && (
-                    <div
-                      className={cn(
-                        "min-h-6 w-0.5 flex-1",
-                        nextPhase.status === "completed" && "timeline-segment-completed",
-                        nextPhase.status === "failed" && "timeline-segment-failed",
-                        nextPhase.status === "active" && "timeline-active-segment",
-                        nextPhase.status === "pending" && cn("border-l", STYLES.timelinePending),
-                      )}
-                    />
-                  )}
-                </div>
-                <div className={cn("flex flex-col pb-4", isLast && "pb-0")}>
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      phase.status === "completed" && "timeline-text-completed",
-                      phase.status === "failed" && "timeline-text-failed",
-                      phase.status === "active" && "timeline-text-running",
-                      phase.status === "pending" && "timeline-text-pending",
-                    )}
-                  >
-                    {phase.label}
-                  </span>
-                  {phase.time && <span className={STYLES.subtleText}>{formatTime(phase.time)}</span>}
-                  {phase.annotation && (
-                    <span
-                      className={cn(
-                        STYLES.smallLabel,
-                        phase.status === "active" ? "timeline-text-running" : STYLES.mutedText,
-                      )}
-                    >
-                      {phase.annotation}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Horizontal layout (for wider containers with fewer phases) */}
-      {/* Uses CSS Grid to keep timeline bar and labels aligned; flex-grow for proportional duration sizing */}
-      {useHorizontal && (
-        <div
-          className="grid"
-          style={{
-            // Each phase gets a column; use duration for proportional sizing (fr units)
-            // Fallback to 1fr for phases without duration (terminal/pending states)
-            gridTemplateColumns: phases.map((p) => `minmax(max-content, ${p.duration ?? 1}fr)`).join(" "),
-          }}
-        >
-          {/* Row 1: Timeline bar with markers and segments */}
-          {phases.map((phase, index) => {
-            const isLast = index === phases.length - 1;
-            const nextPhase = phases[index + 1];
-            return (
-              <div
-                key={phase.id}
-                className="flex h-6 items-center"
-              >
-                {/* Connecting segment for last phase (styled based on current/destination phase) */}
-                {isLast && index > 0 && (
-                  <div
-                    className={cn(
-                      "h-1 flex-1",
-                      phase.status === "completed" && "timeline-segment-completed",
-                      phase.status === "failed" && "timeline-segment-failed",
-                      phase.status === "active" && "timeline-active-segment",
-                      phase.status === "pending" && cn("border-t", STYLES.timelinePending),
-                    )}
-                  />
-                )}
-                {/* Phase marker */}
-                <div
-                  className={cn(
-                    "relative z-10 size-2.5 shrink-0 rounded-full border-2",
-                    phase.status === "completed" && "timeline-marker-completed",
-                    phase.status === "failed" && "timeline-marker-failed",
-                    phase.status === "active" && "timeline-marker-running animate-pulse",
-                    phase.status === "pending" && "timeline-marker-pending border-dashed",
-                  )}
-                />
-                {/* Segment to next marker (styled based on next/destination phase) */}
-                {!isLast && nextPhase && (
-                  <div
-                    className={cn(
-                      "h-1 flex-1",
-                      nextPhase.status === "completed" && "timeline-segment-completed",
-                      nextPhase.status === "failed" && "timeline-segment-failed",
-                      nextPhase.status === "active" && "timeline-active-segment",
-                      nextPhase.status === "pending" && cn("border-t", STYLES.timelinePending),
-                    )}
-                  />
-                )}
-              </div>
-            );
-          })}
-
-          {/* Row 2: Phase labels (same grid ensures alignment with markers) */}
-          {phases.map((phase, index) => {
-            const isLast = index === phases.length - 1;
-            return (
-              <div
-                key={`${phase.id}-label`}
-                className={cn(
-                  "mt-1 flex flex-col whitespace-nowrap",
-                  // Add padding between phases; last phase is right-aligned
-                  isLast ? "items-end text-right" : "pr-4",
-                )}
-              >
-                <span
-                  className={cn(
-                    STYLES.smallLabel,
-                    "font-medium",
-                    phase.status === "completed" && "timeline-text-completed",
-                    phase.status === "failed" && "timeline-text-failed",
-                    phase.status === "active" && "timeline-text-running",
-                    phase.status === "pending" && "timeline-text-pending",
-                  )}
-                >
-                  {phase.label}
-                </span>
-                {phase.time && <span className={STYLES.subtleText}>{formatTime(phase.time)}</span>}
-                {phase.annotation && (
-                  <span
-                    className={cn(
-                      STYLES.smallLabel,
-                      phase.status === "active" ? "timeline-text-running" : STYLES.mutedText,
-                    )}
-                  >
-                    {phase.annotation}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    <Timeline
+      phases={phases}
+      showHeader
+      headerText="Timeline"
+    />
   );
 });
 
@@ -568,6 +357,8 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   onClose,
   onCancel,
   onPanelResize,
+  isDetailsExpanded,
+  onToggleDetailsExpanded,
 }: WorkflowDetailsProps) {
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
@@ -585,12 +376,14 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         statusContent={statusContent}
         onClose={onClose}
         onPanelResize={onPanelResize}
+        isExpanded={isDetailsExpanded}
+        onToggleExpand={onToggleDetailsExpanded}
       />
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-4 p-4">
-          <Timeline workflow={workflow} />
+          <WorkflowTimeline workflow={workflow} />
           <hr className={STYLES.divider} />
           <Details workflow={workflow} />
           <hr className={STYLES.divider} />
