@@ -1,0 +1,244 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# OSMO UI Rules
+
+> Next.js 15, React 19, TailwindCSS 4, TanStack Query/Table/Virtual, Zustand, nuqs, shadcn/ui
+
+## Critical: Check Before Creating
+
+| Need | Check First |
+|------|-------------|
+| UI primitives | `@/components/shadcn/` |
+| Composed components | `@/components/` (DataTable, SmartSearch, Panel) |
+| Custom hooks | `@/hooks/` |
+| Store factories | `@/stores/createTableStore` |
+| Utilities | `@/lib/utils.ts` |
+| Library hooks | `usehooks-ts`, `@react-hookz/web` |
+
+**If it exists, use it. If it's close, compose it. Only then create.**
+
+## ALWAYS
+
+- Use shadcn/ui from `@/components/shadcn/` - accessible by default
+- Import from feature public APIs: `import { X } from "@/app/(dashboard)/pools"`
+- Import API types from adapter: `import { usePools, type Pool } from "@/lib/api/adapter"`
+- Use generated enums: `PoolStatus.ONLINE` not `"ONLINE"`
+- Pass data as props (no internal fetching in components)
+- Use Tailwind + CSS variables (not inline styles)
+- Use `transform`/`opacity` for animations (GPU-accelerated)
+- Make keyboard accessible: Enter/Space to activate, Arrow keys to navigate
+- Add NVIDIA copyright header to new files
+- Unit test pure functions (transforms, validators, formatters)
+
+## NEVER
+
+- Reimplement library functionality (TanStack Query/Table/Virtual, nuqs, Zustand)
+- Create parallel implementations - find the canonical module
+- Use magic numbers/strings - extract to constants
+- Deep import: `@/app/(dashboard)/pools/hooks/use-pools-data` ❌
+- Import from `@/lib/api/generated.ts` directly (except enums)
+- Fetch data inside presentational components
+- Use div/span for buttons - use `<button>` or shadcn `<Button>`
+- Create click-only interactions (must work with keyboard)
+- Animate `width`/`height`/`margin` (causes reflow)
+
+## Single Source of Truth
+
+| What | Source |
+|------|--------|
+| Row heights, spacing | `useConfig()` → `table.rowHeights` |
+| Panel widths | `useConfig()` → `panel.*` |
+| API types/hooks | `@/lib/api/adapter/` |
+| Enums | `@/lib/api/generated.ts` |
+| CSS variables | `globals.css` |
+| Feature constants | `feature/lib/constants.ts` |
+| Column configs | `feature/lib/feature-columns.ts` |
+| Clipboard ops | `useServices().clipboard` |
+| Announcements | `useServices().announcer` |
+| URL state | `usePanelState()`, `useUrlChips()` |
+
+## Delegate to Libraries
+
+| Need | Library | NOT |
+|------|---------|-----|
+| Data fetching | TanStack Query | useState + useEffect + fetch |
+| Table sort/filter | TanStack Table | Manual array operations |
+| Virtual scroll | TanStack Virtual | Custom scroll handlers |
+| Form state | React Hook Form + Zod | Custom form state |
+| URL state | nuqs | Custom useSearchParams |
+| Client state | Zustand | Context + reducer |
+| UI primitives | shadcn/ui | Custom buttons, dialogs |
+
+## Architecture
+
+```
+Page → Headless Hook → Adapter Hook → Generated API
+           ↓
+    Components (receive data as props)
+```
+
+## Feature Structure
+
+```
+feature/
+├── index.ts           # PUBLIC API - export here only
+├── page.tsx
+├── hooks/use-feature-data.ts
+├── lib/
+│   ├── constants.ts
+│   ├── feature-columns.ts
+│   └── transforms.ts + transforms.test.ts
+├── components/
+└── stores/feature-table-store.ts
+```
+
+## State Management
+
+```tsx
+// Server state → TanStack Query
+const { pools, isLoading } = usePools();
+
+// Table UI → Zustand
+const { visibleColumnIds } = usePoolsTableStore();
+
+// URL state → nuqs
+const { selection, setSelection } = usePanelState();
+
+// Config → Context
+const { table } = useConfig();
+```
+
+## Consolidated Patterns
+
+```tsx
+// URL state - use this, not raw useQueryState
+const { selection, setSelection, clear } = usePanelState();
+
+// Results count
+const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
+
+// Table states
+if (isLoading) return <TableLoadingSkeleton rowHeight={rowHeight} />;
+if (error) return <TableErrorState error={error} title="Unable to load" onRetry={refetch} />;
+
+// Chip filters
+const filterParams = chipsToParams(searchChips, POOL_CHIP_MAPPING);
+```
+
+## Adapter Pattern
+
+UI expects ideal types. Adapter isolates backend quirks:
+
+```tsx
+// src/lib/api/adapter/hooks.ts
+export function useFeatures() {
+  const query = useGetApiFeatures(); // generated
+  return {
+    features: query.data?.features?.map(transformFeature) ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+}
+```
+
+Document backend issues in `BACKEND_TODOS.md`, not UI workarounds.
+
+## Composition Pattern
+
+```tsx
+// ✅ Compose shadcn primitives
+import { Button } from "@/components/shadcn/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/shadcn/tooltip";
+
+export function CopyButton({ text }: { text: string }) {
+  const { copy, copied } = useCopy();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" onClick={() => copy(text)}>
+          {copied ? <Check /> : <Copy />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ❌ Don't build from scratch
+<button className="custom-btn...">...</button>
+```
+
+## Accessibility
+
+- All interactive elements keyboard accessible
+- Use `useAnnouncer()` for dynamic changes
+- Focus visible: use `.focus-nvidia` class
+- Semantic HTML + ARIA attributes
+
+```tsx
+// ✅ Screen reader announcements
+const { announcer } = useServices();
+await clipboard.copy(text);
+announcer.announce("Copied to clipboard", "polite");
+```
+
+## Performance
+
+- Lists >50 items: TanStack Virtual + `contain-strict`
+- Search inputs: `useDeferredValue`
+- Heavy renders: `startTransition`
+- Scroll containers: `overscroll-behavior: contain`
+
+```tsx
+// Virtual items
+<div className="contain-strict content-visibility-auto"
+     style={{ containIntrinsicSize: 'auto 48px' }}>
+```
+
+## Testing
+
+Unit test pure functions, co-locate with source:
+
+```
+lib/
+├── transforms.ts
+└── transforms.test.ts
+```
+
+```bash
+pnpm test              # Run all
+pnpm test:watch        # Watch mode
+```
+
+## Commands
+
+```bash
+pnpm dev               # Dev server
+pnpm dev:mock          # Mock data (no backend)
+pnpm generate-api      # Regenerate API types
+pnpm type-check        # TypeScript
+pnpm lint              # ESLint
+pnpm test              # Unit tests
+```
+
+## Pre-Commit
+
+```bash
+pnpm type-check && pnpm lint && pnpm test && pnpm build
+```
