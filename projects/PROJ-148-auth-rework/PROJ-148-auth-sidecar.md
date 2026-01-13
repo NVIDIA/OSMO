@@ -485,26 +485,26 @@ bazel test ... --@io_bazel_rules_go//go/config:race
 
 ## Implementation Plan
 
-### Phase 1: Core Service ✅ **COMPLETED**
-- [x] Implement Golang gRPC server with External Authorization API
-- [x] Implement PostgreSQL client with connection pooling
-- [x] Implement role cache with TTL and LRU eviction
-- [x] Add unit tests for all components
-- [x] Create integration tests for service and database
+### Phase 1: Core Service
+- [ ] Implement Golang gRPC server with External Authorization API
+- [ ] Implement PostgreSQL client with connection pooling
+- [ ] Implement role cache with TTL and LRU eviction
+- [ ] Add unit tests for all components
+- [ ] Create integration tests for service and database
 
-### Phase 2: Helm Integration ✅ **COMPLETED**
-- [x] Add authz configuration to `values.yaml`
-- [x] Create sidecar helper template
-- [x] Update Envoy configuration with ext_authz filter
-- [x] Add authz-sidecar cluster definition
-- [x] Inject authz_sidecar into service deployments
+### Phase 2: Helm Integration
+- [ ] Add authz configuration to `values.yaml`
+- [ ] Create sidecar helper template
+- [ ] Update Envoy configuration with ext_authz filter
+- [ ] Add authz-sidecar cluster definition
+- [ ] Inject authz_sidecar into service deployments
 
-### Phase 3: Testing & Validation (IN PROGRESS)
+### Phase 3: Testing & Validation
 - [ ] Deploy to development environment
 - [ ] Integration testing with real workloads
 - [ ] Monitor cache hit rates (target >95%)
 
-### Phase 4: Cleanup (FUTURE)
+### Phase 4: Cleanup
 - [ ] Remove Python `AccessControlMiddleware` from services
 - [ ] Remove `check_user_access()` function calls
 - [ ] Update documentation to reflect new architecture

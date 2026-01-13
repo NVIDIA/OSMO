@@ -57,9 +57,8 @@ This approach has several limitations:
 |---|---|
 | Define a read-only role | Admin creates a role that can view workflows and tasks but cannot create, modify, or delete them using `workflow:Read` action |
 | Grant workflow management | User role includes `workflow:*` to allow all workflow operations (create, read, update, delete, cancel, clone) |
-| Restrict pool deletion | Admin creates a policy with `Deny` effect on `pool:Delete` for production pools to prevent accidental deletion |
 | Backend service access | Internal services use `internal:Operator` action to access agent APIs without exposing those endpoints to regular users |
-| Audit role permissions | Admin reviews a role's policy and immediately understands what it allows (e.g., `bucket:Read`, `bucket:Write`) without tracing API paths |
+| Audit role permissions | Admin reviews a role's policy and immediately understands what it allows (e.g., `dataset:Read`, `dataset:Create`) without tracing API paths |
 | Add new API endpoint | Developer adds `POST /api/workflow/{id}/archive` and corresponding `workflow:Archive` action in the same PR |
 
 ## Requirements
@@ -85,7 +84,7 @@ This approach has several limitations:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     RESOURCE-ACTION PERMISSION MODEL                         │
+│                     RESOURCE-ACTION PERMISSION MODEL                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  LAYER 1: Action Registry (Static, Code-defined)                            │
@@ -140,7 +139,7 @@ The action registry is defined in code (not database) for several reasons:
 │  task                Read, Update, Cancel,      pool / user                 │
 │                      Exec, PortForward, Rsync                               │
 │                                                                             │
-│  bucket              Create, Read, Write,       bucket                      │
+│  dataset             Create, Read, Write,       bucket                      │
 │                      Delete, List                                           │
 │                                                                             │
 │  credentials         Create, Read, Update,      (global)                    │
@@ -180,15 +179,14 @@ const (
     ActionWorkflowPortForward = "workflow:PortForward"
     ActionWorkflowRsync       = "workflow:Rsync"
 
-    // Bucket actions
-    ActionBucketCreate = "bucket:Create"
-    ActionBucketRead   = "bucket:Read"
-    ActionBucketWrite  = "bucket:Write"
-    ActionBucketDelete = "bucket:Delete"
-    ActionBucketList   = "bucket:List"
+    // Dataset actions
+    ActionDatasetCreate = "dataset:Create"
+    ActionDatasetRead   = "dataset:Read"
+    ActionDatasetDelete = "dataset:Delete"
+    ActionDatasetList   = "dataset:List"
 
     // Pool actions
-    ActionPoolList   = "pool:List"
+    ActionPoolRead   = "pool:Read"
 
     // Internal/Backend actions (restricted)
     ActionInternalOperator = "internal:Operator"
@@ -243,13 +241,13 @@ Policies use AWS IAM-style JSON format with Allow/Deny statements:
     },
     {
       "effect": "Allow",
-      "actions": ["bucket:*"],
-      "resources": ["pool/default/*"]
+      "actions": ["dataset:*"],
+      "resources": ["dataset/*"]
     },
     {
       "effect": "Deny",
-      "actions": ["pool:Delete"],
-      "resources": ["pool/production"]
+      "actions": ["dataset:Delete"],
+      "resources": ["bucket/production"]
     }
   ]
 }
@@ -302,7 +300,7 @@ Standard user role:
         "effect": "Allow",
         "actions": [
           "workflow:*",
-          "bucket:*",
+          "dataset:*",
           "credentials:*",
           "profile:Read", "profile:Update",
           "pool:Read",
@@ -336,7 +334,7 @@ Read-only access:
         "effect": "Allow",
         "actions": [
           "workflow:Read", "workflow:List",
-          "bucket:Read", "bucket:List",
+          "dataset:Read", "dataset:List",
           "system:*"
         ],
         "resources": ["*"]
@@ -605,6 +603,20 @@ Once migration is complete (Phase 4), the old format will be removed. This is a 
 
 ### [Casbin](https://www.casbin.org/)
 
+After diving into Casbin, it would have been better suited when we didn't have any auth framework
+and just wanted a basic allow/deny logic.
+
+For more extensive use cases where we need to
+look further into the db to get knowledge of like what pools are connected to workflows, Casbin
+would be more work than our own implementation since we would need define our own policy rules
+anyway but with the same amount of benefit.
+
+Using Casbin as a reference for how we want to model our auth system after is good, but it doesn't
+simplify any of the work.
+
+Performance wise, it seemed to have similar performance (maybe slightly worse, but could be due
+to optimization issues).
+
 
 ---
 
@@ -673,7 +685,7 @@ package server
 var ActionRegistry = map[string][]EndpointPattern{
     // ==================== WORKFLOW ====================
     "workflow:Create": {
-        {Path: "/api/workflow", Methods: []string{"POST"}},
+        {Path: "/api/pool/*/workflow", Methods: []string{"POST"}},
     },
     "workflow:Read": {
         {Path: "/api/workflow", Methods: []string{"GET"}},
@@ -702,23 +714,15 @@ var ActionRegistry = map[string][]EndpointPattern{
     },
 
     // ==================== BUCKET ====================
-    "bucket:Create": {
-        {Path: "/api/bucket", Methods: []string{"POST"}},
+    "dataset:Create": {
+        {Path: "/api/bucket/*/dataset/*", Methods: []string{"POST", "PUT"}},
     },
-    "bucket:Read": {
-        {Path: "/api/bucket", Methods: []string{"GET"}},
-        {Path: "/api/bucket/*", Methods: []string{"GET"}},
+    "dataset:Read": {
+        {Path: "/api/bucket/*/dataset/", Methods: []string{"GET"}},
+        {Path: "/api/bucket/*/dataset/*", Methods: []string{"GET"}},
     },
-    "bucket:Write": {
-        {Path: "/api/bucket/*", Methods: []string{"POST", "PUT"}},
-    },
-    "bucket:Delete": {
-        {Path: "/api/bucket/*", Methods: []string{"DELETE"}},
-    },
-
-    // ==================== POOL ====================
-    "pool:Delete": {
-        {Path: "/api/pool/*", Methods: []string{"DELETE"}},
+    "dataset:Delete": {
+        {Path: "/api/bucket/*/dataset/*", Methods: []string{"DELETE"}},
     },
 
     // ==================== CREDENTIALS ====================
