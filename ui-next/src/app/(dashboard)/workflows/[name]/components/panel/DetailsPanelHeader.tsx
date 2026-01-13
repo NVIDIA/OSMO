@@ -33,7 +33,7 @@
 "use client";
 
 import { memo, useState, useMemo, useCallback, useRef } from "react";
-import { ChevronDown, MoreVertical, Columns, Search, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, MoreVertical, Columns, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -56,7 +56,7 @@ import {
   WidthPresetMenuItems,
 } from "@/components/panel";
 import { getStatusIcon } from "../../lib/status";
-import type { DetailsPanelHeaderProps, SiblingTask } from "../../lib/panel-types";
+import type { DetailsPanelHeaderProps, SiblingTask, BreadcrumbSegment } from "../../lib/panel-types";
 
 // ============================================================================
 // Types
@@ -77,6 +77,8 @@ interface ExtendedHeaderProps extends DetailsPanelHeaderProps {
   onPanelResize?: (pct: number) => void;
   /** Toggle the collapsed state of the panel */
   onToggleCollapsed?: () => void;
+  /** Multi-level breadcrumb segments */
+  breadcrumbs?: BreadcrumbSegment[];
 }
 
 // ============================================================================
@@ -222,6 +224,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   menuContent,
   onPanelResize,
   breadcrumb,
+  breadcrumbs,
   viewType,
   isLead,
   siblingTasks,
@@ -241,8 +244,29 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   // Build title content slot
   const titleContent = (
     <>
-      {/* Back button + Breadcrumb */}
-      {breadcrumb && onBack && (
+      {/* Multi-level breadcrumbs in "Workflow > Group > Task" style */}
+      {breadcrumbs &&
+        breadcrumbs.map((segment, index) => (
+          <span
+            key={`${segment.label}-${index}`}
+            className="flex shrink-0 items-center"
+          >
+            <button
+              onClick={segment.onClick}
+              className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              aria-label={`Navigate to ${segment.label}`}
+            >
+              {segment.label}
+            </button>
+            <ChevronRight
+              className="mx-1 h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
+              aria-hidden="true"
+            />
+          </span>
+        ))}
+
+      {/* Legacy single breadcrumb (fallback for backwards compatibility) */}
+      {!breadcrumbs && breadcrumb && onBack && (
         <PanelBackButton
           onClick={onBack}
           label={breadcrumb}

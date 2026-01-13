@@ -145,10 +145,30 @@ export interface SiblingTask {
 }
 
 /**
+ * Breadcrumb segment for hierarchical navigation.
+ * Multiple segments create a multi-level breadcrumb trail.
+ *
+ * @example
+ * ```ts
+ * // Task within a group: Workflow / Group > Task
+ * breadcrumbs={[
+ *   { label: "Workflow", onClick: onBackToWorkflow },
+ *   { label: "my-group", onClick: onBackToGroup }
+ * ]}
+ * ```
+ */
+export interface BreadcrumbSegment {
+  /** Display label for the breadcrumb */
+  label: string;
+  /** Click handler to navigate to this level */
+  onClick: () => void;
+}
+
+/**
  * Props for the shared panel header.
  *
  * Layout structure (consistent across views):
- * - Row 1: [Back] [Icon] Breadcrumb / Title · Subtitle    [Menu] [Close]
+ * - Row 1: [Back] Breadcrumb(s) / Title · Subtitle    [Menu] [Close]
  * - Row 2: Status · Additional info
  * - Row 3 (optional): Expandable details section
  */
@@ -159,9 +179,28 @@ export interface DetailsPanelHeaderProps {
   subtitle?: string;
   /** Status indicator content (Row 2) */
   statusContent?: React.ReactNode;
-  /** Breadcrumb text (shown before title with / separator) */
+  /**
+   * Multi-level breadcrumb segments for hierarchical navigation.
+   * Each segment renders as a clickable back link.
+   * @example
+   * ```tsx
+   * // Task within a group:
+   * breadcrumbs={[
+   *   { label: "Workflow", onClick: onBackToWorkflow },
+   *   { label: "my-group", onClick: onBackToGroup }
+   * ]}
+   * ```
+   */
+  breadcrumbs?: BreadcrumbSegment[];
+  /**
+   * Single breadcrumb text (legacy, prefer `breadcrumbs` for new code).
+   * @deprecated Use `breadcrumbs` array for multi-level navigation.
+   */
   breadcrumb?: string;
-  /** Back button handler (optional - shown when provided) */
+  /**
+   * Back button handler (used with single breadcrumb prop).
+   * @deprecated Use `breadcrumbs` array for multi-level navigation.
+   */
   onBack?: () => void;
   /** Close button handler */
   onClose: () => void;

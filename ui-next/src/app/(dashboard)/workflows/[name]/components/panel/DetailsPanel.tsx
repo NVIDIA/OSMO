@@ -204,6 +204,8 @@ export const DetailsPanel = memo(function DetailsPanel({
           onClose={onToggleCollapsed ?? onClose}
           onCancel={onCancelWorkflow}
           onPanelResize={onPanelResize}
+          isDetailsExpanded={isDetailsExpanded}
+          onToggleDetailsExpanded={onToggleDetailsExpanded}
         />
       )}
 
@@ -229,6 +231,7 @@ export const DetailsPanel = memo(function DetailsPanel({
           allGroups={allGroups}
           task={task}
           onBackToGroup={onBackToGroup}
+          onBackToWorkflow={onBackToWorkflow}
           onSelectTask={onSelectTask}
           onSelectGroup={onSelectGroup}
           onClose={onToggleCollapsed ?? onClose}

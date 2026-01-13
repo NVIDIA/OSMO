@@ -61,10 +61,14 @@ import type { Pool } from "@/lib/api/adapter";
 ```tsx
 // ❌ FORBIDDEN: String literals for enums
 if (pool.status === "ONLINE") { ... }
+if (workflow.priority === "HIGH") { ... }
+const statuses = ["RUNNING", "COMPLETED"];
 
 // ✅ REQUIRED: Use generated enums for type safety
-import { PoolStatus } from "@/lib/api/generated";
+import { PoolStatus, WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 if (pool.status === PoolStatus.ONLINE) { ... }
+if (workflow.priority === WorkflowPriority.HIGH) { ... }
+const statuses = [WorkflowStatus.RUNNING, WorkflowStatus.COMPLETED];
 ```
 
 ```tsx
@@ -116,12 +120,99 @@ NEVER hardcode these values. ALWAYS use the designated source:
 | Panel widths | `useConfig()` → `panel.*` | Hardcoded `320px` |
 | API types | `@/lib/api/adapter/` | `@/lib/api/generated.ts` |
 | Enums ONLY | `@/lib/api/generated.ts` | String literals |
+| Status enums | `WorkflowStatus`, `TaskGroupStatus`, `PoolStatus` | `"RUNNING"`, `"ONLINE"` |
+| Priority enum | `WorkflowPriority` | `"HIGH"`, `"NORMAL"`, `"LOW"` |
 | CSS variables | `globals.css` | Inline hex colors |
 | Feature constants | `feature/lib/constants.ts` | Scattered magic strings |
 | Column configs | `feature/lib/feature-columns.ts` | Inline column definitions |
 | Clipboard operations | `useServices().clipboard` | `navigator.clipboard` directly |
 | Screen reader announcements | `useServices().announcer` | Manual aria-live regions |
 | URL state | `usePanelState()`, `useUrlChips()` | Raw `useSearchParams` |
+
+---
+
+## 🔐 Backend Type Coupling - CRITICAL
+
+The UI MUST be tightly coupled to generated backend types. This ensures a single source of truth.
+
+### Enums: ALWAYS Import from Generated
+
+```tsx
+// ❌ FORBIDDEN: Defining your own enum-like types
+type Priority = "HIGH" | "NORMAL" | "LOW";
+type Status = "ONLINE" | "OFFLINE";
+const statuses = ["RUNNING", "COMPLETED"] as const;
+
+// ✅ REQUIRED: Derive from generated enums
+import { WorkflowPriority, WorkflowStatus, PoolStatus } from "@/lib/api/generated";
+type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
+const statuses = [WorkflowStatus.RUNNING, WorkflowStatus.COMPLETED];
+```
+
+### Status/Enum Arrays: ALWAYS Derive from Generated
+
+```tsx
+// ❌ FORBIDDEN: Hardcoded arrays of enum values
+const ALL_STATUSES = ["PENDING", "RUNNING", "COMPLETED", "FAILED"];
+const FAILED_STATUSES = ["FAILED", "FAILED_TIMEOUT", "FAILED_CANCELED"];
+
+// ✅ REQUIRED: Derive from generated enum
+import { WorkflowStatus } from "@/lib/api/generated";
+const ALL_STATUSES = Object.values(WorkflowStatus);
+const FAILED_STATUSES = [
+  WorkflowStatus.FAILED,
+  WorkflowStatus.FAILED_EXEC_TIMEOUT,
+  WorkflowStatus.FAILED_CANCELED,
+];
+```
+
+### Record Keys: Use Computed Properties with Enums
+
+```tsx
+// ❌ FORBIDDEN: String literal keys in Records
+const STATUS_LABELS: Record<string, string> = {
+  "ONLINE": "Online",
+  "OFFLINE": "Offline",
+};
+
+// ✅ REQUIRED: Computed property names with enum values
+import { PoolStatus } from "@/lib/api/generated";
+const STATUS_LABELS: Record<PoolStatus, string> = {
+  [PoolStatus.ONLINE]: "Online",
+  [PoolStatus.OFFLINE]: "Offline",
+  [PoolStatus.MAINTENANCE]: "Maintenance",
+};
+```
+
+### Test Factories: Use Enum Values
+
+```tsx
+// ❌ FORBIDDEN: String literals in test data
+const pool = createMockPool({ status: "ONLINE" });
+const workflow = createMockWorkflow({ priority: "HIGH" });
+
+// ✅ REQUIRED: Enum values for type safety
+import { PoolStatus, WorkflowPriority } from "@/lib/api/generated";
+const pool = createMockPool({ status: PoolStatus.ONLINE });
+const workflow = createMockWorkflow({ priority: WorkflowPriority.HIGH });
+```
+
+### Available Generated Enums
+
+| Enum | Values | Use For |
+|------|--------|---------|
+| `PoolStatus` | ONLINE, OFFLINE, MAINTENANCE | Pool status filtering/display |
+| `WorkflowStatus` | PENDING, RUNNING, COMPLETED, FAILED_* (16 values) | Workflow status |
+| `TaskGroupStatus` | WAITING, RUNNING, COMPLETED, FAILED_* (18 values) | Task/group status |
+| `WorkflowPriority` | HIGH, NORMAL, LOW | Workflow priority |
+| `BackendResourceType` | RESERVED, SHARED, UNUSED | Resource type |
+| `DatasetStatus` | Various | Dataset status |
+
+**WHY THIS MATTERS:**
+- Backend adds a new status → TypeScript error forces UI update
+- No silent failures from typos (`"RUNING"` vs `"RUNNING"`)
+- Refactoring is safe (rename in one place, compiler finds all uses)
+- `pnpm generate-api` keeps everything in sync
 
 ---
 
@@ -360,6 +451,8 @@ Before submitting any code, verify:
 - [ ] Did I check `@/components/` before creating a new component?
 - [ ] Are ALL imports from public APIs (`index.ts` exports)?
 - [ ] Are types from `@/lib/api/adapter`, enums from `@/lib/api/generated`?
+- [ ] Am I using enum values (e.g., `PoolStatus.ONLINE`) instead of string literals (`"ONLINE"`)?
+- [ ] Are any type definitions duplicating what exists in `generated.ts`?
 - [ ] Is every interactive element keyboard accessible?
 - [ ] Did I use TanStack/Zustand/nuqs instead of manual state?
 - [ ] Are there any magic numbers that should be constants or config values?
