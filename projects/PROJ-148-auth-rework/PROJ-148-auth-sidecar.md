@@ -245,6 +245,12 @@ sidecars:
   * Services that don't require postgres will need to have postgres for the Middleware
 * **Why not chosen**: Based on the cons
 
+Middleware may serve as the future of where this auth logic will sit, but for the current version of
+OSMO where we will have Go and Python services, we wouldn't need to implement the logic twice.
+
+Once we have fully moved to Go, we can then move the logic into a middleware and this transition
+should be simple as all the logic can be copied over.
+
 #### Alternative 2: Centralized Authorization Service
 
 * **Pros**: Single service to manage, easier updates
