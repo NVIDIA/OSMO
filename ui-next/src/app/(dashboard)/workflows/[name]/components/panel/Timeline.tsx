@@ -146,7 +146,6 @@ export const Timeline = memo(function Timeline({
 
   // Track if horizontal layout overflows (all segments at min-content but still don't fit)
   const [hasOverflow, setHasOverflow] = useState(false);
-  const prevContainerWidth = useRef(0);
 
   // Use useResizeObserver for efficient container dimension tracking
   const { width: containerWidth = 0 } = useResizeObserver({
@@ -155,21 +154,21 @@ export const Timeline = memo(function Timeline({
   });
 
   // Detect overflow: switch to vertical when even min-content widths don't fit
+  // Using RAF to defer state update and avoid cascading renders flagged by React Compiler
   useLayoutEffect(() => {
-    // Reset overflow when container grows (might fit now)
-    if (containerWidth > prevContainerWidth.current) {
-      setHasOverflow(false);
-    }
-    prevContainerWidth.current = containerWidth;
+    if (!gridRef.current || containerWidth <= 0) return;
 
-    // Check if grid overflows after render
-    if (gridRef.current && containerWidth > 0) {
+    // Measure overflow after layout
+    const checkOverflow = () => {
+      if (!gridRef.current) return;
       const overflow = gridRef.current.scrollWidth > gridRef.current.clientWidth + 1;
-      if (overflow && !hasOverflow) {
-        setHasOverflow(true);
-      }
-    }
-  }, [containerWidth, hasOverflow, phases.length]);
+      setHasOverflow(overflow);
+    };
+
+    // Use RAF to batch the state update after browser paint
+    const rafId = requestAnimationFrame(checkOverflow);
+    return () => cancelAnimationFrame(rafId);
+  }, [containerWidth, phases.length]);
 
   // Use horizontal if container has width and content fits
   const useHorizontal = containerWidth > 0 && !hasOverflow;

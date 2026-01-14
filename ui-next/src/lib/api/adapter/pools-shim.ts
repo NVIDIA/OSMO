@@ -16,6 +16,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { naturalCompare } from "@/lib/utils";
+
 /**
  * Pools Filtering Shim - Client-side filtering for pools.
  *
@@ -201,8 +203,8 @@ function computePoolMetadata(pools: Pool[]): PoolMetadata {
 
   return {
     statusCounts,
-    platforms: Array.from(platforms).sort(),
-    backends: Array.from(backends).sort(),
+    platforms: Array.from(platforms).sort(naturalCompare),
+    backends: Array.from(backends).sort(naturalCompare),
   };
 }
 

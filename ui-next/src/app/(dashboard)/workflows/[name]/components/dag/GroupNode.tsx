@@ -36,7 +36,7 @@
 import { useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, naturalCompare } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-types";
 import { TaskGroupStatus, isFailedStatus } from "../../lib/workflow-types";
@@ -297,8 +297,8 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Memoize tasks array
-  const tasks = useMemo(() => group.tasks || [], [group.tasks]);
+  // Memoize tasks array with natural sort order
+  const tasks = useMemo(() => [...(group.tasks || [])].sort((a, b) => naturalCompare(a.name, b.name)), [group.tasks]);
   const totalCount = tasks.length;
   const isSingleTask = totalCount === 1;
   const hasManyTasks = totalCount > 1;

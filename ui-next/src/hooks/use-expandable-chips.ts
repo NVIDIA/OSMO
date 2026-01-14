@@ -20,6 +20,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import type { RefObject } from "react";
 import { useRafCallback, useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useResizeObserver, useEventCallback } from "usehooks-ts";
+import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // Types
@@ -106,14 +107,14 @@ export function useExpandableChips<T = string>({
 
   const shouldSort = sortAlphabetically ?? isStringArray(items);
 
-  // Sort items alphabetically if requested
+  // Sort items using natural/alphanumeric sorting if requested
   const sortedItems = useMemo(() => {
     if (!shouldSort || items.length === 0) return items;
     if (isStringArray(items)) {
-      return [...items].sort((a, b) => a.localeCompare(b));
+      return [...items].sort((a, b) => naturalCompare(a, b));
     }
     if (getKey) {
-      return [...items].sort((a, b) => getKey(a).localeCompare(getKey(b)));
+      return [...items].sort((a, b) => naturalCompare(getKey(a), getKey(b)));
     }
     return items;
   }, [items, shouldSort, getKey]);

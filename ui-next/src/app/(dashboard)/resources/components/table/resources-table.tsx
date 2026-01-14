@@ -33,6 +33,7 @@ import { MANDATORY_COLUMN_IDS, asResourceColumnIds, RESOURCE_COLUMN_SIZE_CONFIG 
 import { createResourceColumns } from "../../lib/resource-column-defs";
 import { useResourcesTableStore } from "../../stores/resources-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
+import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // Helpers
@@ -52,22 +53,22 @@ function sortResources(resources: Resource[], sort: SortState<string> | null, di
     let cmp = 0;
     switch (sort.column) {
       case "resource":
-        cmp = a.name.localeCompare(b.name);
+        cmp = naturalCompare(a.name, b.name);
         break;
       case "hostname":
-        cmp = a.hostname.localeCompare(b.hostname);
+        cmp = naturalCompare(a.hostname, b.hostname);
         break;
       case "type":
-        cmp = a.resourceType.localeCompare(b.resourceType);
+        cmp = naturalCompare(a.resourceType, b.resourceType);
         break;
       case "pools":
-        cmp = (a.poolMemberships[0]?.pool ?? "").localeCompare(b.poolMemberships[0]?.pool ?? "");
+        cmp = naturalCompare(a.poolMemberships[0]?.pool ?? "", b.poolMemberships[0]?.pool ?? "");
         break;
       case "platform":
-        cmp = a.platform.localeCompare(b.platform);
+        cmp = naturalCompare(a.platform, b.platform);
         break;
       case "backend":
-        cmp = a.backend.localeCompare(b.backend);
+        cmp = naturalCompare(a.backend, b.backend);
         break;
       case "gpu":
         cmp = displayMode === "free" ? a.gpu.total - a.gpu.used - (b.gpu.total - b.gpu.used) : a.gpu.used - b.gpu.used;

@@ -30,7 +30,7 @@
 
 import { useState, useMemo, useCallback, memo } from "react";
 import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, naturalCompare } from "@/lib/utils";
 import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
 import { STATUS_SORT_ORDER } from "../../lib/status";
@@ -148,13 +148,13 @@ export const GroupDetails = memo(function GroupDetails({
         return (a: TaskWithDuration, b: TaskWithDuration) =>
           ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
       case "name":
-        return (a: TaskWithDuration, b: TaskWithDuration) => a.name.localeCompare(b.name) * dir;
+        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.name, b.name) * dir;
       case "duration":
         return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
       case "node":
-        return (a: TaskWithDuration, b: TaskWithDuration) => (a.node_name ?? "").localeCompare(b.node_name ?? "") * dir;
+        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.node_name ?? "", b.node_name ?? "") * dir;
       case "podIp":
-        return (a: TaskWithDuration, b: TaskWithDuration) => (a.pod_ip ?? "").localeCompare(b.pod_ip ?? "") * dir;
+        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.pod_ip ?? "", b.pod_ip ?? "") * dir;
       case "exitCode":
         return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
       case "startTime":
