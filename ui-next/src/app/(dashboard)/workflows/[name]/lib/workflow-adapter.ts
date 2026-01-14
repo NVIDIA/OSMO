@@ -33,6 +33,7 @@
 
 import type { GroupQueryResponse } from "@/lib/api/generated";
 import type { GroupWithLayout } from "./workflow-types";
+import { naturalCompare } from "@/lib/utils";
 
 // ============================================================================
 // Types
@@ -191,10 +192,10 @@ export function transformGroups(
     getOrCreate(groupsByLevel, level, () => []).push(group.name);
   }
 
-  // Assign lanes within each level (sorted alphabetically for consistency)
+  // Assign lanes within each level (sorted using natural order for consistency)
   const laneMap = new Map<string, number>();
   for (const [, groupNames] of groupsByLevel) {
-    groupNames.sort();
+    groupNames.sort(naturalCompare);
     groupNames.forEach((name, index) => {
       laneMap.set(name, index);
     });

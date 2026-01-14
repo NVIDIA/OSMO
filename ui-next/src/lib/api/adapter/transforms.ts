@@ -39,6 +39,7 @@ import type {
   PoolMembership,
   Version,
 } from "./types";
+import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // WORKAROUND: String to Number parsing
@@ -364,7 +365,7 @@ export function transformResourcesResponse(rawResponse: unknown, poolName: strin
 
   return {
     resources,
-    platforms: Array.from(platformSet).sort(),
+    platforms: Array.from(platformSet).sort(naturalCompare),
   };
 }
 
@@ -442,7 +443,7 @@ export function transformAllResourcesResponse(rawResponse: unknown): AllResource
 
   return {
     resources,
-    pools: Array.from(poolSet).sort(),
-    platforms: Array.from(platformSet).sort(),
+    pools: Array.from(poolSet).sort(naturalCompare),
+    platforms: Array.from(platformSet).sort(naturalCompare),
   };
 }
