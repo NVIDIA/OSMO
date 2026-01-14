@@ -206,7 +206,7 @@ const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow
         status: "completed",
         // Only show duration if this is the last phase (completed/failed workflows)
         // For running workflows, the Running phase shows the duration instead
-        duration: isRunning ? null : runningDuration ?? null,
+        duration: isRunning ? null : (runningDuration ?? null),
       });
     } else if (submitTime) {
       result.push({

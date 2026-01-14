@@ -15,7 +15,72 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { cn, formatCompact, formatBytes, formatBytesPair } from "./utils";
+import { cn, formatCompact, formatBytes, formatBytesPair, naturalCompare } from "./utils";
+
+// =============================================================================
+// naturalCompare (alphanumeric sorting)
+// =============================================================================
+
+describe("naturalCompare", () => {
+  it("sorts strings with numbers naturally", () => {
+    const items = ["item_1", "item_10", "item_2", "item_20", "item_3"];
+    const sorted = [...items].sort(naturalCompare);
+    expect(sorted).toEqual(["item_1", "item_2", "item_3", "item_10", "item_20"]);
+  });
+
+  it("handles workflow naming patterns", () => {
+    const workflows = ["workflow_1", "workflow_10", "workflow_2", "workflow_100"];
+    const sorted = [...workflows].sort(naturalCompare);
+    expect(sorted).toEqual(["workflow_1", "workflow_2", "workflow_10", "workflow_100"]);
+  });
+
+  it("handles mixed prefixes", () => {
+    const items = ["a10", "a2", "b1", "a1"];
+    const sorted = [...items].sort(naturalCompare);
+    expect(sorted).toEqual(["a1", "a2", "a10", "b1"]);
+  });
+
+  it("handles strings without numbers", () => {
+    const items = ["zebra", "apple", "mango"];
+    const sorted = [...items].sort(naturalCompare);
+    expect(sorted).toEqual(["apple", "mango", "zebra"]);
+  });
+
+  it("handles pure numbers in strings", () => {
+    const items = ["10", "2", "1", "20"];
+    const sorted = [...items].sort(naturalCompare);
+    expect(sorted).toEqual(["1", "2", "10", "20"]);
+  });
+
+  it("handles task naming patterns", () => {
+    const tasks = ["task-0", "task-1", "task-10", "task-2", "task-9"];
+    const sorted = [...tasks].sort(naturalCompare);
+    expect(sorted).toEqual(["task-0", "task-1", "task-2", "task-9", "task-10"]);
+  });
+
+  it("handles resource naming patterns", () => {
+    const resources = ["gpu-node-1", "gpu-node-10", "gpu-node-2", "cpu-node-1"];
+    const sorted = [...resources].sort(naturalCompare);
+    expect(sorted).toEqual(["cpu-node-1", "gpu-node-1", "gpu-node-2", "gpu-node-10"]);
+  });
+
+  it("is case-insensitive", () => {
+    const items = ["B1", "a1", "A2", "b2"];
+    const sorted = [...items].sort(naturalCompare);
+    // Case-insensitive: a/A and b/B group together
+    expect(sorted).toEqual(["a1", "A2", "B1", "b2"]);
+  });
+
+  it("handles empty strings", () => {
+    const items = ["b", "", "a"];
+    const sorted = [...items].sort(naturalCompare);
+    expect(sorted).toEqual(["", "a", "b"]);
+  });
+
+  it("handles identical strings", () => {
+    expect(naturalCompare("same", "same")).toBe(0);
+  });
+});
 
 // =============================================================================
 // cn (class name utility)

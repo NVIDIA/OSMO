@@ -29,6 +29,7 @@
 import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter";
 import type { SortState } from "@/components/data-table";
+import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // Sorting
@@ -41,13 +42,13 @@ function sortPools(pools: Pool[], sort: SortState<string> | null, displayMode: "
     let cmp = 0;
     switch (sort.column) {
       case "name":
-        cmp = a.name.localeCompare(b.name);
+        cmp = naturalCompare(a.name, b.name);
         break;
       case "status":
-        cmp = a.status.localeCompare(b.status);
+        cmp = naturalCompare(a.status, b.status);
         break;
       case "backend":
-        cmp = a.backend.localeCompare(b.backend);
+        cmp = naturalCompare(a.backend, b.backend);
         break;
       case "quota":
         // Sort by available (free) or used based on displayMode
