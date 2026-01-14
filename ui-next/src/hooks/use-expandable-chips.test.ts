@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
+import { naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // Helper Function Tests
@@ -65,10 +66,10 @@ describe("sorting behavior", () => {
   function sortItems<T>(items: T[], sortAlphabetically: boolean, getKey?: (item: T) => string): T[] {
     if (!sortAlphabetically || items.length === 0) return items;
     if (isStringArray(items)) {
-      return [...items].sort((a, b) => a.localeCompare(b));
+      return [...items].sort((a, b) => naturalCompare(a, b));
     }
     if (getKey) {
-      return [...items].sort((a, b) => getKey(a).localeCompare(getKey(b)));
+      return [...items].sort((a, b) => naturalCompare(getKey(a), getKey(b)));
     }
     return items;
   }
@@ -78,6 +79,12 @@ describe("sorting behavior", () => {
       const items = ["zebra", "apple", "mango"];
       const sorted = sortItems(items, true);
       expect(sorted).toEqual(["apple", "mango", "zebra"]);
+    });
+
+    it("sorts strings with numbers naturally", () => {
+      const items = ["item_1", "item_10", "item_2"];
+      const sorted = sortItems(items, true);
+      expect(sorted).toEqual(["item_1", "item_2", "item_10"]);
     });
 
     it("does not mutate original array", () => {
@@ -107,7 +114,7 @@ describe("sorting behavior", () => {
     it("uses locale-aware sorting", () => {
       const items = ["Éclair", "apple", "Banana"];
       const sorted = sortItems(items, true);
-      // localeCompare handles accents and case
+      // naturalCompare handles accents and case
       expect(sorted[0]).toBe("apple");
     });
   });
