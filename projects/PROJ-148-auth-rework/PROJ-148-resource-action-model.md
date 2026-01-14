@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -826,3 +826,124 @@ var ActionRegistry = map[string][]EndpointPattern{
 6. **Test in development** — Validate all existing access patterns
 7. **Roll out to staging** — Enable feature flag and monitor
 8. **Document** — User-facing documentation for new policy format
+
+---
+
+## Open Questions
+
+### Should we have a way to define whether is pool is public/private for logs/spec/exec/port-fowarding outside of roles?
+
+Problem statement:
+
+In the current design above, roles are mapped to a group of policies and evaluated independently.
+This means that if one role evaluates to true, the authorization allows the user even in another
+role denies.
+
+We have the case where we want individual pools to restrict access so people without
+access to submit to the pool cannot view logs/view spec/exec/port-foward. However, with the design,
+we would then need to add the policy which denies access to that pool to all roles which allow access
+to the pool such as the default role.
+
+This cumbersome change will have to be done by an admin since we don't want to give users the access.
+
+Ideally, the OSMO admin should be out of the loop and it is just the pool "admin" to determine the state of the
+pool. In the future, OSMO admins should no longer need to deal with creating pools and everything
+regarding the pool can be handed over to a team member using the pool.
+
+A diagram showing the role policy model and how roles are evaluated is shown below as a reminder.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ROLE-POLICY RELATIONSHIP MODEL                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────┐
+│   USER   │
+└────┬─────┘
+     │
+     │ has many (1:N)
+     │
+     ├─────────────┬─────────────┬─────────────┐
+     ▼             ▼             ▼             ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│  Role 1 │   │  Role 2 │   │  Role 3 │   │  Role N │
+│ (admin) │   │ (user)  │   │ (custom)│   │   ...   │
+└────┬────┘   └────┬────┘   └────┬────┘   └────┬────┘
+     │             │             │             │
+     │ has one     │ has one     │ has one     │ has one
+     │ (1:1)       │ (1:1)       │ (1:1)       │ (1:1)
+     │             │             │             │
+     ▼             ▼             ▼             ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│ Policy1 │   │ Policy2 │   │ Policy3 │   │ PolicyN │
+└────┬────┘   └────┬────┘   └────┬────┘   └────┬────┘
+     │             │             │             │
+     │ contains    │ contains    │ contains    │ contains
+     │ many        │ many        │ many        │ many
+     │ (1:N)       │ (1:N)       │ (1:N)       │ (1:N)
+     │             │             │             │
+     ├──────────┐  ├──────────┐  ├──────────┐  ├──────────┐
+     ▼          ▼  ▼          ▼  ▼          ▼  ▼          ▼
+┌──────────┐ ┌──┐ ┌──────────┐ ┌──┐ ┌──────────┐ ┌──┐ ┌──────────┐ ┌──┐
+│Statement1│ │..│ │Statement1│ │..│ │Statement1│ │..│ │Statement1│ │..│
+├──────────┤ └──┘ ├──────────┤ └──┘ ├──────────┤ └──┘ ├──────────┤ └──┘
+│Effect:   │      │Effect:   │      │Effect:   │      │Effect:   │
+│  Allow   │      │  Allow   │      │  Deny    │      │  Allow   │
+│Actions:  │      │Actions:  │      │Actions:  │      │Actions:  │
+│  [...]   │      │  [...]   │      │  [...]   │      │  [...]   │
+│Resources:│      │Resources:│      │Resources:│      │Resources:│
+│  [...]   │      │  [...]   │      │  [...]   │      │  [...]   │
+└──────────┘      └──────────┘      └──────────┘      └──────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AUTHORIZATION EVALUATION                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Request: POST /api/workflow/abc123/cancel
+      │
+      ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Step 1: Resolve action from path                           │
+  │   POST /api/workflow/abc123/cancel → workflow:Cancel       │
+  └────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Step 2: Collect ALL policies from ALL user's roles         │
+  │   User has: [Role1, Role2, Role3, ..., RoleN]              │
+  │   Collect: [Policy1, Policy2, Policy3, ..., PolicyN]       │
+  └────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Step 3: Evaluate ALL statements from ALL policies          │
+  │                                                            │
+  │   Phase 1: Check for ANY Deny                              │
+  │   ┌─────────────────────────────────────────────┐          │
+  │   │ For each Policy (1..N):                     │          │
+  │   │   For each Statement in Policy:             │          │
+  │   │     If Effect == "Deny" AND                 │          │
+  │   │        action matches workflow:Cancel AND   │          │
+  │   │        resource matches workflow/abc123     │          │
+  │   │     → RETURN DENY (deny always wins)        │          │
+  │   └─────────────────────────────────────────────┘          │
+  │                                                            │
+  │   Phase 2: Check for ANY Allow                             │
+  │   ┌─────────────────────────────────────────────┐          │
+  │   │ For each Policy (1..N):                     │          │
+  │   │   For each Statement in Policy:             │          │
+  │   │     If Effect == "Allow" AND                │          │
+  │   │        action matches workflow:Cancel AND   │          │
+  │   │        resource matches workflow/abc123     │          │
+  │   │     → Mark as allowed                       │          │
+  │   └─────────────────────────────────────────────┘          │
+  │                                                            │
+  │   If ANY Allow found → RETURN ALLOW                        │
+  │   If NO Allow found → RETURN DENY (implicit deny)          │
+  └────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+            ┌──────────┐
+            │  RESULT  │
+            └──────────┘
