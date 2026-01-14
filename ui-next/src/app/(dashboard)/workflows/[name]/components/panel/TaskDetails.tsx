@@ -31,7 +31,7 @@ import { useMemo, useCallback, memo } from "react";
 import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
-import { useCopy } from "@/hooks";
+import { useCopy, useTick } from "@/hooks";
 import { calculateDuration, formatDuration } from "../../lib/workflow-types";
 import type { GroupWithLayout } from "../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../lib/status";
@@ -93,7 +93,10 @@ export const TaskDetails = memo(function TaskDetails({
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
   const isStandaloneTask = tasks.length <= 1; // Single-task group
   const isFromGroup = tasks.length > 1;
-  const duration = calculateDuration(task.start_time, task.end_time);
+
+  // Synchronized tick for live duration (for running tasks)
+  const now = useTick();
+  const duration = calculateDuration(task.start_time, task.end_time, now);
 
   // Build sibling tasks for inline switcher
   const siblingTasks: SiblingTask[] = useMemo(() => {

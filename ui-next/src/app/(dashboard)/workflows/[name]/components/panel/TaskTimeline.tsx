@@ -29,6 +29,7 @@ import { memo, useMemo } from "react";
 import type { TaskQueryResponse } from "../../lib/workflow-types";
 import { getStatusCategory } from "../../lib/status";
 import { Timeline, type TimelinePhase } from "./Timeline";
+import { useTick, calculateLiveDuration } from "@/hooks";
 
 // ============================================================================
 // Types
@@ -52,12 +53,14 @@ function parseTime(timeStr?: string | null): Date | null {
   return new Date(timeStr);
 }
 
-function calculatePhaseDuration(start: Date | null, end: Date | null): number | null {
-  if (!start) return null;
-  const endTime = end || new Date();
-  const duration = Math.floor((endTime.getTime() - start.getTime()) / 1000);
-  // Never return negative durations (can happen with clock skew or out-of-order timestamps)
-  return Math.max(0, duration);
+/**
+ * Calculate phase duration using the synchronized tick.
+ * This is a local wrapper that matches the signature expected by phase building logic.
+ */
+function createPhaseDurationCalculator(now: number) {
+  return (start: Date | null, end: Date | null): number | null => {
+    return calculateLiveDuration(now, start, end);
+  };
 }
 
 // ============================================================================
@@ -70,6 +73,10 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
   const isFailed = statusCategory === "failed";
   const isRunning = statusCategory === "running";
   const isPending = statusCategory === "waiting";
+
+  // Synchronized tick for live durations
+  const now = useTick();
+  const calculatePhaseDuration = createPhaseDurationCalculator(now);
 
   // Parse timestamps (normalized in adapter layer)
   const schedulingStart = parseTime(task.scheduling_start_time);
@@ -236,6 +243,7 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
     isRunning,
     isCompleted,
     isFailed,
+    calculatePhaseDuration,
   ]);
 
   return (

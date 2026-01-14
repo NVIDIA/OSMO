@@ -37,7 +37,7 @@ import { useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
-import { useVirtualizerCompat } from "@/hooks";
+import { useVirtualizerCompat, useTick } from "@/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-types";
 import { TaskGroupStatus, isFailedStatus } from "../../lib/workflow-types";
 import type { GroupNodeData } from "../../lib/dag-layout";
@@ -141,8 +141,14 @@ function useSmartScroll(ref: React.RefObject<HTMLDivElement | null>, isActive: b
 
 /**
  * Get status-specific hint text for display in the node.
+ * @param now - Synchronized tick timestamp for live duration calculation
  */
-function getStatusHint(group: GroupWithLayout, task: TaskQueryResponse | undefined, isSingleTask: boolean): string {
+function getStatusHint(
+  group: GroupWithLayout,
+  task: TaskQueryResponse | undefined,
+  isSingleTask: boolean,
+  now: number,
+): string {
   const tasks = group.tasks || [];
   const taskCount = tasks.length;
 
@@ -189,14 +195,14 @@ function getStatusHint(group: GroupWithLayout, task: TaskQueryResponse | undefin
 
     case TaskGroupStatus.RUNNING: {
       const startTime = isSingleTask ? task?.start_time : group.start_time;
-      const elapsed = calculateDuration(startTime, null);
+      const elapsed = calculateDuration(startTime, null, now);
       return `Running · ${formatDuration(elapsed)}`;
     }
 
     case TaskGroupStatus.COMPLETED: {
       const startTime = isSingleTask ? task?.start_time : group.start_time;
       const endTime = isSingleTask ? task?.end_time : group.end_time;
-      const duration = calculateDuration(startTime, endTime);
+      const duration = calculateDuration(startTime, endTime, now);
       return formatDuration(duration);
     }
 
@@ -292,6 +298,9 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
   // Get handlers and selection state from context (not props) to prevent re-renders
   const { selectedNodeId, onSelectGroup, onSelectTask, onToggleExpand } = useDAGContext();
 
+  // Synchronized tick for live durations (all nodes update together)
+  const now = useTick();
+
   // Determine if this node is selected (based on URL navigation state via context)
   const isSelected = group.name === selectedNodeId;
 
@@ -319,8 +328,11 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
     overscan: 5,
   });
 
-  // Get hint text based on status
-  const hintText = useMemo(() => getStatusHint(group, primaryTask, isSingleTask), [group, primaryTask, isSingleTask]);
+  // Get hint text based on status (uses synchronized tick for running durations)
+  const hintText = useMemo(
+    () => getStatusHint(group, primaryTask, isSingleTask, now),
+    [group, primaryTask, isSingleTask, now],
+  );
 
   // Display name: task name for single-task, group name for multi-task
   const displayName = isSingleTask && primaryTask ? primaryTask.name : group.name;
@@ -502,7 +514,7 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const task = tasks[virtualRow.index];
               const taskCategory = getStatusCategory(task.status);
-              const taskDuration = calculateDuration(task.start_time, task.end_time);
+              const taskDuration = calculateDuration(task.start_time, task.end_time, now);
 
               return (
                 <button
