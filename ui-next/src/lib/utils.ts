@@ -24,6 +24,35 @@ export function cn(...inputs: ClassValue[]) {
 export const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
 
 // =============================================================================
+// Sorting Utilities
+// =============================================================================
+
+/**
+ * Collator options for natural/alphanumeric sorting.
+ * Reused across all comparisons to avoid object allocation.
+ */
+const NATURAL_SORT_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
+
+/**
+ * Compare two strings using natural/alphanumeric sorting.
+ * Numbers within strings are compared numerically, not lexicographically.
+ *
+ * @param a - First string
+ * @param b - Second string
+ * @returns Negative if a < b, positive if a > b, zero if equal
+ *
+ * @example
+ * ```ts
+ * // Lexicographic: workflow_1, workflow_10, workflow_2
+ * // Natural:       workflow_1, workflow_2, workflow_10
+ * items.sort((a, b) => naturalCompare(a.name, b.name));
+ * ```
+ */
+export function naturalCompare(a: string, b: string): number {
+  return a.localeCompare(b, undefined, NATURAL_SORT_OPTIONS);
+}
+
+// =============================================================================
 // Search Utilities
 // =============================================================================
 

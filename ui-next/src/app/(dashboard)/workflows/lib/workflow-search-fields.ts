@@ -27,6 +27,7 @@
 import type { SearchField, SearchChip } from "@/components/smart-search";
 import { WorkflowStatus, WorkflowPriority, type SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
 import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
+import { naturalCompare } from "@/lib/utils";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 
@@ -152,7 +153,7 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "submitted by",
     prefix: "user:",
     freeFormHint: "Type any username, press Enter",
-    getValues: (workflows) => [...new Set(workflows.map((w) => w.user))].sort().slice(0, 20),
+    getValues: (workflows) => [...new Set(workflows.map((w) => w.user))].sort(naturalCompare).slice(0, 20),
   },
   {
     id: "pool",
@@ -160,7 +161,8 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "pool name",
     prefix: "pool:",
     freeFormHint: "Type any pool, press Enter",
-    getValues: (workflows) => [...new Set(workflows.map((w) => w.pool).filter((p): p is string => !!p))].sort(),
+    getValues: (workflows) =>
+      [...new Set(workflows.map((w) => w.pool).filter((p): p is string => !!p))].sort(naturalCompare),
   },
   {
     id: "priority",
@@ -177,7 +179,8 @@ export const WORKFLOW_SEARCH_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "app name",
     prefix: "app:",
     freeFormHint: "Type any app, press Enter",
-    getValues: (workflows) => [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(),
+    getValues: (workflows) =>
+      [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(naturalCompare),
   },
   {
     id: "tag",
