@@ -18,9 +18,9 @@ name: Label external contributors
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened]
   pull_request:
-    types: [opened]
+    types: [opened, reopened]
 
 permissions:
   issues: write
