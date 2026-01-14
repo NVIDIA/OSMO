@@ -107,14 +107,18 @@ export { isFailedStatus, getStatusCategory } from "./status";
  * Calculate duration in seconds from start/end time strings.
  * Timestamps are normalized in the adapter layer (useWorkflow hook),
  * so we can safely use new Date() directly.
+ *
+ * @param startTime - Start time string
+ * @param endTime - End time string (null for running tasks)
+ * @param now - Current timestamp in milliseconds (for running tasks, use synchronized tick)
  */
-export function calculateDuration(startTime?: string | null, endTime?: string | null): number | null {
+export function calculateDuration(startTime?: string | null, endTime?: string | null, now?: number): number | null {
   if (!startTime) return null;
 
   const start = new Date(startTime).getTime();
-  const end = endTime ? new Date(endTime).getTime() : Date.now();
+  const end = endTime ? new Date(endTime).getTime() : (now ?? Date.now());
 
-  return (end - start) / 1000;
+  return Math.max(0, (end - start) / 1000);
 }
 
 /**
