@@ -39,7 +39,33 @@ import { memo, useRef, useState, useLayoutEffect } from "react";
 import { useResizeObserver } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { calculateLiveDuration } from "@/hooks";
 import { formatDuration } from "../../lib/workflow-types";
+
+// ============================================================================
+// Shared Utilities
+// ============================================================================
+
+/**
+ * Parse timestamp string to Date.
+ * Timestamps are normalized in the adapter layer (useWorkflow hook),
+ * so we can safely use new Date() directly.
+ */
+export function parseTime(timeStr?: string | null): Date | null {
+  if (!timeStr) return null;
+  return new Date(timeStr);
+}
+
+/**
+ * Create a phase duration calculator using the synchronized tick.
+ * Returns a function that calculates duration between start and end times,
+ * using the current time (now) for running phases.
+ */
+export function createPhaseDurationCalculator(now: number) {
+  return (start: Date | null, end: Date | null): number | null => {
+    return calculateLiveDuration(now, start, end);
+  };
+}
 
 // ============================================================================
 // Types
