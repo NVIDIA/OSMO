@@ -30,9 +30,7 @@
 
 "use client";
 
-import { memo, useMemo, useState } from "react";
-import { useInterval } from "usehooks-ts";
-import { useDocumentVisibility } from "@react-hookz/web";
+import { memo, useMemo } from "react";
 import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XCircle, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
@@ -42,6 +40,7 @@ import { getStatusIcon } from "../../lib/status";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../lib/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
 import { Timeline, type TimelinePhase } from "./Timeline";
+import { useTick } from "@/hooks";
 
 // =============================================================================
 // Helper Functions
@@ -109,33 +108,26 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
   const statusStyles = STATUS_STYLES[statusCategory];
   const isRunning = statusCategory === "running";
 
-  // Calculate static duration (timestamps normalized at API boundary)
-  const staticDuration = useMemo(() => {
+  // Synchronized tick for live durations (all components update together)
+  const now = useTick();
+
+  // Calculate duration - live for running workflows, static otherwise
+  const duration = useMemo(() => {
+    // Static duration from workflow data
     if (workflow.duration) return workflow.duration;
+
     const start = parseTime(workflow.start_time);
     const end = parseTime(workflow.end_time);
-    if (start && end) {
-      return (end.getTime() - start.getTime()) / 1000;
+
+    if (start) {
+      // Use synchronized tick for running workflows, end_time otherwise
+      const endMs = isRunning && !end ? now : end?.getTime();
+      if (endMs) {
+        return Math.max(0, Math.floor((endMs - start.getTime()) / 1000));
+      }
     }
     return null;
-  }, [workflow.duration, workflow.start_time, workflow.end_time]);
-
-  // Live duration for running workflows
-  const needsLiveUpdate = isRunning && workflow.start_time && !workflow.end_time;
-  const startTimeMs = parseTime(workflow.start_time)?.getTime() ?? 0;
-  const [liveDuration, setLiveDuration] = useState<number>(() =>
-    needsLiveUpdate ? (Date.now() - startTimeMs) / 1000 : 0,
-  );
-
-  // Only update when tab is visible (saves resources when user switches tabs)
-  // useDocumentVisibility returns true when document is visible
-  const isTabVisible = useDocumentVisibility();
-
-  // useInterval handles the interval lifecycle - pass null to disable
-  // Pause interval when tab is not visible
-  useInterval(() => setLiveDuration((Date.now() - startTimeMs) / 1000), needsLiveUpdate && isTabVisible ? 1000 : null);
-
-  const duration = needsLiveUpdate ? liveDuration : staticDuration;
+  }, [workflow.duration, workflow.start_time, workflow.end_time, isRunning, now]);
 
   return (
     <div className="flex items-center gap-2 text-xs">
@@ -170,6 +162,9 @@ const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow
   const isFailed = statusCategory === "failed";
   const isRunning = statusCategory === "running";
 
+  // Synchronized tick for live durations
+  const now = useTick();
+
   // Memoize time computations to prevent dependency changes on every render
   // Timestamps are normalized in the adapter layer (useWorkflow hook)
   const submitTime = useMemo(() => parseTime(workflow.submit_time), [workflow.submit_time]);
@@ -179,9 +174,11 @@ const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow
   const queuedDuration = workflow.queued_time;
   const runningDuration = useMemo(() => {
     if (!startTime) return null;
-    const end = endTime ?? new Date();
-    return Math.floor((end.getTime() - startTime.getTime()) / 1000);
-  }, [startTime, endTime]);
+    // Use synchronized tick for running workflows
+    const endMs = isRunning && !endTime ? now : endTime?.getTime();
+    if (!endMs) return null;
+    return Math.max(0, Math.floor((endMs - startTime.getTime()) / 1000));
+  }, [startTime, endTime, isRunning, now]);
 
   // Build phases for the Timeline component
   const phases = useMemo<TimelinePhase[]>(() => {

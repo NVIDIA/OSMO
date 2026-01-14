@@ -52,7 +52,7 @@ import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
 import { GroupTimeline } from "./GroupTimeline";
 import { DependencyPills } from "./DependencyPills";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { useResultsCount } from "@/hooks";
+import { useResultsCount, useTick } from "@/hooks";
 import type { BreadcrumbSegment } from "../../lib/panel-types";
 
 // =============================================================================
@@ -104,18 +104,22 @@ export const GroupDetails = memo(function GroupDetails({
   // Row height based on compact mode
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
-  // Compute tasks with duration
+  // Synchronized tick for live durations
+  const now = useTick();
+
+  // Compute tasks with duration (using synchronized tick for running tasks)
   const tasksWithDuration: TaskWithDuration[] = useMemo(() => {
     return (group.tasks || []).map((task) => ({
       ...task,
-      duration: calculateDuration(task.start_time, task.end_time),
+      duration: calculateDuration(task.start_time, task.end_time, now),
     }));
-  }, [group.tasks]);
+  }, [group.tasks, now]);
 
   // Compute stats (single pass)
   const stats = useMemo(() => computeTaskStats(tasksWithDuration), [tasksWithDuration]);
   const groupStatus = useMemo(() => computeGroupStatus(stats), [stats]);
-  const groupDuration = useMemo(() => computeGroupDuration(stats), [stats]);
+  // Use synchronized tick for running group duration
+  const groupDuration = useMemo(() => computeGroupDuration(stats, now), [stats, now]);
 
   // TanStack column definitions
   const columns = useMemo(() => createTaskColumns(), []);
