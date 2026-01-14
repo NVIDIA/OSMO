@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import FullPageModal from "~/components/FullPageModal";
 import { OutlinedIcon } from "~/components/Icon";
@@ -30,7 +30,7 @@ interface HistoryDetailsModalProps {
   open: boolean;
   onClose: () => void;
   configs: ServiceConfigHistoryItem[];
-  historyIndex: number;
+  historyIndex?: number;
   setHistoryIndex: (index: number) => void;
 }
 
@@ -42,18 +42,24 @@ export const HistoryDetailsModal = ({
   setHistoryIndex,
 }: HistoryDetailsModalProps) => {
   const [isShowingJSON, setIsShowingJSON] = useState(false);
+  const lastConfigIndex = useRef<number | undefined>(undefined);
 
-  const currentConfig = configs[historyIndex];
-  const previousVersion = configs[historyIndex + 1];
-  const nextVersion = configs[historyIndex - 1];
+  const currentConfig = historyIndex !== undefined ? configs[historyIndex] : undefined;
+  const previousVersion = historyIndex !== undefined ? configs[historyIndex + 1] : undefined;
+  const nextVersion = historyIndex !== undefined ? configs[historyIndex - 1] : undefined;
+  const lastConfig = lastConfigIndex.current !== undefined ? configs[lastConfigIndex.current] : undefined;
+
+  useEffect(() => {
+    lastConfigIndex.current = historyIndex;
+  }, [historyIndex]);
 
   return (
     <FullPageModal
       headerChildren={
-        <>
-          <div className="flex flex-row gap-1 items-center justify-center grow">
-            {previousVersion ? (
-              <>
+        historyIndex !== undefined && (
+          <>
+            <div className="flex flex-row gap-1 items-center justify-center grow">
+              {previousVersion ? (
                 <button
                   onClick={() => {
                     setHistoryIndex(configs.length - 1);
@@ -65,46 +71,38 @@ export const HistoryDetailsModal = ({
                     className="text-lg!"
                   />
                 </button>
-                <button
-                  onClick={() => {
-                    setHistoryIndex(historyIndex + 1);
-                  }}
-                  title="Previous Version"
-                >
-                  <OutlinedIcon
-                    name="keyboard_double_arrow_left"
-                    className="text-lg!"
-                  />
-                </button>
-              </>
-            ) : (
-              <>
+              ) : (
                 <OutlinedIcon
                   name="first_page"
                   className="text-lg! opacity-50"
                 />
+              )}
+              <button
+                onClick={() => {
+                  previousVersion ? setHistoryIndex(historyIndex + 1) : setHistoryIndex(0);
+                }}
+                title="Previous Version"
+              >
                 <OutlinedIcon
                   name="keyboard_double_arrow_left"
-                  className="text-lg! opacity-50"
+                  className="text-lg!"
                 />
-              </>
-            )}
-            <h2 className="whitespace-nowrap overflow-hidden text-ellipsis min-w-25 text-center">
-              Revision {currentConfig?.revision}
-            </h2>
-            {nextVersion ? (
-              <>
-                <button
-                  onClick={() => {
-                    setHistoryIndex(historyIndex - 1);
-                  }}
-                  title="Next Version"
-                >
-                  <OutlinedIcon
-                    name="keyboard_double_arrow_right"
-                    className="text-lg!"
-                  />
-                </button>
+              </button>
+              <h2 className="whitespace-nowrap overflow-hidden text-ellipsis min-w-25 text-center">
+                Revision {currentConfig?.revision}
+              </h2>
+              <button
+                onClick={() => {
+                  nextVersion ? setHistoryIndex(historyIndex - 1) : setHistoryIndex(configs.length - 1);
+                }}
+                title="Next Version"
+              >
+                <OutlinedIcon
+                  name="keyboard_double_arrow_right"
+                  className="text-lg!"
+                />
+              </button>
+              {nextVersion ? (
                 <button
                   onClick={() => {
                     setHistoryIndex(0);
@@ -116,47 +114,44 @@ export const HistoryDetailsModal = ({
                     className="text-lg!"
                   />
                 </button>
-              </>
-            ) : (
-              <>
-                <OutlinedIcon
-                  name="keyboard_double_arrow_right"
-                  className="text-lg! opacity-50"
-                />
+              ) : (
                 <OutlinedIcon
                   name="last_page"
                   className="text-lg! opacity-50"
                 />
-              </>
-            )}
-          </div>
-          <fieldset
-            className="toggle-group"
-            aria-label="View Type"
-          >
-            <ViewToggleButton
-              name="isShowingJSON"
-              checked={!isShowingJSON}
-              onChange={() => {
-                setIsShowingJSON(false);
-              }}
+              )}
+            </div>
+            <fieldset
+              className="toggle-group"
+              aria-label="View Type"
             >
-              Details
-            </ViewToggleButton>
-            <ViewToggleButton
-              name="isShowingJSON"
-              checked={isShowingJSON}
-              onChange={() => {
-                setIsShowingJSON(true);
-              }}
-            >
-              JSON
-            </ViewToggleButton>
-          </fieldset>
-        </>
+              <ViewToggleButton
+                name="isShowingJSON"
+                checked={!isShowingJSON}
+                onChange={() => {
+                  setIsShowingJSON(false);
+                }}
+              >
+                Details
+              </ViewToggleButton>
+              <ViewToggleButton
+                name="isShowingJSON"
+                checked={isShowingJSON}
+                onChange={() => {
+                  setIsShowingJSON(true);
+                }}
+              >
+                JSON
+              </ViewToggleButton>
+            </fieldset>
+          </>
+        )
       }
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        lastConfigIndex.current = undefined;
+        onClose();
+      }}
     >
       {currentConfig && (
         <>
@@ -188,6 +183,7 @@ export const HistoryDetailsModal = ({
           </InlineBanner>
           <ServiceConfigOverview
             serviceConfig={currentConfig.data}
+            previousConfig={lastConfig?.data}
             isShowingJSON={isShowingJSON}
           />
         </>

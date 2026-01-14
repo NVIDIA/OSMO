@@ -30,7 +30,7 @@ import { HistoryDetailsModal } from "../components/HistoryDetailsModal";
 import { HistoryTable } from "../components/HistoryTable";
 
 export default function AdminPage() {
-  const [historyIndex, setHistoryIndex] = useState(0);
+  const [historyIndex, setHistoryIndex] = useState<number | undefined>(undefined);
   const [isShowingDetails, setIsShowingDetails] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [selectedRevisions, setSelectedRevisions] = useState<number[]>([]);
