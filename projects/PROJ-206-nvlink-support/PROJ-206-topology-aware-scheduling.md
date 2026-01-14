@@ -16,51 +16,38 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# \<Project Title\>
+# Topology Aware Scheduling
 
 **Author**: @ecolternv<br>
 **PIC**: @ecolternv<br>
-**Proposal Issue**: [#206](https://github.com/nvidia/osmo/issues/123)
+**Proposal Issue**: [#206](https://github.com/nvidia/osmo/issues/206)
 
 ## Overview
 
-This project will do the following:
-- Add support for creating ComputeDomain CRDs natively for workflows that have NVL72 or other multi-node nvlink enabled backends.
-- Add support for topology aware scheduling introduced in KAI Scheduler v0.10 to allow users to scheduled all of their tasks of a given workflow on the same NVL72 rack.
+This project adds support for topology aware scheduling using features introduced in KAI Scheduler v0.10. This allows users to specify topology requirements in their workflow specifications to ensure tasks are scheduled with optimal network locality (same rack, same zone, etc.) for best performance.
 
 ### Motivation
 
 The current Blackwell generation of GPUs with GB200 and GB300, and future announced GPU generations feature Multi Node NVLINK with NVL72 and even higher numbers like NVL144, etc.
 
-To properly get full node to node performance for multi-node training, workloads scheduled in kubernetes need to take advantage of NvLink.
-They need to be able to carefully control how they pods are placed in the cluster so they end up in the same racks.
+To properly get full node to node performance for multi-node training, workloads scheduled in kubernetes need to take advantage of NvLink. They need to be able to carefully control how pods are placed in the cluster so they end up in the same racks.
+
+Even for non-NvLink workloads, users may wish to require pods be scheduled near each other with certain network topology constraints to ensure the best performance.
 
 ### Problem
 
-#### Compute Domain CRD
+OSMO currently has some limited ability to handle topology aware scheduling with podAffinities added to OSMO pod templates, but this is quite limited,
+and KAI scheduler only satisfies these as a best-effort basis. Further more teh current podAffinities method doesn't allow for complex, heirarchical topologies as all pods in a workflow will end up with te same `podAffiniy` term.
 
-To use MultiNode NvLink in kubernetes, you must create a ComputeDomain CRD and all pods that are part of a given training run must have a resourceClaim that points to the same ComputeDomain.
-
-**Current Situation:** OSMO does not currently support creating/destroying ComputeDomains along with the lifecycle of the workflow.
-To use NvLink with OSMO currently, you must have another system for creating/destroying ComputeDomains along with workflows.
-
-
-#### Topology Aware Scheduling
-
-To use MultiNode NvLink, pods that wish to communicate using NvLink must be placed in the same NVL72/NVL144/NVLxyz rack by the scheduler.
-
-Further, even for non-NvLink workloads, users may wish to require pods be scheudled near each other with certain network topology constraints to ensure
-the best performance.
-
-**Current Situation:** Currently OSMO has some ability to handle topology aware scheduling with podAffinities added to OSMO pod templates, but this doesn't provide the granular level of control needed for many usecases in an NVLink enabled cluster.
-
-_Describe the problem this project solves. What is the current situation?_
+As clusters become more heterogeneous in their network topology with NVLink, we need a way for users to specify the network topology required between
+the tasks in their workflows.
 
 ## Use Cases
 
+<a name="usecase-1"></a>
 1. **Single NVL72 Rack:**
-A users wants to schedule a 4 task training workflow that trains a network in a 4x data parallel fashion. All tasks must be able to communicate with
-one another using high bandwidth NvLink. A ComputeDomain must be created for the workflow, and OSMO must schedule them all on the same NVL72 Rack.
+A users wants to schedule a 4 task training workflow that trains a network in a 4x tensor parallel fashion. All tasks must be able to communicate with
+one another using high bandwidth NvLink. OSMO must schedule them all on the same NVL72 Rack.
 
 **Workflow topology**
 ```mermaid
@@ -115,10 +102,11 @@ block-beta
 
 In this usecase, OSMO must be constrained to either place all tasks in gpu clique `a` or gpu clique `b`.
 
+<a name="usecase-2"></a>
 2. **Multiple NVL72 Racks:**
 A users wants to schedule an 8 task training workflow that trains a network in a 2x data parallel 4x tensor parallel fashion. This means there are
 two instance of the model being trained, with each instance being broken into 4 shards. All parts of a given model instance must be able to
-communicate with each other using high bandwidth NvLink. OSMO must create a ComputeDomain for the workflow as well.
+communicate with each other using high bandwidth NvLink.
 
 **Workflow topology**
 ```mermaid
@@ -188,10 +176,10 @@ block-beta
 In this usecase, OSMO must be constrained to place all shards of the same model instance into the same gpu clique.
 
 
+<a name="usecase-3"></a>
 3. **Multiple NVL72 Racks in same zone:**
 This is the same as the above usecase, `Multiple NVL72 Racks`, except that the cluster has racks in multiple "zones".
 The entire training workflow must be scheduled in the same zone for the best speed between model instances.
-OSMO must create a ComputeDomain for the workflow as well.
 
 **Workflow topology**
 ```mermaid
@@ -305,6 +293,7 @@ block-beta
 In this topology, OSMO will schedule the entire workflow in zone A, because only Zone A is large enough to hold all tasks as required by the topology.
 
 
+<a name="usecase-4"></a>
 4. **Best effort topology awareness:**
 A users wants to schedule an 8 task training workflow that trains a network in a 2x data parallel 4x tensor parallel fashion. This means there are
 two instance of the model being trained, with each instance being broken into 4 shards. This is done on a cluster that does NOT have NvLink, and all nodes can communicate with all other nodes using infiniband. However, there is still a latency benefit from tasks being scheduled on the same rack
@@ -464,8 +453,6 @@ block-beta
 
 | Title | Description | Type |
 |---|---|---|
-| Configure pool to use NvLink | An OSMO admin shall be able to configure a pool to use NvLink. | Functional |
-| Create/destroy compute domains | For all workflows in pools configured to use NvLink, OSMO shall create/destroy a corresponding compute domain along with the creating/destruction of any task groups for that workflow. | Functional |
 | Configure allowed topology keys | An OSMO admin shall be able to configure for each pool the allowed topology keys, and their ordering relative to each other. | Functional |
 | Support topology keys for KAI scheduler | OSMO shall support topology keys for backends configured to use the KAI scheduler. | Functional |
 | Prevent topology key configuration for unsupported schedulers | OSMO shall prevent admins from configuring pools to support topology keys if the backend uses a scheduler that does not support topology keys. | Functional |
@@ -473,51 +460,359 @@ block-beta
 | Specify topology requirements in workflow spec | The OSMO workflow spec shall support a mechanism for specifying topology requirements. Topology requirements specify which tasks in a given group must have the same values for which topology keys, and whether that requirement is `required` for scheduling, or just `preferred`. | Functional |
 | Schedule workflows satisfying topology requirements | OSMO shall schedule workflows to satisfy the topology requirements in the workflow spec as follows: For topology requirements specified as `required`, the workflow will not be scheduled unless the the requirement can be satisfied. For topology requirements specified as `preferred` OSMO will give a higher priority to scheduling in a way that satisfies the topology requirement. | Functional |
 
-## Architectural Details
-
-_Provide a high-level technical overview of the proposed solution. Include block diagrams if applicable. How will we solve the problem? What is the general approach?_
-
-This should expand on the "High-Level Approach" field from the project proposal. Include:
-
-- Architecture overview
-- Key components or modules
-- How they fit together
-- Static and dynamic components
-- User-facing changes (if applicable)
-
 ## Detailed Design
 
 _Provide the detailed technical design. This is the core of the document._
 
-Include:
+### Changes to Pool Config
 
-- API designs (new endpoints, function signatures, interfaces)
-- Data models and schemas
-- System architecture diagrams
-- Component interactions and workflows
-- Configuration changes
-- User interface mockups or flows (if applicable)
-- Examples of how the system will be used
+A `topology_keys` parameter (list of strings) is added to the pool config to allow an admin to specify topology keys.
+If the list is empty (the default value), then topology aware scheduling is not enabled.
 
-Break this into subsections as needed for clarity.
+Keys that appear higher in the list are "smaller" groups of nodes and are subsets of the keys below them.
+In the example below: One or more `rack`s appears in a given `spine` and one or more `spine`s appear in a given `zone`.
+
+The `topology_keys` parameter is only allowed to be non-empty for pools that are part of a backend using KAI scheduler.
+
+
+```yaml
+{
+    "name": "my-pool-01",
+    "description": "A pool with topology aware scheduling enabled",
+    # Topology keys that appear first are the finest grain
+    # (Ie multiple racks belong in the same spine)
+    "topology_keys": [
+        "topology.kubernetes.io/rack",
+        "topology.kubernetes.io/spine",
+        "topology.kubernetes.io/zone",
+    ],
+    ...
+}
+```
+
+### Changes to Workflow Spec
+
+The `resources` portion of a task spec will have a new optional key: `topology`.
+
+The following pydantic data types demonstrate the schema
+
+```python
+
+class TopologyRequirementType(enum.Enum):
+    """ Specifies whether the requirement will block scheduling if it can't be satisfied, or
+    if its just a best effort attempt"""
+    REQUIRED = 'required'
+    PREFERRED = 'preferred'
+
+class TopologyRequirement(pydantic.BaseModel):
+    key: str
+    group: str = 'default'
+    requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED
+
+
+class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    cpu: int | None = None
+    ...
+    # A list of topology requirements in decreasing levels of granularity
+    # (ie `rack` should appear before `zone`)
+    topology: List[TopologyRequirement] = []
+
+```
+
+
+### Workflow Examples
+
+#### Single NVL72 Rack
+
+A workflow spec for [Usecase 1](#usecase-1) (Single NVL72 Rack) might look like the following
+
+```yaml
+workflow:
+  name: single-nvl72-rack
+  groups:
+  - name: group1
+    tasks:
+    - name: model1-shard1
+      ...
+    - name: model1-shard2
+      ...
+    - name: model1-shard3
+      ...
+    - name: model1-shard4
+      ...
+resources:
+  default:
+    topology:
+    - key: nvidia.com/gpu-clique
+```
+
+#### Multiple NVL72 Racks
+
+A workflow spec for [Usecase 2](#usecase-2) (Multiple NVL72 Racks) might look like the following.
+
+In this example, we use the `group` field to specify that all tasks using the `model-1` resource should be scheduled on the same gpu-clique (but potentially a different gpu-clique than the tasks using the `model-2` resource).
+
+```yaml
+workflow:
+  name: multiple-nvl72-racks
+  groups:
+  - name: group1
+    tasks:
+    - name: model1-shard1
+      resource: model-1
+      ...
+    - name: model1-shard2
+      resource: model-1
+      ...
+    - name: model1-shard3
+      resource: model-1
+      ...
+    - name: model1-shard4
+      resource: model-1
+      ...
+    - name: model2-shard1
+      resource: model-2
+      ...
+    - name: model2-shard2
+      resource: model-2
+      ...
+    - name: model2-shard3
+      resource: model-2
+      ...
+    - name: model2-shard4
+      resource: model-2
+      ...
+resources:
+  model-1:
+    topology:
+    - key: nvidia.com/gpu-clique
+      group: model-1-group
+  model-2:
+    topology:
+    - key: nvidia.com/gpu-clique
+      group: model-2-group
+```
+
+#### Multiple NVL72 Racks in Same Zone
+
+A workflow spec for [Usecase 3](#usecase-3) (Multiple NVL72 Racks in same zone) might look like the following.
+
+In this example, we use multiple topology requirements. The first requirement (with the finest granularity) groups tasks by gpu-clique based on which model instance they belong to. The second requirement ensures all tasks in the entire workflow are scheduled in the same zone.
+
+```yaml
+workflow:
+  name: multiple-nvl72-same-zone
+  groups:
+  - name: group1
+    tasks:
+    - name: model1-shard1
+      resource: model-1
+      ...
+    - name: model1-shard2
+      resource: model-1
+      ...
+    - name: model1-shard3
+      resource: model-1
+      ...
+    - name: model1-shard4
+      resource: model-1
+      ...
+    - name: model2-shard1
+      resource: model-2
+      ...
+    - name: model2-shard2
+      resource: model-2
+      ...
+    - name: model2-shard3
+      resource: model-2
+      ...
+    - name: model2-shard4
+      resource: model-2
+      ...
+resources:
+  model-1:
+    topology:
+    - key: nvidia.com/gpu-clique
+      group: model-1-group
+    - key: topology.kubernetes.io/zone
+      group: workflow-group
+  model-2:
+    topology:
+    - key: nvidia.com/gpu-clique
+      group: model-2-group
+    - key: topology.kubernetes.io/zone
+      group: workflow-group
+```
+
+#### Best Effort Topology Awareness
+
+A workflow spec for [Usecase 4](#usecase-4) (Best effort topology awareness) might look like the following.
+
+This example is similar to Usecase 3, but uses `requirementType: preferred` to indicate that the topology requirements are best-effort. If the scheduler cannot satisfy the topology requirements, the workflow will still be scheduled.
+
+```yaml
+workflow:
+  name: best-effort-topology
+  groups:
+  - name: group1
+    tasks:
+    - name: model1-shard1
+      resource: model-1
+      ...
+    - name: model1-shard2
+      resource: model-1
+      ...
+    - name: model1-shard3
+      resource: model-1
+      ...
+    - name: model1-shard4
+      resource: model-1
+      ...
+    - name: model2-shard1
+      resource: model-2
+      ...
+    - name: model2-shard2
+      resource: model-2
+      ...
+    - name: model2-shard3
+      resource: model-2
+      ...
+    - name: model2-shard4
+      resource: model-2
+      ...
+resources:
+  model-1:
+    topology:
+    - key: topology.kubernetes.io/rack
+      group: model-1-group
+      requirementType: preferred
+    - key: topology.kubernetes.io/spine
+      group: workflow-group
+      requirementType: preferred
+  model-2:
+    topology:
+    - key: topology.kubernetes.io/rack
+      group: model-2-group
+      requirementType: preferred
+    - key: topology.kubernetes.io/spine
+      group: workflow-group
+      requirementType: preferred
+```
+
+
+### Implementation
+
+Topology aware scheduling will be implemented using KAI's topology aware scheduling feature.
+
+When the `topology_keys` field of a pool is updated, a new KAI scheduler cluster topology CRD will be created or modified in the cluster for the pool using the `BackendSynchronizeQueues` backend job (which synchronizes queue and other scheduler-related CRDs for a backend).
+
+```yaml
+apiVersion: kai.scheduler/v1
+kind: Topology
+metadata:
+  name: "<osmo-pool-name>-topology"
+spec:
+  levels:
+  - nodeLabel: "topology.kubernetes.io/rack"
+  - nodeLabel: "topology.kubernetes.io/spine"
+  - nodeLabel: "topology.kubernetes.io/zone"
+```
+
+When a workflow is submitted on a pool that uses topology, the KAI scheduler PodGroup will be created with topology constraints using the following algorithm:
+
+**Algorithm for creating PodGroup with topology constraints:**
+
+1. **Top-level topology constraint**: If the coarsest (largest scope) topology requirement is shared by all pods in the workflow, add it to the `topologyConstraint` field of the PodGroup spec.
+
+2. **Create subgroups**: For each unique set of topology requirements:
+   - Create a subgroup in the `subgroups` section
+   - Set `minMember` equal to the number of tasks that share those topology requirements
+   - Set the `topologyConstraint` to reference the finest-grained (smallest scope) topology level for that subgroup
+   - Reference the pool's Topology CRD name in the `topology` field
+
+3. **Hierarchical relationships**: For workflows with multiple levels of topology requirements (e.g., both rack and zone):
+   - Create parent subgroups for coarser topology levels
+   - Set the `parent` field on child subgroups to reference their parent subgroup
+   - This creates a hierarchy where finer-grained requirements are nested within coarser ones
+
+4. **Pod annotations and labels**: Each pod in the workflow receives:
+   - Annotation: `pod-group-name: <group-uuid>`
+   - Label: `kai.scheduler/subgroup-name: <subgroup-name>`
+
+These annotations and labels associate each pod with its PodGroup and subgroup, enabling the KAI scheduler to enforce the topology constraints.
+
+For example, for [Usecase 3](#usecase-3) (Multiple NVL72 Racks in Same Zone), the following PodGroup would be created:
+
+```yaml
+apiVersion: scheduling.run.ai/v2alpha2
+kind: PodGroup
+metadata:
+  name: group1-abc123
+  labels:
+    kai.scheduler/queue: osmo-pool-my-pool
+spec:
+  queue: osmo-pool-my-pool
+  topologyConstraint:
+    topology: "osmo-pool-my-pool-topology"
+    requiredTopologyLevel: "topology.kubernetes.io/zone"
+  subgroups:
+    # Subgroup for model 1 - all shards must be on same gpu-clique
+    - name: model-1-subgroup
+      minMember: 4
+      topologyConstraint:
+        topology: "osmo-pool-my-pool-topology"
+        requiredTopologyLevel: "nvidia.com/gpu-clique"
+    # Subgroup for model 2 - all shards must be on same gpu-clique
+    - name: model-2-subgroup
+      minMember: 4
+      topologyConstraint:
+        topology: "osmo-pool-my-pool-topology"
+        requiredTopologyLevel: "nvidia.com/gpu-clique"
+```
+
+The pods would have the following annotations and labels:
+
+```yaml
+# model1-shard1, model1-shard2, model1-shard3, model1-shard4
+metadata:
+  annotations:
+    pod-group-name: group1-abc123
+  labels:
+    kai.scheduler/subgroup-name: model-1-subgroup
+
+# model2-shard1, model2-shard2, model2-shard3, model2-shard4
+metadata:
+  annotations:
+    pod-group-name: group1-abc123
+  labels:
+    kai.scheduler/subgroup-name: model-2-subgroup
+```
 
 ### Alternatives Considered
 
-_What other approaches did you consider? Why did you choose this design over the alternatives?_
+#### Pod Affinity
 
-For each alternative:
+Kubernetes's `podAffinity` labels were considered which allow some level of topology aware scheduling, but they are
+not as expressive as KAI scheduler's topology aware scheduling feature, and they are not fully supported by KAI
+scheduler.
 
-- Describe the approach
-- List pros and cons
-- Explain why it was not chosen
+#### Group Templates
+
+Because PodGroups are created per task group, they could possible be created as part of the new group template feature
+instead being created directly by OSMO. This would complicate the group template feature, however, because currently our
+templating mechanism only supports substituting within the values of fields. The PodGroups needed for topology aware scheduling
+need new list items added per unique topology key/group pair, which isn't currently supported by our templating mechanism.
 
 ### Backwards Compatibility
 
-_Does this change break existing APIs, configurations, or user workflows? If yes, how will we handle it?_
+For existing backends with KAI scheduler pre v0.10, OSMO will still work. Simply do not include any `topology_keys` in
+the pool config, and OSMO will not create a Topology CRD. This will disallow users from adding topology requirements
+to their workflows (Because there are not valid keys), so PodGroup subgroups will not be created.
 
 ### Performance
 
-_What are the performance implications? Will this impact latency, throughput, resource usage, etc.?_
+There will be a minimal impact on workflow submission time as the extra code that runs to figure out topology is not very extensive.
+Not new kubernetes CRDs are created when a workflow is created in the backend, we only modify the existing CRDs (PodGroups and Pods).
 
 ### Operations
 
