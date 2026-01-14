@@ -55,6 +55,7 @@ import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { useEventCallback } from "usehooks-ts";
 import { PANEL } from "@/components/panel";
+import { useTickController } from "@/hooks";
 
 // Route-level components
 import {
@@ -160,6 +161,12 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   // Fetch workflow data
   const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound } = useWorkflowDetail({ name });
+
+  // Synchronized tick for live durations - only tick when workflow is active
+  // Completed/failed workflows have static durations, no need to tick
+  const workflowStatus = workflow?.status;
+  const isWorkflowActive = workflowStatus === "PENDING" || workflowStatus === "RUNNING" || workflowStatus === "WAITING";
+  useTickController(isWorkflowActive);
 
   // URL-synced navigation state (nuqs)
   const {

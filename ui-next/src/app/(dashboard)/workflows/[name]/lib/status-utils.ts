@@ -387,10 +387,14 @@ export function computeGroupStatus(stats: TaskStats): GroupStatus {
   return { status: "pending", label: "Pending" };
 }
 
-/** Compute group duration from task stats. */
-export function computeGroupDuration(stats: TaskStats): number | null {
+/**
+ * Compute group duration from task stats.
+ * @param stats - Task statistics
+ * @param now - Current timestamp in milliseconds (for running workflows, use synchronized tick)
+ */
+export function computeGroupDuration(stats: TaskStats, now?: number): number | null {
   if (stats.earliestStart === null) return null;
-  const endTime = stats.hasRunning ? Date.now() : stats.latestEnd;
+  const endTime = stats.hasRunning ? (now ?? Date.now()) : stats.latestEnd;
   if (endTime === null) return null;
-  return Math.floor((endTime - stats.earliestStart) / 1000);
+  return Math.max(0, Math.floor((endTime - stats.earliestStart) / 1000));
 }
