@@ -45,6 +45,7 @@
  * - `useCopy` - Thin wrapper on usehooks-ts with auto-reset for UI feedback
  * - `useExpandableChips` - Unique measurement logic for chip overflow
  * - `useUrlChips` - URL state management for SmartSearch chips
+ * - `useTick` / `useTickController` - Synchronized timestamp for aligned live durations
  */
 
 // =============================================================================
@@ -81,3 +82,6 @@ export { useSelectionState, useConfigState, usePanelState, type UsePanelStateRet
 
 // Results Count (for SmartSearch display)
 export { useResultsCount, type UseResultsCountOptions } from "./use-results-count";
+
+// Synchronized Tick (for aligned live durations)
+export { useTick, useTickController, useLiveDuration, calculateLiveDuration } from "./use-tick";
