@@ -55,7 +55,9 @@ function parseTime(timeStr?: string | null): Date | null {
 function calculatePhaseDuration(start: Date | null, end: Date | null): number | null {
   if (!start) return null;
   const endTime = end || new Date();
-  return Math.floor((endTime.getTime() - start.getTime()) / 1000);
+  const duration = Math.floor((endTime.getTime() - start.getTime()) / 1000);
+  // Never return negative durations (can happen with clock skew or out-of-order timestamps)
+  return Math.max(0, duration);
 }
 
 // ============================================================================
@@ -118,7 +120,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // Add terminal state phase if completed or failed
+    // Add current state phase (running, completed, or failed)
     if ((isCompleted || isFailed) && endTime) {
       result.push({
         id: isFailed ? "failed" : "done",
@@ -126,6 +128,14 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
         time: endTime,
         duration: null, // Terminal phases are instantaneous milestones
         status: isFailed ? "failed" : "completed",
+      });
+    } else if (isRunning) {
+      result.push({
+        id: "running",
+        label: "Running",
+        time: null,
+        status: "active",
+        duration: null,
       });
     }
 
@@ -140,7 +150,10 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
     for (let i = 0; i < result.length; i++) {
       const phase = result[i];
       const nextPhase = result[i + 1];
+      const prevPhase = result[i - 1];
       const isLastPhase = i === result.length - 1;
+      // Check if next phase is a terminal indicator (no time, just state)
+      const nextIsTerminal = nextPhase && !nextPhase.time;
 
       if (nextPhase?.time) {
         // This phase ends when the next phase starts
@@ -148,13 +161,25 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
         phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
         // Any phase followed by another phase is completed
         phase.status = "completed";
+      } else if (nextIsTerminal) {
+        // Work phase followed by terminal indicator (Running/Done/Failed)
+        // Don't show duration here - the terminal phase shows it to avoid redundancy
+        phase.duration = null;
+        phase.status = "completed";
       } else if (isLastPhase) {
-        // Terminal phases (done/failed) are instantaneous milestones
-        const isTerminalPhase = phase.id === "done" || phase.id === "failed";
+        // Terminal phases (done/failed/running) are state indicators
+        const isTerminalPhase = phase.id === "done" || phase.id === "failed" || phase.id === "running";
         if (isTerminalPhase) {
-          phase.duration = null;
+          // For "running" state: calculate duration from previous phase start to now
+          // This gives it proportional visual weight representing "running for X time"
+          if (phase.id === "running" && prevPhase?.time) {
+            phase.duration = calculatePhaseDuration(prevPhase.time, null);
+          } else {
+            // Done/Failed are instantaneous milestones
+            phase.duration = null;
+          }
         } else {
-          // Last phase: ends at group end time (for completed/failed) or now (for running)
+          // Last work phase (no terminal after): ends at group end time or now
           const rawDuration = calculatePhaseDuration(phase.time, endTime);
           phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
         }
