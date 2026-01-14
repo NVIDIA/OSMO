@@ -18,6 +18,7 @@ import {
   getPoolQuotasApiPoolQuotaGet,
 } from "../generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS } from "@/lib/config";
+import { naturalCompare } from "@/lib/utils";
 
 import {
   transformPoolsResponse,
@@ -357,8 +358,8 @@ export function useResourceDetail(
       }
     }
 
-    // Get unique pool names, always sorted alphabetically
-    const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) => a.localeCompare(b));
+    // Get unique pool names, always sorted using natural/alphanumeric order
+    const pools = [...new Set(memberships.map((m) => m.pool))].sort((a, b) => naturalCompare(a, b));
 
     // Initial pool: if context pool exists and is valid, use it; otherwise first alphabetically
     const initialPool = contextPool && pools.includes(contextPool) ? contextPool : (pools[0] ?? null);
