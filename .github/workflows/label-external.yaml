@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Check if author is in osmo-dev
         id: team-check
-        uses: tspascoal/get-user-teams-membership@v3
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662
         with:
           # Use a PAT or org-level token with read:org / members:read
           GITHUB_TOKEN: ${{ secrets.NVIDIA_ORG_MEMBER_READ_TOKEN }}
