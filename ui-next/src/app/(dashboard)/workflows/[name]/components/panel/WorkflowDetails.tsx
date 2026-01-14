@@ -39,22 +39,9 @@ import { formatDuration } from "../../lib/workflow-types";
 import { getStatusIcon } from "../../lib/status";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../lib/status";
 import { DetailsPanelHeader } from "./DetailsPanelHeader";
-import { Timeline, type TimelinePhase } from "./Timeline";
+import { WorkflowTimeline } from "./WorkflowTimeline";
+import { parseTime } from "./Timeline";
 import { useTick } from "@/hooks";
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-/**
- * Parse timestamp string to Date.
- * Timestamps are normalized in the adapter layer (useWorkflow hook),
- * so we can safely use new Date() directly.
- */
-function parseTime(timeStr?: string | null): Date | null {
-  if (!timeStr) return null;
-  return new Date(timeStr);
-}
 
 // =============================================================================
 // Styling Constants (Single Source of Truth)
@@ -151,107 +138,6 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
         </>
       )}
     </div>
-  );
-});
-
-/** Workflow timeline using the shared Timeline component */
-const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow: WorkflowQueryResponse }) {
-  // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
-  const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
-  const isCompleted = statusCategory === "completed";
-  const isFailed = statusCategory === "failed";
-  const isRunning = statusCategory === "running";
-
-  // Synchronized tick for live durations
-  const now = useTick();
-
-  // Memoize time computations to prevent dependency changes on every render
-  // Timestamps are normalized in the adapter layer (useWorkflow hook)
-  const submitTime = useMemo(() => parseTime(workflow.submit_time), [workflow.submit_time]);
-  const startTime = useMemo(() => parseTime(workflow.start_time), [workflow.start_time]);
-  const endTime = useMemo(() => parseTime(workflow.end_time), [workflow.end_time]);
-
-  const queuedDuration = workflow.queued_time;
-  const runningDuration = useMemo(() => {
-    if (!startTime) return null;
-    // Use synchronized tick for running workflows
-    const endMs = isRunning && !endTime ? now : endTime?.getTime();
-    if (!endMs) return null;
-    return Math.max(0, Math.floor((endMs - startTime.getTime()) / 1000));
-  }, [startTime, endTime, isRunning, now]);
-
-  // Build phases for the Timeline component
-  const phases = useMemo<TimelinePhase[]>(() => {
-    const result: TimelinePhase[] = [];
-
-    if (submitTime) {
-      // Submitted phase duration = time spent queued (until started)
-      result.push({
-        id: "submitted",
-        label: "Submitted",
-        time: submitTime,
-        status: "completed",
-        duration: queuedDuration ?? null,
-      });
-    }
-
-    if (startTime) {
-      result.push({
-        id: "started",
-        label: "Started",
-        time: startTime,
-        status: "completed",
-        // Only show duration if this is the last phase (completed/failed workflows)
-        // For running workflows, the Running phase shows the duration instead
-        duration: isRunning ? null : (runningDuration ?? null),
-      });
-    } else if (submitTime) {
-      result.push({
-        id: "started",
-        label: "Started",
-        time: null,
-        status: "pending",
-        duration: null,
-      });
-    }
-
-    if (isCompleted && endTime) {
-      result.push({
-        id: "completed",
-        label: "Completed",
-        time: endTime,
-        status: "completed",
-        duration: null, // Terminal milestone
-      });
-    } else if (isFailed && endTime) {
-      result.push({
-        id: "failed",
-        label: "Failed",
-        time: endTime,
-        status: "failed",
-        duration: null, // Terminal milestone
-      });
-    } else if (isRunning && startTime) {
-      result.push({
-        id: "running",
-        label: "Running",
-        time: null,
-        status: "active",
-        duration: runningDuration ?? null, // Shows the running duration
-      });
-    }
-
-    return result;
-  }, [submitTime, startTime, endTime, queuedDuration, runningDuration, isCompleted, isFailed, isRunning]);
-
-  if (phases.length === 0) return null;
-
-  return (
-    <Timeline
-      phases={phases}
-      showHeader
-      headerText="Timeline"
-    />
   );
 });
 

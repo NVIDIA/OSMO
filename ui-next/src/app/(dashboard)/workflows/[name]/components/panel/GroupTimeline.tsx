@@ -28,8 +28,8 @@
 import { memo, useMemo } from "react";
 import type { GroupWithLayout } from "../../lib/workflow-types";
 import { getStatusCategory } from "../../lib/status";
-import { Timeline, type TimelinePhase } from "./Timeline";
-import { useTick, calculateLiveDuration } from "@/hooks";
+import { Timeline, type TimelinePhase, parseTime, createPhaseDurationCalculator } from "./Timeline";
+import { useTick } from "@/hooks";
 
 // ============================================================================
 // Types
@@ -37,30 +37,6 @@ import { useTick, calculateLiveDuration } from "@/hooks";
 
 interface GroupTimelineProps {
   group: GroupWithLayout;
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Parse timestamp string to Date.
- * Timestamps are normalized in the adapter layer (useWorkflow hook),
- * so we can safely use new Date() directly.
- */
-function parseTime(timeStr?: string | null): Date | null {
-  if (!timeStr) return null;
-  return new Date(timeStr);
-}
-
-/**
- * Calculate phase duration using the synchronized tick.
- * This is a local wrapper that matches the signature expected by phase building logic.
- */
-function createPhaseDurationCalculator(now: number) {
-  return (start: Date | null, end: Date | null): number | null => {
-    return calculateLiveDuration(now, start, end);
-  };
 }
 
 // ============================================================================
