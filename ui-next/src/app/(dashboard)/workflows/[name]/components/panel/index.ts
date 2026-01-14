@@ -47,6 +47,7 @@ export type { HeaderViewType } from "./DetailsPanelHeader";
 // Timeline components
 export { GroupTimeline } from "./GroupTimeline";
 export { TaskTimeline } from "./TaskTimeline";
+export { WorkflowTimeline } from "./WorkflowTimeline";
 
 // Dependency pills
 export { DependencyPills } from "./DependencyPills";
