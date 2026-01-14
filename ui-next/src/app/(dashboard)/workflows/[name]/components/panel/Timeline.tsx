@@ -19,9 +19,15 @@
  *
  * A reusable, responsive timeline visualization for workflow, group, and task lifecycles.
  *
+ * Responsive behavior:
+ * 1. Wide container: segments sized proportionally based on duration
+ * 2. Shrinking: all segments shrink proportionally together
+ * 3. Segment hits minimum: that segment stops at text width, others continue shrinking
+ * 4. All segments at minimum: if still doesn't fit, switch to vertical layout
+ *
  * Features:
- * - Responsive layout: switches between horizontal and vertical based on container width
- * - Proportional phase widths based on duration
+ * - CSS Grid with minmax(max-content, Xfr) for proportional + minimum sizing
+ * - Square root scaling for durations to prevent extreme visual disparities
  * - Tooltips on markers with timestamps
  * - Visual states: completed, active, pending, failed
  * - Accessible screen reader descriptions
@@ -29,7 +35,7 @@
 
 "use client";
 
-import { memo, useRef } from "react";
+import { memo, useRef, useState, useLayoutEffect } from "react";
 import { useResizeObserver } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -59,8 +65,6 @@ export interface TimelineProps {
   phases: TimelinePhase[];
   /** Message to show when there are no phases (e.g., "Waiting to be scheduled") */
   emptyMessage?: string;
-  /** Minimum width per phase in pixels for horizontal layout (default: 80) */
-  minWidthPerPhase?: number;
   /** Additional class name for the container */
   className?: string;
   /** Whether to show the section header (default: false) */
@@ -81,9 +85,6 @@ const STYLES = {
   subtleText: "text-xs text-muted-foreground/70",
   timelinePending: "border-dashed border-border",
 } as const;
-
-/** Default minimum width per phase for horizontal layout (accounts for full labels + spacing) */
-const DEFAULT_MIN_WIDTH_PER_PHASE = 120;
 
 // ============================================================================
 // Helper Functions
@@ -122,30 +123,56 @@ function formatTimeShort(date: Date | null): string {
 // Component
 // ============================================================================
 
+/**
+ * Calculate scaled fr value for proportional grid sizing.
+ * Uses square root scaling to prevent extreme visual disparities
+ * (e.g., 3600s vs 5s would be 60:1 instead of 720:1)
+ */
+function getScaledFr(duration: number | null): number {
+  const d = Math.max(1, duration ?? 1);
+  return Math.max(1, Math.sqrt(d));
+}
+
 export const Timeline = memo(function Timeline({
   phases,
   emptyMessage,
-  minWidthPerPhase = DEFAULT_MIN_WIDTH_PER_PHASE,
   className,
   showHeader = false,
   headerText = "Timeline",
 }: TimelineProps) {
-  // Content-aware layout: measure container and switch layout based on phases
+  // Content-aware layout: measure container and detect overflow
   const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
-  // Calculate minimum width needed for horizontal layout based on number of phases
-  const minWidthForHorizontal = phases.length * minWidthPerPhase;
+  // Track if horizontal layout overflows (all segments at min-content but still don't fit)
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const prevContainerWidth = useRef(0);
 
   // Use useResizeObserver for efficient container dimension tracking
-  // Using border-box for more accurate measurements during panel resize
   const { width: containerWidth = 0 } = useResizeObserver({
     ref: containerRef as React.RefObject<HTMLElement>,
     box: "border-box",
   });
 
-  // Switch to vertical layout when container is too narrow
-  // Using strict less-than to ensure we switch before clipping occurs
-  const useHorizontal = containerWidth > 0 && containerWidth >= minWidthForHorizontal;
+  // Detect overflow: switch to vertical when even min-content widths don't fit
+  useLayoutEffect(() => {
+    // Reset overflow when container grows (might fit now)
+    if (containerWidth > prevContainerWidth.current) {
+      setHasOverflow(false);
+    }
+    prevContainerWidth.current = containerWidth;
+
+    // Check if grid overflows after render
+    if (gridRef.current && containerWidth > 0) {
+      const overflow = gridRef.current.scrollWidth > gridRef.current.clientWidth + 1;
+      if (overflow && !hasOverflow) {
+        setHasOverflow(true);
+      }
+    }
+  }, [containerWidth, hasOverflow, phases.length]);
+
+  // Use horizontal if container has width and content fits
+  const useHorizontal = containerWidth > 0 && !hasOverflow;
 
   // No timeline data - show empty message or nothing
   if (phases.length === 0) {
@@ -173,7 +200,7 @@ export const Timeline = memo(function Timeline({
     <TooltipProvider delayDuration={200}>
       <div
         ref={containerRef}
-        className={cn("flex flex-col", className)}
+        className={cn("relative flex flex-col", className)}
       >
         {/* Screen reader description */}
         <div
@@ -275,15 +302,22 @@ export const Timeline = memo(function Timeline({
           </div>
         )}
 
-        {/* Horizontal layout (for wider containers with fewer phases) */}
-        {/* Uses CSS Grid to keep timeline bar and labels aligned; flex-grow for proportional duration sizing */}
-        {useHorizontal && (
+        {/* Horizontal layout - always render for measurement, hide when overflowing */}
+        {/* Uses CSS Grid with minmax(max-content, Xfr) for proportional sizing with minimum text width */}
+        {/* Behavior: segments shrink proportionally, stop at text width, then switch to vertical */}
+        {containerWidth > 0 && (
           <div
-            className="grid overflow-hidden"
+            ref={gridRef}
+            className={cn(
+              "grid",
+              // Hide when overflow detected, but keep in DOM for measurement
+              hasOverflow && "pointer-events-none invisible absolute",
+            )}
+            aria-hidden={hasOverflow}
             style={{
-              // Each phase gets a column; use duration for proportional sizing (fr units)
-              // Fallback to 1fr for phases without duration (terminal/pending states)
-              gridTemplateColumns: phases.map((p) => `minmax(max-content, ${p.duration ?? 1}fr)`).join(" "),
+              // minmax(max-content, Xfr): columns shrink proportionally, stop at text content width
+              // Uses sqrt scaling to prevent extreme visual disparities (3600s vs 5s = 60:1 not 720:1)
+              gridTemplateColumns: phases.map((p) => `minmax(max-content, ${getScaledFr(p.duration)}fr)`).join(" "),
             }}
           >
             {/* Row 1: Timeline bar with markers and segments */}

@@ -203,17 +203,16 @@ const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow
         id: "started",
         label: "Started",
         time: startTime,
-        annotation: queuedDuration ? `queued ${formatDuration(queuedDuration)}` : undefined,
         status: "completed",
-        // Started phase duration = time spent running (until completed/failed)
-        duration: runningDuration ?? null,
+        // Only show duration if this is the last phase (completed/failed workflows)
+        // For running workflows, the Running phase shows the duration instead
+        duration: isRunning ? null : runningDuration ?? null,
       });
     } else if (submitTime) {
       result.push({
         id: "started",
         label: "Started",
         time: null,
-        annotation: "queued",
         status: "pending",
         duration: null,
       });
@@ -224,27 +223,24 @@ const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: { workflow
         id: "completed",
         label: "Completed",
         time: endTime,
-        annotation: runningDuration ? `ran ${formatDuration(runningDuration)}` : undefined,
         status: "completed",
-        duration: null, // Terminal phase, no duration needed
+        duration: null, // Terminal milestone
       });
     } else if (isFailed && endTime) {
       result.push({
         id: "failed",
         label: "Failed",
         time: endTime,
-        annotation: runningDuration ? `ran ${formatDuration(runningDuration)}` : undefined,
         status: "failed",
-        duration: null, // Terminal phase, no duration needed
+        duration: null, // Terminal milestone
       });
     } else if (isRunning && startTime) {
       result.push({
         id: "running",
         label: "Running",
         time: null,
-        annotation: runningDuration ? formatDuration(runningDuration) : undefined,
         status: "active",
-        duration: null, // Active/terminal phase, no duration needed
+        duration: runningDuration ?? null, // Shows the running duration
       });
     }
 
