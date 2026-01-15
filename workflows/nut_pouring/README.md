@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -110,6 +110,5 @@ osmo workflow submit 06_groot_finetune.yaml \
 ## References
 
 - [GROOT-N1.5 Documentation](https://developer.nvidia.com/groot)
-- [NVIDIA OSMO](https://developer.nvidia.com/osmo)
 - [Cosmos Transfer](https://developer.nvidia.com/cosmos)
 - [LeRobot](https://huggingface.co/lerobot)
