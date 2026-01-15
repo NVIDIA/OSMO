@@ -13,7 +13,7 @@
 //limitations under the License.
 //
 //SPDX-License-Identifier: Apache-2.0
-import { Fragment, useCallback } from "react";
+import { useCallback } from "react";
 
 import { Colors, Tag } from "~/components/Tag";
 import { type ServiceConfig } from "~/models/config/service-config";
@@ -50,122 +50,116 @@ export const ServiceConfigOverview = ({
     return <pre className="p-global text-sm font-mono">{JSON.stringify(serviceConfig, null, 2)}</pre>;
   }
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-global p-global w-full h-full">
-      <section
-        aria-labelledby="general-title"
-        className="data-section"
+    <div className="flex flex-col gap-global p-global w-full h-full">
+      <dl
         aria-label="General Settings"
+        className="grid grid-cols-[auto_1fr] lg:grid-cols-[auto_1fr_auto_1fr] gap-global"
       >
-        <h3 id="general-title">General</h3>
-        <dl aria-labelledby="general-title">
-          <dt>Service Base URL</dt>
-          <dd className={isChanged((config) => config.service_base_url) ? highlightClass : ""}>
+        <dt>Service Base URL</dt>
+        <dd>
+          <span className={isChanged((config) => config.service_base_url) ? highlightClass : ""}>
             {serviceConfig.service_base_url}
-          </dd>
-          <dt>Max Pod Restart Limit</dt>
-          <dd className={isChanged((config) => config.max_pod_restart_limit) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>Max Pod Restart Limit</dt>
+        <dd>
+          <span className={isChanged((config) => config.max_pod_restart_limit) ? highlightClass : ""}>
             {serviceConfig.max_pod_restart_limit}
-          </dd>
-          <dt>Agent Queue Size</dt>
-          <dd className={isChanged((config) => config.agent_queue_size) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>Agent Queue Size</dt>
+        <dd>
+          <span className={isChanged((config) => config.agent_queue_size) ? highlightClass : ""}>
             {serviceConfig.agent_queue_size}
-          </dd>
-          <dt>Issuer</dt>
-          <dd className={isChanged((config) => config.service_auth.issuer) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>Issuer</dt>
+        <dd>
+          <span className={isChanged((config) => config.service_auth.issuer) ? highlightClass : ""}>
             {serviceConfig.service_auth.issuer}
-          </dd>
-          <dt>Audience</dt>
-          <dd className={isChanged((config) => config.service_auth.audience) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>Audience</dt>
+        <dd>
+          <span className={isChanged((config) => config.service_auth.audience) ? highlightClass : ""}>
             {serviceConfig.service_auth.audience}
-          </dd>
-          <dt>User Roles</dt>
-          <dd className={isChanged((config) => config.service_auth.user_roles) ? highlightClass : ""}>
-            <div className="flex flex-wrap gap-1">
-              {serviceConfig.service_auth.user_roles.map((role) => (
-                <Tag
-                  color={Colors.tag}
-                  key={role}
-                  className="inline-block"
-                >
-                  {role}
-                </Tag>
-              ))}
-            </div>
-          </dd>
-          <dt>Ctrl Roles</dt>
-          <dd className={isChanged((config) => config.service_auth.ctrl_roles) ? highlightClass : ""}>
-            <div className="flex flex-wrap gap-1">
-              {serviceConfig.service_auth.ctrl_roles.map((role) => (
-                <Tag
-                  color={Colors.pool}
-                  key={role}
-                  className="inline-block"
-                >
-                  {role}
-                </Tag>
-              ))}
-            </div>
-          </dd>
-          <dt>Max Token Duration</dt>
-          <dd className={isChanged((config) => config.service_auth.max_token_duration) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>User Roles</dt>
+        <dd>
+          <div
+            className={`flex flex-wrap gap-1 ${isChanged((config) => config.service_auth.user_roles) ? highlightClass : ""}`}
+          >
+            {serviceConfig.service_auth.user_roles.map((role) => (
+              <Tag
+                color={Colors.tag}
+                key={role}
+                className="inline-block"
+              >
+                {role}
+              </Tag>
+            ))}
+          </div>
+        </dd>
+        <dt>Ctrl Roles</dt>
+        <dd>
+          <div
+            className={`flex flex-wrap gap-1 ${isChanged((config) => config.service_auth.ctrl_roles) ? highlightClass : ""}`}
+          >
+            {serviceConfig.service_auth.ctrl_roles.map((role) => (
+              <Tag
+                color={Colors.pool}
+                key={role}
+                className="inline-block"
+              >
+                {role}
+              </Tag>
+            ))}
+          </div>
+        </dd>
+        <dt>Max Token Duration</dt>
+        <dd>
+          <span className={isChanged((config) => config.service_auth.max_token_duration) ? highlightClass : ""}>
             {serviceConfig.service_auth.max_token_duration}
-          </dd>
-          <dt>Device Client ID</dt>
-          <dd className={isChanged((config) => config.service_auth.login_info.device_client_id) ? highlightClass : ""}>
-            {serviceConfig.service_auth.login_info.device_client_id ?? "-"}
-          </dd>
-          <dt>Browser Client ID</dt>
-          <dd className={isChanged((config) => config.service_auth.login_info.browser_client_id) ? highlightClass : ""}>
-            {serviceConfig.service_auth.login_info.browser_client_id ?? "-"}
-          </dd>
-          <dt>Device Endpoint</dt>
-          <dd className={isChanged((config) => config.service_auth.login_info.device_endpoint) ? highlightClass : ""}>
-            {serviceConfig.service_auth.login_info.device_endpoint ?? "-"}
-          </dd>
-          <dt>Browser Endpoint</dt>
-          <dd className={isChanged((config) => config.service_auth.login_info.browser_endpoint) ? highlightClass : ""}>
-            {serviceConfig.service_auth.login_info.browser_endpoint ?? "-"}
-          </dd>
-          <dt>Token Endpoint</dt>
-          <dd className={isChanged((config) => config.service_auth.login_info.token_endpoint) ? highlightClass : ""}>
-            {serviceConfig.service_auth.login_info.token_endpoint ?? "-"}
-          </dd>
-          <dt>Logout Endpoint</dt>
-          <dd className={isChanged((config) => config.service_auth.login_info.logout_endpoint) ? highlightClass : ""}>
-            {serviceConfig.service_auth.login_info.logout_endpoint ?? "-"}
-          </dd>
-        </dl>
-      </section>
-      <section
-        aria-labelledby="cli-config-title"
-        className="data-section"
-      >
-        <h3 id="cli-config-title">CLI Config</h3>
-        <dl aria-labelledby="cli-config-title">
-          <dt>Latest Version</dt>
-          <dd className={isChanged((config) => config.cli_config.latest_version) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>CLI Latest Version</dt>
+        <dd>
+          <span className={isChanged((config) => config.cli_config.latest_version) ? highlightClass : ""}>
             {serviceConfig.cli_config.latest_version ?? "-"}
-          </dd>
-          <dt>Min Supported Version</dt>
-          <dd className={isChanged((config) => config.cli_config.min_supported_version) ? highlightClass : ""}>
+          </span>
+        </dd>
+        <dt>CLI Min Supported Version</dt>
+        <dd>
+          <span className={isChanged((config) => config.cli_config.min_supported_version) ? highlightClass : ""}>
             {serviceConfig.cli_config.min_supported_version ?? "-"}
-          </dd>
-        </dl>
-      </section>
-      <section
-        aria-labelledby="keys-title"
-        className="data-section md:col-span-2"
-      >
-        <h3 id="keys-title">Keys</h3>
-        <dl
-          aria-labelledby="keys-title"
-          className={isChanged((config) => config.service_auth.keys) ? highlightClass : ""}
-        >
-          {Object.entries(serviceConfig.service_auth.keys).map(([key, value]) => {
-            return (
-              <Fragment key={key}>
-                <dt>Key</dt>
-                <dd className="flex flex-row gap-global items-center">
+          </span>
+        </dd>
+        <dt>Device Client ID</dt>
+        <dd>
+          <span
+            className={isChanged((config) => config.service_auth.login_info.device_client_id) ? highlightClass : ""}
+          >
+            {serviceConfig.service_auth.login_info.device_client_id ?? "-"}
+          </span>
+        </dd>
+        <dt>Browser Client ID</dt>
+        <dd>
+          <span
+            className={isChanged((config) => config.service_auth.login_info.browser_client_id) ? highlightClass : ""}
+          >
+            {serviceConfig.service_auth.login_info.browser_client_id ?? "-"}
+          </span>
+        </dd>
+        <dt>Keys</dt>
+        <dd className="lg:col-span-3">
+          <ul className={`list-none ${isChanged((config) => config.service_auth.keys) ? highlightClass : ""}`}>
+            {Object.entries(serviceConfig.service_auth.keys).map(([key, _value]) => {
+              return (
+                <li
+                  className="flex flex-row gap-1"
+                  key={key}
+                >
                   {key}
                   {key === serviceConfig.service_auth.active_key ? (
                     <Tag
@@ -175,23 +169,38 @@ export const ServiceConfigOverview = ({
                       Active
                     </Tag>
                   ) : undefined}
-                </dd>
-                <dt>Public Key</dt>
-                <dd>
-                  <textarea
-                    className="break-all w-full h-40"
-                    readOnly
-                    value={JSON.stringify(JSON.parse(value.public_key), null, 2)}
-                    rows={10}
-                  />
-                </dd>
-                <dt>Private Key</dt>
-                <dd>{value.private_key}</dd>
-              </Fragment>
-            );
-          })}
-        </dl>
-      </section>
+                </li>
+              );
+            })}
+          </ul>
+        </dd>
+        <dt>Device Endpoint</dt>
+        <dd className="lg:col-span-3">
+          <span className={isChanged((config) => config.service_auth.login_info.device_endpoint) ? highlightClass : ""}>
+            {serviceConfig.service_auth.login_info.device_endpoint ?? "-"}
+          </span>
+        </dd>
+        <dt>Browser Endpoint</dt>
+        <dd className="lg:col-span-3">
+          <span
+            className={isChanged((config) => config.service_auth.login_info.browser_endpoint) ? highlightClass : ""}
+          >
+            {serviceConfig.service_auth.login_info.browser_endpoint ?? "-"}
+          </span>
+        </dd>
+        <dt>Token Endpoint</dt>
+        <dd className="lg:col-span-3">
+          <span className={isChanged((config) => config.service_auth.login_info.token_endpoint) ? highlightClass : ""}>
+            {serviceConfig.service_auth.login_info.token_endpoint ?? "-"}
+          </span>
+        </dd>
+        <dt>Logout Endpoint</dt>
+        <dd className="lg:col-span-3">
+          <span className={isChanged((config) => config.service_auth.login_info.logout_endpoint) ? highlightClass : ""}>
+            {serviceConfig.service_auth.login_info.logout_endpoint ?? "-"}
+          </span>
+        </dd>
+      </dl>
     </div>
   );
 };
