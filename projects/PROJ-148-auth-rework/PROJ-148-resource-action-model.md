@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -57,9 +57,8 @@ This approach has several limitations:
 |---|---|
 | Define a read-only role | Admin creates a role that can view workflows and tasks but cannot create, modify, or delete them using `workflow:Read` action |
 | Grant workflow management | User role includes `workflow:*` to allow all workflow operations (create, read, update, delete, cancel, clone) |
-| Restrict pool deletion | Admin creates a policy with `Deny` effect on `pool:Delete` for production pools to prevent accidental deletion |
 | Backend service access | Internal services use `internal:Operator` action to access agent APIs without exposing those endpoints to regular users |
-| Audit role permissions | Admin reviews a role's policy and immediately understands what it allows (e.g., `bucket:Read`, `bucket:Write`) without tracing API paths |
+| Audit role permissions | Admin reviews a role's policy and immediately understands what it allows (e.g., `dataset:Read`, `dataset:Create`) without tracing API paths |
 | Add new API endpoint | Developer adds `POST /api/workflow/{id}/archive` and corresponding `workflow:Archive` action in the same PR |
 
 ## Requirements
@@ -85,7 +84,7 @@ This approach has several limitations:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     RESOURCE-ACTION PERMISSION MODEL                         │
+│                     RESOURCE-ACTION PERMISSION MODEL                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  LAYER 1: Action Registry (Static, Code-defined)                            │
@@ -140,7 +139,7 @@ The action registry is defined in code (not database) for several reasons:
 │  task                Read, Update, Cancel,      pool / user                 │
 │                      Exec, PortForward, Rsync                               │
 │                                                                             │
-│  bucket              Create, Read, Write,       bucket                      │
+│  dataset             Create, Read, Write,       bucket                      │
 │                      Delete, List                                           │
 │                                                                             │
 │  credentials         Create, Read, Update,      (global)                    │
@@ -180,15 +179,14 @@ const (
     ActionWorkflowPortForward = "workflow:PortForward"
     ActionWorkflowRsync       = "workflow:Rsync"
 
-    // Bucket actions
-    ActionBucketCreate = "bucket:Create"
-    ActionBucketRead   = "bucket:Read"
-    ActionBucketWrite  = "bucket:Write"
-    ActionBucketDelete = "bucket:Delete"
-    ActionBucketList   = "bucket:List"
+    // Dataset actions
+    ActionDatasetCreate = "dataset:Create"
+    ActionDatasetRead   = "dataset:Read"
+    ActionDatasetDelete = "dataset:Delete"
+    ActionDatasetList   = "dataset:List"
 
     // Pool actions
-    ActionPoolList   = "pool:List"
+    ActionPoolRead   = "pool:Read"
 
     // Internal/Backend actions (restricted)
     ActionInternalOperator = "internal:Operator"
@@ -243,13 +241,13 @@ Policies use AWS IAM-style JSON format with Allow/Deny statements:
     },
     {
       "effect": "Allow",
-      "actions": ["bucket:*"],
-      "resources": ["pool/default/*"]
+      "actions": ["dataset:*"],
+      "resources": ["dataset/*"]
     },
     {
       "effect": "Deny",
-      "actions": ["pool:Delete"],
-      "resources": ["pool/production"]
+      "actions": ["dataset:Delete"],
+      "resources": ["bucket/production"]
     }
   ]
 }
@@ -302,7 +300,7 @@ Standard user role:
         "effect": "Allow",
         "actions": [
           "workflow:*",
-          "bucket:*",
+          "dataset:*",
           "credentials:*",
           "profile:Read", "profile:Update",
           "pool:Read",
@@ -336,7 +334,7 @@ Read-only access:
         "effect": "Allow",
         "actions": [
           "workflow:Read", "workflow:List",
-          "bucket:Read", "bucket:List",
+          "dataset:Read", "dataset:List",
           "system:*"
         ],
         "resources": ["*"]
@@ -601,21 +599,24 @@ Once migration is complete (Phase 4), the old format will be removed. This is a 
 
 ---
 
-## Performance
+## Alternatives Considered
 
-No significant performance implications are expected
+### [Casbin](https://www.casbin.org/)
 
----
+After diving into Casbin, it would have been better suited when we didn't have any auth framework
+and just wanted a basic allow/deny logic.
 
-## Operations
+For more extensive use cases where we need to
+look further into the db to get knowledge of like what pools are connected to workflows, Casbin
+would be more work than our own implementation since we would need define our own policy rules
+anyway but with the same amount of benefit.
 
-No significant operational changes)
+Using Casbin as a reference for how we want to model our auth system after is good, but it doesn't
+simplify any of the work.
 
----
+Performance wise, it seemed to have similar performance (maybe slightly worse, but could be due
+to optimization issues).
 
-## Security
-
-No new security concerns introduced
 
 ---
 
@@ -659,13 +660,11 @@ The following documentation will need to be created or updated:
 ## Complete Action Registry
 
 ```go
-package server
-
 // ActionRegistry maps resource:action pairs to API endpoint patterns
 var ActionRegistry = map[string][]EndpointPattern{
     // ==================== WORKFLOW ====================
     "workflow:Create": {
-        {Path: "/api/workflow", Methods: []string{"POST"}},
+        {Path: "/api/pool/*/workflow", Methods: []string{"POST"}},
     },
     "workflow:Read": {
         {Path: "/api/workflow", Methods: []string{"GET"}},
@@ -694,23 +693,15 @@ var ActionRegistry = map[string][]EndpointPattern{
     },
 
     // ==================== BUCKET ====================
-    "bucket:Create": {
-        {Path: "/api/bucket", Methods: []string{"POST"}},
+    "dataset:Create": {
+        {Path: "/api/bucket/*/dataset/*", Methods: []string{"POST", "PUT"}},
     },
-    "bucket:Read": {
-        {Path: "/api/bucket", Methods: []string{"GET"}},
-        {Path: "/api/bucket/*", Methods: []string{"GET"}},
+    "dataset:Read": {
+        {Path: "/api/bucket/*/dataset/", Methods: []string{"GET"}},
+        {Path: "/api/bucket/*/dataset/*", Methods: []string{"GET"}},
     },
-    "bucket:Write": {
-        {Path: "/api/bucket/*", Methods: []string{"POST", "PUT"}},
-    },
-    "bucket:Delete": {
-        {Path: "/api/bucket/*", Methods: []string{"DELETE"}},
-    },
-
-    // ==================== POOL ====================
-    "pool:Delete": {
-        {Path: "/api/pool/*", Methods: []string{"DELETE"}},
+    "dataset:Delete": {
+        {Path: "/api/bucket/*/dataset/*", Methods: []string{"DELETE"}},
     },
 
     // ==================== CREDENTIALS ====================
@@ -835,3 +826,124 @@ var ActionRegistry = map[string][]EndpointPattern{
 6. **Test in development** — Validate all existing access patterns
 7. **Roll out to staging** — Enable feature flag and monitor
 8. **Document** — User-facing documentation for new policy format
+
+---
+
+## Open Questions
+
+### Should we have a way to define whether is pool is public/private for logs/spec/exec/port-fowarding outside of roles?
+
+Problem statement:
+
+In the current design above, roles are mapped to a group of policies and evaluated independently.
+This means that if one role evaluates to true, the authorization allows the user even in another
+role denies.
+
+We have the case where we want individual pools to restrict access so people without
+access to submit to the pool cannot view logs/view spec/exec/port-foward. However, with the design,
+we would then need to add the policy which denies access to that pool to all roles which allow access
+to the pool such as the default role.
+
+This cumbersome change will have to be done by an admin since we don't want to give users the access.
+
+Ideally, the OSMO admin should be out of the loop and it is just the pool "admin" to determine the state of the
+pool. In the future, OSMO admins should no longer need to deal with creating pools and everything
+regarding the pool can be handed over to a team member using the pool.
+
+A diagram showing the role policy model and how roles are evaluated is shown below as a reminder.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ROLE-POLICY RELATIONSHIP MODEL                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────┐
+│   USER   │
+└────┬─────┘
+     │
+     │ has many (1:N)
+     │
+     ├─────────────┬─────────────┬─────────────┐
+     ▼             ▼             ▼             ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│  Role 1 │   │  Role 2 │   │  Role 3 │   │  Role N │
+│ (admin) │   │ (user)  │   │ (custom)│   │   ...   │
+└────┬────┘   └────┬────┘   └────┬────┘   └────┬────┘
+     │             │             │             │
+     │ has one     │ has one     │ has one     │ has one
+     │ (1:1)       │ (1:1)       │ (1:1)       │ (1:1)
+     │             │             │             │
+     ▼             ▼             ▼             ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│ Policy1 │   │ Policy2 │   │ Policy3 │   │ PolicyN │
+└────┬────┘   └────┬────┘   └────┬────┘   └────┬────┘
+     │             │             │             │
+     │ contains    │ contains    │ contains    │ contains
+     │ many        │ many        │ many        │ many
+     │ (1:N)       │ (1:N)       │ (1:N)       │ (1:N)
+     │             │             │             │
+     ├──────────┐  ├──────────┐  ├──────────┐  ├──────────┐
+     ▼          ▼  ▼          ▼  ▼          ▼  ▼          ▼
+┌──────────┐ ┌──┐ ┌──────────┐ ┌──┐ ┌──────────┐ ┌──┐ ┌──────────┐ ┌──┐
+│Statement1│ │..│ │Statement1│ │..│ │Statement1│ │..│ │Statement1│ │..│
+├──────────┤ └──┘ ├──────────┤ └──┘ ├──────────┤ └──┘ ├──────────┤ └──┘
+│Effect:   │      │Effect:   │      │Effect:   │      │Effect:   │
+│  Allow   │      │  Allow   │      │  Deny    │      │  Allow   │
+│Actions:  │      │Actions:  │      │Actions:  │      │Actions:  │
+│  [...]   │      │  [...]   │      │  [...]   │      │  [...]   │
+│Resources:│      │Resources:│      │Resources:│      │Resources:│
+│  [...]   │      │  [...]   │      │  [...]   │      │  [...]   │
+└──────────┘      └──────────┘      └──────────┘      └──────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AUTHORIZATION EVALUATION                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Request: POST /api/workflow/abc123/cancel
+      │
+      ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Step 1: Resolve action from path                           │
+  │   POST /api/workflow/abc123/cancel → workflow:Cancel       │
+  └────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Step 2: Collect ALL policies from ALL user's roles         │
+  │   User has: [Role1, Role2, Role3, ..., RoleN]              │
+  │   Collect: [Policy1, Policy2, Policy3, ..., PolicyN]       │
+  └────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Step 3: Evaluate ALL statements from ALL policies          │
+  │                                                            │
+  │   Phase 1: Check for ANY Deny                              │
+  │   ┌─────────────────────────────────────────────┐          │
+  │   │ For each Policy (1..N):                     │          │
+  │   │   For each Statement in Policy:             │          │
+  │   │     If Effect == "Deny" AND                 │          │
+  │   │        action matches workflow:Cancel AND   │          │
+  │   │        resource matches workflow/abc123     │          │
+  │   │     → RETURN DENY (deny always wins)        │          │
+  │   └─────────────────────────────────────────────┘          │
+  │                                                            │
+  │   Phase 2: Check for ANY Allow                             │
+  │   ┌─────────────────────────────────────────────┐          │
+  │   │ For each Policy (1..N):                     │          │
+  │   │   For each Statement in Policy:             │          │
+  │   │     If Effect == "Allow" AND                │          │
+  │   │        action matches workflow:Cancel AND   │          │
+  │   │        resource matches workflow/abc123     │          │
+  │   │     → Mark as allowed                       │          │
+  │   └─────────────────────────────────────────────┘          │
+  │                                                            │
+  │   If ANY Allow found → RETURN ALLOW                        │
+  │   If NO Allow found → RETURN DENY (implicit deny)          │
+  └────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+            ┌──────────┐
+            │  RESULT  │
+            └──────────┘
