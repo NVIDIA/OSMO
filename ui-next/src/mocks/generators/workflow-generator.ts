@@ -316,38 +316,302 @@ export class WorkflowGenerator {
   // Private: Group/Task generation
   // --------------------------------------------------------------------------
 
+  /**
+   * DAG topology types for variety in mock data:
+   * - linear: a → b → c → d (simple chain)
+   * - multi-root: (a, b) → c → d (multiple starting points)
+   * - fan-out: a → (b, c, d) (one parent, multiple children)
+   * - fan-in: (a, b, c) → d (diamond converge)
+   * - diamond: a → (b, c) → d (classic diamond)
+   * - complex: mix of patterns
+   */
   private generateGroups(status: WorkflowStatus, _workflowName: string): MockGroup[] {
     const groupPatterns = this.config.patterns.groupPatterns;
     const numGroups = faker.number.int(groupPatterns.groupsPerWorkflow);
-    const groups: MockGroup[] = [];
 
-    const groupNames = faker.helpers.arrayElements(groupPatterns.names, numGroups);
+    // Pick a topology based on number of groups
+    if (numGroups <= 2) {
+      return this.generateLinearGroups(status, numGroups, groupPatterns);
+    }
+
+    // Randomly pick topology for variety
+    const topology = faker.helpers.arrayElement(["linear", "multi-root", "fan-out", "fan-in", "diamond", "complex"]);
+
+    switch (topology) {
+      case "multi-root":
+        return this.generateMultiRootGroups(status, numGroups, groupPatterns);
+      case "fan-out":
+        return this.generateFanOutGroups(status, numGroups, groupPatterns);
+      case "fan-in":
+        return this.generateFanInGroups(status, numGroups, groupPatterns);
+      case "diamond":
+        return this.generateDiamondGroups(status, numGroups, groupPatterns);
+      case "complex":
+        return this.generateComplexGroups(status, numGroups, groupPatterns);
+      default:
+        return this.generateLinearGroups(status, numGroups, groupPatterns);
+    }
+  }
+
+  /** Linear: a → b → c → d */
+  private generateLinearGroups(
+    status: WorkflowStatus,
+    numGroups: number,
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup[] {
+    const groups: MockGroup[] = [];
+    const groupNames = faker.helpers.arrayElements(
+      groupPatterns.names,
+      Math.max(numGroups, groupPatterns.names.length),
+    );
 
     for (let i = 0; i < numGroups; i++) {
-      const groupName = groupNames[i];
-      const numTasks = faker.number.int(groupPatterns.tasksPerGroup);
-
-      // Group status based on workflow status and position
-      const groupStatus = this.deriveGroupStatus(status, i, numGroups);
-
-      const tasks: MockTask[] = [];
-      for (let t = 0; t < numTasks; t++) {
-        tasks.push(this.generateTask(groupName, t, groupStatus));
-      }
-
-      groups.push({
-        name: groupName,
-        status: groupStatus,
-        tasks,
-        upstream_groups: i > 0 ? [groupNames[i - 1]] : [],
-        downstream_groups: i < numGroups - 1 ? [groupNames[i + 1]] : [],
-        failure_message: groupStatus.toString().startsWith("FAILED")
-          ? this.generateFailureMessage(groupStatus)
-          : undefined,
-      });
+      groups.push(
+        this.createGroup(
+          groupNames[i],
+          status,
+          i,
+          numGroups,
+          i > 0 ? [groupNames[i - 1]] : [],
+          i < numGroups - 1 ? [groupNames[i + 1]] : [],
+          groupPatterns,
+        ),
+      );
     }
 
     return groups;
+  }
+
+  /** Multi-root: (a, b) → c → d (2 roots converging) */
+  private generateMultiRootGroups(
+    status: WorkflowStatus,
+    numGroups: number,
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup[] {
+    const groups: MockGroup[] = [];
+    const groupNames = faker.helpers.arrayElements(
+      groupPatterns.names,
+      Math.max(numGroups, groupPatterns.names.length),
+    );
+    const numRoots = Math.min(2, numGroups - 1); // At least 2 roots, leave 1 for merge
+
+    // Create root nodes (no upstream)
+    for (let i = 0; i < numRoots; i++) {
+      const downstream = numGroups > numRoots ? [groupNames[numRoots]] : [];
+      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [], downstream, groupPatterns));
+    }
+
+    // Create merge node and subsequent linear chain
+    for (let i = numRoots; i < numGroups; i++) {
+      const upstream = i === numRoots ? groupNames.slice(0, numRoots) : [groupNames[i - 1]];
+      const downstream = i < numGroups - 1 ? [groupNames[i + 1]] : [];
+      groups.push(this.createGroup(groupNames[i], status, i, numGroups, upstream, downstream, groupPatterns));
+    }
+
+    return groups;
+  }
+
+  /** Fan-out: a → (b, c, d) (one parent, multiple children) */
+  private generateFanOutGroups(
+    status: WorkflowStatus,
+    numGroups: number,
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup[] {
+    const groups: MockGroup[] = [];
+    const groupNames = faker.helpers.arrayElements(
+      groupPatterns.names,
+      Math.max(numGroups, groupPatterns.names.length),
+    );
+
+    // Root node fans out to all children
+    groups.push(
+      this.createGroup(groupNames[0], status, 0, numGroups, [], groupNames.slice(1, numGroups), groupPatterns),
+    );
+
+    // Children (all depend on root, no downstream)
+    for (let i = 1; i < numGroups; i++) {
+      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [groupNames[0]], [], groupPatterns));
+    }
+
+    return groups;
+  }
+
+  /** Fan-in: (a, b, c) → d (multiple parents converge to one) */
+  private generateFanInGroups(
+    status: WorkflowStatus,
+    numGroups: number,
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup[] {
+    const groups: MockGroup[] = [];
+    const groupNames = faker.helpers.arrayElements(
+      groupPatterns.names,
+      Math.max(numGroups, groupPatterns.names.length),
+    );
+    const numParents = numGroups - 1;
+    const mergeNodeIdx = numGroups - 1;
+
+    // Parent nodes (no upstream, all downstream to merge node)
+    for (let i = 0; i < numParents; i++) {
+      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [], [groupNames[mergeNodeIdx]], groupPatterns));
+    }
+
+    // Merge node (all parents as upstream)
+    groups.push(
+      this.createGroup(
+        groupNames[mergeNodeIdx],
+        status,
+        mergeNodeIdx,
+        numGroups,
+        groupNames.slice(0, numParents),
+        [],
+        groupPatterns,
+      ),
+    );
+
+    return groups;
+  }
+
+  /** Diamond: a → (b, c) → d */
+  private generateDiamondGroups(
+    status: WorkflowStatus,
+    numGroups: number,
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup[] {
+    const groups: MockGroup[] = [];
+    const groupNames = faker.helpers.arrayElements(
+      groupPatterns.names,
+      Math.max(numGroups, groupPatterns.names.length),
+    );
+
+    if (numGroups < 4) {
+      return this.generateLinearGroups(status, numGroups, groupPatterns);
+    }
+
+    // Calculate middle layer size
+    const middleSize = Math.max(2, numGroups - 2);
+    const middleStart = 1;
+    const middleEnd = middleStart + middleSize;
+    const lastIdx = numGroups - 1;
+
+    // Root node
+    const middleNames = groupNames.slice(middleStart, Math.min(middleEnd, numGroups - 1));
+    groups.push(this.createGroup(groupNames[0], status, 0, numGroups, [], middleNames, groupPatterns));
+
+    // Middle layer (parallel nodes)
+    for (let i = 0; i < middleNames.length; i++) {
+      groups.push(
+        this.createGroup(
+          middleNames[i],
+          status,
+          middleStart + i,
+          numGroups,
+          [groupNames[0]],
+          [groupNames[lastIdx]],
+          groupPatterns,
+        ),
+      );
+    }
+
+    // Merge node
+    groups.push(this.createGroup(groupNames[lastIdx], status, lastIdx, numGroups, middleNames, [], groupPatterns));
+
+    return groups;
+  }
+
+  /** Complex: multi-level with mixed patterns */
+  private generateComplexGroups(
+    status: WorkflowStatus,
+    numGroups: number,
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup[] {
+    const groups: MockGroup[] = [];
+    const groupNames = faker.helpers.arrayElements(
+      groupPatterns.names,
+      Math.max(numGroups, groupPatterns.names.length),
+    );
+
+    if (numGroups < 5) {
+      return this.generateDiamondGroups(status, numGroups, groupPatterns);
+    }
+
+    // Level 0: 2 roots
+    groups.push(
+      this.createGroup(groupNames[0], status, 0, numGroups, [], [groupNames[2], groupNames[3]], groupPatterns),
+    );
+    groups.push(
+      this.createGroup(groupNames[1], status, 1, numGroups, [], [groupNames[3], groupNames[4]], groupPatterns),
+    );
+
+    // Level 1: 3 middle nodes with mixed dependencies
+    groups.push(this.createGroup(groupNames[2], status, 2, numGroups, [groupNames[0]], [groupNames[5]], groupPatterns));
+    groups.push(
+      this.createGroup(
+        groupNames[3],
+        status,
+        3,
+        numGroups,
+        [groupNames[0], groupNames[1]],
+        [groupNames[5]],
+        groupPatterns,
+      ),
+    );
+    if (numGroups > 5) {
+      groups.push(
+        this.createGroup(groupNames[4], status, 4, numGroups, [groupNames[1]], [groupNames[5]], groupPatterns),
+      );
+    }
+
+    // Level 2: merge node
+    const mergeUpstream =
+      numGroups > 5 ? [groupNames[2], groupNames[3], groupNames[4]] : [groupNames[2], groupNames[3]];
+    groups.push(this.createGroup(groupNames[5], status, 5, numGroups, mergeUpstream, [], groupPatterns));
+
+    // Additional linear chain if more groups
+    for (let i = 6; i < numGroups; i++) {
+      groups.push(
+        this.createGroup(
+          groupNames[i],
+          status,
+          i,
+          numGroups,
+          [groupNames[i - 1]],
+          i < numGroups - 1 ? [groupNames[i + 1]] : [],
+          groupPatterns,
+        ),
+      );
+    }
+
+    return groups;
+  }
+
+  /** Helper to create a group with all properties */
+  private createGroup(
+    name: string,
+    workflowStatus: WorkflowStatus,
+    index: number,
+    totalGroups: number,
+    upstream: string[],
+    downstream: string[],
+    groupPatterns: WorkflowPatterns["groupPatterns"],
+  ): MockGroup {
+    const numTasks = faker.number.int(groupPatterns.tasksPerGroup);
+    const groupStatus = this.deriveGroupStatus(workflowStatus, index, totalGroups);
+
+    const tasks: MockTask[] = [];
+    for (let t = 0; t < numTasks; t++) {
+      tasks.push(this.generateTask(name, t, groupStatus));
+    }
+
+    return {
+      name,
+      status: groupStatus,
+      tasks,
+      upstream_groups: upstream,
+      downstream_groups: downstream,
+      failure_message: groupStatus.toString().startsWith("FAILED")
+        ? this.generateFailureMessage(groupStatus)
+        : undefined,
+    };
   }
 
   private deriveGroupStatus(workflowStatus: WorkflowStatus, groupIndex: number, totalGroups: number): TaskGroupStatus {
