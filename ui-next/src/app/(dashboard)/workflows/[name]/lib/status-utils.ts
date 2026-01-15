@@ -86,6 +86,7 @@ export const STATUS_SORT_ORDER: Record<string, number> = {
 
 /**
  * Human-readable labels for statuses.
+ * Format matches workflow labels for consistency (e.g., "Failed: Image Pull").
  */
 export const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Completed",
@@ -93,17 +94,17 @@ export const STATUS_LABELS: Record<string, string> = {
   RUNNING: "Running",
   INITIALIZING: "Initializing",
   FAILED: "Failed",
-  FAILED_CANCELED: "Canceled",
-  FAILED_SERVER_ERROR: "Server Error",
-  FAILED_BACKEND_ERROR: "Backend Error",
-  FAILED_EXEC_TIMEOUT: "Exec Timeout",
-  FAILED_QUEUE_TIMEOUT: "Queue Timeout",
-  FAILED_IMAGE_PULL: "Image Pull",
-  FAILED_UPSTREAM: "Upstream",
-  FAILED_EVICTED: "Evicted",
-  FAILED_START_ERROR: "Start Error",
-  FAILED_START_TIMEOUT: "Start Timeout",
-  FAILED_PREEMPTED: "Preempted",
+  FAILED_CANCELED: "Failed: Canceled",
+  FAILED_SERVER_ERROR: "Failed: Server Error",
+  FAILED_BACKEND_ERROR: "Failed: Backend Error",
+  FAILED_EXEC_TIMEOUT: "Failed: Exec Timeout",
+  FAILED_QUEUE_TIMEOUT: "Failed: Queue Timeout",
+  FAILED_IMAGE_PULL: "Failed: Image Pull",
+  FAILED_UPSTREAM: "Failed: Upstream",
+  FAILED_EVICTED: "Failed: Evicted",
+  FAILED_START_ERROR: "Failed: Start Error",
+  FAILED_START_TIMEOUT: "Failed: Start Timeout",
+  FAILED_PREEMPTED: "Failed: Preempted",
   WAITING: "Waiting",
   SCHEDULING: "Scheduling",
   SUBMITTING: "Submitting",
