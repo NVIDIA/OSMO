@@ -34,7 +34,6 @@
   --pools-row-height-compact: 2rem;
   --pools-table-min-height: 25rem;
   --pools-border-width: 0.1875rem;
-  --pools-shell-header-height: var(--shell-header-height);
 
   /* Surface colors */
   --pools-surface-hover: var(--color-zinc-100);
