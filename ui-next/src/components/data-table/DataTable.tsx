@@ -552,6 +552,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
                         // Use stable handler - no function allocation per render
                         const onSort = () => handleHeaderSort(header.id, isSortable, isSorted);
 
+                        // Check if column supports resizing (respects enableResizing: false in columnDef)
+                        const isResizable = header.column.getCanResize();
+
                         const cellContent = (
                           <>
                             <SortButton
@@ -568,13 +571,15 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               onSort={onSort}
                             />
                             {/* Resize handle - uses @use-gesture/react for gesture handling */}
-                            <ResizeHandle
-                              header={header}
-                              onResizeStart={columnSizingHook.startResize}
-                              onResizeUpdate={columnSizingHook.updateResize}
-                              onResizeEnd={columnSizingHook.endResize}
-                              onAutoFit={handleAutoFit}
-                            />
+                            {isResizable && (
+                              <ResizeHandle
+                                header={header}
+                                onResizeStart={columnSizingHook.startResize}
+                                onResizeUpdate={columnSizingHook.updateResize}
+                                onResizeEnd={columnSizingHook.endResize}
+                                onAutoFit={handleAutoFit}
+                              />
+                            )}
                           </>
                         );
 

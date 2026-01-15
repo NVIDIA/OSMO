@@ -376,10 +376,12 @@ export function useColumnSizing({
       contentWidthsRef.current,
     );
 
-    // Debug logging
+    // Debug logging - use appropriate event type based on context
+    // animate: true = container resize, false = initial sizing
+    const debugEventType = animate ? "CONTAINER_RESIZE" : "INIT";
     logColumnSizingDebug(() =>
       createDebugSnapshot(
-        "INIT",
+        debugEventType,
         {
           columnIds,
           containerRef,
@@ -413,14 +415,21 @@ export function useColumnSizing({
   // =========================================================================
   // Initial Sizing Effect
   // =========================================================================
+  // Note: Initial sizing is handled by the ResizeObserver effect below.
+  // The ResizeObserver fires immediately when observe() is called, providing
+  // contentRect.width as the single source of truth for container width.
+  // This eliminates potential discrepancies between clientWidth and contentRect.width.
   const columnSetKey = useMemo(() => [...columnIds].sort().join(","), [columnIds]);
 
+  // When column set changes, trigger recalculation via ResizeObserver
+  const prevColumnSetKey = usePrevious(columnSetKey);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      calculateAndApply(false, undefined);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [columnSetKey, calculateAndApply]);
+    if (prevColumnSetKey !== undefined && prevColumnSetKey !== columnSetKey) {
+      // Column set changed, ResizeObserver will recalculate on next observation
+      // Force a recalculation by resetting the last width (next observation will trigger)
+      lastContainerWidthRef.current = 0;
+    }
+  }, [columnSetKey, prevColumnSetKey]);
 
   // =========================================================================
   // Container Resize Effect
@@ -429,8 +438,9 @@ export function useColumnSizing({
     const container = containerRef?.current;
     if (!container) return;
 
-    lastContainerWidthRef.current = container.clientWidth;
-
+    // Don't set lastContainerWidthRef here - let the first ResizeObserver callback
+    // set it. This prevents stale initial values from blocking updates.
+    let isFirstObservation = true;
     let timeoutId: ReturnType<typeof setTimeout>;
     let pendingWidth: number | null = null;
 
@@ -441,6 +451,19 @@ export function useColumnSizing({
       const entry = entries[0];
       if (!entry) return;
       const newWidth = entry.contentRect.width;
+
+      // On first observation, always recalculate to ensure correct sizing
+      if (isFirstObservation) {
+        isFirstObservation = false;
+        lastContainerWidthRef.current = newWidth;
+        // Recalculate after a short delay to let layout fully settle
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          calculateAndApply(false, newWidth);
+        }, 50);
+        return;
+      }
+
       const widthDelta = Math.abs(newWidth - lastContainerWidthRef.current);
       if (widthDelta < 1) return;
 
@@ -695,6 +718,12 @@ export function useColumnSizing({
   );
 
   const recalculate = useEventCallback(() => {
+    // Force recalculation by resetting the last known width.
+    // The ResizeObserver will fire on the next frame and recalculate.
+    // This ensures we use the same source of truth (contentRect.width) consistently.
+    lastContainerWidthRef.current = 0;
+    // Also trigger an immediate calculation using clientWidth as fallback
+    // This provides immediate feedback while ResizeObserver catches up.
     calculateAndApply(false, undefined);
   });
 
