@@ -138,9 +138,7 @@
   color: var(--dag-status-failed-text);
 }
 
-.dag-task-row {
-  isolation: isolate;
-}
+/* dag-task-row styling now in Performance Optimizations section */
 
 /* ==========================================================================
    Node Selection State
@@ -355,6 +353,35 @@
 }
 
 /* ==========================================================================
+   Performance Optimizations
+   ========================================================================== */
+
+/**
+ * Force GPU layer for node wrapper to enable hardware-accelerated transforms
+ * during pan/zoom operations. The transform: translateZ(0) creates a GPU layer.
+ */
+.dag-node {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/**
+ * Contain layout and style for task rows in expanded nodes.
+ * This prevents task list changes from triggering parent reflows.
+ */
+.dag-task-row {
+  contain: layout style;
+}
+
+/**
+ * Isolate scroll containers to their own stacking context.
+ * Prevents scroll-related repaints from affecting parent layers.
+ */
+.dag-scroll-container {
+  isolation: isolate;
+}
+
+/* ==========================================================================
    Reduced Motion - Timeline specific
    ========================================================================== */
 
@@ -362,5 +389,9 @@
   .timeline-active-segment {
     animation: none;
     background: var(--dag-status-running-color);
+  }
+
+  .dependency-pill {
+    transition: none;
   }
 }
