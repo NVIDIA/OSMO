@@ -14,6 +14,26 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import type { Metadata } from "next";
+
+// =============================================================================
+// Dynamic Metadata (SEO)
+// =============================================================================
+
+interface PageProps {
+  params: Promise<{ name: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { name } = await params;
+  const decodedName = decodeURIComponent(name);
+
+  return {
+    title: `${decodedName} | Workflows | OSMO`,
+    description: `View details, DAG visualization, and task status for workflow: ${decodedName}`,
+  };
+}
+
 /**
  * Workflow Detail Page (Server Component)
  *
