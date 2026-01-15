@@ -26,41 +26,51 @@
 
 import type { SearchField, SearchChip } from "@/components/smart-search";
 import { WorkflowStatus, WorkflowPriority, type SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
+import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
 import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
 import { naturalCompare } from "@/lib/utils";
 
 export type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
 
 // =============================================================================
-// Status Presets
+// Status Presets - DERIVED FROM GENERATED METADATA
 // =============================================================================
+
+/**
+ * Status preset IDs (matches StatusCategory from generated metadata).
+ * Using explicit type ensures type safety while still deriving from metadata.
+ */
+export type StatusPresetId = "running" | "waiting" | "completed" | "failed";
+
+/**
+ * Build status presets from generated metadata.
+ * This ensures presets stay in sync with backend status definitions.
+ */
+function buildStatusPresets(): Record<StatusPresetId, WorkflowStatus[]> {
+  const presets: Record<StatusPresetId, WorkflowStatus[]> = {
+    running: [],
+    waiting: [],
+    completed: [],
+    failed: [],
+  };
+
+  for (const [status, meta] of Object.entries(WORKFLOW_STATUS_METADATA)) {
+    const workflowStatus = status as WorkflowStatus;
+    const category = meta.category as StatusPresetId;
+    if (category in presets) {
+      presets[category].push(workflowStatus);
+    }
+  }
+
+  return presets;
+}
 
 /**
  * Status category presets.
  * Each preset expands to multiple status chips when selected.
- * Uses generated WorkflowStatus enum values for type safety.
+ * DERIVED FROM WORKFLOW_STATUS_METADATA - stays in sync with backend automatically.
  */
-export const STATUS_PRESETS = {
-  running: [WorkflowStatus.RUNNING] as const,
-  waiting: [WorkflowStatus.PENDING, WorkflowStatus.WAITING] as const,
-  completed: [WorkflowStatus.COMPLETED] as const,
-  failed: [
-    WorkflowStatus.FAILED,
-    WorkflowStatus.FAILED_SUBMISSION,
-    WorkflowStatus.FAILED_SERVER_ERROR,
-    WorkflowStatus.FAILED_EXEC_TIMEOUT,
-    WorkflowStatus.FAILED_QUEUE_TIMEOUT,
-    WorkflowStatus.FAILED_CANCELED,
-    WorkflowStatus.FAILED_BACKEND_ERROR,
-    WorkflowStatus.FAILED_IMAGE_PULL,
-    WorkflowStatus.FAILED_EVICTED,
-    WorkflowStatus.FAILED_START_ERROR,
-    WorkflowStatus.FAILED_START_TIMEOUT,
-    WorkflowStatus.FAILED_PREEMPTED,
-  ] as const,
-} as const;
-
-export type StatusPresetId = keyof typeof STATUS_PRESETS;
+export const STATUS_PRESETS: Record<StatusPresetId, WorkflowStatus[]> = buildStatusPresets();
 
 /**
  * Create chips for a status preset.
