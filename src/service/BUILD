@@ -27,3 +27,13 @@ osmo_py_binary(
     deps = ["//src/service/core:service_lib"],
     visibility = ["//visibility:public"],
 )
+
+# Export status metadata from Python enums to TypeScript
+# Usage: bazel run //src/service:export_status_metadata > ui-next/src/lib/api/status-metadata.generated.ts
+osmo_py_binary(
+    name = "export_status_metadata",
+    main = "export_status_metadata.py",
+    srcs = ["export_status_metadata.py"],
+    deps = ["//src/utils/job"],
+    visibility = ["//visibility:public"],
+)
