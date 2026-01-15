@@ -255,6 +255,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     handleSelectTask,
     handleToggleExpand,
     nodeBounds,
+    isLayouting,
   } = useDAGState({
     groups: groupsWithLayout,
     initialDirection: "TB",
@@ -340,6 +341,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     // Generic re-centering - consumer controls when/where
     getExpectedVisibleArea,
     reCenterTrigger,
+    // Layout completion signal for callback-based centering (no timeouts)
+    isLayouting,
   });
 
   // Memoized objects for ReactFlow to prevent re-renders (per ReactFlow performance best practices)
