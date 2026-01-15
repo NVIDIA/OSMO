@@ -118,11 +118,64 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* ==========================================================================
+     Animation Duration Scale
+     Registered from :root for Tailwind utility access.
+     Usage: duration-normal, duration-fast, ease-out, etc.
+     ========================================================================== */
+  --duration-instant: var(--duration-instant);
+  --duration-fastest: var(--duration-fastest);
+  --duration-fast: var(--duration-fast);
+  --duration-quick: var(--duration-quick);
+  --duration-normal: var(--duration-normal);
+  --duration-moderate: var(--duration-moderate);
+  --duration-slow: var(--duration-slow);
+  --duration-slower: var(--duration-slower);
+  --duration-slowest: var(--duration-slowest);
+
+  /* Easing functions */
+  --ease-out: var(--ease-out);
+  --ease-in: var(--ease-in);
+  --ease-in-out: var(--ease-in-out);
+  --ease-spring: var(--ease-spring);
+  --ease-bounce: var(--ease-bounce);
 }
 
 :root {
   /* Shell Layout */
   --shell-header-height: 3.5rem;
+
+  /* ==========================================================================
+     Animation Timing Tokens
+     These are the source of truth for all animation durations.
+     TypeScript constants should reference these values in comments.
+     
+     Mapping to existing constants:
+       --duration-fast (75ms)     → dag transitions
+       --duration-quick (100ms)   → row-fade-in animation
+       --duration-normal (150ms)  → transition defaults, resize handle
+       --duration-moderate (200ms)→ SIDEBAR_TRANSITION_MS, PANEL_TRANSITION
+       --duration-slow (300ms)    → sheet exit animations
+       --duration-slower (400ms)  → ANIMATION.VIEWPORT_DURATION
+       --duration-slowest (500ms) → ANIMATION.INITIAL_DURATION, sheet entry
+     ========================================================================== */
+  --duration-instant: 0ms;
+  --duration-fastest: 50ms;
+  --duration-fast: 75ms;
+  --duration-quick: 100ms;
+  --duration-normal: 150ms;
+  --duration-moderate: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+  --duration-slowest: 500ms;
+
+  /* Easing functions */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -263,16 +316,6 @@
    ============================================================================= */
 
 @layer utilities {
-  /* Hide scrollbars while maintaining scroll functionality */
-  .scrollbar-none {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
-
   /* Styled scrollbars - subtle, elegant scrollbars for scroll containers */
   .scrollbar-styled {
     scrollbar-width: thin;
@@ -293,7 +336,7 @@
       background: theme(colors.zinc.400 / 50%);
       border-radius: 5px;
       border: 2px solid theme(colors.zinc.100 / 60%);
-      transition: background 0.15s ease;
+      transition: background var(--duration-normal) var(--ease-out);
     }
 
     &::-webkit-scrollbar-thumb:hover {
@@ -330,10 +373,6 @@
   /* ==========================================================================
      CSS Containment - Isolate layout/paint calculations for performance
      ========================================================================== */
-  .contain-strict {
-    contain: strict;
-  }
-
   .contain-layout {
     contain: layout;
   }
@@ -344,24 +383,6 @@
 
   .contain-layout-paint {
     contain: layout paint;
-  }
-
-  .contain-layout-style-paint {
-    contain: layout style paint;
-  }
-
-  .contain-paint {
-    contain: paint;
-  }
-
-  .contain-content {
-    contain: content;
-  }
-
-  /* Content visibility for lazy rendering */
-  .content-auto {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 500px;
   }
 
   /* ==========================================================================
@@ -396,20 +417,6 @@
 
     :is(.dark &) {
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    }
-  }
-
-  /* ==========================================================================
-     Focus States - NVIDIA Brand Focus Ring
-     ========================================================================== */
-  .focus-nvidia {
-    &:focus {
-      outline: none;
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--nvidia-green);
-      outline-offset: 2px;
     }
   }
 }

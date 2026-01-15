@@ -58,7 +58,7 @@
   will-change: transform;
   backface-visibility: hidden;
   /* Subtle fade-in prevents jarring "pop" when rows appear during fast scroll */
-  animation: row-fade-in 100ms ease-out;
+  animation: row-fade-in var(--duration-quick) var(--ease-out);
 
   /* Fill remaining space to extend row background */
   &::after {
@@ -85,7 +85,7 @@
   left: 0;
   width: 100%;
   /* Match data row fade-in for consistency */
-  animation: row-fade-in 100ms ease-out;
+  animation: row-fade-in var(--duration-quick) var(--ease-out);
 }
 
 /* Header row - flex layout for column alignment */
@@ -178,16 +178,16 @@
 .data-table:not(.is-resizing) th,
 .data-table:not(.is-resizing) td {
   transition:
-    width 150ms ease-out,
-    min-width 150ms ease-out;
+    width var(--duration-normal) var(--ease-out),
+    min-width var(--duration-normal) var(--ease-out);
 }
 
 .is-transitioning th,
 .is-transitioning td {
   transition:
-    width 150ms ease-out,
-    min-width 150ms ease-out,
-    opacity 150ms ease-out;
+    width var(--duration-normal) var(--ease-out),
+    min-width var(--duration-normal) var(--ease-out),
+    opacity var(--duration-normal) var(--ease-out);
 }
 
 /* =============================================================================
