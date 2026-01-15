@@ -273,6 +273,28 @@ export function useViewportBoundaries({
     [nodeBoundsRef],
   );
 
+  /**
+   * Instantly sync viewport to current translateExtent bounds (no animation).
+   * Used after dimension changes to prevent d3-zoom "jump" on user interaction.
+   */
+  const syncViewportToBounds = useCallback(() => {
+    const d = containerDims;
+    const b = nodeBoundsRef.current;
+    const extent = calcExtentPure(d, b);
+    if (!extent) return;
+
+    const currentVp = reactFlowInstance.getViewport();
+    const clampedVp = clampToTranslateExtent(currentVp, d, extent);
+
+    // Only sync if position actually differs (avoid unnecessary re-render)
+    const dx = Math.abs(currentVp.x - clampedVp.x);
+    const dy = Math.abs(currentVp.y - clampedVp.y);
+    if (dx > 0.5 || dy > 0.5) {
+      // Instant sync (duration: 0) to prevent visible jump
+      reactFlowInstance.setViewport(clampedVp, { duration: 0 });
+    }
+  }, [reactFlowInstance, containerDims, nodeBoundsRef, calcExtentPure, clampToTranslateExtent]);
+
   /** Animate viewport, freezing dims so translateExtent stays stable during animation. */
   const animateViewport = useCallback(
     (viewport: Viewport, duration: number) => {
@@ -286,12 +308,23 @@ export function useViewportBoundaries({
       reactFlowInstance.setViewport(viewport, { duration }).then(() => {
         if (animationGenerationRef.current === gen) {
           isAnimatingRef.current = false;
-          // Unfreeze - translateExtent will now use targetDims (which should match container)
+          // Unfreeze - translateExtent will now use containerDims
           setFrozenDims(null);
+
+          // CRITICAL: After unfreezing, translateExtent changes from frozenDims to containerDims.
+          // If they differ, the viewport position (calculated for frozenDims) may be outside
+          // the new translateExtent bounds. Use requestAnimationFrame to let React re-render
+          // with the new translateExtent, then sync viewport to prevent d3-zoom "jump" on
+          // user interaction.
+          requestAnimationFrame(() => {
+            if (animationGenerationRef.current === gen && !isAnimatingRef.current) {
+              syncViewportToBounds();
+            }
+          });
         }
       });
     },
-    [reactFlowInstance, targetDimsRef],
+    [reactFlowInstance, targetDimsRef, syncViewportToBounds],
   );
 
   /** Center viewport on a node (uses zoom-aware clamping for precise centering). */
@@ -380,17 +413,25 @@ export function useViewportBoundaries({
 
     // Initial load
     if (!hasInitializedRef.current) {
+      let centered = false;
+
+      // Try to center on initially selected node (from URL)
       if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
         hasHandledInitialSelectionRef.current = true;
-        if (centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d)) {
-          hasInitializedRef.current = true;
-          prevLayoutDirectionRef.current = layoutDirection;
-          return;
-        }
+        centered = centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
       }
-      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
-      hasInitializedRef.current = true;
-      prevLayoutDirectionRef.current = layoutDirection;
+
+      // Fallback: center on first root node
+      if (!centered) {
+        centered = centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
+      }
+
+      // Only mark initialized if centering succeeded
+      // This allows retry on next layout completion if centering failed
+      if (centered) {
+        hasInitializedRef.current = true;
+        prevLayoutDirectionRef.current = layoutDirection;
+      }
       return;
     }
 
