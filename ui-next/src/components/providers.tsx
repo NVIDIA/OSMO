@@ -16,7 +16,8 @@
 
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, HydrationBoundary } from "@tanstack/react-query";
+import type { DehydratedState } from "@tanstack/react-query";
 // React Query Devtools available via Chrome extension:
 // https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh
 import { ThemeProvider } from "next-themes";
@@ -81,7 +82,50 @@ function createQueryClient() {
   });
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+// =============================================================================
+// Provider Props
+// =============================================================================
+
+interface ProvidersProps {
+  children: React.ReactNode;
+  /**
+   * Dehydrated state from server-side prefetching.
+   * Pass this from Server Components to hydrate the query cache.
+   *
+   * @example
+   * ```tsx
+   * // In a Server Component
+   * const queryClient = new QueryClient();
+   * await prefetchPools(queryClient);
+   * const dehydratedState = dehydrate(queryClient);
+   *
+   * return <Providers dehydratedState={dehydratedState}>{children}</Providers>;
+   * ```
+   */
+  dehydratedState?: DehydratedState;
+}
+
+// =============================================================================
+// Main Providers Component
+// =============================================================================
+
+/**
+ * Application providers wrapper.
+ *
+ * Provides:
+ * - TanStack Query for data fetching (with optional SSR hydration)
+ * - Theme provider (dark/light mode)
+ * - URL state (nuqs)
+ * - Auth context
+ * - User context
+ * - Service context (clipboard, announcer)
+ * - Config context
+ * - Mock provider (dev only)
+ *
+ * @param props.children - App content
+ * @param props.dehydratedState - Optional prefetched query state from server
+ */
+export function Providers({ children, dehydratedState }: ProvidersProps) {
   // useState ensures single instance across re-renders
   const [queryClient] = useState(createQueryClient);
 
@@ -91,18 +135,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <MockProvider>
           <NuqsAdapter>
             <QueryClientProvider client={queryClient}>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-              >
-                <AuthProvider>
-                  <UserProvider>
-                    <PageProvider>{children}</PageProvider>
-                  </UserProvider>
-                </AuthProvider>
-              </ThemeProvider>
+              <HydrationBoundary state={dehydratedState}>
+                <ThemeProvider
+                  attribute="class"
+                  defaultTheme="system"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  <AuthProvider>
+                    <UserProvider>
+                      <PageProvider>{children}</PageProvider>
+                    </UserProvider>
+                  </AuthProvider>
+                </ThemeProvider>
+              </HydrationBoundary>
             </QueryClientProvider>
           </NuqsAdapter>
         </MockProvider>
@@ -110,3 +156,33 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </ConfigProvider>
   );
 }
+
+// =============================================================================
+// Export Query Client Factory for Server Components
+// =============================================================================
+
+/**
+ * Create a QueryClient for server-side prefetching.
+ *
+ * Use this in Server Components to create a client for prefetching,
+ * then pass the dehydrated state to Providers.
+ *
+ * @example
+ * ```tsx
+ * // In layout.tsx or page.tsx (Server Component)
+ * import { createServerQueryClient } from '@/components/providers';
+ * import { dehydrate } from '@tanstack/react-query';
+ *
+ * export default async function Layout({ children }) {
+ *   const queryClient = createServerQueryClient();
+ *   await prefetchSomeData(queryClient);
+ *
+ *   return (
+ *     <Providers dehydratedState={dehydrate(queryClient)}>
+ *       {children}
+ *     </Providers>
+ *   );
+ * }
+ * ```
+ */
+export { createQueryClient as createServerQueryClient };

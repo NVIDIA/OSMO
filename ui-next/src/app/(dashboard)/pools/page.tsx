@@ -17,128 +17,47 @@
  */
 
 /**
- * Pools Page
+ * Pools Page (Server Component)
  *
- * Displays a table of all pools with:
- * - Status-based sections (Online, Maintenance, Offline)
- * - Smart search with filter chips
- * - Column visibility and reordering
- * - Resizable details panel
- * - GPU quota and capacity visualization
+ * This is a Server Component that prefetches pool data during SSR.
+ * The actual interactive content is rendered by PoolsPageContent (Client Component).
  *
  * Architecture:
- * - usePoolsData encapsulates data fetching and filtering
- * - UI receives pre-filtered data (ready for server-driven filtering)
- * - Uses Zustand for state persistence
- * - Uses nuqs for URL state synchronization
+ * 1. Server Component prefetches data using fetchPools()
+ * 2. Data is dehydrated and passed to HydrationBoundary
+ * 3. Client Component hydrates and uses usePoolsData() which gets cached data
+ * 4. TanStack Query handles background refetching after hydration
+ *
+ * Benefits:
+ * - No loading spinner on initial page load (data is pre-rendered)
+ * - Faster Time to First Contentful Paint (FCP)
+ * - Reduced client JavaScript for initial data fetch
+ * - SEO-friendly (content is in HTML)
  */
 
-"use client";
-
-import { useMemo } from "react";
-import { InlineErrorBoundary } from "@/components/error";
-import { usePage } from "@/components/shell";
-import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
-import { PoolsDataTable } from "./components/table/pools-data-table";
-import { PoolPanelLayout } from "./components/panel/pool-panel";
-import { PoolsToolbar } from "./components/pools-toolbar";
-import { usePoolsData } from "./hooks/use-pools-data";
+import { Suspense } from "react";
+import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { prefetchPools } from "@/lib/api/server";
+import { PoolsPageContent } from "./pools-page-content";
+import { PoolsPageSkeleton } from "./pools-page-skeleton";
 
 // =============================================================================
-// Main Page Component
+// Server Component (Prefetch + Hydration)
 // =============================================================================
 
-export default function PoolsPage() {
-  usePage({ title: "Pools" });
+export default async function PoolsPage() {
+  // Create a new QueryClient for this request
+  const queryClient = new QueryClient();
 
-  // ==========================================================================
-  // URL State - All state is URL-synced for shareable deep links
-  // URL: /pools?view=my-pool&config=dgx&f=status:ONLINE&f=platform:dgx
-  // ==========================================================================
-
-  // Panel state (consolidated URL state hooks)
-  const {
-    selection: selectedPoolName,
-    setSelection: setSelectedPoolName,
-    config: selectedPlatform,
-    setConfig: setSelectedPlatform,
-    clear: clearSelectedPool,
-  } = usePanelState();
-
-  // Filter chips - URL-synced via shared hook
-  const { searchChips, setSearchChips } = useUrlChips();
-
-  // ==========================================================================
-  // Data Fetching with SmartSearch filtering
-  // Filtering encapsulated in hook (ready for server-driven filtering)
-  // ==========================================================================
-
-  const { pools, allPools, sharingGroups, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } =
-    usePoolsData({ searchChips });
-
-  // ==========================================================================
-  // Pool Selection
-  // ==========================================================================
-
-  // Find selected pool (search in allPools so selection persists through filtering)
-  const selectedPool = useMemo(
-    () => (selectedPoolName ? (allPools.find((p) => p.name === selectedPoolName) ?? null) : null),
-    [allPools, selectedPoolName],
-  );
-
-  // Results count for SmartSearch display (consolidated hook)
-  const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
-
-  // ==========================================================================
-  // Render
-  // ==========================================================================
+  // Prefetch pools data on the server
+  // This populates the cache with ["pools", "all"] query
+  await prefetchPools(queryClient, { revalidate: 60 });
 
   return (
-    <PoolPanelLayout
-      pool={selectedPool}
-      sharingGroups={sharingGroups}
-      onClose={clearSelectedPool}
-      onPoolSelect={setSelectedPoolName}
-      selectedPlatform={selectedPlatform}
-      onPlatformSelect={setSelectedPlatform}
-    >
-      <div className="flex h-full flex-col gap-4 p-6">
-        {/* Toolbar with search and controls */}
-        <div className="shrink-0">
-          <InlineErrorBoundary
-            title="Toolbar error"
-            compact
-          >
-            <PoolsToolbar
-              pools={allPools}
-              sharingGroups={sharingGroups}
-              searchChips={searchChips}
-              onSearchChipsChange={setSearchChips}
-              resultsCount={resultsCount}
-            />
-          </InlineErrorBoundary>
-        </div>
-
-        {/* Main pools table - receives pre-filtered data */}
-        <div className="min-h-0 flex-1">
-          <InlineErrorBoundary
-            title="Unable to display pools table"
-            resetKeys={[pools.length]}
-            onReset={refetch}
-          >
-            <PoolsDataTable
-              pools={pools}
-              sharingGroups={sharingGroups}
-              isLoading={isLoading}
-              error={error ?? undefined}
-              onRetry={refetch}
-              onPoolSelect={setSelectedPoolName}
-              selectedPoolName={selectedPoolName}
-              onSearchChipsChange={setSearchChips}
-            />
-          </InlineErrorBoundary>
-        </div>
-      </div>
-    </PoolPanelLayout>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Suspense fallback={<PoolsPageSkeleton />}>
+        <PoolsPageContent />
+      </Suspense>
+    </HydrationBoundary>
   );
 }

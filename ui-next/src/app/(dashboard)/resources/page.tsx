@@ -17,181 +17,41 @@
  */
 
 /**
- * Resources Page
+ * Resources Page (Server Component)
  *
- * Displays a virtualized table of all resources with:
- * - SmartSearch for filtering
- * - URL-synced panel state (?view=resource&config=pool)
- * - Resizable details panel
- * - Infinite scroll pagination
- * - "You've reached the end" indicator
+ * This is a Server Component that prefetches resource data during SSR.
+ * The actual interactive content is rendered by ResourcesPageContent (Client Component).
  *
  * Architecture:
- * - Uses Zustand for persisted preferences (shared with pools)
- * - Uses nuqs for URL state
- * - Uses useResources headless hook for data
+ * 1. Server Component prefetches data using prefetchResources()
+ * 2. Data is dehydrated and passed to HydrationBoundary
+ * 3. Client Component hydrates and uses useResourcesData() which gets cached data
+ * 4. TanStack Query handles background refetching after hydration
  */
 
-"use client";
-
-import { useMemo, useCallback } from "react";
-import { usePage } from "@/components/shell";
-import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
-import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
-import type { Resource } from "@/lib/api/adapter";
-import { useSharedPreferences } from "@/stores";
-import { ResourcesTable } from "./components/table/resources-table";
-import { ResourcePanelLayout } from "./components/panel/resource-panel";
-import { ResourcesToolbar } from "./components/resources-toolbar";
-import { AdaptiveSummary } from "./components/resource-summary-card";
-import { useResourcesData } from "./hooks/use-resources-data";
+import { Suspense } from "react";
+import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { prefetchResources } from "@/lib/api/server";
+import { ResourcesPageContent } from "./resources-page-content";
+import { ResourcesPageSkeleton } from "./resources-page-skeleton";
 
 // =============================================================================
-// Main Page Component
+// Server Component (Prefetch + Hydration)
 // =============================================================================
 
-export default function ResourcesPage() {
-  usePage({ title: "Resources" });
+export default async function ResourcesPage() {
+  // Create a new QueryClient for this request
+  const queryClient = new QueryClient();
 
-  // Shared preferences for display mode
-  const displayMode = useSharedPreferences((s) => s.displayMode);
-  const compactMode = useSharedPreferences((s) => s.compactMode);
-
-  // ==========================================================================
-  // URL State - All state is URL-synced for shareable deep links
-  // URL: /resources?view=my-resource&config=pool-name&f=platform:dgx&f=pool:ml-team
-  // ==========================================================================
-
-  // Panel state (consolidated URL state hooks)
-  const {
-    selection: selectedResourceName,
-    setSelection: setSelectedResourceName,
-    config: selectedPoolConfig,
-    setConfig: setSelectedPoolConfig,
-    clear: clearSelectedResource,
-  } = usePanelState();
-
-  // Filter chips - URL-synced via shared hook
-  const { searchChips, setSearchChips } = useUrlChips();
-
-  // ==========================================================================
-  // Data Fetching with SmartSearch filtering
-  // ==========================================================================
-
-  const {
-    resources,
-    allResources,
-    totalCount,
-    filteredCount,
-    isLoading,
-    error,
-    refetch,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useResourcesData({ searchChips });
-
-  // Check if filters are active
-  const hasActiveFilters = searchChips.length > 0;
-
-  // Results count for SmartSearch display (consolidated hook)
-  const resultsCount = useResultsCount({
-    total: totalCount ?? resources.length,
-    filteredTotal: filteredCount ?? resources.length,
-    hasActiveFilters,
-  });
-
-  // ==========================================================================
-  // Resource Selection
-  // ==========================================================================
-
-  // Find selected resource
-  const selectedResource = useMemo<Resource | null>(
-    () => (selectedResourceName ? (resources.find((r) => r.name === selectedResourceName) ?? null) : null),
-    [resources, selectedResourceName],
-  );
-
-  // Handle resource click
-  const handleResourceClick = useCallback(
-    (resource: Resource) => {
-      setSelectedResourceName(resource.name);
-    },
-    [setSelectedResourceName],
-  );
-
-  // ==========================================================================
-  // Render
-  // ==========================================================================
+  // Prefetch resources data on the server
+  // Resources are expensive - use longer revalidation
+  await prefetchResources(queryClient, { revalidate: 300 });
 
   return (
-    <ResourcePanelLayout
-      resource={selectedResource}
-      onClose={clearSelectedResource}
-      selectedPool={selectedPoolConfig}
-      onPoolSelect={setSelectedPoolConfig}
-    >
-      <div className="flex h-full flex-col gap-4 p-6">
-        {/* Toolbar with SmartSearch */}
-        <div className="shrink-0">
-          <InlineErrorBoundary
-            title="Toolbar error"
-            compact
-          >
-            <ResourcesToolbar
-              resources={allResources}
-              searchChips={searchChips}
-              onSearchChipsChange={setSearchChips}
-              resultsCount={resultsCount}
-            />
-          </InlineErrorBoundary>
-        </div>
-
-        {/* Adaptive resource summary cards */}
-        {!error && resources.length > 0 && (
-          <div className="shrink-0">
-            <AdaptiveSummary
-              resources={resources}
-              displayMode={displayMode}
-              isLoading={isLoading}
-              forceCompact={compactMode}
-            />
-          </div>
-        )}
-
-        {/* Error display */}
-        {error && (
-          <ApiError
-            error={error as ApiErrorProps["error"]}
-            onRetry={refetch}
-            title="Unable to load resources"
-            authAware
-            loginMessage="You need to log in to view resources."
-          />
-        )}
-
-        {/* Main resources table */}
-        {!error && (
-          <div className="min-h-0 flex-1">
-            <InlineErrorBoundary
-              title="Unable to display resources table"
-              resetKeys={[resources.length]}
-              onReset={refetch}
-            >
-              <ResourcesTable
-                resources={resources}
-                totalCount={totalCount}
-                isLoading={isLoading}
-                showPoolsColumn
-                onResourceClick={handleResourceClick}
-                selectedResourceId={selectedResourceName ?? undefined}
-                hasNextPage={hasNextPage}
-                onLoadMore={fetchNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-              />
-            </InlineErrorBoundary>
-          </div>
-        )}
-      </div>
-    </ResourcePanelLayout>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Suspense fallback={<ResourcesPageSkeleton />}>
+        <ResourcesPageContent />
+      </Suspense>
+    </HydrationBoundary>
   );
 }
