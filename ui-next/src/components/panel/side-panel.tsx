@@ -52,8 +52,9 @@
 import { useRef, useMemo, useEffect, type RefObject } from "react";
 import { useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { ChevronLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isInteractiveTarget } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
@@ -161,41 +162,21 @@ export function SidePanel({
   const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
 
-  // Handle keyboard events - escape key (when focus is within the panel)
-  const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && onEscapeKey && !isCollapsed) {
-      const target = e.target as HTMLElement;
-      const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
-      const isInteractiveElement =
-        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
-      if (!isInDropdown && !isInteractiveElement) {
-        stableOnEscapeKey();
-      }
-    }
-  });
-
-  // Global escape key handler - use window directly for global keyboard shortcuts
-  // Note: We must check isCollapsed to avoid toggling an already-collapsed panel
-  // Using useEffect directly since usehooks-ts v3 doesn't support options with window events
-  useEffect(() => {
-    if (!onEscapeKey) return;
-
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (isCollapsed) return;
-      if (e.key === "Escape") {
-        const target = e.target as HTMLElement;
-        const isInDropdown = target?.closest("[data-radix-popper-content-wrapper]");
-        const isInteractiveElement =
-          target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
-        if (!isInDropdown && !isInteractiveElement) {
-          stableOnEscapeKey();
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleGlobalKeyDown, { passive: true });
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [onEscapeKey, isCollapsed, stableOnEscapeKey]);
+  // Global escape key handler using react-hotkeys-hook
+  // Automatically handles: enabled state, form element detection
+  useHotkeys(
+    "escape",
+    (e) => {
+      // Skip if target is in a dropdown or interactive element
+      if (isInteractiveTarget(e.target)) return;
+      stableOnEscapeKey();
+    },
+    {
+      enabled: !!onEscapeKey && !isCollapsed,
+      enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
+    },
+    [stableOnEscapeKey],
+  );
 
   // Resize drag handler
   const bindResizeHandle = useDrag(
@@ -292,7 +273,6 @@ export function SidePanel({
       }}
       role="complementary"
       aria-label={ariaLabel}
-      onKeyDown={handleKeyDown}
     >
       {/* Resize Handle - positioned at panel's left edge */}
       {!isCollapsed && (

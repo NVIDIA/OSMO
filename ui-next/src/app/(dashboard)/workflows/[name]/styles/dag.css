@@ -303,10 +303,6 @@
    Dependency Pills
    ========================================================================== */
 
-.dependency-pills-row {
-  contain: layout style;
-}
-
 .dependency-pill {
   transition:
     filter var(--dag-transition-fast),

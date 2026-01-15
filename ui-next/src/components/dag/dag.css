@@ -34,22 +34,13 @@
    ========================================================================== */
 
 :root {
-  /* Canvas */
-  --dag-canvas-bg: oklch(0.985 0 0);
-  --dag-canvas-dots: oklch(0.85 0 0);
-
   /* Surfaces */
-  --dag-surface: oklch(1 0 0);
   --dag-surface-elevated: oklch(0.98 0 0);
-  --dag-surface-hover: oklch(0.96 0 0);
 
   /* Borders */
-  --dag-border: oklch(0.9 0 0);
   --dag-border-strong: oklch(0.8 0 0);
 
   /* Text */
-  --dag-text: oklch(0.2 0 0);
-  --dag-text-secondary: oklch(0.45 0 0);
   --dag-text-tertiary: oklch(0.6 0 0);
 
   /* Handles */
@@ -81,9 +72,9 @@
   --dag-radius-sm: 0.25rem;
   --dag-radius-md: 0.5rem;
 
-  /* Transitions */
-  --dag-transition-fast: 75ms ease-out;
-  --dag-transition-normal: 150ms ease-out;
+  /* Transitions - reference global animation tokens */
+  --dag-transition-fast: var(--duration-fast) var(--ease-out);
+  --dag-transition-normal: var(--duration-normal) var(--ease-out);
 }
 
 /* ==========================================================================
@@ -91,18 +82,10 @@
    ========================================================================== */
 
 .dark {
-  --dag-canvas-bg: oklch(0.12 0 0);
-  --dag-canvas-dots: oklch(0.25 0 0);
-
-  --dag-surface: oklch(0.16 0 0);
   --dag-surface-elevated: oklch(0.2 0 0);
-  --dag-surface-hover: oklch(0.22 0 0);
 
-  --dag-border: oklch(0.28 0 0);
   --dag-border-strong: oklch(0.35 0 0);
 
-  --dag-text: oklch(0.95 0 0);
-  --dag-text-secondary: oklch(0.7 0 0);
   --dag-text-tertiary: oklch(0.5 0 0);
 
   --dag-handle-bg: oklch(0.4 0 0);
@@ -314,28 +297,6 @@
 
 .dag-details-panel {
   contain: layout style;
-}
-
-.dag-table-header-wrapper {
-  contain: layout style paint;
-}
-
-.dag-dropdown {
-  contain: layout style;
-}
-
-.dag-gpu-accelerated {
-  will-change: transform;
-  /* Force GPU layer creation */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-.dag-virtual-item {
-  contain: strict;
-  content-visibility: auto;
-  /* Hint intrinsic size for content-visibility */
-  contain-intrinsic-size: auto 28px;
 }
 
 /* ==========================================================================
