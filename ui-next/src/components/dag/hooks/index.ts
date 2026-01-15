@@ -21,4 +21,5 @@ export {
   type UseViewportBoundariesOptions,
   type ViewportBoundariesResult,
   type NodeBounds,
+  type Dimensions,
 } from "./use-viewport-boundaries";
