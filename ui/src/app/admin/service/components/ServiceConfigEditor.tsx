@@ -140,14 +140,14 @@ export const ServiceConfigEditor = ({
           <TextInput
             id="latest_version"
             label="Latest Version"
-            value={latestVersion}
+            value={latestVersion ?? ""}
             onChange={(e) => setLatestVersion(e.target.value)}
             required
           />
           <TextInput
             id="min_supported_version"
             label="Min Supported Version"
-            value={minSupportedVersion}
+            value={minSupportedVersion ?? ""}
             onChange={(e) => setMinSupportedVersion(e.target.value)}
             required
           />
@@ -203,21 +203,21 @@ export const ServiceConfigEditor = ({
           <TextInput
             id="device_client_id"
             label="Device Client ID"
-            value={deviceClientId}
+            value={deviceClientId ?? ""}
             onChange={(e) => setDeviceClientId(e.target.value)}
             required
           />
           <TextInput
             id="browser_client_id"
             label="Browser Client ID"
-            value={browserClientId}
+            value={browserClientId ?? ""}
             onChange={(e) => setBrowserClientId(e.target.value)}
             required
           />
           <TextInput
             id="device_endpoint"
             label="Device Endpoint"
-            value={deviceEndpoint}
+            value={deviceEndpoint ?? ""}
             onChange={(e) => setDeviceEndpoint(e.target.value)}
             required
             className="min-w-150"
@@ -225,7 +225,7 @@ export const ServiceConfigEditor = ({
           <TextInput
             id="browser_endpoint"
             label="Browser Endpoint"
-            value={browserEndpoint}
+            value={browserEndpoint ?? ""}
             onChange={(e) => setBrowserEndpoint(e.target.value)}
             required
             className="min-w-150"
@@ -233,7 +233,7 @@ export const ServiceConfigEditor = ({
           <TextInput
             id="token_endpoint"
             label="Token Endpoint"
-            value={tokenEndpoint}
+            value={tokenEndpoint ?? ""}
             onChange={(e) => setTokenEndpoint(e.target.value)}
             required
             className="min-w-150"
@@ -241,7 +241,7 @@ export const ServiceConfigEditor = ({
           <TextInput
             id="logout_endpoint"
             label="Logout Endpoint"
-            value={logoutEndpoint}
+            value={logoutEndpoint ?? ""}
             onChange={(e) => setLogoutEndpoint(e.target.value)}
             required
             className="min-w-150"
