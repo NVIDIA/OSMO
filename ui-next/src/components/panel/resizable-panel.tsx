@@ -17,10 +17,11 @@
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
-import { useEventListener, useBoolean } from "usehooks-ts";
+import { useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { ChevronLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isInteractiveTarget } from "@/lib/utils";
 import { useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
@@ -184,32 +185,20 @@ export function ResizablePanel({
   const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? onClose);
 
-  // Handle keyboard events on panel - using stable callback
-  const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      // Only handle if no dropdown/popover is open
-      const target = e.target as HTMLElement;
-      const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
-      if (!isInDropdown) {
-        stableOnEscapeKey();
-      }
-    }
-  });
-
-  // Global escape key handler when panel is open
-  useEventListener(
-    "keydown",
-    (e: KeyboardEvent) => {
-      if (!open) return;
-      if (e.key === "Escape") {
-        const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
-        if (!isInDropdown) {
-          stableOnEscapeKey();
-        }
-      }
+  // Global escape key handler using react-hotkeys-hook
+  // Automatically handles: enabled state, form element detection
+  useHotkeys(
+    "escape",
+    (e) => {
+      // Skip if target is in a dropdown or interactive element
+      if (isInteractiveTarget(e.target)) return;
+      stableOnEscapeKey();
     },
-    undefined,
-    { passive: true },
+    {
+      enabled: open,
+      enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
+    },
+    [stableOnEscapeKey],
   );
 
   // Resize drag handler using @use-gesture/react
@@ -344,7 +333,6 @@ export function ResizablePanel({
         role="complementary"
         aria-label={ariaLabel}
         aria-hidden={!open}
-        onKeyDown={handleKeyDown}
       >
         {/* Resize Handle - positioned at panel's left edge, inside panel for perfect sync during transitions */}
         {/* z-20 ensures handle appears above sticky header (z-10) for consistent edge visibility */}
