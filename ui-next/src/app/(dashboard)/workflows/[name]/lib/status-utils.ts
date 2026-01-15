@@ -20,115 +20,43 @@
  * Pure functions for task/group status categorization and computation.
  * These functions have no React dependencies and can be easily tested.
  *
- * This module is the single source of truth for TaskGroupStatus (task and group
- * statuses within a workflow). Used by the workflow detail view (`/workflows/[name]`).
+ * Status metadata is generated from the Python backend at build time by
+ * `pnpm generate-api`. This ensures the UI stays in sync with backend
+ * status definitions automatically.
  *
- * Note: Workflow-level status utilities (WorkflowStatus for the workflows list) are in
- * `../../../lib/workflow-constants.ts`. These are separate because they operate on
- * different API types.
+ * See: @/lib/api/status-metadata.generated.ts
  */
 
 import { TaskGroupStatus } from "@/lib/api/generated";
+import {
+  TASK_STATUS_METADATA,
+  type StatusCategory,
+  getTaskStatusCategory,
+  isTaskFailed,
+  isTaskOngoing,
+  isTaskTerminal,
+  isTaskInQueue,
+} from "@/lib/api/status-metadata.generated";
 
 // =============================================================================
-// Status Category Types
+// Re-export from Generated Metadata (Single Source of Truth)
 // =============================================================================
 
-export type StatusCategory = "waiting" | "running" | "completed" | "failed";
+export type { StatusCategory };
+export { TASK_STATUS_METADATA, getTaskStatusCategory, isTaskFailed, isTaskOngoing, isTaskTerminal, isTaskInQueue };
 
 // =============================================================================
-// Bitwise Status Flags (for O(1) category checks)
-// =============================================================================
-
-/**
- * Status category bitmasks for fast category checking.
- * Using powers of 2 allows bitwise AND for instant category membership tests.
- *
- * Performance: Bitwise operations are ~10x faster than string comparisons
- * because they operate on CPU registers without memory allocation.
- */
-const STATUS_FLAG_WAITING = 0b0001;
-const STATUS_FLAG_RUNNING = 0b0010;
-const STATUS_FLAG_COMPLETED = 0b0100;
-const STATUS_FLAG_FAILED = 0b1000;
-
-/**
- * Pre-computed status bitmask lookup.
- * Maps status string to its category bitmask for O(1) bitwise checks.
- */
-const STATUS_BITMASK: Record<string, number> = {
-  // Waiting states
-  SUBMITTING: STATUS_FLAG_WAITING,
-  WAITING: STATUS_FLAG_WAITING,
-  PROCESSING: STATUS_FLAG_WAITING,
-  SCHEDULING: STATUS_FLAG_WAITING,
-  // Running states
-  INITIALIZING: STATUS_FLAG_RUNNING,
-  RUNNING: STATUS_FLAG_RUNNING,
-  // Completed states
-  COMPLETED: STATUS_FLAG_COMPLETED,
-  RESCHEDULED: STATUS_FLAG_COMPLETED,
-  // Failed states - use bitwise OR for failed (most common check)
-  FAILED: STATUS_FLAG_FAILED,
-  FAILED_CANCELED: STATUS_FLAG_FAILED,
-  FAILED_SERVER_ERROR: STATUS_FLAG_FAILED,
-  FAILED_BACKEND_ERROR: STATUS_FLAG_FAILED,
-  FAILED_EXEC_TIMEOUT: STATUS_FLAG_FAILED,
-  FAILED_QUEUE_TIMEOUT: STATUS_FLAG_FAILED,
-  FAILED_IMAGE_PULL: STATUS_FLAG_FAILED,
-  FAILED_UPSTREAM: STATUS_FLAG_FAILED,
-  FAILED_EVICTED: STATUS_FLAG_FAILED,
-  FAILED_START_ERROR: STATUS_FLAG_FAILED,
-  FAILED_START_TIMEOUT: STATUS_FLAG_FAILED,
-  FAILED_PREEMPTED: STATUS_FLAG_FAILED,
-};
-
-/** Fast bitwise check if status is failed */
-export const isFailedFast = (status: string): boolean => ((STATUS_BITMASK[status] ?? 0) & STATUS_FLAG_FAILED) !== 0;
-
-/** Fast bitwise check if status is running */
-export const isRunningFast = (status: string): boolean => ((STATUS_BITMASK[status] ?? 0) & STATUS_FLAG_RUNNING) !== 0;
-
-/** Fast bitwise check if status is completed */
-export const isCompletedFast = (status: string): boolean =>
-  ((STATUS_BITMASK[status] ?? 0) & STATUS_FLAG_COMPLETED) !== 0;
-
-/** Fast bitwise check if status is waiting */
-export const isWaitingFast = (status: string): boolean => ((STATUS_BITMASK[status] ?? 0) & STATUS_FLAG_WAITING) !== 0;
-
-// =============================================================================
-// Status Category Mapping
+// Derived Lookups (computed once at module load from generated metadata)
 // =============================================================================
 
 /**
  * Pre-computed status category lookup for O(1) access.
+ * Derived from TASK_STATUS_METADATA.
  */
-export const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {
-  // Waiting states
-  SUBMITTING: "waiting",
-  WAITING: "waiting",
-  PROCESSING: "waiting",
-  SCHEDULING: "waiting",
-  // Running states
-  INITIALIZING: "running",
-  RUNNING: "running",
-  // Completed states
-  COMPLETED: "completed",
-  RESCHEDULED: "completed",
-  // Failed states
-  FAILED: "failed",
-  FAILED_CANCELED: "failed",
-  FAILED_SERVER_ERROR: "failed",
-  FAILED_BACKEND_ERROR: "failed",
-  FAILED_EXEC_TIMEOUT: "failed",
-  FAILED_QUEUE_TIMEOUT: "failed",
-  FAILED_IMAGE_PULL: "failed",
-  FAILED_UPSTREAM: "failed",
-  FAILED_EVICTED: "failed",
-  FAILED_START_ERROR: "failed",
-  FAILED_START_TIMEOUT: "failed",
-  FAILED_PREEMPTED: "failed",
-} as const;
+export const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {};
+for (const [status, meta] of Object.entries(TASK_STATUS_METADATA)) {
+  STATUS_CATEGORY_MAP[status] = meta.category;
+}
 
 /**
  * Pre-computed sort order for status (failures first, completed last).
@@ -219,17 +147,12 @@ export const STATE_CATEGORY_NAMES: StateCategory[] = ["completed", "running", "f
 // Status Helper Functions
 // =============================================================================
 
-/** Get the status category for a given status string. */
+/**
+ * Get the status category for a given status string.
+ * For type-safe code, prefer `getTaskStatusCategory(status: TaskGroupStatus)`.
+ */
 export function getStatusCategory(status: string): StatusCategory {
   return STATUS_CATEGORY_MAP[status] ?? "failed";
-}
-
-/**
- * Check if a status represents a failure state.
- * Uses bitwise lookup for O(1) performance instead of string.startsWith().
- */
-export function isFailedStatus(status: string): boolean {
-  return isFailedFast(status);
 }
 
 /** Get human-readable label for a status. */
@@ -288,7 +211,7 @@ export function getStatusStyle(status: string) {
 }
 
 // =============================================================================
-// Stats Computation (Optimized)
+// Stats Computation
 // =============================================================================
 
 export interface TaskStats {
@@ -305,12 +228,7 @@ export interface TaskStats {
 
 /**
  * Compute all stats for a list of tasks in a single pass.
- *
- * Optimizations:
- * - Uses bitwise status checks instead of string comparisons
- * - Minimizes Map operations with local counter variables
- * - Avoids repeated property access with local variables
- * - Pre-parses dates only once per task
+ * Uses generated metadata for status categorization.
  */
 export function computeTaskStats<T extends { status: string; start_time?: string | null; end_time?: string | null }>(
   tasks: T[],
@@ -326,27 +244,34 @@ export function computeTaskStats<T extends { status: string; start_time?: string
   const len = tasks.length;
   for (let i = 0; i < len; i++) {
     const task = tasks[i];
-    const status = task.status;
+    const status = task.status as TaskGroupStatus;
 
-    // Increment subStats counter (single Map operation)
+    // Increment subStats counter
     subStats.set(status, (subStats.get(status) ?? 0) + 1);
 
-    // Use bitwise checks for category (faster than string comparison)
-    if (isCompletedFast(status)) {
-      completed++;
-    } else if (isRunningFast(status)) {
-      running++;
-      hasRunning = true;
-    } else if (isFailedFast(status)) {
-      failed++;
+    // Use generated metadata for categorization
+    const meta = TASK_STATUS_METADATA[status];
+    if (meta) {
+      switch (meta.category) {
+        case "completed":
+          completed++;
+          break;
+        case "running":
+          running++;
+          hasRunning = true;
+          break;
+        case "failed":
+          failed++;
+          break;
+      }
     }
 
-    // Parse timestamps (cache parsed values)
+    // Parse timestamps
     const startTime = task.start_time;
     const endTime = task.end_time;
 
     if (startTime) {
-      const t = Date.parse(startTime); // Date.parse is faster than new Date().getTime()
+      const t = Date.parse(startTime);
       if (earliestStart === null || t < earliestStart) earliestStart = t;
     }
     if (endTime) {
