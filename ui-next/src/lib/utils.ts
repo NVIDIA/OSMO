@@ -262,3 +262,46 @@ export function formatBytesPair(
     freeDisplay: `${formatDecimal(freeInUnit)} ${unit}`,
   };
 }
+
+// =============================================================================
+// Keyboard Utilities
+// =============================================================================
+
+/**
+ * Check if a keyboard event target is an interactive element that should
+ * capture keyboard input (inputs, textareas, contenteditable, dropdowns).
+ *
+ * Use this to avoid triggering hotkeys when the user is typing.
+ *
+ * @param target - The event target (typically event.target)
+ * @returns true if the target is an interactive element
+ *
+ * @example
+ * ```ts
+ * useHotkeys('escape', handleClose, {
+ *   enabled: !isInteractiveTarget(document.activeElement)
+ * });
+ * ```
+ */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+
+  const tagName = target.tagName;
+
+  // Form elements that capture keyboard input
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  // Contenteditable elements
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  // Radix UI dropdown/popover content (these handle their own keyboard events)
+  if (target.closest("[data-radix-popper-content-wrapper]")) {
+    return true;
+  }
+
+  return false;
+}
