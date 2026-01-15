@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -61,6 +61,7 @@ export function PlatformSelector({
   onSelectPlatform,
 }: PlatformSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
@@ -74,20 +75,24 @@ export function PlatformSelector({
     return sortedPlatforms.filter((p) => p.toLowerCase().includes(q));
   }, [sortedPlatforms, searchQuery]);
 
-  // Focus search input and scroll current item into view when dropdown opens
+  // Handle dropdown open/close
   const handleOpenChange = useCallback((open: boolean) => {
-    if (open) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-        const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
-        if (currentItem) {
-          currentItem.scrollIntoView({ block: "center", behavior: "instant" });
-        }
-      }, 0);
-    } else {
+    setIsOpen(open);
+    if (!open) {
       setSearchQuery("");
     }
   }, []);
+
+  // Focus search input and scroll current item into view when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      searchInputRef.current?.focus();
+      const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
+      if (currentItem) {
+        currentItem.scrollIntoView({ block: "center", behavior: "instant" });
+      }
+    }
+  }, [isOpen]);
 
   // Single platform: Static label
   if (platforms.length === 1) {
@@ -153,7 +158,10 @@ export function PlatformSelector({
 
   // 6+ platforms: Searchable dropdown
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+    >
       <DropdownMenuTrigger asChild>
         <button
           className="flex items-center gap-2 rounded-md py-0.5 pr-1 text-zinc-900 transition-colors hover:bg-zinc-200/50 dark:text-zinc-100 dark:hover:bg-zinc-700/50"
