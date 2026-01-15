@@ -32,6 +32,12 @@
  * - d3-zoom's per-frame constraining is stable → SMOOTH
  * - Animation completes → unfreeze
  * - translateExtent uses containerDims again (now at final size)
+ *
+ * PERFORMANCE:
+ * - Uses `useSyncedRef` for stable callback references
+ * - Memoizes all derived values
+ * - Debounces window resize to avoid layout thrashing
+ * - Animation generation tracking prevents stale callbacks
  */
 
 "use client";
@@ -106,9 +112,12 @@ export function useViewportBoundaries({
   // O(1) Node Lookup Map
   // ---------------------------------------------------------------------------
 
+  /** Map for O(1) node lookup by ID. Rebuilt when nodes array changes. */
   const nodeMap = useMemo(() => {
     const map = new Map<string, Node>();
-    for (const node of nodes) map.set(node.id, node);
+    for (const node of nodes) {
+      map.set(node.id, node);
+    }
     return map;
   }, [nodes]);
 
@@ -404,7 +413,12 @@ export function useViewportBoundaries({
   // NOT here. This ensures centering happens AFTER panel state settles,
   // using correct dimensions. See page.tsx for the selection change effect.
 
-  // On window resize (debounced)
+  // ---------------------------------------------------------------------------
+  // Window Resize Handler (debounced for performance)
+  // ---------------------------------------------------------------------------
+  // Uses debounce (not throttle) because we only need to recenter AFTER resize
+  // completes. During resize, translateExtent handles bounds naturally.
+
   const handleWindowResize = useDebounceCallback(() => {
     if (isAnimatingRef.current) return;
 

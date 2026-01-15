@@ -21,6 +21,11 @@
  *
  * Unified control panel for the DAG visualization.
  * Combines zoom, layout direction, and minimap toggle in one place.
+ *
+ * Performance:
+ * - Component is memoized to prevent re-renders on parent state changes
+ * - Individual buttons are memoized for granular updates
+ * - Handlers use useCallback for stable references
  */
 
 "use client";
@@ -153,6 +158,7 @@ const ControlButton = memo(function ControlButton({
     <Tooltip>
       <TooltipTrigger asChild>
         <button
+          type="button"
           onClick={onClick}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-md transition-colors",

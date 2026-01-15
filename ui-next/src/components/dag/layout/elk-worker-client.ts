@@ -38,12 +38,24 @@ const ELK_WORKER_URL = "/elk-worker.min.js";
 // ELK Layout Client (Singleton)
 // =============================================================================
 
+/**
+ * Singleton client for ELK layout calculations.
+ *
+ * Features:
+ * - Lazy initialization (worker only loaded when needed)
+ * - Request tracking for debugging
+ * - Clean shutdown support
+ *
+ * Performance: Uses web worker for off-main-thread layout calculations.
+ */
 class ELKLayoutClient {
   private elk: InstanceType<typeof ELK> | null = null;
   private initPromise: Promise<void> | null = null;
+  private pendingRequests = 0;
 
   /**
    * Lazily initialize ELK instance with web worker.
+   * Returns immediately if already initialized.
    */
   private async init(): Promise<void> {
     if (this.elk) return;
@@ -69,6 +81,7 @@ class ELKLayoutClient {
    *
    * @param graph - ELK graph to layout
    * @returns Promise resolving to the layout result
+   * @throws Error if called in SSR environment or if layout fails
    */
   async layout(graph: ElkGraph): Promise<ElkLayoutResult> {
     await this.init();
@@ -77,15 +90,30 @@ class ELKLayoutClient {
       throw new Error("ELK not initialized (SSR environment)");
     }
 
-    return this.elk.layout(graph) as Promise<ElkLayoutResult>;
+    this.pendingRequests++;
+    try {
+      return await (this.elk.layout(graph) as Promise<ElkLayoutResult>);
+    } finally {
+      this.pendingRequests--;
+    }
+  }
+
+  /**
+   * Check if there are pending layout requests.
+   * Useful for cleanup/unmount logic.
+   */
+  hasPendingRequests(): boolean {
+    return this.pendingRequests > 0;
   }
 
   /**
    * Terminate the ELK instance and clean up.
+   * Safe to call multiple times.
    */
   terminate(): void {
     this.elk = null;
     this.initPromise = null;
+    this.pendingRequests = 0;
   }
 }
 
@@ -105,8 +133,9 @@ let preloadScheduled = false;
  * Uses requestIdleCallback to initialize the web worker without blocking
  * the main thread. Falls back to setTimeout for Safari/older browsers.
  *
- * Call this early (e.g., on module load or route prefetch) to hide
- * worker initialization latency from the user.
+ * Performance: Call this early (e.g., on module load or route prefetch) to hide
+ * worker initialization latency from the user. The minimal layout triggers
+ * worker initialization without meaningful computation.
  *
  * @example
  * ```tsx
@@ -120,12 +149,13 @@ export function preloadElkWorker(): void {
   // Only run in browser
   if (typeof window === "undefined") return;
 
-  // Only schedule once
+  // Only schedule once per session
   if (preloadScheduled) return;
   preloadScheduled = true;
 
   // Schedule preload during idle time to avoid blocking initial render
   const doPreload = () => {
+    // Minimal layout request - just enough to initialize the worker
     elkWorker
       .layout({
         id: "preload",
@@ -135,6 +165,8 @@ export function preloadElkWorker(): void {
       })
       .catch(() => {
         // Ignore errors during preload (worker will retry on actual use)
+        // Reset flag to allow retry on next call
+        preloadScheduled = false;
       });
   };
 
@@ -152,5 +184,6 @@ export function preloadElkWorker(): void {
  * Useful for showing loading indicators.
  */
 export function isElkWorkerReady(): boolean {
-  return elkWorker["elk"] !== null;
+  // Access private property via bracket notation for external check
+  return (elkWorker as unknown as { elk: unknown }).elk !== null;
 }
