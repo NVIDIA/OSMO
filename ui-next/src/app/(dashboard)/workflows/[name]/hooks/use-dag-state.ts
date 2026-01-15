@@ -248,14 +248,19 @@ export function useDAGState({
         if (!cancelled) {
           // Use startTransition for non-blocking node/edge updates
           // This keeps the UI responsive during large graph updates
+          // CRITICAL: setIsLayouting(false) MUST be inside startTransition to ensure
+          // nodes are available when useViewportBoundaries detects layout completion.
+          // Otherwise, React may render isLayouting=false before nodes update,
+          // causing centerOnNode to fail (node not found in nodeMap).
           startTransition(() => {
             setNodes(result.nodes);
             setEdges(result.edges);
+            setIsLayouting(false);
           });
         }
       } catch (error) {
         console.error("Layout calculation failed:", error);
-      } finally {
+        // On error, still set isLayouting to false (not in transition)
         if (!cancelled) {
           setIsLayouting(false);
         }
