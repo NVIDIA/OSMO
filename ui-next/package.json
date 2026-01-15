@@ -14,7 +14,7 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "type-check": "tsc --noEmit",
-    "generate-api": "cd .. && bazel run //src/service:export_openapi > ui-next/openapi.json && cd ui-next && orval",
+    "generate-api": "cd .. && bazel run //src/service:export_openapi > ui-next/openapi.json && bazel run //src/service:export_status_metadata > ui-next/src/lib/api/status-metadata.generated.ts && cd ui-next && orval",
     "generate-mocks": "orval --config orval.config.ts --project osmo-mocks",
     "test": "vitest run",
     "test:watch": "vitest",

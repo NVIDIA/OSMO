@@ -48,7 +48,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
 import { useVirtualizerCompat, useTick } from "@/hooks";
 import type { TaskQueryResponse, GroupWithLayout } from "../../lib/workflow-types";
-import { TaskGroupStatus, isFailedStatus } from "../../lib/workflow-types";
+import { TaskGroupStatus, isTaskFailed } from "../../lib/workflow-types";
 import type { GroupNodeData } from "../../lib/dag-layout";
 import { useDAGContext } from "./dag-context";
 import { getStatusIcon, getStatusCategory, getStatusLabel } from "../../lib/status";
@@ -162,7 +162,7 @@ function getStatusHint(
   const taskCount = tasks.length;
 
   // Count failures for multi-task groups
-  const failedTasks = tasks.filter((t) => isFailedStatus(t.status));
+  const failedTasks = tasks.filter((t) => isTaskFailed(t.status));
   const failedCount = failedTasks.length;
 
   // For multi-task with failures, always show failure count
