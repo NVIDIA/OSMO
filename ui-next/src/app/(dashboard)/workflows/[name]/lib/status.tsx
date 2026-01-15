@@ -44,12 +44,6 @@ export {
   type StateCategory,
   type TaskStats,
   type GroupStatus,
-  // Bitwise checks
-  isFailedFast,
-  isRunningFast,
-  isCompletedFast,
-  isWaitingFast,
-  isFailedStatus,
   // Category and label functions
   getStatusCategory,
   getStatusLabel,
@@ -65,6 +59,13 @@ export {
   STATUS_STYLES,
   STATE_CATEGORIES,
   STATE_CATEGORY_NAMES,
+  // Generated metadata (from Python backend)
+  TASK_STATUS_METADATA,
+  getTaskStatusCategory,
+  isTaskOngoing,
+  isTaskTerminal,
+  isTaskFailed,
+  isTaskInQueue,
 } from "./status-utils";
 
 import { getStatusCategory, STATUS_STYLES } from "./status-utils";
