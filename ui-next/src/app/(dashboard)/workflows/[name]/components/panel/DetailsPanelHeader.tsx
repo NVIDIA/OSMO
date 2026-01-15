@@ -32,7 +32,7 @@
 
 "use client";
 
-import { memo, useState, useMemo, useCallback, useRef } from "react";
+import { memo, useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { ChevronDown, ChevronRight, MoreVertical, Columns, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -96,6 +96,7 @@ interface TaskSwitcherProps {
 
 const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectSibling }: TaskSwitcherProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
@@ -117,23 +118,30 @@ const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectS
     [onSelectSibling],
   );
 
-  // Focus search input and scroll current item into view when dropdown opens
+  // Handle dropdown open/close
   const handleOpenChange = useCallback((open: boolean) => {
-    if (open) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-        const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
-        if (currentItem) {
-          currentItem.scrollIntoView({ block: "center", behavior: "instant" });
-        }
-      }, 0);
-    } else {
+    setIsOpen(open);
+    if (!open) {
       setSearchQuery("");
     }
   }, []);
 
+  // Focus search input and scroll current item into view when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      searchInputRef.current?.focus();
+      const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
+      if (currentItem) {
+        currentItem.scrollIntoView({ block: "center", behavior: "instant" });
+      }
+    }
+  }, [isOpen]);
+
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+    >
       <DropdownMenuTrigger asChild>
         <button
           className="flex min-w-0 items-center gap-2 rounded-md py-0.5 pr-1.5 pl-1.5 text-gray-900 transition-colors hover:bg-gray-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
