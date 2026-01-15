@@ -148,13 +148,13 @@ export const MANDATORY_COLUMN_IDS: ReadonlySet<TaskColumnId> = new Set(["status"
 export const TASK_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   {
     id: "status",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
-    preferredWidthRem: 1.5, // Just enough for the icon
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.ACTIONS_SMALL,
   },
   {
     id: "name",
     minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE * 1.2,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
   },
   {
     id: "duration",
@@ -173,23 +173,23 @@ export const TASK_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   },
   {
     id: "exitCode",
-    minWidthRem: 3,
-    preferredWidthRem: 4,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.FLAG_SHORT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.FLAG_SHORT,
   },
   {
     id: "startTime",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-    preferredWidthRem: 6,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
   },
   {
     id: "endTime",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-    preferredWidthRem: 6,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
   },
   {
     id: "retry",
-    minWidthRem: 3,
-    preferredWidthRem: 4,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.FLAG_SHORT,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.FLAG_SHORT,
   },
 ];
 
