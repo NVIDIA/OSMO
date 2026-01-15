@@ -49,8 +49,9 @@ import {
  */
 export function AppSidebar() {
   const pathname = usePathname();
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { state, isMobile } = useSidebar();
+  // On mobile (hamburger overlay), always show expanded state regardless of desktop sidebar state
+  const collapsed = isMobile ? false : state === "collapsed";
 
   // Get navigation from hook (server-driven when wired up)
   const { sections, isLoading } = useNavigation();
