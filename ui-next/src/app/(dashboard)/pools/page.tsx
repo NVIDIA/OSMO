@@ -16,6 +16,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Metadata } from "next";
+
+// =============================================================================
+// Static Metadata (SEO)
+// =============================================================================
+
+export const metadata: Metadata = {
+  title: "Pools | OSMO",
+  description: "View and manage compute pools, quotas, and resource allocation.",
+};
+
 /**
  * Pools Page (Server Component)
  *
