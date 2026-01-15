@@ -17,6 +17,8 @@
 load("//bzl:py.bzl", "osmo_py_library")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
+exports_files(["test_calculate_pod_status_cases.json"])
+
 py_test(
     name = "test_listener",
     srcs = [

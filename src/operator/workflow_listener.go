@@ -286,7 +286,7 @@ func (wl *WorkflowListener) Close() {
 // podWithStatus bundles a pod with its calculated status to avoid duplicate computation
 type podWithStatus struct {
 	pod          *corev1.Pod
-	statusResult utils.PodStatusResult
+	statusResult utils.TaskStatusResult
 }
 
 // podStateEntry represents a tracked pod state with timestamp
@@ -311,11 +311,15 @@ func getPodKey(pod *corev1.Pod) string {
 }
 
 // hasChanged checks if the pod's status has changed since last sent, or if the TTL has expired
-// Returns (changed bool, statusResult PodStatusResult) to avoid duplicate status calculation
-func (pst *podStateTracker) hasChanged(pod *corev1.Pod) (bool, utils.PodStatusResult) {
+// Returns (changed bool, statusResult TaskStatusResult) to avoid duplicate status calculation
+func (pst *podStateTracker) hasChanged(pod *corev1.Pod) (bool, utils.TaskStatusResult) {
 	key := getPodKey(pod)
 
-	statusResult := utils.CalculatePodStatus(pod)
+	statusResult := utils.CalculateTaskStatus(pod)
+	if statusResult.Status == utils.StatusUnknown {
+		return false, utils.TaskStatusResult{}
+	}
+
 	now := time.Now()
 
 	pst.mu.Lock()
@@ -325,7 +329,7 @@ func (pst *podStateTracker) hasChanged(pod *corev1.Pod) (bool, utils.PodStatusRe
 
 	// Return false if status unchanged and TTL not expired
 	if exists && entry.status == statusResult.Status && now.Sub(entry.timestamp) <= pst.ttl {
-		return false, utils.PodStatusResult{}
+		return false, utils.TaskStatusResult{}
 	}
 
 	// Send if: new pod, status changed, or TTL expired
@@ -476,7 +480,7 @@ func parseRetryID(retryIDStr string) int32 {
 // createPodUpdateMessage creates a ListenerMessage from a pod object
 func createPodUpdateMessage(
 	pod *corev1.Pod,
-	statusResult utils.PodStatusResult,
+	statusResult utils.TaskStatusResult,
 	backend string,
 ) (*pb.ListenerMessage, error) {
 	// Build pod update structure using proto-generated type
