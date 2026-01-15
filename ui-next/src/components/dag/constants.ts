@@ -168,6 +168,21 @@ export const ANIMATION = {
    * a seamless single-motion animation.
    */
   PANEL_TRANSITION: 200,
+  /** Throttle interval for window resize handling (ms) */
+  RESIZE_THROTTLE_MS: 150,
+} as const;
+
+// ============================================================================
+// Viewport Adjustment Thresholds
+// ============================================================================
+
+export const VIEWPORT_THRESHOLDS = {
+  /**
+   * Minimum squared distance (px²) to trigger a viewport animation.
+   * Using squared distance avoids expensive Math.sqrt calls.
+   * A value of 1 means: animate if moved more than 1px in any direction.
+   */
+  MIN_ADJUSTMENT_DISTANCE_SQ: 1,
 } as const;
 
 // ============================================================================
