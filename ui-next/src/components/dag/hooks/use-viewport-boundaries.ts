@@ -37,7 +37,7 @@ import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@
 import { useSyncedRef } from "@react-hookz/web";
 import { useResizeObserver, useDebounceCallback } from "usehooks-ts";
 import { clamp } from "@/lib/utils";
-import { VIEWPORT, ANIMATION, VIEWPORT_THRESHOLDS, NODE_DEFAULTS } from "../constants";
+import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
 import type { LayoutDirection } from "../types";
 
 // ============================================================================
@@ -152,37 +152,93 @@ export function useViewportBoundaries({
   const prevIsLayoutingRef = useRef(isLayouting);
 
   // ---------------------------------------------------------------------------
-  // translateExtent: Pan boundaries for d3-zoom
+  // Core Functions: Extent Calculation
   // ---------------------------------------------------------------------------
 
-  const translateExtent = useMemo((): CoordinateExtent | undefined => {
-    if (!nodeBounds || !dims.width || !dims.height) return undefined;
+  /** Calculate translateExtent bounds from dimensions and node bounds (pure function). */
+  const calcExtentPure = useCallback((d: Dimensions, b: NodeBounds): CoordinateExtent | undefined => {
+    if (!b || !d.width || !d.height) return undefined;
 
-    // MAX_ZOOM padding = tightest bounds allowing edge nodes to be centered
-    const px = dims.width / (2 * VIEWPORT.MAX_ZOOM);
-    const py = dims.height / (2 * VIEWPORT.MAX_ZOOM);
+    // Use zoom=1.0 as reference (most common user zoom level).
+    // At zoom=1: perfect centering, minimal whitespace.
+    // At low zoom: edge nodes may not fully center (acceptable - whole DAG visible anyway).
+    // At high zoom: slight extra panning room (acceptable trade-off).
+    const px = d.width / 2;
+    const py = d.height / 2;
 
     return [
-      [nodeBounds.minX - px, nodeBounds.minY - py],
-      [nodeBounds.maxX + px, nodeBounds.maxY + py],
+      [b.minX - px, b.minY - py],
+      [b.maxX + px, b.maxY + py],
     ];
-  }, [nodeBounds, dims.width, dims.height]);
+  }, []);
+
+  /** Calculate extent using current nodeBounds ref (for use in callbacks). */
+  const calcExtent = useCallback(
+    (d: Dimensions): CoordinateExtent | undefined => calcExtentPure(d, nodeBoundsRef.current),
+    [calcExtentPure, nodeBoundsRef],
+  );
 
   // ---------------------------------------------------------------------------
-  // Core Functions
+  // translateExtent: Pan boundaries for d3-zoom (reactive, uses frozen dims during animation)
   // ---------------------------------------------------------------------------
 
-  /** Clamp viewport to valid bounds for given dimensions. */
-  const clampViewport = useCallback(
+  const translateExtent = useMemo(
+    (): CoordinateExtent | undefined => calcExtentPure(dims, nodeBounds),
+    [calcExtentPure, dims, nodeBounds],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Core Functions: Viewport Operations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Clamp viewport to match d3-zoom's translateExtent constraint.
+   * d3-zoom formula (from source): ensures viewport doesn't show area outside translateExtent.
+   * Valid range: [width - extent.maxX × zoom, -extent.minX × zoom]
+   */
+  const clampToTranslateExtent = useCallback((vp: Viewport, d: Dimensions, extent: CoordinateExtent): Viewport => {
+    // d3-zoom constrains so visible area stays within translateExtent
+    // Formula: viewport.x must be in [width - maxX × zoom, -minX × zoom]
+    const validMinX = d.width - extent[1][0] * vp.zoom;
+    const validMaxX = -extent[0][0] * vp.zoom;
+    const validMinY = d.height - extent[1][1] * vp.zoom;
+    const validMaxY = -extent[0][1] * vp.zoom;
+
+    // When container is larger than content (validMin > validMax), d3-zoom centers
+    // the content instead of clamping. This matches d3-zoom's constrain behavior:
+    // `dx1 > dx0 ? (dx0 + dx1) / 2 : Math.min(0, dx0) || Math.max(0, dx1)`
+    const clampedX = validMinX > validMaxX ? (validMinX + validMaxX) / 2 : clamp(vp.x, validMinX, validMaxX);
+    const clampedY = validMinY > validMaxY ? (validMinY + validMaxY) / 2 : clamp(vp.y, validMinY, validMaxY);
+
+    return {
+      x: clampedX,
+      y: clampedY,
+      zoom: vp.zoom,
+    };
+  }, []);
+
+  /**
+   * Clamp viewport for node centering (zoom-aware).
+   * Uses the same inverted-bounds handling as clampToTranslateExtent for consistency.
+   * When container > content at current zoom, centers the content.
+   */
+  const clampViewportForCentering = useCallback(
     (vp: Viewport, d: Dimensions): Viewport => {
       const b = nodeBoundsRef.current;
       const hw = d.width / 2;
       const hh = d.height / 2;
-      return {
-        x: clamp(vp.x, hw - b.maxX * vp.zoom, hw - b.minX * vp.zoom),
-        y: clamp(vp.y, hh - b.maxY * vp.zoom, hh - b.minY * vp.zoom),
-        zoom: vp.zoom,
-      };
+
+      // Centering bounds: where any node can be centered
+      const minX = hw - b.maxX * vp.zoom;
+      const maxX = hw - b.minX * vp.zoom;
+      const minY = hh - b.maxY * vp.zoom;
+      const maxY = hh - b.minY * vp.zoom;
+
+      // Handle inverted bounds (container > content at current zoom) by centering
+      const clampedX = minX > maxX ? (minX + maxX) / 2 : clamp(vp.x, minX, maxX);
+      const clampedY = minY > maxY ? (minY + maxY) / 2 : clamp(vp.y, minY, maxY);
+
+      return { x: clampedX, y: clampedY, zoom: vp.zoom };
     },
     [nodeBoundsRef],
   );
@@ -191,21 +247,22 @@ export function useViewportBoundaries({
   const animateViewport = useCallback(
     (viewport: Viewport, duration: number) => {
       // Freeze current target dims - translateExtent stays stable during animation
-      setFrozenDims(currentDimsRef.current);
+      const frozenTo = currentDimsRef.current;
+      setFrozenDims(frozenTo);
       isAnimatingRef.current = true;
       const gen = ++animationGenerationRef.current;
 
       reactFlowInstance.setViewport(viewport, { duration }).then(() => {
         if (animationGenerationRef.current === gen) {
           isAnimatingRef.current = false;
-          setFrozenDims(null); // Unfreeze
+          setFrozenDims(null);
         }
       });
     },
     [reactFlowInstance, currentDimsRef],
   );
 
-  /** Center viewport on a node. */
+  /** Center viewport on a node (uses zoom-aware clamping for precise centering). */
   const centerOnNode = useCallback(
     (nodeId: string, zoom: number, duration: number, d: Dimensions): boolean => {
       const node = nodeMapRef.current.get(nodeId);
@@ -217,28 +274,34 @@ export function useViewportBoundaries({
       const cx = node.position.x + nw / 2;
       const cy = node.position.y + nh / 2;
 
-      const target = clampViewport({ x: d.width / 2 - cx * zoom, y: d.height / 2 - cy * zoom, zoom }, d);
+      const target = clampViewportForCentering({ x: d.width / 2 - cx * zoom, y: d.height / 2 - cy * zoom, zoom }, d);
       animateViewport(target, duration);
       return true;
     },
-    [nodeMapRef, clampViewport, animateViewport],
+    [nodeMapRef, clampViewportForCentering, animateViewport],
   );
 
-  /** Clamp current viewport to bounds. forceAnimate freezes dims even if no movement needed. */
+  /**
+   * Clamp current viewport to valid bounds using d3-zoom's exact formula.
+   * ALWAYS animates to ensure ReactFlow's internal state is synchronized,
+   * preventing d3-zoom from "correcting" the viewport later during user interaction.
+   */
   const clampCurrentViewport = useCallback(
-    (duration: number, d: Dimensions, forceAnimate = false) => {
-      const current = reactFlowInstance.getViewport();
-      const clamped = clampViewport(current, d);
+    (duration: number) => {
+      const newDims = currentDimsRef.current;
+      const newExtent = calcExtent(newDims);
+      if (!newExtent) return;
 
-      const dx = current.x - clamped.x;
-      const dy = current.y - clamped.y;
-      const needsMove = dx * dx + dy * dy > VIEWPORT_THRESHOLDS.MIN_ADJUSTMENT_DISTANCE_SQ;
+      const currentVp = reactFlowInstance.getViewport();
+      // Use d3-zoom's exact translateExtent clamping formula
+      const clampedVp = clampToTranslateExtent(currentVp, newDims, newExtent);
 
-      if (needsMove || forceAnimate) {
-        animateViewport(clamped, duration);
-      }
+      // ALWAYS animate to clamped position.
+      // This syncs ReactFlow's internal viewport state with our calculated bounds,
+      // preventing d3-zoom from "correcting" the viewport later during user interaction.
+      animateViewport(clampedVp, duration);
     },
-    [reactFlowInstance, clampViewport, animateViewport],
+    [reactFlowInstance, currentDimsRef, calcExtent, clampToTranslateExtent, animateViewport],
   );
 
   /** Get current dimensions (reads from ref for callbacks). */
@@ -250,17 +313,17 @@ export function useViewportBoundaries({
 
   // On reCenterTrigger change (panel/sidebar toggle)
   useEffect(() => {
-    if (prevReCenterTriggerRef.current === reCenterTrigger) return;
+    const prev = prevReCenterTriggerRef.current;
+    if (prev === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
+
     if (isAnimatingRef.current) return;
 
-    const d = getDims();
-    const zoom = reactFlowInstance.getViewport().zoom;
-
     if (selectedNodeId) {
-      centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, d);
+      const d = getDims();
+      centerOnNode(selectedNodeId, reactFlowInstance.getViewport().zoom, ANIMATION.PANEL_TRANSITION, d);
     } else {
-      clampCurrentViewport(ANIMATION.PANEL_TRANSITION, d, true); // forceAnimate to freeze dims
+      clampCurrentViewport(ANIMATION.PANEL_TRANSITION);
     }
   }, [reCenterTrigger, selectedNodeId, getDims, centerOnNode, clampCurrentViewport, reactFlowInstance]);
 
@@ -298,30 +361,20 @@ export function useViewportBoundaries({
     }
   }, [isLayouting, nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode, getDims]);
 
-  // On selection change
-  useEffect(() => {
-    if (!selectedNodeId) {
-      prevSelectionRef.current = null;
-      return;
-    }
-    if (prevSelectionRef.current === selectedNodeId) return;
-    if (!nodeMap.has(selectedNodeId)) return;
-
-    prevSelectionRef.current = selectedNodeId;
-    centerOnNode(selectedNodeId, reactFlowInstance.getViewport().zoom, ANIMATION.PANEL_TRANSITION, getDims());
-  }, [selectedNodeId, nodeMap, centerOnNode, reactFlowInstance, getDims]);
+  // NOTE: Selection change centering is handled by the page via reCenterTrigger,
+  // NOT here. This ensures centering happens AFTER panel state settles,
+  // using correct dimensions. See page.tsx for the selection change effect.
 
   // On window resize (debounced)
   const handleWindowResize = useDebounceCallback(() => {
     if (isAnimatingRef.current) return;
 
-    const d = getDims();
     const sel = selectedNodeIdRef.current;
 
     if (sel) {
-      centerOnNode(sel, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, d);
+      centerOnNode(sel, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, getDims());
     } else {
-      clampCurrentViewport(ANIMATION.BOUNDARY_ENFORCE, d);
+      clampCurrentViewport(ANIMATION.BOUNDARY_ENFORCE);
     }
   }, ANIMATION.RESIZE_THROTTLE_MS);
 
