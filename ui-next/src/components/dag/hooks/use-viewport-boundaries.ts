@@ -20,14 +20,18 @@
  * useViewportBoundaries - Viewport management for ReactFlow DAGs.
  *
  * ARCHITECTURE:
- * - Single source of truth for dimensions (used by translateExtent, clampViewport, centerOnNode)
- * - Dimensions frozen during animations to prevent stuttering
- * - Optional dependency injection for visual polish during CSS transitions
+ * - translateExtent uses CONTAINER dims by default (stable, follows CSS gradually)
+ * - When animating: translateExtent uses FROZEN TARGET dims (stable, matches animation)
+ * - Animation targeting always uses TARGET dims (expected final position)
  *
- * DEPENDENCY INJECTION:
- * - `getTargetDimensions`: Optional function returning expected final dimensions
- *   → Enables smooth single-animation transitions during CSS transitions
- *   → If not provided, uses container dimensions (simpler, but may need correction after resize)
+ * WHY THIS PREVENTS STUTTER:
+ * - State change → targetDims updates immediately
+ * - BUT translateExtent uses containerDims (unchanged yet) → NO JUMP
+ * - Effect runs → freeze dims to targetDims
+ * - Now translateExtent uses frozen targetDims (same as animation target)
+ * - d3-zoom's per-frame constraining is stable → SMOOTH
+ * - Animation completes → unfreeze
+ * - translateExtent uses containerDims again (now at final size)
  */
 
 "use client";
@@ -109,7 +113,8 @@ export function useViewportBoundaries({
   }, [nodes]);
 
   // ---------------------------------------------------------------------------
-  // Container Dimensions (default source, used when getTargetDimensions not provided)
+  // Container Dimensions (from DOM, updates gradually during CSS transitions)
+  // Used for translateExtent to follow the actual container size
   // ---------------------------------------------------------------------------
 
   const { width: containerWidth = VIEWPORT.ESTIMATED_WIDTH, height: containerHeight = VIEWPORT.ESTIMATED_HEIGHT } =
@@ -124,19 +129,33 @@ export function useViewportBoundaries({
   const selectedNodeIdRef = useSyncedRef(selectedNodeId);
 
   // ---------------------------------------------------------------------------
-  // Dimensions: Single Source of Truth
+  // Dimensions: Two sources with freeze mechanism
   // ---------------------------------------------------------------------------
-  // Priority: getTargetDimensions (injected) → container dimensions (default)
-  // During animations: frozen to prevent stuttering
+  // Container dims: from useResizeObserver, updates gradually during CSS transitions
+  // Target dims: from getTargetDimensions, updates immediately to expected final size
+  //
+  // translateExtent uses:
+  //   - frozenDims (when animating) → stable, matches animation target
+  //   - containerDims (when not animating) → stable, follows CSS gradually
+  //
+  // Animation targeting uses: targetDims (always expected final position)
 
-  const currentDims: Dimensions = useMemo(
-    () => getTargetDimensions?.() ?? { width: containerWidth, height: containerHeight },
-    [getTargetDimensions, containerWidth, containerHeight],
+  const containerDims: Dimensions = useMemo(
+    () => ({ width: containerWidth, height: containerHeight }),
+    [containerWidth, containerHeight],
   );
-  const currentDimsRef = useSyncedRef(currentDims);
 
+  const targetDims: Dimensions = useMemo(
+    () => getTargetDimensions?.() ?? containerDims,
+    [getTargetDimensions, containerDims],
+  );
+  const targetDimsRef = useSyncedRef(targetDims);
+
+  // Frozen dims: set to targetDims when animation starts, null otherwise
   const [frozenDims, setFrozenDims] = useState<Dimensions | null>(null);
-  const dims: Dimensions = frozenDims ?? currentDims;
+
+  // translateExtent uses: frozen (during animation) OR container (stable default)
+  const extentDims: Dimensions = frozenDims ?? containerDims;
 
   // ---------------------------------------------------------------------------
   // Tracking Refs
@@ -179,12 +198,15 @@ export function useViewportBoundaries({
   );
 
   // ---------------------------------------------------------------------------
-  // translateExtent: Pan boundaries for d3-zoom (reactive, uses frozen dims during animation)
+  // translateExtent: Pan boundaries for d3-zoom
   // ---------------------------------------------------------------------------
+  // Uses extentDims which is:
+  //   - frozenDims during animation (stable, matches animation target)
+  //   - containerDims otherwise (stable, no jump when targetDims changes)
 
   const translateExtent = useMemo(
-    (): CoordinateExtent | undefined => calcExtentPure(dims, nodeBounds),
-    [calcExtentPure, dims, nodeBounds],
+    (): CoordinateExtent | undefined => calcExtentPure(extentDims, nodeBounds),
+    [calcExtentPure, extentDims, nodeBounds],
   );
 
   // ---------------------------------------------------------------------------
@@ -243,23 +265,25 @@ export function useViewportBoundaries({
     [nodeBoundsRef],
   );
 
-  /** Animate viewport, freezing dims during animation to prevent stuttering. */
+  /** Animate viewport, freezing dims so translateExtent stays stable during animation. */
   const animateViewport = useCallback(
     (viewport: Viewport, duration: number) => {
-      // Freeze current target dims - translateExtent stays stable during animation
-      const frozenTo = currentDimsRef.current;
-      setFrozenDims(frozenTo);
+      // Freeze dims to TARGET values - this freezes BOTH:
+      // 1. translateExtent (prevents d3-zoom per-frame fighting)
+      // 2. Animation target (prevents re-targeting mid-flight)
+      setFrozenDims(targetDimsRef.current);
       isAnimatingRef.current = true;
       const gen = ++animationGenerationRef.current;
 
       reactFlowInstance.setViewport(viewport, { duration }).then(() => {
         if (animationGenerationRef.current === gen) {
           isAnimatingRef.current = false;
+          // Unfreeze - translateExtent will now use targetDims (which should match container)
           setFrozenDims(null);
         }
       });
     },
-    [reactFlowInstance, currentDimsRef],
+    [reactFlowInstance, targetDimsRef],
   );
 
   /** Center viewport on a node (uses zoom-aware clamping for precise centering). */
@@ -283,29 +307,29 @@ export function useViewportBoundaries({
 
   /**
    * Clamp current viewport to valid bounds using d3-zoom's exact formula.
-   * ALWAYS animates to ensure ReactFlow's internal state is synchronized,
-   * preventing d3-zoom from "correcting" the viewport later during user interaction.
+   * Uses target dimensions for calculating the clamp position (expected final state).
+   * ALWAYS animates to ensure ReactFlow's internal state is synchronized.
    */
   const clampCurrentViewport = useCallback(
     (duration: number) => {
-      const newDims = currentDimsRef.current;
-      const newExtent = calcExtent(newDims);
-      if (!newExtent) return;
+      const d = targetDimsRef.current;
+      const extent = calcExtent(d);
+      if (!extent) return;
 
       const currentVp = reactFlowInstance.getViewport();
-      // Use d3-zoom's exact translateExtent clamping formula
-      const clampedVp = clampToTranslateExtent(currentVp, newDims, newExtent);
+      // Use d3-zoom's exact translateExtent clamping formula with target dims
+      const clampedVp = clampToTranslateExtent(currentVp, d, extent);
 
       // ALWAYS animate to clamped position.
       // This syncs ReactFlow's internal viewport state with our calculated bounds,
       // preventing d3-zoom from "correcting" the viewport later during user interaction.
       animateViewport(clampedVp, duration);
     },
-    [reactFlowInstance, currentDimsRef, calcExtent, clampToTranslateExtent, animateViewport],
+    [reactFlowInstance, targetDimsRef, calcExtent, clampToTranslateExtent, animateViewport],
   );
 
-  /** Get current dimensions (reads from ref for callbacks). */
-  const getDims = useCallback((): Dimensions => currentDimsRef.current, [currentDimsRef]);
+  /** Get target dimensions for animation (reads from ref for callbacks). */
+  const getTargetDimsForAnimation = useCallback((): Dimensions => targetDimsRef.current, [targetDimsRef]);
 
   // ---------------------------------------------------------------------------
   // Effects: Re-center/Clamp Triggers
@@ -320,12 +344,19 @@ export function useViewportBoundaries({
     if (isAnimatingRef.current) return;
 
     if (selectedNodeId) {
-      const d = getDims();
+      const d = getTargetDimsForAnimation();
       centerOnNode(selectedNodeId, reactFlowInstance.getViewport().zoom, ANIMATION.PANEL_TRANSITION, d);
     } else {
       clampCurrentViewport(ANIMATION.PANEL_TRANSITION);
     }
-  }, [reCenterTrigger, selectedNodeId, getDims, centerOnNode, clampCurrentViewport, reactFlowInstance]);
+  }, [
+    reCenterTrigger,
+    selectedNodeId,
+    getTargetDimsForAnimation,
+    centerOnNode,
+    clampCurrentViewport,
+    reactFlowInstance,
+  ]);
 
   // On layout complete (isLayouting: true → false)
   useEffect(() => {
@@ -335,7 +366,7 @@ export function useViewportBoundaries({
     if (!(wasLayouting && !isLayouting)) return; // Only on completion
     if (nodes.length === 0 || rootNodeIds.length === 0) return;
 
-    const d = getDims();
+    const d = getTargetDimsForAnimation();
 
     // Initial load
     if (!hasInitializedRef.current) {
@@ -359,7 +390,15 @@ export function useViewportBoundaries({
       prevLayoutDirectionRef.current = layoutDirection;
       centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, d);
     }
-  }, [isLayouting, nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode, getDims]);
+  }, [
+    isLayouting,
+    nodes.length,
+    rootNodeIds,
+    layoutDirection,
+    initialSelectedNodeId,
+    centerOnNode,
+    getTargetDimsForAnimation,
+  ]);
 
   // NOTE: Selection change centering is handled by the page via reCenterTrigger,
   // NOT here. This ensures centering happens AFTER panel state settles,
@@ -372,7 +411,7 @@ export function useViewportBoundaries({
     const sel = selectedNodeIdRef.current;
 
     if (sel) {
-      centerOnNode(sel, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, getDims());
+      centerOnNode(sel, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, getTargetDimsForAnimation());
     } else {
       clampCurrentViewport(ANIMATION.BOUNDARY_ENFORCE);
     }
