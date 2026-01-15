@@ -44,6 +44,9 @@ export const COLUMN_MIN_WIDTHS_REM = {
   /** Short text labels (status, type) */
   TEXT_SHORT: 6,
 
+  /** Short flag values: "true", "false", "1", "0" */
+  FLAG_SHORT: 4.25,
+
   /** Short numbers: "128/256", "1.5K/2K" */
   NUMBER_SHORT: 5,
 
@@ -83,6 +86,9 @@ export const COLUMN_PREFERRED_WIDTHS_REM = {
 
   /** Short text labels (status, type) - badge + text */
   TEXT_SHORT: 8,
+
+  /** Short flag values: "true", "false", "1", "0" */
+  FLAG_SHORT: 4.25,
 
   /** Short numbers with fraction: "128/256" */
   NUMBER_SHORT: 6.5,
