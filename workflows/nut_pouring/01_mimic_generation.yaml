@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,15 +37,14 @@ workflow:
       NO_NUCLEUS: Y
       OMNI_KIT_ALLOW_ROOT: 1
       OMNI_SERVER: isaac-dev.ov.nvidia.com
-    downloadType: download  # In total, download seems to be faster than mounting
-    
+
     inputs:
     - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step0-Mimic
 
     outputs:
     - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step1-MimicGenerated
 
-    command: ["bash"] 
+    command: ["bash"]
     args: ["/tmp/entry.sh"]
     files:
     - path: /tmp/entry.sh
@@ -66,72 +65,72 @@ workflow:
 
           # Display info on the system
           nvidia-smi
-          
+
           echo ""
           echo "=== Installing Isaac Lab extensions ==="
           cd /workspace/isaaclab
-          
+
           # Install isaaclab_tasks extension
           echo "Installing isaaclab_tasks..."
           ./isaaclab.sh --install
-          
+
           # Check if there are additional extensions to install
           if [ -d "source/extensions" ]; then
               echo "Found extensions directory, listing contents:"
               ls -la source/extensions/
           fi
-          
+
           # Check for GR1 or manipulation extensions
           find source -name "*gr1*" -o -name "*nut*" -o -name "*pour*" 2>/dev/null || echo "No GR1/nut pouring specific files found"
-          
+
           echo ""
           echo "=== Checking where tasks are registered ==="
-          
+
           # Check the isaaclab_mimic envs __init__.py to see how tasks are registered
           echo "Contents of isaaclab_mimic/envs/__init__.py:"
           head -100 source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
-          
+
           echo ""
           echo "Checking for GR1 nut pour registrations:"
           grep -r "Isaac-NutPour-GR1T2" source/isaaclab_mimic/ || echo "No registration found for Isaac-NutPour-GR1T2"
-          
+
           echo ""
           echo "Checking pinocchio_envs __init__.py:"
           head -50 source/isaaclab_mimic/isaaclab_mimic/envs/pinocchio_envs/__init__.py
-          
+
           echo ""
           echo "=== THE FIX: pinocchio_envs module is not imported by parent __init__.py ==="
           echo "The GR1 tasks ARE registered in pinocchio_envs/__init__.py"
           echo "But the parent envs/__init__.py doesn't import pinocchio_envs!"
           echo "Adding import to trigger the registrations..."
-          
+
           # Patch the parent __init__.py to import pinocchio_envs
           echo "" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
           echo "# PATCHED: Import pinocchio_envs to register GR1 tasks" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
           echo "from . import pinocchio_envs  # noqa: F401" >> source/isaaclab_mimic/isaaclab_mimic/envs/__init__.py
-          
+
           echo "Import added! GR1 tasks should now be registered."
-          
+
           echo ""
           echo "=== Verifying Pinocchio installation ==="
           ./isaaclab.sh -p -c "import pinocchio; print(f'Pinocchio version: {pinocchio.__version__}')"
-          
+
           echo ""
           echo "=== Patching Pink IK to fix Pinocchio C++ binding issue ==="
-          
+
           # Backup and patch the pink_kinematics_configuration.py file
           cp source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py \
              source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py.bak
-          
+
           # Fix the .tolist() call that fails with Pinocchio 2.7.0
           sed -i 's/self\._all_joint_names = self\.full_model\.names\.tolist()\[1:\]/self._all_joint_names = [str(n) for n in self.full_model.names][1:]/' \
              source/isaaclab/isaaclab/controllers/pink_ik/pink_kinematics_configuration.py
-          
+
           echo "Pink IK patched to work with Pinocchio 2.7.0"
-          
+
           echo ""
           echo "=== Running data generation ==="
-          
+
           # Run the generation script on GPU (Pink IK controller works better on GPU)
           ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
             --device cuda:0 \
@@ -142,7 +141,7 @@ workflow:
             --output_file {{output}}/generated_dataset.hdf5 \
             --task {{isaaclab_task}} \
             --enable_cameras
-          
+
           echo ""
           echo "=== Data generation completed ==="
 
