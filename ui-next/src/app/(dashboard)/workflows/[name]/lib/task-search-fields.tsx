@@ -26,7 +26,8 @@
 
 import { cn } from "@/lib/utils";
 import type { SearchField, SearchPreset, SearchChip } from "@/components/smart-search";
-import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, type StateCategory } from "./status";
+import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, STATUS_LABELS, type StateCategory } from "./status";
+import { TaskGroupStatus } from "@/lib/api/generated";
 import type { TaskWithDuration } from "./workflow-types";
 
 // ============================================================================
@@ -268,11 +269,6 @@ function matchTimeFilter(taskTime: number, filterValue: string): boolean {
   return false;
 }
 
-function statusMatchesState(status: string, state: string): boolean {
-  const category = STATE_CATEGORIES[state.toLowerCase() as StateCategory];
-  return category?.has(status) ?? false;
-}
-
 // ============================================================================
 // Field Definitions
 // ============================================================================
@@ -288,15 +284,6 @@ export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
     prefix: "",
     getValues: (tasks) => [...new Set(tasks.map((t) => t.name))].slice(0, 10),
     match: (task, value) => task.name.toLowerCase().includes(value.toLowerCase()),
-  },
-  {
-    id: "state",
-    label: "State",
-    prefix: "state:",
-    getValues: () => STATE_CATEGORY_NAMES,
-    match: (task, value) => statusMatchesState(task.status, value),
-    exhaustive: true,
-    hint: "state category",
   },
   {
     id: "status",
@@ -406,9 +393,86 @@ const STATE_PRESET_COLORS: Record<StateCategory, { dot: string; bg: string; text
   },
 };
 
+// =============================================================================
+// Status Presets - DERIVED FROM STATE_CATEGORIES
+// =============================================================================
+
+/**
+ * Status presets derived from STATE_CATEGORIES.
+ * Each preset maps a state category to its corresponding TaskGroupStatus values.
+ * This enables presets to expand to individual status chips for server-side filtering.
+ */
+export const STATUS_PRESETS: Record<StateCategory, TaskGroupStatus[]> = {
+  completed: [...STATE_CATEGORIES.completed] as TaskGroupStatus[],
+  running: [...STATE_CATEGORIES.running] as TaskGroupStatus[],
+  failed: [...STATE_CATEGORIES.failed] as TaskGroupStatus[],
+  pending: [...STATE_CATEGORIES.pending] as TaskGroupStatus[],
+};
+
+/**
+ * Create chips for a status preset.
+ * Expands a state category to individual status chips.
+ * Uses exact enum value as label for consistency with workflow chips.
+ */
+export function createPresetChips(stateCategory: StateCategory): SearchChip[] {
+  const statuses = STATUS_PRESETS[stateCategory];
+  return statuses.map((status) => ({
+    field: "status",
+    value: status,
+    label: `Status: ${status}`,
+  }));
+}
+
+/**
+ * Check if a preset is fully satisfied by the current chips.
+ * A preset is active only if ALL its statuses are present.
+ */
+export function isPresetActive(stateCategory: StateCategory, chips: SearchChip[]): boolean {
+  const presetStatuses = STATUS_PRESETS[stateCategory];
+  const statusChips = chips.filter((c) => c.field === "status");
+  const statusValues = new Set(statusChips.map((c) => c.value));
+
+  return presetStatuses.every((status) => statusValues.has(status));
+}
+
+/**
+ * Toggle a preset on/off.
+ * - If active (all statuses present): remove all preset statuses
+ * - If inactive: add all preset statuses
+ */
+export function togglePreset(stateCategory: StateCategory, chips: SearchChip[]): SearchChip[] {
+  const isActive = isPresetActive(stateCategory, chips);
+  const presetStatusArray = STATUS_PRESETS[stateCategory];
+  const presetStatusSet = new Set<string>(presetStatusArray);
+
+  if (isActive) {
+    // Remove all preset statuses
+    return chips.filter((c) => !(c.field === "status" && presetStatusSet.has(c.value)));
+  } else {
+    // Add missing preset statuses
+    const existingStatuses = new Set(chips.filter((c) => c.field === "status").map((c) => c.value));
+    const newChips = [...chips];
+
+    for (const status of presetStatusArray) {
+      if (!existingStatuses.has(status)) {
+        newChips.push({
+          field: "status",
+          value: status,
+          label: `Status: ${STATUS_LABELS[status] ?? status}`,
+        });
+      }
+    }
+
+    return newChips;
+  }
+}
+
 /**
  * Task state presets for quick filtering.
- * Presets are static - no counts since data may be paginated.
+ * Each preset expands to individual status chips (e.g., "Failed" → FAILED, FAILED_CANCELED, etc.)
+ *
+ * Uses the `chips` property (not deprecated `chip`) to specify multiple status chips.
+ * SmartSearch will add/remove all chips together, and the preset is active only when all are present.
  */
 export const TASK_PRESETS: { label: string; items: SearchPreset[] }[] = [
   {
@@ -419,11 +483,7 @@ export const TASK_PRESETS: { label: string; items: SearchPreset[] }[] = [
 
       return {
         id: `state-${state}`,
-        chip: {
-          field: "state",
-          value: state,
-          label: `State: ${label}`,
-        },
+        chips: createPresetChips(state),
         render: ({ active, focused }) => (
           <span
             className={cn(
@@ -445,7 +505,8 @@ export const TASK_PRESETS: { label: string; items: SearchPreset[] }[] = [
 ];
 
 // ============================================================================
-// Re-export SearchChip type for convenience
+// Re-export types for convenience
 // ============================================================================
 
 export type { SearchChip };
+export type { StateCategory };
