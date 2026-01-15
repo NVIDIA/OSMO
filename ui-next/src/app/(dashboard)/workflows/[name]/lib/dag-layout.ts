@@ -97,14 +97,24 @@ export const NODE_BORDER_WIDTH = 3;
 
 /**
  * Cache key for layout results.
- * Uses a stable string representation of the input parameters.
+ * Uses array building for better performance than string concatenation.
  */
 function getLayoutCacheKey(groups: GroupWithLayout[], expandedGroups: Set<string>, direction: LayoutDirection): string {
+  // Pre-allocate array for known size
+  const parts: string[] = [direction];
+
   // Group names + task counts (task count affects node dimensions)
-  const groupKey = groups.map((g) => `${g.name}:${g.tasks?.length || 0}`).join("|");
+  for (const g of groups) {
+    parts.push(g.name, String(g.tasks?.length || 0));
+  }
+
   // Expanded groups (sorted for stable key)
-  const expandedKey = [...expandedGroups].sort().join(",");
-  return `${direction}/${expandedKey}/${groupKey}`;
+  const expandedSorted = [...expandedGroups].sort();
+  for (const e of expandedSorted) {
+    parts.push(e);
+  }
+
+  return parts.join("|");
 }
 
 /**
@@ -255,6 +265,8 @@ export interface LayoutPositionResult {
  * Calculate positions for DAG nodes using ELK (pure layout, no callbacks).
  * Results are cached for repeated calls with identical parameters.
  *
+ * Performance: Uses for...of loops and single-pass building for better JIT optimization.
+ *
  * @param groups - The workflow groups
  * @param expandedGroups - Set of expanded group names
  * @param direction - Layout direction
@@ -272,33 +284,36 @@ export async function calculatePositions(
     return cached;
   }
 
-  // Build dimension map for all nodes - O(n)
+  // Build dimension map, ELK children, and edges in single pass - O(n)
   const dimensionsMap = new Map<string, NodeDimensions>();
-  groups.forEach((group) => {
+  const elkChildren: { id: string; width: number; height: number }[] = [];
+  const elkEdges: { id: string; sources: string[]; targets: string[] }[] = [];
+
+  for (const group of groups) {
     const isExpanded = expandedGroups.has(group.name);
-    dimensionsMap.set(group.name, getNodeDimensions(group, isExpanded));
-  });
+    const dims = getNodeDimensions(group, isExpanded);
+    dimensionsMap.set(group.name, dims);
+    elkChildren.push({ id: group.name, width: dims.width, height: dims.height });
+
+    // Build edges for this group
+    const downstreams = group.downstream_groups;
+    if (downstreams) {
+      for (const downstream of downstreams) {
+        elkEdges.push({
+          id: `${group.name}-${downstream}`,
+          sources: [group.name],
+          targets: [downstream],
+        });
+      }
+    }
+  }
 
   // Build ELK graph
   const elkGraph: ElkGraph = {
     id: "root",
     layoutOptions: getElkLayoutOptions(direction),
-    children: groups.map((group) => {
-      const dims = dimensionsMap.get(group.name)!;
-      return {
-        id: group.name,
-        width: dims.width,
-        height: dims.height,
-      };
-    }),
-    edges: groups.flatMap((group) => {
-      const downstreams = group.downstream_groups || [];
-      return downstreams.map((downstream) => ({
-        id: `${group.name}-${downstream}`,
-        sources: [group.name],
-        targets: [downstream],
-      }));
-    }),
+    children: elkChildren,
+    edges: elkEdges,
   };
 
   // Run ELK layout (offloaded to web worker for performance)
@@ -306,7 +321,7 @@ export async function calculatePositions(
 
   // Build position map - O(n) lookup later
   const positions = new Map<string, LayoutPosition>();
-  layoutResult.children.forEach((elkNode) => {
+  for (const elkNode of layoutResult.children) {
     const dims = dimensionsMap.get(elkNode.id);
     if (dims) {
       positions.set(elkNode.id, {
@@ -317,7 +332,7 @@ export async function calculatePositions(
         height: dims.height,
       });
     }
-  });
+  }
 
   const result = { positions, dimensions: dimensionsMap };
 
@@ -394,41 +409,54 @@ export function buildNodes(
  * Uses CSS variables and data attributes for styling instead of inline styles.
  * This enables GPU-accelerated rendering and reduces React reconciliation work.
  *
+ * Performance: Uses for...of loops instead of flatMap to avoid intermediate arrays.
+ *
  * @param groups - The workflow groups
  * @returns ReactFlow edges
  */
 export function buildEdges(groups: GroupWithLayout[]): Edge[] {
-  return groups.flatMap((group) => {
+  const edges: Edge[] = [];
+
+  for (const group of groups) {
+    const downstreams = group.downstream_groups;
+    if (!downstreams || downstreams.length === 0) continue;
+
     const category = getStatusCategory(group.status);
     const isTerminal = category === "completed" || category === "failed";
-    const downstreams = group.downstream_groups || [];
+    const isRunning = category === "running";
+    const statusColor = STATUS_STYLES[category].color;
+    const dashArray = isTerminal || isRunning ? undefined : EDGE_STYLE.DASH_ARRAY;
 
-    return downstreams.map((downstreamName) => ({
-      id: `${group.name}-${downstreamName}`,
-      source: group.name,
-      target: downstreamName,
-      sourceHandle: "source",
-      targetHandle: "target",
-      type: "smoothstep",
-      animated: category === "running",
-      // Use className for CSS-based styling instead of inline styles
-      className: `dag-edge dag-edge--${category}`,
-      // Minimal inline style - only what can't be done in CSS
-      style: {
-        strokeWidth: EDGE_STYLE.STROKE_WIDTH,
-        strokeDasharray: isTerminal || category === "running" ? undefined : EDGE_STYLE.DASH_ARRAY,
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        // Marker color still needs inline - ReactFlow limitation
-        color: STATUS_STYLES[category].color,
-        width: EDGE_STYLE.ARROW_WIDTH,
-        height: EDGE_STYLE.ARROW_HEIGHT,
-      },
-      // Pass status data for potential future use
-      data: { status: category },
-    }));
-  });
+    for (const downstreamName of downstreams) {
+      edges.push({
+        id: `${group.name}-${downstreamName}`,
+        source: group.name,
+        target: downstreamName,
+        sourceHandle: "source",
+        targetHandle: "target",
+        type: "smoothstep",
+        animated: isRunning,
+        // Use className for CSS-based styling instead of inline styles
+        className: `dag-edge dag-edge--${category}`,
+        // Minimal inline style - only what can't be done in CSS
+        style: {
+          strokeWidth: EDGE_STYLE.STROKE_WIDTH,
+          strokeDasharray: dashArray,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          // Marker color still needs inline - ReactFlow limitation
+          color: statusColor,
+          width: EDGE_STYLE.ARROW_WIDTH,
+          height: EDGE_STYLE.ARROW_HEIGHT,
+        },
+        // Pass status data for potential future use
+        data: { status: category },
+      });
+    }
+  }
+
+  return edges;
 }
 
 /**
