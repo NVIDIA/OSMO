@@ -293,17 +293,13 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     }
   }, [isPanelCollapsed, isPanelDragging, prevPanelCollapsed, prevPanelDragging]);
 
-  // Sidebar changes need to wait for CSS transition to complete
-  // so that translateExtent has updated to the new container dimensions
+  // Sidebar changes trigger immediately (same as panel)
+  // getExpectedVisibleArea() calculates dimensions from state, no need to wait for DOM
   useIsomorphicLayoutEffect(() => {
     const sidebarCollapsedChanged = prevSidebarCollapsed !== undefined && prevSidebarCollapsed !== isSidebarCollapsed;
 
     if (sidebarCollapsedChanged) {
-      const timer = setTimeout(() => {
-        setReCenterTrigger((t) => t + 1);
-      }, SIDEBAR.TRANSITION_MS + 50); // Wait for transition + small buffer
-
-      return () => clearTimeout(timer);
+      setReCenterTrigger((t) => t + 1); // Immediate, synced with CSS transition
     }
   }, [isSidebarCollapsed, prevSidebarCollapsed]);
 
@@ -333,7 +329,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Viewport boundary management via translateExtent (instant clamp)
   // React Flow enforces bounds natively via d3-zoom - no snap-back animation
   // Bounds based on "any node can be centered" principle
-  const { translateExtent, onViewportChange } = useViewportBoundaries({
+  const { translateExtent } = useViewportBoundaries({
     nodeBounds,
     containerRef: dagContainerRef,
     selectedNodeId: selectedGroup?.name ?? null,
@@ -495,9 +491,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                   selectNodesOnDrag={false}
                   // Viewport boundaries via translateExtent (instant clamp)
                   // React Flow enforces natively via d3-zoom - no snap-back
+                  // Uses static bounds calculated at MIN_ZOOM for performance
                   translateExtent={translateExtent}
-                  // Track zoom changes for dynamic translateExtent
-                  onViewportChange={onViewportChange}
                   minZoom={nodeBounds.fitAllZoom}
                   maxZoom={VIEWPORT.MAX_ZOOM}
                   // Scroll behavior
