@@ -135,13 +135,12 @@ SPDX-License-Identifier: Apache-2.0
     @apply rounded-sm! focus-visible:outline-offset-2 focus-visible:rounded-none!;
   }
 
-  label,
-  legend {
+  label {
     @apply text-xs whitespace-nowrap;
   }
 
   legend {
-    @apply contents font-semibold;
+    @apply contents font-semibold whitespace-nowrap text-sm;
   }
 
   ul {
@@ -370,6 +369,26 @@ SPDX-License-Identifier: Apache-2.0
 
     li {
       @apply px-global list-none m-0;
+    }
+  }
+
+  .form-group {
+    @apply flex flex-col gap-global border-1 border-border rounded-sm p-global;
+
+    legend {
+      @apply block p-1 bg-brand border-1 border-border rounded-sm;
+    }
+  }
+
+  .data-section {
+    @apply flex flex-col gap-global border-1 border-border;
+
+    h3 {
+      @apply block p-1 bg-headerbg;
+    }
+
+    dl {
+      @apply px-global pb-global;
     }
   }
 }

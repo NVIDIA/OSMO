@@ -27,7 +27,6 @@ const isReservedTag = (tag: string) => tag === "latest" || !Number.isNaN(Number(
 interface TagManagerProps {
   currentTags: string[];
   onSave: (setTags: string[], deleteTags: string[]) => void;
-  dropdownOptions?: string[];
   message: string | null;
   isError: boolean;
 }
