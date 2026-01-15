@@ -6,6 +6,29 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // =============================================================================
+// Math Utilities
+// =============================================================================
+
+/**
+ * Clamp a value between a minimum and maximum.
+ * Optimized for performance - inline conditional vs Math.min/max.
+ *
+ * @param value - The value to clamp
+ * @param min - Minimum allowed value
+ * @param max - Maximum allowed value
+ * @returns The clamped value
+ *
+ * @example
+ * ```ts
+ * clamp(5, 0, 10);   // 5
+ * clamp(-5, 0, 10);  // 0
+ * clamp(15, 0, 10);  // 10
+ * ```
+ */
+export const clamp = (value: number, min: number, max: number): number =>
+  value < min ? min : value > max ? max : value;
+
+// =============================================================================
 // Platform Detection
 // =============================================================================
 

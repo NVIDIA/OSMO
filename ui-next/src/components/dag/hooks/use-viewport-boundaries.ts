@@ -17,43 +17,25 @@
  */
 
 /**
- * useViewportBoundaries Hook
+ * useViewportBoundaries - High-performance viewport management for ReactFlow DAGs.
  *
- * **Single source of truth** for viewport management in ReactFlow DAGs.
- *
- * ## Boundary Enforcement: translateExtent Only
- *
- * Uses React Flow's native `translateExtent` for instant boundary clamping.
- * No callbacks, no snap-back animations - just solid boundaries enforced by d3-zoom.
- *
- * The translateExtent is calculated based on the principle:
- * **"Any node can be centered in the viewport"**
- *
- * ## Architecture: Dependency Injection
- *
- * This hook is intentionally decoupled from layout concerns (panels, sidebars, etc.).
- * Consumers control re-centering behavior through:
- * - `getExpectedVisibleArea`: Callback to compute target visible area (for animations)
- * - `reCenterTrigger`: Counter to trigger re-centering on the selected node
- *
- * **UNCONTROLLED MODE**: ReactFlow manages viewport state internally.
+ * Performance optimizations:
+ * - O(1) node lookups via Map (not O(n) array.find)
+ * - useSyncedRef for stable callbacks without stale closures
+ * - RAF-based resize handling (smoother than setTimeout)
+ * - Minimal effect dependencies
+ * - Early bailouts to skip unnecessary work
  */
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { useReactFlow, type CoordinateExtent, type Node, type Viewport } from "@xyflow/react";
 import { useSyncedRef } from "@react-hookz/web";
 import { useResizeObserver } from "usehooks-ts";
-import { VIEWPORT, ANIMATION, NODE_DEFAULTS } from "../constants";
+import { clamp } from "@/lib/utils";
+import { VIEWPORT, ANIMATION, VIEWPORT_THRESHOLDS, NODE_DEFAULTS } from "../constants";
 import type { LayoutDirection } from "../types";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-/** Tolerance for zoom comparison to avoid excessive re-renders */
-const ZOOM_EPSILON = 0.01;
 
 // ============================================================================
 // Types
@@ -68,75 +50,19 @@ export interface NodeBounds {
 }
 
 export interface UseViewportBoundariesOptions {
-  /** Computed bounds of all nodes (assuming fully expanded for max bounds) */
   nodeBounds: NodeBounds;
-  /** Container element ref for measuring (the DAG container) */
   containerRef: RefObject<HTMLDivElement | null>;
-  /** Currently selected node ID/name (for auto-pan) */
   selectedNodeId?: string | null;
-  /** All nodes (for finding selected node position) */
   nodes: Node[];
-
-  // --- Initial load & layout direction change ---
-
-  /** Current layout direction (TB or LR) - triggers re-center on change */
   layoutDirection: LayoutDirection;
-  /** IDs of root nodes (nodes with no incoming edges) - for initial centering */
   rootNodeIds: string[];
-  /**
-   * Optional: Node ID to center on during initial load (from URL).
-   * When provided, initial view will center on this node instead of the first root node.
-   */
   initialSelectedNodeId?: string | null;
-
-  // --- Generic re-centering (dependency injection) ---
-
-  /**
-   * Optional: Callback to get expected visible area for centering calculations.
-   * Use this when the container is animating and you know the final dimensions.
-   * If not provided, uses measured container dimensions.
-   *
-   * @example
-   * ```tsx
-   * // Consumer computes expected area based on their layout
-   * getExpectedVisibleArea={() => ({
-   *   width: outerWidth - (isPanelCollapsed ? 40 : outerWidth * 0.5),
-   *   height: containerHeight,
-   * })}
-   * ```
-   */
   getExpectedVisibleArea?: () => { width: number; height: number };
-
-  /**
-   * Optional: Increment to trigger re-centering on the selected node.
-   * The hook will re-center when this value changes.
-   *
-   * @example
-   * ```tsx
-   * // Consumer triggers re-center when layout changes
-   * const [reCenterTrigger, setReCenterTrigger] = useState(0);
-   * useEffect(() => {
-   *   if (panelStateChanged) setReCenterTrigger(t => t + 1);
-   * }, [isPanelCollapsed, panelDragEnded]);
-   * ```
-   */
   reCenterTrigger?: number;
 }
 
 export interface ViewportBoundariesResult {
-  /**
-   * Pass to ReactFlow's `translateExtent` prop.
-   * Dynamic bounds based on node bounds, container size, and current zoom.
-   * React Flow enforces these natively via d3-zoom (instant clamp, no snap-back).
-   */
   translateExtent: CoordinateExtent | undefined;
-
-  /**
-   * Pass to ReactFlow's `onViewportChange` prop.
-   * Only used for tracking zoom changes to update translateExtent.
-   * No clamping logic - boundaries are enforced natively by translateExtent.
-   */
-  onViewportChange: (viewport: Viewport) => void;
 }
 
 // ============================================================================
@@ -157,212 +83,166 @@ export function useViewportBoundaries({
   const reactFlowInstance = useReactFlow();
 
   // ---------------------------------------------------------------------------
-  // Zoom Tracking (for dynamic translateExtent)
+  // O(1) Node Lookup Map - rebuilt only when nodes array changes
   // ---------------------------------------------------------------------------
 
-  // Initialize to 1.0 (React Flow's default) rather than our DEFAULT_ZOOM
-  // This prevents mismatch on first render before onViewportChange fires
-  const [currentZoom, setCurrentZoom] = useState(1.0);
-
-  /**
-   * Track zoom changes to update translateExtent.
-   * Only updates state if zoom actually changed (avoids re-renders on pan).
-   */
-  const onViewportChange = useCallback((viewport: Viewport) => {
-    setCurrentZoom((prev) => (Math.abs(prev - viewport.zoom) > ZOOM_EPSILON ? viewport.zoom : prev));
-  }, []);
+  const nodeMap = useMemo(() => {
+    const map = new Map<string, Node>();
+    for (let i = 0; i < nodes.length; i++) {
+      map.set(nodes[i].id, nodes[i]);
+    }
+    return map;
+  }, [nodes]);
 
   // ---------------------------------------------------------------------------
-  // Initialization & Tracking Refs
-  // ---------------------------------------------------------------------------
-
-  /** Track if initial centering has been performed */
-  const hasInitializedRef = useRef(false);
-  /** Track previous layout direction for detecting changes */
-  const prevLayoutDirectionRef = useRef(layoutDirection);
-  /** Track if we've handled the initial selected node (only try once per deep link) */
-  const hasHandledInitialSelectionRef = useRef(false);
-
-  // Track previous selection to detect new selections (for auto-pan on selection)
-  const prevSelectionRef = useRef<string | null>(null);
-
-  // Track previous re-center trigger to detect changes
-  const prevReCenterTriggerRef = useRef(reCenterTrigger);
-
-  // Flag to indicate animation is in progress
-  const isAnimatingRef = useRef(false);
-
-  // Counter to track animation generations
-  const animationGenerationRef = useRef(0);
-
-  // Stable refs for values used in handlers
-  const nodeBoundsRef = useSyncedRef(nodeBounds);
-  const nodesRef = useSyncedRef(nodes);
-  const getExpectedVisibleAreaRef = useSyncedRef(getExpectedVisibleArea);
-
-  // ---------------------------------------------------------------------------
-  // Container Resize Detection
+  // Container Dimensions
   // ---------------------------------------------------------------------------
 
   const { width: containerWidth = VIEWPORT.ESTIMATED_WIDTH, height: containerHeight = VIEWPORT.ESTIMATED_HEIGHT } =
     useResizeObserver({ ref: containerRef as React.RefObject<HTMLElement>, box: "border-box" });
 
   // ---------------------------------------------------------------------------
-  // translateExtent: Dynamic Boundaries
+  // Synced Refs - stable references, no stale closures
+  // useSyncedRef uses useLayoutEffect internally (React-compliant)
   // ---------------------------------------------------------------------------
 
-  /**
-   * Calculate translateExtent based on "any node can be centered" principle.
-   *
-   * translateExtent is in FLOW coordinates (not viewport coordinates).
-   * It defines the area that can be panned to - any point within this area
-   * can be brought into view.
-   *
-   * To ensure any node can be centered at any zoom level, we need padding
-   * that accounts for the visible area at the current zoom.
-   *
-   * At zoom Z with container size W×H:
-   * - Visible area in flow coords = (W/Z) × (H/Z)
-   * - To center a node at the edge, we need padding of (W/2)/Z or (H/2)/Z
-   */
-  const translateExtent = useMemo((): CoordinateExtent | undefined => {
-    if (!nodeBounds || !containerWidth || !containerHeight) {
-      return undefined;
-    }
-
-    // Padding in flow coordinates that allows edge nodes to be centered
-    // Use current zoom to calculate how much padding is needed
-    const zoom = currentZoom || VIEWPORT.DEFAULT_ZOOM;
-    const paddingX = containerWidth / (2 * zoom);
-    const paddingY = containerHeight / (2 * zoom);
-
-    // The pannable area in flow coordinates
-    // Any point within this area can be brought into view
-    return [
-      [nodeBounds.minX - paddingX, nodeBounds.minY - paddingY],
-      [nodeBounds.maxX + paddingX, nodeBounds.maxY + paddingY],
-    ];
-  }, [nodeBounds, containerWidth, containerHeight, currentZoom]);
-
-  // ---------------------------------------------------------------------------
-  // Helpers for Centering
-  // ---------------------------------------------------------------------------
-
+  const nodeBoundsRef = useSyncedRef(nodeBounds);
+  const nodeMapRef = useSyncedRef(nodeMap);
+  const selectedNodeIdRef = useSyncedRef(selectedNodeId);
+  const getExpectedVisibleAreaRef = useSyncedRef(getExpectedVisibleArea);
   const containerDimsRef = useSyncedRef({ width: containerWidth, height: containerHeight });
 
-  const getVisibleArea = useCallback(() => {
-    return containerDimsRef.current;
-  }, [containerDimsRef]);
+  // ---------------------------------------------------------------------------
+  // Mutable Tracking Refs (not synced - just internal state)
+  // ---------------------------------------------------------------------------
 
-  /**
-   * Clamp viewport to current bounds (used for centering calculations).
-   */
+  const hasInitializedRef = useRef(false);
+  const prevLayoutDirectionRef = useRef(layoutDirection);
+  const hasHandledInitialSelectionRef = useRef(false);
+  const prevSelectionRef = useRef<string | null>(null);
+  const prevReCenterTriggerRef = useRef(reCenterTrigger);
+  const isAnimatingRef = useRef(false);
+  const animationGenerationRef = useRef(0);
+
+  // ---------------------------------------------------------------------------
+  // translateExtent: Static Boundaries (memoized)
+  // ---------------------------------------------------------------------------
+
+  const translateExtent = useMemo((): CoordinateExtent | undefined => {
+    if (!nodeBounds || !containerWidth || !containerHeight) return undefined;
+
+    // MAX_ZOOM padding = tightest bounds allowing edge nodes to be centered
+    const px = containerWidth / (2 * VIEWPORT.MAX_ZOOM);
+    const py = containerHeight / (2 * VIEWPORT.MAX_ZOOM);
+
+    return [
+      [nodeBounds.minX - px, nodeBounds.minY - py],
+      [nodeBounds.maxX + px, nodeBounds.maxY + py],
+    ];
+  }, [nodeBounds, containerWidth, containerHeight]);
+
+  // ---------------------------------------------------------------------------
+  // Core Functions - read from refs, zero stale closures
+  // ---------------------------------------------------------------------------
+
+  const getVisibleArea = useCallback((): { width: number; height: number } => {
+    return getExpectedVisibleAreaRef.current?.() ?? containerDimsRef.current;
+  }, [getExpectedVisibleAreaRef, containerDimsRef]);
+
   const clampViewport = useCallback(
-    (vp: Viewport, visibleArea?: { width: number; height: number }): Viewport => {
-      const area = visibleArea ?? getVisibleArea();
+    (vp: Viewport, area: { width: number; height: number }): Viewport => {
       const bounds = nodeBoundsRef.current;
-      const halfWidth = area.width / 2;
-      const halfHeight = area.height / 2;
-
-      const minX = halfWidth - bounds.maxX * vp.zoom;
-      const maxX = halfWidth - bounds.minX * vp.zoom;
-      const minY = halfHeight - bounds.maxY * vp.zoom;
-      const maxY = halfHeight - bounds.minY * vp.zoom;
+      const hw = area.width / 2;
+      const hh = area.height / 2;
 
       return {
-        x: Math.max(minX, Math.min(maxX, vp.x)),
-        y: Math.max(minY, Math.min(maxY, vp.y)),
+        x: clamp(vp.x, hw - bounds.maxX * vp.zoom, hw - bounds.minX * vp.zoom),
+        y: clamp(vp.y, hh - bounds.maxY * vp.zoom, hh - bounds.minY * vp.zoom),
         zoom: vp.zoom,
       };
     },
-    [getVisibleArea, nodeBoundsRef],
+    [nodeBoundsRef],
   );
 
-  /**
-   * Get node dimensions from node data, falling back to defaults.
-   */
-  const getNodeDimensions = useCallback(
-    (nodeId: string): { width: number; height: number } => {
-      const node = nodesRef.current.find((n) => n.id === nodeId);
-      if (!node) {
-        return { width: NODE_DEFAULTS.width, height: NODE_DEFAULTS.height };
-      }
-      const data = node.data as Record<string, unknown> | undefined;
-      return {
-        width: (data?.nodeWidth as number) || NODE_DEFAULTS.width,
-        height: (data?.nodeHeight as number) || NODE_DEFAULTS.height,
-      };
+  const animateViewport = useCallback(
+    (viewport: Viewport, duration: number) => {
+      isAnimatingRef.current = true;
+      const gen = ++animationGenerationRef.current;
+
+      reactFlowInstance.setViewport(viewport, { duration }).then(() => {
+        if (animationGenerationRef.current === gen) {
+          isAnimatingRef.current = false;
+        }
+      });
     },
-    [nodesRef],
+    [reactFlowInstance],
   );
 
-  /**
-   * Center viewport on a specific node with animation.
-   */
   const centerOnNode = useCallback(
-    (nodeId: string, zoom: number, duration: number, visibleArea?: { width: number; height: number }): boolean => {
-      const node = nodesRef.current.find((n) => n.id === nodeId);
+    (nodeId: string, zoom: number, duration: number, area: { width: number; height: number }): boolean => {
+      const node = nodeMapRef.current.get(nodeId); // O(1) lookup
       if (!node) return false;
 
-      const dims = getNodeDimensions(nodeId);
-      const nodeCenterX = node.position.x + dims.width / 2;
-      const nodeCenterY = node.position.y + dims.height / 2;
+      const data = node.data as Record<string, unknown> | undefined;
+      const nw = (data?.nodeWidth as number) || NODE_DEFAULTS.width;
+      const nh = (data?.nodeHeight as number) || NODE_DEFAULTS.height;
+      const cx = node.position.x + nw / 2;
+      const cy = node.position.y + nh / 2;
 
-      const area = visibleArea ?? getVisibleArea();
-      const { width, height } = area;
-
-      const targetX = width / 2 - nodeCenterX * zoom;
-      const targetY = height / 2 - nodeCenterY * zoom;
-
-      const targetViewport = clampViewport({ x: targetX, y: targetY, zoom }, area);
-
-      isAnimatingRef.current = true;
-      const currentGeneration = ++animationGenerationRef.current;
-
-      reactFlowInstance.setViewport(targetViewport, { duration }).then(() => {
-        if (animationGenerationRef.current !== currentGeneration) {
-          return;
-        }
-        isAnimatingRef.current = false;
-      });
-
+      const target = clampViewport({ x: area.width / 2 - cx * zoom, y: area.height / 2 - cy * zoom, zoom }, area);
+      animateViewport(target, duration);
       return true;
     },
-    [nodesRef, getNodeDimensions, getVisibleArea, clampViewport, reactFlowInstance],
+    [nodeMapRef, clampViewport, animateViewport],
+  );
+
+  const clampCurrentViewport = useCallback(
+    (duration: number, area: { width: number; height: number }) => {
+      const current = reactFlowInstance.getViewport();
+      const clamped = clampViewport(current, area);
+
+      // Squared distance check (faster than two Math.abs calls)
+      const dx = current.x - clamped.x;
+      const dy = current.y - clamped.y;
+      if (dx * dx + dy * dy > VIEWPORT_THRESHOLDS.MIN_ADJUSTMENT_DISTANCE_SQ) {
+        animateViewport(clamped, duration);
+      }
+    },
+    [reactFlowInstance, clampViewport, animateViewport],
   );
 
   // ---------------------------------------------------------------------------
-  // Re-center on trigger change (generic - consumer controls when to trigger)
+  // Re-center/Clamp on trigger change
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (prevReCenterTriggerRef.current === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
-
-    if (!selectedNodeId) return;
     if (isAnimatingRef.current) return;
 
-    // Use consumer-provided expected area, or fall back to measured container
-    const visibleArea = getExpectedVisibleAreaRef.current?.() ?? getVisibleArea();
+    const area = getVisibleArea();
     const zoom = reactFlowInstance.getViewport().zoom;
 
-    centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, visibleArea);
-  }, [reCenterTrigger, selectedNodeId, getVisibleArea, centerOnNode, reactFlowInstance, getExpectedVisibleAreaRef]);
+    if (selectedNodeId) {
+      centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, area);
+    } else {
+      clampCurrentViewport(ANIMATION.PANEL_TRANSITION, area);
+    }
+  }, [reCenterTrigger, selectedNodeId, getVisibleArea, centerOnNode, clampCurrentViewport, reactFlowInstance]);
 
   // ---------------------------------------------------------------------------
   // Initial Load Centering
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (hasInitializedRef.current) return;
-    if (nodes.length === 0) return;
-    if (rootNodeIds.length === 0) return;
+    if (hasInitializedRef.current || nodes.length === 0 || rootNodeIds.length === 0) return;
 
     const timer = setTimeout(() => {
+      const area = getVisibleArea();
+
       if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
         hasHandledInitialSelectionRef.current = true;
-        const found = centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION);
-        if (found) {
+        if (centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, area)) {
           hasInitializedRef.current = true;
           prevLayoutDirectionRef.current = layoutDirection;
           prevSelectionRef.current = initialSelectedNodeId;
@@ -370,64 +250,92 @@ export function useViewportBoundaries({
         }
       }
 
-      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION);
+      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, area);
       hasInitializedRef.current = true;
       prevLayoutDirectionRef.current = layoutDirection;
     }, ANIMATION.DELAY);
 
     return () => clearTimeout(timer);
-  }, [nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode]);
+  }, [nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode, getVisibleArea]);
 
   // ---------------------------------------------------------------------------
-  // Layout Direction Change Re-centering
+  // Layout Direction Change
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!hasInitializedRef.current) return;
-    if (prevLayoutDirectionRef.current === layoutDirection) return;
+    if (!hasInitializedRef.current || prevLayoutDirectionRef.current === layoutDirection) return;
 
     const timer = setTimeout(() => {
       if (rootNodeIds.length > 0) {
-        centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION);
+        centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, getVisibleArea());
       }
       prevLayoutDirectionRef.current = layoutDirection;
     }, ANIMATION.DELAY);
 
     return () => clearTimeout(timer);
-  }, [layoutDirection, rootNodeIds, centerOnNode]);
+  }, [layoutDirection, rootNodeIds, centerOnNode, getVisibleArea]);
 
   // ---------------------------------------------------------------------------
-  // Auto-pan to selected node (selection change after initial load)
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    if (!selectedNodeId) return;
-    if (prevSelectionRef.current === selectedNodeId) return;
-
-    const selectedNode = nodes.find((n) => n.id === selectedNodeId);
-    if (!selectedNode) return;
-
-    // Use consumer-provided expected area, or fall back to measured container
-    const visibleArea = getExpectedVisibleAreaRef.current?.() ?? getVisibleArea();
-    const zoom = reactFlowInstance.getViewport().zoom;
-
-    prevSelectionRef.current = selectedNodeId;
-
-    centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, visibleArea);
-  }, [selectedNodeId, nodes, getVisibleArea, centerOnNode, reactFlowInstance, getExpectedVisibleAreaRef]);
-
-  // ---------------------------------------------------------------------------
-  // Clear refs when selection is cleared
+  // Auto-pan on Selection Change
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!selectedNodeId) {
       prevSelectionRef.current = null;
+      return;
     }
-  }, [selectedNodeId]);
+    if (prevSelectionRef.current === selectedNodeId) return;
+    if (!nodeMap.has(selectedNodeId)) return; // O(1) existence check
 
-  return {
-    translateExtent,
-    onViewportChange,
-  };
+    prevSelectionRef.current = selectedNodeId;
+    centerOnNode(selectedNodeId, reactFlowInstance.getViewport().zoom, ANIMATION.PANEL_TRANSITION, getVisibleArea());
+  }, [selectedNodeId, nodeMap, centerOnNode, reactFlowInstance, getVisibleArea]);
+
+  // ---------------------------------------------------------------------------
+  // Window Resize - RAF-throttled for smooth 60fps handling
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let rafId: number;
+    let pending = false;
+    let lastTime = 0;
+
+    const handleResize = () => {
+      const now = performance.now();
+
+      // Throttle: skip if called too recently, schedule next frame
+      if (now - lastTime < ANIMATION.RESIZE_THROTTLE_MS) {
+        if (!pending) {
+          pending = true;
+          rafId = requestAnimationFrame(() => {
+            pending = false;
+            handleResize();
+          });
+        }
+        return;
+      }
+
+      lastTime = now;
+      if (isAnimatingRef.current) return;
+
+      const area = getVisibleArea();
+      const currentSelection = selectedNodeIdRef.current;
+
+      if (currentSelection) {
+        centerOnNode(currentSelection, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, area);
+      } else {
+        clampCurrentViewport(ANIMATION.BOUNDARY_ENFORCE, area);
+      }
+    };
+
+    window.addEventListener("resize", handleResize, { passive: true });
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(rafId);
+    };
+  }, [reactFlowInstance, getVisibleArea, centerOnNode, clampCurrentViewport, selectedNodeIdRef]);
+
+  return { translateExtent };
 }
