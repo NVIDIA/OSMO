@@ -42,7 +42,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useCallback } from "react";
-import { useEventListener } from "usehooks-ts";
+import { useHotkeys } from "react-hotkeys-hook";
 import { usePrevious, useIsomorphicLayoutEffect } from "@react-hookz/web";
 import Link from "next/link";
 import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
@@ -405,25 +405,17 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     navigateToWorkflow();
   });
 
-  // Global keyboard shortcuts for panel collapse/expand
-  // Enter → expand panel (when focused on DAG area and collapsed)
-  useEventListener("keydown", (e: KeyboardEvent) => {
-    // Skip if focus is in an input, textarea, or contenteditable
-    const target = e.target as HTMLElement;
-    const isInteractiveElement =
-      target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.isContentEditable ||
-      target.closest("[data-radix-popper-content-wrapper]");
-
-    if (isInteractiveElement) return;
-
-    // Enter key expands the panel when collapsed
-    if (e.key === "Enter" && isPanelCollapsed) {
-      e.preventDefault();
-      togglePanelCollapsed();
-    }
-  });
+  // Global keyboard shortcut: Enter expands the panel when collapsed
+  // Uses react-hotkeys-hook for cleaner implementation
+  useHotkeys(
+    "enter",
+    () => togglePanelCollapsed(),
+    {
+      enabled: isPanelCollapsed,
+      enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
+    },
+    [togglePanelCollapsed],
+  );
 
   // Determine content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
