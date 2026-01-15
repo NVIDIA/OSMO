@@ -18,6 +18,7 @@
  * GroupNode Component
  *
  * Collapsible node component for DAG visualization.
+ *
  * Features:
  * - Single-task nodes show task name directly (flattened)
  * - Multi-task nodes show group name with expand/collapse
@@ -29,6 +30,14 @@
  * - Single-task node click → Opens DetailPanel
  * - Multi-task node click → Opens GroupPanel (with group task list)
  * - Task click in expanded list → Opens DetailPanel
+ *
+ * Performance:
+ * - Memoized with React.memo to prevent unnecessary re-renders
+ * - Uses static style objects to avoid allocation per render
+ * - Virtualized task lists for large groups (TanStack Virtual)
+ * - Data attributes for per-row handlers (avoids closure per row)
+ * - Smart scroll handling with cached dimensions (ResizeObserver)
+ * - Context-based callbacks to decouple from prop changes
  */
 
 "use client";

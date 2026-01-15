@@ -50,7 +50,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, startTransition } from "react";
 import { useNodesState, useEdgesState } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { useUnmount } from "usehooks-ts";
@@ -236,6 +236,7 @@ export function useDAGState({
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
   // Calculate layout when relevant state changes (using injectable calculator)
+  // Uses startTransition for non-blocking updates during layout calculation
   useEffect(() => {
     let cancelled = false;
 
@@ -245,8 +246,12 @@ export function useDAGState({
         const result = await layoutCalculator(groupsWithLayout, expandedGroups, layoutDirection);
 
         if (!cancelled) {
-          setNodes(result.nodes);
-          setEdges(result.edges);
+          // Use startTransition for non-blocking node/edge updates
+          // This keeps the UI responsive during large graph updates
+          startTransition(() => {
+            setNodes(result.nodes);
+            setEdges(result.edges);
+          });
         }
       } catch (error) {
         console.error("Layout calculation failed:", error);
