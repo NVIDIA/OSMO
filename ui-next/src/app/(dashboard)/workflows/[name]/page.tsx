@@ -288,14 +288,14 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     const panelCollapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
     const panelDragEnded = prevPanelDragging === true && isPanelDragging === false;
 
-    // Panel changes trigger immediately - the hook uses getExpectedVisibleArea
+    // Panel changes trigger immediately - the hook uses getTargetDimensions
     if (panelCollapsedChanged || panelDragEnded) {
       setReCenterTrigger((t) => t + 1);
     }
   }, [isPanelCollapsed, isPanelDragging, prevPanelCollapsed, prevPanelDragging]);
 
   // Sidebar changes trigger immediately (same as panel)
-  // getExpectedVisibleArea() calculates dimensions from state, no need to wait for DOM
+  // getTargetDimensions() calculates dimensions from state, no need to wait for DOM
   useIsomorphicLayoutEffect(() => {
     const sidebarCollapsedChanged = prevSidebarCollapsed !== undefined && prevSidebarCollapsed !== isSidebarCollapsed;
 
@@ -304,27 +304,18 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     }
   }, [isSidebarCollapsed, prevSidebarCollapsed]);
 
-  // Compute expected visible area based on layout state (for smooth centering during transitions)
-  // We CALCULATE expected dimensions rather than reading from DOM, because during
-  // CSS transitions the DOM values are mid-animation and not yet at their final values.
-  const getExpectedVisibleArea = useCallback(() => {
-    // Calculate expected sidebar width based on state
+  // Compute expected final dimensions for smooth centering during CSS transitions.
+  // Calculates from STATE rather than DOM, because during transitions the DOM is mid-animation.
+  const getTargetDimensions = useCallback(() => {
     const sidebarWidth = isSidebarCollapsed ? SIDEBAR.COLLAPSED_PX : SIDEBAR.EXPANDED_PX;
-
-    // Main area width = window width minus sidebar
     const windowWidth = typeof window !== "undefined" ? window.innerWidth : VIEWPORT.ESTIMATED_WIDTH;
     const mainAreaWidth = windowWidth - sidebarWidth;
-
-    // Panel width calculation
     const panelWidth = isPanelCollapsed ? PANEL.COLLAPSED_WIDTH_PX : (mainAreaWidth * panelPct) / 100;
 
-    // DAG container = main area minus panel
-    const width = Math.max(100, mainAreaWidth - panelWidth);
-
-    // Height is usually stable, can read from DOM
-    const height = dagContainerRef.current?.offsetHeight ?? VIEWPORT.ESTIMATED_HEIGHT;
-
-    return { width, height };
+    return {
+      width: Math.max(100, mainAreaWidth - panelWidth),
+      height: dagContainerRef.current?.offsetHeight ?? VIEWPORT.ESTIMATED_HEIGHT,
+    };
   }, [isSidebarCollapsed, isPanelCollapsed, panelPct]);
 
   // Viewport boundary management via translateExtent (instant clamp)
@@ -338,8 +329,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     layoutDirection,
     rootNodeIds,
     initialSelectedNodeId: selectedGroupName,
-    // Generic re-centering - consumer controls when/where
-    getExpectedVisibleArea,
+    // Dependency injection: expected final dimensions for visual polish during CSS transitions
+    getTargetDimensions,
     reCenterTrigger,
     // Layout completion signal for callback-based centering (no timeouts)
     isLayouting,
