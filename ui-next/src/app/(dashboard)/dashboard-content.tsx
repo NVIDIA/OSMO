@@ -109,7 +109,7 @@ export function DashboardContent() {
           <h2 className="text-lg font-semibold">Recent Workflows</h2>
           <Link
             href="/workflows"
-            className="text-sm text-nvidia hover:underline"
+            className="text-nvidia text-sm hover:underline"
           >
             View all →
           </Link>
@@ -164,21 +164,33 @@ function StatCard({ title, value, href, color = "text-zinc-900 dark:text-zinc-10
   return (
     <Link
       href={href}
-      className="group rounded-lg border border-zinc-200 bg-white p-4 transition-all hover:border-nvidia hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      className="group hover:border-nvidia rounded-lg border border-zinc-200 bg-white p-4 transition-all hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
     >
       <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{title}</p>
       <p className={cn("mt-1 text-2xl font-bold", color)}>{value ?? "—"}</p>
-      <p className="mt-1 text-xs text-zinc-400 group-hover:text-nvidia dark:text-zinc-500">Click to view →</p>
+      <p className="group-hover:text-nvidia mt-1 text-xs text-zinc-400 dark:text-zinc-500">Click to view →</p>
     </Link>
   );
 }
 
 function StatusBadge({ status }: { status: WorkflowStatus }) {
   const statusConfig: Record<string, { label: string; className: string }> = {
-    [WorkflowStatus.RUNNING]: { label: "Running", className: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400" },
-    [WorkflowStatus.PENDING]: { label: "Pending", className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400" },
-    [WorkflowStatus.COMPLETED]: { label: "Completed", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" },
-    [WorkflowStatus.FAILED]: { label: "Failed", className: "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" },
+    [WorkflowStatus.RUNNING]: {
+      label: "Running",
+      className: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
+    },
+    [WorkflowStatus.PENDING]: {
+      label: "Pending",
+      className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400",
+    },
+    [WorkflowStatus.COMPLETED]: {
+      label: "Completed",
+      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",
+    },
+    [WorkflowStatus.FAILED]: {
+      label: "Failed",
+      className: "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400",
+    },
   };
 
   const config = statusConfig[status] ?? { label: status, className: "bg-zinc-100 text-zinc-700" };
