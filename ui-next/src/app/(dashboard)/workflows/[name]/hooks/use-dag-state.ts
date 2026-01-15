@@ -192,7 +192,10 @@ export function useDAGState({
   useEffect(() => {
     // Clear layout cache when workflow fundamentally changes
     cacheManager.clear();
-    setExpandedGroups(expandedGroupsComputer(groupsWithLayout));
+    // Use startTransition to avoid cascading renders when resetting state
+    startTransition(() => {
+      setExpandedGroups(expandedGroupsComputer(groupsWithLayout));
+    });
   }, [groupsWithLayout, cacheManager, expandedGroupsComputer]);
 
   // Cleanup on unmount - clear layout cache to free memory when navigating away
