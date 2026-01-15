@@ -21,6 +21,9 @@
  *
  * Layout, viewport, and animation constants for the DAG visualization.
  * Domain-specific constants (like status colors) should be defined by consumers.
+ *
+ * Performance: Values are pre-calculated at module load time to avoid
+ * getter overhead during hot paths like layout calculations.
  */
 
 // ============================================================================
@@ -34,36 +37,34 @@
 const REM_BASE = 16;
 export const remToPx = (rem: number) => rem * REM_BASE;
 
-/** Default node dimensions */
+/**
+ * Default node dimensions.
+ * Pre-calculated pixel values avoid getter overhead in hot paths.
+ */
 export const NODE_DEFAULTS = {
   /** Default width in rem */
-  WIDTH_REM: 11.25, // 180px
+  WIDTH_REM: 11.25,
   /** Default height in rem */
-  HEIGHT_REM: 4.5, // 72px
-  /** Get width in pixels */
-  get width() {
-    return remToPx(this.WIDTH_REM);
-  },
-  /** Get height in pixels */
-  get height() {
-    return remToPx(this.HEIGHT_REM);
-  },
+  HEIGHT_REM: 4.5,
+  /** Pre-calculated width in pixels (180px) */
+  width: 11.25 * REM_BASE,
+  /** Pre-calculated height in pixels (72px) */
+  height: 4.5 * REM_BASE,
 } as const;
 
-/** Expanded node dimensions */
+/**
+ * Expanded node dimensions.
+ * Pre-calculated pixel values avoid getter overhead in hot paths.
+ */
 export const NODE_EXPANDED = {
   /** Expanded width in rem */
-  WIDTH_REM: 15, // 240px
+  WIDTH_REM: 15,
   /** Maximum height in rem */
-  MAX_HEIGHT_REM: 20, // 320px
-  /** Get width in pixels */
-  get width() {
-    return remToPx(this.WIDTH_REM);
-  },
-  /** Get max height in pixels */
-  get maxHeight() {
-    return remToPx(this.MAX_HEIGHT_REM);
-  },
+  MAX_HEIGHT_REM: 20,
+  /** Pre-calculated width in pixels (240px) */
+  width: 15 * REM_BASE,
+  /** Pre-calculated max height in pixels (320px) */
+  maxHeight: 20 * REM_BASE,
 } as const;
 
 // ============================================================================
@@ -151,16 +152,20 @@ export const EDGE_STYLE = {
 // Animation
 // ============================================================================
 
+/**
+ * Animation timing constants.
+ * These values are tuned for smooth UX across different interaction types.
+ */
 export const ANIMATION = {
-  /** Duration for viewport animations (ms) */
+  /** Duration for viewport animations (ms) - used for node centering, direction changes */
   VIEWPORT_DURATION: 400,
-  /** Initial viewport animation duration (ms) */
+  /** Initial viewport animation duration (ms) - slightly longer for first load visual polish */
   INITIAL_DURATION: 500,
-  /** Delay before initial animation (ms) */
+  /** Delay before initial animation (ms) - allows DOM to stabilize */
   DELAY: 100,
-  /** Duration for zoom in/out button animations (ms) */
+  /** Duration for zoom in/out button animations (ms) - fast for responsive feel */
   ZOOM: 200,
-  /** Duration for boundary enforcement during resize (ms) */
+  /** Duration for boundary enforcement during resize (ms) - quick to prevent visible drift */
   BOUNDARY_ENFORCE: 100,
   /**
    * Duration matching the panel CSS transition (ease-out 200ms).
@@ -168,7 +173,7 @@ export const ANIMATION = {
    * a seamless single-motion animation.
    */
   PANEL_TRANSITION: 200,
-  /** Throttle interval for window resize handling (ms) */
+  /** Debounce interval for window resize handling (ms) - wait for resize to settle */
   RESIZE_THROTTLE_MS: 150,
 } as const;
 

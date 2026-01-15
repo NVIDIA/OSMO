@@ -43,18 +43,25 @@ import { elkWorker } from "./elk-worker-client";
 
 /**
  * Generate cache key from input nodes and direction.
+ * Uses array building for better performance than string concatenation.
  */
 function getLayoutCacheKey(nodes: DAGInputNode[], direction: LayoutDirection): string {
-  const nodeKey = nodes.map((n) => `${n.id}:${n.width}:${n.height}`).join("|");
-  return `${direction}/${nodeKey}`;
+  // Pre-allocate array for known size (direction + node count)
+  const parts: string[] = [direction];
+  for (const n of nodes) {
+    parts.push(n.id, String(n.width), String(n.height));
+  }
+  return parts.join("|");
 }
 
 /**
  * LRU-style cache for layout results.
+ * Uses Map's insertion order for O(1) LRU operations.
  */
 const layoutCache = new Map<string, LayoutPositionResult>();
 
 function addToCache(key: string, result: LayoutPositionResult): void {
+  // Evict oldest entry if at capacity
   if (layoutCache.size >= LAYOUT_CACHE.MAX_SIZE) {
     const firstKey = layoutCache.keys().next().value;
     if (firstKey) layoutCache.delete(firstKey);
@@ -65,6 +72,7 @@ function addToCache(key: string, result: LayoutPositionResult): void {
 function getFromCache(key: string): LayoutPositionResult | undefined {
   const result = layoutCache.get(key);
   if (result) {
+    // Move to end (most recently used) by re-inserting
     layoutCache.delete(key);
     layoutCache.set(key, result);
   }
@@ -73,6 +81,7 @@ function getFromCache(key: string): LayoutPositionResult | undefined {
 
 /**
  * Clear the layout cache.
+ * Call when node data changes significantly (e.g., workflow change).
  */
 export function clearLayoutCache(): void {
   layoutCache.clear();
@@ -110,6 +119,8 @@ function getElkLayoutOptions(direction: LayoutDirection): Record<string, string>
  * Calculate positions for DAG nodes using ELK.
  * Results are cached for repeated calls with identical parameters.
  *
+ * Performance: Uses for...of loops for better JIT optimization than forEach.
+ *
  * @param nodes - Input nodes with dimensions
  * @param direction - Layout direction
  * @returns Promise resolving to position map
@@ -124,36 +135,39 @@ export async function calculatePositions(
     return cached;
   }
 
-  // Build dimension map
+  // Build dimension map and ELK children in single pass
   const dimensionsMap = new Map<string, NodeDimensions>();
-  nodes.forEach((node) => {
+  const elkChildren: { id: string; width: number; height: number }[] = [];
+  const elkEdges: { id: string; sources: string[]; targets: string[] }[] = [];
+
+  for (const node of nodes) {
     dimensionsMap.set(node.id, { width: node.width, height: node.height });
-  });
+    elkChildren.push({ id: node.id, width: node.width, height: node.height });
+
+    // Build edges for this node
+    for (const downstream of node.downstreamIds) {
+      elkEdges.push({
+        id: `${node.id}-${downstream}`,
+        sources: [node.id],
+        targets: [downstream],
+      });
+    }
+  }
 
   // Build ELK graph
   const elkGraph: ElkGraph = {
     id: "root",
     layoutOptions: getElkLayoutOptions(direction),
-    children: nodes.map((node) => ({
-      id: node.id,
-      width: node.width,
-      height: node.height,
-    })),
-    edges: nodes.flatMap((node) =>
-      node.downstreamIds.map((downstream) => ({
-        id: `${node.id}-${downstream}`,
-        sources: [node.id],
-        targets: [downstream],
-      })),
-    ),
+    children: elkChildren,
+    edges: elkEdges,
   };
 
-  // Run ELK layout
+  // Run ELK layout (off main thread via web worker)
   const layoutResult = await elkWorker.layout(elkGraph);
 
-  // Build position map
+  // Build position map from layout results
   const positions = new Map<string, LayoutPosition>();
-  layoutResult.children.forEach((elkNode) => {
+  for (const elkNode of layoutResult.children) {
     const dims = dimensionsMap.get(elkNode.id);
     if (dims) {
       positions.set(elkNode.id, {
@@ -164,7 +178,7 @@ export async function calculatePositions(
         height: dims.height,
       });
     }
-  });
+  }
 
   const result = { positions, dimensions: dimensionsMap };
   addToCache(cacheKey, result);
@@ -224,14 +238,25 @@ export function buildEdges(nodes: DAGInputNode[], getStyle?: EdgeStyleProvider):
 
 /**
  * Find root nodes (nodes with no incoming edges).
+ * Uses single-pass collection building for performance.
  */
 export function findRootNodes(nodes: DAGInputNode[]): string[] {
+  // Collect all nodes that are targets of edges
   const allTargets = new Set<string>();
-  nodes.forEach((node) => {
-    node.downstreamIds.forEach((id) => allTargets.add(id));
-  });
+  for (const node of nodes) {
+    for (const id of node.downstreamIds) {
+      allTargets.add(id);
+    }
+  }
 
-  return nodes.filter((node) => !allTargets.has(node.id)).map((node) => node.id);
+  // Nodes not in allTargets are roots (no incoming edges)
+  const roots: string[] = [];
+  for (const node of nodes) {
+    if (!allTargets.has(node.id)) {
+      roots.push(node.id);
+    }
+  }
+  return roots;
 }
 
 /**
