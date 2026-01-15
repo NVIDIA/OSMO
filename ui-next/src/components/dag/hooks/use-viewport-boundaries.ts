@@ -17,15 +17,17 @@
  */
 
 /**
- * useViewportBoundaries - High-performance viewport management for ReactFlow DAGs.
+ * useViewportBoundaries - Viewport management for ReactFlow DAGs.
  *
- * Performance optimizations:
- * - O(1) node lookups via Map (not O(n) array.find)
- * - useSyncedRef for stable callbacks without stale closures
- * - Debounced resize handling via useDebounceCallback
- * - Callback-based sequencing (no timeouts for async coordination)
- * - Frozen dimensions during animations to prevent stuttering
- * - Early bailouts to skip unnecessary work
+ * ARCHITECTURE:
+ * - Single source of truth for dimensions (used by translateExtent, clampViewport, centerOnNode)
+ * - Dimensions frozen during animations to prevent stuttering
+ * - Optional dependency injection for visual polish during CSS transitions
+ *
+ * DEPENDENCY INJECTION:
+ * - `getTargetDimensions`: Optional function returning expected final dimensions
+ *   → Enables smooth single-animation transitions during CSS transitions
+ *   → If not provided, uses container dimensions (simpler, but may need correction after resize)
  */
 
 "use client";
@@ -41,6 +43,11 @@ import type { LayoutDirection } from "../types";
 // ============================================================================
 // Types
 // ============================================================================
+
+export interface Dimensions {
+  width: number;
+  height: number;
+}
 
 export interface NodeBounds {
   minX: number;
@@ -58,13 +65,14 @@ export interface UseViewportBoundariesOptions {
   layoutDirection: LayoutDirection;
   rootNodeIds: string[];
   initialSelectedNodeId?: string | null;
-  getExpectedVisibleArea?: () => { width: number; height: number };
-  reCenterTrigger?: number;
   /**
-   * Layout computation state from the layout hook.
-   * When this transitions from true → false, layout is complete and centering can occur.
-   * This enables callback-based sequencing instead of timeout-based waiting.
+   * Optional: Returns expected final dimensions after CSS transitions complete.
+   * Enables smooth single-animation transitions (visual polish).
+   * If not provided, uses container dimensions from useResizeObserver.
    */
+  getTargetDimensions?: () => Dimensions;
+  reCenterTrigger?: number;
+  /** When true→false, layout is complete and centering can occur. */
   isLayouting?: boolean;
 }
 
@@ -84,44 +92,54 @@ export function useViewportBoundaries({
   layoutDirection,
   rootNodeIds,
   initialSelectedNodeId,
-  getExpectedVisibleArea,
+  getTargetDimensions,
   reCenterTrigger = 0,
   isLayouting = false,
 }: UseViewportBoundariesOptions): ViewportBoundariesResult {
   const reactFlowInstance = useReactFlow();
 
   // ---------------------------------------------------------------------------
-  // O(1) Node Lookup Map - rebuilt only when nodes array changes
+  // O(1) Node Lookup Map
   // ---------------------------------------------------------------------------
 
   const nodeMap = useMemo(() => {
     const map = new Map<string, Node>();
-    for (let i = 0; i < nodes.length; i++) {
-      map.set(nodes[i].id, nodes[i]);
-    }
+    for (const node of nodes) map.set(node.id, node);
     return map;
   }, [nodes]);
 
   // ---------------------------------------------------------------------------
-  // Container Dimensions
+  // Container Dimensions (default source, used when getTargetDimensions not provided)
   // ---------------------------------------------------------------------------
 
   const { width: containerWidth = VIEWPORT.ESTIMATED_WIDTH, height: containerHeight = VIEWPORT.ESTIMATED_HEIGHT } =
     useResizeObserver({ ref: containerRef as React.RefObject<HTMLElement>, box: "border-box" });
 
   // ---------------------------------------------------------------------------
-  // Synced Refs - stable references, no stale closures
-  // useSyncedRef uses useLayoutEffect internally (React-compliant)
+  // Synced Refs (stable references for callbacks)
   // ---------------------------------------------------------------------------
 
   const nodeBoundsRef = useSyncedRef(nodeBounds);
   const nodeMapRef = useSyncedRef(nodeMap);
   const selectedNodeIdRef = useSyncedRef(selectedNodeId);
-  const getExpectedVisibleAreaRef = useSyncedRef(getExpectedVisibleArea);
-  const containerDimsRef = useSyncedRef({ width: containerWidth, height: containerHeight });
 
   // ---------------------------------------------------------------------------
-  // Mutable Tracking Refs (not synced - just internal state)
+  // Dimensions: Single Source of Truth
+  // ---------------------------------------------------------------------------
+  // Priority: getTargetDimensions (injected) → container dimensions (default)
+  // During animations: frozen to prevent stuttering
+
+  const currentDims: Dimensions = useMemo(
+    () => getTargetDimensions?.() ?? { width: containerWidth, height: containerHeight },
+    [getTargetDimensions, containerWidth, containerHeight],
+  );
+  const currentDimsRef = useSyncedRef(currentDims);
+
+  const [frozenDims, setFrozenDims] = useState<Dimensions | null>(null);
+  const dims: Dimensions = frozenDims ?? currentDims;
+
+  // ---------------------------------------------------------------------------
+  // Tracking Refs
   // ---------------------------------------------------------------------------
 
   const hasInitializedRef = useRef(false);
@@ -134,89 +152,63 @@ export function useViewportBoundaries({
   const prevIsLayoutingRef = useRef(isLayouting);
 
   // ---------------------------------------------------------------------------
-  // Frozen Container Dimensions for translateExtent (callback-based, not timeout)
+  // translateExtent: Pan boundaries for d3-zoom
   // ---------------------------------------------------------------------------
-  // During sidebar/panel transitions, the container resizes continuously (CSS transition).
-  // If translateExtent updates immediately, the moving boundary causes stuttering.
-  //
-  // Solution: Freeze dims at animation start, unfreeze at animation end:
-  // 1. Animation starts → freeze dims (translateExtent uses frozen values)
-  // 2. Container dims change during animation → translateExtent stays frozen
-  // 3. Animation completes → unfreeze (translateExtent uses current container dims)
-  //
-  // This is deterministic (callback-based) with setState only in function bodies, not effects.
-
-  const [frozenDims, setFrozenDims] = useState<{ w: number; h: number } | null>(null);
-
-  // Effective dimensions: frozen during animation, live otherwise
-  const effectiveW = frozenDims?.w ?? containerWidth;
-  const effectiveH = frozenDims?.h ?? containerHeight;
-
-  // ---------------------------------------------------------------------------
-  // translateExtent: Static Boundaries (memoized, uses effective dimensions)
-  // ---------------------------------------------------------------------------
-  // Uses effectiveW/effectiveH (frozen during animation, live otherwise).
-  // Freezing prevents boundary updates during CSS transitions.
 
   const translateExtent = useMemo((): CoordinateExtent | undefined => {
-    if (!nodeBounds || !effectiveW || !effectiveH) return undefined;
+    if (!nodeBounds || !dims.width || !dims.height) return undefined;
 
     // MAX_ZOOM padding = tightest bounds allowing edge nodes to be centered
-    const px = effectiveW / (2 * VIEWPORT.MAX_ZOOM);
-    const py = effectiveH / (2 * VIEWPORT.MAX_ZOOM);
+    const px = dims.width / (2 * VIEWPORT.MAX_ZOOM);
+    const py = dims.height / (2 * VIEWPORT.MAX_ZOOM);
 
     return [
       [nodeBounds.minX - px, nodeBounds.minY - py],
       [nodeBounds.maxX + px, nodeBounds.maxY + py],
     ];
-  }, [nodeBounds, effectiveW, effectiveH]);
+  }, [nodeBounds, dims.width, dims.height]);
 
   // ---------------------------------------------------------------------------
-  // Core Functions - read from refs, zero stale closures
+  // Core Functions
   // ---------------------------------------------------------------------------
 
-  const getVisibleArea = useCallback((): { width: number; height: number } => {
-    return getExpectedVisibleAreaRef.current?.() ?? containerDimsRef.current;
-  }, [getExpectedVisibleAreaRef, containerDimsRef]);
-
+  /** Clamp viewport to valid bounds for given dimensions. */
   const clampViewport = useCallback(
-    (vp: Viewport, area: { width: number; height: number }): Viewport => {
-      const bounds = nodeBoundsRef.current;
-      const hw = area.width / 2;
-      const hh = area.height / 2;
-
+    (vp: Viewport, d: Dimensions): Viewport => {
+      const b = nodeBoundsRef.current;
+      const hw = d.width / 2;
+      const hh = d.height / 2;
       return {
-        x: clamp(vp.x, hw - bounds.maxX * vp.zoom, hw - bounds.minX * vp.zoom),
-        y: clamp(vp.y, hh - bounds.maxY * vp.zoom, hh - bounds.minY * vp.zoom),
+        x: clamp(vp.x, hw - b.maxX * vp.zoom, hw - b.minX * vp.zoom),
+        y: clamp(vp.y, hh - b.maxY * vp.zoom, hh - b.minY * vp.zoom),
         zoom: vp.zoom,
       };
     },
     [nodeBoundsRef],
   );
 
+  /** Animate viewport, freezing dims during animation to prevent stuttering. */
   const animateViewport = useCallback(
     (viewport: Viewport, duration: number) => {
-      // Freeze dims at animation start - translateExtent will use these until animation ends
-      const currentDims = containerDimsRef.current;
-      setFrozenDims({ w: currentDims.width, h: currentDims.height });
-
+      // Freeze current target dims - translateExtent stays stable during animation
+      setFrozenDims(currentDimsRef.current);
       isAnimatingRef.current = true;
       const gen = ++animationGenerationRef.current;
 
       reactFlowInstance.setViewport(viewport, { duration }).then(() => {
         if (animationGenerationRef.current === gen) {
           isAnimatingRef.current = false;
-          // Unfreeze - translateExtent will now use live container dims
-          setFrozenDims(null);
+          setFrozenDims(null); // Unfreeze
         }
       });
     },
-    [reactFlowInstance, containerDimsRef],
+    [reactFlowInstance, currentDimsRef],
   );
 
+  /** Center viewport on a node. */
   const centerOnNode = useCallback(
-    (nodeId: string, zoom: number, duration: number, area: { width: number; height: number }): boolean => {
-      const node = nodeMapRef.current.get(nodeId); // O(1) lookup
+    (nodeId: string, zoom: number, duration: number, d: Dimensions): boolean => {
+      const node = nodeMapRef.current.get(nodeId);
       if (!node) return false;
 
       const data = node.data as Record<string, unknown> | undefined;
@@ -225,130 +217,116 @@ export function useViewportBoundaries({
       const cx = node.position.x + nw / 2;
       const cy = node.position.y + nh / 2;
 
-      const target = clampViewport({ x: area.width / 2 - cx * zoom, y: area.height / 2 - cy * zoom, zoom }, area);
+      const target = clampViewport({ x: d.width / 2 - cx * zoom, y: d.height / 2 - cy * zoom, zoom }, d);
       animateViewport(target, duration);
       return true;
     },
     [nodeMapRef, clampViewport, animateViewport],
   );
 
+  /** Clamp current viewport to bounds. forceAnimate freezes dims even if no movement needed. */
   const clampCurrentViewport = useCallback(
-    (duration: number, area: { width: number; height: number }) => {
+    (duration: number, d: Dimensions, forceAnimate = false) => {
       const current = reactFlowInstance.getViewport();
-      const clamped = clampViewport(current, area);
+      const clamped = clampViewport(current, d);
 
-      // Squared distance check (faster than two Math.abs calls)
       const dx = current.x - clamped.x;
       const dy = current.y - clamped.y;
-      if (dx * dx + dy * dy > VIEWPORT_THRESHOLDS.MIN_ADJUSTMENT_DISTANCE_SQ) {
+      const needsMove = dx * dx + dy * dy > VIEWPORT_THRESHOLDS.MIN_ADJUSTMENT_DISTANCE_SQ;
+
+      if (needsMove || forceAnimate) {
         animateViewport(clamped, duration);
       }
     },
     [reactFlowInstance, clampViewport, animateViewport],
   );
 
+  /** Get current dimensions (reads from ref for callbacks). */
+  const getDims = useCallback((): Dimensions => currentDimsRef.current, [currentDimsRef]);
+
   // ---------------------------------------------------------------------------
-  // Re-center/Clamp on trigger change
+  // Effects: Re-center/Clamp Triggers
   // ---------------------------------------------------------------------------
 
+  // On reCenterTrigger change (panel/sidebar toggle)
   useEffect(() => {
     if (prevReCenterTriggerRef.current === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
     if (isAnimatingRef.current) return;
 
-    const area = getVisibleArea();
+    const d = getDims();
     const zoom = reactFlowInstance.getViewport().zoom;
 
     if (selectedNodeId) {
-      centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, area);
+      centerOnNode(selectedNodeId, zoom, ANIMATION.PANEL_TRANSITION, d);
     } else {
-      clampCurrentViewport(ANIMATION.PANEL_TRANSITION, area);
+      clampCurrentViewport(ANIMATION.PANEL_TRANSITION, d, true); // forceAnimate to freeze dims
     }
-  }, [reCenterTrigger, selectedNodeId, getVisibleArea, centerOnNode, clampCurrentViewport, reactFlowInstance]);
+  }, [reCenterTrigger, selectedNodeId, getDims, centerOnNode, clampCurrentViewport, reactFlowInstance]);
 
-  // ---------------------------------------------------------------------------
-  // Layout Complete Handler (callback-based: triggered when isLayouting becomes false)
-  // ---------------------------------------------------------------------------
-  // Consolidated handler for both initial load and direction change.
-  // Uses isLayouting signal instead of timeouts. When layout completes (true → false),
-  // we know node positions are stable and can center the viewport.
-
+  // On layout complete (isLayouting: true → false)
   useEffect(() => {
     const wasLayouting = prevIsLayoutingRef.current;
     prevIsLayoutingRef.current = isLayouting;
 
-    // Only act on layout completion: isLayouting went from true → false
-    const layoutJustCompleted = wasLayouting && !isLayouting;
-    if (!layoutJustCompleted) return;
-
-    // Skip if no nodes or root nodes yet
+    if (!(wasLayouting && !isLayouting)) return; // Only on completion
     if (nodes.length === 0 || rootNodeIds.length === 0) return;
 
-    const area = getVisibleArea();
+    const d = getDims();
 
-    // Case 1: Initial load (not yet initialized)
+    // Initial load
     if (!hasInitializedRef.current) {
       if (initialSelectedNodeId && !hasHandledInitialSelectionRef.current) {
         hasHandledInitialSelectionRef.current = true;
-        if (centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, area)) {
+        if (centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d)) {
           hasInitializedRef.current = true;
           prevLayoutDirectionRef.current = layoutDirection;
           prevSelectionRef.current = initialSelectedNodeId;
           return;
         }
       }
-
-      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, area);
+      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d);
       hasInitializedRef.current = true;
       prevLayoutDirectionRef.current = layoutDirection;
       return;
     }
 
-    // Case 2: Direction change (already initialized, direction differs from previous)
+    // Direction change
     if (prevLayoutDirectionRef.current !== layoutDirection) {
       prevLayoutDirectionRef.current = layoutDirection;
-      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, area);
+      centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, d);
     }
-  }, [isLayouting, nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode, getVisibleArea]);
+  }, [isLayouting, nodes.length, rootNodeIds, layoutDirection, initialSelectedNodeId, centerOnNode, getDims]);
 
-  // ---------------------------------------------------------------------------
-  // Auto-pan on Selection Change
-  // ---------------------------------------------------------------------------
-
+  // On selection change
   useEffect(() => {
     if (!selectedNodeId) {
       prevSelectionRef.current = null;
       return;
     }
     if (prevSelectionRef.current === selectedNodeId) return;
-    if (!nodeMap.has(selectedNodeId)) return; // O(1) existence check
+    if (!nodeMap.has(selectedNodeId)) return;
 
     prevSelectionRef.current = selectedNodeId;
-    centerOnNode(selectedNodeId, reactFlowInstance.getViewport().zoom, ANIMATION.PANEL_TRANSITION, getVisibleArea());
-  }, [selectedNodeId, nodeMap, centerOnNode, reactFlowInstance, getVisibleArea]);
+    centerOnNode(selectedNodeId, reactFlowInstance.getViewport().zoom, ANIMATION.PANEL_TRANSITION, getDims());
+  }, [selectedNodeId, nodeMap, centerOnNode, reactFlowInstance, getDims]);
 
-  // ---------------------------------------------------------------------------
-  // Window Resize - Debounced for performance (using usehooks-ts)
-  // ---------------------------------------------------------------------------
-  // Debouncing is appropriate here because window resize events fire rapidly
-  // and we only care about the final size after resizing stabilizes.
-
+  // On window resize (debounced)
   const handleWindowResize = useDebounceCallback(() => {
     if (isAnimatingRef.current) return;
 
-    const area = getVisibleArea();
-    const currentSelection = selectedNodeIdRef.current;
+    const d = getDims();
+    const sel = selectedNodeIdRef.current;
 
-    if (currentSelection) {
-      centerOnNode(currentSelection, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, area);
+    if (sel) {
+      centerOnNode(sel, reactFlowInstance.getViewport().zoom, ANIMATION.BOUNDARY_ENFORCE, d);
     } else {
-      clampCurrentViewport(ANIMATION.BOUNDARY_ENFORCE, area);
+      clampCurrentViewport(ANIMATION.BOUNDARY_ENFORCE, d);
     }
   }, ANIMATION.RESIZE_THROTTLE_MS);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     window.addEventListener("resize", handleWindowResize, { passive: true });
     return () => window.removeEventListener("resize", handleWindowResize);
   }, [handleWindowResize]);
