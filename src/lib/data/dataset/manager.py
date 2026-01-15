@@ -166,6 +166,9 @@ class Manager(pydantic.BaseModel):
 
         :return: The download summaries.
         :rtype: Dict[str, storage.DownloadSummary]
+
+        :raises osmo_errors.OSMOCredentialError: If credential validation fails for any
+                                                 storage backend used in the dataset.
         """
         # Validate the dataset prior to downloading.
         self._validate_download_destination(destination, resume)
@@ -184,6 +187,14 @@ class Manager(pydantic.BaseModel):
                 strict=True,
             )
         ]
+
+        # Check credentials for all storage backends used in the dataset
+        for dataset_info in dataset_infos:
+            storage_backend = storage.construct_storage_backend(
+                dataset_info.manifest_path,
+                cache_config=self.cache_config,
+            )
+            storage_backend.data_auth(access_type=storage.AccessType.READ)
 
         # Download the datasets
         download_summaries = downloading.download(
@@ -246,6 +257,9 @@ class Manager(pydantic.BaseModel):
 
         :return: The upload start response.
         :rtype: UploadStartResponse
+
+        :raises osmo_errors.OSMOCredentialError: If credential validation fails for any
+                                                 storage backend used in the dataset.
         """
         if resume and not self.dataset.tag:
             raise osmo_errors.OSMOUserError('Specify specific version in order to resume.')
@@ -456,6 +470,9 @@ class Manager(pydantic.BaseModel):
 
         :return: The update start response.
         :rtype: UpdateStartResult
+
+        :raises osmo_errors.OSMOCredentialError: If credential validation fails for any
+                                                 storage backend used in the dataset.
         """
         if not add_paths and not remove_regex:
             raise osmo_errors.OSMOUserError(
