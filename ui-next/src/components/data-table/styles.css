@@ -127,12 +127,13 @@
 
 .data-table-scroll {
   @apply overscroll-contain;
-  /* Overlay scrollbar - doesn't take up space */
-  overflow: overlay;
-  /* Fallback for browsers that don't support overlay */
-  @supports not (overflow: overlay) {
-    overflow: auto;
-  }
+  /* Prevent flex item from growing beyond container width */
+  min-width: 0;
+  /* Ensure scroll container doesn't exceed parent - critical for proper sizing */
+  max-width: 100%;
+  width: 100%;
+  /* Enable scrolling on both axes */
+  overflow: auto;
 }
 
 /* =============================================================================

@@ -211,7 +211,7 @@ export const TaskDetails = memo(function TaskDetails({
   }, [onBackToWorkflow, onBackToGroup, isFromGroup, group.name]);
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
       {/* Header - aligned with GroupDetails layout */}
       <DetailsPanelHeader
         viewType="task"
