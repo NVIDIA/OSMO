@@ -24,7 +24,6 @@ from typing import Any, Dict, List, Sequence
 import uuid
 
 import fastapi
-import fastapi.responses
 
 from src.lib.data import storage
 from src.lib.utils import common, osmo_errors
@@ -42,22 +41,6 @@ router = fastapi.APIRouter(
 def create_uuid() -> str:
     unique_id = uuid.uuid4()
     return base64.urlsafe_b64encode(unique_id.bytes).decode('utf-8')[:-2]
-
-
-# TODO: add this to client side for dataset validation (to handle workload identity credentials)
-def validate_user_cred(postgres: connectors.PostgresConnector, user: str, location: str,
-                       access_type: storage.AccessType):
-    """
-    Validates that the user has the specifc access type to a backend location
-    """
-    backend_info = storage.construct_storage_backend(location)
-
-    user_cred = postgres.get_data_cred(user, backend_info.profile)
-    if not user_cred:
-        raise osmo_errors.OSMOCredentialError(
-            f'Could not find {backend_info.profile} credential for user {user}.')
-
-    backend_info.data_auth(user_cred, access_type)
 
 
 def get_dataset(postgres: connectors.PostgresConnector, bucket: str, name: str) -> Any:
@@ -275,17 +258,9 @@ def upload_start(bucket: objects.DatasetPattern,
         version_id = version_rows[0].version_id
         manifest_location = version_rows[0].location
         hash_location = dataset_rows[0].hash_location
-
-        if bucket_config.check_key:
-            validate_user_cred(postgres, user_header, hash_location,
-                               storage.AccessType.WRITE)
     else:
         if tag.isnumeric():
             raise osmo_errors.OSMOUserError(f'Tags cannot be a number: {tag}')
-
-        if bucket_config.check_key:
-            validate_user_cred(postgres, user_header, bucket_config.dataset_path,
-                               storage.AccessType.WRITE)
 
         # Creates an entry in the dataset table.
         fetch_cmd = '''
@@ -365,10 +340,8 @@ def upload_finish(bucket: objects.DatasetPattern,
                   checksum: str,
                   size: int,
                   labels: Dict[str, Any],
-                  update_dataset_size: int,
-                  user_header: str):
+                  update_dataset_size: int):
     postgres = connectors.PostgresConnector.get_instance()
-    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
 
     dataset_info = get_dataset(postgres, bucket=bucket, name=name)
 
@@ -380,10 +353,6 @@ def upload_finish(bucket: objects.DatasetPattern,
     if not version_rows:
         raise osmo_errors.OSMODatabaseError(f'Dataset version {version_id} does not exist in ' +\
                                             f'bucket {bucket}.')
-
-    if bucket_config.check_key:
-        validate_user_cred(postgres, user_header, version_rows[0].location,
-                           storage.AccessType.WRITE)
 
     update_cmd = '''
         BEGIN;
@@ -543,11 +512,9 @@ def upload_dataset(bucket: objects.DatasetPattern,
     if not name:
         raise osmo_errors.OSMOUserError('Name is required.')
     if not finish:
-        return upload_start(bucket, name, tag, description, metadata, resume,
-                            username)
+        return upload_start(bucket, name, tag, description, metadata, resume, username)
 
-    upload_finish(bucket, name, tag, version_id, checksum, size, labels, update_dataset_size,
-                  username)
+    upload_finish(bucket, name, tag, version_id, checksum, size, labels, update_dataset_size)
     return objects.DataUploadResponse(version_id=version_id)
 
 
@@ -556,7 +523,6 @@ def _download_datasets(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     tag: objects.DatasetTagPattern,
-    user_header: str,
     *,
     migrate: bool = False,
 ):
@@ -595,10 +561,6 @@ def _download_datasets(
                                                 f'id {tag} in bucket {bucket}.')
 
     dataset_config = postgres.get_dataset_configs()
-    for row in dataset_rows:
-        if dataset_config.get_bucket_config(row.bucket).check_key:
-            validate_user_cred(postgres, user_header, row.location,
-                               storage.AccessType.READ)
 
     new_locations = []
     for row in dataset_rows:
@@ -642,7 +604,6 @@ def download(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     tag: objects.DatasetTagPattern | None = fastapi.Query(default=None),
-    username: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.DataDownloadResponse:
     """ This api returns the dataset download response. """
     if not tag:
@@ -653,7 +614,7 @@ def download(
     # Make sure the bucket exists
     bucket_info = dataset_configs.get_bucket_config(bucket)
     bucket_info.valid_access(bucket, connectors.BucketModeAccess.READ)
-    return _download_datasets(postgres, bucket, name, tag, username)
+    return _download_datasets(postgres, bucket, name, tag)
 
 
 @router.post('/{bucket}/dataset/{name}/migrate', include_in_schema=False)
@@ -661,7 +622,6 @@ def migrate_dataset(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     tag: objects.DatasetTagPattern | None = fastapi.Query(default=None),
-    username: str = fastapi.Depends(connectors.parse_username),
 ) -> objects.DataDownloadResponse:
     """ This api migrates the dataset to a manifest based dataset. """
     if not tag:
@@ -672,7 +632,7 @@ def migrate_dataset(
     # Make sure the bucket exists
     bucket_info = dataset_configs.get_bucket_config(bucket)
     bucket_info.valid_access(bucket, connectors.BucketModeAccess.READ)
-    return _download_datasets(postgres, bucket, name, tag, username, migrate=True)
+    return _download_datasets(postgres, bucket, name, tag, migrate=True)
 
 
 def clean_dataset(postgres: connectors.PostgresConnector,
@@ -697,8 +657,7 @@ def delete_dataset(bucket: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern | None = None,
                    all_flag: bool = False,
                    # Delete the dataset from database
-                   finish: bool = False,
-                   username: str = fastapi.Depends(connectors.parse_username)):
+                   finish: bool = False):
     """ This api deletes a Dataset. """
     postgres = connectors.PostgresConnector.get_instance()
     if all_flag:
@@ -720,9 +679,6 @@ def delete_dataset(bucket: objects.DatasetPattern,
 
     # Delete Collection
     if dataset_info.is_collection:
-        if bucket_info.check_key:
-            validate_user_cred(postgres, username,
-                               bucket_info.dataset_path, storage.AccessType.DELETE)
         delete_cmd = '''
             DELETE FROM dataset
             WHERE id = %s;
@@ -746,9 +702,6 @@ def delete_dataset(bucket: objects.DatasetPattern,
             cleaned_size=dataset_info.hash_location_size,
         )
 
-    for row in dataset_version_info:
-        if bucket_info.check_key:
-            validate_user_cred(postgres, username, row.uri, storage.AccessType.DELETE)
     versions = [row.version for row in dataset_version_info]
 
     # Mark versions for PENDING_DELETE
@@ -966,8 +919,7 @@ def change_name_tag_label_metadata(
     set_label: Dict = fastapi.Body(default = {}),
     delete_label: List[str] = fastapi.Query(default = []),
     set_metadata: Dict = fastapi.Body(default = {}),
-    delete_metadata: List[str] = fastapi.Query(default = []),
-    username: str = fastapi.Depends(connectors.parse_username)) -> objects.DataAttributeResponse:
+    delete_metadata: List[str] = fastapi.Query(default = [])) -> objects.DataAttributeResponse:
     """
     This api can rename a dataset/collection or set/remove tags/labels/metadata.
     If tag is not given, latest tag is selected
@@ -978,19 +930,9 @@ def change_name_tag_label_metadata(
     postgres = connectors.PostgresConnector.get_instance()
     # Validate the Dataset/Collection exists
     dataset_info = get_dataset(postgres, bucket, name)
-    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
 
-    if dataset_info.is_collection:
-        if set_tag or delete_tag or set_metadata or delete_metadata:
-            raise osmo_errors.OSMOUserError('Collections do not support tag or metadata')
-        validation_path = bucket_config.dataset_path
-    else:
-        version_info = get_dataset_version(postgres, bucket, name, tag)
-        validation_path = version_info.location
-
-    # Validate user has write access to the dataset path
-    if bucket_config.check_key:
-        validate_user_cred(postgres, username, validation_path, storage.AccessType.WRITE)
+    if dataset_info.is_collection and (set_tag or delete_tag or set_metadata or delete_metadata):
+        raise osmo_errors.OSMOUserError('Collections do not support tag or metadata')
 
     if 'latest' in set_tag or 'latest' in delete_tag:
         raise osmo_errors.OSMOUserError('Cannot add or delete "latest" tag')
@@ -1014,36 +956,23 @@ def change_name_tag_label_metadata(
 
 
 @router.get('/{bucket}/dataset/{name}/info')
-def get_info(bucket: objects.DatasetPattern,
-             name: objects.DatasetPattern,
-             tag: objects.DatasetTagPattern | None = None,
-             all_flag: bool = False,
-             count: int = 100,
-             order: connectors.ListOrder = fastapi.Query(default=connectors.ListOrder.ASC),
-             username: str = fastapi.Depends(connectors.parse_username))\
-             -> objects.DataInfoResponse:
+def get_info(
+    bucket: objects.DatasetPattern,
+    name: objects.DatasetPattern,
+    tag: objects.DatasetTagPattern | None = None,
+    all_flag: bool = False,
+    count: int = 100,
+    order: connectors.ListOrder = fastapi.Query(default=connectors.ListOrder.ASC),
+) -> objects.DataInfoResponse:
     """ This api gives info about the Dataset or Dataset Version. """
     postgres = connectors.PostgresConnector.get_instance()
-    dataset_configs = postgres.get_dataset_configs()
     dataset_info = get_dataset(postgres, bucket=bucket, name=name)
-    bucket_config = dataset_configs.get_bucket_config(bucket)
-
 
     rows: Sequence[objects.DataInfoCollectionEntry | objects.DataInfoDatasetEntry] = []
     if dataset_info.is_collection:
-        location = bucket_config.dataset_path
         rows = get_collection_info(postgres, bucket, name)
     else:
-        version_info = get_dataset_version(postgres, bucket, name, tag if tag else '')
-        # Find if the user has access to a version vs access to the entire dataset
-        if tag:
-            location = version_info.location.rsplit('/', 1)[0]
-        else:
-            location = version_info.location
         rows = get_dataset_info(postgres, bucket, name, tag if tag else '', all_flag, count, order)
-
-    if bucket_config.check_key:
-        validate_user_cred(postgres, username, location, storage.AccessType.READ)
 
     return objects.DataInfoResponse(name=name,
                                     id=dataset_info.id,
@@ -1161,10 +1090,6 @@ def create_collection(bucket: objects.DatasetPattern,
         raise osmo_errors.OSMOUserError('Name is required.')
 
     postgres = connectors.PostgresConnector.get_instance()
-    bucket_info = postgres.get_dataset_configs().get_bucket_config(bucket)
-    if bucket_info.check_key:
-        validate_user_cred(postgres, username, bucket_info.dataset_path,
-                           storage.AccessType.READ)
 
     new_datasets: Dict[str, str] = build_collection(postgres, bucket, add_datasets=datasets)
 
@@ -1203,9 +1128,10 @@ def create_collection(bucket: objects.DatasetPattern,
 
 
 @router.get('/{bucket}/query')
-def query_dataset(bucket: objects.DatasetPattern,
-                  command: str = fastapi.Query(default=''),
-                  username: str = fastapi.Depends(connectors.parse_username)):
+def query_dataset(
+    bucket: objects.DatasetPattern,
+    command: str = fastapi.Query(default=''),
+) -> objects.DataQueryResponse:
     """ This api queries dataset."""
     if not command:
         raise osmo_errors.OSMOUserError('No query was given')
@@ -1224,9 +1150,6 @@ def query_dataset(bucket: objects.DatasetPattern,
     postgres = connectors.PostgresConnector.get_instance()
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(str(bucket))
-    if bucket_config.check_key:
-        validate_user_cred(postgres, username, bucket_config.dataset_path,
-                           storage.AccessType.READ)
 
     query_term = query.QueryParser.get_instance().parse(' '.join(command_parsed))
 
