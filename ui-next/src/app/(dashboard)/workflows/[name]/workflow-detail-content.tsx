@@ -276,34 +276,49 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   // Viewport Re-centering (decoupled from hook - consumer controls when/where)
   // ---------------------------------------------------------------------------
 
-  // Track layout state changes to trigger re-centering
-  const prevPanelCollapsed = usePrevious(isPanelCollapsed);
-  const prevPanelDragging = usePrevious(isPanelDragging);
-  const prevSidebarCollapsed = usePrevious(isSidebarCollapsed);
+  // ---------------------------------------------------------------------------
+  // Re-center triggers for layout changes
+  // ---------------------------------------------------------------------------
+  // ARCHITECTURE: Single source of truth via targetDims
+  // - translateExtent uses targetDims (calculated from state, updates immediately)
+  // - Panel/sidebar CSS transitions animate the visual panel size
+  // - Viewport animation runs IN SYNC with CSS transition (same 200ms duration)
+  // - Both start together, both end together = seamless unified animation
 
-  // Trigger re-center when layout changes:
-  // - Panel collapse/expand (immediate - hook handles expected area)
-  // - Panel drag ends (immediate)
-  // - Sidebar collapse/expand (delayed - wait for translateExtent to update)
+  const prevPanelCollapsedRef = useRef(isPanelCollapsed);
+  const prevPanelDraggingRef = useRef(isPanelDragging);
+  const prevSidebarCollapsedRef = useRef(isSidebarCollapsed);
+
+  // Trigger re-center when panel state changes
+  // All triggers run IMMEDIATELY - the hook uses PANEL_TRANSITION duration (200ms)
+  // to match CSS transitions, creating synchronized animations
   useIsomorphicLayoutEffect(() => {
-    const panelCollapsedChanged = prevPanelCollapsed !== undefined && prevPanelCollapsed !== isPanelCollapsed;
-    const panelDragEnded = prevPanelDragging === true && isPanelDragging === false;
+    const prevCollapsed = prevPanelCollapsedRef.current;
+    const prevDragging = prevPanelDraggingRef.current;
 
-    // Panel changes trigger immediately - the hook uses getTargetDimensions
+    // Update refs for next render
+    prevPanelCollapsedRef.current = isPanelCollapsed;
+    prevPanelDraggingRef.current = isPanelDragging;
+
+    const panelCollapsedChanged = prevCollapsed !== isPanelCollapsed;
+    const panelDragEnded = prevDragging === true && isPanelDragging === false;
+
+    // Both collapse/expand and drag-end trigger immediately
+    // The viewport animation (200ms) runs in sync with CSS transition (200ms)
     if (panelCollapsedChanged || panelDragEnded) {
       setReCenterTrigger((t) => t + 1);
     }
-  }, [isPanelCollapsed, isPanelDragging, prevPanelCollapsed, prevPanelDragging]);
+  }, [isPanelCollapsed, isPanelDragging]);
 
-  // Sidebar changes trigger immediately (same as panel)
-  // getTargetDimensions() calculates dimensions from state, no need to wait for DOM
+  // Sidebar changes: immediate trigger, animation syncs with CSS transition
   useIsomorphicLayoutEffect(() => {
-    const sidebarCollapsedChanged = prevSidebarCollapsed !== undefined && prevSidebarCollapsed !== isSidebarCollapsed;
+    const prevCollapsed = prevSidebarCollapsedRef.current;
+    prevSidebarCollapsedRef.current = isSidebarCollapsed;
 
-    if (sidebarCollapsedChanged) {
-      setReCenterTrigger((t) => t + 1); // Immediate, synced with CSS transition
+    if (prevCollapsed !== isSidebarCollapsed) {
+      setReCenterTrigger((t) => t + 1);
     }
-  }, [isSidebarCollapsed, prevSidebarCollapsed]);
+  }, [isSidebarCollapsed]);
 
   // Selection changes trigger re-center (after panel state has settled)
   // This handles: clicking different node, navigating via URL, etc.

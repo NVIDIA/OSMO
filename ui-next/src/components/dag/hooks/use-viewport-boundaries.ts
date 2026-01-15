@@ -161,10 +161,14 @@ export function useViewportBoundaries({
   const targetDimsRef = useSyncedRef(targetDims);
 
   // Frozen dims: set to targetDims when animation starts, null otherwise
+  // Used to prevent d3-zoom from fighting the animation with per-frame constraints
   const [frozenDims, setFrozenDims] = useState<Dimensions | null>(null);
 
-  // translateExtent uses: frozen (during animation) OR container (stable default)
-  const extentDims: Dimensions = frozenDims ?? containerDims;
+  // SINGLE SOURCE OF TRUTH: translateExtent always uses targetDims (calculated from state)
+  // This ensures translateExtent updates immediately when panel/sidebar state changes,
+  // rather than waiting for ResizeObserver to report the new DOM dimensions.
+  // frozenDims is only used during animations to prevent d3-zoom fighting.
+  const extentDims: Dimensions = frozenDims ?? targetDims;
 
   // ---------------------------------------------------------------------------
   // Tracking Refs
@@ -275,10 +279,11 @@ export function useViewportBoundaries({
 
   /**
    * Instantly sync viewport to current translateExtent bounds (no animation).
-   * Used after dimension changes to prevent d3-zoom "jump" on user interaction.
+   * Used after animations complete to ensure viewport is within bounds.
+   * Uses targetDims (single source of truth) for consistency with translateExtent.
    */
   const syncViewportToBounds = useCallback(() => {
-    const d = containerDims;
+    const d = targetDimsRef.current;
     const b = nodeBoundsRef.current;
     const extent = calcExtentPure(d, b);
     if (!extent) return;
@@ -293,7 +298,7 @@ export function useViewportBoundaries({
       // Instant sync (duration: 0) to prevent visible jump
       reactFlowInstance.setViewport(clampedVp, { duration: 0 });
     }
-  }, [reactFlowInstance, containerDims, nodeBoundsRef, calcExtentPure, clampToTranslateExtent]);
+  }, [reactFlowInstance, targetDimsRef, nodeBoundsRef, calcExtentPure, clampToTranslateExtent]);
 
   /** Animate viewport, freezing dims so translateExtent stays stable during animation. */
   const animateViewport = useCallback(
@@ -308,14 +313,13 @@ export function useViewportBoundaries({
       reactFlowInstance.setViewport(viewport, { duration }).then(() => {
         if (animationGenerationRef.current === gen) {
           isAnimatingRef.current = false;
-          // Unfreeze - translateExtent will now use containerDims
+          // Unfreeze - translateExtent will now use targetDims (same source of truth)
+          // Since frozenDims === targetDims at freeze time, and targetDims is stable
+          // during animation (state doesn't change mid-animation), this transition is seamless.
           setFrozenDims(null);
 
-          // CRITICAL: After unfreezing, translateExtent changes from frozenDims to containerDims.
-          // If they differ, the viewport position (calculated for frozenDims) may be outside
-          // the new translateExtent bounds. Use requestAnimationFrame to let React re-render
-          // with the new translateExtent, then sync viewport to prevent d3-zoom "jump" on
-          // user interaction.
+          // Safety check: verify viewport is within bounds after unfreeze
+          // This handles edge cases where targetDims might have updated during animation
           requestAnimationFrame(() => {
             if (animationGenerationRef.current === gen && !isAnimatingRef.current) {
               syncViewportToBounds();
@@ -376,7 +380,10 @@ export function useViewportBoundaries({
   // Effects: Re-center/Clamp Triggers
   // ---------------------------------------------------------------------------
 
-  // On reCenterTrigger change (panel/sidebar toggle)
+  // On reCenterTrigger change (panel/sidebar toggle, drag end, selection change)
+  // Uses PANEL_TRANSITION (200ms) to match CSS transition duration.
+  // Since translateExtent uses targetDims (single source of truth), the viewport
+  // animation runs IN SYNC with the panel/sidebar CSS transition.
   useEffect(() => {
     const prev = prevReCenterTriggerRef.current;
     if (prev === reCenterTrigger) return;
