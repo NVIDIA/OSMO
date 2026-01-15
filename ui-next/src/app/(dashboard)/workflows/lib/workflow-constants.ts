@@ -28,40 +28,24 @@
  */
 
 import { WorkflowStatus, WorkflowPriority, type WorkflowStatus as WorkflowStatusType } from "@/lib/api/generated";
+import {
+  WORKFLOW_STATUS_METADATA,
+  type StatusCategory as GeneratedStatusCategory,
+} from "@/lib/api/status-metadata.generated";
 
 // =============================================================================
-// Status Categories
+// Status Categories - DERIVED FROM GENERATED METADATA
 // =============================================================================
 
-export type StatusCategory = "waiting" | "running" | "completed" | "failed" | "unknown";
+export type StatusCategory = GeneratedStatusCategory | "unknown";
 
 /**
  * Map workflow status to display category.
- * Categories are used for styling and grouping.
- * Uses generated WorkflowStatus enum values for type safety.
+ * DERIVED FROM WORKFLOW_STATUS_METADATA - stays in sync with backend automatically.
  */
-export const STATUS_CATEGORY_MAP: Record<WorkflowStatusType, StatusCategory> = {
-  // Waiting states
-  [WorkflowStatus.PENDING]: "waiting",
-  [WorkflowStatus.WAITING]: "waiting",
-  // Running states
-  [WorkflowStatus.RUNNING]: "running",
-  // Completed states
-  [WorkflowStatus.COMPLETED]: "completed",
-  // Failed states
-  [WorkflowStatus.FAILED]: "failed",
-  [WorkflowStatus.FAILED_SUBMISSION]: "failed",
-  [WorkflowStatus.FAILED_SERVER_ERROR]: "failed",
-  [WorkflowStatus.FAILED_EXEC_TIMEOUT]: "failed",
-  [WorkflowStatus.FAILED_QUEUE_TIMEOUT]: "failed",
-  [WorkflowStatus.FAILED_CANCELED]: "failed",
-  [WorkflowStatus.FAILED_BACKEND_ERROR]: "failed",
-  [WorkflowStatus.FAILED_IMAGE_PULL]: "failed",
-  [WorkflowStatus.FAILED_EVICTED]: "failed",
-  [WorkflowStatus.FAILED_START_ERROR]: "failed",
-  [WorkflowStatus.FAILED_START_TIMEOUT]: "failed",
-  [WorkflowStatus.FAILED_PREEMPTED]: "failed",
-};
+export const STATUS_CATEGORY_MAP: Record<WorkflowStatusType, StatusCategory> = Object.fromEntries(
+  Object.entries(WORKFLOW_STATUS_METADATA).map(([status, meta]) => [status, meta.category]),
+) as Record<WorkflowStatusType, StatusCategory>;
 
 /**
  * Human-readable labels for workflow statuses.
