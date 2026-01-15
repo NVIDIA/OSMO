@@ -336,7 +336,6 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
                     'dataset_path': 's3://test-bucket/datasets',
                     'region': 'us-east-1',
                     'mode': 'read-write',
-                    'check_key': False,
                     'description': 'Test bucket for testing',
                 }
             }
@@ -1230,7 +1229,6 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         """Test the get_config_diff functionality with dataset buckets."""
         # Create initial dataset config with a bucket
         test_bucket = connectors.BucketConfig(
-            check_key=False,
             dataset_path='swift://test-endpoint/AUTH_test-team/dev/testuser/datasets',
             default_credential=credentials.StaticDataCredential(
                 access_key=pydantic.SecretStr('test-secret'),
