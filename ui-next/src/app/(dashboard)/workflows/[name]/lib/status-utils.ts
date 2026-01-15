@@ -111,35 +111,50 @@ export const STATUS_LABELS: Record<string, string> = {
 } as const;
 
 // =============================================================================
-// State Categories (for filtering)
+// State Categories (for filtering) - DERIVED FROM GENERATED METADATA
 // =============================================================================
 
 export type StateCategory = "completed" | "running" | "failed" | "pending";
 
-export const STATE_CATEGORIES: Record<StateCategory, Set<string>> = {
-  completed: new Set([TaskGroupStatus.COMPLETED, TaskGroupStatus.RESCHEDULED]),
-  running: new Set([TaskGroupStatus.RUNNING, TaskGroupStatus.INITIALIZING]),
-  failed: new Set([
-    TaskGroupStatus.FAILED,
-    TaskGroupStatus.FAILED_CANCELED,
-    TaskGroupStatus.FAILED_SERVER_ERROR,
-    TaskGroupStatus.FAILED_BACKEND_ERROR,
-    TaskGroupStatus.FAILED_EXEC_TIMEOUT,
-    TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
-    TaskGroupStatus.FAILED_IMAGE_PULL,
-    TaskGroupStatus.FAILED_UPSTREAM,
-    TaskGroupStatus.FAILED_EVICTED,
-    TaskGroupStatus.FAILED_START_ERROR,
-    TaskGroupStatus.FAILED_START_TIMEOUT,
-    TaskGroupStatus.FAILED_PREEMPTED,
-  ]),
-  pending: new Set([
-    TaskGroupStatus.WAITING,
-    TaskGroupStatus.SCHEDULING,
-    TaskGroupStatus.SUBMITTING,
-    TaskGroupStatus.PROCESSING,
-  ]),
-};
+/**
+ * State categories derived from TASK_STATUS_METADATA.
+ * This ensures filtering categories stay in sync with backend status definitions.
+ *
+ * Mapping: StatusCategory → StateCategory
+ * - "completed" → "completed"
+ * - "running" → "running"
+ * - "failed" → "failed"
+ * - "waiting" → "pending" (UI uses "pending" for display consistency)
+ */
+function buildStateCategories(): Record<StateCategory, Set<string>> {
+  const categories: Record<StateCategory, Set<string>> = {
+    completed: new Set(),
+    running: new Set(),
+    failed: new Set(),
+    pending: new Set(),
+  };
+
+  for (const [status, meta] of Object.entries(TASK_STATUS_METADATA)) {
+    switch (meta.category) {
+      case "completed":
+        categories.completed.add(status);
+        break;
+      case "running":
+        categories.running.add(status);
+        break;
+      case "failed":
+        categories.failed.add(status);
+        break;
+      case "waiting":
+        categories.pending.add(status);
+        break;
+    }
+  }
+
+  return categories;
+}
+
+export const STATE_CATEGORIES: Record<StateCategory, Set<string>> = buildStateCategories();
 
 export const STATE_CATEGORY_NAMES: StateCategory[] = ["completed", "running", "failed", "pending"];
 
