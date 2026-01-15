@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePage } from "@/components/shell";
 import { usePools, useVersion } from "@/lib/api/adapter";
@@ -50,10 +50,13 @@ export function DashboardContent() {
     return { online, offline, maintenance, total: pools.length };
   }, [pools]);
 
+  // Capture mount time once for stable "last 24h" calculation
+  // Using useState initializer ensures idempotent behavior during render
+  const [mountTime] = useState(() => Date.now());
+
   // Compute stats from workflows (last 24h)
   const workflowStats = useMemo(() => {
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const oneDayAgo = mountTime - 24 * 60 * 60 * 1000;
 
     const running = workflows.filter((w) => w.status === WorkflowStatus.RUNNING).length;
     const completed = workflows.filter(
@@ -69,7 +72,7 @@ export function DashboardContent() {
     ).length;
 
     return { running, completed, failed };
-  }, [workflows]);
+  }, [workflows, mountTime]);
 
   const recentWorkflows = workflows.slice(0, 5);
 

@@ -71,7 +71,7 @@ export function asTaskColumnIds(ids: string[]): TaskColumnId[] {
 // =============================================================================
 
 export const COLUMN_LABELS: Record<TaskColumnId, string> = {
-  status: "", // Icon only
+  status: "Status",
   name: "Name",
   duration: "Duration",
   node: "Node",
@@ -101,6 +101,7 @@ export const COLUMN_MENU_LABELS: Record<TaskColumnId, string> = {
 
 /** Columns that can be toggled in the column visibility menu */
 export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
+  { id: "status", label: "Status", menuLabel: "Status" },
   { id: "duration", label: "Duration", menuLabel: "Duration" },
   { id: "node", label: "Node", menuLabel: "Node Name" },
   { id: "podIp", label: "IP", menuLabel: "Pod IP" },
@@ -116,12 +117,12 @@ export const OPTIONAL_COLUMNS_ALPHABETICAL = [...OPTIONAL_COLUMNS].sort((a, b) =
 );
 
 /** Default visible columns */
-export const DEFAULT_VISIBLE_COLUMNS: TaskColumnId[] = ["status", "name", "duration", "node"];
+export const DEFAULT_VISIBLE_COLUMNS: TaskColumnId[] = ["name", "status", "duration", "node"];
 
 /** Default column order */
 export const DEFAULT_COLUMN_ORDER: TaskColumnId[] = [
-  "status",
   "name",
+  "status",
   "duration",
   "node",
   "podIp",
@@ -132,7 +133,7 @@ export const DEFAULT_COLUMN_ORDER: TaskColumnId[] = [
 ];
 
 /** Columns that cannot be hidden or reordered */
-export const MANDATORY_COLUMN_IDS: ReadonlySet<TaskColumnId> = new Set(["status", "name"]);
+export const MANDATORY_COLUMN_IDS: ReadonlySet<TaskColumnId> = new Set(["name"]);
 
 // =============================================================================
 // Column Size Configuration (for DataTable)
@@ -148,8 +149,8 @@ export const MANDATORY_COLUMN_IDS: ReadonlySet<TaskColumnId> = new Set(["status"
 export const TASK_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
   {
     id: "status",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.ACTIONS_SMALL,
+    minWidthRem: COLUMN_MIN_WIDTHS_REM.STATUS_BADGE_LONG,
+    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE_LONG,
   },
   {
     id: "name",
@@ -197,4 +198,4 @@ export const TASK_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
 // Default Sort Configuration
 // =============================================================================
 
-export const DEFAULT_SORT = { column: "status" as TaskColumnId, direction: "asc" as const };
+export const DEFAULT_SORT = { column: "name" as TaskColumnId, direction: "asc" as const };

@@ -209,8 +209,9 @@ describe("getStatusLabel", () => {
   it("returns human-readable label for known status", () => {
     expect(getStatusLabel("COMPLETED")).toBe("Completed");
     expect(getStatusLabel("RUNNING")).toBe("Running");
-    expect(getStatusLabel("FAILED_IMAGE_PULL")).toBe("Image Pull");
-    expect(getStatusLabel("FAILED_CANCELED")).toBe("Canceled");
+    // Failed statuses use "Failed: <reason>" format for consistency with workflow labels
+    expect(getStatusLabel("FAILED_IMAGE_PULL")).toBe("Failed: Image Pull");
+    expect(getStatusLabel("FAILED_CANCELED")).toBe("Failed: Canceled");
   });
 
   it("returns raw status for unknown status", () => {

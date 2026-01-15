@@ -22,12 +22,24 @@
  */
 
 import type { ColumnDef } from "@tanstack/react-table";
+import { Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { remToPx } from "@/components/data-table";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "./workflow-types";
-import { getStatusIconCompact } from "./status";
+import { getStatusCategory, STATUS_STYLES, type StatusCategory } from "./status";
 import type { TaskWithDuration } from "./workflow-types";
 import { TASK_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type TaskColumnId } from "./task-columns";
+
+// =============================================================================
+// Status Icons (matches workflow table)
+// =============================================================================
+
+const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
+  waiting: Clock,
+  running: Loader2,
+  completed: CheckCircle2,
+  failed: XCircle,
+};
 
 // =============================================================================
 // Helpers
@@ -68,16 +80,6 @@ function formatTime(dateStr: string | null | undefined): string {
 export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
   return [
     {
-      id: "status",
-      accessorKey: "status",
-      header: COLUMN_LABELS.status,
-      size: getMinSize("status"), // Fixed size for icon-only column
-      minSize: getMinSize("status"),
-      enableSorting: true,
-      enableResizing: false, // Icon column should not be resizable
-      cell: ({ row }) => getStatusIconCompact(row.original.status),
-    },
-    {
       id: "name",
       accessorKey: "name",
       header: COLUMN_LABELS.name,
@@ -93,6 +95,26 @@ export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
           )}
         </div>
       ),
+    },
+    {
+      id: "status",
+      accessorKey: "status",
+      header: COLUMN_LABELS.status,
+      minSize: getMinSize("status"),
+      enableSorting: true,
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const category = getStatusCategory(status);
+        const styles = STATUS_STYLES[category];
+        const Icon = STATUS_ICONS[category];
+
+        return (
+          <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
+            <Icon className={cn("size-3.5", styles.text, category === "running" && "animate-spin")} />
+            <span className={cn("text-xs font-semibold", styles.text)}>{status}</span>
+          </span>
+        );
+      },
     },
     {
       id: "duration",
