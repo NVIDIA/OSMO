@@ -50,7 +50,7 @@
 "use client";
 
 import { useRef, useMemo, useEffect, type RefObject } from "react";
-import { useEventListener, useBoolean } from "usehooks-ts";
+import { useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -161,32 +161,41 @@ export function SidePanel({
   const stableOnWidthChange = useEventCallback(onWidthChange);
   const stableOnEscapeKey = useEventCallback(onEscapeKey ?? (() => {}));
 
-  // Handle keyboard events - escape key
+  // Handle keyboard events - escape key (when focus is within the panel)
   const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && onEscapeKey) {
+    if (e.key === "Escape" && onEscapeKey && !isCollapsed) {
       const target = e.target as HTMLElement;
       const isInDropdown = target.closest("[data-radix-popper-content-wrapper]");
-      if (!isInDropdown) {
+      const isInteractiveElement =
+        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      if (!isInDropdown && !isInteractiveElement) {
         stableOnEscapeKey();
       }
     }
   });
 
-  // Global escape key handler
-  useEventListener(
-    "keydown",
-    (e: KeyboardEvent) => {
-      if (!onEscapeKey) return;
+  // Global escape key handler - use window directly for global keyboard shortcuts
+  // Note: We must check isCollapsed to avoid toggling an already-collapsed panel
+  // Using useEffect directly since usehooks-ts v3 doesn't support options with window events
+  useEffect(() => {
+    if (!onEscapeKey) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (isCollapsed) return;
       if (e.key === "Escape") {
-        const isInDropdown = (e.target as HTMLElement)?.closest("[data-radix-popper-content-wrapper]");
-        if (!isInDropdown) {
+        const target = e.target as HTMLElement;
+        const isInDropdown = target?.closest("[data-radix-popper-content-wrapper]");
+        const isInteractiveElement =
+          target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+        if (!isInDropdown && !isInteractiveElement) {
           stableOnEscapeKey();
         }
       }
-    },
-    undefined,
-    { passive: true },
-  );
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, { passive: true });
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [onEscapeKey, isCollapsed, stableOnEscapeKey]);
 
   // Resize drag handler
   const bindResizeHandle = useDrag(
