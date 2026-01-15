@@ -20,16 +20,9 @@ package server
 
 import (
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
-	"google.golang.org/grpc"
 )
 
 // AuthzServerInterface defines the interface for authorization servers
-// Both the legacy AuthzServer and CasbinAuthzServer implement this interface
 type AuthzServerInterface interface {
 	envoy_service_auth_v3.AuthorizationServer
-}
-
-// RegisterAuthzServiceWithServer registers any AuthzServerInterface with the gRPC server
-func RegisterAuthzServiceWithServer(grpcServer *grpc.Server, authzServer AuthzServerInterface) {
-	envoy_service_auth_v3.RegisterAuthorizationServer(grpcServer, authzServer)
 }
