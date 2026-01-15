@@ -15,119 +15,41 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflows Page
+ * Workflows Page (Server Component)
  *
- * Displays a table of all workflows with:
- * - Smart search with filter chips (status, user, pool, priority)
- * - Column visibility and reordering
- * - Status-based row styling
- * - Infinite scroll pagination
- * - Navigation to workflow detail page on row click
+ * This is a Server Component that prefetches workflow data during SSR.
+ * The actual interactive content is rendered by WorkflowsPageContent (Client Component).
  *
  * Architecture:
- * - useWorkflowsData encapsulates data fetching, filtering, and pagination
- * - UI receives paginated, pre-filtered data
- * - Uses Zustand for state persistence
- * - Uses nuqs for URL state synchronization
+ * 1. Server Component prefetches data using prefetchWorkflows()
+ * 2. Data is dehydrated and passed to HydrationBoundary
+ * 3. Client Component hydrates and uses useWorkflowsData() which gets cached data
+ * 4. TanStack Query handles background refetching and pagination
  */
 
-"use client";
-
-import { InlineErrorBoundary } from "@/components/error";
-import { usePage } from "@/components/shell";
-import { useUrlChips, useResultsCount } from "@/hooks";
-import { WorkflowsDataTable } from "./components/table/workflows-data-table";
-import { WorkflowsToolbar } from "./components/workflows-toolbar";
-import { useWorkflowsData } from "./hooks/use-workflows-data";
-import { useWorkflowsPreferencesStore, useWorkflowsTableStore } from "./stores/workflows-table-store";
+import { Suspense } from "react";
+import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { prefetchWorkflows } from "@/lib/api/server";
+import { WorkflowsPageContent } from "./workflows-page-content";
+import { WorkflowsPageSkeleton } from "./workflows-page-skeleton";
 
 // =============================================================================
-// Main Page Component
+// Server Component (Prefetch + Hydration)
 // =============================================================================
 
-export default function WorkflowsPage() {
-  usePage({ title: "Workflows" });
+export default async function WorkflowsPage() {
+  // Create a new QueryClient for this request
+  const queryClient = new QueryClient();
 
-  // ==========================================================================
-  // URL State - All state is URL-synced for shareable deep links
-  // URL: /workflows?f=status:running&f=user:alice
-  // ==========================================================================
-
-  // Filter chips - URL-synced via shared hook
-  const { searchChips, setSearchChips } = useUrlChips();
-
-  // Show all users toggle from preferences store
-  const showAllUsers = useWorkflowsPreferencesStore((s) => s.showAllUsers);
-
-  // Sort direction from table store (only submit_time is sortable server-side)
-  const sortState = useWorkflowsTableStore((s) => s.sort);
-  const sortDirection = (sortState?.direction === "asc" ? "ASC" : "DESC") as "ASC" | "DESC";
-
-  // ==========================================================================
-  // Data Fetching with SmartSearch filtering and pagination
-  // ==========================================================================
-
-  const {
-    workflows,
-    allWorkflows,
-    isLoading,
-    error,
-    refetch,
-    hasMore,
-    fetchNextPage,
-    isFetchingNextPage,
-    total,
-    filteredTotal,
-    hasActiveFilters,
-  } = useWorkflowsData({
-    searchChips,
-    showAllUsers,
-    sortDirection,
-  });
-
-  // Results count for SmartSearch display (consolidated hook)
-  const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
-
-  // ==========================================================================
-  // Render
-  // ==========================================================================
+  // Prefetch initial workflows data on the server
+  // We prefetch the default query (first page, no filters)
+  await prefetchWorkflows(queryClient, {}, { revalidate: 30 });
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
-      {/* Toolbar with search and controls */}
-      <div className="shrink-0">
-        <InlineErrorBoundary
-          title="Toolbar error"
-          compact
-        >
-          <WorkflowsToolbar
-            workflows={allWorkflows}
-            searchChips={searchChips}
-            onSearchChipsChange={setSearchChips}
-            resultsCount={resultsCount}
-          />
-        </InlineErrorBoundary>
-      </div>
-
-      {/* Main workflows table */}
-      <div className="min-h-0 flex-1">
-        <InlineErrorBoundary
-          title="Unable to display workflows table"
-          resetKeys={[workflows.length]}
-          onReset={refetch}
-        >
-          <WorkflowsDataTable
-            workflows={workflows}
-            totalCount={total}
-            isLoading={isLoading}
-            error={error ?? undefined}
-            onRetry={refetch}
-            hasNextPage={hasMore}
-            onLoadMore={fetchNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-          />
-        </InlineErrorBoundary>
-      </div>
-    </div>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Suspense fallback={<WorkflowsPageSkeleton />}>
+        <WorkflowsPageContent />
+      </Suspense>
+    </HydrationBoundary>
   );
 }
