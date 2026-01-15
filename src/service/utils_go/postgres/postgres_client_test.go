@@ -43,11 +43,26 @@ func TestPostgresConfig(t *testing.T) {
 	if config.Port != 5432 {
 		t.Errorf("config.Port = %d, want %d", config.Port, 5432)
 	}
+	if config.Database != "test_db" {
+		t.Errorf("config.Database = %q, want %q", config.Database, "test_db")
+	}
+	if config.User != "test_user" {
+		t.Errorf("config.User = %q, want %q", config.User, "test_user")
+	}
+	if config.Password != "test_pass" {
+		t.Errorf("config.Password = %q, want %q", config.Password, "test_pass")
+	}
 	if config.MaxConns != 10 {
 		t.Errorf("config.MaxConns = %d, want %d", config.MaxConns, 10)
 	}
 	if config.MinConns != 2 {
 		t.Errorf("config.MinConns = %d, want %d", config.MinConns, 2)
+	}
+	if config.MaxConnLifetime != 5*time.Minute {
+		t.Errorf("config.MaxConnLifetime = %v, want %v", config.MaxConnLifetime, 5*time.Minute)
+	}
+	if config.SSLMode != "disable" {
+		t.Errorf("config.SSLMode = %q, want %q", config.SSLMode, "disable")
 	}
 }
 
@@ -72,6 +87,12 @@ func TestRoleStructures(t *testing.T) {
 
 	if role.Name != "test-role" {
 		t.Errorf("role.Name = %q, want %q", role.Name, "test-role")
+	}
+	if role.Description != "Test role" {
+		t.Errorf("role.Description = %q, want %q", role.Description, "Test role")
+	}
+	if role.Immutable != false {
+		t.Errorf("role.Immutable = %v, want %v", role.Immutable, false)
 	}
 
 	if len(role.Policies) != 1 {
