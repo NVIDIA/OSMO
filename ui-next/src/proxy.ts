@@ -34,6 +34,54 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// =============================================================================
+// Auth Token Validation
+// =============================================================================
+
+const ID_TOKEN_KEY = "IdToken";
+const BEARER_TOKEN_KEY = "BearerToken";
+const AUTH_SKIPPED_KEY = "osmo_auth_skipped";
+
+/**
+ * Lightweight JWT expiry check (no crypto validation - that's for the backend).
+ * We just check if the token exists and isn't expired.
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const [, payloadB64] = token.split(".");
+    if (!payloadB64) return true;
+
+    // Handle URL-safe base64
+    const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+
+    if (!payload.exp) return false; // No expiry = never expires
+
+    // Add 30 second buffer for clock skew
+    return payload.exp * 1000 < Date.now() - 30000;
+  } catch {
+    return true; // Invalid token format = treat as expired
+  }
+}
+
+/**
+ * Get token from cookies (checks both IdToken and BearerToken).
+ */
+function getTokenFromRequest(request: NextRequest): string | null {
+  return request.cookies.get(ID_TOKEN_KEY)?.value || request.cookies.get(BEARER_TOKEN_KEY)?.value || null;
+}
+
+/**
+ * Check if auth was skipped via cookie (for development/demo mode).
+ */
+function isAuthSkipped(request: NextRequest): boolean {
+  return request.cookies.get(AUTH_SKIPPED_KEY)?.value === "true";
+}
+
+// =============================================================================
+// CSP Configuration
+// =============================================================================
+
 // API hostname for connect-src directive
 const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
 const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
@@ -101,7 +149,42 @@ const permissionsPolicy = [
   "usb=()",
 ].join(", ");
 
-export function proxy(_request: NextRequest) {
+export function proxy(request: NextRequest) {
+  // ==========================================================================
+  // Auth Validation (lightweight - full validation done by backend)
+  // ==========================================================================
+
+  const { pathname } = request.nextUrl;
+
+  // Skip auth for static assets and auth routes
+  const skipAuth =
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/auth") ||
+    pathname.includes(".");
+
+  if (!skipAuth) {
+    const token = getTokenFromRequest(request);
+    const authSkipped = isAuthSkipped(request);
+
+    // If token exists and is expired, client-side will attempt refresh
+    // We just proceed - AuthProvider handles the actual auth flow
+    if (token && isTokenExpired(token)) {
+      // Token expired - let client handle refresh
+      // Could add X-Token-Expired header for client hint
+    }
+
+    // If no token and not skipped, could redirect to login
+    // For now, we let AuthProvider handle this client-side
+    if (!token && !authSkipped) {
+      // Future: Could redirect to /auth/login here for faster auth redirects
+    }
+  }
+
+  // ==========================================================================
+  // Security Headers
+  // ==========================================================================
+
   const response = NextResponse.next();
 
   // Content Security Policy
