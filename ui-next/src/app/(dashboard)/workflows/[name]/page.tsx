@@ -304,6 +304,18 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     }
   }, [isSidebarCollapsed, prevSidebarCollapsed]);
 
+  // Selection changes trigger re-center (after panel state has settled)
+  // This handles: clicking different node, navigating via URL, etc.
+  const prevSelectionKey = usePrevious(selectionKey);
+  useIsomorphicLayoutEffect(() => {
+    const selectionChanged =
+      prevSelectionKey !== undefined && prevSelectionKey !== selectionKey && selectionKey !== null;
+
+    if (selectionChanged) {
+      setReCenterTrigger((t) => t + 1);
+    }
+  }, [selectionKey, prevSelectionKey]);
+
   // Compute expected final dimensions for smooth centering during CSS transitions.
   // Calculates from STATE rather than DOM, because during transitions the DOM is mid-animation.
   const getTargetDimensions = useCallback(() => {
