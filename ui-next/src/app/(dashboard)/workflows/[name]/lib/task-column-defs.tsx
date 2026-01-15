@@ -71,8 +71,10 @@ export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
       id: "status",
       accessorKey: "status",
       header: COLUMN_LABELS.status,
+      size: getMinSize("status"), // Fixed size for icon-only column
       minSize: getMinSize("status"),
       enableSorting: true,
+      enableResizing: false, // Icon column should not be resizable
       cell: ({ row }) => getStatusIconCompact(row.original.status),
     },
     {

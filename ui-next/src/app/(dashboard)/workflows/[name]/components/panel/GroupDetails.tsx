@@ -327,7 +327,7 @@ export const GroupDetails = memo(function GroupDetails({
   }, [onBack]);
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
       {/* Header with expandable details */}
       <DetailsPanelHeader
         viewType="group"
