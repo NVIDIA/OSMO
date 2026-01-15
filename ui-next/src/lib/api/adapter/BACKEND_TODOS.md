@@ -874,6 +874,162 @@ if len(rows) > limit:
 
 ---
 
+### 18. Status Labels Should Be Generated from Backend
+
+**Priority:** Low
+**Status:** Hardcoded in UI, could be generated
+
+The UI defines human-readable labels for statuses in multiple files:
+- `status-utils.ts` → `STATUS_LABELS` for TaskGroupStatus
+- `workflow-constants.ts` → `STATUS_LABELS` for WorkflowStatus
+- `pools/constants.ts` → `STATUS_DISPLAYS` for PoolStatus
+
+These are currently hardcoded and need to be updated manually when backend adds new statuses.
+
+**Current UI workaround:**
+- Labels are hardcoded in TypeScript files
+- TypeScript catches missing labels at compile time (good), but labels must be added manually (bad)
+
+**Ideal solution:**
+
+Add a `label()` method to Python enums:
+
+```python
+class TaskGroupStatus(enum.Enum):
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
+    FAILED_CANCELED = 'FAILED_CANCELED'
+    # ...
+
+    def label(self) -> str:
+        """Human-readable label for UI display."""
+        labels = {
+            'COMPLETED': 'Completed',
+            'FAILED': 'Failed',
+            'FAILED_CANCELED': 'Canceled',
+            # ...
+        }
+        return labels.get(self.name, self.name.replace('_', ' ').title())
+```
+
+Then update `export_status_metadata.py` to include labels:
+
+```python
+task_metadata[status.value] = {
+    "category": category,
+    "isTerminal": status.finished(),
+    "isFailed": status.failed(),
+    "isInQueue": status.in_queue(),
+    "label": status.label(),  # NEW
+}
+```
+
+**When fixed:**
+1. Update `export_status_metadata.py` to include `label` in generated metadata
+2. Remove hardcoded `STATUS_LABELS` from UI files
+3. Use generated labels: `TASK_STATUS_METADATA[status].label`
+
+---
+
+### 19. Status Sort Order Should Be Generated from Backend
+
+**Priority:** Low
+**Status:** Hardcoded in UI
+
+The UI defines sort order for statuses in `status-utils.ts`:
+
+```typescript
+export const STATUS_SORT_ORDER: Record<string, number> = {
+  FAILED: 0,
+  FAILED_CANCELED: 1,
+  // ... failures first, then running, then completed
+  COMPLETED: 19,
+};
+```
+
+**Ideal solution:**
+
+Add `sortOrder` to generated metadata, derived from enum definition order:
+
+```python
+# In export_status_metadata.py
+for i, status in enumerate(TaskGroupStatus):
+    task_metadata[status.value] = {
+        # ... existing fields ...
+        "sortOrder": i,
+    }
+```
+
+Or use category-based sorting (failures first, then running, then completed):
+
+```python
+CATEGORY_SORT_ORDER = {"failed": 0, "running": 1, "waiting": 2, "completed": 3}
+task_metadata[status.value] = {
+    "sortOrder": CATEGORY_SORT_ORDER[category] * 100 + i,
+}
+```
+
+**When fixed:**
+1. Add `sortOrder` to generated metadata
+2. Remove hardcoded `STATUS_SORT_ORDER` from UI
+3. Use generated order for table sorting
+
+---
+
+### 20. Fuzzy Search Indexes Should Be Derived from Labels
+
+**Priority:** Low
+**Status:** Hardcoded in UI
+
+The UI defines fuzzy search indexes in `workflow-constants.ts`:
+- `LABEL_TO_STATUS` - label string → status enum
+- `TOKEN_TO_STATUSES` - search token → matching statuses
+- `STATUS_TOKENS` - status → its search tokens
+
+These are derived from labels, so if labels were generated (Issue #18), these could be derived automatically.
+
+**When fixed:**
+1. Generate labels from backend (see Issue #18)
+2. Derive fuzzy search indexes from generated labels at build time
+3. Remove hardcoded search index maps from UI
+
+---
+
+### 21. PoolStatus Should Have Generated Metadata
+
+**Priority:** Low
+**Status:** Not currently generated
+
+PoolStatus is a simple enum (ONLINE, OFFLINE, MAINTENANCE) but has no generated metadata like TaskGroupStatus and WorkflowStatus.
+
+**Current UI workaround:**
+- `pools/constants.ts` hardcodes `STATUS_DISPLAYS` with category, label, sortOrder
+
+**Ideal solution:**
+
+Add PoolStatus to `export_status_metadata.py`:
+
+```python
+from src.utils.connectors.postgres import PoolStatus
+
+pool_metadata = {}
+for status in PoolStatus:
+    pool_metadata[status.value] = {
+        "category": "online" if status == PoolStatus.ONLINE else
+                   "maintenance" if status == PoolStatus.MAINTENANCE else
+                   "offline",
+        "label": status.value.title(),
+        "sortOrder": list(PoolStatus).index(status),
+    }
+```
+
+**When fixed:**
+1. Add PoolStatus to generation script
+2. Remove hardcoded `STATUS_DISPLAYS` from `pools/constants.ts`
+3. Use generated metadata
+
+---
+
 ## Summary
 
 | Issue | Priority | Workaround Location | When Fixed |
@@ -895,6 +1051,10 @@ if len(rows) > limit:
 | #15 Workflow list missing tags | Low | workflow-search-fields.ts | Add tags column |
 | #16 Timestamps missing timezone | Medium | hooks.ts (useWorkflow), utils.ts | Remove normalizeWorkflowTimestamps |
 | #17 Workflow order param ignored | **High** | N/A (no workaround) | Sorting will work correctly |
+| #18 Status labels not generated | Low | status-utils.ts, workflow-constants.ts | Use generated labels |
+| #19 Status sort order not generated | Low | status-utils.ts | Use generated sortOrder |
+| #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
+| #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
 
 ### Priority Guide
 
