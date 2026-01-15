@@ -16,6 +16,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Metadata } from "next";
+
+// =============================================================================
+// Static Metadata (SEO)
+// =============================================================================
+
+export const metadata: Metadata = {
+  title: "Resources | OSMO",
+  description: "View compute resources, GPU nodes, and their allocation across pools.",
+};
+
 /**
  * Resources Page (Server Component)
  *

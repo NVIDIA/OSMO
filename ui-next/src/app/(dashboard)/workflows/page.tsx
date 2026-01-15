@@ -14,6 +14,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import type { Metadata } from "next";
+
+// =============================================================================
+// Static Metadata (SEO)
+// =============================================================================
+
+export const metadata: Metadata = {
+  title: "Workflows | OSMO",
+  description: "Monitor and manage compute workflows, tasks, and job executions.",
+};
+
 /**
  * Workflows Page (Server Component)
  *
