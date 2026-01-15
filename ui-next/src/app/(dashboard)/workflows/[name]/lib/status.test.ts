@@ -30,11 +30,10 @@
 import { describe, it, expect } from "vitest";
 import {
   getStatusCategory,
-  isFailedStatus,
-  isFailedFast,
-  isRunningFast,
-  isCompletedFast,
-  isWaitingFast,
+  isTaskFailed,
+  isTaskOngoing,
+  isTaskTerminal,
+  isTaskInQueue,
   getStatusLabel,
   getStatusStyle,
   computeTaskStats,
@@ -45,6 +44,7 @@ import {
   STATE_CATEGORIES,
   type StatusCategory,
 } from "./status";
+import { TaskGroupStatus } from "@/lib/api/generated";
 
 // =============================================================================
 // Test Helpers
@@ -140,72 +140,63 @@ describe("getStatusCategory", () => {
 });
 
 // =============================================================================
-// Bitwise Flag Tests
+// Status Check Functions (generated from Python backend)
 // =============================================================================
 
-describe("bitwise status checks", () => {
-  describe("isFailedFast", () => {
-    it("returns true for all failed statuses", () => {
-      expect(isFailedFast("FAILED")).toBe(true);
-      expect(isFailedFast("FAILED_CANCELED")).toBe(true);
-      expect(isFailedFast("FAILED_IMAGE_PULL")).toBe(true);
-      expect(isFailedFast("FAILED_PREEMPTED")).toBe(true);
+describe("Status check functions", () => {
+  describe("isTaskFailed", () => {
+    it("returns true for failed statuses", () => {
+      expect(isTaskFailed(TaskGroupStatus.FAILED)).toBe(true);
+      expect(isTaskFailed(TaskGroupStatus.FAILED_CANCELED)).toBe(true);
+      expect(isTaskFailed(TaskGroupStatus.FAILED_EXEC_TIMEOUT)).toBe(true);
     });
 
     it("returns false for non-failed statuses", () => {
-      expect(isFailedFast("RUNNING")).toBe(false);
-      expect(isFailedFast("COMPLETED")).toBe(false);
-      expect(isFailedFast("WAITING")).toBe(false);
-    });
-
-    it("returns false for unknown statuses", () => {
-      expect(isFailedFast("UNKNOWN")).toBe(false);
+      expect(isTaskFailed(TaskGroupStatus.COMPLETED)).toBe(false);
+      expect(isTaskFailed(TaskGroupStatus.RUNNING)).toBe(false);
     });
   });
 
-  describe("isRunningFast", () => {
-    it("returns true for running statuses", () => {
-      expect(isRunningFast("RUNNING")).toBe(true);
-      expect(isRunningFast("INITIALIZING")).toBe(true);
+  describe("isTaskOngoing", () => {
+    it("returns true for ongoing statuses (duration = start → now)", () => {
+      expect(isTaskOngoing(TaskGroupStatus.RUNNING)).toBe(true);
+      expect(isTaskOngoing(TaskGroupStatus.INITIALIZING)).toBe(true);
     });
 
-    it("returns false for non-running statuses", () => {
-      expect(isRunningFast("WAITING")).toBe(false);
-      expect(isRunningFast("COMPLETED")).toBe(false);
-      expect(isRunningFast("FAILED")).toBe(false);
-    });
-  });
-
-  describe("isCompletedFast", () => {
-    it("returns true for completed statuses", () => {
-      expect(isCompletedFast("COMPLETED")).toBe(true);
-      expect(isCompletedFast("RESCHEDULED")).toBe(true);
+    it("returns false for terminal statuses (duration = start → end)", () => {
+      expect(isTaskOngoing(TaskGroupStatus.COMPLETED)).toBe(false);
+      expect(isTaskOngoing(TaskGroupStatus.FAILED)).toBe(false);
     });
 
-    it("returns false for non-completed statuses", () => {
-      expect(isCompletedFast("RUNNING")).toBe(false);
-      expect(isCompletedFast("FAILED")).toBe(false);
+    it("returns false for pending statuses (no duration yet)", () => {
+      expect(isTaskOngoing(TaskGroupStatus.WAITING)).toBe(false);
+      expect(isTaskOngoing(TaskGroupStatus.SCHEDULING)).toBe(false);
     });
   });
 
-  describe("isWaitingFast", () => {
-    it("returns true for waiting statuses", () => {
-      expect(isWaitingFast("WAITING")).toBe(true);
-      expect(isWaitingFast("SCHEDULING")).toBe(true);
-      expect(isWaitingFast("SUBMITTING")).toBe(true);
-      expect(isWaitingFast("PROCESSING")).toBe(true);
+  describe("isTaskTerminal", () => {
+    it("returns true for terminal (finished) statuses", () => {
+      expect(isTaskTerminal(TaskGroupStatus.COMPLETED)).toBe(true);
+      expect(isTaskTerminal(TaskGroupStatus.FAILED)).toBe(true);
+      expect(isTaskTerminal(TaskGroupStatus.RESCHEDULED)).toBe(true);
     });
 
-    it("returns false for non-waiting statuses", () => {
-      expect(isWaitingFast("RUNNING")).toBe(false);
-      expect(isWaitingFast("COMPLETED")).toBe(false);
+    it("returns false for non-terminal statuses", () => {
+      expect(isTaskTerminal(TaskGroupStatus.RUNNING)).toBe(false);
+      expect(isTaskTerminal(TaskGroupStatus.WAITING)).toBe(false);
     });
   });
 
-  describe("isFailedStatus (wrapper)", () => {
-    it("delegates to isFailedFast", () => {
-      expect(isFailedStatus("FAILED")).toBe(true);
-      expect(isFailedStatus("COMPLETED")).toBe(false);
+  describe("isTaskInQueue", () => {
+    it("returns true for queued statuses", () => {
+      expect(isTaskInQueue(TaskGroupStatus.WAITING)).toBe(true);
+      expect(isTaskInQueue(TaskGroupStatus.SCHEDULING)).toBe(true);
+      expect(isTaskInQueue(TaskGroupStatus.SUBMITTING)).toBe(true);
+    });
+
+    it("returns false for non-queued statuses", () => {
+      expect(isTaskInQueue(TaskGroupStatus.RUNNING)).toBe(false);
+      expect(isTaskInQueue(TaskGroupStatus.COMPLETED)).toBe(false);
     });
   });
 });
