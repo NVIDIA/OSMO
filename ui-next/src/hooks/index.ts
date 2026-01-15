@@ -85,3 +85,6 @@ export { useResultsCount, type UseResultsCountOptions } from "./use-results-coun
 
 // Synchronized Tick (for aligned live durations)
 export { useTick, useTickController, useLiveDuration, calculateLiveDuration } from "./use-tick";
+
+// Server Actions (optimistic UI)
+export { useOptimisticAction, useServerAction } from "./use-optimistic-action";

@@ -14,39 +14,57 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-"use client";
+/**
+ * Dashboard Page (Server Component)
+ *
+ * The main dashboard with key metrics and recent workflows.
+ * Uses parallel data fetching for optimal performance.
+ *
+ * Optimization: All data is fetched in parallel on the server,
+ * reducing total request time from sequential (t1 + t2 + t3)
+ * to parallel (max(t1, t2, t3)).
+ */
 
-import { usePage } from "@/components/shell";
+import { Suspense } from "react";
+import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
+import { fetchPools, fetchWorkflows, fetchVersion } from "@/lib/api/server";
+import { DashboardContent } from "./dashboard-content";
+import { DashboardSkeleton } from "./dashboard-skeleton";
 
-export default function DashboardPage() {
-  usePage({ title: "Dashboard" });
+// =============================================================================
+// Server Component with Parallel Data Fetching
+// =============================================================================
+
+export default async function DashboardPage() {
+  const queryClient = new QueryClient();
+
+  // Parallel data fetching - all requests start simultaneously
+  // This is faster than sequential: Promise.all() vs await each
+  await Promise.all([
+    // Prefetch pools for stats
+    queryClient.prefetchQuery({
+      queryKey: ["pools", "all"],
+      queryFn: () => fetchPools({ revalidate: 60 }),
+    }),
+
+    // Prefetch recent workflows
+    queryClient.prefetchQuery({
+      queryKey: ["workflows", { limit: 10 }],
+      queryFn: () => fetchWorkflows({ limit: 10 }, { revalidate: 30 }),
+    }),
+
+    // Prefetch version
+    queryClient.prefetchQuery({
+      queryKey: ["version"],
+      queryFn: () => fetchVersion({ revalidate: 600 }),
+    }),
+  ]);
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Stats cards - TODO: Wire to real API endpoints */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Active Workflows" />
-        <StatCard title="Completed Today" />
-        <StatCard title="Failed (24h)" />
-        <StatCard title="Pool Usage" />
-      </div>
-
-      {/* Recent workflows - TODO: Wire to real API endpoint */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="mb-4 text-lg font-semibold">Recent Workflows</h2>
-        <div className="text-sm text-zinc-500 dark:text-zinc-400">No workflows to display</div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ title }: { title: string }) {
-  // TODO: Accept data from props when wired to real API
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{title}</p>
-      <p className="mt-1 text-2xl font-bold text-zinc-300 dark:text-zinc-700">—</p>
-      <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">No data</p>
-    </div>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+    </HydrationBoundary>
   );
 }

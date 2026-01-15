@@ -173,7 +173,6 @@ export function useViewportBoundaries({
   const hasInitializedRef = useRef(false);
   const prevLayoutDirectionRef = useRef(layoutDirection);
   const hasHandledInitialSelectionRef = useRef(false);
-  const prevSelectionRef = useRef<string | null>(null);
   const prevReCenterTriggerRef = useRef(reCenterTrigger);
   const isAnimatingRef = useRef(false);
   const animationGenerationRef = useRef(0);
@@ -350,6 +349,8 @@ export function useViewportBoundaries({
     if (prev === reCenterTrigger) return;
     prevReCenterTriggerRef.current = reCenterTrigger;
 
+    // Don't recenter before initial layout is complete
+    if (!hasInitializedRef.current) return;
     if (isAnimatingRef.current) return;
 
     if (selectedNodeId) {
@@ -384,7 +385,6 @@ export function useViewportBoundaries({
         if (centerOnNode(initialSelectedNodeId, VIEWPORT.INITIAL_ZOOM, ANIMATION.INITIAL_DURATION, d)) {
           hasInitializedRef.current = true;
           prevLayoutDirectionRef.current = layoutDirection;
-          prevSelectionRef.current = initialSelectedNodeId;
           return;
         }
       }
