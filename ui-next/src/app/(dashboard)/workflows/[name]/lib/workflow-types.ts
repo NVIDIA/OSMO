@@ -30,6 +30,7 @@ import {
   type TaskQueryResponse,
   type WorkflowQueryResponse,
 } from "@/lib/api/generated";
+import { isTaskOngoing } from "@/lib/api/status-metadata.generated";
 
 // Re-export backend types for convenience
 export { TaskGroupStatus };
@@ -95,9 +96,8 @@ export {
 // Status Helpers
 // ============================================================================
 
-// Re-export canonical implementations from dag/utils/status
-// This avoids duplication while maintaining backwards compatibility
-export { isFailedStatus, getStatusCategory } from "./status";
+// Re-export canonical implementations from status utilities
+export { getStatusCategory, isTaskFailed, isTaskOngoing } from "./status";
 
 // ============================================================================
 // Duration Helpers
@@ -107,6 +107,9 @@ export { isFailedStatus, getStatusCategory } from "./status";
  * Calculate duration in seconds from start/end time strings.
  * Timestamps are normalized in the adapter layer (useWorkflow hook),
  * so we can safely use new Date() directly.
+ *
+ * NOTE: This is a low-level utility that doesn't consider status.
+ * For status-aware duration calculation, use `calculateTaskDuration`.
  *
  * @param startTime - Start time string
  * @param endTime - End time string (null for running tasks)
@@ -119,6 +122,44 @@ export function calculateDuration(startTime?: string | null, endTime?: string | 
   const end = endTime ? new Date(endTime).getTime() : (now ?? Date.now());
 
   return Math.max(0, (end - start) / 1000);
+}
+
+/**
+ * Calculate duration for a task/group using data-driven status semantics.
+ *
+ * This function uses generated metadata to determine if duration is ongoing:
+ * - Running/Initializing statuses: duration = start_time → now (live)
+ * - Terminal statuses (completed/failed): duration = start_time → end_time (static)
+ * - Pending statuses: duration = null (not started)
+ *
+ * @param startTime - Start time string
+ * @param endTime - End time string
+ * @param status - Task/group status (used to determine if duration is ongoing)
+ * @param now - Current timestamp in milliseconds (from useTick for synchronized updates)
+ */
+export function calculateTaskDuration(
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+  status: TaskGroupStatus,
+  now: number,
+): number | null {
+  if (!startTime) return null;
+
+  const start = new Date(startTime).getTime();
+
+  // Use generated metadata to determine if duration is ongoing
+  if (isTaskOngoing(status)) {
+    // Running/Initializing: duration is live (start → now)
+    return Math.max(0, (now - start) / 1000);
+  }
+
+  // Terminal status: use end_time if available
+  if (endTime) {
+    return Math.max(0, (new Date(endTime).getTime() - start) / 1000);
+  }
+
+  // Terminal but no end_time (shouldn't happen in practice)
+  return null;
 }
 
 /**
