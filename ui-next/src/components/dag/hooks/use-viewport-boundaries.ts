@@ -22,8 +22,9 @@
  * Performance optimizations:
  * - O(1) node lookups via Map (not O(n) array.find)
  * - useSyncedRef for stable callbacks without stale closures
- * - RAF-based resize handling (smoother than setTimeout)
- * - Minimal effect dependencies
+ * - Debounced resize handling via useDebounceCallback
+ * - Callback-based sequencing (no timeouts for async coordination)
+ * - Frozen dimensions during animations to prevent stuttering
  * - Early bailouts to skip unnecessary work
  */
 
@@ -271,19 +272,7 @@ export function useViewportBoundaries({
   // Consolidated handler for both initial load and direction change.
   // Uses isLayouting signal instead of timeouts. When layout completes (true → false),
   // we know node positions are stable and can center the viewport.
-  //
-  // This replaces two separate timeout-based effects with a single callback-based one.
 
-  const pendingDirectionChangeRef = useRef(false);
-
-  // Track direction changes to handle after layout completes
-  useEffect(() => {
-    if (hasInitializedRef.current && prevLayoutDirectionRef.current !== layoutDirection) {
-      pendingDirectionChangeRef.current = true;
-    }
-  }, [layoutDirection]);
-
-  // Handle layout completion (initial load OR direction change)
   useEffect(() => {
     const wasLayouting = prevIsLayoutingRef.current;
     prevIsLayoutingRef.current = isLayouting;
@@ -315,9 +304,8 @@ export function useViewportBoundaries({
       return;
     }
 
-    // Case 2: Direction change (already initialized)
-    if (pendingDirectionChangeRef.current) {
-      pendingDirectionChangeRef.current = false;
+    // Case 2: Direction change (already initialized, direction differs from previous)
+    if (prevLayoutDirectionRef.current !== layoutDirection) {
       prevLayoutDirectionRef.current = layoutDirection;
       centerOnNode(rootNodeIds[0], VIEWPORT.INITIAL_ZOOM, ANIMATION.VIEWPORT_DURATION, area);
     }
