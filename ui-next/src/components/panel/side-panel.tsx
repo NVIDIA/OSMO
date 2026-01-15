@@ -266,7 +266,7 @@ export function SidePanel({
     <aside
       ref={panelRef}
       className={cn(
-        "relative flex shrink-0 flex-col border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+        "relative flex shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
         // Disable transitions during drag for smooth 60fps resizing
         isDragging ? "transition-none" : "transition-[width] duration-200 ease-out",
         className,
@@ -312,7 +312,7 @@ export function SidePanel({
       {/* Panel content */}
       <div
         className={cn(
-          "flex h-full w-full flex-col overflow-hidden transition-opacity duration-200 ease-out",
+          "flex h-full w-full min-w-0 flex-col overflow-hidden transition-opacity duration-200 ease-out",
           isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
         )}
       >
