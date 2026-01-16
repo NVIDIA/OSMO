@@ -22,12 +22,12 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/shadcn/card";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 
-interface ShellProps {
+interface ChromeProps {
   children: React.ReactNode;
 }
 
 /**
- * Application shell with optimized layout.
+ * Application chrome with optimized layout.
  *
  * Uses shadcn/ui Sidebar for:
  * - Mobile-responsive Sheet behavior
@@ -35,7 +35,7 @@ interface ShellProps {
  * - Collapsible with icon-only mode
  * - Accessibility out of the box
  */
-export const Shell = memo(function Shell({ children }: ShellProps) {
+export const Chrome = memo(function Chrome({ children }: ChromeProps) {
   return (
     <SidebarProvider
       defaultOpen={true}
