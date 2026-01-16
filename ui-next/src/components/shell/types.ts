@@ -72,6 +72,8 @@ export interface ShellTerminalProps {
   taskName: string;
   /** Shell to use (default: /bin/bash) */
   shell?: string;
+  /** Auto-connect when ready (default: true) */
+  autoConnect?: boolean;
   /** Called when shell connects successfully */
   onConnected?: () => void;
   /** Called when shell disconnects */
@@ -80,8 +82,22 @@ export interface ShellTerminalProps {
   onError?: (error: Error) => void;
   /** Called when user exits the shell (types exit or Ctrl+D) */
   onSessionEnded?: () => void;
+  /** Called when connection status changes */
+  onStatusChange?: (status: ConnectionStatus) => void;
   /** Additional className for the container */
   className?: string;
+}
+
+/**
+ * Ref handle for ShellTerminal imperative methods.
+ */
+export interface ShellTerminalRef {
+  /** Manually trigger connection */
+  connect: () => void;
+  /** Manually trigger disconnection */
+  disconnect: () => void;
+  /** Focus the terminal */
+  focus: () => void;
 }
 
 /**
@@ -124,6 +140,8 @@ export interface UseShellReturn {
   getDimensions: () => { rows: number; cols: number } | null;
   /** Trigger fit to container */
   fit: () => void;
+  /** Set active state (controls cursor blink) */
+  setActive: (active: boolean) => void;
 }
 
 /**

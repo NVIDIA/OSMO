@@ -29,13 +29,10 @@ export { ShellTerminal } from "./ShellTerminal";
 export { ConnectionStatus } from "./ConnectionStatus";
 export { ShellToolbar } from "./ShellToolbar";
 export { ShellSearch } from "./ShellSearch";
-export { ShellActivityStrip } from "./ShellActivityStrip";
-export { ShellSessionIcon } from "./ShellSessionIcon";
 
 // Hooks
 export { useShell, useShellSearch } from "./use-shell";
 export { useWebSocketShell } from "./use-websocket-shell";
-export { useShellNavigationGuard, useNavigateWithShellWarning } from "./use-shell-navigation-guard";
 
 // Types
 export type {

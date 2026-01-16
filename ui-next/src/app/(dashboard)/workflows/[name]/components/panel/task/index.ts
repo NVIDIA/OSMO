@@ -13,4 +13,8 @@
  */
 
 export { TaskDetails } from "./TaskDetails";
+export { TaskShell } from "./TaskShell";
 export { TaskTimeline } from "./TaskTimeline";
+
+// Types
+export type { TaskShellProps } from "./TaskShell";
