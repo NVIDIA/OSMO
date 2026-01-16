@@ -192,6 +192,9 @@
   will-change: transform;
   /* Create isolated stacking context - prevents compositing with parent layers */
   isolation: isolate;
+  /* 3D transform optimization - prevents layer flickering */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .react-flow__node {
@@ -202,6 +205,8 @@
   stroke-width: var(--dag-edge-stroke-width);
   vector-effect: non-scaling-stroke;
   /* Note: No transition on stroke - causes repaint during pan/zoom */
+  /* Prevent shape-rendering changes during pan */
+  shape-rendering: geometricPrecision;
 }
 
 /* Edge animation - GPU accelerated */
@@ -283,10 +288,10 @@
 
 /* ==========================================================================
    Containment & GPU Acceleration
-   
+
    CSS containment tells the browser what parts of the page are independent,
    enabling massive optimization for layout, paint, and composite operations.
-   
+
    Performance impact:
    - contain: strict → Strongest isolation, best for virtualized items
    - contain: layout style → Good balance for interactive elements
@@ -301,7 +306,7 @@
 
 /* ==========================================================================
    Performance-Critical ReactFlow Containment
-   
+
    These rules isolate ReactFlow's internal elements to prevent layout
    thrashing during pan/zoom operations.
    ========================================================================== */
@@ -317,6 +322,9 @@
   contain: style;
   /* Force GPU layer for each node - smoother transforms during pan/zoom */
   transform: translateZ(0);
+  /* 3D transform optimization - prevents layer flickering */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   /* Note: layout containment removed because handles need to overflow for edge connections */
 }
 
@@ -362,6 +370,40 @@
   /* Optimized scrolling */
   overscroll-behavior: contain;
   scroll-behavior: auto; /* No smooth scroll during virtualized scrolling */
+}
+
+/* ==========================================================================
+   Panning/Zooming Performance Mode
+
+   When the user is actively panning or zooming (data-panning="true" on container),
+   we disable all non-essential animations and transitions to ensure 60fps.
+   This prevents frame drops during rapid viewport manipulation.
+   ========================================================================== */
+
+/* During pan: disable node transitions */
+.react-flow[data-panning="true"] .dag-node {
+  transition: none !important;
+}
+
+/* During pan: pause edge animations to reduce compositor work */
+.react-flow[data-panning="true"] .react-flow__edge.animated path {
+  animation-play-state: paused;
+}
+
+/* During pan: disable pointer events on non-interactive elements */
+.react-flow[data-panning="true"] .react-flow__edge {
+  pointer-events: none;
+}
+
+/* During pan: reduce paint complexity on minimap */
+.react-flow[data-panning="true"] .react-flow__minimap {
+  opacity: 0.7;
+  transition: opacity 50ms ease-out;
+}
+
+/* During pan: hint to browser that background is stable (prevents pattern recalc) */
+.react-flow[data-panning="true"] .react-flow__background {
+  will-change: transform;
 }
 
 /* ==========================================================================
