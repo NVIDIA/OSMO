@@ -53,6 +53,7 @@ import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
+import { ShellActivityStrip, useShellNavigationGuard } from "@/components/terminal";
 
 // NOTE: We intentionally do NOT use a focus trap here.
 // This is a non-modal side panel (role="complementary"), not a dialog.
@@ -150,6 +151,9 @@ export const DetailsPanel = memo(function DetailsPanel({
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
+  // Warn before page unload when shell sessions are active
+  useShellNavigationGuard();
+
   // Escape key collapses the panel
   const handleEscapeKey = useCallback(() => {
     if (onToggleCollapsed) {
@@ -177,11 +181,37 @@ export const DetailsPanel = memo(function DetailsPanel({
         ? `Group details: ${group?.name}`
         : `Task details: ${task?.name}`;
 
-  // Collapsed content with workflow quick links
+  // Handle selecting a shell session from activity strip
+  const handleSelectShellSession = useCallback(
+    (taskName: string) => {
+      // Expand the panel if collapsed
+      if (isCollapsed && onToggleCollapsed) {
+        onToggleCollapsed();
+      }
+      // If there's a task selection handler and we have groups, select the task
+      if (onSelectTask && allGroups) {
+        // Find the group containing this task
+        for (const g of allGroups) {
+          const foundTask = g.tasks?.find((t) => t.name === taskName);
+          if (foundTask) {
+            onSelectTask(foundTask, g);
+            break;
+          }
+        }
+      }
+    },
+    [isCollapsed, onToggleCollapsed, onSelectTask, allGroups],
+  );
+
+  // Collapsed content with workflow quick links and shell activity strip
   // Focus management is handled by SidePanel via onTransitionEnd
   const collapsedContent = onToggleCollapsed ? (
     <PanelCollapsedStrip onExpand={onToggleCollapsed}>
       <WorkflowQuickLinks workflow={workflow} />
+      <ShellActivityStrip
+        currentTaskName={task?.name}
+        onSelectSession={handleSelectShellSession}
+      />
     </PanelCollapsedStrip>
   ) : undefined;
 
@@ -231,6 +261,7 @@ export const DetailsPanel = memo(function DetailsPanel({
           group={group}
           allGroups={allGroups}
           task={task}
+          workflowName={workflow?.name}
           onBackToGroup={onBackToGroup}
           onBackToWorkflow={onBackToWorkflow}
           onSelectTask={onSelectTask}
