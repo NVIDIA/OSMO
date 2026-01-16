@@ -330,9 +330,23 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     // Create PTY session
     const session = ptySimulator.createSession(workflowName, taskName, shell, scenario);
 
+    // Mock WebSocket server URL
+    // In development, the mock WS server runs on port 3001 (via pnpm dev:mock-ws)
+    // The shell connects to this URL for PTY simulation
+    const mockWsServerUrl = "http://localhost:3001";
+
+    console.debug("[Mock] Created PTY session:", {
+      sessionId: session.id,
+      workflowName,
+      taskName,
+      shell,
+      scenario,
+      wsUrl: `${mockWsServerUrl}/api/router/exec/${workflowName}/client/${session.id}`,
+    });
+
     // Return RouterResponse format (matches backend)
     return HttpResponse.json({
-      router_address: window.location.origin,
+      router_address: mockWsServerUrl,
       key: session.id,
       cookie: `mock_session_${session.id}`,
       // Additional fields for mock convenience

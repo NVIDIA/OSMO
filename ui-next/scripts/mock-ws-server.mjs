@@ -22,6 +22,38 @@ import http from "http";
 const PORT = 3001;
 
 // ============================================================================
+// Logging
+// ============================================================================
+
+const LOG_LEVELS = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+};
+
+const currentLogLevel = process.env.LOG_LEVEL === "debug" ? LOG_LEVELS.DEBUG : LOG_LEVELS.INFO;
+
+function log(level, tag, message, data = null) {
+  if (LOG_LEVELS[level] < currentLogLevel) return;
+  
+  const timestamp = new Date().toISOString().slice(11, 23);
+  const prefix = `${ANSI.BRIGHT_BLACK}${timestamp}${ANSI.RESET}`;
+  const tagColor = {
+    DEBUG: ANSI.BRIGHT_BLACK,
+    INFO: ANSI.CYAN,
+    WARN: ANSI.YELLOW,
+    ERROR: ANSI.RED,
+  }[level];
+  
+  let output = `${prefix} ${tagColor}[${tag}]${ANSI.RESET} ${message}`;
+  if (data) {
+    output += ` ${ANSI.BRIGHT_BLACK}${JSON.stringify(data)}${ANSI.RESET}`;
+  }
+  console.log(output);
+}
+
+// ============================================================================
 // ANSI Escape Codes
 // ============================================================================
 
@@ -239,7 +271,7 @@ wss.on("connection", (ws, req) => {
   };
 
   sessions.set(sessionId, session);
-  console.log(`[WS] New connection: ${workflowName}/${taskName} (${sessionId})`);
+  log("INFO", "WS", `New connection: ${workflowName}/${taskName}`, { sessionId, rows: session.rows, cols: session.cols });
 
   // Send welcome message
   ws.send(
@@ -255,7 +287,7 @@ wss.on("connection", (ws, req) => {
       if (msg.Rows && msg.Cols) {
         session.rows = msg.Rows;
         session.cols = msg.Cols;
-        console.log(`[WS] Resize: ${msg.Cols}x${msg.Rows}`);
+        log("DEBUG", "WS", `Resize: ${msg.Cols}x${msg.Rows}`, { sessionId });
         return;
       }
     } catch {
@@ -271,6 +303,10 @@ wss.on("connection", (ws, req) => {
         const command = session.inputBuffer;
         session.inputBuffer = "";
         ws.send("\r\n");
+
+        if (command.trim()) {
+          log("DEBUG", "CMD", `${session.taskName}: ${command}`);
+        }
 
         const result = processCommand(session, command);
 
@@ -313,14 +349,14 @@ wss.on("connection", (ws, req) => {
     }
   });
 
-  ws.on("close", () => {
+  ws.on("close", (code, reason) => {
     clearIntervals(session);
     sessions.delete(sessionId);
-    console.log(`[WS] Disconnected: ${sessionId}`);
+    log("INFO", "WS", `Disconnected: ${session.taskName}`, { sessionId, code, reason: reason?.toString() });
   });
 
   ws.on("error", (err) => {
-    console.error(`[WS] Error: ${err.message}`);
+    log("ERROR", "WS", `Error: ${err.message}`, { sessionId });
   });
 });
 
@@ -395,14 +431,23 @@ function startStreaming(session, type) {
 
 httpServer.listen(PORT, () => {
   console.log(`
-╔════════════════════════════════════════════════════════════════╗
-║  ${ANSI.BRIGHT_GREEN}Mock WebSocket Server${ANSI.RESET} for Terminal/PTY Simulation        ║
-╠════════════════════════════════════════════════════════════════╣
-║  WebSocket: ws://localhost:${PORT}/exec/{workflow}/{task}         ║
-║  Health:    http://localhost:${PORT}/health                       ║
-╠════════════════════════════════════════════════════════════════╣
-║  ${ANSI.YELLOW}Commands:${ANSI.RESET} ls, cd, pwd, nvidia-smi, colors, train, logs    ║
-║  ${ANSI.YELLOW}Controls:${ANSI.RESET} Ctrl+C (interrupt), Ctrl+D (exit), Ctrl+L (clear)║
-╚════════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  ${ANSI.BRIGHT_GREEN}Mock WebSocket Server${ANSI.RESET} for Terminal/PTY Simulation                      ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║  ${ANSI.CYAN}WebSocket:${ANSI.RESET} ws://localhost:${PORT}/api/router/exec/{workflow}/client/{key}   ║
+║  ${ANSI.CYAN}Health:${ANSI.RESET}    http://localhost:${PORT}/health                                   ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║  ${ANSI.YELLOW}How it works:${ANSI.RESET}                                                              ║
+║  1. Run ${ANSI.GREEN}pnpm dev:mock${ANSI.RESET} in another terminal (starts Next.js with MSW)          ║
+║  2. Open a workflow with running tasks                                        ║
+║  3. Click on a task → Shell tab                                               ║
+║  4. The shell connects to this server via WebSocket                           ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║  ${ANSI.YELLOW}Available Commands:${ANSI.RESET} ls, cd, pwd, nvidia-smi, colors, train, logs, help    ║
+║  ${ANSI.YELLOW}Controls:${ANSI.RESET} Ctrl+C (interrupt), Ctrl+D (exit), Ctrl+L (clear screen)        ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║  ${ANSI.BRIGHT_BLACK}Set LOG_LEVEL=debug for verbose output${ANSI.RESET}                                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
 `);
+  log("INFO", "SERVER", `Listening on port ${PORT}`, { activeSessions: sessions.size });
 });
