@@ -17,22 +17,16 @@
 import type { Metadata } from "next";
 
 // =============================================================================
-// Dynamic Metadata (SEO)
+// Static Metadata with Template (SEO)
 // =============================================================================
+// Note: Using static metadata to enable PPR (Partial Prerendering).
+// The actual workflow name is shown in the page header and browser tab
+// updates via the usePage() hook in WorkflowDetailContent.
 
-interface PageProps {
-  params: Promise<{ name: string }>;
-}
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { name } = await params;
-  const decodedName = decodeURIComponent(name);
-
-  return {
-    title: `${decodedName} | Workflows | OSMO`,
-    description: `View details, DAG visualization, and task status for workflow: ${decodedName}`,
-  };
-}
+export const metadata: Metadata = {
+  title: "Workflow Details | OSMO",
+  description: "View workflow details, DAG visualization, and task status.",
+};
 
 /**
  * Workflow Detail Page (Server Component)

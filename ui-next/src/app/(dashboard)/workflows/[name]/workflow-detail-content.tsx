@@ -35,18 +35,42 @@
  *
  * Keyboard Navigation:
  * - Escape → Collapse panel (when expanded)
- * - Enter → Expand panel (when collapsed)
+ * - Enter → Expand panel (when focused on collapsed strip)
  * - Browser back/forward → Navigate through URL history
  */
 
 "use client";
 
 import { useState, useMemo, useRef, useCallback } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 import { usePrevious, useIsomorphicLayoutEffect } from "@react-hookz/web";
 import Link from "next/link";
-import { ReactFlowProvider, ReactFlow, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
+import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
+
+// =============================================================================
+// Dynamic Import for ReactFlow
+// ReactFlow + ELK.js are heavy (~200KB+ gzipped). We dynamically import them
+// to keep the initial bundle small. This is especially important for:
+// - Mobile users on slow networks
+// - Users who navigate directly to non-workflow pages
+// - Faster initial page load across the app
+// =============================================================================
+
+// Dynamic import with loading state - ssr: false because ReactFlow requires window
+const ReactFlowDynamic = dynamic(() => import("@xyflow/react").then((mod) => mod.ReactFlow), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-zinc-950">
+      <div className="text-center text-gray-500 dark:text-zinc-500">
+        <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-zinc-600 dark:border-t-zinc-300" />
+        <p>Loading visualization...</p>
+      </div>
+    </div>
+  ),
+});
+
+// These are re-exported from the dynamic import for the non-SSR context
+import { ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollMode } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
 
@@ -405,17 +429,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     navigateToWorkflow();
   });
 
-  // Global keyboard shortcut: Enter expands the panel when collapsed
-  // Uses react-hotkeys-hook for cleaner implementation
-  useHotkeys(
-    "enter",
-    () => togglePanelCollapsed(),
-    {
-      enabled: isPanelCollapsed,
-      enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
-    },
-    [togglePanelCollapsed],
-  );
+  // NOTE: Enter key to expand panel is handled by PanelCollapsedStrip's keyboard handler.
+  // This ensures Enter only expands the panel when the collapsed strip is focused,
+  // not globally (which would interfere with other interactive elements like nodes).
 
   // Determine content state: loading, error, not found, or ready
   const isReady = !isLoading && !error && !isNotFound && workflow;
@@ -492,7 +508,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                 onSelectTask={handleSelectTask}
                 onToggleExpand={handleToggleExpand}
               >
-                <ReactFlow
+                <ReactFlowDynamic
                   nodes={nodes}
                   edges={edges}
                   nodeTypes={nodeTypes}
@@ -547,7 +563,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                       aria-label="Workflow minimap"
                     />
                   )}
-                </ReactFlow>
+                </ReactFlowDynamic>
               </DAGProvider>
             </main>
           ) : (

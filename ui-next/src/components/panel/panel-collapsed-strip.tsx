@@ -23,10 +23,10 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useRef, useCallback } from "react";
 import { ArrowLeftFromLine } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 
 // =============================================================================
 // Types
@@ -65,30 +65,53 @@ export const PanelCollapsedStrip = memo(function PanelCollapsedStrip({
   children,
   className,
 }: PanelCollapsedStripProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Handle keyboard navigation: Enter expands the panel
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onExpand();
+      }
+    },
+    [onExpand],
+  );
+
   return (
     <div className={cn("relative flex h-full w-full flex-col items-center py-3", className)}>
       {/* Expand button at top */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={onExpand}
-            className={cn(
-              "flex size-8 items-center justify-center rounded-lg",
-              "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-              "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-              "transition-colors",
-            )}
-            aria-label="Expand panel"
-          >
-            <ArrowLeftFromLine
-              className="size-4 shrink-0"
-              aria-hidden="true"
-            />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="left">Expand panel</TooltipContent>
-      </Tooltip>
+      {/* TooltipProvider with delay to prevent jarring flash on programmatic focus */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              ref={buttonRef}
+              type="button"
+              onClick={onExpand}
+              onKeyDown={handleKeyDown}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-lg",
+                "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+                "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                "transition-colors",
+                // Focus-visible styling with clear selection treatment
+                "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                "focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900",
+                "focus-visible:outline-none",
+                "focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800",
+              )}
+              aria-label="Expand panel (Enter)"
+            >
+              <ArrowLeftFromLine
+                className="size-4 shrink-0"
+                aria-hidden="true"
+              />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Expand panel (Enter)</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       {/* Domain-specific content slot */}
       {children}

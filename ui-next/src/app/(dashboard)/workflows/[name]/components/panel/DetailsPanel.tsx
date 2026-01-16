@@ -37,7 +37,7 @@
  *
  * Keyboard Navigation:
  * - Escape → Collapse panel (URL navigation handles back via browser)
- * - Enter → Expand panel (when collapsed, handled in page.tsx)
+ * - Enter → Expand panel (when focused on collapsed strip)
  */
 
 "use client";
@@ -178,6 +178,7 @@ export const DetailsPanel = memo(function DetailsPanel({
         : `Task details: ${task?.name}`;
 
   // Collapsed content with workflow quick links
+  // Focus management is handled by SidePanel via onTransitionEnd
   const collapsedContent = onToggleCollapsed ? (
     <PanelCollapsedStrip onExpand={onToggleCollapsed}>
       <WorkflowQuickLinks workflow={workflow} />
