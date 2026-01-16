@@ -1,0 +1,388 @@
+/**
+ * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
+/**
+ * Terminal Component Styles
+ *
+ * Always-dark terminal styling with NVIDIA green accent.
+ * Based on DESIGN.md specifications.
+ */
+
+/* =============================================================================
+   CSS Custom Properties
+   ============================================================================= */
+
+:root {
+  /* Terminal Layout */
+  --terminal-header-height: 32px;
+  --terminal-status-height: 24px;
+  --terminal-padding: 8px;
+  --terminal-border-radius: var(--radius-md, 0.5rem);
+
+  /* Terminal Colors (always dark) */
+  --terminal-bg: #09090b;
+  --terminal-bg-header: #18181b;
+  --terminal-bg-status: #18181b;
+  --terminal-border: #27272a;
+  --terminal-fg: #e4e4e7;
+  --terminal-fg-dim: #71717a;
+
+  /* Terminal Cursor */
+  --terminal-cursor: #76b900;
+  --terminal-cursor-blink-rate: 600ms;
+
+  /* Terminal Focus */
+  --terminal-focus-ring: var(--dag-selection-ring, #76b900);
+  --terminal-active-glow: rgba(118, 185, 0, 0.3);
+}
+
+/* =============================================================================
+   Terminal Container
+   ============================================================================= */
+
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 200px;
+  background: var(--terminal-bg);
+  border: 1px solid var(--terminal-border);
+  border-radius: var(--terminal-border-radius);
+  overflow: hidden;
+
+  /* Subtle inset shadow for depth */
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.terminal-container:focus-within {
+  outline: 2px solid var(--terminal-focus-ring);
+  outline-offset: 2px;
+}
+
+.terminal-container[data-active="true"] {
+  box-shadow:
+    0 0 0 1px var(--terminal-active-glow),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* =============================================================================
+   Terminal Header
+   ============================================================================= */
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--terminal-header-height);
+  padding: 0 var(--terminal-padding);
+  background: var(--terminal-bg-header);
+  border-bottom: 1px solid var(--terminal-border);
+  flex-shrink: 0;
+}
+
+.terminal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.terminal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.terminal-task-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--terminal-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   Terminal Body (xterm container)
+   ============================================================================= */
+
+.terminal-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--terminal-padding);
+  overflow: hidden;
+
+  /* GPU acceleration */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+
+  /* CSS containment for performance */
+  contain: strict;
+}
+
+.terminal-body .xterm {
+  height: 100%;
+}
+
+.terminal-body .xterm-viewport {
+  /* Hide scrollbar but allow scrolling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--terminal-border) transparent;
+}
+
+.terminal-body .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-body .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-body .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--terminal-border);
+  border-radius: 4px;
+}
+
+.terminal-body .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* =============================================================================
+   Terminal Status Bar
+   ============================================================================= */
+
+.terminal-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--terminal-status-height);
+  padding: 0 var(--terminal-padding);
+  background: var(--terminal-bg-status);
+  border-top: 1px solid var(--terminal-border);
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--terminal-fg-dim);
+}
+
+.terminal-status-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-status-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.terminal-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.terminal-shortcut kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* =============================================================================
+   Connection Status Indicator
+   ============================================================================= */
+
+.terminal-status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terminal-status-dot-icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.terminal-status-dot-icon[data-status="connecting"] {
+  background: #fbbf24;
+  animation: terminal-pulse 1s ease-in-out infinite;
+}
+
+.terminal-status-dot-icon[data-status="connected"] {
+  background: #34d399;
+}
+
+.terminal-status-dot-icon[data-status="disconnected"] {
+  background: transparent;
+  border: 1.5px solid #f87171;
+}
+
+.terminal-status-dot-icon[data-status="error"] {
+  background: #f87171;
+}
+
+.terminal-status-dot-icon[data-status="idle"] {
+  background: #71717a;
+}
+
+.terminal-status-dot-label {
+  font-size: 11px;
+  color: var(--terminal-fg-dim);
+}
+
+/* =============================================================================
+   Search Bar
+   ============================================================================= */
+
+.terminal-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px var(--terminal-padding);
+  background: var(--terminal-bg-header);
+  border-top: 1px solid var(--terminal-border);
+}
+
+.terminal-search-input {
+  flex: 1;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: var(--terminal-bg);
+  border: 1px solid var(--terminal-border);
+  border-radius: 4px;
+  color: var(--terminal-fg);
+  outline: none;
+}
+
+.terminal-search-input:focus {
+  border-color: var(--terminal-cursor);
+}
+
+.terminal-search-input::placeholder {
+  color: var(--terminal-fg-dim);
+}
+
+.terminal-search-count {
+  font-size: 11px;
+  color: var(--terminal-fg-dim);
+  white-space: nowrap;
+}
+
+.terminal-search-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+/* =============================================================================
+   Empty/Loading/Error States
+   ============================================================================= */
+
+.terminal-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--terminal-fg-dim);
+}
+
+.terminal-state-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  color: var(--terminal-fg-dim);
+}
+
+.terminal-state-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--terminal-fg);
+  margin-bottom: 8px;
+}
+
+.terminal-state-description {
+  font-size: 12px;
+  max-width: 240px;
+  line-height: 1.5;
+}
+
+.terminal-state-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes terminal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Slide up animation for terminal launch */
+@keyframes terminal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.terminal-container[data-animate="true"] {
+  animation: terminal-slide-up 200ms ease-out;
+}
+
+/* =============================================================================
+   Search Match Highlighting (xterm addon)
+   ============================================================================= */
+
+.xterm-find-result-decoration {
+  background-color: rgba(250, 204, 21, 0.3);
+}
+
+.xterm-find-active-result-decoration {
+  background-color: rgba(250, 204, 21, 0.6);
+  outline: 1px solid #facc15;
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 400px) {
+  .terminal-status-right {
+    display: none;
+  }
+
+  .terminal-container {
+    --terminal-padding: 4px;
+  }
+}

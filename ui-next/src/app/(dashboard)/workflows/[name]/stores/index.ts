@@ -21,3 +21,5 @@
  */
 
 export { useTaskTableStore } from "./task-table-store";
+export { useShellStore } from "./shell-store";
+export type { ShellStore } from "./shell-store";
