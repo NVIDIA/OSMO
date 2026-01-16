@@ -19,7 +19,7 @@
 /**
  * Navigation Module
  *
- * Provides navigation configuration and hooks for the application shell.
+ * Provides navigation configuration and hooks for the application chrome.
  *
  * - config.ts: Static navigation data (routes, icons, labels)
  * - use-navigation.ts: Hook that builds navigation based on user role

@@ -33,7 +33,7 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { usePage } from "@/components/shell";
+import { usePage } from "@/components/chrome";
 import { InlineErrorBoundary, ApiError, type ApiErrorProps } from "@/components/error";
 import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
 import type { Resource } from "@/lib/api/adapter";

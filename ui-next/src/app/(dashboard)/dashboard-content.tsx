@@ -24,7 +24,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePage } from "@/components/shell";
+import { usePage } from "@/components/chrome";
 import { usePools, useVersion } from "@/lib/api/adapter";
 import { useWorkflowsData } from "./workflows/hooks/use-workflows-data";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
