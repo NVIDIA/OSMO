@@ -40,13 +40,17 @@ export interface MockVolume {
   eventsPerWorkflow: { min: number; max: number };
 }
 
+// Use smaller defaults in development for fast iteration
+// Use HIGH_VOLUME for stress testing pagination
+const isDev = process.env.NODE_ENV === "development";
+
 export const DEFAULT_VOLUME: MockVolume = {
-  workflows: 10_000, // 10k for pagination stress testing
-  pools: 8,
-  resourcesPerPool: 50,
-  tasksPerWorkflow: { min: 1, max: 16 },
-  logsPerTask: { min: 50, max: 500 },
-  eventsPerWorkflow: { min: 5, max: 20 },
+  workflows: isDev ? 100 : 10_000, // 100 in dev, 10k for production/stress testing
+  pools: isDev ? 4 : 8,
+  resourcesPerPool: isDev ? 20 : 50,
+  tasksPerWorkflow: { min: 1, max: isDev ? 4 : 16 },
+  logsPerTask: { min: 10, max: isDev ? 50 : 500 },
+  eventsPerWorkflow: { min: 3, max: isDev ? 8 : 20 },
 };
 
 // High volume for stress testing
@@ -208,8 +212,8 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   },
   groupPatterns: {
     names: ["data-prep", "train", "eval", "export", "validate", "preprocess", "postprocess", "inference", "checkpoint"],
-    tasksPerGroup: { min: 1, max: 8 },
-    groupsPerWorkflow: { min: 1, max: 6 },
+    tasksPerGroup: { min: 1, max: isDev ? 3 : 8 },
+    groupsPerWorkflow: { min: 1, max: isDev ? 3 : 6 },
   },
   timing: {
     queueTime: { min: 0, max: 7200, p50: 60, p90: 900 },
