@@ -119,6 +119,8 @@ export interface TaskDetailsProps {
   group: GroupWithLayout;
   /** The task to display */
   task: TaskQueryResponse;
+  /** Workflow name (for shell terminal) */
+  workflowName?: string;
   /** Callback when navigating back to group */
   onBackToGroup: () => void;
   /** Callback when selecting a different task in the same group */
