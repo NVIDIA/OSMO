@@ -27,17 +27,14 @@ interface ServiceConfigEditorProps {
   serviceConfig: ServiceConfig;
   onSave: (config: ServiceConfig) => void;
   onCancel: () => void;
-  isSaving?: boolean;
   error?: string;
 }
 
-export const ServiceConfigEditor = ({
-  serviceConfig,
-  onSave,
-  onCancel,
-  isSaving = false,
-  error,
-}: ServiceConfigEditorProps) => {
+export const ServiceConfigEditor = ({ serviceConfig, onSave, error }: ServiceConfigEditorProps) => {
+  // Change Data
+  const [changeDescription, setChangeDescription] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+
   // General settings
   const [serviceBaseUrl, setServiceBaseUrl] = useState(serviceConfig.service_base_url);
   const [maxPodRestartLimit, setMaxPodRestartLimit] = useState(serviceConfig.max_pod_restart_limit);
@@ -101,23 +98,27 @@ export const ServiceConfigEditor = ({
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-global w-full h-full"
-    >
-      {error && <InlineBanner status="error">{error}</InlineBanner>}
-
-      <div className="flex flex-row flex-wrap gap-global p-global w-full">
-        <fieldset className="form-group">
-          <legend>General Settings</legend>
-          <TextInput
-            id="service_base_url"
-            label="Service Base URL"
-            value={serviceBaseUrl}
-            onChange={(e) => setServiceBaseUrl(e.target.value)}
-            required
-            className="min-w-150"
-          />
+    <div className="relative flex flex-col w-full h-full overflow-y-auto">
+      <div className="grid grid-cols-[3fr_1fr] gap-6 p-global border-y border-border bg-headerbg">
+        <TextInput
+          id="change_description"
+          label="Change Description"
+          value={changeDescription}
+          onChange={(e) => setChangeDescription(e.target.value)}
+          required
+          className="w-full"
+        />
+        <RoleEditor
+          label="Tags"
+          entityLabel="Tag"
+          roles={tags}
+          setRoles={setTags}
+          message={null}
+          isError={false}
+        />
+      </div>
+      <div className="config-editor">
+        <div className="flex flex-col gap-global">
           <TextInput
             id="max_pod_restart_limit"
             label="Max Pod Restart Limit"
@@ -134,61 +135,6 @@ export const ServiceConfigEditor = ({
             onChange={(e) => setAgentQueueSize(e.target.value)}
             required
           />
-        </fieldset>
-        <fieldset className="form-group">
-          <legend>CLI Config</legend>
-          <TextInput
-            id="latest_version"
-            label="Latest Version"
-            value={latestVersion ?? ""}
-            onChange={(e) => setLatestVersion(e.target.value)}
-            required
-          />
-          <TextInput
-            id="min_supported_version"
-            label="Min Supported Version"
-            value={minSupportedVersion ?? ""}
-            onChange={(e) => setMinSupportedVersion(e.target.value)}
-            required
-          />
-        </fieldset>
-        <fieldset className="form-group">
-          <legend>Auth Settings</legend>
-          <TextInput
-            id="issuer"
-            label="Issuer"
-            value={issuer}
-            onChange={(e) => setIssuer(e.target.value)}
-            required
-          />
-          <TextInput
-            id="audience"
-            label="Audience"
-            value={audience}
-            onChange={(e) => setAudience(e.target.value)}
-            required
-          />
-          <TextInput
-            id="user_roles"
-            label="User Roles"
-            value={userRoles}
-            onChange={(e) => setUserRoles(e.target.value)}
-            helperText="Comma-separated list of roles"
-          />
-          <RoleEditor
-            label="User Roles"
-            roles={userRoles.split(",").map((r) => r.trim())}
-            setRoles={(roles) => setUserRoles(roles.join(", "))}
-            message={null}
-            isError={false}
-          />
-          <TextInput
-            id="ctrl_roles"
-            label="Ctrl Roles"
-            value={ctrlRoles}
-            onChange={(e) => setCtrlRoles(e.target.value)}
-            helperText="Comma-separated list of roles"
-          />
           <TextInput
             id="max_token_duration"
             label="Max Token Duration"
@@ -197,9 +143,20 @@ export const ServiceConfigEditor = ({
             required
             helperText="e.g., 365d, 24h, 60m"
           />
-        </fieldset>
-        <fieldset className="form-group">
-          <legend>Login Info</legend>
+          <TextInput
+            id="latest_version"
+            label="CLI Latest Version"
+            value={latestVersion ?? ""}
+            onChange={(e) => setLatestVersion(e.target.value)}
+            required
+          />
+          <TextInput
+            id="min_supported_version"
+            label="CLI Min Supported Version"
+            value={minSupportedVersion ?? ""}
+            onChange={(e) => setMinSupportedVersion(e.target.value)}
+            required
+          />
           <TextInput
             id="device_client_id"
             label="Device Client ID"
@@ -214,13 +171,52 @@ export const ServiceConfigEditor = ({
             onChange={(e) => setBrowserClientId(e.target.value)}
             required
           />
+        </div>
+        <div className="flex flex-col gap-global">
+          <TextInput
+            id="issuer"
+            label="Issuer"
+            value={issuer}
+            onChange={(e) => setIssuer(e.target.value)}
+            required
+          />
+          <TextInput
+            id="audience"
+            label="Audience"
+            value={audience}
+            onChange={(e) => setAudience(e.target.value)}
+            required
+          />
+          <RoleEditor
+            label="User Roles"
+            entityLabel="Role"
+            roles={userRoles.split(",").map((r) => r.trim())}
+            setRoles={(roles) => setUserRoles(roles.join(", "))}
+            message={null}
+            isError={false}
+          />
+          <TextInput
+            id="ctrl_roles"
+            label="Ctrl Roles"
+            value={ctrlRoles}
+            onChange={(e) => setCtrlRoles(e.target.value)}
+            helperText="Comma-separated list of roles"
+          />
+        </div>
+        <div className="flex flex-col gap-global">
+          <TextInput
+            id="service_base_url"
+            label="Service Base URL"
+            value={serviceBaseUrl}
+            onChange={(e) => setServiceBaseUrl(e.target.value)}
+            required
+          />
           <TextInput
             id="device_endpoint"
             label="Device Endpoint"
             value={deviceEndpoint ?? ""}
             onChange={(e) => setDeviceEndpoint(e.target.value)}
             required
-            className="min-w-150"
           />
           <TextInput
             id="browser_endpoint"
@@ -228,7 +224,6 @@ export const ServiceConfigEditor = ({
             value={browserEndpoint ?? ""}
             onChange={(e) => setBrowserEndpoint(e.target.value)}
             required
-            className="min-w-150"
           />
           <TextInput
             id="token_endpoint"
@@ -236,7 +231,6 @@ export const ServiceConfigEditor = ({
             value={tokenEndpoint ?? ""}
             onChange={(e) => setTokenEndpoint(e.target.value)}
             required
-            className="min-w-150"
           />
           <TextInput
             id="logout_endpoint"
@@ -244,41 +238,43 @@ export const ServiceConfigEditor = ({
             value={logoutEndpoint ?? ""}
             onChange={(e) => setLogoutEndpoint(e.target.value)}
             required
-            className="min-w-150"
           />
-        </fieldset>
+        </div>
+        <InlineBanner status={error ? "error" : "none"}>{error}</InlineBanner>
       </div>
-      {/* Action Buttons */}
-      <div className="flex justify-end gap-global p-global border-t border-gray-200">
+      <div className="flex justify-end gap-global p-global border-t border-border bg-footerbg sticky bottom-0">
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={onCancel}
-          disabled={isSaving}
+          onClick={() => {
+            setServiceBaseUrl(serviceConfig.service_base_url);
+            setMaxPodRestartLimit(serviceConfig.max_pod_restart_limit);
+            setAgentQueueSize(serviceConfig.agent_queue_size.toString());
+            setLatestVersion(serviceConfig.cli_config.latest_version);
+            setMinSupportedVersion(serviceConfig.cli_config.min_supported_version);
+            setIssuer(serviceConfig.service_auth.issuer);
+            setAudience(serviceConfig.service_auth.audience);
+            setUserRoles(serviceConfig.service_auth.user_roles.join(", "));
+            setCtrlRoles(serviceConfig.service_auth.ctrl_roles.join(", "));
+            setMaxTokenDuration(serviceConfig.service_auth.max_token_duration);
+            setDeviceClientId(serviceConfig.service_auth.login_info.device_client_id);
+            setBrowserClientId(serviceConfig.service_auth.login_info.browser_client_id);
+            setDeviceEndpoint(serviceConfig.service_auth.login_info.device_endpoint);
+            setBrowserEndpoint(serviceConfig.service_auth.login_info.browser_endpoint);
+            setTokenEndpoint(serviceConfig.service_auth.login_info.token_endpoint);
+            setLogoutEndpoint(serviceConfig.service_auth.login_info.logout_endpoint);
+          }}
         >
-          Cancel
+          Reset
         </button>
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={isSaving}
         >
-          {isSaving ? (
-            <>
-              <OutlinedIcon
-                name="sync"
-                className="animate-spin"
-              />
-              Saving...
-            </>
-          ) : (
-            <>
-              <OutlinedIcon name="save" />
-              Save Changes
-            </>
-          )}
+          Next
+          <OutlinedIcon name="keyboard_double_arrow_right" />
         </button>
       </div>
-    </form>
+    </div>
   );
 };

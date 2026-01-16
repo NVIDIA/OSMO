@@ -63,7 +63,13 @@ export const ServiceConfigOverview = ({
   };
 
   if (isShowingJSON) {
-    return <pre className="p-global text-sm font-mono">{JSON.stringify(serviceConfig, null, 2)}</pre>;
+    return (
+      <textarea
+        className="p-global text-sm font-mono w-full h-full focus:outline-none"
+        value={JSON.stringify(serviceConfig, null, 2)}
+        readOnly
+      />
+    );
   }
 
   return (

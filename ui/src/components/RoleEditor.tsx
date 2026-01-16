@@ -25,14 +25,15 @@ interface RoleEditorProps {
   roles: string[];
   setRoles: (roles: string[]) => void;
   label: string;
+  entityLabel: string;
   message: string | null;
   isError: boolean;
 }
 
-export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, message, isError }) => {
+export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, entityLabel, message, isError }) => {
   const [newRole, setNewRole] = useState(""); // New role being added
-  const [error, setError] = useState<string | undefined>(undefined);
   const [lastActionText, setLastActionText] = useState<string>("");
+  const [isAdding, setIsAdding] = useState(false);
 
   const addRole = (role: string) => {
     if (!roles.includes(role)) {
@@ -45,7 +46,7 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
 
     const trimmedRole = newRole.trim();
 
-    if (!trimmedRole || error) {
+    if (!trimmedRole) {
       return;
     }
 
@@ -60,60 +61,66 @@ export const RoleEditor: React.FC<RoleEditorProps> = ({ roles, setRoles, label, 
   };
 
   return (
-    <div className="flex flex-col ga">
-      <div className="flex flex-col">
+    <>
+      <div className="flex flex-col gap-1">
         <label>{label}</label>
         <div
           className="flex flex-wrap gap-1"
           role="group"
           aria-labelledby="current-tags"
         >
-          {roles.length > 0 ? (
+          {roles.length > 0 &&
             roles.map((role, index) => (
               <button
                 role="listitem"
                 className="btn btn-badge"
                 key={index}
                 onClick={() => handleDeleteRole(role)}
+                type="button"
               >
                 <Tag
                   color={Colors.tag}
                   size={TagSizes.xs}
-                  className="min-h-6 break-all"
+                  className="h-8 break-all"
                 >
                   {role}
                   <OutlinedIcon name="close" />
                 </Tag>
               </button>
-            ))
+            ))}
+          {isAdding ? (
+            <TextInput
+              id="new-role"
+              value={newRole}
+              onChange={(e) => {
+                setNewRole(e.target.value);
+              }}
+              aria-label={entityLabel}
+            />
           ) : (
-            <p className="text-gray-600 h-6">None</p>
+            <button
+              type="button"
+              onClick={() => setIsAdding(!isAdding)}
+              className="btn btn-badge"
+              aria-label="Add"
+            >
+              <Tag
+                color={Colors.tag}
+                size={TagSizes.xs}
+                className="h-8"
+              >
+                <OutlinedIcon name="add" />
+              </Tag>
+            </button>
           )}
         </div>
       </div>
-      <form onSubmit={handleAddRole}>
-        <div className="grid grid-cols-[1fr_auto] gap-global">
-          <TextInput
-            id="new-tag"
-            value={newRole}
-            onChange={(e) => {
-              setNewRole(e.target.value);
-            }}
-            label="Add New Role"
-            errorText={error}
-            helperText={error ? undefined : ZERO_WIDTH_SPACE}
-            className="w-full"
-          />
-          <button
-            type="submit"
-            className="btn mt-5 h-8"
-            aria-label="Add Tag"
-            aria-disabled={!newRole.trim() || !!error}
-          >
-            <OutlinedIcon name="add" />
-          </button>
-        </div>
-      </form>
-    </div>
+      <p
+        aria-live="polite"
+        className="sr-only"
+      >
+        {lastActionText}
+      </p>
+    </>
   );
 };

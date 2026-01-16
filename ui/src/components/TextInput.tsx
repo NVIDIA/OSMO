@@ -42,8 +42,8 @@ export const TextInput = forwardRef<
       helperText,
       onChange,
       slotLeft,
-      className,
-      containerClassName,
+      className = "",
+      containerClassName = "",
       required = false,
       readOnly = false,
       ...props
