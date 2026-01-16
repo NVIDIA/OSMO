@@ -81,39 +81,76 @@ export const PoolDetails = ({
   }
 
   return (
-    <div className="card w-full h-full body-component">
-      <div className="brand-header px-3 flex flex-row justify-between items-center gap-3">
-        <h3>{name}</h3>
+    <section
+      aria-labelledby="pool-details-title"
+      className="card w-full body-component xs:overflow-y-auto"
+    >
+      <h2
+        id="pool-details-title"
+        className="brand-header px-global flex flex-row justify-between items-center"
+      >
+        {name}
         <Tag
           className="inline-block"
           color={Colors.pool}
         >
           Pool
         </Tag>
-      </div>
+      </h2>
       {pool ? (
-        <>
-          {pool.resource_usage && (
-            <div
-              className="body-header p-3 flex flex-row gap-3 min-h-40"
-              role="list"
-            >
-              <AggregatePanels
-                totals={pool.resource_usage}
-                isLoading={false}
-                isShowingUsed={isShowingUsed ?? true}
-              />
-            </div>
-          )}
-          <div className="flex flex-col gap-3 p-3">
+        <div className="max-h-full w-full">
+          <div className="flex flex-col">
+            {Object.entries(pool.platforms).length > 1 && (
+              <div className="card p-0">
+                <h3
+                  className="body-header text-base p-global"
+                  id="platforms"
+                >
+                  Platforms
+                </h3>
+                <div className="flex flex-wrap gap-1 m-3">
+                  {Object.entries(pool.platforms).map(([platform]) => (
+                    <PlatformTag
+                      key={platform}
+                      platform={platform}
+                      selectedPlatform={selectedPlatform}
+                      platformsAsLinks={platformsAsLinks}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {pool.resource_usage && (
+              <div className="card p-0">
+                <h3
+                  className="body-header text-base p-global"
+                  id="resource-usage"
+                >
+                  Resource Usage
+                </h3>
+                <div
+                  className="grid lg:grid-cols-2 overflow-x-hidden"
+                  role="list"
+                >
+                  <AggregatePanels
+                    totals={pool.resource_usage}
+                    isLoading={false}
+                    isShowingUsed={isShowingUsed ?? true}
+                  />
+                </div>
+              </div>
+            )}
             <div className="card p-0">
               <h3
-                className="body-header text-base p-3"
+                className="body-header text-base p-global"
                 id="platforms"
               >
                 Configurations
               </h3>
-              <dl className="p-3">
+              <dl
+                className="p-global"
+                aria-labelledby="platforms"
+              >
                 <dt>Description</dt>
                 <dd>{pool.description}</dd>
                 <dt>Status</dt>
@@ -144,36 +181,16 @@ export const PoolDetails = ({
                 <dd>{pool.max_queue_timeout}</dd>
               </dl>
             </div>
-            {Object.entries(pool.platforms).length > 1 && (
-              <div className="card p-0">
-                <h3
-                  className="body-header text-base p-3"
-                  id="platforms"
-                >
-                  Platforms
-                </h3>
-                <div className="flex flex-wrap gap-1 m-3">
-                  {Object.entries(pool.platforms).map(([platform]) => (
-                    <PlatformTag
-                      key={platform}
-                      platform={platform}
-                      selectedPlatform={selectedPlatform}
-                      platformsAsLinks={platformsAsLinks}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="card p-0">
               <h3
-                className="body-header text-base p-3"
+                className="body-header text-base p-global"
                 id="action-permissions"
               >
                 Action Permissions
               </h3>
               <dl
                 aria-labelledby="action-permissions"
-                className="p-3"
+                className="p-global"
               >
                 {Object.entries(pool.action_permissions).map(([action, description]) => (
                   <React.Fragment key={action}>
@@ -186,14 +203,14 @@ export const PoolDetails = ({
             {Object.entries(pool.default_exit_actions).length > 0 && (
               <div className="card p-0">
                 <h3
-                  className="body-header text-base p-3"
+                  className="body-header text-base p-global"
                   id="default-exit-actions"
                 >
                   Default Exit Actions
                 </h3>
                 <dl
                   aria-labelledby="default-exit-actions"
-                  className="p-3"
+                  className="p-global"
                 >
                   {Object.entries(pool.default_exit_actions).map(([action, description]) => (
                     <React.Fragment key={action}>
@@ -205,12 +222,12 @@ export const PoolDetails = ({
               </div>
             )}
           </div>
-        </>
+        </div>
       ) : (
         <div className="h-full w-full flex justify-center items-center">
           <Spinner />
         </div>
       )}
-    </div>
+    </section>
   );
 };

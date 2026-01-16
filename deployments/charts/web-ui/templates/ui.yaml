@@ -60,8 +60,10 @@ spec:
         {{- end}}
       tolerations:
       {{ toYaml .Values.services.ui.tolerations | nindent 8 }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
       {{- if .Values.services.ui.initContainers }}
       initContainers:
         {{- toYaml .Values.services.ui.initContainers | nindent 6 }}
@@ -85,6 +87,8 @@ spec:
           value: '--max-http-header-size={{ mul .Values.services.ui.maxHttpHeaderSizeKb 1024 }}'
         - name: NEXT_PUBLIC_OSMO_API_HOSTNAME
           value: {{ .Values.services.ui.apiHostname }}
+        - name: NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED
+          value: {{ .Values.services.ui.portForwardEnabled | quote }}
         - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
           value: {{ .Values.services.ui.nextjsSslEnabled | quote }}
         - name: DOCS_BASE_URL

@@ -14,11 +14,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
 
 osmo_py_library(
@@ -41,7 +40,7 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "backend_test_runner",
+    name = "backend_test_runner_binary",
     srcs = ["backend_test_runner.py"],
     main = "backend_test_runner.py",
     deps = [
@@ -49,39 +48,26 @@ osmo_py_binary(
     ],
 )
 
-run_binary(
-    name = "backend_test_runner_onedir",
-    args = [
-        "--name osmo-backend-test-runner",
-        "--main $(location :backend_test_runner.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--additional-hooks $(locations //src/operator/builder:extra_hooks)",
-    ],
-    out_dirs = ["osmo_backend_test_runner_onedir"],
-    tool = "//src/operator/builder:service_builder",
+py_image_layer(
+    name = "backend_test_runner_layer",
+    binary = ":backend_test_runner_binary",
+)
+
+osmo_python_wrapper(
+    name = "backend_test_runner_wrapper",
+    bin_name = "backend_test_runner",
+    main = "/src/operator/backend_test_runner/backend_test_runner.py",
+    runfiles_dir = "/src/operator/backend_test_runner/backend_test_runner_binary.runfiles",
+)
+
+filegroup(
+    name = "backend_test_runner_image_layers",
     srcs = [
-        ":backend_test_runner_lib",
-        "backend_test_runner.py",
-        "//src/lib/utils:version.yaml",
-        "//src/operator/builder:extra_hooks",
-    ]
+        ":backend_test_runner_layer_default",
+        ":backend_test_runner_layer_packages",
+        ":backend_test_runner_wrapper",
+    ],
 )
-
-pkg_tar(
-    name = "backend_test_runner_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_backend_test_runner_onedir": ".",
-    },
-    srcs = [":backend_test_runner_onedir"],
-    symlinks = {
-        "/usr/bin/backend_test_runner": "/osmo/osmo-backend-test-runner/osmo-backend-test-runner",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
-)
-
 
 ################
 #    x86_64    #
@@ -90,7 +76,9 @@ pkg_tar(
 oci_image(
     name = "backend_test_runner_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
-    tars = [":backend_test_runner_onedir_pkg"],
+    tars = [
+        ":backend_test_runner_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -127,7 +115,9 @@ oci_push(
 oci_image(
     name = "backend_test_runner_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
-    tars = [":backend_test_runner_onedir_pkg"],
+    tars = [
+        ":backend_test_runner_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:arm64",

@@ -190,8 +190,7 @@ This chart requires:
 - Access to NVIDIA container registry
 - OpenTelemetry collector (if OTEL is enabled)
 - Slack integration (if monitor Slack notifications enabled)
-- Volcano scheduler (if enabled)
-- KAI scheduler (if enabled)
+- KAI scheduler
 
 
 ## Notes
@@ -201,7 +200,6 @@ This chart requires:
   - **Backend Worker**: Processes backend tasks with resource management
 
 - Each component can be configured independently with custom resources and settings
-- Supports multiple scheduler plugins (Volcano, KAI, scheduler plugins)
 - Includes comprehensive mount monitoring with failure threshold configuration
 - Integrates with OpenTelemetry for observability
 - Configurable network egress controls for security

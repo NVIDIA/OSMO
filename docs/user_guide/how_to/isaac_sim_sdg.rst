@@ -88,7 +88,7 @@ This is the workflow file you will submit to generate synthetic data:
 Running the Workflow
 --------------------
 
-The workflow typically takes **15** minutes to run.
+The workflow typically takes **10** minutes to run on a NVIDIA RTX 5090 GPU.
 
 Once the workflow has completed, you can download the dataset by running:
 

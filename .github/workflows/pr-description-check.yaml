@@ -19,7 +19,7 @@ name: PR Description Check
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [main]
+    branches: [ main, 'feature/**' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -82,7 +82,7 @@ jobs:
           "
           else
             # Count checkbox items in the checklist
-            total_checkboxes=$(echo "$checklist_section" | grep -cE "^- \[[ x]\]" || true)
+            total_checkboxes=$(echo "$checklist_section" | grep -cE "^- \[[ xX]\]" || true)
             unchecked_items=$(echo "$checklist_section" | grep -cE "^- \[ \]" || true)
 
             if [ "$total_checkboxes" -eq 0 ]; then

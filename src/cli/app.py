@@ -433,6 +433,9 @@ def _delete_app(service_client: client.ServiceClient, args: argparse.Namespace):
             prompt_info = f'all versions in App {app_info.name}'
         elif app_info.version:
             prompt_info = f'app {app_info.name} version {app_info.version}'
+        else:
+            raise osmo_errors.OSMOUserError('Must specify a version or all_versions')
+
         confirm = common.prompt_user(f'Are you sure you want to delete {prompt_info}?')
         if not confirm:
             return

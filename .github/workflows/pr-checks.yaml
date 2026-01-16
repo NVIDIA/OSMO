@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [ main ]
+    branches: [ main, 'feature/**' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -204,11 +204,17 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           pip install -U -r docs/locked_requirements.txt
+          pip install -U -r src/locked_requirements.txt
 
       - name: Build Sphinx documentation
         if: github.event.action != 'closed'
         run: |
           make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
+          if [ -d "docs/build_error_logs" ] && [ "$(find docs/build_error_logs -name '*.log' -size +0c)" ]; then
+            echo "Build errors found:"
+            find docs/build_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
+            exit 1
+          fi
 
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@v1
@@ -216,38 +222,51 @@ jobs:
           source-dir: ./docs/public/
           preview-branch: gh-pages/documentation
 
-      - name: Run spelling and linkcheck
+      - name: Run spelling check
+        id: spelling
         if: github.event.action != 'closed'
+        continue-on-error: true
         run: |
           make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
-          make -C docs linkcheck ERR_DIR=linkcheck_error_logs OUT_DIR=public
-
-      - name: Check for build errors
-        if: github.event.action != 'closed'
-        run: |
-          has_spelling_errors=false
-          has_linkcheck_errors=false
-          has_build_errors=false
-          if [ -d "docs/build_error_logs" ] && [ "$(find docs/build_error_logs -name '*.log' -size +0c)" ]; then
-            echo "Build errors found:"
-            find docs/build_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
-            has_build_errors=true
-          fi
-          if [ -d "docs/linkcheck_error_logs" ] && [ "$(find docs/linkcheck_error_logs -name '*.log' -size +0c)" ]; then
-            echo "Linkcheck errors found:"
-            find docs/linkcheck_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
-            has_linkcheck_errors=true
-          fi
           if [ -d "docs/spelling_error_logs" ] && [ "$(find docs/spelling_error_logs -name '*.log' -size +0c)" ]; then
             echo "Spelling errors found:"
             find docs/spelling_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
-            has_spelling_errors=true
-          fi
-          if [ "$has_build_errors" = "true" ] || [ "$has_spelling_errors" = "true" ] || [ "$has_linkcheck_errors" = "true" ]; then
             exit 1
-          else
-            echo "Build completed successfully with no errors"
           fi
+
+      - name: Restore lychee cache
+        if: github.event.action != 'closed'
+        uses: actions/cache/restore@v4
+        with:
+          path: .lycheecache
+          key: cache-lychee-pr-${{ github.event.pull_request.number }}
+          restore-keys: cache-lychee-
+
+      - name: Link Checker
+        id: link-checker
+        if: github.event.action != 'closed'
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config docs/lychee.toml --no-progress '**/*.html' docs/public
+          output: docs/link_check_error_logs/lychee-report.md
+
+      - name: Save lychee cache
+        uses: actions/cache/save@v4
+        if: github.event.action != 'closed' && steps.link-checker.outcome == 'success'
+        with:
+          path: .lycheecache
+          key: cache-lychee-pr-${{ github.event.pull_request.number }}
+
+      - name: Check spelling and link results
+        if: github.event.action != 'closed'
+        run: |
+          if [ "${{ steps.spelling.outcome }}" == "failure" ] || [ "${{ steps.link-checker.outcome }}" == "failure" ]; then
+            echo "::error::One or more checks failed:"
+            [ "${{ steps.spelling.outcome }}" == "failure" ] && echo "  - Spelling check failed"
+            [ "${{ steps.link-checker.outcome }}" == "failure" ] && echo "  - Link check failed"
+            exit 1
+          fi
+          echo "All checks passed"
 
       - name: Upload build artifacts
         if: always() && github.event.action != 'closed'
@@ -258,67 +277,8 @@ jobs:
             docs/public/
             docs/build_error_logs/
             docs/spelling_error_logs/
-            docs/linkcheck_error_logs/
+            docs/link_check_error_logs/
           retention-days: 3
-
-  #######################
-  #      CI Docs        #
-  #######################
-  ci-docs:
-    needs: [check-paths]
-    if: |
-      (needs.check-paths.outputs.docs == 'true' && github.event.action != 'closed') ||
-      github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Free disk space
-        run: |
-          echo "Disk space before cleanup:"
-          df -h
-
-          echo "Freeing disk space..."
-          echo "Removing .NET..."
-          sudo rm -rf /usr/share/dotnet || true
-          echo "Removing Android..."
-          sudo rm -rf /usr/local/lib/android || true
-          echo "Removing GHC..."
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /usr/local/.ghcup || true
-          echo "Removing CodeQL..."
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          echo "Pruning Docker images..."
-          sudo docker image prune --all --force || true
-
-          echo "Disk space after cleanup:"
-          df -h
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
-        with:
-          bazelisk-cache: true
-          bazelisk-version: 1.27.0
-          disk-cache: ${{ github.workflow }}
-          repository-cache: true
-          external-cache: |
-            manifest:
-              # Python dependencies
-              osmo_python_deps: src/locked_requirements.txt
-              osmo_tests_python_deps: src/tests/locked_requirements.txt
-              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
-              pylint_python_deps: bzl/linting/locked_requirements.txt
-
-              # Go dependencies
-              io_bazel_rules_go: src/runtime/go.mod
-              bazel_gazelle: src/runtime/go.sum
-
-      - name: Run Build
-        run: |
-          bazel build --test_output=errors -- //docs/...
 
   #######################
   #      UI Build       #

@@ -21,68 +21,10 @@
 osmo config tag
 ===============
 
-Update tags for a config revision
-
-The ``osmo config tag`` command allows you to update tags for configuration revisions. Tags can be
-used for organizing configs by category and filtering output of ``osmo config history``. Tags do not
-affect the configuration itself.
-
-.. code-block::
-
-   osmo config tag [-h] config_type [--set SET [SET ...]] [--delete DELETE [DELETE ...]]
-
-   Available config types (CONFIG_TYPE): BACKEND, BACKEND_TEST, DATASET, POD_TEMPLATE, POOL, RESOURCE_VALIDATION, ROLE, SERVICE, WORKFLOW
-
-   Ex. osmo config tag BACKEND:5 --set foo --delete test-4 test-3
-   Ex. osmo config tag BACKEND --set current-tag
-
-Positional Arguments
-====================
-
-:kbd:`config_type`
-   Config to update tags for in format <CONFIG_TYPE>[:<revision>]
-
-
-Named Arguments
-===============
-
---set, -s
-   Tags to add to the config history entry
-
---delete, -d
-   Tags to remove from the config history entry
-
-Examples
-========
-
-View current tags for a revision:
-
-.. code-block:: bash
-
-    $ osmo config history BACKEND -r 5
-    Config Type   Name      Revision   Username            Created At               Description                    Tags
-    =============================================================================================================================
-    BACKEND       default   5          user@example.com    May 08, 2025 10:15 EDT   Set backend 'default' config   test-3, test-4
-
-Update tags by adding and removing:
-
-.. code-block:: bash
-
-    $ osmo config tag BACKEND:5 --set foo --delete test-4 test-3
-    Successfully updated tags for BACKEND:5
-
-Verify the updated tags:
-
-.. code-block:: bash
-
-    $ osmo config history BACKEND -r 5
-    Config Type   Name      Revision   Username            Created At               Description                    Tags
-    ===================================================================================================================
-    BACKEND       default   5          user@example.com    May 08, 2025 10:15 EDT   Set backend 'default' config   foo
-
-Update tags for current revision:
-
-.. code-block:: bash
-
-    $ osmo config tag BACKEND --set current-tag
-    Successfully updated tags for BACKEND
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: config tag
+   :ref-prefix: cli_reference_config_tag
+   :argument-anchor:

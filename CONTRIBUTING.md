@@ -2,19 +2,24 @@
 
 If you are interested in contributing to OSMO, your contributions will fall into three categories:
 
-1. You want to report a bug, feature request, or documentation issue
+1. **You want to report a bug or documentation issue**
    - File an [issue](https://github.com/NVIDIA/OSMO/issues/new/choose) describing what you
-     encountered or what you want to see changed.
-   - The OSMO team will evaluate the issues and triage them, scheduling them for a release. If you
-     believe the issue needs priority attention comment on the issue to notify the team.
-2. You want to propose a new Feature and implement it
-   - Post about your intended feature, and we shall discuss the design and implementation.
-   - Once we agree that the plan looks good, go ahead and implement it, using the
-     [code contributions](#code-contributions) guide below.
-3. You want to implement a feature or bug-fix for an
-   [outstanding issue](https://github.com/NVIDIA/OSMO/issues)
+     encountered.
+   - The OSMO team will evaluate the issue and triage it, scheduling it for a release. If you
+     believe the issue needs priority attention, comment on the issue to notify the team.
+2. **You want to fix a bug or documentation issue**
+   - Look for [outstanding issues](https://github.com/NVIDIA/OSMO/issues) that you can help fix.
    - Follow the [code contributions](#code-contributions) guide below.
    - If you need more context on a particular issue, please ask and we shall provide.
+3. **You want to propose a new feature and implement it**
+   - For small, localized changes, file an [issue](https://github.com/NVIDIA/OSMO/issues/new/choose)
+     describing your intended feature, and we shall discuss the design and implementation. Once we
+     agree that the plan looks good, implement it using the
+     [code contributions](#code-contributions) guide below.
+   - For significant changes (new projects, major features, cross-cutting changes, or architectural
+     decisions), use the [projects process](projects/README.md). Open a
+     [project proposal](https://github.com/NVIDIA/OSMO/issues/new?template=4-project-proposal.yml)
+     to discuss your idea with the OSMO team before starting implementation.
 
 ## Code Contributions
 

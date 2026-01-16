@@ -30,7 +30,9 @@ import pydantic
 from . import (
     backends,
     common,
+    constants,
     copying,
+    credentials,
     deleting,
     downloading,
     streaming,
@@ -40,11 +42,8 @@ from . import (
 )
 from .backends import common as backends_common
 from .core import executor, header
-from .. import constants
 from ...utils import (
     cache,
-    client_configs,
-    credentials,
     logging as logging_utils,
     osmo_errors,
     paths,
@@ -69,19 +68,6 @@ class OptionalParams(TypedDict, total=False):
 class Client(pydantic.BaseModel):
     """
     A storage client that can be used to perform data operations against a remote storage.
-
-    :param str storage_uri: The URI of the remote storage this client will operate against.
-    :param str | None metrics_dir: The path to the metrics output directory.
-    :param bool enable_progress_tracker: Whether to enable progress tracking.
-    :param int logging_level: The logging level for the storage client.
-    :param ExecutorParameters executor_params: The executor parameters for the storage client.
-    :param credentials.DataCredential | None data_credential: Remote storage data credentials.
-    :param cache.CacheConfig | None cache_config: Remote storage cache configuration.
-    :param Dict[str, str] | None headers: Headers to apply to all requests of this client.
-
-    .. note::
-        If no data credential is provided, the client will attempt to resolve it from the
-        file system.
     """
 
     class Config:
@@ -142,10 +128,13 @@ class Client(pydantic.BaseModel):
         Creates a new storage client from given parameters.
 
         .. important::
+
             Either storage_uri or storage_backend must be provided, not both.
 
         .. important::
-            If data_credential is not provided, it will be resolved from the file system.
+
+            If data_credential is not provided, it will be resolved from the host system
+            (i.e. file system, environment variables, etc.).
 
         :param str | None storage_uri: The storage URI to use for the client.
         :param backends_common.StorageBackend | None storage_backend: The storage backend to use for
@@ -250,26 +239,43 @@ class Client(pydantic.BaseModel):
         description='Headers to apply to all requests of this client.',
     )
 
+    @pydantic.root_validator(skip_on_failure=True)
+    @classmethod
+    def validate_data_credential_endpoint(cls, values):
+        """
+        Validates that the data credential endpoint matches the storage backend profile.
+        """
+        data_credential_input = values.get('data_credential_input')
+        if data_credential_input is not None:
+            storage_uri = values.get('storage_uri')
+            cache_config = values.get('cache_config')
+
+            # Construct backends to validate profiles match
+            data_cred_backend = backends.construct_storage_backend(
+                uri=data_credential_input.endpoint,
+                cache_config=cache_config,
+            )
+            storage_backend = backends.construct_storage_backend(
+                uri=storage_uri,
+                cache_config=cache_config,
+            )
+
+            if data_cred_backend.profile != storage_backend.profile:
+                raise osmo_errors.OSMOCredentialError(
+                    'Credential endpoint must match the storage backend profile')
+
+        return values
+
     @functools.cached_property
     def data_credential(self) -> credentials.DataCredential:
         """
         Resolves the data credential.
         """
-        # Validate data credential input if provided.
         if self.data_credential_input is not None:
-            # Validate that the data credential endpoint matches the storage backend profile.
-            data_cred_backend = backends.construct_storage_backend(
-                uri=self.data_credential_input.endpoint,
-                cache_config=self.cache_config,
-            )
-            if data_cred_backend.profile != self.storage_backend.profile:
-                raise osmo_errors.OSMOCredentialError(
-                    'Credential endpoint must match the storage backend profile')
+            return self.data_credential_input
 
-        return (
-            self.data_credential_input or
-            client_configs.get_credentials(self.storage_backend.profile)
-        )
+        # Resolve the data credential from the storage backend
+        return self.storage_backend.resolved_data_credential
 
     @functools.cached_property
     def storage_backend(self) -> backends_common.StorageBackend:
@@ -282,19 +288,6 @@ class Client(pydantic.BaseModel):
         return backends.construct_storage_backend(
             uri=self.storage_uri,
             cache_config=self.cache_config,
-        )
-
-    @functools.cached_property
-    def storage_auth(self) -> common.StorageAuth:
-        """
-        Storage backend authentication parameters.
-
-        :return: The storage authentication parameters
-        :rtype: common.StorageAuth
-        """
-        return common.StorageAuth(
-            user=self.data_credential.access_key_id,
-            key=self.data_credential.access_key.get_secret_value()
         )
 
     def _validate_remote_path(
@@ -485,9 +478,7 @@ class Client(pydantic.BaseModel):
             request_headers.append(header.UploadRequestHeaders(headers=extra_headers))
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=request_headers,
         )
 
@@ -544,6 +535,7 @@ class Client(pydantic.BaseModel):
         """
         Uploads data using UploadWorkerInput objects.
 
+        :meta private:
         :param List[UploadWorkerInput] | Generator[UploadWorkerInput, None, None] source:
             A list of UploadWorkerInput objects or a generator of UploadWorkerInput objects.
         :param Dict[str, str] | None extra_headers: Extra headers to add to the request.
@@ -590,9 +582,7 @@ class Client(pydantic.BaseModel):
             request_headers.append(header.UploadRequestHeaders(headers=extra_headers))
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=request_headers,
         )
 
@@ -724,9 +714,7 @@ class Client(pydantic.BaseModel):
             )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -874,9 +862,7 @@ class Client(pydantic.BaseModel):
             )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -929,6 +915,7 @@ class Client(pydantic.BaseModel):
         Downloads using DownloadWorkerInput objects. This is a low-level API where the
         caller is responsible for providing the DownloadWorkerInput objects.
 
+        :meta private:
         :param List[DownloadWorkerInput] | Generator[DownloadWorkerInput, None, None] source:
             The list or generator of download worker input objects.
 
@@ -964,9 +951,7 @@ class Client(pydantic.BaseModel):
         Downloads data using a list of DownloadWorkerInput objects.
         """
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1018,9 +1003,7 @@ class Client(pydantic.BaseModel):
         )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1106,9 +1089,7 @@ class Client(pydantic.BaseModel):
         validated_remote_path = self._validate_remote_path(remote_path)
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1198,9 +1179,7 @@ class Client(pydantic.BaseModel):
         )
 
         client_factory = self.storage_backend.client_factory(
-            access_key_id=self.storage_auth.user,
-            access_key=self.storage_auth.key,
-            region=self.data_credential.region,
+            data_cred=self.data_credential,
             request_headers=[
                 header.ClientHeaders(headers=self.headers),
             ] if self.headers else None,
@@ -1271,7 +1250,8 @@ class SingleObjectClient(pydantic.BaseModel):
             Either storage_uri or storage_backend must be provided, not both.
 
         .. important::
-            If data_credential is not provided, it will be resolved from the file system.
+            If data_credential is not provided, it will be resolved from the host system
+            (i.e. file system, environment variables, etc.).
 
         :param str | None storage_uri: The object URI to use for the client.
         :param backends_common.StorageBackend | None storage_backend: The object storage backend to

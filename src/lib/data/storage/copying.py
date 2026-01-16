@@ -104,6 +104,17 @@ class CopyWorkerInput(executor.ThreadWorkerInput):
 class CopySummary(common.TransferSummary):
     """
     Summary of a copy operation.
+
+    :ivar datetime.datetime start_time: The start time of the copy.
+    :ivar datetime.datetime end_time: The end time of the copy.
+    :ivar int retries: The number of retries that were made during the copy.
+    :ivar List[str] failures: A list of messages describing failed copies.
+    :ivar int size: The total size of the copied data.
+    :ivar int size_transferred: The total size of the copied data that was transferred
+                                (instead of skipped due to resumable copy).
+    :ivar int count: The total number of files that were copied.
+    :ivar int count_transferred: The total number of files that were transferred
+                                 (instead of skipped due to resumable copy).
     """
     pass
 

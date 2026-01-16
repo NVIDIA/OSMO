@@ -63,8 +63,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.global.imagePullSecret }}
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
       serviceAccountName: {{ .Values.services.service.serviceAccountName | default "default" }}
       {{- with .Values.services.service.initContainers }}
       initContainers:
@@ -78,8 +80,6 @@ spec:
         args:
         - --hostname
         - {{ .Values.services.service.hostname }}
-        - --webserver_enabled
-        - {{ .Values.services.service.webserverEnabled | quote }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
         - --postgres_port

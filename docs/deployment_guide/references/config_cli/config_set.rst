@@ -21,66 +21,10 @@
 osmo config set
 ===============
 
-Set a field into the config
-
-Currently, the only supported config type is ``ROLE`` and the only supported field type for ``ROLE``
-is ``backend`` and ``pool``.
-
-.. code-block::
-
-   osmo config set [-h] config_type name type [--field FIELD] [--description DESCRIPTION] [--tags TAGS [TAGS ...]]
-
-   Available config types (CONFIG_TYPE): ROLE
-
-   Ex. osmo config set ROLE my-backend-role backend --field name-of-backend
-   Ex. osmo config set ROLE osmo-<pool-name-prefix> pool
-
-Positional Arguments
-====================
-
-:kbd:`config_type`
-   Config type to set (CONFIG_TYPE)
-
-
-:kbd:`name`
-   Name of the role
-
-
-:kbd:`type`
-   Type of field
-
-
-Named Arguments
-===============
-
---field
-   Field name in context. For example, the backend to target.
-
---description
-   Optional description for the set action
-
---tags
-   Optional tags for the set action
-
-Examples
-========
-
-Creating a new pool role:
-
-.. code-block:: bash
-
-    $ osmo config set ROLE osmo-pool-name pool
-    Successfully set ROLE osmo-pool-name
-
-.. note::
-
-    The pool name **MUST** start with ``osmo-`` to be correctly recognized so that users
-    can see the pool in the UI and profile settings. This will be changed to be more flexible
-    in the future.
-
-Creating a new backend role:
-
-.. code-block:: bash
-
-    $ osmo config set ROLE my-backend-role backend --field name-of-backend
-    Successfully set ROLE my-backend-role
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: config set
+   :ref-prefix: cli_reference_config_set
+   :argument-anchor:

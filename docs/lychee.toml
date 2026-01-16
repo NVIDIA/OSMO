@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Lychee cache
+cache = true
+max_cache_age = "1d"
+
+# Use browser-like user agent to avoid being blocked by sites that reject bots
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Additional browser-like headers to avoid bot detection
+header.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+header."Accept-Language" = "en-US,en;q=0.5"
+
+# Throttling to avoid rate limiting and bot detection
+max_concurrency = 16           # Limit parallel requests (default is 128)
+max_requests_per_second = 8    # Rate limit requests per second
+
+# Timeout and retries
+timeout = 60
+max_retries = 5
+retry_wait_time = 10
+
+# Accept these status codes as valid
+accept = [200, 204, 301, 302]
+
+# Exclude patterns
+exclude = [
+    '^file://',
+    'docs\.openstack\.org',  # Blocks automated requests from CI
+    'localhost',
+    '\b(?:\d{1,3}\.){3}\d{1,3}\b', # IPv4 addresses
+    'osmo-example-url\.com',
+    'osmo\.example\.com',
+    'console\.volcengine\.com',
+    'console\.aws\.amazon\.com',
+    'github\.com/settings/tokens',
+    'charts.bitnami.com/bitnami$',
+    'helm.ngc.nvidia.com/nvidia/osmo$',
+    'svc.cluster.local/$',
+    '^http://osmo-service/',
+    '^https://integrate.api.nvidia.com/v1/chat/completions$',
+    '^https://auth/$',
+    '^https://token/$',
+    '^https://[^/:]+:[^@]+@',
+    '^http://quick-start.osmo/$',
+    '^http://[0-9a-f]+-[0-9a-f]+:',
+]
+
+# Exclude paths
+exclude_path = [
+    "_static",
+]
+
+# Don't check mail addresses
+include_mail = false

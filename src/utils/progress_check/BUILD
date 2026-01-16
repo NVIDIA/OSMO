@@ -14,13 +14,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 osmo_py_library(
-    name = "progress_check",
+    name = "progress_check_lib",
     srcs = [
         "progress.py",
         "progress_check.py",
@@ -33,40 +32,32 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "builder",
-    main = "builder.py",
-    srcs = ["builder.py"],
+    name = "progress_check_binary",
+    srcs = ["progress_check.py"],
+    main = "progress_check.py",
     deps = [
-        requirement("pyinstaller"),
-        ":progress_check",
+        ":progress_check_lib",
     ],
 )
 
-run_binary(
-    name = "progress_check_onedir",
-    args = [
-        "--name osmo-progress-check",
-        "--main $(location :progress_check.py)",
-        "--output_dir $(@D)",
-    ],
-    out_dirs = ["osmo_progress_check_onedir"],
-    tool = ":builder",
+py_image_layer(
+    name = "progress_check_layer",
+    binary = ":progress_check_binary",
+)
+
+osmo_python_wrapper(
+    name = "progress_check_wrapper",
+    bin_name = "progress_check",
+    main = "/src/utils/progress_check/progress_check.py",
+    runfiles_dir = "/src/utils/progress_check/progress_check_binary.runfiles",
+)
+
+filegroup(
+    name = "progress_check_image_layers",
     srcs = [
-        "progress_check.py",
-        ":progress_check",
+        ":progress_check_layer_default",
+        ":progress_check_layer_packages",
+        ":progress_check_wrapper",
     ],
-)
-
-pkg_tar(
-    name = "progress_check_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_progress_check_onedir": ".",
-    },
-    srcs = [":progress_check_onedir"],
-    symlinks = {
-        "/usr/bin/progress_check": "/osmo/osmo-progress-check/osmo-progress-check",
-    },
-    mode = "0755",
     visibility = ["//visibility:public"],
 )

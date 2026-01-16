@@ -28,22 +28,23 @@ load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 osmo_py_library(
     name = "cli_lib",
     srcs = [
+        "access_token.py",
         "app.py",
         "bucket.py",
+        "config.py",
+        "credential.py",
         "data.py",
         "dataset.py",
+        "editor.py",
+        "formatters.py",
         "login.py",
         "main_parser.py",
+        "pool.py",
+        "profile.py",
+        "resources.py",
+        "task.py",
         "version.py",
         "workflow.py",
-        "credential.py",
-        "resources.py",
-        "profile.py",
-        "pool.py",
-        "task.py",
-        "access_token.py",
-        "config.py",
-        "editor.py",
     ],
     deps = [
         requirement("ijson"),
@@ -59,20 +60,19 @@ osmo_py_library(
         "//src/lib/utils:client",
         "//src/lib/utils:client_configs",
         "//src/lib/utils:common",
+        "//src/lib/utils:config_history",
         "//src/lib/utils:credentials",
-        "//src/lib/utils:login",
         "//src/lib/utils:logging",
+        "//src/lib/utils:login",
         "//src/lib/utils:osmo_errors",
-        "//src/lib/utils:priority",
         "//src/lib/utils:paths",
         "//src/lib/utils:port_forward",
+        "//src/lib/utils:priority",
         "//src/lib/utils:role",
-        "//src/lib/utils:version",
         "//src/lib/utils:validation",
+        "//src/lib/utils:version",
         "//src/lib/utils:workflow",
-        "//src/lib/utils:config_history",
     ],
-    visibility = ["//visibility:public"],
 )
 
 osmo_py_binary(
@@ -84,7 +84,6 @@ osmo_py_binary(
     deps = [
         ":cli_lib",
     ],
-    visibility = ["//visibility:public"],
 )
 
 osmo_py_binary(
@@ -271,5 +270,4 @@ pkg_tar(
     symlinks = {
         "/usr/bin/osmo": "/osmo/osmo_cli_onedir/osmo/osmo",
     },
-    visibility = ["//visibility:public"],
 )

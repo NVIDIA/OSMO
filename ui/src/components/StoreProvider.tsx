@@ -14,7 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 "use client";
-import { createContext, type PropsWithChildren, useContext, useEffect, useState } from "react";
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useState } from "react";
 
 const APP_NAME = "osmo-ui";
 
@@ -24,6 +24,7 @@ export const TASK_PINNED_KEY = `${APP_NAME}-task-pinned`;
 export const POOL_PINNED_KEY = `${APP_NAME}-pool-pinned`;
 export const WORKFLOW_PINNED_KEY = `${APP_NAME}-workflow-pinned`;
 export const TABLE_PAGE_SIZE_KEY = `${APP_NAME}-table-page-size`;
+export const MAIN_MENU_PINNED_KEY = `${APP_NAME}-main-menu-pinned`;
 
 export enum UrlTypes {
   Workflows = "WORKFLOWS",
@@ -54,12 +55,12 @@ export const StoreProvider = ({ children }: PropsWithChildren) => {
   // Storing the context of the previous table state from inside the side-bar
   const [sidebarData, setSidebarData] = useState<StoreContextProps["sidebarData"]>(new Map());
 
-  const handleChangeSidebarData: StoreContextProps["handleChangeSidebarData"] = (
-    urlType: UrlTypes,
-    queryParams: string,
-  ) => {
-    setSidebarData((map) => new Map(map.set(urlType, queryParams)));
-  };
+  const handleChangeSidebarData: StoreContextProps["handleChangeSidebarData"] = useCallback(
+    (urlType: UrlTypes, queryParams: string) => {
+      setSidebarData((map) => new Map(map.set(urlType, queryParams)));
+    },
+    [],
+  );
 
   useEffect(() => {
     _setMounted(true);

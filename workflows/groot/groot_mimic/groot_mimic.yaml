@@ -16,6 +16,9 @@
 
 # To submit:
 # osmo workflow submit groot_mimic.yaml
+#
+# To use more demonstrations:
+# osmo workflow submit groot_mimic.yaml --set num_envs=10 num_trials=1000
 
 workflow:
   groups:
@@ -26,28 +29,37 @@ workflow:
       environment:
         ACCEPT_EULA: Y
         NO_NUCLEUS: Y
-        OMNI_KIT_ALLOW_ROOT: '1'
-        OMNI_SERVER: isaac-dev.ov.nvidia.com
       files:
-      - contents: |2-
-
+      - contents: |
           set -euxo pipefail
-          # Hide conflicting vulkan files, if needed
-          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
-            mv /usr/share/vulkan /usr/share/vulkan_hidden
-          fi
 
           mkdir -p ./datasets
-          curl -o ./datasets/annotated_dataset.hdf5 \
-            https://raw.githubusercontent.com/NVIDIA-Omniverse-blueprints/synthetic-manipulation-motion-generation/main/samples/annotated_dataset.hdf5
+          curl -o ./datasets/dataset.hdf5 \
+            https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5
+
+          # Generating Additional Demonstrations
+          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+            --device cpu --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto \
+            --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
 
           ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-            --device cpu --enable_cameras --headless --num_envs 1 --generation_num_trials 1 \
+            --device cpu --enable_cameras --headless --num_envs {{ num_envs }} --generation_num_trials {{ num_trials }} \
             --input_file ./datasets/annotated_dataset.hdf5 --output_file {{output}}/output/mimic/mimic_dataset_1k.hdf5 \
-            --task Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-Mimic-v0
+            --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0
+
+          apt install cmake build-essential -y
+          ./isaaclab.sh -i robomimic
+
+          # Training an Agent with the Generated Demonstrations
+          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+            --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc \
+            --dataset {{output}}/output/mimic/mimic_dataset_1k.hdf5 \
+            --epochs {{ num_epochs }}
+
+          cp -r logs/robomimic {{output}}/output/mimic
 
         path: /tmp/entry.sh
-      image: nvcr.io/nvidia/isaac-lab:2.2.0
+      image: nvcr.io/nvidia/isaac-lab:2.3.0
       name: mimic
       outputs:
       - dataset:
@@ -60,3 +72,8 @@ workflow:
       gpu: 1
       memory: 64Gi
       storage: 64Gi
+
+default-values:
+  num_envs: 1
+  num_trials: 10
+  num_epochs: 100

@@ -336,7 +336,6 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
                     'dataset_path': 's3://test-bucket/datasets',
                     'region': 'us-east-1',
                     'mode': 'read-write',
-                    'check_key': False,
                     'description': 'Test bucket for testing',
                 }
             }
@@ -452,9 +451,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             request=objects.PostBackendRequest(
                 configs=objects.BackendConfig(
                     scheduler_settings=connectors.BackendSchedulerSettings(
-                        scheduler_type=connectors.BackendSchedulerType.SCHEDULER_PLUGINS,
                         scheduler_name='test-scheduler',
-                        coscheduling=True,
                         scheduler_timeout=12,
                     ),
                 ),
@@ -471,9 +468,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             request=objects.PostBackendRequest(
                 configs=objects.BackendConfig(
                     scheduler_settings=connectors.BackendSchedulerSettings(
-                        scheduler_type=connectors.BackendSchedulerType.SCHEDULER_PLUGINS,
                         scheduler_name='test-scheduler-2',
-                        coscheduling=False,
                         scheduler_timeout=13,
                     ),
                 ),
@@ -493,11 +488,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=first_update_tags,
         )
         self.assertEqual(history['configs'][-2]['data']
-                         [0]['scheduler_settings']['scheduler_type'], 'scheduler-plugins')
-        self.assertEqual(history['configs'][-2]['data']
                          [0]['scheduler_settings']['scheduler_name'], 'test-scheduler')
-        self.assertEqual(history['configs'][-2]['data']
-                         [0]['scheduler_settings']['coscheduling'], True)
         self.assertEqual(history['configs'][-2]['data']
                          [0]['scheduler_settings']['scheduler_timeout'], 12)
         self._verify_history_entry(
@@ -508,11 +499,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=second_update_tags,
         )
         self.assertEqual(history['configs'][-1]['data']
-                         [0]['scheduler_settings']['scheduler_type'], 'scheduler-plugins')
-        self.assertEqual(history['configs'][-1]['data']
                          [0]['scheduler_settings']['scheduler_name'], 'test-scheduler-2')
-        self.assertEqual(history['configs'][-1]['data']
-                         [0]['scheduler_settings']['coscheduling'], False)
         self.assertEqual(history['configs'][-1]['data']
                          [0]['scheduler_settings']['scheduler_timeout'], 13)
 
@@ -538,11 +525,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=rollback_tags,
         )
         self.assertEqual(history['configs'][-1]['data'][0]
-                         ['scheduler_settings']['scheduler_type'], 'scheduler-plugins')
-        self.assertEqual(history['configs'][-1]['data'][0]
                          ['scheduler_settings']['scheduler_name'], 'test-scheduler')
-        self.assertEqual(history['configs'][-1]['data'][0]
-                         ['scheduler_settings']['coscheduling'], True)
         self.assertEqual(history['configs'][-1]['data'][0]
                          ['scheduler_settings']['scheduler_timeout'], 12)
 
@@ -1246,11 +1229,12 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         """Test the get_config_diff functionality with dataset buckets."""
         # Create initial dataset config with a bucket
         test_bucket = connectors.BucketConfig(
-            check_key=False,
             dataset_path='swift://test-endpoint/AUTH_test-team/dev/testuser/datasets',
-            default_credential=credentials.BasicDataCredential(
-                access_key='test-secret',
+            default_credential=credentials.StaticDataCredential(
+                access_key=pydantic.SecretStr('test-secret'),
                 access_key_id='testuser:AUTH_team-osmo',
+                endpoint='swift://test-endpoint/AUTH_test-team/',
+                region='us-east-1',
             ),
             description='My fancy dataset',
             mode='read-write',

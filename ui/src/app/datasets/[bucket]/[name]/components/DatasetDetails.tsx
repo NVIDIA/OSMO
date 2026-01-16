@@ -30,56 +30,65 @@ export const DatasetDetails = ({ dataset }: DatasetDetailsProps) => {
   const toolParamUpdater = useToolParamUpdater();
 
   return (
-    <div className="dag-details-body body-component h-auto">
-      <div className="text-center p-3 font-semibold brand-header">{dataset.name}</div>
-      <div className="h-full">
-        <dl className="p-3">
-          <dt>ID</dt>
-          <dd>{dataset.id}</dd>
-          <dt>Bucket</dt>
-          <dd>
-            <Link
-              key={dataset.bucket}
-              href={`/datasets/${dataset.bucket}`}
-              className="tag-container"
-            >
-              <Tag color={Colors.platform}>{dataset.bucket}</Tag>
-            </Link>
-          </dd>
-          {dataset.created_by && (
-            <>
-              <dt>Created By</dt>
-              <dd>{dataset.created_by}</dd>
-            </>
+    <section
+      aria-labelledby="dataset-details-title"
+      className="body-component shadow-xl"
+    >
+      <h2
+        id="dataset-details-title"
+        className="brand-header p-global"
+      >
+        {dataset.name}
+      </h2>
+      <dl
+        className="p-global grow"
+        aria-labelledby="dataset-details-title"
+      >
+        <dt>ID</dt>
+        <dd>{dataset.id}</dd>
+        <dt>Bucket</dt>
+        <dd>
+          <Link
+            key={dataset.bucket}
+            href={`/datasets/${dataset.bucket}`}
+            className="tag-container"
+          >
+            <Tag color={Colors.platform}>{dataset.bucket}</Tag>
+          </Link>
+        </dd>
+        {dataset.created_by && (
+          <>
+            <dt>Created By</dt>
+            <dd>{dataset.created_by}</dd>
+          </>
+        )}
+        <dt>Created Date</dt>
+        <dd>{convertToReadableTimezone(dataset.created_date)}</dd>
+        {dataset.hash_location_size && (
+          <>
+            <dt>Storage Size</dt>
+            <dd>{convertBytes(dataset.hash_location_size)}</dd>
+          </>
+        )}
+        <dt>Labels</dt>
+        <dd>
+          {Object.entries(dataset.labels).length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(dataset.labels).map(([key, value], index) => (
+                <Tag
+                  key={index}
+                  color={Colors.tag}
+                  className="min-h-6 break-all"
+                >
+                  {key}: {String(value)}
+                </Tag>
+              ))}
+            </div>
+          ) : (
+            <p>None</p>
           )}
-          <dt>Created Date</dt>
-          <dd>{convertToReadableTimezone(dataset.created_date)}</dd>
-          {dataset.hash_location_size && (
-            <>
-              <dt>Storage Size</dt>
-              <dd>{convertBytes(dataset.hash_location_size)}</dd>
-            </>
-          )}
-          <dt>Labels</dt>
-          <dd>
-            {Object.entries(dataset.labels).length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {Object.entries(dataset.labels).map(([key, value], index) => (
-                  <Tag
-                    key={index}
-                    color={Colors.tag}
-                    className="min-h-6 break-all"
-                  >
-                    {key}: {String(value)}
-                  </Tag>
-                ))}
-              </div>
-            ) : (
-              <p>None</p>
-            )}
-          </dd>
-        </dl>
-      </div>
+        </dd>
+      </dl>
       <div
         className={`dag-actions body-footer w-full`}
         role="list"
@@ -106,6 +115,6 @@ export const DatasetDetails = ({ dataset }: DatasetDetailsProps) => {
           Rename Dataset
         </button>
       </div>
-    </div>
+    </section>
   );
 };

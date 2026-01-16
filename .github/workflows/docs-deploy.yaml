@@ -20,8 +20,7 @@ name: Docs Deployment
 on:
   # Runs on pushes targeting the main branch
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'docs/**'
       - 'workflows/**'
@@ -54,6 +53,7 @@ jobs:
         run: |
           git fetch
           pip install -U -r docs/locked_requirements.txt
+          pip install -U -r src/locked_requirements.txt
 
       - name: Build Sphinx documentation
         run: |

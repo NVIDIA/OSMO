@@ -14,11 +14,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_py_test")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_py_test", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL")
 
 # Base library for test functionality
@@ -59,7 +58,7 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "resource_validator",
+    name = "resource_validator_binary",
     srcs = ["resource_validator.py"],
     main = "resource_validator.py",
     deps = [
@@ -67,40 +66,26 @@ osmo_py_binary(
     ],
 )
 
+py_image_layer(
+    name = "resource_validator_layer",
+    binary = ":resource_validator_binary",
+)
 
+osmo_python_wrapper(
+    name = "resource_validator_wrapper",
+    bin_name = "resource_validator",
+    main = "/src/operator/utils/node_validation_test/resource_validator.py",
+    runfiles_dir = "/src/operator/utils/node_validation_test/resource_validator_binary.runfiles",
+)
 
-run_binary(
-    name = "resource_validator_onedir",
-    args = [
-        "--name osmo-resource-validator",
-        "--main $(location :resource_validator.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-    ],
-    out_dirs = ["osmo_resource_validator_onedir"],
-    tool = "//src/operator/builder:service_builder",
+filegroup(
+    name = "resource_validator_image_layers",
     srcs = [
-        ":resource_validator_lib",
-        "resource_validator.py",
-        "//src/lib/utils:version.yaml",
-    ]
+        ":resource_validator_layer_default",
+        ":resource_validator_layer_packages",
+        ":resource_validator_wrapper",
+    ],
 )
-
-
-pkg_tar(
-    name = "resource_validator_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_resource_validator_onedir": ".",
-    },
-    srcs = [":resource_validator_onedir"],
-    symlinks = {
-        "/usr/bin/resource_validator": "/osmo/osmo-resource-validator/osmo-resource-validator",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
-)
-
 
 ################
 #    x86_64    #
@@ -109,7 +94,9 @@ pkg_tar(
 oci_image(
     name = "resource_validator_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
-    tars = [":resource_validator_onedir_pkg"],
+    tars = [
+        ":resource_validator_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -146,7 +133,9 @@ oci_push(
 oci_image(
     name = "resource_validator_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
-    tars = [":resource_validator_onedir_pkg"],
+    tars = [
+        ":resource_validator_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:arm64",
@@ -197,7 +186,7 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "lfs_validator",
+    name = "lfs_validator_binary",
     srcs = ["lfs_validator.py"],
     main = "lfs_validator.py",
     deps = [
@@ -205,38 +194,25 @@ osmo_py_binary(
     ],
 )
 
-
-
-run_binary(
-    name = "lfs_validator_onedir",
-    args = [
-        "--name osmo-lfs-validator",
-        "--main $(location :lfs_validator.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-    ],
-    out_dirs = ["osmo_lfs_validator_onedir"],
-    tool = "//src/operator/builder:service_builder",
-    srcs = [
-        ":lfs_validator_lib",
-        "lfs_validator.py",
-        "//src/lib/utils:version.yaml",
-    ]
+py_image_layer(
+    name = "lfs_validator_layer",
+    binary = ":lfs_validator_binary",
 )
 
+osmo_python_wrapper(
+    name = "lfs_validator_wrapper",
+    bin_name = "lfs_validator",
+    main = "/src/operator/utils/node_validation_test/lfs_validator.py",
+    runfiles_dir = "/src/operator/utils/node_validation_test/lfs_validator_binary.runfiles",
+)
 
-pkg_tar(
-    name = "lfs_validator_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_lfs_validator_onedir": ".",
-    },
-    srcs = [":lfs_validator_onedir"],
-    symlinks = {
-        "/usr/bin/lfs_validator": "/osmo/osmo-lfs-validator/osmo-lfs-validator",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
+filegroup(
+    name = "lfs_validator_image_layers",
+    srcs = [
+        ":lfs_validator_layer_default",
+        ":lfs_validator_layer_packages",
+        ":lfs_validator_wrapper",
+    ],
 )
 
 ################
@@ -246,7 +222,9 @@ pkg_tar(
 oci_image(
     name = "lfs_validator_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
-    tars = [":lfs_validator_onedir_pkg"],
+    tars = [
+        ":lfs_validator_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -283,7 +261,9 @@ oci_push(
 oci_image(
     name = "lfs_validator_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
-    tars = [":lfs_validator_onedir_pkg"],
+    tars = [
+        ":lfs_validator_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:arm64",
@@ -338,7 +318,7 @@ osmo_py_library(
 
 # connection validator binary
 osmo_py_binary(
-    name = "connection_validator",
+    name = "connection_validator_binary",
     srcs = ["connection_validator.py"],
     main = "connection_validator.py",
     deps = [
@@ -346,41 +326,26 @@ osmo_py_binary(
     ],
 )
 
+py_image_layer(
+    name = "connection_validator_layer",
+    binary = ":connection_validator_binary",
+)
 
-run_binary(
-    name = "connection_validator_onedir",
-    args = [
-        "--name osmo-connection-validator",
-        "--main $(location :connection_validator.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--add-data $(location :connection_validator.yaml):.",
-    ],
-    out_dirs = ["osmo_connection_validator_onedir"],
-    tool = "//src/operator/builder:service_builder",
+osmo_python_wrapper(
+    name = "connection_validator_wrapper",
+    bin_name = "connection_validator",
+    main = "/src/operator/utils/node_validation_test/connection_validator.py",
+    runfiles_dir = "/src/operator/utils/node_validation_test/connection_validator_binary.runfiles",
+)
+
+filegroup(
+    name = "connection_validator_image_layers",
     srcs = [
-        ":connection_validator_lib",
-        "//src/lib/utils:version.yaml",
-        ":connection_validator.yaml",
-        "connection_validator.py",
-    ]
+        ":connection_validator_layer_default",
+        ":connection_validator_layer_packages",
+        ":connection_validator_wrapper",
+    ],
 )
-
-
-pkg_tar(
-    name = "connection_validator_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_connection_validator_onedir": ".",
-    },
-    srcs = [":connection_validator_onedir"],
-    symlinks = {
-        "/usr/bin/connection_validator": "/osmo/osmo-connection-validator/osmo-connection-validator",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
-)
-
 
 ################
 #    x86_64    #
@@ -389,7 +354,9 @@ pkg_tar(
 oci_image(
     name = "connection_validator_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
-    tars = [":connection_validator_onedir_pkg"],
+    tars = [
+        ":connection_validator_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -426,7 +393,9 @@ oci_push(
 oci_image(
     name = "connection_validator_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
-    tars = [":connection_validator_onedir_pkg"],
+    tars = [
+        ":connection_validator_image_layers",
+    ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:arm64",

@@ -142,6 +142,7 @@ export const DatasetsFilter = ({
     setLocalDateRange(defaultDateRange);
     setLocalUserType(UserFilterType.ALL);
     setLocalDatasetType(undefined);
+    setErrors([]);
 
     toolParamUpdater({
       name: null,
@@ -157,7 +158,7 @@ export const DatasetsFilter = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-global p-global">
         <UserFilter
           userType={localUserType}
           setUserType={setLocalUserType}
@@ -167,7 +168,7 @@ export const DatasetsFilter = ({
         />
         <fieldset className="flex flex-col gap-1 mb-2">
           <legend>Type</legend>
-          <div className="flex flex-row gap-7">
+          <div className="flex flex-row gap-radios">
             <label className="flex items-center gap-1">
               <input
                 type="radio"
@@ -225,19 +226,17 @@ export const DatasetsFilter = ({
           toDate={localCreatedBefore}
           setFromDate={setLocalCreatedAfter}
           setToDate={setLocalCreatedBefore}
-          className="flex flex-col gap-3 mt-2"
+          className="flex flex-col gap-global mt-2"
         />
-        {errors.length > 0 && (
-          <InlineBanner status="error">
-            <div className="flex flex-col gap-2">
-              {errors.map((error, index) => (
-                <div key={index}>{error}</div>
-              ))}
-            </div>
-          </InlineBanner>
-        )}
       </div>
-      <div className="flex flex-row gap-3 justify-between body-footer p-3 sticky bottom-0">
+      <InlineBanner status={errors.length > 0 ? "error" : "none"}>
+        <div className="flex flex-col">
+          {errors.map((error, index) => (
+            <div key={index}>{error}</div>
+          ))}
+        </div>
+      </InlineBanner>
+      <div className="flex flex-row gap-global justify-between body-footer p-global sticky bottom-0">
         <button
           type="button"
           className="btn"

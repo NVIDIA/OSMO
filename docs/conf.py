@@ -19,6 +19,7 @@
 import sys
 from pathlib import Path
 
+
 # Add the directory containing conf.py to the path so custom extensions can be found
 # This is important for sphinx-multiversion which runs from temporary directories
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
@@ -45,17 +46,21 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
+    'sphinxarg.ext',
+    'sphinxcontrib.autodoc_pydantic',
     'sphinxcontrib.mermaid',
     'sphinxcontrib.spelling',
     'sphinx_reredirects',
 
     # Custom extensions
+    '_extensions.argparse_postprocess',
     '_extensions.auto_include',
     '_extensions.code_annotations',
     '_extensions.collapsible_code_block',
     '_extensions.domain_config',
     '_extensions.html_translator_mixin',
     '_extensions.markdown_translator',
+    '_extensions.module_aliasing',
 
     # Theme extension
     '_extensions.nvidia_theme_override',
@@ -87,12 +92,10 @@ linkcheck_ignore = [
     'https://console.volcengine.com*',
     'https://us-east-1.console.aws.amazon.com*'
 ]
-
 linkcheck_anchors = False
-
-linkcheck_timeout = 150
-
 linkcheck_report_timeouts_as_broken = False
+linkcheck_retries = 3
+linkcheck_timeout = 150
 
 # Copybutton
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
@@ -117,6 +120,7 @@ exclude_patterns = [
 
 suppress_warnings = [
     'toc.excluded',
+    'misc.highlighting_failure',
 ]
 
 # -- Options for HTML output -------------------------------------------------
@@ -143,7 +147,7 @@ html_theme_options = {
     "github_url": "https://github.com/NVIDIA/OSMO/",
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["versioning.html","theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["versioning.html", "theme-switcher", "navbar-icon-links"],
     "primary_sidebar_end": [],
 }
 
@@ -189,12 +193,7 @@ constants = {
     'data_prefix': 's3://'
 }
 
-rst_prolog = ''
-for key, value in constants.items():
-    rst_prolog += f'.. |{key}| replace:: {value}\n'
-
-# Custom badge roles
-rst_prolog += '''
+custom_rst_roles = '''
 .. role:: bdg-pending
    :class: badge bg-pending badge-pending
 
@@ -218,13 +217,37 @@ rst_prolog += '''
 
 '''
 
-# -- Options for Autodoc -------------------------------------------------
 
-autodoc_typehints = 'description'
-autodoc_member_order = 'bysource'
-autodoc_unqualified_typehints = True
-add_module_names = False
-autodoc_typehints_format = 'short'
+def build_rst_prolog():
+    prolog = ''
+    for key, value in constants.items():
+        prolog += f'.. |{key}| replace:: {value}\n'
+    prolog += custom_rst_roles
+    return prolog
+
+
+rst_prolog = build_rst_prolog()
+
+# -- Options for Autodoc --------------------------------------------------
+
+# Hide __init__ signature for classes (cleaner rendering for dataclasses)
+autodoc_class_signature = 'separated'
+autodoc_default_options = {
+    'exclude-members': '__init__, __new__, __repr__, __eq__, __hash__',
+}
+
+# -- Options for Autodoc Pydantic -----------------------------------------
+
+autodoc_pydantic_field_show_constraints = False
+autodoc_pydantic_dataclass_show_config_summary = False
+autodoc_pydantic_model_member_order = 'bysource'
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_signature_prefix = 'class'
+autodoc_pydantic_model_summary_list_order = 'bysource'
 
 # -- Options for Mermaid -------------------------------------------------
 

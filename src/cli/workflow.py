@@ -373,7 +373,15 @@ def setup_parser(parser: argparse._SubParsersAction):
     # Handle 'port-forward' command
     port_forward_parser = subparsers.add_parser('port-forward',
         help='Port-forward data from workflow to local machine.',
-        epilog='Ex. osmo workflow port-forward wf-1 sim-task --port 47995-48012,49000-49007 --udp')
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples
+========
+
+Forward UDP traffic from a task to your local machine::
+
+  osmo workflow port-forward wf-1 sim-task --port 47995-48012,49000-49007 --udp
+        ''')
     port_forward_parser.add_argument('workflow_id',
                                      help='The ID or UUID of the workflow to port forward from')
     port_forward_parser.add_argument('task',
@@ -409,16 +417,34 @@ def setup_parser(parser: argparse._SubParsersAction):
                     'automatically upload any changes to the remote task.\n\n'
                     '/osmo/run/workspace is always available as a remote path.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='examples:\n'
-               '  Upload to a task:\t\tosmo workflow rsync <workflow_id> <task_name> '
-               '<local_path>:<remote_path>\n'
-               '  Upload to lead task:\t\tosmo workflow rsync <workflow_id> '
-               '<local_path>:<remote_path>\n'
-               '  Run a single upload:\t\tosmo workflow rsync <workflow_id> '
-               '<local_path>:<remote_path> --once\n'
-               '  Get the status of daemons:\tosmo workflow rsync --status\n'
-               '  Stop all daemons:\t\tosmo workflow rsync --stop\n'
-               '  Stop a specific daemon:\tosmo workflow rsync <workflow_id> --stop')
+        epilog='''
+Examples
+========
+
+Upload to a task::
+
+    osmo workflow rsync <workflow_id> <task_name> <local_path>:<remote_path>
+
+Upload to lead task::
+
+    osmo workflow rsync <workflow_id> <local_path>:<remote_path>
+
+Run a single upload::
+
+    osmo workflow rsync <workflow_id> <local_path>:<remote_path> --once
+
+Get the status of daemons::
+
+    osmo workflow rsync --status
+
+Stop all daemons::
+
+    osmo workflow rsync --stop
+
+Stop a specific daemon::
+
+    osmo workflow rsync <workflow_id> --stop
+        ''')
     rsync_parser.add_argument('workflow_id',
                               nargs='?',
                               help='The ID or UUID of the workflow to rsync to/from')
@@ -639,15 +665,19 @@ def _submit_workflow(service_client: client.ServiceClient, args: argparse.Namesp
 def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.Namespace,
                            template_data: TemplateData, workflow_path: str,
                            params: Dict[str, Any]):
+    result = None
+
+    # Do a dry run if explicitly requested or if we need to expand templates
     if template_data.is_templated or args.dry:
         params['dry_run'] = True
         result = service_client.request(client.RequestMethod.POST, f'api/pool/{args.pool}/workflow',
                                         payload=template_data.to_dict(), params=params)
 
-    if args.dry:
-        print(f'{result["spec"]}')
-        return
-    else:
+        if args.dry:
+            print(f'{result["spec"]}')
+            return
+
+        # Not a dry run, so reset the flag for the actual submission
         params['dry_run'] = False
 
     if args.set_env:
@@ -656,6 +686,7 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
     if template_data.is_templated:
         # Copy the templated spec from 'file' to a new key
         template_data.uploaded_templated_spec = template_data.file
+        assert result is not None
         updated_workflow_dict = yaml.safe_load(result['spec'])
     else:
         updated_workflow_dict = yaml.safe_load(template_data.file)
@@ -1146,8 +1177,7 @@ def _upload_localpath_dataset_inputs(
 
             if 'version_id' in upload_results:
                 uploaded_version = upload_results['version_id']
-
-            if not uploaded_version:
+            else:
                 raise osmo_errors.OSMOSubmissionError(
                     'Failed to get version of localpath dataset upload!')
 

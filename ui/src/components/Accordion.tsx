@@ -41,7 +41,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({
 }): React.ReactNode => {
   return (
     <div className={`w-full ${className}`}>
-      <div className="flex flex-row gap-3 justify-between items-end w-full">
+      <div className="flex flex-row gap-global justify-between items-end w-full">
         {slotLeft}
         <button
           className={`btn btn-tertiary p-1 min-h-auto ${slotLeft ? "" : "w-full"} text-left flex justify-between items-center ${disabled ? "hidden" : ""}`}

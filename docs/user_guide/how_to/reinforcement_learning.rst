@@ -62,8 +62,6 @@ and use the training command directly.
       environment: # (1)
         ACCEPT_EULA: Y
         NO_NUCLEUS: Y
-        OMNI_KIT_ALLOW_ROOT: '1'
-        OMNI_SERVER: isaac-dev.ov.nvidia.com
       files:
       - contents: |2-
           set -euxo pipefail

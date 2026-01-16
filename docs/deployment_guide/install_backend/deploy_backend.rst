@@ -116,33 +116,7 @@ Deploy the backend operator:
      --version <insert-chart-version> \
      --namespace osmo-operator
 
-
-Step 4: Configure KAI Scheduler
-------------------------------------
-Install the KAI scheduler (see :ref:`installing_kai`), then configure it for the backend:
-
-.. code-block:: bash
-
-  $ cat << EOF > /tmp/scheduler_settings.json
-  {
-    "scheduler_settings": {
-      "scheduler_type": "kai",
-      "scheduler_name": "kai-scheduler",
-      "coscheduling": true,
-      "scheduler_timeout": 30
-    }
-  }
-  EOF
-
-  $ export BACKEND_NAME=default  #Update with your backend name
-  $ osmo config update BACKEND $BACKEND_NAME --file /tmp/scheduler_settings.json
-
-.. note::
-
-  See :ref:`scheduler` for detailed scheduler configuration options.
-
-
-Step 5: Validate Deployment
+Step 4: Validate Deployment
 ----------------------------
 
 Use the OSMO CLI to validate the backend configuration
@@ -175,7 +149,6 @@ Ensure the backend is online (see the highlighted line in the JSON output):
             "scheduler_settings": {
                 "scheduler_type": "kai",
                 "scheduler_name": "kai-scheduler",
-                "coscheduling": true,
                 "scheduler_timeout": 30
             },
             "node_conditions": {

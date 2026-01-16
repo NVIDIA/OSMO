@@ -23,16 +23,10 @@
 osmo version
 ================================================
 
-.. code-block::
-
-   usage: osmo version [-h] [--format-type {json,text}]
-
-Named Arguments
-===============
-
---format-type, -t
-   Possible choices: json, text
-
-   Specify the output format type (Default text).
-
-   Default: ``'text'``
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: version
+   :ref-prefix: cli_reference_version
+   :argument-anchor:

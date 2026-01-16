@@ -28,6 +28,7 @@ import redis.asyncio  # type: ignore
 
 from src.lib.data import storage
 from src.lib.utils import common, osmo_errors
+import src.lib.utils.logging
 from src.utils.job import common as job_common, workflow, task, task_io
 from src.utils import connectors
 
@@ -95,7 +96,7 @@ async def update_barrier(database, redis_client, workflow_id: str, group_name: s
     if count <= 0:
         count = task.TaskGroup.fetch_active_group_size(database, workflow_id, group_name)
 
-    logging.info('Add member %s from barrier %s', task_name, key)
+    logging.info('Add member %s to barrier %s', task_name, key)
     await redis_client.sadd(key, task_name)
     await redis_client.expire(key, total_timeout, nx=True)
     barrier_set = await redis_client.smembers(key)
@@ -124,111 +125,113 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
         workflow_obj = workflow.Workflow.fetch_from_db(database, name)
         group_name = task.Task.fetch_group_name(database, workflow_obj.workflow_id, task_name)
 
-        task_cred_values = task.TaskGroup.fetch_task_secrets(database,
-                                                             workflow_obj.workflow_id,
-                                                             task_name,
-                                                             workflow_obj.user,
-                                                             retry_id)
+        with src.lib.utils.logging.WorkflowLogContext(workflow_obj.workflow_uuid):
 
-        total_timeout = job_common.calculate_total_timeout(
-            workflow_obj.workflow_id,
-            workflow_obj.timeout.queue_timeout, workflow_obj.timeout.exec_timeout)
+            task_cred_values = task.TaskGroup.fetch_task_secrets(database,
+                                                                workflow_obj.workflow_id,
+                                                                task_name,
+                                                                workflow_obj.user,
+                                                                retry_id)
 
-        async with redis.asyncio.from_url(workflow_obj.logs) as redis_client:
-            # Continue receiving logs until connection is closed
-            async def get_logs(websocket):
-                first_run = True
-                last_heartbeat_check = datetime.datetime.now()
-                workflow_configs = database.get_workflow_configs()
-                heartbeat_freq_dt = datetime.timedelta(minutes=10)
-                try:
-                    heartbeat_freq_dt = \
-                        common.to_timedelta(workflow_configs.task_heartbeat_frequency)
-                except ValueError:
-                    logging.error('Task heartbeat frequency has invalid value %s',
-                                    workflow_configs.task_heartbeat_frequency)
-                while True:
-                    logs_json = await websocket.receive_json()
-                    loaded_json = {k.lower(): v for k, v in json.loads(logs_json).items()}
-                    io_type = connectors.IOType(loaded_json.get('iotype'))
-                    if io_type == connectors.IOType.METRICS:
-                        metrics_options = {
-                            loaded_json['metrictype']: loaded_json.get('metric')
-                        }
-                        try:
-                            update_metrics(
-                                workflow_obj.workflow_id,
-                                task_name,
-                                MetricsOptions(**metrics_options)
-                            )
-                        except Exception as e:  # pylint: disable=broad-except
-                            logging.error('Error updating metrics: %s', e)
-                            raise e
-                    elif io_type == connectors.IOType.LOG_DONE:
-                        await websocket.send_text(json.dumps({'action': 'log_done'}))
-                    elif io_type == connectors.IOType.BARRIER:
-                        await update_barrier(database, redis_client,
-                                            workflow_obj.workflow_id, group_name, task_name,
-                                            loaded_json.get('name'),  # type: ignore[arg-type]
-                                            loaded_json.get('count'),  # type: ignore[arg-type]
-                                            total_timeout)
-                    else:
-                        if io_type.workflow_logs() and (first_run or\
-                            datetime.datetime.now() - last_heartbeat_check > heartbeat_freq_dt):
-                            last_heartbeat_check = datetime.datetime.now()
-                            cmd = '''
-                                UPDATE tasks SET last_heartbeat = %s
-                                WHERE name = %s AND workflow_id = %s AND retry_id = %s;
-                            '''
-                            database.execute_commit_command(
-                                cmd, (last_heartbeat_check, task_name,
-                                      workflow_obj.workflow_id, retry_id))
-                        loaded_json['text'] = common.mask_string(loaded_json.get('text', ''),
-                                                                task_cred_values)
-                        logs = connectors.LogStreamBody(
-                            source=loaded_json['source'],
-                            retry_id=retry_id,
-                            time=loaded_json['time'],
-                            text=loaded_json['text'],
-                            io_type=loaded_json['iotype'])
-                        # Use logs.json() instead of logs.dict() to convert enum and datetime to
-                        # strings
-                        await redis_client.xadd(f'{workflow_obj.workflow_id}-logs',
-                                                json.loads(logs.json()),
-                                                maxlen=workflow_config.max_log_lines)
-                        await redis_client.xadd(
-                            common.get_redis_task_log_name(
-                                workflow_obj.workflow_id, task_name, retry_id),
-                            json.loads(logs.json()),
-                            maxlen=workflow_config.max_task_log_lines)
-                    # Set expiration on first log message
-                    if first_run:
-                        first_run = False
-                        await redis_client.expire(f'{workflow_obj.workflow_id}-logs',
-                                                connectors.MAX_LOG_TTL)
-                        await redis_client.expire(
-                            common.get_redis_task_log_name(
-                                workflow_obj.workflow_id, task_name, retry_id),
-                            connectors.MAX_LOG_TTL)
+            total_timeout = job_common.calculate_total_timeout(
+                workflow_obj.workflow_id,
+                workflow_obj.timeout.queue_timeout, workflow_obj.timeout.exec_timeout)
 
-            # If there is an action request (i.e. exec and port-forward), pull it from the queue
-            #  and relay that request to osmo-ctrl through this websocket connection
-            async def get_action(websocket: fastapi.WebSocket):
-                while True:
-                    queue_name = workflow.action_queue_name(
-                        workflow_obj.workflow_id, task_name, retry_id)
-                    _, key = await redis_client.brpop(queue_name)
-                    logging.info('Send action to task %s from queue: %s with key: %s',
-                                 task_name, queue_name, key)
-                    json_fields = await redis_client.get(key)
-                    await websocket.send_text(json_fields)
+            async with redis.asyncio.from_url(workflow_obj.logs) as redis_client:
+                # Continue receiving logs until connection is closed
+                async def get_logs(websocket):
+                    first_run = True
+                    last_heartbeat_check = datetime.datetime.now()
+                    workflow_configs = database.get_workflow_configs()
+                    heartbeat_freq_dt = datetime.timedelta(minutes=10)
+                    try:
+                        heartbeat_freq_dt = \
+                            common.to_timedelta(workflow_configs.task_heartbeat_frequency)
+                    except ValueError:
+                        logging.error('Task heartbeat frequency has invalid value %s',
+                                        workflow_configs.task_heartbeat_frequency)
+                    while True:
+                        logs_json = await websocket.receive_json()
+                        loaded_json = {k.lower(): v for k, v in json.loads(logs_json).items()}
+                        io_type = connectors.IOType(loaded_json.get('iotype'))
+                        if io_type == connectors.IOType.METRICS:
+                            metrics_options = {
+                                loaded_json['metrictype']: loaded_json.get('metric')
+                            }
+                            try:
+                                update_metrics(
+                                    workflow_obj.workflow_id,
+                                    task_name,
+                                    MetricsOptions(**metrics_options)
+                                )
+                            except Exception as e:  # pylint: disable=broad-except
+                                logging.error('Error updating metrics: %s', e)
+                                raise e
+                        elif io_type == connectors.IOType.LOG_DONE:
+                            await websocket.send_text(json.dumps({'action': 'log_done'}))
+                        elif io_type == connectors.IOType.BARRIER:
+                            await update_barrier(database, redis_client,
+                                                workflow_obj.workflow_id, group_name, task_name,
+                                                loaded_json.get('name'),  # type: ignore[arg-type]
+                                                loaded_json.get('count'),  # type: ignore[arg-type]
+                                                total_timeout)
+                        else:
+                            if io_type.workflow_logs() and (first_run or\
+                                datetime.datetime.now() - last_heartbeat_check > heartbeat_freq_dt):
+                                last_heartbeat_check = datetime.datetime.now()
+                                cmd = '''
+                                    UPDATE tasks SET last_heartbeat = %s
+                                    WHERE name = %s AND workflow_id = %s AND retry_id = %s;
+                                '''
+                                database.execute_commit_command(
+                                    cmd, (last_heartbeat_check, task_name,
+                                        workflow_obj.workflow_id, retry_id))
+                            loaded_json['text'] = common.mask_string(loaded_json.get('text', ''),
+                                                                    task_cred_values)
+                            logs = connectors.LogStreamBody(
+                                source=loaded_json['source'],
+                                retry_id=retry_id,
+                                time=loaded_json['time'],
+                                text=loaded_json['text'],
+                                io_type=loaded_json['iotype'])
+                            # Use logs.json() instead of logs.dict() to convert enum and datetime to
+                            # strings
+                            await redis_client.xadd(f'{workflow_obj.workflow_id}-logs',
+                                                    json.loads(logs.json()),
+                                                    maxlen=workflow_config.max_log_lines)
+                            await redis_client.xadd(
+                                common.get_redis_task_log_name(
+                                    workflow_obj.workflow_id, task_name, retry_id),
+                                json.loads(logs.json()),
+                                maxlen=workflow_config.max_task_log_lines)
+                        # Set expiration on first log message
+                        if first_run:
+                            first_run = False
+                            await redis_client.expire(f'{workflow_obj.workflow_id}-logs',
+                                                    connectors.MAX_LOG_TTL)
+                            await redis_client.expire(
+                                common.get_redis_task_log_name(
+                                    workflow_obj.workflow_id, task_name, retry_id),
+                                connectors.MAX_LOG_TTL)
 
-            loop = asyncio.get_event_loop()
-            tasks = [
-                    loop.create_task(get_logs(websocket)),
-                    loop.create_task(get_action(websocket))
-                ]
-            await common.gather_cancel(*tasks)
+                # If there is an action request (i.e. exec and port-forward), pull it from the queue
+                #  and relay that request to osmo-ctrl through this websocket connection
+                async def get_action(websocket: fastapi.WebSocket):
+                    while True:
+                        queue_name = workflow.action_queue_name(
+                            workflow_obj.workflow_id, task_name, retry_id)
+                        _, key = await redis_client.brpop(queue_name)
+                        logging.info('Send action to task %s from queue: %s with key: %s',
+                                    task_name, queue_name, key)
+                        json_fields = await redis_client.get(key)
+                        await websocket.send_text(json_fields)
+
+                loop = asyncio.get_event_loop()
+                tasks = [
+                        loop.create_task(get_logs(websocket)),
+                        loop.create_task(get_action(websocket))
+                    ]
+                await common.gather_cancel(*tasks)
 
     except osmo_errors.OSMODatabaseError as err:
         logging.info(

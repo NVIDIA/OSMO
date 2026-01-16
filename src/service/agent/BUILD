@@ -16,11 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library")
-load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
 osmo_py_library(
@@ -34,7 +33,7 @@ osmo_py_library(
         requirement("uvicorn"),
         "//src/utils:backend_messages",
         "//src/utils/metrics",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
         "//src/service/core/auth",
         "//src/service/core/config",
         "//src/service/core/workflow",
@@ -43,10 +42,31 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "agent_service",
+    name = "agent_service_binary",
     main = "agent_service.py",
     srcs = ["agent_service.py"],
     deps = [":agent_service_lib"],
+)
+
+py_image_layer(
+    name = "agent_service_layer",
+    binary = ":agent_service_binary",
+)
+
+osmo_python_wrapper(
+    name = "agent_service_wrapper",
+    bin_name = "agent_service",
+    main = "/src/service/agent/agent_service.py",
+    runfiles_dir = "/src/service/agent/agent_service_binary.runfiles",
+)
+
+filegroup(
+    name = "agent_service_image_layers",
+    srcs = [
+        ":agent_service_layer_default",
+        ":agent_service_layer_packages",
+        ":agent_service_wrapper",
+    ],
 )
 
 osmo_py_library(
@@ -69,45 +89,9 @@ osmo_py_library(
         "//src/utils/metrics",
         "//src/utils/job",
         "//src/utils/job:backend_job",
-        "//src/utils/progress_check",
+        "//src/utils/progress_check:progress_check_lib",
     ],
     visibility = ["//src/service:__subpackages__"],
-)
-
-
-run_binary(
-    name = "agent_service_onedir",
-    args = [
-        "--name osmo-agent-service",
-        "--main $(location :agent_service.py)",
-        "--output_dir $(@D)",
-        "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
-        "--additional-hooks $(locations //src/service/builder:extra_hooks)",
-        "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
-    ],
-    out_dirs = ["osmo_agent_service_onedir"],
-    tool = "//src/service/builder:service_builder",
-    srcs = [
-        ":agent_service_lib",
-        "agent_service.py",
-        "//src/service/builder:extra_hooks",
-        "//src/lib/data/storage:extra_hooks",
-        "//src/lib/utils:version.yaml",
-    ]
-)
-
-pkg_tar(
-    name = "agent_service_onedir_pkg",
-    extension = "tgz",
-    remap_paths = {
-        "/osmo_agent_service_onedir": ".",
-    },
-    srcs = [":agent_service_onedir"],
-    symlinks = {
-        "/usr/bin/agent_service": "/osmo/osmo-agent-service/osmo-agent-service",
-    },
-    mode = "0755",
-    visibility = ["//visibility:public"],
 )
 
 ################
@@ -118,8 +102,8 @@ oci_image(
     name = "agent_service_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
-        ":agent_service_onedir_pkg",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":agent_service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [
@@ -157,8 +141,8 @@ oci_image(
     name = "agent_service_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
-        ":agent_service_onedir_pkg",
-        "//src/utils/progress_check:progress_check_onedir_pkg",
+        ":agent_service_image_layers",
+        "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
     target_compatible_with = [

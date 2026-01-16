@@ -628,9 +628,17 @@ class UpdateGroup(WorkflowJob):
                                       current_task: task.Task, update_time: datetime.datetime
                                       ) -> task.TaskGroupStatus:
         current_task.update_status_to_db(update_time, self.status, self.message, self.exit_code)
-        if self.task_name and self.retry_id is not None:
-            updated_task = task.Task.fetch_from_db(
-                context.postgres, self.workflow_id, self.task_name, self.retry_id)
+
+        if not self.task_name or self.retry_id is None:
+            raise osmo_errors.OSMOError('Task name and retry id are required to update task status')
+
+        updated_task = task.Task.fetch_from_db(
+            context.postgres,
+            self.workflow_id,
+            self.task_name,
+            self.retry_id,
+        )
+
         return updated_task.status
 
     def _update_all_tasks(
@@ -1025,9 +1033,15 @@ class UpdateGroup(WorkflowJob):
         progress_writer.report_progress()
 
         # Get task spec and its index from group spec
+        spec = None
         for task_spec in group.spec.tasks:
             if task_obj.name == task_spec.name:
                 spec = task_spec
+                break
+
+        if spec is None:
+            raise osmo_errors.OSMOError(
+                f'Task {task_obj.name} is not found in group {group.name}.')
 
         # Create new database entry
         new_task = task_obj.create_new()
