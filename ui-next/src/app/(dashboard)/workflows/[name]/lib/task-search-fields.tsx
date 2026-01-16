@@ -17,7 +17,7 @@
 /**
  * Task Search Fields Configuration
  *
- * Defines search fields for task filtering using the canonical SmartSearch component.
+ * Defines search fields for task filtering using the canonical FilterBar component.
  * Includes:
  * - Field definitions with match functions
  * - Presets for quick status filtering
@@ -25,7 +25,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import type { SearchField, SearchPreset, SearchChip } from "@/components/smart-search";
+import type { SearchField, SearchPreset, SearchChip } from "@/components/filter-bar";
 import { STATE_CATEGORIES, STATE_CATEGORY_NAMES, STATUS_LABELS, type StateCategory } from "./status";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import type { TaskWithDuration } from "./workflow-types";
@@ -275,7 +275,7 @@ function matchTimeFilter(taskTime: number, filterValue: string): boolean {
 
 /**
  * Search field definitions for task filtering.
- * Compatible with the canonical SmartSearch component.
+ * Compatible with the canonical FilterBar component.
  */
 export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
   {
@@ -472,7 +472,7 @@ export function togglePreset(stateCategory: StateCategory, chips: SearchChip[]):
  * Each preset expands to individual status chips (e.g., "Failed" → FAILED, FAILED_CANCELED, etc.)
  *
  * Uses the `chips` property (not deprecated `chip`) to specify multiple status chips.
- * SmartSearch will add/remove all chips together, and the preset is active only when all are present.
+ * FilterBar will add/remove all chips together, and the preset is active only when all are present.
  */
 export const TASK_PRESETS: { label: string; items: SearchPreset[] }[] = [
   {

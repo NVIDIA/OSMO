@@ -61,7 +61,7 @@ export function WorkflowsPageContent() {
   const sortDirection = (sortState?.direction === "asc" ? "ASC" : "DESC") as "ASC" | "DESC";
 
   // ==========================================================================
-  // Data Fetching with SmartSearch filtering and pagination
+  // Data Fetching with FilterBar filtering and pagination
   // Data is hydrated from server prefetch - no loading spinner on initial load!
   // ==========================================================================
 
@@ -83,7 +83,7 @@ export function WorkflowsPageContent() {
     sortDirection,
   });
 
-  // Results count for SmartSearch display (consolidated hook)
+  // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
   // ==========================================================================

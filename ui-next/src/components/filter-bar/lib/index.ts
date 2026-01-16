@@ -17,7 +17,7 @@
  */
 
 /**
- * SmartSearch Library - Pure TypeScript, no React.
+ * FilterBar Library - Pure TypeScript, no React.
  *
  * This module contains types and pure functions that have NO React dependencies.
  * Can be used on server-side, in workers, or anywhere TypeScript runs.
@@ -32,7 +32,7 @@ export type {
   SearchChip,
   SearchPreset,
   PresetRenderProps,
-  SmartSearchProps,
+  FilterBarProps,
   Suggestion,
   ParsedInput,
   ResultsCount,

@@ -17,7 +17,7 @@
 /**
  * Workflows Toolbar
  *
- * Contains SmartSearch with filter chips and status presets.
+ * Contains FilterBar with filter chips and status presets.
  * Wraps the generic TableToolbar component.
  */
 
@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/shadcn/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type { SearchChip } from "@/stores";
-import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/smart-search";
+import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar";
 import { TableToolbar } from "@/components/data-table";
 import { useWorkflowsTableStore, useWorkflowsPreferencesStore } from "../stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/workflow-columns";

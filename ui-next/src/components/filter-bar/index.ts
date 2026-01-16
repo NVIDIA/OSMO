@@ -17,7 +17,7 @@
  */
 
 /**
- * SmartSearch - Intelligent search with chip-based filters.
+ * FilterBar - Intelligent search with chip-based filters.
  *
  * Built on cmdk (via shadcn/ui Command) for keyboard navigation,
  * fuzzy search, and accessibility.
@@ -33,7 +33,7 @@
  *   - use-suggestions.ts: Prefix parsing, suggestion generation
  *
  * UI Layer
- *   - smart-search.tsx: Main component using cmdk Command
+ *   - filter-bar.tsx: Main component using cmdk Command
  *   - components.tsx: ChipLabel, PresetContent
  *   - styles.ts: Shared styles for chips and inputs
  */
@@ -42,7 +42,7 @@
 // Main Component
 // ============================================================================
 
-export { SmartSearch } from "./smart-search";
+export { FilterBar } from "./filter-bar";
 
 // ============================================================================
 // Library (lib/) - Pure TypeScript, no React
@@ -55,7 +55,7 @@ export type {
   SearchChip,
   SearchPreset,
   PresetRenderProps,
-  SmartSearchProps,
+  FilterBarProps,
   Suggestion,
   ParsedInput,
   ResultsCount,

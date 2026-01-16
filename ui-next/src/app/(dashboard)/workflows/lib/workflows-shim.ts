@@ -40,7 +40,7 @@ import type { WorkflowListEntry } from "./workflow-search-fields";
 // =============================================================================
 
 export interface WorkflowFilterParams {
-  /** Search chips from SmartSearch */
+  /** Search chips from FilterBar */
   searchChips: SearchChip[];
   /** Show all users' workflows (default: false = current user only) */
   showAllUsers?: boolean;
