@@ -331,6 +331,30 @@
 }
 
 /* =============================================================================
+   Inactive/Disconnected State
+   ============================================================================= */
+
+.shell-container[data-connected="false"] {
+  /* Subtle border color change to indicate inactive */
+  border-color: #1f1f23;
+}
+
+.shell-container[data-connected="false"] .shell-body {
+  /* Slight desaturation for inactive terminal */
+  filter: saturate(0.7) brightness(0.85);
+}
+
+.shell-container[data-connected="false"] .shell-header {
+  /* Dim header when inactive */
+  opacity: 0.7;
+}
+
+/* Hide cursor completely when not connected */
+.shell-container[data-connected="false"] .xterm-cursor-layer {
+  opacity: 0 !important;
+}
+
+/* =============================================================================
    Animations
    ============================================================================= */
 

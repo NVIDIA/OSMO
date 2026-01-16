@@ -43,6 +43,7 @@ export type {
   ShellSession,
   PersistedSession,
   ShellTerminalProps,
+  ShellTerminalRef,
   ConnectionStatusProps,
   UseShellReturn,
   UseWebSocketShellReturn,
