@@ -15,10 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Shell Layout Constants
+ * Chrome Layout Constants
  *
  * Single source of truth for sidebar dimensions and animation timings.
- * Used by the shell, sidebar, and any consumers that need layout-aware calculations.
+ * Used by the chrome, sidebar, and any consumers that need layout-aware calculations.
  */
 
 // ============================================================================
@@ -66,7 +66,7 @@ export const SIDEBAR_CSS_VARS = {
  *
  * @example
  * ```tsx
- * import { SIDEBAR } from "@/components/shell";
+ * import { SIDEBAR } from "@/components/chrome";
  *
  * const mainAreaWidth = windowWidth - (isCollapsed ? SIDEBAR.COLLAPSED_PX : SIDEBAR.EXPANDED_PX);
  * ```

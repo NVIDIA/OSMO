@@ -34,7 +34,7 @@
 
 import { useMemo } from "react";
 import { InlineErrorBoundary } from "@/components/error";
-import { usePage } from "@/components/shell";
+import { usePage } from "@/components/chrome";
 import { useUrlChips, usePanelState, useResultsCount } from "@/hooks";
 import { PoolsDataTable } from "./components/table/pools-data-table";
 import { PoolPanelLayout } from "./components/panel/pool-panel";
