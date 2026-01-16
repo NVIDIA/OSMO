@@ -17,7 +17,7 @@
  */
 
 /**
- * Core filtering logic for SmartSearch chips.
+ * Core filtering logic for FilterBar chips.
  *
  * This is pure business logic - no UI, no React, just data transformation.
  * Could be used on server-side or in workers.

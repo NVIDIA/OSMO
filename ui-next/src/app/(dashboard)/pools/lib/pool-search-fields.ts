@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SearchField, ChipVariant } from "@/components/smart-search";
+import type { SearchField, ChipVariant } from "@/components/filter-bar";
 import type { Pool } from "@/lib/api/adapter";
 
 // ============================================================================

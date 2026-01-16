@@ -76,7 +76,7 @@ const STATUS_CATEGORY_TO_RAW: Record<string, string> = {
 
 /**
  * Filter parameters for pools.
- * These map to SmartSearch chip fields.
+ * These map to FilterBar chip fields.
  */
 export interface PoolFilterParams {
   /** Filter by status (online, maintenance, offline) */

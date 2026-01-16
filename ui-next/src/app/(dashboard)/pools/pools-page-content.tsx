@@ -66,7 +66,7 @@ export function PoolsPageContent() {
   const { searchChips, setSearchChips } = useUrlChips();
 
   // ==========================================================================
-  // Data Fetching with SmartSearch filtering
+  // Data Fetching with FilterBar filtering
   // Data is hydrated from server prefetch - no loading spinner on initial load!
   // TanStack Query will refetch in the background if data is stale.
   // ==========================================================================
@@ -84,7 +84,7 @@ export function PoolsPageContent() {
     [allPools, selectedPoolName],
   );
 
-  // Results count for SmartSearch display (consolidated hook)
+  // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
 
   // ==========================================================================

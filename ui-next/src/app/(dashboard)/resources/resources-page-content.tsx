@@ -23,7 +23,7 @@
  * Receives hydrated data from the server and handles all user interactions.
  *
  * Features:
- * - SmartSearch for filtering
+ * - FilterBar for filtering
  * - URL-synced panel state (?view=resource&config=pool)
  * - Resizable details panel
  * - Infinite scroll pagination
@@ -73,7 +73,7 @@ export function ResourcesPageContent() {
   const { searchChips, setSearchChips } = useUrlChips();
 
   // ==========================================================================
-  // Data Fetching with SmartSearch filtering
+  // Data Fetching with FilterBar filtering
   // Data is hydrated from server prefetch - no loading spinner on initial load!
   // ==========================================================================
 
@@ -93,7 +93,7 @@ export function ResourcesPageContent() {
   // Check if filters are active
   const hasActiveFilters = searchChips.length > 0;
 
-  // Results count for SmartSearch display (consolidated hook)
+  // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({
     total: totalCount ?? resources.length,
     filteredTotal: filteredCount ?? resources.length,
@@ -130,7 +130,7 @@ export function ResourcesPageContent() {
       onPoolSelect={setSelectedPoolConfig}
     >
       <div className="flex h-full flex-col gap-4 p-6">
-        {/* Toolbar with SmartSearch */}
+        {/* Toolbar with FilterBar */}
         <div className="shrink-0">
           <InlineErrorBoundary
             title="Toolbar error"

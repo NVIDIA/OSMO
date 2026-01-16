@@ -19,7 +19,7 @@
 /**
  * Chip-to-Filter Utilities
  *
- * Utilities for converting SmartSearch chips to filter parameters.
+ * Utilities for converting FilterBar chips to filter parameters.
  * Consolidates the chip conversion pattern used across data hooks.
  *
  * ## Design Decision
@@ -66,9 +66,9 @@ export type ChipMappingConfig<T> = Record<string, ChipFieldMapping<T>>;
 // =============================================================================
 
 /**
- * Convert SmartSearch chips to filter parameters using a mapping config.
+ * Convert FilterBar chips to filter parameters using a mapping config.
  *
- * @param chips - SmartSearch chips to convert
+ * @param chips - FilterBar chips to convert
  * @param mapping - Configuration mapping chip fields to param keys
  * @returns Filter parameters object
  *

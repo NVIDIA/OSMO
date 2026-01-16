@@ -15,16 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Workflow SmartSearch field definitions.
+ * Workflow FilterBar field definitions.
  *
  * Defines searchable fields for the workflow list page.
- * Used by SmartSearch component for autocomplete and filtering.
+ * Used by FilterBar component for autocomplete and filtering.
  *
  * NOTE: Filtering is done server-side. The `match` functions are stubs
  * since we pass filters directly to the backend API.
  */
 
-import type { SearchField, SearchChip } from "@/components/smart-search";
+import type { SearchField, SearchChip } from "@/components/filter-bar";
 import { WorkflowStatus, WorkflowPriority, type SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
 import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
 import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "./workflow-constants";
