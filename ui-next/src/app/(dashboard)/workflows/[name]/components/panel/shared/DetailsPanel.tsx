@@ -53,7 +53,7 @@ import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
-import { ShellActivityStrip, useShellNavigationGuard } from "@/components/terminal";
+import { ShellActivityStrip, useShellNavigationGuard } from "@/components/shell";
 
 // NOTE: We intentionally do NOT use a focus trap here.
 // This is a non-modal side panel (role="complementary"), not a dialog.
