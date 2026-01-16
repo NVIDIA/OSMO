@@ -47,32 +47,17 @@ export const metadata: Metadata = {
  */
 
 import { Suspense } from "react";
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchPools, shouldSkipServerPrefetch } from "@/lib/api/server";
 import { PoolsPageContent } from "./pools-page-content";
 import { PoolsPageSkeleton } from "./pools-page-skeleton";
 
 // =============================================================================
-// Server Component (Prefetch + Hydration)
+// Streaming SSR - Fast TTFB + Progressive Content
 // =============================================================================
 
-export default async function PoolsPage() {
-  // Create a new QueryClient for this request
-  const queryClient = new QueryClient();
-
-  // Skip server prefetching in mock mode during development for fast iteration
-  // Client-side MSW handles data fetching much faster than server-side
-  if (!shouldSkipServerPrefetch()) {
-    // Prefetch pools data on the server
-    // This populates the cache with ["pools", "all"] query
-    await prefetchPools(queryClient, { revalidate: 60 });
-  }
-
+export default function PoolsPage() {
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<PoolsPageSkeleton />}>
-        <PoolsPageContent />
-      </Suspense>
-    </HydrationBoundary>
+    <Suspense fallback={<PoolsPageSkeleton />}>
+      <PoolsPageContent />
+    </Suspense>
   );
 }

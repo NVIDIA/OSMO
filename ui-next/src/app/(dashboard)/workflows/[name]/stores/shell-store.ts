@@ -27,8 +27,8 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import type { ShellSession, ConnectionStatus, PersistedSession } from "@/components/terminal/types";
-import { TERMINAL_CONFIG } from "@/components/terminal/types";
+import type { ShellSession, ConnectionStatus, PersistedSession } from "@/components/shell/types";
+import { SHELL_CONFIG } from "@/components/shell/types";
 
 // =============================================================================
 // Storage Key
@@ -146,7 +146,7 @@ export const useShellStore = create<ShellStore>()(
       },
 
       // Actions
-      openSession: (workflowName, taskName, shell = TERMINAL_CONFIG.DEFAULT_SHELL) => {
+      openSession: (workflowName, taskName, shell = SHELL_CONFIG.DEFAULT_SHELL) => {
         const existing = get().sessions[taskName];
         if (existing) {
           return existing;

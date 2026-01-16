@@ -108,19 +108,6 @@ export interface ServerFetchOptions {
 export const DEFAULT_REVALIDATE = 60;
 
 /**
- * Check if we should skip server-side prefetching.
- *
- * In mock mode during development, server-side MSW + faker is VERY slow (10-20s).
- * By skipping server prefetching, pages render instantly with skeleton,
- * then client-side MSW fetches data quickly.
- *
- * This is a HUGE development iteration speed improvement.
- */
-export function shouldSkipServerPrefetch(): boolean {
-  return process.env.NEXT_PUBLIC_MOCK_API === "true" && process.env.NODE_ENV === "development";
-}
-
-/**
  * Revalidation time for expensive/slow queries (5 minutes).
  */
 export const EXPENSIVE_REVALIDATE = 300;

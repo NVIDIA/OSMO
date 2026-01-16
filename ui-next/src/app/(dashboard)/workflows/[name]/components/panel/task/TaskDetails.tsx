@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
 import { useCopy, useTick } from "@/hooks";
-import { ShellTerminal } from "@/components/terminal";
+import { ShellTerminal } from "@/components/shell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";

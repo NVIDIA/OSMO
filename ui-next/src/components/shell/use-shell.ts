@@ -7,10 +7,10 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * useTerminal Hook
+ * useShell Hook
  *
- * Manages xterm.js Terminal lifecycle including:
- * - Terminal initialization with WebGL addon
+ * Manages xterm.js instance lifecycle including:
+ * - Initialization with WebGL addon
  * - Fit addon for auto-resize
  * - Search addon for Ctrl+Shift+F
  * - Web links addon for clickable URLs
@@ -18,9 +18,9 @@
  *
  * Usage:
  * ```tsx
- * const { containerRef, terminal, isReady, fit } = useTerminal();
+ * const { containerRef, isReady, fit } = useShell();
  *
- * return <div ref={containerRef} className="terminal-body" />;
+ * return <div ref={containerRef} className="shell-body" />;
  * ```
  */
 
@@ -34,8 +34,8 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
-import { TERMINAL_THEME, TERMINAL_CONFIG } from "./types";
-import type { UseTerminalReturn } from "./types";
+import { SHELL_THEME, SHELL_CONFIG } from "./types";
+import type { UseShellReturn } from "./types";
 
 // Import xterm CSS
 import "@xterm/xterm/css/xterm.css";
@@ -44,16 +44,16 @@ import "@xterm/xterm/css/xterm.css";
 // Hook
 // =============================================================================
 
-export interface UseTerminalOptions {
-  /** Callback when terminal receives data from user input */
+export interface UseShellOptions {
+  /** Callback when shell receives data from user input */
   onData?: (data: string) => void;
-  /** Callback when terminal is resized */
+  /** Callback when shell is resized */
   onResize?: (cols: number, rows: number) => void;
   /** Callback when a link is clicked */
   onLinkClick?: (url: string) => void;
 }
 
-export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn {
+export function useShell(options: UseShellOptions = {}): UseShellReturn {
   const { onData, onResize, onLinkClick } = options;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -74,10 +74,10 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
           onResize(dimensions.cols, dimensions.rows);
         }
       } catch {
-        // Fit may fail if terminal is not visible
+        // Fit may fail if shell is not visible
       }
     }
-  }, TERMINAL_CONFIG.RESIZE_DEBOUNCE_MS);
+  }, SHELL_CONFIG.RESIZE_DEBOUNCE_MS);
 
   // Resize observer callback
   const handleResize = useCallback(() => {
@@ -90,20 +90,20 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
     onResize: handleResize,
   });
 
-  // Initialize terminal on mount
+  // Initialize xterm on mount
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Create terminal instance
+    // Create xterm instance
     const terminal = new Terminal({
       cursorBlink: true,
       cursorStyle: "block",
-      fontSize: TERMINAL_CONFIG.FONT_SIZE,
+      fontSize: SHELL_CONFIG.FONT_SIZE,
       fontFamily: 'var(--font-geist-mono), "SF Mono", Consolas, monospace',
       lineHeight: 1.5,
-      scrollback: TERMINAL_CONFIG.SCROLLBACK,
-      theme: TERMINAL_THEME,
+      scrollback: SHELL_CONFIG.SCROLLBACK,
+      theme: SHELL_THEME,
       allowProposedApi: true,
       screenReaderMode: true,
       rightClickSelectsWord: true,
@@ -141,7 +141,7 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
       webglAddonRef.current = webglAddon;
     } catch {
       // WebGL not available, canvas renderer is used automatically
-      console.debug("[Terminal] WebGL not available, using canvas renderer");
+      console.debug("[Shell] WebGL not available, using canvas renderer");
     }
 
     // Initial fit
@@ -176,17 +176,17 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
     };
   }, [onData, onLinkClick]);
 
-  // Focus the terminal
+  // Focus the shell
   const focus = useCallback(() => {
     terminalRef.current?.focus();
   }, []);
 
-  // Write data to terminal
+  // Write data to shell
   const write = useCallback((data: string | Uint8Array) => {
     terminalRef.current?.write(data);
   }, []);
 
-  // Clear terminal screen
+  // Clear shell screen
   const clear = useCallback(() => {
     terminalRef.current?.clear();
   }, []);
@@ -203,12 +203,12 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
     debouncedFit();
   }, [debouncedFit]);
 
-  // Get terminal instance (for use in effects only, not render)
+  // Get xterm instance (for use in effects only, not render)
   const getTerminal = useCallback(() => terminalRef.current, []);
 
   return {
     containerRef,
-    // Note: Direct terminal access is through getTerminal() in effects
+    // Note: Direct xterm access is through getTerminal() in effects
     // This avoids React's rule about not accessing refs during render
     terminal: null as Terminal | null,
     getTerminal,
@@ -222,15 +222,15 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
 }
 
 // =============================================================================
-// Search Hook (companion to useTerminal)
+// Search Hook (companion to useShell)
 // =============================================================================
 
-export interface UseTerminalSearchOptions {
-  /** The terminal instance from useTerminal */
+export interface UseShellSearchOptions {
+  /** The xterm instance from useShell */
   terminal: Terminal | null;
 }
 
-export interface UseTerminalSearchReturn {
+export interface UseShellSearchReturn {
   /** Current search query */
   query: string;
   /** Set search query */
@@ -244,14 +244,14 @@ export interface UseTerminalSearchReturn {
 }
 
 /**
- * Hook for terminal search functionality.
- * Must be used with a terminal that has the SearchAddon loaded.
+ * Hook for shell search functionality.
+ * Must be used with a shell that has the SearchAddon loaded.
  */
-export function useTerminalSearch(terminal: Terminal | null): UseTerminalSearchReturn {
+export function useShellSearch(terminal: Terminal | null): UseShellSearchReturn {
   const [query, setQuery] = useState("");
   const searchAddonRef = useRef<SearchAddon | null>(null);
 
-  // Get search addon from terminal
+  // Get search addon from xterm
   useEffect(() => {
     if (!terminal) {
       searchAddonRef.current = null;
@@ -260,7 +260,7 @@ export function useTerminalSearch(terminal: Terminal | null): UseTerminalSearchR
 
     // Create a new search addon if needed
     // Note: This assumes the terminal already has a SearchAddon loaded
-    // In practice, the addon is shared with useTerminal
+    // In practice, the addon is shared with useShell
     const addon = new SearchAddon();
     terminal.loadAddon(addon);
     searchAddonRef.current = addon;
