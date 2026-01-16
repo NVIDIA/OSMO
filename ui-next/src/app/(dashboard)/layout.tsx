@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { Shell } from "@/components/shell";
+import { Chrome } from "@/components/chrome";
 
 /**
  * Dashboard layout.
@@ -27,5 +27,5 @@ import { Shell } from "@/components/shell";
  * No manual ErrorBoundary wrapper needed!
  */
 export default function DashboardLayout(props: { children: React.ReactNode }) {
-  return <Shell>{props.children}</Shell>;
+  return <Chrome>{props.children}</Chrome>;
 }

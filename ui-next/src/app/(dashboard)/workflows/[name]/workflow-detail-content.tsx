@@ -74,7 +74,7 @@ import { ReactFlowProvider, Background, MiniMap, BackgroundVariant, PanOnScrollM
 
 import "@xyflow/react/dist/style.css";
 
-import { usePage, useSidebar, SIDEBAR } from "@/components/shell";
+import { usePage, useSidebar, SIDEBAR } from "@/components/chrome";
 import { InlineErrorBoundary } from "@/components/error";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { useEventCallback } from "usehooks-ts";
