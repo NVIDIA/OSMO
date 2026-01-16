@@ -25,7 +25,9 @@ import logging
 import math
 import os
 import re
+import time
 import typing
+from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Type
 from urllib.parse import urlparse
@@ -33,6 +35,7 @@ from urllib.parse import urlparse
 import fastapi
 import psycopg2  # type: ignore
 import psycopg2.extras  # type: ignore
+import psycopg2.pool  # type: ignore
 import pydantic
 import yaml
 from jwcrypto import jwe  # type: ignore
@@ -152,6 +155,21 @@ class PostgresConfig(pydantic.BaseModel):
         env='OSMO_POSTGRES_RECONNECT_RETRY',
         default=5,
         description='Reconnect try count after connection error')
+    pool_min_connections: int = pydantic.Field(
+        command_line='pool_min_connections',
+        env='OSMO_POOL_MIN_CONNECTIONS',
+        default=1,
+        description='Minimum number of connections in the pool')
+    pool_max_connections: int = pydantic.Field(
+        command_line='pool_max_connections',
+        env='OSMO_POOL_MAX_CONNECTIONS',
+        default=10,
+        description='Maximum number of connections in the pool')
+    pool_connection_timeout: float = pydantic.Field(
+        command_line='pool_connection_timeout',
+        env='OSMO_POOL_CONNECTION_TIMEOUT',
+        default=30.0,
+        description='Timeout in seconds to wait for a connection from the pool')
     mek_file: str = pydantic.Field(
         command_line='mek_file',
         env='OSMO_MEK_FILE',
@@ -184,7 +202,12 @@ class PostgresConfig(pydantic.BaseModel):
 
 
 def retry(func=None, *, reconnect: bool = True):
-    """ Retry connection in case of Interface error and try to complete request"""
+    """
+    Retry database operations in case of connection errors.
+
+    With connection pooling, retries work by getting a fresh connection from the pool.
+    The get_connection() context manager handles closing bad connections automatically.
+    """
     def decorator(fn):
         @wraps(fn)
         def retry_wrapper(*args, **kwargs):
@@ -194,10 +217,12 @@ def retry(func=None, *, reconnect: bool = True):
                 try:
                     return fn(*args, **kwargs)
                 except (psycopg2.InterfaceError, psycopg2.DatabaseError) as error:
-                    logging.error('Database error while reconnecting to database: %s', str(error))
+                    logging.error('Database error during operation: %s', str(error))
                     last_error = error
-                    if reconnect:
-                        self.connect()
+                    # With connection pooling, bad connections are automatically closed
+                    # by get_connection(). The next retry will get a fresh connection.
+                    if not reconnect:
+                        break
                 except osmo_errors.OSMOError as error:
                     raise error
                 except Exception as error:  # pylint: disable=broad-except
@@ -224,9 +249,11 @@ class PostgresConnector:
         return PostgresConnector._instance
 
     def connect(self):
-        """ connection to database"""
+        """ Initialize connection pool to database"""
         try:
-            self._conn = psycopg2.connect(
+            self._pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=self.config.pool_min_connections,
+                maxconn=self.config.pool_max_connections,
                 host=self.config.postgres_host,
                 port=self.config.postgres_port,
                 database=self.config.postgres_database_name,
@@ -234,8 +261,74 @@ class PostgresConnector:
                 password=self.config.postgres_password
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as error:
-            logging.error('Database Error while connecting: %s', str(error))
+            logging.error('Database Error while creating connection pool: %s', str(error))
             raise osmo_errors.OSMOConnectionError(str(error))
+
+    @contextmanager
+    def get_connection(self):
+        """
+        Context manager to get a connection from the pool.
+        Automatically returns the connection to the pool when done.
+        If an error occurs, the connection is closed and removed from the pool.
+
+        Handles pool exhaustion by retrying with exponential backoff up to
+        the configured timeout (pool_connection_timeout).
+
+        Raises:
+            OSMOConnectionError: If no connection is available within the timeout period.
+        """
+        conn = self._get_connection_with_retry()
+        try:
+            yield conn
+        except (psycopg2.DatabaseError, psycopg2.InterfaceError):
+            # Connection is bad, close it instead of returning to pool
+            self._pool.putconn(conn, close=True)
+            raise
+        else:
+            self._pool.putconn(conn)
+
+    def _get_connection_with_retry(self):
+        """
+        Attempt to get a connection from the pool with retry logic.
+
+        Uses exponential backoff starting at 0.1 seconds, doubling each retry,
+        up to the configured timeout.
+
+        Returns:
+            A database connection from the pool.
+
+        Raises:
+            OSMOConnectionError: If no connection becomes available within timeout.
+        """
+        timeout = self.config.pool_connection_timeout
+        start_time = time.time()
+        wait_time = 0.1  # Start with 100ms
+        max_wait_time = 2.0  # Cap individual waits at 2 seconds
+
+        while True:
+            try:
+                return self._pool.getconn()
+            except psycopg2.pool.PoolError:
+                elapsed = time.time() - start_time
+                remaining = timeout - elapsed
+
+                if remaining <= 0:
+                    raise osmo_errors.OSMOConnectionError(
+                        f'Connection pool exhausted. Could not acquire a connection '
+                        f'within {timeout} seconds. Consider increasing pool_max_connections '
+                        f'(currently {self.config.pool_max_connections}) or '
+                        f'pool_connection_timeout (currently {timeout}s).'
+                    )
+
+                # Wait with exponential backoff, but don't wait longer than remaining time
+                actual_wait = min(wait_time, remaining, max_wait_time)
+                logging.debug(
+                    'Connection pool exhausted, retrying in %.2f seconds '
+                    '(%.1f seconds remaining)',
+                    actual_wait, remaining
+                )
+                time.sleep(actual_wait)
+                wait_time = min(wait_time * 2, max_wait_time)  # Exponential backoff
 
     def __init__(self, config: PostgresConfig):
         if PostgresConnector._instance:
@@ -269,7 +362,7 @@ class PostgresConnector:
 
     def __del__(self):
         try:
-            self._conn.close()
+            self._pool.closeall()
         except Exception:  # pylint: disable=broad-except
             pass
 
@@ -295,38 +388,39 @@ class PostgresConnector:
         Returns:
             Any results from the command.
         """
-        cur = None
-        try:
-            cur = self._conn.cursor(
-                cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute(command, args)
-            # Create a pydantic instance from dictionary pairs
-            rows = cur.fetchall()
-            if not return_raw:
-                # Pydantic cannot deep copy memoryview object, so cast it to bytes object
-                rows = [
-                    pydantic.create_model(
-                        'DynamicModel', **{k: common.handle_memoryview(v) or \
-                                           (Any, common.handle_memoryview(v))
-                                           for k, v in row.items()})()  # type: ignore
-                    for row in rows]
-            cur.close()
-            self._conn.commit()
-            return rows
-        except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+        with self.get_connection() as conn:
+            cur = None
             try:
+                cur = conn.cursor(
+                    cursor_factory=psycopg2.extras.RealDictCursor)
+                cur.execute(command, args)
+                # Create a pydantic instance from dictionary pairs
+                rows = cur.fetchall()
+                if not return_raw:
+                    # Pydantic cannot deep copy memoryview object, so cast it to bytes object
+                    rows = [
+                        pydantic.create_model(
+                            'DynamicModel', **{k: common.handle_memoryview(v) or \
+                                               (Any, common.handle_memoryview(v))
+                                               for k, v in row.items()})()  # type: ignore
+                        for row in rows]
+                cur.close()
+                conn.commit()
+                return rows
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
+            except Exception as error:  # pylint: disable=broad-except
+                raise osmo_errors.OSMODatabaseError(
+                    f'Error during executing command {command}: {error}')
+            finally:
                 if cur is not None:
                     cur.close()
-                self._conn.rollback()
-            except Exception:  # pylint: disable=broad-except
-                pass
-            raise error
-        except Exception as error:  # pylint: disable=broad-except
-            raise osmo_errors.OSMODatabaseError(
-                f'Error during executing command {command}: {error}')
-        finally:
-            if cur is not None:
-                cur.close()
 
     @retry
     def execute_commit_command(self, command: str, args: Tuple):
@@ -340,26 +434,27 @@ class PostgresConnector:
         Raises:
             OSMODatabaseError: Error while executing the database command.
         """
-        cur = None
-        try:
-            cur = self._conn.cursor()
-            cur.execute(command, args)
-            cur.close()
-            self._conn.commit()
-        except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+        with self.get_connection() as conn:
+            cur = None
             try:
+                cur = conn.cursor()
+                cur.execute(command, args)
+                cur.close()
+                conn.commit()
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
+            except Exception as error:  # pylint: disable=broad-except
+                raise osmo_errors.OSMODatabaseError(
+                    f'Error during executing command {command}: {error}')
+            finally:
                 if cur is not None:
                     cur.close()
-                self._conn.rollback()
-            except Exception:  # pylint: disable=broad-except
-                pass
-            raise error
-        except Exception as error:  # pylint: disable=broad-except
-            raise osmo_errors.OSMODatabaseError(
-                f'Error during executing command {command}: {error}')
-        finally:
-            if cur is not None:
-                cur.close()
 
     @retry(reconnect=False)
     def execute_autocommit_command(self, command: str, args: Tuple):
@@ -415,16 +510,18 @@ class PostgresConnector:
         Raises:
             OSMODatabaseError: Error while executing the database command.
         """
-        cur = self._conn.cursor()
-        entry_length = len(entries[0])
-        for entry in entries:
-            if len(entry) != entry_length:
-                raise osmo_errors.OSMOSchemaError(
-                    'Mogrify: entries do not have the same number of elements!')
-        input_str = f'({", ".join(["%s"] * entry_length)})'
-        final_str = ', '.join(cur.mogrify(input_str, entry).decode('utf-8') for entry in entries)
-        cur.close()
-        return final_str
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            entry_length = len(entries[0])
+            for entry in entries:
+                if len(entry) != entry_length:
+                    raise osmo_errors.OSMOSchemaError(
+                        'Mogrify: entries do not have the same number of elements!')
+            input_str = f'({", ".join(["%s"] * entry_length)})'
+            final_str = ', '.join(cur.mogrify(input_str, entry).decode('utf-8')
+                                  for entry in entries)
+            cur.close()
+            return final_str
 
     def get_configs(self, config_type: ConfigType):
         """ Get all the config values. """
