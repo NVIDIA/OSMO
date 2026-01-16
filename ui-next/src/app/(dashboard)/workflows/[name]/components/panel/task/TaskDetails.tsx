@@ -19,19 +19,21 @@
  *
  * Content component for displaying task details within DetailsPanel.
  * Features:
+ * - Tabbed interface: Overview, Shell (for running tasks), Logs, Events
  * - Task information display
- * - Action buttons (logs, shell)
  * - Sibling task navigation within the same group
  * - Visual hierarchy matching GroupDetails
  */
 
 "use client";
 
-import { useMemo, useCallback, memo } from "react";
+import { useMemo, useCallback, memo, useState } from "react";
 import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
 import { useCopy, useTick } from "@/hooks";
+import { ShellTerminal } from "@/components/terminal";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
@@ -39,6 +41,12 @@ import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "../shared/DependencyPills";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type TaskTab = "overview" | "shell" | "logs" | "events";
 
 // ============================================================================
 // Copy Button Component
@@ -60,7 +68,175 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 }
 
 // ============================================================================
-// Component
+// Overview Tab Content
+// ============================================================================
+
+interface OverviewTabProps {
+  task: TaskDetailsProps["task"];
+  category: string;
+}
+
+const OverviewTab = memo(function OverviewTab({ task, category }: OverviewTabProps) {
+  return (
+    <div className="space-y-4">
+      {/* Exit status - special treatment at top when non-zero */}
+      {task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0 && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
+          <div className="flex items-start gap-2">
+            <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
+                Exit Code: {task.exit_code}
+              </div>
+              {task.failure_message && (
+                <p className="mt-1 text-xs break-words text-red-700 dark:text-red-400">{task.failure_message}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task details - Option D layout */}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
+        {/* Task UUID - first */}
+        <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
+        <dd className="flex min-w-0 items-center">
+          <span
+            className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
+            title={task.task_uuid}
+          >
+            {task.task_uuid}
+          </span>
+          <CopyButton
+            value={task.task_uuid}
+            label="Task UUID"
+          />
+        </dd>
+
+        {/* Node */}
+        {task.node_name && (
+          <>
+            <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
+            <dd className="flex min-w-0 items-center">
+              <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name}</span>
+              <CopyButton
+                value={task.node_name}
+                label="Node"
+              />
+            </dd>
+          </>
+        )}
+
+        {/* Pod */}
+        {task.pod_name && (
+          <>
+            <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
+            <dd className="flex min-w-0 items-center">
+              <span
+                className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
+                title={task.pod_name}
+              >
+                {task.pod_name}
+              </span>
+              <CopyButton
+                value={task.pod_name}
+                label="Pod"
+              />
+            </dd>
+          </>
+        )}
+
+        {/* Pod IP */}
+        {task.pod_ip && (
+          <>
+            <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
+            <dd className="flex min-w-0 items-center">
+              <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</span>
+              <CopyButton
+                value={task.pod_ip}
+                label="Pod IP"
+              />
+            </dd>
+          </>
+        )}
+
+        {/* Exit code - only show if success (0), failures shown above */}
+        {task.exit_code === 0 && (
+          <>
+            <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
+            <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">0</dd>
+          </>
+        )}
+      </dl>
+
+      {/* Actions */}
+      <div
+        className="flex gap-2"
+        role="group"
+        aria-label="Task actions"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
+          asChild
+        >
+          <a
+            href={task.logs}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View logs for ${task.name}`}
+          >
+            <FileText
+              className="mr-1.5 size-3.5"
+              aria-hidden="true"
+            />
+            View Logs
+          </a>
+        </Button>
+        {category === "running" && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
+            aria-label={`Open shell for ${task.name}`}
+            disabled
+          >
+            <Terminal
+              className="mr-1.5 size-3.5"
+              aria-hidden="true"
+            />
+            Shell
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// Shell Tab Content
+// ============================================================================
+
+interface ShellTabProps {
+  workflowName: string;
+  taskName: string;
+}
+
+const ShellTab = memo(function ShellTab({ workflowName, taskName }: ShellTabProps) {
+  return (
+    <div className="flex h-full min-h-[300px] flex-col">
+      <ShellTerminal
+        workflowName={workflowName}
+        taskName={taskName}
+        className="flex-1"
+      />
+    </div>
+  );
+});
+
+// ============================================================================
+// Main Component
 // ============================================================================
 
 interface TaskDetailsInternalProps extends TaskDetailsProps {
@@ -78,6 +254,7 @@ export const TaskDetails = memo(function TaskDetails({
   group,
   allGroups,
   task,
+  workflowName,
   onBackToGroup,
   onBackToWorkflow,
   onSelectTask,
@@ -89,6 +266,11 @@ export const TaskDetails = memo(function TaskDetails({
 }: TaskDetailsInternalProps) {
   const category = getStatusCategory(task.status);
   const style = getStatusStyle(task.status);
+  const isRunning = category === "running";
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TaskTab>("overview");
+
   // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
   const isStandaloneTask = tasks.length <= 1; // Single-task group
@@ -210,6 +392,14 @@ export const TaskDetails = memo(function TaskDetails({
     return segments;
   }, [onBackToWorkflow, onBackToGroup, isFromGroup, group.name]);
 
+  // Handle tab change
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value as TaskTab);
+    },
+    [setActiveTab],
+  );
+
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
       {/* Header - aligned with GroupDetails layout */}
@@ -228,139 +418,55 @@ export const TaskDetails = memo(function TaskDetails({
         onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Content */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-16">
-        {/* Exit status - special treatment at top when non-zero */}
-        {task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0 && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
-            <div className="flex items-start gap-2">
-              <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
-                  Exit Code: {task.exit_code}
-                </div>
-                {task.failure_message && (
-                  <p className="mt-1 text-xs break-words text-red-700 dark:text-red-400">{task.failure_message}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Task details - Option D layout */}
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
-          {/* Task UUID - first */}
-          <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
-          <dd className="flex min-w-0 items-center">
-            <span
-              className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-              title={task.task_uuid}
+      {/* Tab Navigation */}
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <div className="border-b border-gray-200 px-4 dark:border-zinc-800">
+          <TabsList className="h-9 w-full justify-start gap-1 bg-transparent p-0">
+            <TabsTrigger
+              value="overview"
+              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              {task.task_uuid}
-            </span>
-            <CopyButton
-              value={task.task_uuid}
-              label="Task UUID"
-            />
-          </dd>
-
-          {/* Node */}
-          {task.node_name && (
-            <>
-              <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
-              <dd className="flex min-w-0 items-center">
-                <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name}</span>
-                <CopyButton
-                  value={task.node_name}
-                  label="Node"
-                />
-              </dd>
-            </>
-          )}
-
-          {/* Pod */}
-          {task.pod_name && (
-            <>
-              <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
-              <dd className="flex min-w-0 items-center">
-                <span
-                  className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-                  title={task.pod_name}
-                >
-                  {task.pod_name}
-                </span>
-                <CopyButton
-                  value={task.pod_name}
-                  label="Pod"
-                />
-              </dd>
-            </>
-          )}
-
-          {/* Pod IP */}
-          {task.pod_ip && (
-            <>
-              <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
-              <dd className="flex min-w-0 items-center">
-                <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</span>
-                <CopyButton
-                  value={task.pod_ip}
-                  label="Pod IP"
-                />
-              </dd>
-            </>
-          )}
-
-          {/* Exit code - only show if success (0), failures shown above */}
-          {task.exit_code === 0 && (
-            <>
-              <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
-              <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">0</dd>
-            </>
-          )}
-        </dl>
-
-        {/* Actions */}
-        <div
-          className="flex gap-2"
-          role="group"
-          aria-label="Task actions"
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
-            asChild
-          >
-            <a
-              href={task.logs}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`View logs for ${task.name}`}
-            >
-              <FileText
-                className="mr-1.5 size-3.5"
-                aria-hidden="true"
-              />
-              View Logs
-            </a>
-          </Button>
-          {category === "running" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
-              aria-label={`Open shell for ${task.name}`}
-            >
-              <Terminal
-                className="mr-1.5 size-3.5"
-                aria-hidden="true"
-              />
-              Shell
-            </Button>
-          )}
+              Overview
+            </TabsTrigger>
+            {isRunning && workflowName && (
+              <TabsTrigger
+                value="shell"
+                className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              >
+                <Terminal className="mr-1.5 size-3" />
+                Shell
+              </TabsTrigger>
+            )}
+          </TabsList>
         </div>
-      </div>
+
+        {/* Tab Content */}
+        <TabsContent
+          value="overview"
+          className="mt-0 flex-1 overflow-y-auto p-4 pb-16"
+        >
+          <OverviewTab
+            task={task}
+            category={category}
+          />
+        </TabsContent>
+
+        {isRunning && workflowName && (
+          <TabsContent
+            value="shell"
+            className="mt-0 flex-1 overflow-hidden p-4"
+          >
+            <ShellTab
+              workflowName={workflowName}
+              taskName={task.name}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 });
