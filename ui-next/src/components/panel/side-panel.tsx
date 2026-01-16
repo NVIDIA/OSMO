@@ -49,13 +49,13 @@
 
 "use client";
 
-import { useRef, useMemo, useEffect, type RefObject } from "react";
+import { useRef, useMemo, useEffect, useCallback, type RefObject } from "react";
 import { useBoolean } from "usehooks-ts";
 import { useDrag } from "@use-gesture/react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { ChevronLeft } from "lucide-react";
 import { cn, isInteractiveTarget } from "@/lib/utils";
-import { useIsomorphicLayoutEffect } from "@react-hookz/web";
+import { useIsomorphicLayoutEffect, usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
@@ -228,6 +228,63 @@ export function SidePanel({
     onDraggingChange?.(isDragging);
   }, [isDragging, onDraggingChange]);
 
+  // Refs for focus management
+  const panelContentRef = useRef<HTMLDivElement>(null);
+  const collapsedContentRef = useRef<HTMLDivElement>(null);
+
+  // Track collapsed state to detect transitions
+  const prevCollapsed = usePrevious(isCollapsed);
+
+  // Pending focus targets (set when transition starts, cleared when it ends)
+  const pendingFocusRef = useRef<"collapsed" | "expanded" | null>(null);
+
+  // Mark pending focus when collapse state changes
+  useEffect(() => {
+    const justExpanded = prevCollapsed === true && isCollapsed === false;
+    const justCollapsed = prevCollapsed === false && isCollapsed === true;
+
+    if (justExpanded) {
+      pendingFocusRef.current = "expanded";
+    } else if (justCollapsed) {
+      pendingFocusRef.current = "collapsed";
+    }
+  }, [isCollapsed, prevCollapsed]);
+
+  // Focus selector for finding focusable elements
+  const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+  // Handle transition end on collapsed content wrapper
+  const handleCollapsedTransitionEnd = useCallback(
+    (e: React.TransitionEvent) => {
+      // Only handle opacity transitions on this container (not bubbled from children)
+      if (e.propertyName !== "opacity" || e.target !== collapsedContentRef.current) return;
+
+      // Focus first element in collapsed strip when collapsing completes
+      if (pendingFocusRef.current === "collapsed" && collapsedContentRef.current) {
+        pendingFocusRef.current = null;
+        const firstFocusable = collapsedContentRef.current.querySelector<HTMLElement>(focusableSelector);
+        firstFocusable?.focus();
+      }
+    },
+    [focusableSelector],
+  );
+
+  // Handle transition end on panel content wrapper
+  const handlePanelTransitionEnd = useCallback(
+    (e: React.TransitionEvent) => {
+      // Only handle opacity transitions on this container (not bubbled from children)
+      if (e.propertyName !== "opacity" || e.target !== panelContentRef.current) return;
+
+      // Focus first element in panel when expanding completes
+      if (pendingFocusRef.current === "expanded" && panelContentRef.current) {
+        pendingFocusRef.current = null;
+        const firstFocusable = panelContentRef.current.querySelector<HTMLElement>(focusableSelector);
+        firstFocusable?.focus();
+      }
+    },
+    [focusableSelector],
+  );
+
   // Calculate panel width based on collapsed state
   const panelWidth = isCollapsed
     ? typeof collapsedWidth === "number"
@@ -287,23 +344,33 @@ export function SidePanel({
       )}
 
       {/* Collapsed content */}
+      {/* Use inert to fully disable keyboard navigation and close tooltips when expanded */}
       {effectiveCollapsedContent && (
         <div
+          ref={collapsedContentRef}
           className={cn(
             "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
             isCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
           )}
+          // inert removes from tab order and accessibility tree when panel is expanded
+          inert={!isCollapsed ? true : undefined}
+          onTransitionEnd={handleCollapsedTransitionEnd}
         >
           {effectiveCollapsedContent}
         </div>
       )}
 
       {/* Panel content */}
+      {/* Use inert to fully disable keyboard navigation when panel is collapsed */}
       <div
+        ref={panelContentRef}
         className={cn(
           "flex h-full w-full min-w-0 flex-col overflow-hidden transition-opacity duration-200 ease-out",
           isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
         )}
+        // inert removes from tab order and accessibility tree when panel is collapsed
+        inert={isCollapsed ? true : undefined}
+        onTransitionEnd={handlePanelTransitionEnd}
       >
         {children}
       </div>
