@@ -41,16 +41,35 @@ export interface MockTaskDetail {
   group_name: string;
   status: TaskGroupStatus;
   retry_id: number;
+  lead?: boolean;
 
-  // Timing
+  // Identifiers
+  task_uuid: string;
+  pod_name: string;
+  pod_ip?: string;
+  node_name?: string;
+
+  // Timeline timestamps
+  scheduling_start_time?: string;
+  initializing_start_time?: string;
+  input_download_start_time?: string;
+  input_download_end_time?: string;
+  processing_start_time?: string;
   start_time?: string;
+  output_upload_start_time?: string;
   end_time?: string;
   duration?: number;
 
-  // Node info
-  node?: string;
-  pod_name?: string;
-  pod_ip?: string;
+  // Status
+  exit_code?: number;
+  failure_message?: string;
+
+  // URLs
+  logs: string;
+  error_logs?: string;
+  events: string;
+  dashboard_url?: string;
+  grafana_url?: string;
 
   // Resources
   gpu: number;
@@ -63,14 +82,6 @@ export interface MockTaskDetail {
   command: string[];
   args: string[];
   env: Record<string, string>;
-
-  // Exit info
-  exit_code?: number;
-  failure_reason?: string;
-
-  // URLs
-  logs_url: string;
-  events_url: string;
 }
 
 // ============================================================================
@@ -111,17 +122,55 @@ export class TaskGenerator {
     const memory = cpu * 4; // 4GB per CPU
     const storage = faker.helpers.arrayElement([10, 50, 100, 200]);
 
+    // Determine lifecycle phase
     const notStartedStatuses: TaskGroupStatus[] = [
       TaskGroupStatus.WAITING,
       TaskGroupStatus.SUBMITTING,
       TaskGroupStatus.SCHEDULING,
     ];
+    const isScheduling = status === TaskGroupStatus.SCHEDULING;
+    const isInitializing = status === TaskGroupStatus.INITIALIZING;
     const started = !notStartedStatuses.includes(status);
+    const isRunning = status === TaskGroupStatus.RUNNING;
     const completed = status === TaskGroupStatus.COMPLETED || status.toString().startsWith("FAILED");
+    const isFailed = status.toString().startsWith("FAILED");
 
-    const startTime = started ? faker.date.recent({ days: 7 }) : undefined;
+    // Generate task UUID
+    const taskUuid = faker.string.uuid();
+
+    // Generate pod name
+    const podSuffix = faker.string.alphanumeric({ length: 5, casing: "lower" });
+    const podName = `${workflowName.slice(0, 20)}-${taskName}-${podSuffix}`;
+
+    // Generate timeline timestamps based on status
+    const baseTime = started ? faker.date.recent({ days: 7 }) : new Date();
+
+    // Scheduling start - set for any task that has started scheduling
+    const schedulingStartTime =
+      isScheduling || isInitializing || started ? new Date(baseTime.getTime() - 120000).toISOString() : undefined;
+
+    // Initializing start - set when past scheduling
+    const initializingStartTime =
+      isInitializing || started ? new Date(baseTime.getTime() - 60000).toISOString() : undefined;
+
+    // Input download times - set when running or completed
+    const inputDownloadStartTime = started ? new Date(baseTime.getTime() - 30000).toISOString() : undefined;
+    const inputDownloadEndTime = started ? new Date(baseTime.getTime() - 20000).toISOString() : undefined;
+
+    // Processing start time
+    const processingStartTime = started ? new Date(baseTime.getTime() - 15000).toISOString() : undefined;
+
+    // Start time (when task actually begins execution)
+    const startTime = started ? baseTime.toISOString() : undefined;
+
+    // Duration for completed tasks
     const duration = completed ? faker.number.int(this.config.patterns.timing.duration) : undefined;
-    const endTime = startTime && duration ? new Date(startTime.getTime() + duration * 1000) : undefined;
+
+    // Output upload start - only for completed tasks
+    const outputUploadStartTime = completed ? new Date(baseTime.getTime() + 3600000).toISOString() : undefined;
+
+    // End time - only for completed tasks
+    const endTime = completed ? new Date(baseTime.getTime() + 3660000).toISOString() : undefined;
 
     const command = faker.helpers.arrayElement(this.config.patterns.commands.examples);
 
@@ -131,22 +180,46 @@ export class TaskGenerator {
       group_name: groupName || "main",
       status,
       retry_id: faker.datatype.boolean({ probability: 0.1 }) ? faker.number.int({ min: 1, max: 3 }) : 0,
+      lead: faker.datatype.boolean({ probability: 0.3 }), // 30% chance of being lead
 
-      start_time: startTime?.toISOString(),
-      end_time: endTime?.toISOString(),
-      duration,
-
-      node: started ? this.generateNodeName() : undefined,
-      pod_name: started ? `${workflowName}-${taskName}-${faker.string.alphanumeric(5)}` : undefined,
+      // Identifiers
+      task_uuid: taskUuid,
+      pod_name: podName,
       pod_ip: started
         ? `10.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 1, max: 254 })}`
         : undefined,
+      node_name: started ? this.generateNodeName() : undefined,
 
+      // Timeline timestamps
+      scheduling_start_time: schedulingStartTime,
+      initializing_start_time: initializingStartTime,
+      input_download_start_time: inputDownloadStartTime,
+      input_download_end_time: inputDownloadEndTime,
+      processing_start_time: processingStartTime,
+      start_time: startTime,
+      output_upload_start_time: outputUploadStartTime,
+      end_time: endTime,
+      duration,
+
+      // Status
+      exit_code:
+        status === TaskGroupStatus.COMPLETED ? 0 : isFailed ? faker.helpers.arrayElement([1, 137, 139]) : undefined,
+      failure_message: isFailed ? this.generateFailureReason(status) : undefined,
+
+      // URLs
+      logs: `/api/workflow/${workflowName}/task/${taskName}/logs`,
+      error_logs: isFailed ? `/api/workflow/${workflowName}/task/${taskName}/error-logs` : undefined,
+      events: `/api/workflow/${workflowName}/task/${taskName}/events`,
+      dashboard_url: started ? `https://kubernetes.example.com/pod/${podName}` : undefined,
+      grafana_url: started ? `https://grafana.example.com/d/task/${taskUuid}` : undefined,
+
+      // Resources
       gpu,
       cpu,
       memory,
       storage,
 
+      // Container
       image: `${faker.helpers.arrayElement(MOCK_CONFIG.images.repositories)}:${faker.helpers.arrayElement(MOCK_CONFIG.images.tags)}`,
       command: [command[0]],
       args: command.slice(1),
@@ -155,17 +228,6 @@ export class TaskGenerator {
         PYTHONPATH: "/workspace",
         NCCL_DEBUG: "INFO",
       },
-
-      exit_code:
-        status === TaskGroupStatus.COMPLETED
-          ? 0
-          : status.toString().startsWith("FAILED")
-            ? faker.helpers.arrayElement([1, 137, 139])
-            : undefined,
-      failure_reason: status.toString().startsWith("FAILED") ? this.generateFailureReason(status) : undefined,
-
-      logs_url: `/api/workflow/${workflowName}/task/${taskName}/logs`,
-      events_url: `/api/workflow/${workflowName}/task/${taskName}/events`,
     };
   }
 

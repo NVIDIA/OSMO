@@ -47,11 +47,35 @@ export interface MockTask {
   name: string;
   retry_id: number;
   status: TaskGroupStatus;
-  node?: string;
+  lead?: boolean;
+
+  // Identifiers
+  task_uuid: string;
+  pod_name: string;
+  pod_ip?: string;
+  node_name?: string;
+
+  // Timeline timestamps
+  scheduling_start_time?: string;
+  initializing_start_time?: string;
+  input_download_start_time?: string;
+  input_download_end_time?: string;
+  processing_start_time?: string;
   start_time?: string;
+  output_upload_start_time?: string;
   end_time?: string;
+
+  // Status
   failure_message?: string;
   exit_code?: number;
+
+  // URLs
+  logs: string;
+  error_logs?: string;
+  events: string;
+  dashboard_url?: string;
+  grafana_url?: string;
+
   // Resource info
   gpu: number;
   cpu: number;
@@ -325,13 +349,13 @@ export class WorkflowGenerator {
    * - diamond: a → (b, c) → d (classic diamond)
    * - complex: mix of patterns
    */
-  private generateGroups(status: WorkflowStatus, _workflowName: string): MockGroup[] {
+  private generateGroups(status: WorkflowStatus, workflowName: string): MockGroup[] {
     const groupPatterns = this.config.patterns.groupPatterns;
     const numGroups = faker.number.int(groupPatterns.groupsPerWorkflow);
 
     // Pick a topology based on number of groups
     if (numGroups <= 2) {
-      return this.generateLinearGroups(status, numGroups, groupPatterns);
+      return this.generateLinearGroups(status, numGroups, groupPatterns, workflowName);
     }
 
     // Randomly pick topology for variety
@@ -339,17 +363,17 @@ export class WorkflowGenerator {
 
     switch (topology) {
       case "multi-root":
-        return this.generateMultiRootGroups(status, numGroups, groupPatterns);
+        return this.generateMultiRootGroups(status, numGroups, groupPatterns, workflowName);
       case "fan-out":
-        return this.generateFanOutGroups(status, numGroups, groupPatterns);
+        return this.generateFanOutGroups(status, numGroups, groupPatterns, workflowName);
       case "fan-in":
-        return this.generateFanInGroups(status, numGroups, groupPatterns);
+        return this.generateFanInGroups(status, numGroups, groupPatterns, workflowName);
       case "diamond":
-        return this.generateDiamondGroups(status, numGroups, groupPatterns);
+        return this.generateDiamondGroups(status, numGroups, groupPatterns, workflowName);
       case "complex":
-        return this.generateComplexGroups(status, numGroups, groupPatterns);
+        return this.generateComplexGroups(status, numGroups, groupPatterns, workflowName);
       default:
-        return this.generateLinearGroups(status, numGroups, groupPatterns);
+        return this.generateLinearGroups(status, numGroups, groupPatterns, workflowName);
     }
   }
 
@@ -358,6 +382,7 @@ export class WorkflowGenerator {
     status: WorkflowStatus,
     numGroups: number,
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup[] {
     const groups: MockGroup[] = [];
     const groupNames = faker.helpers.arrayElements(
@@ -375,6 +400,7 @@ export class WorkflowGenerator {
           i > 0 ? [groupNames[i - 1]] : [],
           i < numGroups - 1 ? [groupNames[i + 1]] : [],
           groupPatterns,
+          workflowName,
         ),
       );
     }
@@ -387,6 +413,7 @@ export class WorkflowGenerator {
     status: WorkflowStatus,
     numGroups: number,
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup[] {
     const groups: MockGroup[] = [];
     const groupNames = faker.helpers.arrayElements(
@@ -398,14 +425,16 @@ export class WorkflowGenerator {
     // Create root nodes (no upstream)
     for (let i = 0; i < numRoots; i++) {
       const downstream = numGroups > numRoots ? [groupNames[numRoots]] : [];
-      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [], downstream, groupPatterns));
+      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [], downstream, groupPatterns, workflowName));
     }
 
     // Create merge node and subsequent linear chain
     for (let i = numRoots; i < numGroups; i++) {
       const upstream = i === numRoots ? groupNames.slice(0, numRoots) : [groupNames[i - 1]];
       const downstream = i < numGroups - 1 ? [groupNames[i + 1]] : [];
-      groups.push(this.createGroup(groupNames[i], status, i, numGroups, upstream, downstream, groupPatterns));
+      groups.push(
+        this.createGroup(groupNames[i], status, i, numGroups, upstream, downstream, groupPatterns, workflowName),
+      );
     }
 
     return groups;
@@ -416,6 +445,7 @@ export class WorkflowGenerator {
     status: WorkflowStatus,
     numGroups: number,
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup[] {
     const groups: MockGroup[] = [];
     const groupNames = faker.helpers.arrayElements(
@@ -425,12 +455,23 @@ export class WorkflowGenerator {
 
     // Root node fans out to all children
     groups.push(
-      this.createGroup(groupNames[0], status, 0, numGroups, [], groupNames.slice(1, numGroups), groupPatterns),
+      this.createGroup(
+        groupNames[0],
+        status,
+        0,
+        numGroups,
+        [],
+        groupNames.slice(1, numGroups),
+        groupPatterns,
+        workflowName,
+      ),
     );
 
     // Children (all depend on root, no downstream)
     for (let i = 1; i < numGroups; i++) {
-      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [groupNames[0]], [], groupPatterns));
+      groups.push(
+        this.createGroup(groupNames[i], status, i, numGroups, [groupNames[0]], [], groupPatterns, workflowName),
+      );
     }
 
     return groups;
@@ -441,6 +482,7 @@ export class WorkflowGenerator {
     status: WorkflowStatus,
     numGroups: number,
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup[] {
     const groups: MockGroup[] = [];
     const groupNames = faker.helpers.arrayElements(
@@ -452,7 +494,18 @@ export class WorkflowGenerator {
 
     // Parent nodes (no upstream, all downstream to merge node)
     for (let i = 0; i < numParents; i++) {
-      groups.push(this.createGroup(groupNames[i], status, i, numGroups, [], [groupNames[mergeNodeIdx]], groupPatterns));
+      groups.push(
+        this.createGroup(
+          groupNames[i],
+          status,
+          i,
+          numGroups,
+          [],
+          [groupNames[mergeNodeIdx]],
+          groupPatterns,
+          workflowName,
+        ),
+      );
     }
 
     // Merge node (all parents as upstream)
@@ -465,6 +518,7 @@ export class WorkflowGenerator {
         groupNames.slice(0, numParents),
         [],
         groupPatterns,
+        workflowName,
       ),
     );
 
@@ -476,6 +530,7 @@ export class WorkflowGenerator {
     status: WorkflowStatus,
     numGroups: number,
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup[] {
     const groups: MockGroup[] = [];
     const groupNames = faker.helpers.arrayElements(
@@ -484,7 +539,7 @@ export class WorkflowGenerator {
     );
 
     if (numGroups < 4) {
-      return this.generateLinearGroups(status, numGroups, groupPatterns);
+      return this.generateLinearGroups(status, numGroups, groupPatterns, workflowName);
     }
 
     // Calculate middle layer size
@@ -495,7 +550,7 @@ export class WorkflowGenerator {
 
     // Root node
     const middleNames = groupNames.slice(middleStart, Math.min(middleEnd, numGroups - 1));
-    groups.push(this.createGroup(groupNames[0], status, 0, numGroups, [], middleNames, groupPatterns));
+    groups.push(this.createGroup(groupNames[0], status, 0, numGroups, [], middleNames, groupPatterns, workflowName));
 
     // Middle layer (parallel nodes)
     for (let i = 0; i < middleNames.length; i++) {
@@ -508,12 +563,15 @@ export class WorkflowGenerator {
           [groupNames[0]],
           [groupNames[lastIdx]],
           groupPatterns,
+          workflowName,
         ),
       );
     }
 
     // Merge node
-    groups.push(this.createGroup(groupNames[lastIdx], status, lastIdx, numGroups, middleNames, [], groupPatterns));
+    groups.push(
+      this.createGroup(groupNames[lastIdx], status, lastIdx, numGroups, middleNames, [], groupPatterns, workflowName),
+    );
 
     return groups;
   }
@@ -523,6 +581,7 @@ export class WorkflowGenerator {
     status: WorkflowStatus,
     numGroups: number,
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup[] {
     const groups: MockGroup[] = [];
     const groupNames = faker.helpers.arrayElements(
@@ -531,19 +590,48 @@ export class WorkflowGenerator {
     );
 
     if (numGroups < 5) {
-      return this.generateDiamondGroups(status, numGroups, groupPatterns);
+      return this.generateDiamondGroups(status, numGroups, groupPatterns, workflowName);
     }
 
     // Level 0: 2 roots
     groups.push(
-      this.createGroup(groupNames[0], status, 0, numGroups, [], [groupNames[2], groupNames[3]], groupPatterns),
+      this.createGroup(
+        groupNames[0],
+        status,
+        0,
+        numGroups,
+        [],
+        [groupNames[2], groupNames[3]],
+        groupPatterns,
+        workflowName,
+      ),
     );
     groups.push(
-      this.createGroup(groupNames[1], status, 1, numGroups, [], [groupNames[3], groupNames[4]], groupPatterns),
+      this.createGroup(
+        groupNames[1],
+        status,
+        1,
+        numGroups,
+        [],
+        [groupNames[3], groupNames[4]],
+        groupPatterns,
+        workflowName,
+      ),
     );
 
     // Level 1: 3 middle nodes with mixed dependencies
-    groups.push(this.createGroup(groupNames[2], status, 2, numGroups, [groupNames[0]], [groupNames[5]], groupPatterns));
+    groups.push(
+      this.createGroup(
+        groupNames[2],
+        status,
+        2,
+        numGroups,
+        [groupNames[0]],
+        [groupNames[5]],
+        groupPatterns,
+        workflowName,
+      ),
+    );
     groups.push(
       this.createGroup(
         groupNames[3],
@@ -553,18 +641,28 @@ export class WorkflowGenerator {
         [groupNames[0], groupNames[1]],
         [groupNames[5]],
         groupPatterns,
+        workflowName,
       ),
     );
     if (numGroups > 5) {
       groups.push(
-        this.createGroup(groupNames[4], status, 4, numGroups, [groupNames[1]], [groupNames[5]], groupPatterns),
+        this.createGroup(
+          groupNames[4],
+          status,
+          4,
+          numGroups,
+          [groupNames[1]],
+          [groupNames[5]],
+          groupPatterns,
+          workflowName,
+        ),
       );
     }
 
     // Level 2: merge node
     const mergeUpstream =
       numGroups > 5 ? [groupNames[2], groupNames[3], groupNames[4]] : [groupNames[2], groupNames[3]];
-    groups.push(this.createGroup(groupNames[5], status, 5, numGroups, mergeUpstream, [], groupPatterns));
+    groups.push(this.createGroup(groupNames[5], status, 5, numGroups, mergeUpstream, [], groupPatterns, workflowName));
 
     // Additional linear chain if more groups
     for (let i = 6; i < numGroups; i++) {
@@ -577,6 +675,7 @@ export class WorkflowGenerator {
           [groupNames[i - 1]],
           i < numGroups - 1 ? [groupNames[i + 1]] : [],
           groupPatterns,
+          workflowName,
         ),
       );
     }
@@ -593,13 +692,14 @@ export class WorkflowGenerator {
     upstream: string[],
     downstream: string[],
     groupPatterns: WorkflowPatterns["groupPatterns"],
+    workflowName: string,
   ): MockGroup {
     const numTasks = faker.number.int(groupPatterns.tasksPerGroup);
     const groupStatus = this.deriveGroupStatus(workflowStatus, index, totalGroups);
 
     const tasks: MockTask[] = [];
     for (let t = 0; t < numTasks; t++) {
-      tasks.push(this.generateTask(name, t, groupStatus));
+      tasks.push(this.generateTask(workflowName, name, t, groupStatus));
     }
 
     return {
@@ -651,7 +751,12 @@ export class WorkflowGenerator {
     return TaskGroupStatus.WAITING;
   }
 
-  private generateTask(groupName: string, taskIndex: number, groupStatus: TaskGroupStatus): MockTask {
+  private generateTask(
+    workflowName: string,
+    groupName: string,
+    taskIndex: number,
+    groupStatus: TaskGroupStatus,
+  ): MockTask {
     const taskPatterns = MOCK_CONFIG.tasks;
     const name = `${groupName}-${taskIndex}`;
 
@@ -660,26 +765,95 @@ export class WorkflowGenerator {
     const memory = cpu * 4; // 4GB per CPU
     const storage = faker.helpers.arrayElement([10, 50, 100, 200]);
 
+    // Determine lifecycle phase
     const notStartedStatuses: TaskGroupStatus[] = [
       TaskGroupStatus.WAITING,
       TaskGroupStatus.SUBMITTING,
       TaskGroupStatus.SCHEDULING,
     ];
+    const isScheduling = groupStatus === TaskGroupStatus.SCHEDULING;
+    const isInitializing = groupStatus === TaskGroupStatus.INITIALIZING;
     const started = !notStartedStatuses.includes(groupStatus);
+    const isRunning = groupStatus === TaskGroupStatus.RUNNING;
     const completed = groupStatus === TaskGroupStatus.COMPLETED || groupStatus.toString().startsWith("FAILED");
+    const isFailed = groupStatus.toString().startsWith("FAILED");
+
+    // Generate task UUID
+    const taskUuid = faker.string.uuid();
+
+    // Generate pod name (format: workflowName-taskName-randomSuffix)
+    const podSuffix = faker.string.alphanumeric({ length: 5, casing: "lower" });
+    const podName = `${workflowName.slice(0, 20)}-${name}-${podSuffix}`;
+
+    // Generate timeline timestamps based on status
+    // Base time for task start (within last 7 days)
+    const baseTime = faker.date.recent({ days: 7 });
+
+    // Scheduling start - set for any task that has started scheduling
+    const schedulingStartTime =
+      isScheduling || isInitializing || started ? new Date(baseTime.getTime() - 120000).toISOString() : undefined;
+
+    // Initializing start - set when past scheduling
+    const initializingStartTime =
+      isInitializing || started ? new Date(baseTime.getTime() - 60000).toISOString() : undefined;
+
+    // Input download times - set when running or completed
+    const inputDownloadStartTime = started ? new Date(baseTime.getTime() - 30000).toISOString() : undefined;
+    const inputDownloadEndTime = started ? new Date(baseTime.getTime() - 20000).toISOString() : undefined;
+
+    // Processing start time
+    const processingStartTime = started ? new Date(baseTime.getTime() - 15000).toISOString() : undefined;
+
+    // Start time (when task actually begins execution)
+    const startTime = started ? baseTime.toISOString() : undefined;
+
+    // Output upload start - only for completed tasks
+    const outputUploadStartTime = completed ? new Date(baseTime.getTime() + 3600000).toISOString() : undefined;
+
+    // End time - only for completed tasks
+    const endTime = completed ? new Date(baseTime.getTime() + 3660000).toISOString() : undefined;
 
     return {
       name,
-      retry_id: 0,
+      retry_id: faker.datatype.boolean({ probability: 0.1 }) ? faker.number.int({ min: 1, max: 3 }) : 0,
       status: groupStatus,
-      node: started ? this.generateNodeName() : undefined,
-      start_time: started ? faker.date.recent({ days: 7 }).toISOString() : undefined,
-      end_time: completed ? faker.date.recent({ days: 1 }).toISOString() : undefined,
-      exit_code:
-        groupStatus === TaskGroupStatus.COMPLETED ? 0 : groupStatus.toString().startsWith("FAILED") ? 1 : undefined,
-      failure_message: groupStatus.toString().startsWith("FAILED")
-        ? this.generateFailureMessage(groupStatus)
+      lead: taskIndex === 0, // First task in group is lead
+
+      // Identifiers
+      task_uuid: taskUuid,
+      pod_name: podName,
+      pod_ip: started
+        ? `10.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 1, max: 254 })}`
         : undefined,
+      node_name: started ? this.generateNodeName() : undefined,
+
+      // Timeline timestamps
+      scheduling_start_time: schedulingStartTime,
+      initializing_start_time: initializingStartTime,
+      input_download_start_time: inputDownloadStartTime,
+      input_download_end_time: inputDownloadEndTime,
+      processing_start_time: processingStartTime,
+      start_time: startTime,
+      output_upload_start_time: outputUploadStartTime,
+      end_time: endTime,
+
+      // Status
+      exit_code:
+        groupStatus === TaskGroupStatus.COMPLETED
+          ? 0
+          : isFailed
+            ? faker.helpers.arrayElement([1, 137, 139])
+            : undefined,
+      failure_message: isFailed ? this.generateFailureMessage(groupStatus) : undefined,
+
+      // URLs
+      logs: `/api/workflow/${workflowName}/task/${name}/logs`,
+      error_logs: isFailed ? `/api/workflow/${workflowName}/task/${name}/error-logs` : undefined,
+      events: `/api/workflow/${workflowName}/task/${name}/events`,
+      dashboard_url: started ? `https://kubernetes.example.com/pod/${podName}` : undefined,
+      grafana_url: started ? `https://grafana.example.com/d/task/${taskUuid}` : undefined,
+
+      // Resources
       storage,
       cpu,
       memory,

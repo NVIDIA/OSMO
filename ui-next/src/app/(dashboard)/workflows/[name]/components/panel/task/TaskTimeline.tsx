@@ -37,13 +37,17 @@ import { useTick } from "@/hooks";
 
 interface TaskTimelineProps {
   task: TaskQueryResponse;
+  /** Whether to show a header above the timeline */
+  showHeader?: boolean;
+  /** Custom header text (default: "Timeline") */
+  headerText?: string;
 }
 
 // ============================================================================
 // Component
 // ============================================================================
 
-export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelineProps) {
+export const TaskTimeline = memo(function TaskTimeline({ task, showHeader, headerText }: TaskTimelineProps) {
   const statusCategory = getStatusCategory(task.status);
   const isCompleted = statusCategory === "completed";
   const isFailed = statusCategory === "failed";
@@ -226,6 +230,8 @@ export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelinePro
     <Timeline
       phases={phases}
       emptyMessage={isPending ? "Waiting to be scheduled" : undefined}
+      showHeader={showHeader}
+      headerText={headerText}
     />
   );
 });
