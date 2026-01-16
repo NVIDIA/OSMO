@@ -19,6 +19,7 @@ import { headers } from "next/headers";
 import Script from "next/script";
 
 import { AuthProvider } from "~/components/AuthProvider";
+import { Layout } from "~/components/Layout";
 import { StoreProvider } from "~/components/StoreProvider";
 import { env } from "~/env.mjs";
 import { RuntimeEnvProvider } from "~/runtime-env";
@@ -47,7 +48,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           <TRPCReactProvider headers={headers()}>
             <AuthProvider>
-              <StoreProvider>{children}</StoreProvider>
+              <StoreProvider>
+                <Layout>{children}</Layout>
+              </StoreProvider>
             </AuthProvider>
           </TRPCReactProvider>
         </RuntimeEnvProvider>

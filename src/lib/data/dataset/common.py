@@ -32,9 +32,10 @@ from typing_extensions import NotRequired, TypedDict, assert_never
 import diskcache
 import pydantic
 
-from .. import storage, constants
+from .. import storage
+from ..storage import constants
 from ..storage.core import progress
-from ...utils import client, client_configs, common, osmo_errors, paths
+from ...utils import client, common, osmo_errors, paths
 
 
 logger = logging.getLogger(__name__)
@@ -305,12 +306,8 @@ def _validate_source_path(
     if re.fullmatch(constants.STORAGE_BACKEND_REGEX, source_path):
         # Remote path logic
         path_components = storage.construct_storage_backend(source_path)
-        user_credentials = client_configs.get_credentials(path_components.profile)
         path_components.data_auth(
-            user_credentials.access_key_id,
-            user_credentials.access_key.get_secret_value(),
-            user_credentials.region,
-            storage.AccessType.READ,
+            access_type=storage.AccessType.READ,
         )
 
         return RemotePath(path_components, has_asterisk, priority)

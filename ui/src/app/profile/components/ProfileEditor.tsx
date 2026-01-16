@@ -86,8 +86,8 @@ const ProfileEditor = ({ profile, onUpdate }: { profile: ProfileResponse; onUpda
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="flex flex-col w-100">
-        <div className="flex flex-col gap-3 p-3 w-full">
+      <div className="flex flex-col md:w-100">
+        <div className="flex flex-col gap-global p-global w-full">
           <Select
             id="bucket"
             value={bucket ?? ""}

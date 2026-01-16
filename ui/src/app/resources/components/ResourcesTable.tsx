@@ -28,7 +28,6 @@ import Link from "next/link";
 
 import { commonFilterFns } from "~/components/commonFilterFns";
 import { TableBase } from "~/components/TableBase";
-import { TableLoader } from "~/components/TableLoader";
 import { TablePagination } from "~/components/TablePagination";
 import { Colors, Tag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
@@ -252,6 +251,7 @@ export const ResourcesTable = ({
     onColumnFiltersChange: setColumnFilters,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => `${row.node}-${row.pool}`,
     enableMultiSort: true,
     enableSortingRemoval: false,
     state: { columnFilters, sorting },
@@ -303,25 +303,19 @@ export const ResourcesTable = ({
 
     setAggregates(newAggregates);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getFilteredRowModel().flatRows]);
+  }, [table.getFilteredRowModel().flatRows, setAggregates]);
 
   return (
-    <div className="h-full">
-      {isLoading ? (
-        <TableLoader table={table} />
-      ) : (
-        <TableBase
-          columns={resourceTableColumns}
-          table={table}
-          paddingOffset={10}
-          className="body-component"
-        >
-          <TablePagination
-            totalRows={resources.length}
-            table={table}
-          />
-        </TableBase>
-      )}
-    </div>
+    <TableBase
+      columns={resourceTableColumns}
+      table={table}
+      className="body-component"
+      isLoading={isLoading}
+    >
+      <TablePagination
+        totalRows={resources.length}
+        table={table}
+      />
+    </TableBase>
   );
 };

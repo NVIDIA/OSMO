@@ -43,6 +43,9 @@ export const Rename = ({
 
   const handleRename = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (loading || mutation.isLoading) {
+      return;
+    }
     setLoading(true);
     setError(undefined);
     setShowSuccess(false);
@@ -71,7 +74,7 @@ export const Rename = ({
   return (
     <form onSubmit={handleRename}>
       <div className="flex flex-col justify-between">
-        <div className="p-3 w-100 flex flex-col gap-3">
+        <div className="p-global w-100 flex flex-col gap-global">
           <TextInput
             id="current-name"
             label="Current Name"
@@ -88,8 +91,9 @@ export const Rename = ({
           />
         </div>
         <div className="flex flex-col">
-          {error && <InlineBanner status="error">{error}</InlineBanner>}
-          {showSuccess && <InlineBanner status="success">Collection renamed successfully</InlineBanner>}
+          <InlineBanner status={error ? "error" : showSuccess ? "success" : "none"}>
+            {error ? error : showSuccess ? "Collection renamed successfully" : ""}
+          </InlineBanner>
           <div className="modal-footer">
             {!showSuccess && (
               <button
@@ -103,9 +107,9 @@ export const Rename = ({
             <button
               className="btn btn-primary h-8"
               type="submit"
-              disabled={loading}
+              aria-disabled={loading || mutation.isLoading}
             >
-              {loading ? (
+              {loading || mutation.isLoading ? (
                 <Spinner
                   className="border-black"
                   size="button"

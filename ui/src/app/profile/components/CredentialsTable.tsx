@@ -129,6 +129,7 @@ const CredentialsTable = ({ credentials, nameFilter }: { credentials: Credential
     onColumnFiltersChange: setColumnFilters,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => row.cred_name,
     enableMultiSort: true,
     enableSortingRemoval: false,
     state: { columnFilters, sorting },
@@ -151,7 +152,6 @@ const CredentialsTable = ({ credentials, nameFilter }: { credentials: Credential
     <TableBase
       columns={columns}
       table={table}
-      paddingOffset={10}
     >
       <TablePagination
         table={table}

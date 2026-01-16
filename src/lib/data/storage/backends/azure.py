@@ -29,6 +29,7 @@ from typing_extensions import assert_never, override
 from azure.core import exceptions
 from azure.storage import blob
 
+from .. import credentials
 from ..core import client, provider
 from ....utils import common
 
@@ -270,13 +271,20 @@ class AzureBlobStorageResumableStream(client.ResumableStream):
         return chunk
 
 
-def create_client(
-    connection_string: str,
-) -> blob.BlobServiceClient:
+def create_client(data_cred: credentials.DataCredential) -> blob.BlobServiceClient:
     """
     Creates a new Azure Blob Storage client.
     """
-    return blob.BlobServiceClient.from_connection_string(conn_str=connection_string)
+    match data_cred:
+        case credentials.StaticDataCredential():
+            return blob.BlobServiceClient.from_connection_string(
+                conn_str=data_cred.access_key.get_secret_value(),
+            )
+        case credentials.DefaultDataCredential():
+            raise NotImplementedError(
+                'Default data credentials are not supported yet')
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 class AzureBlobStorageClient(client.StorageClient):
@@ -822,10 +830,10 @@ class AzureBlobStorageClientFactory(provider.StorageClientFactory):
     Factory for the AzureBlobStorageClient.
     """
 
-    connection_string: str
+    data_cred: credentials.DataCredential
 
     @override
     def create(self) -> AzureBlobStorageClient:
         return AzureBlobStorageClient(
-            lambda: create_client(self.connection_string),
+            lambda: create_client(self.data_cred),
         )

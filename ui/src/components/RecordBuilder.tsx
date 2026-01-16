@@ -70,6 +70,7 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
   const [newFieldKey, setNewFieldKey] = useState("");
   const [newFieldValue, setNewFieldValue] = useState("");
   const [isModified, setIsModified] = useState(false);
+  const [lastActionText, setLastActionText] = useState<string>("");
 
   useEffect(() => {
     setIsModified(JSON.stringify(flattenedData) !== JSON.stringify(initialData));
@@ -80,15 +81,19 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
     delete updatedData[fieldKey];
     setFlattenedData(updatedData);
     setDeletedFields({ ...deletedFields, [fieldKey]: fieldValue });
+    setLastActionText(`Deleted ${fieldKey}: ${fieldValue as string}`);
   };
 
   const addField = (fieldKey: string, fieldValue: unknown) => {
-    if (fieldKey && fieldValue) {
-      setFlattenedData({ ...flattenedData, [fieldKey]: fieldValue });
-      delete deletedFields[fieldKey];
-      setNewFieldKey("");
-      setNewFieldValue("");
+    if (!fieldKey || !fieldValue || !fieldKey?.trim() || !String(fieldValue)?.trim()) {
+      return;
     }
+
+    setFlattenedData({ ...flattenedData, [fieldKey]: fieldValue });
+    delete deletedFields[fieldKey];
+    setNewFieldKey("");
+    setNewFieldValue("");
+    setLastActionText(`Added ${fieldKey}: ${fieldValue as string}`);
   };
 
   const handleAddField = (e: React.FormEvent<HTMLFormElement>) => {
@@ -97,20 +102,29 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
   };
 
   const handleSaveChanges = () => {
-    onSave(deletedFields, unflattenObject(flattenedData));
-    setDeletedFields({});
+    if (isModified) {
+      onSave(deletedFields, unflattenObject(flattenedData));
+      setDeletedFields({});
+      setNewFieldKey("");
+      setNewFieldValue("");
+      setIsModified(false);
+    }
   };
 
   const handleUndoChanges = () => {
-    setFlattenedData(flattenObject(initialData));
-    setDeletedFields({});
-    setNewFieldKey("");
-    setNewFieldValue("");
+    if (isModified) {
+      setFlattenedData(flattenObject(initialData));
+      setDeletedFields({});
+      setNewFieldKey("");
+      setNewFieldValue("");
+      setIsModified(false);
+      setLastActionText("Labels reset");
+    }
   };
 
   return (
     <div className="flex flex-col h-full justify-between">
-      <div className="flex flex-col gap-6 p-3">
+      <div className="flex flex-col gap-6 p-global">
         <div className="flex flex-col">
           <h3
             className="m-0 p-0 text-base"
@@ -126,6 +140,7 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
             {Object.keys(flattenedData).length > 0 ? (
               Object.entries(flattenedData).map(([key, value], index) => (
                 <button
+                  role="listitem"
                   className="btn btn-badge"
                   key={index}
                   onClick={() => handleDeleteField(key, value)}
@@ -146,12 +161,12 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
           </div>
         </div>
         <form onSubmit={handleAddField}>
-          <div className="grid grid-cols-[1fr_auto] gap-3">
+          <div className="grid grid-cols-[1fr_auto] gap-global">
             <fieldset
               aria-label="Add New Label"
               className="w-full"
             >
-              <div className="grid grid-cols-[1fr_1fr] gap-3 w-full">
+              <div className="grid grid-cols-[1fr_1fr] gap-global w-full">
                 <TextInput
                   id="field"
                   value={newFieldKey}
@@ -174,9 +189,9 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
             </fieldset>
             <button
               type="submit"
-              className="btn mt-4 h-8"
+              className="btn mt-5 h-8"
               aria-label="Add Label"
-              disabled={!newFieldKey.trim() || !newFieldValue.trim()}
+              aria-disabled={!newFieldKey.trim() || !newFieldValue.trim()}
             >
               <OutlinedIcon name="add" />
             </button>
@@ -193,6 +208,7 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
             {Object.keys(deletedFields).length > 0 ? (
               Object.entries(deletedFields).map(([field, value], index) => (
                 <button
+                  role="listitem"
                   className="btn btn-badge"
                   key={index}
                   onClick={() => {
@@ -215,12 +231,18 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
         </div>
       </div>
       <div className="flex flex-col">
-        {message && <InlineBanner status={isError ? "error" : "success"}>{message}</InlineBanner>}
+        <InlineBanner status={isError ? "error" : message ? "success" : "none"}>{message}</InlineBanner>
+        <p
+          aria-live="polite"
+          className="sr-only"
+        >
+          {lastActionText}
+        </p>
         <div className="modal-footer">
           <button
             onClick={handleUndoChanges}
             className="btn btn-secondary"
-            disabled={!isModified}
+            aria-disabled={!isModified}
           >
             <OutlinedIcon name="undo" />
             Reset
@@ -228,7 +250,7 @@ export const RecordBuilder: React.FC<RecordBuilderProps> = ({ title, initialData
           <button
             onClick={handleSaveChanges}
             className="btn btn-primary"
-            disabled={!isModified}
+            aria-disabled={!isModified}
           >
             <OutlinedIcon name="check" />
             Save

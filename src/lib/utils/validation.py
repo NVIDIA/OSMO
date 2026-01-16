@@ -22,7 +22,7 @@ import pathlib
 import re
 
 from . import common, osmo_errors
-from ..data import constants
+from ..data.storage import constants
 
 
 def positive_integer(x: int):
@@ -66,6 +66,13 @@ def is_storage_path(path: str):
         return path
     else:
         raise argparse.ArgumentTypeError(f'Invalid storage path: {path}')
+
+
+def is_storage_credential_path(path: str):
+    if re.fullmatch(constants.STORAGE_CREDENTIAL_REGEX, path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f'Invalid storage credential path: {path}')
 
 
 def valid_path(path):

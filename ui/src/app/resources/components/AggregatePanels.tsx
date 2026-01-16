@@ -78,8 +78,9 @@ export const AggregatePanels: React.FC<AggregateProps & { isLoading: boolean; is
 
   return (
     <div
-      className="flex flex-col gap-3 p-3 h-full justify-between"
+      className="flex flex-col h-full justify-between"
       role="list"
+      aria-label="Resource usage gauges"
     >
       {gauges}
     </div>

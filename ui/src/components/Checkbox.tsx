@@ -25,7 +25,7 @@ export const Checkbox = ({
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { checkSize?: "small" | "large" }) => {
   return (
-    <div className={`flex relative ${checkSize === "small" ? "h-4 w-4" : "h-8 w-8"} ${className}`}>
+    <div className={`flex relative ${checkSize === "small" ? "h-6 w-6" : "h-8 w-8"} ${className}`}>
       <input
         type="checkbox"
         id={id}
@@ -36,13 +36,14 @@ export const Checkbox = ({
           peer shrink-0
           appearance-none w-full h-full border-1 border-gray-400 rounded-none bg-white
           checked:bg-brand checked:border-0
-          disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-0
+          disabled:opacity-50 disabled:cursor-not-allowed
+          focus-visible:outline-offset-2
         `}
         {...props}
       />
       <FilledIcon
         name="check"
-        className={`${checkSize === "small" ? "text-xs!" : "text-lg!"} absolute top-0 ${checkSize === "small" ? "left-1/8" : "left-1/4"} hidden peer-checked:block pointer-events-none text-white`}
+        className={`${checkSize === "small" ? "text-base!" : "text-lg!"} absolute top-0 ${checkSize === "small" ? "left-1/6" : "left-1/4"} hidden peer-checked:block pointer-events-none text-white`}
       />
     </div>
   );
@@ -59,7 +60,7 @@ export const CheckboxWithLabel = ({
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; containerClassName?: string }) => {
   return (
-    <label className={`flex flex-row gap-2 items-center hover:cursor-pointer ${containerClassName}`}>
+    <label className={`flex flex-row gap-global items-center hover:cursor-pointer ${containerClassName}`}>
       <Checkbox
         id={id}
         checked={checked}

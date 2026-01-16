@@ -98,7 +98,7 @@ export const WorkflowListRequestSchema = z.object({
   submitted_after: z.string().datetime().optional(),
   name: z.string().optional().default(""),
   limit: z.number().optional().default(1000),
-  statuses: z.array(z.string()).optional().default([]),
+  statuses: z.enum(WorkflowStatusValues).array().optional().default([]),
   users: z.array(z.string()).optional().default([]),
   all_users: z.boolean().optional().default(false),
   offset: z.number().optional().default(0),

@@ -56,7 +56,7 @@ import (
 const BUFFERSIZE int = 32 * 1024
 const BARRIER_TICKER_DURATION = time.Duration(5) * time.Minute
 
-var waitGoRoutinues sync.WaitGroup
+var waitGoRoutines sync.WaitGroup
 var webConn *websocket.Conn
 var bufferMutex sync.Mutex
 var numDroppedMsg int
@@ -122,7 +122,7 @@ type DialWebsocketError struct {
 }
 
 func (e *DialWebsocketError) Error() string {
-	return fmt.Sprintf(e.Message)
+	return e.Message
 }
 
 func refreshJWTToken(cmdArgs args.CtrlArgs) error {
@@ -321,7 +321,7 @@ func putLogs(
 			logMsg = metrics.CreateMetrics(logSource, osmoMetrics, metrics.Metrics)
 			threadsafeEnqueue(logQueue, logMsg)
 		case <-stopChan:
-			defer waitGoRoutinues.Done()
+			defer waitGoRoutines.Done()
 			log.Printf("Go routine putLogs is done")
 			return
 		}
@@ -860,7 +860,7 @@ func sendLogs(logSource string, logQueue *common.CircularBuffer, logsPeriodMs in
 	for {
 		select {
 		case <-stopChan:
-			defer waitGoRoutinues.Done()
+			defer waitGoRoutines.Done()
 			log.Println("Goroutine sendLogs is done")
 			return
 		case <-ticker.C:
@@ -1376,7 +1376,7 @@ func main() {
 	connWorkflowService(cmdArgs.WorkflowServiceUrl.String(), cmdArgs)
 	defer webConn.Close() // Conn should stay alive until the process exits
 
-	waitGoRoutinues.Add(2)
+	waitGoRoutines.Add(2)
 	go putLogs(cmdArgs.LogSource, osmoChan, downloadChan,
 		uploadChan, stopPutLogs, metricChan, logQueue)
 
@@ -1386,13 +1386,27 @@ func main() {
 	go sendLogs(cmdArgs.LogSource, logQueue, logsPeriodMs, stopSendLogs)
 
 	defer cleanupMounts(cmdArgs.DownloadType)
-	sigintCatch := make(chan os.Signal)
+	sigintCatch := make(chan os.Signal, 1)
 	signal.Notify(sigintCatch, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigintCatch
 		cleanupMounts(cmdArgs.DownloadType)
 		os.Exit(1)
 	}()
+
+	// Validate data auth access before starting downloads/uploads
+	if err := data.ValidateInputsOutputsAccess(
+		cmdArgs.Inputs,
+		cmdArgs.Outputs,
+		cmdArgs.UserConfig,
+		osmoChan,
+	); err != nil {
+		osmo_errors.SetExitCode(osmo_errors.DATA_UNAUTHORIZED_CODE)
+		stopPutLogs <- true
+		stopSendLogs <- true
+		waitGoRoutines.Wait()
+		panic(fmt.Sprintf("Data unauthorized: %v", err))
+	}
 
 	// Send files to be downloaded
 	inputStartTime := time.Now().Format("2006-01-02 15:04:05.000")
@@ -1481,7 +1495,7 @@ execLogs:
 	log.Println("Stopping logs")
 	stopPutLogs <- true
 	stopSendLogs <- true
-	waitGoRoutinues.Wait() // Wait until all logs are put before exit
+	waitGoRoutines.Wait() // Wait until all logs are put before exit
 
 	log.Printf("OSMO ctrl is done")
 }

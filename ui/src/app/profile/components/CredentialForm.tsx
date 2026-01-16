@@ -318,7 +318,7 @@ const CredentialForm = ({
               <textarea
                 id="credential"
                 required={true}
-                className="font-mono w-full h-40 border-1 border-border p-3"
+                className="font-mono w-full h-40 border-1 border-border p-global"
                 name="credential"
                 value={credential}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -337,8 +337,8 @@ const CredentialForm = ({
   };
   return (
     <form onSubmit={handleCreateCredential}>
-      <div className="flex flex-col w-120">
-        <div className="flex flex-row gap-3 p-3 w-full">
+      <div className="flex flex-col md:w-120">
+        <div className="flex flex-row gap-global p-global w-full">
           <Select
             id="credential_type"
             label="Credential Type"
@@ -369,7 +369,7 @@ const CredentialForm = ({
             }}
           />
         </div>
-        <div className="p-3 flex flex-col gap-3 w-full">{renderFormFields()}</div>
+        <div className="p-global flex flex-col gap-global w-full">{renderFormFields()}</div>
         <InlineBanner
           status={error ? "error" : showSuccess ? "success" : "none"}
           className="w-full"
@@ -382,7 +382,7 @@ const CredentialForm = ({
             ""
           )}
         </InlineBanner>
-        <div className="modal-footer p-3">
+        <div className="modal-footer p-global">
           {!showSuccess && (
             <button
               className="btn btn-secondary"

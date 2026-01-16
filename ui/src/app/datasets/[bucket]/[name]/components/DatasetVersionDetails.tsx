@@ -32,56 +32,65 @@ export const DatasetVersionDetails = ({ datasetVersion, bucket }: DatasetVersion
   const toolParamUpdater = useToolParamUpdater();
 
   return (
-    <div className="dag-details-body body-component h-auto flex-grow">
-      <div className="text-center p-3 font-semibold brand-header">Version {datasetVersion.version}</div>
-      <div className="h-full">
-        <dl className="p-3">
-          <dt>Status</dt>
-          <dd>{datasetVersion.status}</dd>
-          <dt>Created By</dt>
-          <dd>{formatForWrapping(datasetVersion.created_by)}</dd>
-          <dt>Created Date</dt>
-          <dd>{convertToReadableTimezone(datasetVersion.created_date)}</dd>
-          <dt>Last Used</dt>
-          <dd>{convertToReadableTimezone(datasetVersion.last_used)}</dd>
-          <dt>Size</dt>
-          <dd>{convertBytes(datasetVersion.size)}</dd>
-          <dt>Retention Policy</dt>
-          <dd>{Math.floor(datasetVersion.retention_policy / (24 * 60 * 60))} days</dd>
-          <dt>Tags</dt>
-          <dd>
-            <div className="flex flex-wrap gap-1">
-              {datasetVersion.tags.map((tag, index) => (
-                <Tag
-                  key={index}
-                  color={Colors.tag}
-                  className="min-h-6 break-all"
+    <section
+      aria-labelledby="dataset-version-details-title"
+      className="body-component"
+    >
+      <h2
+        id="dataset-version-details-title"
+        className="text-center p-global font-semibold brand-header"
+      >
+        Version {datasetVersion.version}
+      </h2>
+      <dl
+        className="p-global grow"
+        aria-labelledby="dataset-version-details-title"
+      >
+        <dt>Status</dt>
+        <dd>{datasetVersion.status}</dd>
+        <dt>Created By</dt>
+        <dd>{formatForWrapping(datasetVersion.created_by)}</dd>
+        <dt>Created Date</dt>
+        <dd>{convertToReadableTimezone(datasetVersion.created_date)}</dd>
+        <dt>Last Used</dt>
+        <dd>{convertToReadableTimezone(datasetVersion.last_used)}</dd>
+        <dt>Size</dt>
+        <dd>{convertBytes(datasetVersion.size)}</dd>
+        <dt>Retention Policy</dt>
+        <dd>{Math.floor(datasetVersion.retention_policy / (24 * 60 * 60))} days</dd>
+        <dt>Tags</dt>
+        <dd>
+          <div className="flex flex-wrap gap-1">
+            {datasetVersion.tags.map((tag, index) => (
+              <Tag
+                key={index}
+                color={Colors.tag}
+                className="min-h-6 break-all"
+              >
+                {tag}
+              </Tag>
+            ))}
+          </div>
+        </dd>
+        <dt>Related Collections</dt>
+        <dd>
+          <div className="flex flex-wrap gap-1">
+            {datasetVersion.collections.length > 0 ? (
+              datasetVersion.collections.map((collection) => (
+                <Link
+                  key={collection}
+                  href={`/datasets/${bucket}/${collection}`}
+                  className="btn btn-badge"
                 >
-                  {tag}
-                </Tag>
-              ))}
-            </div>
-          </dd>
-          <dt>Related Collections</dt>
-          <dd>
-            <div className="flex flex-wrap gap-1">
-              {datasetVersion.collections.length > 0 ? (
-                datasetVersion.collections.map((collection) => (
-                  <Link
-                    key={collection}
-                    href={`/datasets/${bucket}/${collection}`}
-                    className="btn btn-badge"
-                  >
-                    <DatasetTag isCollection>{collection}</DatasetTag>
-                  </Link>
-                ))
-              ) : (
-                <p>None</p>
-              )}
-            </div>
-          </dd>
-        </dl>
-      </div>
+                  <DatasetTag isCollection>{collection}</DatasetTag>
+                </Link>
+              ))
+            ) : (
+              <p>None</p>
+            )}
+          </div>
+        </dd>
+      </dl>
       <div
         className={`dag-actions body-footer w-full`}
         role="list"
@@ -104,6 +113,6 @@ export const DatasetVersionDetails = ({ datasetVersion, bucket }: DatasetVersion
           Metadata
         </button>
       </div>
-    </div>
+    </section>
   );
 };
