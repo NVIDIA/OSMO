@@ -32,13 +32,13 @@ import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-re
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { useCopy, useTick } from "@/hooks";
-import { calculateDuration, formatDuration } from "../../lib/workflow-types";
-import type { GroupWithLayout } from "../../lib/workflow-types";
-import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../lib/status";
-import { DetailsPanelHeader } from "./DetailsPanelHeader";
+import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
+import type { GroupWithLayout } from "../../../lib/workflow-types";
+import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
+import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
-import { DependencyPills } from "./DependencyPills";
-import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../lib/panel-types";
+import { DependencyPills } from "../shared/DependencyPills";
+import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 
 // ============================================================================
 // Copy Button Component
