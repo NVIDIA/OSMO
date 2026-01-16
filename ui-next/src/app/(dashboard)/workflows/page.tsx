@@ -26,45 +26,26 @@ export const metadata: Metadata = {
 };
 
 /**
- * Workflows Page (Server Component)
+ * Workflows Page (Streaming SSR)
  *
- * This is a Server Component that prefetches workflow data during SSR.
- * The actual interactive content is rendered by WorkflowsPageContent (Client Component).
- *
- * Architecture:
- * 1. Server Component prefetches data using prefetchWorkflows()
- * 2. Data is dehydrated and passed to HydrationBoundary
- * 3. Client Component hydrates and uses useWorkflowsData() which gets cached data
- * 4. TanStack Query handles background refetching and pagination
+ * Architecture: Streaming SSR for optimal UX
+ * - Page shell renders immediately (fast TTFB, instant first paint)
+ * - WorkflowsPageContent streams in via Suspense as data loads
+ * - TanStack Query handles data fetching, caching, and background refetching
  */
 
 import { Suspense } from "react";
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchWorkflows, shouldSkipServerPrefetch } from "@/lib/api/server";
 import { WorkflowsPageContent } from "./workflows-page-content";
 import { WorkflowsPageSkeleton } from "./workflows-page-skeleton";
 
 // =============================================================================
-// Server Component (Prefetch + Hydration)
+// Streaming SSR - Fast TTFB + Progressive Content
 // =============================================================================
 
-export default async function WorkflowsPage() {
-  // Create a new QueryClient for this request
-  const queryClient = new QueryClient();
-
-  // Skip server prefetching in mock mode during development for fast iteration
-  // Client-side MSW handles data fetching much faster than server-side
-  if (!shouldSkipServerPrefetch()) {
-    // Prefetch initial workflows data on the server
-    // We prefetch the default query (first page, no filters)
-    await prefetchWorkflows(queryClient, {}, { revalidate: 30 });
-  }
-
+export default function WorkflowsPage() {
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<WorkflowsPageSkeleton />}>
-        <WorkflowsPageContent />
-      </Suspense>
-    </HydrationBoundary>
+    <Suspense fallback={<WorkflowsPageSkeleton />}>
+      <WorkflowsPageContent />
+    </Suspense>
   );
 }
