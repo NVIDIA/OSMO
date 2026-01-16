@@ -15,36 +15,36 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * GroupTimeline Component
+ * TaskTimeline Component
  *
- * Displays a sequential timeline showing the group lifecycle phases:
- * Scheduled → Initializing → Processing → Done/Failed
+ * Displays a sequential timeline showing the task lifecycle phases:
+ * Scheduled → Initializing → Input Download → Processing → Output Upload → Done/Failed
  *
- * Uses the shared Timeline component with group-specific phase logic.
+ * Uses the shared Timeline component with task-specific phase logic.
  */
 
 "use client";
 
 import { memo, useMemo } from "react";
-import type { GroupWithLayout } from "../../lib/workflow-types";
-import { getStatusCategory } from "../../lib/status";
-import { Timeline, type TimelinePhase, parseTime, createPhaseDurationCalculator } from "./Timeline";
+import type { TaskQueryResponse } from "../../../lib/workflow-types";
+import { getStatusCategory } from "../../../lib/status";
+import { Timeline, type TimelinePhase, parseTime, createPhaseDurationCalculator } from "../shared/Timeline";
 import { useTick } from "@/hooks";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface GroupTimelineProps {
-  group: GroupWithLayout;
+interface TaskTimelineProps {
+  task: TaskQueryResponse;
 }
 
 // ============================================================================
 // Component
 // ============================================================================
 
-export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelineProps) {
-  const statusCategory = getStatusCategory(group.status);
+export const TaskTimeline = memo(function TaskTimeline({ task }: TaskTimelineProps) {
+  const statusCategory = getStatusCategory(task.status);
   const isCompleted = statusCategory === "completed";
   const isFailed = statusCategory === "failed";
   const isRunning = statusCategory === "running";
@@ -55,19 +55,22 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
   const calculatePhaseDuration = createPhaseDurationCalculator(now);
 
   // Parse timestamps (normalized in adapter layer)
-  const schedulingStart = parseTime(group.scheduling_start_time);
-  const initializingStart = parseTime(group.initializing_start_time);
-  const processingStart = parseTime(group.processing_start_time);
-  const startTime = parseTime(group.start_time);
-  const endTime = parseTime(group.end_time);
+  const schedulingStart = parseTime(task.scheduling_start_time);
+  const initializingStart = parseTime(task.initializing_start_time);
+  const inputDownloadStart = parseTime(task.input_download_start_time);
+  const inputDownloadEnd = parseTime(task.input_download_end_time);
+  const processingStart = parseTime(task.processing_start_time);
+  const startTime = parseTime(task.start_time);
+  const outputUploadStart = parseTime(task.output_upload_start_time);
+  const endTime = parseTime(task.end_time);
 
   // Compute phases for the Timeline component
   const phases = useMemo<TimelinePhase[]>(() => {
     const result: TimelinePhase[] = [];
 
-    // Scheduling phase (from scheduling_start to initializing_start or processing_start)
+    // Scheduling phase
     if (schedulingStart) {
-      const schedEnd = initializingStart || processingStart || startTime;
+      const schedEnd = initializingStart || inputDownloadStart || processingStart || startTime;
       result.push({
         id: "scheduling",
         label: "Scheduling",
@@ -77,10 +80,10 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // Initializing phase (from initializing_start to processing_start or start_time)
+    // Initializing phase
     if (initializingStart) {
-      const initEnd = processingStart || startTime;
-      const initActive = !initEnd && !processingStart && isRunning;
+      const initEnd = inputDownloadStart || processingStart || startTime;
+      const initActive = !initEnd && isRunning;
       result.push({
         id: "initializing",
         label: "Initializing",
@@ -90,16 +93,43 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // Processing phase (from processing_start or start_time to end_time)
+    // Input Download phase
+    if (inputDownloadStart) {
+      const dlEnd = inputDownloadEnd || processingStart || startTime;
+      const dlActive = !dlEnd && isRunning;
+      result.push({
+        id: "input-download",
+        label: "Input Download",
+        time: inputDownloadStart,
+        duration: calculatePhaseDuration(inputDownloadStart, dlEnd),
+        status: dlActive ? "active" : dlEnd ? "completed" : "pending",
+      });
+    }
+
+    // Processing phase
     const procStart = processingStart || startTime;
     if (procStart) {
-      const isActive = isRunning && !endTime;
+      const procEnd = outputUploadStart || endTime;
+      const isActive = isRunning && !procEnd;
       result.push({
         id: "processing",
         label: "Processing",
         time: procStart,
-        duration: calculatePhaseDuration(procStart, endTime),
-        status: isActive ? "active" : endTime ? "completed" : "pending",
+        duration: calculatePhaseDuration(procStart, procEnd),
+        status: isActive ? "active" : procEnd ? "completed" : "pending",
+      });
+    }
+
+    // Output Upload phase
+    if (outputUploadStart) {
+      const uploadEnd = endTime;
+      const uploadActive = !uploadEnd && isRunning;
+      result.push({
+        id: "output-upload",
+        label: "Output Upload",
+        time: outputUploadStart,
+        duration: calculatePhaseDuration(outputUploadStart, uploadEnd),
+        status: uploadActive ? "active" : uploadEnd ? "completed" : "pending",
       });
     }
 
@@ -130,6 +160,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
     });
 
     // Recalculate duration and status to ensure contiguous segments
+    // Each phase's end time should be the next phase's start time
     for (let i = 0; i < result.length; i++) {
       const phase = result[i];
       const nextPhase = result[i + 1];
@@ -139,7 +170,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       const nextIsTerminal = nextPhase && !nextPhase.time;
 
       if (nextPhase?.time) {
-        // This phase ends when the next phase starts
+        // This phase ends when the next phase starts - recalculate duration
         const rawDuration = calculatePhaseDuration(phase.time, nextPhase.time);
         phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
         // Any phase followed by another phase is completed
@@ -162,11 +193,11 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
             phase.duration = null;
           }
         } else {
-          // Last work phase (no terminal after): ends at group end time or now
+          // Last work phase (no terminal after): ends at task end time or now
           const rawDuration = calculatePhaseDuration(phase.time, endTime);
           phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
         }
-        // Last phase status depends on group state
+        // Last phase status depends on task state
         if (isRunning && !endTime) {
           phase.status = "active";
         } else if (endTime) {
@@ -179,8 +210,11 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
   }, [
     schedulingStart,
     initializingStart,
+    inputDownloadStart,
+    inputDownloadEnd,
     processingStart,
     startTime,
+    outputUploadStart,
     endTime,
     isRunning,
     isCompleted,
@@ -191,7 +225,7 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
   return (
     <Timeline
       phases={phases}
-      emptyMessage={isPending ? "Waiting for upstream dependencies" : undefined}
+      emptyMessage={isPending ? "Waiting to be scheduled" : undefined}
     />
   );
 });

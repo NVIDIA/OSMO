@@ -55,8 +55,8 @@ import {
   PanelSubtitle,
   WidthPresetMenuItems,
 } from "@/components/panel";
-import { getStatusIcon } from "../../lib/status";
-import type { DetailsPanelHeaderProps, SiblingTask, BreadcrumbSegment } from "../../lib/panel-types";
+import { getStatusIcon } from "../../../lib/status";
+import type { DetailsPanelHeaderProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 
 // ============================================================================
 // Types
