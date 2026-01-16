@@ -28,7 +28,7 @@ import (
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"google.golang.org/grpc/codes"
 
-	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 // MockPostgresClient implements a mock PostgreSQL client for testing

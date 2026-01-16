@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 // RoleCacheConfig holds configuration for the role cache

@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"go.corp.nvidia.com/osmo/service/authz_sidecar/server"
-	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 const (

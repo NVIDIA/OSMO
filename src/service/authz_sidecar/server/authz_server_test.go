@@ -23,7 +23,7 @@ import (
 	"os"
 	"testing"
 
-	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 func TestMatchMethod(t *testing.T) {

@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"go.corp.nvidia.com/osmo/service/utils_go/postgres"
+	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
 func TestRoleCache_GetSet(t *testing.T) {

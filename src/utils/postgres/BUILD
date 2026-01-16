@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ go_library(
     srcs = [
         "postgres_client.go",
     ],
-    importpath = "go.corp.nvidia.com/osmo/service/utils_go/postgres",
-    visibility = ["//src/service:__subpackages__"],
+    importpath = "go.corp.nvidia.com/osmo/utils/postgres",
+    visibility = ["//visibility:public"],
     deps = [
         "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
     ],
@@ -45,10 +45,10 @@ go_test(
 #        -e POSTGRES_PASSWORD=osmo -e POSTGRES_DB=osmo_db postgres:15.1
 #
 #   2. Run the test:
-#      bazel test //src/service/utils_go/postgres:postgres_integration_test --test_output=streamed
+#      bazel test //src/utils/postgres:postgres_integration_test --test_output=streamed
 #
 # Custom PostgreSQL configuration:
-#   bazel test //src/service/utils_go/postgres:postgres_integration_test \
+#   bazel test //src/utils/postgres:postgres_integration_test \
 #     --test_output=streamed \
 #     --test_arg=-postgres-host=localhost \
 #     --test_arg=-postgres-port=5432 \

@@ -30,7 +30,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//src/service/authz_sidecar/server:server",
-        "//src/service/utils_go/postgres:postgres",
+        "//src/utils/postgres:postgres",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//health:go_default_library",
         "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
