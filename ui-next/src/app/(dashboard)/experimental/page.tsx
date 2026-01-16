@@ -19,7 +19,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FlaskConical } from "lucide-react";
-import { usePage } from "@/components/shell";
+import { usePage } from "@/components/chrome";
 
 /**
  * Experimental Pages Index

@@ -16,7 +16,7 @@
 
 "use client";
 
-import { usePage } from "@/components/shell";
+import { usePage } from "@/components/chrome";
 
 export default function ProfilePage() {
   usePage({ title: "Profile" });
