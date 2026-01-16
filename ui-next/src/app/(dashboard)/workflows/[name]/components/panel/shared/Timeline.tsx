@@ -40,7 +40,7 @@ import { useResizeObserver } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { calculateLiveDuration } from "@/hooks";
-import { formatDuration } from "../../lib/workflow-types";
+import { formatDuration } from "../../../lib/workflow-types";
 
 // ============================================================================
 // Shared Utilities

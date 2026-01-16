@@ -48,10 +48,10 @@ import { SidePanel, PanelCollapsedStrip, PanelHeader, PanelCollapseButton, Panel
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
-import { WorkflowDetails } from "./WorkflowDetails";
-import { GroupDetails } from "./GroupDetails";
-import { TaskDetails } from "./TaskDetails";
-import type { DetailsPanelProps } from "../../lib/panel-types";
+import { WorkflowDetails } from "../workflow/WorkflowDetails";
+import { GroupDetails } from "../group/GroupDetails";
+import { TaskDetails } from "../task/TaskDetails";
+import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
 
 // NOTE: We intentionally do NOT use a focus trap here.

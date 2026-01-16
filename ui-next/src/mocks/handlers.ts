@@ -35,7 +35,8 @@ import {
   datasetGenerator,
   profileGenerator,
   portForwardGenerator,
-  terminalSimulator,
+  ptySimulator,
+  type PTYScenario,
 } from "./generators";
 
 // Simulate network delay (ms) - realistic latency
@@ -292,56 +293,104 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   }),
 
   // ==========================================================================
-  // Terminal / Exec
+  // Terminal / Exec (PTY Sessions)
   // ==========================================================================
 
-  // Create exec session
-  http.post("/api/workflow/:name/exec/task/:taskName", async ({ params }) => {
+  // Create exec session - returns RouterResponse format
+  // Query params: ?scenario=training|fast-output|nvidia-smi|colors|top|disconnect|normal
+  http.post("/api/workflow/:name/exec/task/:taskName", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
 
-    const session = terminalSimulator.createSession(workflowName, taskName);
+    // Check if task is running (mock: some tasks are not running)
+    if (taskName.includes("completed") || taskName.includes("failed")) {
+      return HttpResponse.json({ detail: "Task is not running" }, { status: 400 });
+    }
 
-    return HttpResponse.json({
-      session_id: session.session_id,
-      websocket_url: `/api/workflow/${workflowName}/task/${taskName}/exec/${session.session_id}`,
-    });
-  }),
+    // Check for permission denied scenario
+    if (taskName.includes("forbidden") || taskName.includes("private")) {
+      return HttpResponse.json({ detail: "You don't have permission to exec into this task" }, { status: 403 });
+    }
 
-  // Get exec session (for polling-based terminal)
-  http.get("/api/workflow/:name/task/:taskName/exec/session", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
+    // Parse scenario from request body or query
     const url = new URL(request.url);
-    const sessionId = url.searchParams.get("session_id");
+    const scenario = (url.searchParams.get("scenario") || "normal") as PTYScenario;
 
-    if (!sessionId) {
-      return new HttpResponse(null, { status: 400 });
+    // Get shell from request body
+    let shell = "/bin/bash";
+    try {
+      const body = (await request.json()) as { entry_command?: string };
+      shell = body.entry_command || "/bin/bash";
+    } catch {
+      // No body, use default
     }
 
-    const session = terminalSimulator.getSession(sessionId);
-    if (!session) {
-      return new HttpResponse(null, { status: 404 });
-    }
+    // Create PTY session
+    const session = ptySimulator.createSession(workflowName, taskName, shell, scenario);
 
+    // Return RouterResponse format (matches backend)
     return HttpResponse.json({
-      ...session,
-      prompt: terminalSimulator.getPrompt(session),
+      router_address: window.location.origin,
+      key: session.id,
+      cookie: `mock_session_${session.id}`,
+      // Additional fields for mock convenience
+      session_id: session.id,
+      websocket_url: `/api/router/exec/${workflowName}/client/${session.id}`,
     });
   }),
 
-  // Execute command in session
-  http.post("/api/workflow/:name/task/:taskName/exec/:sessionId", async ({ params, request }) => {
+  // Get PTY session info (for reconnection check)
+  http.get("/api/workflow/:name/exec/task/:taskName/session/:sessionId", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const sessionId = params.sessionId as string;
-    const body = (await request.json()) as { command: string };
+    const session = ptySimulator.getSession(sessionId);
 
-    const result = terminalSimulator.executeCommand(sessionId, body.command);
+    if (!session) {
+      return HttpResponse.json({ detail: "Session not found or expired" }, { status: 404 });
+    }
 
-    return HttpResponse.json(result);
+    return HttpResponse.json({
+      session_id: session.id,
+      workflow_name: session.workflowName,
+      task_name: session.taskName,
+      shell: session.shell,
+      created_at: session.createdAt.toISOString(),
+      is_connected: session.isConnected,
+      rows: session.rows,
+      cols: session.cols,
+    });
+  }),
+
+  // List active PTY sessions
+  http.get("/api/workflow/:name/exec/sessions", async ({ params }) => {
+    await delay(MOCK_DELAY);
+
+    const workflowName = params.name as string;
+    const allSessions = ptySimulator.getAllSessions();
+    const workflowSessions = allSessions.filter((s) => s.workflowName === workflowName);
+
+    return HttpResponse.json({
+      sessions: workflowSessions.map((s) => ({
+        session_id: s.id,
+        task_name: s.taskName,
+        shell: s.shell,
+        created_at: s.createdAt.toISOString(),
+        is_connected: s.isConnected,
+      })),
+    });
+  }),
+
+  // Close PTY session
+  http.delete("/api/workflow/:name/exec/task/:taskName/session/:sessionId", async ({ params }) => {
+    await delay(MOCK_DELAY);
+
+    const sessionId = params.sessionId as string;
+    ptySimulator.closeSession(sessionId);
+
+    return HttpResponse.json({ success: true });
   }),
 
   // ==========================================================================
