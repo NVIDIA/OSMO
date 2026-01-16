@@ -35,6 +35,7 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
   const windowSize = useWindowSize();
   const [height, setHeight] = useState(0);
   const { setSafeTimeout } = useSafeTimeout();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (containerRef?.current) {
@@ -72,6 +73,10 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
     };
   }, [fileExtension, setSafeTimeout]);
 
+  useEffect(() => {
+    videoRef.current?.load();
+  }, [file.thumbnailUrl]);
+
   const handleIframeError = () => {
     setIframeError(true);
     if (timerRef.current) {
@@ -91,6 +96,7 @@ const FilePreviewer: React.FC<{ file: FileData }> = ({ file }) => {
       case "mp4":
         return (
           <video
+            ref={videoRef}
             controls
             style={{ maxHeight: `${height}px` }}
             className="object-fit"
