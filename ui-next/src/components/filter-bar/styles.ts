@@ -17,7 +17,7 @@
  */
 
 /**
- * Styles for SmartSearch components.
+ * Styles for FilterBar components.
  *
  * Split into two categories:
  * - `dropdownStyles`: UI layer styles (REPLACEABLE by cmdk/shadcn)
@@ -78,7 +78,7 @@ export const inputStyles = {
 // Chip Styles - KEEP regardless of dropdown implementation
 // ============================================================================
 
-/** Chip component styles - core to SmartSearch, not replaceable */
+/** Chip component styles - core to FilterBar, not replaceable */
 export const chipStyles = {
   chip: "inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 transition-all dark:bg-blue-900/40 dark:text-blue-300",
   chipButton: "rounded-full p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800",

@@ -21,7 +21,7 @@
 import { memo } from "react";
 import type { Resource } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
-import type { ResultsCount } from "@/components/smart-search";
+import type { ResultsCount } from "@/components/filter-bar";
 import { TableToolbar, DisplayModeToggle } from "@/components/data-table";
 import { useResourcesTableStore } from "../stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "../lib/resource-columns";

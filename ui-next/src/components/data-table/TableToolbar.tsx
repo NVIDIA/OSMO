@@ -29,7 +29,7 @@ import {
 import { Toggle } from "@/components/shadcn/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useSharedPreferences, type SearchChip } from "@/stores";
-import { SmartSearch, type SearchField, type SearchPreset, type ResultsCount } from "@/components/smart-search";
+import { FilterBar, type SearchField, type SearchPreset, type ResultsCount } from "@/components/filter-bar";
 
 // =============================================================================
 // Types
@@ -42,7 +42,7 @@ export interface ColumnDefinition {
 }
 
 export interface TableToolbarProps<T> {
-  /** Data for SmartSearch autocomplete */
+  /** Data for FilterBar autocomplete */
   data: T[];
   /** Search field definitions */
   searchFields: readonly SearchField<T>[];
@@ -56,9 +56,9 @@ export interface TableToolbarProps<T> {
   searchChips: SearchChip[];
   /** Callback when chips change */
   onSearchChipsChange: (chips: SearchChip[]) => void;
-  /** SmartSearch placeholder text */
+  /** FilterBar placeholder text */
   placeholder?: string;
-  /** Preset filter buttons for SmartSearch dropdown */
+  /** Preset filter buttons for FilterBar dropdown */
   searchPresets?: {
     label: string;
     items: SearchPreset[];
@@ -80,7 +80,7 @@ export interface TableToolbarProps<T> {
  * TableToolbar - Shared toolbar for data tables.
  *
  * Provides:
- * - SmartSearch with chip filtering
+ * - FilterBar with chip filtering
  * - Compact mode toggle
  * - Column visibility dropdown
  * - Slot for additional controls via children
@@ -121,7 +121,7 @@ function TableToolbarInner<T>({
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="min-w-[300px] flex-1">
-        <SmartSearch
+        <FilterBar
           data={data}
           fields={searchFields}
           chips={searchChips}

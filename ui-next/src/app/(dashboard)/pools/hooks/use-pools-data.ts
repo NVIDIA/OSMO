@@ -17,10 +17,10 @@
  */
 
 /**
- * Data hook for pools page with SmartSearch chip filtering.
+ * Data hook for pools page with FilterBar chip filtering.
  *
  * Architecture:
- * - Converts SmartSearch chips to filter params
+ * - Converts FilterBar chips to filter params
  * - Calls adapter (which handles client/server filtering transparently)
  * - Returns clean data for UI
  *
@@ -76,7 +76,7 @@ interface UsePoolsDataReturn {
 // =============================================================================
 
 /**
- * Mapping of SmartSearch chip fields to pool filter params.
+ * Mapping of FilterBar chip fields to pool filter params.
  *
  * This mapping stays the same whether filtering is client or server side.
  * The adapter handles where the filtering actually happens.

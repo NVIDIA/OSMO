@@ -17,9 +17,9 @@
  */
 
 /**
- * Core types for SmartSearch.
+ * Core types for FilterBar.
  *
- * These types define the data model for smart search - fields, chips, and presets.
+ * These types define the data model for filter bar - fields, chips, and presets.
  * This is pure business logic, completely independent of any UI library.
  */
 
@@ -105,7 +105,7 @@ export interface SearchChip {
 /**
  * Props passed to the custom preset render function.
  *
- * SmartSearch is agnostic about preset content - the caller provides
+ * FilterBar is agnostic about preset content - the caller provides
  * the render function and decides what to display (labels, counts, icons, etc.).
  */
 export interface PresetRenderProps {
@@ -119,7 +119,7 @@ export interface PresetRenderProps {
  * A preset filter button shown at the top of the dropdown.
  * Used for quick-access filters like status categories.
  *
- * SmartSearch practices dependency injection - the caller provides the render
+ * FilterBar practices dependency injection - the caller provides the render
  * function and is responsible for all visual content (labels, counts, icons, etc.).
  * This keeps the component agnostic about what presets display.
  *
@@ -148,13 +148,13 @@ export interface SearchPreset {
   /**
    * Render function for preset content.
    * The caller is responsible for all visual content (labels, icons, counts, etc.).
-   * SmartSearch only handles the button wrapper and click/keyboard interaction.
+   * FilterBar only handles the button wrapper and click/keyboard interaction.
    */
   render: (props: PresetRenderProps) => React.ReactNode;
 }
 
 /**
- * Results count configuration for SmartSearch.
+ * Results count configuration for FilterBar.
  * Backend-driven counts for displaying "N results" or "M of N results".
  */
 export interface ResultsCount {
@@ -172,10 +172,10 @@ export interface ResultsCount {
 }
 
 /**
- * Props for the SmartSearch component.
+ * Props for the FilterBar component.
  * @template T - The data item type being searched
  */
-export interface SmartSearchProps<T> {
+export interface FilterBarProps<T> {
   /** Data to search through (for autocomplete values) */
   data: T[];
   /** Field definitions for this search */
