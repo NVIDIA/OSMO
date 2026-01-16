@@ -49,7 +49,7 @@ export const metadata: Metadata = {
 
 import { Suspense } from "react";
 import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { fetchWorkflowByName } from "@/lib/api/server";
+import { fetchWorkflowByName, shouldSkipServerPrefetch } from "@/lib/api/server";
 import { WorkflowDetailContent } from "./workflow-detail-content";
 import { WorkflowDetailSkeleton } from "./workflow-detail-skeleton";
 
@@ -73,12 +73,16 @@ export default async function WorkflowDetailPage({ params }: WorkflowDetailPageP
   // Create a new QueryClient for this request
   const queryClient = new QueryClient();
 
-  // Prefetch workflow data on the server
-  // Use short revalidation for workflow detail (it changes frequently)
-  await queryClient.prefetchQuery({
-    queryKey: ["workflow", decodedName],
-    queryFn: () => fetchWorkflowByName(decodedName, true, { revalidate: 30 }),
-  });
+  // Skip server prefetching in mock mode during development for fast iteration
+  // Client-side MSW handles data fetching much faster than server-side
+  if (!shouldSkipServerPrefetch()) {
+    // Prefetch workflow data on the server
+    // Use short revalidation for workflow detail (it changes frequently)
+    await queryClient.prefetchQuery({
+      queryKey: ["workflow", decodedName],
+      queryFn: () => fetchWorkflowByName(decodedName, true, { revalidate: 30 }),
+    });
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
