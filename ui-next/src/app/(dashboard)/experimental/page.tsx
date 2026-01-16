@@ -18,7 +18,7 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, LayoutPanelTop } from "lucide-react";
 import { usePage } from "@/components/chrome";
 
 /**
@@ -43,13 +43,12 @@ interface ExperimentalPage {
 }
 
 const experimentalPages: ExperimentalPage[] = [
-  // Add experimental pages here as needed:
-  // {
-  //   title: "Example Page",
-  //   href: "/experimental/example",
-  //   description: "Description of the experimental feature",
-  //   icon: SomeIcon,
-  // },
+  {
+    title: "Tab Designs",
+    href: "/experimental/tabs",
+    description: "Compare 12 different tab patterns for panel navigation",
+    icon: LayoutPanelTop,
+  },
 ];
 
 export default function ExperimentalIndexPage() {
