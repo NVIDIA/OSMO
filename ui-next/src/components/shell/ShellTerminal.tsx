@@ -13,13 +13,13 @@
  * Combines xterm.js with WebSocket connection to backend PTY.
  *
  * Features:
+ * - Zero permanent chrome - contextual overlays only
  * - WebGL-accelerated rendering
  * - Auto-resize to container
  * - NVIDIA-themed dark colors
  * - Screen reader support
  * - Search with Ctrl+Shift+F
  * - Copy/paste support
- * - Shell selector
  *
  * Usage:
  * ```tsx
@@ -34,14 +34,15 @@
 "use client";
 
 import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle } from "react";
-import { Terminal as TerminalIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
 import { useShellStore } from "@/app/(dashboard)/workflows/[name]/stores";
 
 import { useShell } from "./use-shell";
 import { useWebSocketShell } from "./use-websocket-shell";
-import { ShellToolbar } from "./ShellToolbar";
+import { ShellConnectCard } from "./ShellConnectCard";
+import { ShellConnecting } from "./ShellConnecting";
+import { ShellDisconnectedOverlay } from "./ShellDisconnectedOverlay";
 import { ShellSearch } from "./ShellSearch";
 import type { ShellTerminalProps, ShellTerminalRef } from "./types";
 import { SHELL_CONFIG } from "./types";
@@ -153,6 +154,17 @@ export const ShellTerminal = memo(
       },
     });
 
+    // Handle connect with shell selection
+    const handleConnect = useCallback((selectedShell: string) => {
+      setShell(selectedShell);
+      // Connect will be triggered by effect when shell is set
+    }, []);
+
+    // Handle reconnect - uses last shell
+    const handleReconnect = useCallback(() => {
+      connect();
+    }, [connect]);
+
     // Expose imperative methods via ref
     useImperativeHandle(
       ref,
@@ -183,6 +195,14 @@ export const ShellTerminal = memo(
         // Don't close session on unmount - keep it for reconnection
       };
     }, [workflowName, taskName, shell, openSession]);
+
+    // Connect when shell is selected (from connect card)
+    useEffect(() => {
+      if (isShellReady && status === "idle" && shell !== initialShell) {
+        // Shell was changed via connect card, initiate connection
+        connect();
+      }
+    }, [isShellReady, status, shell, initialShell, connect]);
 
     // Auto-connect when shell is ready (only if autoConnect is true)
     useEffect(() => {
@@ -261,16 +281,6 @@ export const ShellTerminal = memo(
       }
     }, [getTerminal, containerRef, copy, announce, send]);
 
-    // Handle reconnect
-    const handleReconnect = useCallback(() => {
-      connect();
-    }, [connect]);
-
-    // Handle disconnect
-    const handleDisconnect = useCallback(() => {
-      disconnect();
-    }, [disconnect]);
-
     // Handle focus/blur for active state
     const handleFocus = useCallback(() => {
       setIsActive(true);
@@ -278,16 +288,6 @@ export const ShellTerminal = memo(
 
     const handleBlur = useCallback(() => {
       setIsActive(false);
-    }, []);
-
-    // Handle shell change
-    const handleShellChange = useCallback((newShell: string) => {
-      setShell(newShell);
-    }, []);
-
-    // Handle search toggle
-    const handleToggleSearch = useCallback(() => {
-      setIsSearchOpen((prev) => !prev);
     }, []);
 
     // Handle search close
@@ -318,42 +318,47 @@ export const ShellTerminal = memo(
       }
     }, [searchQuery]);
 
-    // Determine if terminal is interactive
+    // Determine UI state
     const isConnected = status === "connected";
+    const isConnecting = status === "connecting";
+    const isDisconnected = status === "disconnected";
+    const isError = status === "error";
+    const showConnectCard = status === "idle" && !autoConnect;
+    const showDisconnectedOverlay = isDisconnected || isError;
 
     return (
       <div
         className={cn("shell-container", className)}
         data-active={isActive}
         data-connected={isConnected}
-        data-animate="true"
         onFocus={handleFocus}
         onBlur={handleBlur}
         role="application"
         aria-label={`Shell for ${taskName}`}
       >
-        {/* Header */}
-        <div className="shell-header">
-          <div className="shell-header-left">
-            <TerminalIcon
-              className="size-4 text-zinc-400"
-              aria-hidden="true"
-            />
-            <span className="shell-task-name">{taskName}</span>
-          </div>
-          <div className="shell-header-right">
-            <span className="text-xs text-zinc-500">Ctrl+Shift+F: Search</span>
-          </div>
-        </div>
-
-        {/* Shell Body */}
+        {/* Terminal Body - always mounted to preserve history */}
         <div
           ref={containerRef}
           className="shell-body"
           tabIndex={0}
         />
 
-        {/* Search Bar (when open) */}
+        {/* Connect Card - shown on idle (when autoConnect is false) */}
+        {showConnectCard && <ShellConnectCard onConnect={handleConnect} />}
+
+        {/* Connecting Spinner */}
+        {isConnecting && <ShellConnecting />}
+
+        {/* Disconnected/Error Overlay */}
+        {showDisconnectedOverlay && (
+          <ShellDisconnectedOverlay
+            isError={isError}
+            errorMessage={error}
+            onReconnect={handleReconnect}
+          />
+        )}
+
+        {/* Search Bar - floating top-right when open */}
         {isSearchOpen && (
           <ShellSearch
             query={searchQuery}
@@ -363,19 +368,6 @@ export const ShellTerminal = memo(
             onClose={handleCloseSearch}
           />
         )}
-
-        {/* Status Bar / Toolbar */}
-        <ShellToolbar
-          shell={shell}
-          onShellChange={handleShellChange}
-          status={status}
-          error={error}
-          onReconnect={handleReconnect}
-          onDisconnect={handleDisconnect}
-          onToggleSearch={handleToggleSearch}
-          isSearchActive={isSearchOpen}
-          canChangeShell={status === "idle" || status === "disconnected"}
-        />
       </div>
     );
   }),

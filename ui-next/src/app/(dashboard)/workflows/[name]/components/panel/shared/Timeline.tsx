@@ -159,6 +159,12 @@ function getScaledFr(duration: number | null): number {
   return Math.max(1, Math.sqrt(d));
 }
 
+/** Minimum width for horizontal layout - below this, always use vertical */
+const MIN_HORIZONTAL_WIDTH = 280;
+
+/** Hysteresis buffer to prevent flip-flopping between layouts */
+const LAYOUT_HYSTERESIS = 20;
+
 export const Timeline = memo(function Timeline({
   phases,
   emptyMessage,
@@ -170,8 +176,9 @@ export const Timeline = memo(function Timeline({
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Track if horizontal layout overflows (all segments at min-content but still don't fit)
-  const [hasOverflow, setHasOverflow] = useState(false);
+  // Track layout mode with hysteresis to prevent flip-flopping
+  const [isVertical, setIsVertical] = useState(false);
+  const lastWidthRef = useRef<number>(0);
 
   // Use useResizeObserver for efficient container dimension tracking
   const { width: containerWidth = 0 } = useResizeObserver({
@@ -179,25 +186,58 @@ export const Timeline = memo(function Timeline({
     box: "border-box",
   });
 
-  // Detect overflow: switch to vertical when even min-content widths don't fit
-  // Using RAF to defer state update and avoid cascading renders flagged by React Compiler
+  // Detect overflow with hysteresis to prevent flip-flopping
+  // Only switch layouts when there's a significant change
   useLayoutEffect(() => {
-    if (!gridRef.current || containerWidth <= 0) return;
+    if (containerWidth <= 0) return;
 
-    // Measure overflow after layout
+    // Always use vertical for narrow containers
+    if (containerWidth < MIN_HORIZONTAL_WIDTH) {
+      setIsVertical(true);
+      lastWidthRef.current = containerWidth;
+      return;
+    }
+
+    // Check if we need to measure the grid
+    if (!gridRef.current) {
+      // No grid to measure yet, default to horizontal for wide containers
+      if (!isVertical && containerWidth >= MIN_HORIZONTAL_WIDTH) {
+        lastWidthRef.current = containerWidth;
+      }
+      return;
+    }
+
     const checkOverflow = () => {
       if (!gridRef.current) return;
-      const overflow = gridRef.current.scrollWidth > gridRef.current.clientWidth + 1;
-      setHasOverflow(overflow);
+
+      const scrollWidth = gridRef.current.scrollWidth;
+      const clientWidth = gridRef.current.clientWidth;
+      const hasOverflow = scrollWidth > clientWidth + 1;
+
+      // Apply hysteresis: only switch if change is significant
+      const widthDelta = Math.abs(containerWidth - lastWidthRef.current);
+
+      if (hasOverflow && !isVertical) {
+        // Switch to vertical when overflowing
+        setIsVertical(true);
+        lastWidthRef.current = containerWidth;
+      } else if (!hasOverflow && isVertical && widthDelta > LAYOUT_HYSTERESIS) {
+        // Only switch back to horizontal if container grew significantly
+        // and there's enough room
+        if (containerWidth > lastWidthRef.current + LAYOUT_HYSTERESIS) {
+          setIsVertical(false);
+          lastWidthRef.current = containerWidth;
+        }
+      }
     };
 
     // Use RAF to batch the state update after browser paint
     const rafId = requestAnimationFrame(checkOverflow);
     return () => cancelAnimationFrame(rafId);
-  }, [containerWidth, phases.length]);
+  }, [containerWidth, phases.length, isVertical]);
 
-  // Use horizontal if container has width and content fits
-  const useHorizontal = containerWidth > 0 && !hasOverflow;
+  // Use horizontal if not in vertical mode
+  const useHorizontal = !isVertical && containerWidth >= MIN_HORIZONTAL_WIDTH;
 
   // No timeline data - show empty message or nothing
   if (phases.length === 0) {
@@ -327,18 +367,19 @@ export const Timeline = memo(function Timeline({
           </div>
         )}
 
-        {/* Horizontal layout - always render for measurement, hide when overflowing */}
+        {/* Horizontal layout - always render for measurement, hide when in vertical mode */}
         {/* Uses CSS Grid with minmax(max-content, Xfr) for proportional sizing with minimum text width */}
         {/* Behavior: segments shrink proportionally, stop at text width, then switch to vertical */}
-        {containerWidth > 0 && (
+        {containerWidth >= MIN_HORIZONTAL_WIDTH && (
           <div
             ref={gridRef}
             className={cn(
               "grid",
-              // Hide when overflow detected, but keep in DOM for measurement
-              hasOverflow && "pointer-events-none invisible absolute",
+              // Hide when in vertical mode, but keep in DOM for measurement
+              // Use fixed positioning to prevent affecting layout/scrollbars
+              isVertical && "pointer-events-none invisible fixed -left-[9999px]",
             )}
-            aria-hidden={hasOverflow}
+            aria-hidden={isVertical}
             style={{
               // minmax(max-content, Xfr): columns shrink proportionally, stop at text content width
               // Uses sqrt scaling to prevent extreme visual disparities (3600s vs 5s = 60:1 not 720:1)
