@@ -81,7 +81,7 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
             'No url provided and no previous login found. '
             'Please provide a url: osmo login <url>')
 
-    print(f'Logging in to url: {url}')
+    print(f'Logging in to {url}')
 
     # Parse out the password and username
     username = args.username
