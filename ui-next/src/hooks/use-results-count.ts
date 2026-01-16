@@ -19,7 +19,7 @@
 /**
  * Results Count Hook
  *
- * Memoized hook for computing results count for SmartSearch display.
+ * Memoized hook for computing results count for FilterBar display.
  * Consolidates the duplicated useMemo pattern across page components.
  *
  * @example
@@ -39,7 +39,7 @@
  */
 
 import { useMemo } from "react";
-import type { ResultsCount } from "@/components/smart-search";
+import type { ResultsCount } from "@/components/filter-bar";
 
 // =============================================================================
 // Types
@@ -59,7 +59,7 @@ export interface UseResultsCountOptions {
 // =============================================================================
 
 /**
- * Compute memoized results count for SmartSearch display.
+ * Compute memoized results count for FilterBar display.
  *
  * Returns a ResultsCount object that shows:
  * - Total count always

@@ -17,9 +17,9 @@
  */
 
 /**
- * SmartSearch UI components.
+ * FilterBar UI components.
  *
- * Core components for SmartSearch:
+ * Core components for FilterBar:
  * - ChipLabel: Chip display with variants
  * - PresetContent: Wrapper for caller-provided preset rendering
  *
@@ -97,7 +97,7 @@ export interface PresetContentProps {
 /**
  * Preset content for rendering inside CommandItem.
  *
- * SmartSearch is agnostic about preset content - it delegates all rendering
+ * FilterBar is agnostic about preset content - it delegates all rendering
  * to the caller-provided render function. This enables dependency injection
  * and keeps the component decoupled from data concerns like counts.
  */

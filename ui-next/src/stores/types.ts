@@ -41,11 +41,11 @@ import type {
 export type { ColumnSizingPreference, ColumnSizingPreferences, SortDirection, PreferenceMode };
 
 // =============================================================================
-// Search Types (Single Source of Truth: smart-search)
+// Search Types (Single Source of Truth: filter-bar)
 // =============================================================================
 
-// Import search types from smart-search component (single source of truth)
-import type { ChipVariant, SearchChip } from "@/components/smart-search";
+// Import search types from filter-bar component (single source of truth)
+import type { ChipVariant, SearchChip } from "@/components/filter-bar";
 
 // Re-export for consumers of this module
 export type { ChipVariant, SearchChip };

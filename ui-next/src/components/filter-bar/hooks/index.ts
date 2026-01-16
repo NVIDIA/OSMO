@@ -17,7 +17,7 @@
  */
 
 /**
- * SmartSearch Hooks - Core React hooks.
+ * FilterBar Hooks - Core React hooks.
  *
  * These hooks contain the core React logic that is INDEPENDENT of any UI library.
  * They use types from lib/ but add React state management.

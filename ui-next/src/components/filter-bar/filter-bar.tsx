@@ -17,7 +17,7 @@
  */
 
 /**
- * SmartSearch Component
+ * FilterBar Component
  *
  * Intelligent search input with chip-based filters, autocomplete suggestions,
  * and support for field-specific queries (pool:, platform:, backend:, etc.).
@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
 import { Command, CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 
 // Core types (lib/) and hooks (hooks/) - never change with UI library swap
-import type { SmartSearchProps } from "./lib";
+import type { FilterBarProps } from "./lib";
 import { useChips, useSuggestions } from "./hooks";
 
 // UI components and styles
@@ -56,7 +56,7 @@ import { ChipLabel, PresetContent } from "./components";
 // Component
 // ============================================================================
 
-function SmartSearchInner<T>({
+function FilterBarInner<T>({
   data,
   fields,
   chips,
@@ -66,7 +66,7 @@ function SmartSearchInner<T>({
   displayMode,
   presets,
   resultsCount,
-}: SmartSearchProps<T>) {
+}: FilterBarProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [focusedChipIndex, setFocusedChipIndex] = useState(-1);
@@ -362,7 +362,7 @@ function SmartSearchInner<T>({
             className={inputStyles.input}
             role="combobox"
             aria-expanded={showDropdown || undefined}
-            aria-controls="smart-search-listbox"
+            aria-controls="filter-bar-listbox"
             aria-haspopup="listbox"
           />
 
@@ -522,4 +522,4 @@ function SmartSearchInner<T>({
 }
 
 // Memoized export
-export const SmartSearch = memo(SmartSearchInner) as typeof SmartSearchInner;
+export const FilterBar = memo(FilterBarInner) as typeof FilterBarInner;

@@ -45,7 +45,7 @@ import {
   asTaskColumnIds,
 } from "../../../lib/task-columns";
 import { createTaskColumns } from "../../../lib/task-column-defs";
-import { filterByChips, type SearchChip } from "@/components/smart-search";
+import { filterByChips, type SearchChip } from "@/components/filter-bar";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-fields";
 import { useTaskTableStore } from "../../../stores";
 import { DetailsPanelHeader, ColumnMenuContent } from "../shared/DetailsPanelHeader";
@@ -192,7 +192,7 @@ export const GroupDetails = memo(function GroupDetails({
   // Static presets for state filtering (no data-dependent counts)
   const taskPresets = TASK_PRESETS;
 
-  // Results count for SmartSearch display (using consolidated hook)
+  // Results count for FilterBar display (using consolidated hook)
   const resultsCount = useResultsCount({
     total: stats.total,
     filteredTotal: filteredTasks.length,
