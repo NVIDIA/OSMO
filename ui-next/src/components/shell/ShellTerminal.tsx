@@ -81,6 +81,19 @@ export const ShellTerminal = memo(function ShellTerminal({
   const updateStatus = useShellStore((s) => s.updateStatus);
   const closeSession = useShellStore((s) => s.closeSession);
 
+  // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
+  const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
+  const resizeRef = useRef<(rows: number, cols: number) => void>(() => {});
+
+  // Stable callbacks for useShell - these never change reference
+  const handleShellData = useCallback((data: string) => {
+    sendRef.current(data);
+  }, []);
+
+  const handleShellResize = useCallback((cols: number, rows: number) => {
+    resizeRef.current(rows, cols);
+  }, []);
+
   // Shell hook - manages xterm.js instance
   const {
     containerRef,
@@ -91,14 +104,8 @@ export const ShellTerminal = memo(function ShellTerminal({
     getDimensions,
     fit,
   } = useShell({
-    onData: (data) => {
-      // Send user input to backend
-      send(data);
-    },
-    onResize: (cols, rows) => {
-      // Notify backend of shell size change
-      resize(rows, cols);
-    },
+    onData: handleShellData,
+    onResize: handleShellResize,
   });
 
   // WebSocket hook - manages connection to backend PTY
@@ -137,6 +144,12 @@ export const ShellTerminal = memo(function ShellTerminal({
       onSessionEnded?.();
     },
   });
+
+  // Sync refs with latest send/resize functions
+  useEffect(() => {
+    sendRef.current = send;
+    resizeRef.current = resize;
+  }, [send, resize]);
 
   // Register session on mount
   useEffect(() => {
