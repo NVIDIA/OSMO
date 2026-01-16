@@ -403,13 +403,72 @@ export function buildNodes(
   return nodes;
 }
 
+// ============================================================================
+// Pre-computed Edge Styles (Module-level singletons)
+// These objects are created once at module load and reused for every edge.
+// This eliminates per-edge object allocation, reducing GC pressure during layout.
+// ============================================================================
+
+import type { StatusCategory } from "./status-utils";
+
+/** Pre-computed style objects per category (solid vs dashed) */
+const EDGE_STYLE_SOLID = {
+  strokeWidth: EDGE_STYLE.STROKE_WIDTH,
+} as const;
+
+const EDGE_STYLE_DASHED = {
+  strokeWidth: EDGE_STYLE.STROKE_WIDTH,
+  strokeDasharray: EDGE_STYLE.DASH_ARRAY,
+} as const;
+
+/** Pre-computed marker objects per category */
+const EDGE_MARKERS: Record<
+  StatusCategory,
+  { type: typeof MarkerType.ArrowClosed; color: string; width: number; height: number }
+> = {
+  waiting: {
+    type: MarkerType.ArrowClosed,
+    color: STATUS_STYLES.waiting.color,
+    width: EDGE_STYLE.ARROW_WIDTH,
+    height: EDGE_STYLE.ARROW_HEIGHT,
+  },
+  running: {
+    type: MarkerType.ArrowClosed,
+    color: STATUS_STYLES.running.color,
+    width: EDGE_STYLE.ARROW_WIDTH,
+    height: EDGE_STYLE.ARROW_HEIGHT,
+  },
+  completed: {
+    type: MarkerType.ArrowClosed,
+    color: STATUS_STYLES.completed.color,
+    width: EDGE_STYLE.ARROW_WIDTH,
+    height: EDGE_STYLE.ARROW_HEIGHT,
+  },
+  failed: {
+    type: MarkerType.ArrowClosed,
+    color: STATUS_STYLES.failed.color,
+    width: EDGE_STYLE.ARROW_WIDTH,
+    height: EDGE_STYLE.ARROW_HEIGHT,
+  },
+};
+
+/** Pre-computed data objects per category */
+const EDGE_DATA: Record<StatusCategory, { status: StatusCategory }> = {
+  waiting: { status: "waiting" },
+  running: { status: "running" },
+  completed: { status: "completed" },
+  failed: { status: "failed" },
+};
+
 /**
  * Build ReactFlow edges from groups.
  *
  * Uses CSS variables and data attributes for styling instead of inline styles.
  * This enables GPU-accelerated rendering and reduces React reconciliation work.
  *
- * Performance: Uses for...of loops instead of flatMap to avoid intermediate arrays.
+ * Performance:
+ * - Uses for...of loops instead of flatMap to avoid intermediate arrays
+ * - Reuses pre-computed style/marker/data objects (no per-edge allocation)
  *
  * @param groups - The workflow groups
  * @returns ReactFlow edges
@@ -424,8 +483,11 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
     const category = getStatusCategory(group.status);
     const isTerminal = category === "completed" || category === "failed";
     const isRunning = category === "running";
-    const statusColor = STATUS_STYLES[category].color;
-    const dashArray = isTerminal || isRunning ? undefined : EDGE_STYLE.DASH_ARRAY;
+    // Reuse pre-computed objects instead of creating new ones per edge
+    const edgeStyle = isTerminal || isRunning ? EDGE_STYLE_SOLID : EDGE_STYLE_DASHED;
+    const marker = EDGE_MARKERS[category];
+    const data = EDGE_DATA[category];
+    const className = `dag-edge dag-edge--${category}`;
 
     for (const downstreamName of downstreams) {
       edges.push({
@@ -436,22 +498,10 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
         targetHandle: "target",
         type: "smoothstep",
         animated: isRunning,
-        // Use className for CSS-based styling instead of inline styles
-        className: `dag-edge dag-edge--${category}`,
-        // Minimal inline style - only what can't be done in CSS
-        style: {
-          strokeWidth: EDGE_STYLE.STROKE_WIDTH,
-          strokeDasharray: dashArray,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          // Marker color still needs inline - ReactFlow limitation
-          color: statusColor,
-          width: EDGE_STYLE.ARROW_WIDTH,
-          height: EDGE_STYLE.ARROW_HEIGHT,
-        },
-        // Pass status data for potential future use
-        data: { status: category },
+        className,
+        style: edgeStyle,
+        markerEnd: marker,
+        data,
       });
     }
   }
