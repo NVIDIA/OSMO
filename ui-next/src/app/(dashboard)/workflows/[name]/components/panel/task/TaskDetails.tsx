@@ -28,10 +28,10 @@
 "use client";
 
 import { useMemo, useCallback, memo, useState } from "react";
-import { FileText, Terminal, AlertCircle, Copy, Check, XCircle, Calendar } from "lucide-react";
+import { FileText, Terminal, AlertCircle, Copy, Check, XCircle, Calendar, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
+import { PanelTabs, type PanelTab } from "@/components/panel-tabs";
 import { useCopy, useTick } from "@/hooks";
 import { TaskShell } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
@@ -439,6 +439,19 @@ export const TaskDetails = memo(function TaskDetails({
     [setActiveTab],
   );
 
+  // Build tabs array dynamically based on whether shell is available
+  const availableTabs: PanelTab[] = useMemo(() => {
+    const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
+
+    if (isRunning && workflowName) {
+      tabs.push({ id: "shell", label: "Shell", icon: Terminal });
+    }
+
+    tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: Calendar });
+
+    return tabs;
+  }, [isRunning, workflowName]);
+
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
       {/* Header - aligned with GroupDetails layout */}
@@ -457,80 +470,43 @@ export const TaskDetails = memo(function TaskDetails({
         onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Tab Navigation */}
-      <Tabs
+      {/* Tab Navigation - Chrome-style tabs with curved connectors */}
+      <PanelTabs
+        tabs={availableTabs}
         value={activeTab}
         onValueChange={handleTabChange}
-        className="flex flex-1 flex-col overflow-hidden"
-      >
-        <div className="border-b border-gray-200 px-4 dark:border-zinc-800">
-          <TabsList className="h-9 w-full justify-start gap-1 bg-transparent p-0">
-            <TabsTrigger
-              value="overview"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              Overview
-            </TabsTrigger>
-            {isRunning && workflowName && (
-              <TabsTrigger
-                value="shell"
-                className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-              >
-                <Terminal className="mr-1.5 size-3" />
-                Shell
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="logs"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              <FileText className="mr-1.5 size-3" />
-              Logs
-            </TabsTrigger>
-            <TabsTrigger
-              value="events"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              <Calendar className="mr-1.5 size-3" />
-              Events
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        compactBreakpoint={280}
+      />
 
-        {/* Tab Content */}
-        <TabsContent
-          value="overview"
-          className="mt-0 flex-1 overflow-y-auto p-4 pb-16"
-        >
-          <OverviewTab task={task} />
-        </TabsContent>
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-900">
+        {activeTab === "overview" && (
+          <div className="p-4 pb-16">
+            <OverviewTab task={task} />
+          </div>
+        )}
 
-        {isRunning && workflowName && (
-          <TabsContent
-            value="shell"
-            className="mt-0 flex-1 overflow-hidden p-4"
-          >
+        {activeTab === "shell" && isRunning && workflowName && (
+          <div className="h-full overflow-hidden p-4">
             <TaskShell
               workflowName={workflowName}
               taskName={task.name}
             />
-          </TabsContent>
+          </div>
         )}
 
-        <TabsContent
-          value="logs"
-          className="mt-0 flex-1 overflow-y-auto p-4"
-        >
-          <LogsTab task={task} />
-        </TabsContent>
+        {activeTab === "logs" && (
+          <div className="p-4">
+            <LogsTab task={task} />
+          </div>
+        )}
 
-        <TabsContent
-          value="events"
-          className="mt-0 flex-1 overflow-y-auto p-4"
-        >
-          <EventsTab task={task} />
-        </TabsContent>
-      </Tabs>
+        {activeTab === "events" && (
+          <div className="p-4">
+            <EventsTab task={task} />
+          </div>
+        )}
+      </div>
     </div>
   );
 });
