@@ -17,10 +17,10 @@
  */
 
 /**
- * Data hook for resources page with SmartSearch chip filtering.
+ * Data hook for resources page with FilterBar chip filtering.
  *
  * Architecture:
- * - Converts SmartSearch chips to filter params
+ * - Converts FilterBar chips to filter params
  * - Calls adapter (which handles client/server filtering transparently)
  * - Returns clean data for UI
  *
@@ -43,7 +43,7 @@ import {
 } from "@/lib/api/adapter";
 import { usePaginatedData } from "@/lib/api/pagination";
 import type { SearchChip } from "@/stores";
-import { filterByChips } from "@/components/smart-search";
+import { filterByChips } from "@/components/filter-bar";
 import {
   chipsToParams,
   filterChipsByFields,
@@ -83,7 +83,7 @@ interface UseResourcesDataReturn {
 const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "name", "hostname"]);
 
 /**
- * Mapping of SmartSearch chip fields to resource filter params.
+ * Mapping of FilterBar chip fields to resource filter params.
  *
  * This mapping stays the same whether filtering is client or server side.
  * The adapter handles where the filtering actually happens.
