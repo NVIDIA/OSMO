@@ -50,6 +50,9 @@ export { fetchResources, fetchResourcesByPool, prefetchResources } from "./resou
 export { fetchWorkflows, fetchWorkflowByName, prefetchWorkflows } from "./workflows";
 export { fetchVersion } from "./version";
 
+// Configuration
+export { shouldSkipServerPrefetch } from "./config";
+
 // Re-export types for convenience
 export type { Pool, PoolsResponse } from "../adapter/types";
 export type { ServerFetchOptions } from "./config";

@@ -54,7 +54,11 @@ const nextConfig: NextConfig = {
   // - Static shell (nav, layout) is prerendered at build time
   // - Dynamic content streams in via React Suspense
   // - Users see instant content, no blank loading screens
-  cacheComponents: true,
+  //
+  // IMPORTANT: Only enable in production!
+  // In development, cacheComponents causes constant re-rendering and slow iteration
+  // as Next.js repeatedly analyzes which components can be cached on every file change.
+  cacheComponents: process.env.NODE_ENV === "production",
 
   // Source maps in production for debugging (disable to speed up builds ~30%)
   // Enable temporarily when debugging production issues
