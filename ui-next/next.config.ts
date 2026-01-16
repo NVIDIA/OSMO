@@ -49,6 +49,13 @@ const nextConfig: NextConfig = {
   // Enable standalone output for containerized deployments
   output: "standalone",
 
+  // Partial Prerendering via cacheComponents (Next.js 16)
+  // This is the killer feature for mobile/slow networks:
+  // - Static shell (nav, layout) is prerendered at build time
+  // - Dynamic content streams in via React Suspense
+  // - Users see instant content, no blank loading screens
+  cacheComponents: true,
+
   // Source maps in production for debugging (disable to speed up builds ~30%)
   // Enable temporarily when debugging production issues
   productionBrowserSourceMaps: process.env.ENABLE_SOURCE_MAPS === "true",
@@ -62,6 +69,13 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["msw", "@mswjs/interceptors"],
 
   experimental: {
+    // Stale times for client-side navigation caching
+    // This makes Back/Forward navigation instant by keeping prefetch cache warm
+    staleTimes: {
+      dynamic: 30, // 30s for dynamic routes (matches our Query staleTime)
+      static: 180, // 3min for static routes
+    },
+
     // CSS optimization - extract and inline critical CSS
     optimizeCss: true,
 
@@ -153,18 +167,27 @@ const nextConfig: NextConfig = {
           { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-osmo-auth" },
         ],
       },
-      // Performance headers for static assets
+      // Performance headers for static assets - immutable cache for 1 year
       {
         source: "/:all*(svg|jpg|jpeg|png|gif|ico|webp|woff|woff2)",
         headers: [
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
-      // Preconnect hints for faster API connections
+      // JavaScript and CSS - immutable for Next.js hashed assets
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      // Preconnect hints for faster connections
       {
         source: "/:path*",
         headers: [
           { key: "X-DNS-Prefetch-Control", value: "on" },
+          // Enable early hints (103) for browsers that support it
+          { key: "Link", value: "</api>; rel=preconnect" },
         ],
       },
     ];
