@@ -33,7 +33,7 @@
 
 "use client";
 
-import { memo, useEffect, useCallback, useState, useRef } from "react";
+import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle } from "react";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
@@ -43,7 +43,7 @@ import { useShell } from "./use-shell";
 import { useWebSocketShell } from "./use-websocket-shell";
 import { ShellToolbar } from "./ShellToolbar";
 import { ShellSearch } from "./ShellSearch";
-import type { ShellTerminalProps } from "./types";
+import type { ShellTerminalProps, ShellTerminalRef } from "./types";
 import { SHELL_CONFIG } from "./types";
 
 import "./shell.css";
@@ -52,295 +52,331 @@ import "./shell.css";
 // Component
 // =============================================================================
 
-export const ShellTerminal = memo(function ShellTerminal({
-  workflowName,
-  taskName,
-  shell: initialShell = SHELL_CONFIG.DEFAULT_SHELL,
-  onConnected,
-  onDisconnected,
-  onError,
-  onSessionEnded,
-  className,
-}: ShellTerminalProps) {
-  const announce = useAnnouncer();
-  const { copy } = useCopy();
-
-  // Local state
-  const [isActive, setIsActive] = useState(false);
-  const [shell, setShell] = useState(initialShell);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Refs for search addon
-  const searchAddonRef = useRef<{ findNext: (q: string) => boolean; findPrevious: (q: string) => boolean } | null>(
-    null,
-  );
-
-  // Shell store for session tracking
-  const openSession = useShellStore((s) => s.openSession);
-  const updateStatus = useShellStore((s) => s.updateStatus);
-  const closeSession = useShellStore((s) => s.closeSession);
-
-  // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
-  const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
-  const resizeRef = useRef<(rows: number, cols: number) => void>(() => {});
-
-  // Stable callbacks for useShell - these never change reference
-  const handleShellData = useCallback((data: string) => {
-    sendRef.current(data);
-  }, []);
-
-  const handleShellResize = useCallback((cols: number, rows: number) => {
-    resizeRef.current(rows, cols);
-  }, []);
-
-  // Shell hook - manages xterm.js instance
-  const {
-    containerRef,
-    getTerminal,
-    isReady: isShellReady,
-    write,
-    focus,
-    getDimensions,
-    fit,
-  } = useShell({
-    onData: handleShellData,
-    onResize: handleShellResize,
-  });
-
-  // WebSocket hook - manages connection to backend PTY
-  const { status, error, connect, disconnect, send, resize } = useWebSocketShell({
-    workflowName,
-    taskName,
-    shell,
-    onData: (data) => {
-      // Write received data to shell
-      write(data);
+export const ShellTerminal = memo(
+  forwardRef<ShellTerminalRef, ShellTerminalProps>(function ShellTerminal(
+    {
+      workflowName,
+      taskName,
+      shell: initialShell = SHELL_CONFIG.DEFAULT_SHELL,
+      autoConnect = true,
+      onConnected,
+      onDisconnected,
+      onError,
+      onSessionEnded,
+      onStatusChange,
+      className,
     },
-    onStatusChange: (newStatus) => {
-      updateStatus(taskName, newStatus);
-    },
-    onConnected: () => {
-      // Send initial shell size
-      const dims = getDimensions();
-      if (dims) {
-        resize(dims.rows, dims.cols);
-      }
-      focus();
-      announce("Shell connected", "polite");
-      onConnected?.();
-    },
-    onDisconnected: () => {
-      announce("Shell disconnected", "polite");
-      onDisconnected?.();
-    },
-    onError: (err) => {
-      announce(`Shell error: ${err.message}`, "assertive");
-      onError?.(err);
-    },
-    onSessionEnded: () => {
-      announce("Shell session ended", "polite");
-      closeSession(taskName);
-      onSessionEnded?.();
-    },
-  });
+    ref,
+  ) {
+    const announce = useAnnouncer();
+    const { copy } = useCopy();
 
-  // Sync refs with latest send/resize functions
-  useEffect(() => {
-    sendRef.current = send;
-    resizeRef.current = resize;
-  }, [send, resize]);
+    // Local state
+    const [isActive, setIsActive] = useState(false);
+    const [shell, setShell] = useState(initialShell);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
-  // Register session on mount
-  useEffect(() => {
-    openSession(workflowName, taskName, shell);
-    return () => {
-      // Don't close session on unmount - keep it for reconnection
-    };
-  }, [workflowName, taskName, shell, openSession]);
+    // Refs for search addon
+    const searchAddonRef = useRef<{ findNext: (q: string) => boolean; findPrevious: (q: string) => boolean } | null>(
+      null,
+    );
 
-  // Auto-connect when shell is ready
-  useEffect(() => {
-    if (isShellReady && status === "idle") {
-      connect();
-    }
-  }, [isShellReady, status, connect]);
+    // Shell store for session tracking
+    const openSession = useShellStore((s) => s.openSession);
+    const updateStatus = useShellStore((s) => s.updateStatus);
+    const closeSession = useShellStore((s) => s.closeSession);
 
-  // Re-fit shell when container might have changed
-  useEffect(() => {
-    if (isShellReady) {
-      fit();
-    }
-  }, [isShellReady, fit]);
+    // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
+    const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
+    const resizeRef = useRef<(rows: number, cols: number) => void>(() => {});
 
-  // Set up search addon when shell is ready
-  useEffect(() => {
-    const terminal = getTerminal();
-    if (!terminal) return;
+    // Stable callbacks for useShell - these never change reference
+    const handleShellData = useCallback((data: string) => {
+      sendRef.current(data);
+    }, []);
 
-    // Import SearchAddon dynamically to avoid SSR issues
-    import("@xterm/addon-search").then(({ SearchAddon }) => {
-      const addon = new SearchAddon();
-      terminal.loadAddon(addon);
-      searchAddonRef.current = {
-        findNext: (q: string) => addon.findNext(q),
-        findPrevious: (q: string) => addon.findPrevious(q),
-      };
+    const handleShellResize = useCallback((cols: number, rows: number) => {
+      resizeRef.current(rows, cols);
+    }, []);
+
+    // Shell hook - manages xterm.js instance
+    const {
+      containerRef,
+      getTerminal,
+      isReady: isShellReady,
+      write,
+      focus,
+      getDimensions,
+      fit,
+      setActive: setTerminalActive,
+    } = useShell({
+      onData: handleShellData,
+      onResize: handleShellResize,
     });
-  }, [isShellReady, getTerminal]);
 
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Shift+F - Toggle search
-      if (e.ctrlKey && e.shiftKey && e.key === "F") {
-        e.preventDefault();
-        setIsSearchOpen((prev) => !prev);
-        return;
-      }
-
-      // Ctrl+Shift+C - Copy selection
-      if (e.ctrlKey && e.shiftKey && e.key === "C") {
-        e.preventDefault();
-        const terminal = getTerminal();
-        if (terminal) {
-          const selection = terminal.getSelection();
-          if (selection) {
-            copy(selection);
-            announce("Copied to clipboard", "polite");
-          }
+    // WebSocket hook - manages connection to backend PTY
+    const { status, error, connect, disconnect, send, resize } = useWebSocketShell({
+      workflowName,
+      taskName,
+      shell,
+      onData: (data) => {
+        // Write received data to shell
+        write(data);
+      },
+      onStatusChange: (newStatus) => {
+        updateStatus(taskName, newStatus);
+        onStatusChange?.(newStatus);
+      },
+      onConnected: () => {
+        // Send initial shell size
+        const dims = getDimensions();
+        if (dims) {
+          resize(dims.rows, dims.cols);
         }
-        return;
+        focus();
+        announce("Shell connected", "polite");
+        onConnected?.();
+      },
+      onDisconnected: () => {
+        announce("Shell disconnected", "polite");
+        onDisconnected?.();
+      },
+      onError: (err) => {
+        announce(`Shell error: ${err.message}`, "assertive");
+        onError?.(err);
+      },
+      onSessionEnded: () => {
+        announce("Shell session ended", "polite");
+        closeSession(taskName);
+        onSessionEnded?.();
+      },
+    });
+
+    // Expose imperative methods via ref
+    useImperativeHandle(
+      ref,
+      () => ({
+        connect: () => {
+          connect();
+        },
+        disconnect: () => {
+          disconnect();
+        },
+        focus: () => {
+          focus();
+        },
+      }),
+      [connect, disconnect, focus],
+    );
+
+    // Sync refs with latest send/resize functions
+    useEffect(() => {
+      sendRef.current = send;
+      resizeRef.current = resize;
+    }, [send, resize]);
+
+    // Register session on mount
+    useEffect(() => {
+      openSession(workflowName, taskName, shell);
+      return () => {
+        // Don't close session on unmount - keep it for reconnection
+      };
+    }, [workflowName, taskName, shell, openSession]);
+
+    // Auto-connect when shell is ready (only if autoConnect is true)
+    useEffect(() => {
+      if (autoConnect && isShellReady && status === "idle") {
+        connect();
       }
+    }, [autoConnect, isShellReady, status, connect]);
 
-      // Ctrl+Shift+V - Paste
-      if (e.ctrlKey && e.shiftKey && e.key === "V") {
-        e.preventDefault();
-        navigator.clipboard.readText().then((text) => {
-          send(text);
-        });
-        return;
+    // Update terminal active state based on connection status
+    useEffect(() => {
+      const isConnected = status === "connected";
+      setTerminalActive(isConnected);
+    }, [status, setTerminalActive]);
+
+    // Re-fit shell when container might have changed
+    useEffect(() => {
+      if (isShellReady) {
+        fit();
       }
-    };
+    }, [isShellReady, fit]);
 
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener("keydown", handleKeyDown);
-      return () => container.removeEventListener("keydown", handleKeyDown);
-    }
-  }, [getTerminal, containerRef, copy, announce, send]);
+    // Set up search addon when shell is ready
+    useEffect(() => {
+      const terminal = getTerminal();
+      if (!terminal) return;
 
-  // Handle reconnect
-  const handleReconnect = useCallback(() => {
-    connect();
-  }, [connect]);
+      // Import SearchAddon dynamically to avoid SSR issues
+      import("@xterm/addon-search").then(({ SearchAddon }) => {
+        const addon = new SearchAddon();
+        terminal.loadAddon(addon);
+        searchAddonRef.current = {
+          findNext: (q: string) => addon.findNext(q),
+          findPrevious: (q: string) => addon.findPrevious(q),
+        };
+      });
+    }, [isShellReady, getTerminal]);
 
-  // Handle disconnect
-  const handleDisconnect = useCallback(() => {
-    disconnect();
-  }, [disconnect]);
+    // Handle keyboard shortcuts
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // Ctrl+Shift+F - Toggle search
+        if (e.ctrlKey && e.shiftKey && e.key === "F") {
+          e.preventDefault();
+          setIsSearchOpen((prev) => !prev);
+          return;
+        }
 
-  // Handle focus/blur for active state
-  const handleFocus = useCallback(() => {
-    setIsActive(true);
-  }, []);
+        // Ctrl+Shift+C - Copy selection
+        if (e.ctrlKey && e.shiftKey && e.key === "C") {
+          e.preventDefault();
+          const terminal = getTerminal();
+          if (terminal) {
+            const selection = terminal.getSelection();
+            if (selection) {
+              copy(selection);
+              announce("Copied to clipboard", "polite");
+            }
+          }
+          return;
+        }
 
-  const handleBlur = useCallback(() => {
-    setIsActive(false);
-  }, []);
+        // Ctrl+Shift+V - Paste
+        if (e.ctrlKey && e.shiftKey && e.key === "V") {
+          e.preventDefault();
+          navigator.clipboard.readText().then((text) => {
+            send(text);
+          });
+          return;
+        }
+      };
 
-  // Handle shell change
-  const handleShellChange = useCallback((newShell: string) => {
-    setShell(newShell);
-  }, []);
+      const container = containerRef.current;
+      if (container) {
+        container.addEventListener("keydown", handleKeyDown);
+        return () => container.removeEventListener("keydown", handleKeyDown);
+      }
+    }, [getTerminal, containerRef, copy, announce, send]);
 
-  // Handle search toggle
-  const handleToggleSearch = useCallback(() => {
-    setIsSearchOpen((prev) => !prev);
-  }, []);
+    // Handle reconnect
+    const handleReconnect = useCallback(() => {
+      connect();
+    }, [connect]);
 
-  // Handle search close
-  const handleCloseSearch = useCallback(() => {
-    setIsSearchOpen(false);
-    setSearchQuery("");
-    focus();
-  }, [focus]);
+    // Handle disconnect
+    const handleDisconnect = useCallback(() => {
+      disconnect();
+    }, [disconnect]);
 
-  // Handle find next
-  const handleFindNext = useCallback(() => {
-    if (searchAddonRef.current && searchQuery) {
-      searchAddonRef.current.findNext(searchQuery);
-    }
-  }, [searchQuery]);
+    // Handle focus/blur for active state
+    const handleFocus = useCallback(() => {
+      setIsActive(true);
+    }, []);
 
-  // Handle find previous
-  const handleFindPrevious = useCallback(() => {
-    if (searchAddonRef.current && searchQuery) {
-      searchAddonRef.current.findPrevious(searchQuery);
-    }
-  }, [searchQuery]);
+    const handleBlur = useCallback(() => {
+      setIsActive(false);
+    }, []);
 
-  // Search when query changes
-  useEffect(() => {
-    if (searchQuery && searchAddonRef.current) {
-      searchAddonRef.current.findNext(searchQuery);
-    }
-  }, [searchQuery]);
+    // Handle shell change
+    const handleShellChange = useCallback((newShell: string) => {
+      setShell(newShell);
+    }, []);
 
-  return (
-    <div
-      className={cn("shell-container", className)}
-      data-active={isActive}
-      data-animate="true"
-      onFocus={handleFocus}
-      onBlur={handleBlur}
-      role="application"
-      aria-label={`Shell for ${taskName}`}
-    >
-      {/* Header */}
-      <div className="shell-header">
-        <div className="shell-header-left">
-          <TerminalIcon
-            className="size-4 text-zinc-400"
-            aria-hidden="true"
-          />
-          <span className="shell-task-name">{taskName}</span>
-        </div>
-        <div className="shell-header-right">
-          <span className="text-xs text-zinc-500">Ctrl+Shift+F: Search</span>
-        </div>
-      </div>
+    // Handle search toggle
+    const handleToggleSearch = useCallback(() => {
+      setIsSearchOpen((prev) => !prev);
+    }, []);
 
-      {/* Shell Body */}
+    // Handle search close
+    const handleCloseSearch = useCallback(() => {
+      setIsSearchOpen(false);
+      setSearchQuery("");
+      focus();
+    }, [focus]);
+
+    // Handle find next
+    const handleFindNext = useCallback(() => {
+      if (searchAddonRef.current && searchQuery) {
+        searchAddonRef.current.findNext(searchQuery);
+      }
+    }, [searchQuery]);
+
+    // Handle find previous
+    const handleFindPrevious = useCallback(() => {
+      if (searchAddonRef.current && searchQuery) {
+        searchAddonRef.current.findPrevious(searchQuery);
+      }
+    }, [searchQuery]);
+
+    // Search when query changes
+    useEffect(() => {
+      if (searchQuery && searchAddonRef.current) {
+        searchAddonRef.current.findNext(searchQuery);
+      }
+    }, [searchQuery]);
+
+    // Determine if terminal is interactive
+    const isConnected = status === "connected";
+
+    return (
       <div
-        ref={containerRef}
-        className="shell-body"
-        tabIndex={0}
-      />
+        className={cn("shell-container", className)}
+        data-active={isActive}
+        data-connected={isConnected}
+        data-animate="true"
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        role="application"
+        aria-label={`Shell for ${taskName}`}
+      >
+        {/* Header */}
+        <div className="shell-header">
+          <div className="shell-header-left">
+            <TerminalIcon
+              className="size-4 text-zinc-400"
+              aria-hidden="true"
+            />
+            <span className="shell-task-name">{taskName}</span>
+          </div>
+          <div className="shell-header-right">
+            <span className="text-xs text-zinc-500">Ctrl+Shift+F: Search</span>
+          </div>
+        </div>
 
-      {/* Search Bar (when open) */}
-      {isSearchOpen && (
-        <ShellSearch
-          query={searchQuery}
-          onQueryChange={setSearchQuery}
-          onFindNext={handleFindNext}
-          onFindPrevious={handleFindPrevious}
-          onClose={handleCloseSearch}
+        {/* Shell Body */}
+        <div
+          ref={containerRef}
+          className="shell-body"
+          tabIndex={0}
         />
-      )}
 
-      {/* Status Bar / Toolbar */}
-      <ShellToolbar
-        shell={shell}
-        onShellChange={handleShellChange}
-        status={status}
-        error={error}
-        onReconnect={handleReconnect}
-        onDisconnect={handleDisconnect}
-        onToggleSearch={handleToggleSearch}
-        isSearchActive={isSearchOpen}
-        canChangeShell={status === "idle" || status === "disconnected"}
-      />
-    </div>
-  );
-});
+        {/* Search Bar (when open) */}
+        {isSearchOpen && (
+          <ShellSearch
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            onFindNext={handleFindNext}
+            onFindPrevious={handleFindPrevious}
+            onClose={handleCloseSearch}
+          />
+        )}
+
+        {/* Status Bar / Toolbar */}
+        <ShellToolbar
+          shell={shell}
+          onShellChange={handleShellChange}
+          status={status}
+          error={error}
+          onReconnect={handleReconnect}
+          onDisconnect={handleDisconnect}
+          onToggleSearch={handleToggleSearch}
+          isSearchActive={isSearchOpen}
+          canChangeShell={status === "idle" || status === "disconnected"}
+        />
+      </div>
+    );
+  }),
+);
