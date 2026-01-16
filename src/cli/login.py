@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -76,10 +77,10 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
     # Get the url from args or fall back to last used url
     try:
         url = args.url or service_client.login_manager.login_storage.url
-    except osmo_errors.OSMOUserError:
+    except osmo_errors.OSMOUserError as error:
         raise osmo_errors.OSMOUserError(
             'No url provided and no previous login found. '
-            'Please provide a url: osmo login <url>')
+            'Please provide a url: osmo login <url>') from error
 
     # Validate the url
     class UrlValidator(pydantic.BaseModel):
