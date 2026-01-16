@@ -19,7 +19,7 @@
  *
  * Architecture:
  * - Uses usePaginatedData for offset-based pagination with infinite scroll
- * - Passes SmartSearch chips directly to backend API for server-side filtering
+ * - Passes FilterBar chips directly to backend API for server-side filtering
  * - Returns paginated data for UI
  *
  * Server-side filtering:
@@ -46,7 +46,7 @@ import {
 // =============================================================================
 
 interface UseWorkflowsDataParams {
-  /** Search chips from SmartSearch */
+  /** Search chips from FilterBar */
   searchChips: SearchChip[];
   /** Show all users' workflows (default: false = current user only) */
   showAllUsers?: boolean;
@@ -59,7 +59,7 @@ interface UseWorkflowsDataParams {
 interface UseWorkflowsDataReturn {
   /** Workflows from the current query */
   workflows: WorkflowListEntry[];
-  /** All loaded workflows (for suggestions in SmartSearch) */
+  /** All loaded workflows (for suggestions in FilterBar) */
   allWorkflows: WorkflowListEntry[];
   /** Whether any filters are active */
   hasActiveFilters: boolean;
@@ -122,7 +122,7 @@ export function useWorkflowsData({
 
   return {
     workflows,
-    // For SmartSearch suggestions, we use the currently loaded workflows
+    // For FilterBar suggestions, we use the currently loaded workflows
     // This provides a reasonable suggestion pool without fetching all data
     allWorkflows: workflows,
     hasActiveFilters: hasActiveFilters(searchChips),

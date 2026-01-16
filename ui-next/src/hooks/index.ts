@@ -44,7 +44,7 @@
  * - `useAnnouncer` - Avoids adding React Aria parallel to Radix ecosystem
  * - `useCopy` - Thin wrapper on usehooks-ts with auto-reset for UI feedback
  * - `useExpandableChips` - Unique measurement logic for chip overflow
- * - `useUrlChips` - URL state management for SmartSearch chips
+ * - `useUrlChips` - URL state management for FilterBar chips
  * - `useTick` / `useTickController` - Synchronized timestamp for aligned live durations
  */
 
@@ -80,7 +80,7 @@ export { useUrlChips, type UseUrlChipsOptions, type UseUrlChipsResult } from "./
 // URL State (consolidated patterns for nuqs)
 export { useSelectionState, useConfigState, usePanelState, type UsePanelStateReturn } from "./use-url-state";
 
-// Results Count (for SmartSearch display)
+// Results Count (for FilterBar display)
 export { useResultsCount, type UseResultsCountOptions } from "./use-results-count";
 
 // Synchronized Tick (for aligned live durations)
