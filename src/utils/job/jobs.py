@@ -50,6 +50,8 @@ DELAYED_JOB_QUEUE = 'delayed_job_queue'
 
 PROGRESS_ITER_WRITE = 100
 
+CONCURRENT_UPLOADS = 10
+
 
 class JobExecutionContext(pydantic.BaseModel):
     """Context from the worker process, needed for executing jobs"""
@@ -1370,7 +1372,9 @@ class CleanupWorkflow(WorkflowJob):
             data_credential=workflow_config.workflow_log.credential,
             executor_params=storage.ExecutorParameters(
                 num_processes=1,
-                num_threads=15,
+                # Additional threads just for context switching between upload
+                # coroutines to be safe
+                num_threads=CONCURRENT_UPLOADS + 2,
             ),
         )
 
@@ -1400,7 +1404,7 @@ class CleanupWorkflow(WorkflowJob):
 
                 await progress_writer.report_progress_async()
 
-        semaphore = asyncio.Semaphore(10)
+        semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
 
         async def migrate_logs_concurrently(redis_url: str, redis_key: str, file_name: str):
             async with semaphore:
