@@ -15,56 +15,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dashboard Page (Server Component)
+ * Dashboard Page (Streaming SSR)
  *
  * The main dashboard with key metrics and recent workflows.
- * Uses parallel data fetching for optimal performance.
  *
- * Optimization: All data is fetched in parallel on the server,
- * reducing total request time from sequential (t1 + t2 + t3)
- * to parallel (max(t1, t2, t3)).
+ * Architecture: Streaming SSR for optimal UX
+ * - Page shell renders immediately (fast TTFB, instant first paint)
+ * - Dynamic content streams in via Suspense as data loads
+ * - User sees layout/nav instantly, content fills in progressively
  */
 
 import { Suspense } from "react";
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { fetchPools, fetchWorkflows, fetchVersion } from "@/lib/api/server";
 import { DashboardContent } from "./dashboard-content";
 import { DashboardSkeleton } from "./dashboard-skeleton";
 
 // =============================================================================
-// Server Component with Parallel Data Fetching
+// Streaming SSR - Fast TTFB + Progressive Content
 // =============================================================================
 
-export default async function DashboardPage() {
-  const queryClient = new QueryClient();
-
-  // Parallel data fetching - all requests start simultaneously
-  // This is faster than sequential: Promise.all() vs await each
-  await Promise.all([
-    // Prefetch pools for stats
-    queryClient.prefetchQuery({
-      queryKey: ["pools", "all"],
-      queryFn: () => fetchPools({ revalidate: 60 }),
-    }),
-
-    // Prefetch recent workflows
-    queryClient.prefetchQuery({
-      queryKey: ["workflows", { limit: 10 }],
-      queryFn: () => fetchWorkflows({ limit: 10 }, { revalidate: 30 }),
-    }),
-
-    // Prefetch version
-    queryClient.prefetchQuery({
-      queryKey: ["version"],
-      queryFn: () => fetchVersion({ revalidate: 600 }),
-    }),
-  ]);
-
+export default function DashboardPage() {
+  // Shell renders immediately, DashboardContent fetches data on render
+  // and streams in as it becomes available
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
-      </Suspense>
-    </HydrationBoundary>
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent />
+    </Suspense>
   );
 }
