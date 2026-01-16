@@ -190,6 +190,16 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     terminalRef.current?.focus();
   }, []);
 
+  // Set active state (controls cursor blink and interactivity)
+  const setActive = useCallback((active: boolean) => {
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+    terminal.options.cursorBlink = active;
+    // When inactive, hide the cursor by making it transparent
+    // When active, restore the NVIDIA green cursor
+    terminal.options.cursorStyle = active ? "block" : "underline";
+  }, []);
+
   // Write data to shell
   const write = useCallback((data: string | Uint8Array) => {
     terminalRef.current?.write(data);
@@ -227,6 +237,7 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     clear,
     getDimensions,
     fit,
+    setActive,
   };
 }
 
