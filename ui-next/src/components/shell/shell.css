@@ -123,8 +123,8 @@
   transform: translateZ(0);
   backface-visibility: hidden;
 
-  /* CSS containment for performance */
-  contain: strict;
+  /* Use layout containment only - strict breaks xterm WebGL */
+  contain: layout style;
 }
 
 .shell-body .xterm {
