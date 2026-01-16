@@ -81,6 +81,14 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
             'No url provided and no previous login found. '
             'Please provide a url: osmo login <url>')
 
+    # Validate the url
+    class UrlValidator(pydantic.BaseModel):
+        url: pydantic.AnyHttpUrl
+    try:
+        _ = UrlValidator(url=url)
+    except pydantic.error_wrappers.ValidationError as error:
+        raise osmo_errors.OSMOUserError(f'Bad url {url}: {error}')
+
     print(f'Logging in to {url}')
 
     # Parse out the password and username
