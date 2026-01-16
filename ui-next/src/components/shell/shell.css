@@ -12,7 +12,7 @@
  * Shell Component Styles
  *
  * Always-dark shell styling with NVIDIA green accent.
- * Based on DESIGN.md specifications.
+ * Zero-chrome design with contextual overlays.
  */
 
 /* =============================================================================
@@ -21,26 +21,26 @@
 
 :root {
   /* Shell Layout */
-  --shell-header-height: 32px;
-  --shell-status-height: 24px;
   --shell-padding: 8px;
   --shell-border-radius: var(--radius-md, 0.5rem);
 
   /* Shell Colors (always dark) */
   --shell-bg: #09090b;
-  --shell-bg-header: #18181b;
-  --shell-bg-status: #18181b;
+  --shell-bg-overlay: rgba(9, 9, 11, 0.95);
   --shell-border: #27272a;
   --shell-fg: #e4e4e7;
   --shell-fg-dim: #71717a;
 
   /* Shell Cursor */
   --shell-cursor: #76b900;
-  --shell-cursor-blink-rate: 600ms;
 
   /* Shell Focus */
   --shell-focus-ring: var(--dag-selection-ring, #76b900);
   --shell-active-glow: rgba(118, 185, 0, 0.3);
+
+  /* Transitions */
+  --shell-transition-fast: 100ms ease-out;
+  --shell-transition-normal: 150ms ease-out;
 }
 
 /* =============================================================================
@@ -48,6 +48,7 @@
    ============================================================================= */
 
 .shell-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -73,43 +74,6 @@
 }
 
 /* =============================================================================
-   Shell Header
-   ============================================================================= */
-
-.shell-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: var(--shell-header-height);
-  padding: 0 var(--shell-padding);
-  background: var(--shell-bg-header);
-  border-bottom: 1px solid var(--shell-border);
-  flex-shrink: 0;
-}
-
-.shell-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.shell-header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.shell-task-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--shell-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* =============================================================================
    Shell Body (xterm container)
    ============================================================================= */
 
@@ -132,7 +96,7 @@
 }
 
 .shell-body .xterm-viewport {
-  /* Hide scrollbar but allow scrolling */
+  /* Thin scrollbar */
   scrollbar-width: thin;
   scrollbar-color: var(--shell-border) transparent;
 }
@@ -155,111 +119,185 @@
 }
 
 /* =============================================================================
-   Shell Status Bar
+   Connect Card (Idle State)
    ============================================================================= */
 
-.shell-status {
+.shell-connect-card {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
+  justify-content: center;
+  background: var(--shell-bg-overlay);
+  backdrop-filter: blur(4px);
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+.shell-connect-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 12px;
-  height: var(--shell-status-height);
-  padding: 0 var(--shell-padding);
-  background: var(--shell-bg-status);
-  border-top: 1px solid var(--shell-border);
-  flex-shrink: 0;
+  padding: 24px 32px;
+  background: #18181b;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-border-radius);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.shell-connect-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: #27272a;
+  border-radius: 50%;
+}
+
+.shell-connect-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--shell-fg);
+}
+
+.shell-connect-card-actions {
+  margin-top: 4px;
+}
+
+.shell-connect-button-group {
+  display: flex;
+}
+
+.shell-connect-card-hint {
   font-size: 11px;
   color: var(--shell-fg-dim);
 }
 
-.shell-status-left {
+/* =============================================================================
+   Connecting State
+   ============================================================================= */
+
+.shell-connecting {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--shell-bg-overlay);
+  backdrop-filter: blur(4px);
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+.shell-connecting-content {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.shell-status-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
+.shell-connecting-dot {
+  width: 8px;
+  height: 8px;
+  background: #60a5fa;
+  border-radius: 50%;
+  animation: shell-pulse 1s ease-in-out infinite;
 }
 
-.shell-shortcut {
+.shell-connecting-label {
+  font-size: 13px;
+  color: #93c5fd;
+}
+
+/* =============================================================================
+   Disconnected Overlay
+   ============================================================================= */
+
+.shell-disconnected-overlay {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 16px 24px 24px;
+  background: linear-gradient(to top, var(--shell-bg) 60%, transparent);
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+.shell-disconnected-divider {
+  width: 100%;
+  height: 1px;
+  margin-bottom: 16px;
+  background: linear-gradient(to right, transparent, var(--shell-border) 20%, var(--shell-border) 80%, transparent);
+}
+
+.shell-disconnected-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.shell-shortcut kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1px 4px;
-  font-size: 10px;
-  font-family: inherit;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-/* =============================================================================
-   Connection Status Indicator
-   ============================================================================= */
-
-.shell-status-dot {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.shell-status-dot-icon {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.shell-status-dot-icon[data-status="connecting"] {
-  background: #fbbf24;
-  animation: shell-pulse 1s ease-in-out infinite;
-}
-
-.shell-status-dot-icon[data-status="connected"] {
-  background: #34d399;
-}
-
-.shell-status-dot-icon[data-status="disconnected"] {
-  background: transparent;
-  border: 1.5px solid #f87171;
-}
-
-.shell-status-dot-icon[data-status="error"] {
-  background: #f87171;
-}
-
-.shell-status-dot-icon[data-status="idle"] {
-  background: #71717a;
-}
-
-.shell-status-dot-label {
-  font-size: 11px;
-  color: var(--shell-fg-dim);
-}
-
-/* =============================================================================
-   Search Bar
-   ============================================================================= */
-
-.shell-search {
+.shell-disconnected-status {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px var(--shell-padding);
-  background: var(--shell-bg-header);
-  border-top: 1px solid var(--shell-border);
+}
+
+.shell-disconnected-dot {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+  border: 2px solid #71717a;
+  border-radius: 50%;
+}
+
+.shell-disconnected-label {
+  font-size: 13px;
+  color: var(--shell-fg-dim);
+}
+
+.shell-disconnected-label--error {
+  color: #f87171;
+}
+
+.shell-disconnected-error {
+  font-size: 11px;
+  color: #fca5a5;
+  max-width: 200px;
+  text-align: center;
+}
+
+/* =============================================================================
+   Search Bar (Floating Top-Right)
+   ============================================================================= */
+
+.shell-search {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #18181b;
+  border: 1px solid var(--shell-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* Slide down + fade in */
+  animation: shell-slide-down var(--shell-transition-normal) forwards;
 }
 
 .shell-search-input {
-  flex: 1;
+  width: 160px;
   height: 24px;
   padding: 0 8px;
   font-size: 12px;
@@ -268,6 +306,7 @@
   border-radius: 4px;
   color: var(--shell-fg);
   outline: none;
+  transition: border-color var(--shell-transition-fast);
 }
 
 .shell-search-input:focus {
@@ -282,6 +321,8 @@
   font-size: 11px;
   color: var(--shell-fg-dim);
   white-space: nowrap;
+  min-width: 32px;
+  text-align: center;
 }
 
 .shell-search-buttons {
@@ -290,48 +331,7 @@
 }
 
 /* =============================================================================
-   Empty/Loading/Error States
-   ============================================================================= */
-
-.shell-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 24px;
-  text-align: center;
-  color: var(--shell-fg-dim);
-}
-
-.shell-state-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  color: var(--shell-fg-dim);
-}
-
-.shell-state-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--shell-fg);
-  margin-bottom: 8px;
-}
-
-.shell-state-description {
-  font-size: 12px;
-  max-width: 240px;
-  line-height: 1.5;
-}
-
-.shell-state-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-/* =============================================================================
-   Inactive/Disconnected State
+   Inactive/Disconnected State (Terminal Dimming)
    ============================================================================= */
 
 .shell-container[data-connected="false"] {
@@ -344,11 +344,6 @@
   filter: saturate(0.7) brightness(0.85);
 }
 
-.shell-container[data-connected="false"] .shell-header {
-  /* Dim header when inactive */
-  opacity: 0.7;
-}
-
 /* Hide cursor completely when not connected */
 .shell-container[data-connected="false"] .xterm-cursor-layer {
   opacity: 0 !important;
@@ -357,6 +352,26 @@
 /* =============================================================================
    Animations
    ============================================================================= */
+
+@keyframes shell-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shell-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 @keyframes shell-pulse {
   0%,
@@ -368,20 +383,18 @@
   }
 }
 
-/* Slide up animation for shell launch */
-@keyframes shell-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .shell-connect-card,
+  .shell-connecting,
+  .shell-disconnected-overlay,
+  .shell-search {
+    animation: none;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-.shell-container[data-animate="true"] {
-  animation: shell-slide-up 200ms ease-out;
+  .shell-connecting-dot {
+    animation: none;
+  }
 }
 
 /* =============================================================================
@@ -402,11 +415,17 @@
    ============================================================================= */
 
 @media (max-width: 400px) {
-  .shell-status-right {
-    display: none;
-  }
-
   .shell-container {
     --shell-padding: 4px;
+  }
+
+  .shell-search {
+    left: 8px;
+    right: 8px;
+  }
+
+  .shell-search-input {
+    flex: 1;
+    width: auto;
   }
 }

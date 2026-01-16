@@ -132,15 +132,35 @@ export const handlers = [
       remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
       downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
       failure_message: g.failure_message,
+      // Tasks: include all fields matching TaskQueryResponse
       tasks: g.tasks.map((t) => ({
         name: t.name,
         retry_id: t.retry_id,
         status: t.status,
-        node: t.node,
+        lead: t.lead,
+        // Identifiers
+        task_uuid: t.task_uuid,
+        pod_name: t.pod_name,
+        pod_ip: t.pod_ip,
+        node_name: t.node_name,
+        // Timeline timestamps
+        scheduling_start_time: t.scheduling_start_time,
+        initializing_start_time: t.initializing_start_time,
+        input_download_start_time: t.input_download_start_time,
+        input_download_end_time: t.input_download_end_time,
+        processing_start_time: t.processing_start_time,
         start_time: t.start_time,
+        output_upload_start_time: t.output_upload_start_time,
         end_time: t.end_time,
+        // Status
         exit_code: t.exit_code,
         failure_message: t.failure_message,
+        // URLs
+        logs: t.logs,
+        error_logs: t.error_logs,
+        events: t.events,
+        dashboard_url: t.dashboard_url,
+        grafana_url: t.grafana_url,
       })),
     }));
 

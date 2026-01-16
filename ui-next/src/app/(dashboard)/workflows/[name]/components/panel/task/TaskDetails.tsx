@@ -28,9 +28,10 @@
 "use client";
 
 import { useMemo, useCallback, memo, useState } from "react";
-import { FileText, Terminal, AlertCircle, Copy, Check, XCircle, Calendar, Info } from "lucide-react";
+import { FileText, Terminal, AlertCircle, Copy, Check, XCircle, Calendar, Info, ExternalLink, BarChart3, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
+import { Card, CardContent } from "@/components/shadcn/card";
 import { PanelTabs, type PanelTab } from "@/components/panel-tabs";
 import { useCopy, useTick } from "@/hooks";
 import { TaskShell } from "./TaskShell";
@@ -178,98 +179,158 @@ const EventsTab = memo(function EventsTab({ task }: EventsTabProps) {
 // Overview Tab Content
 // ============================================================================
 
-const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
+/** Reusable style patterns (matches WorkflowDetails) */
+const STYLES = {
+  /** Section header styling */
+  sectionHeader: "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase",
+  /** External link styling */
+  link: "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted",
+} as const;
+
+/** Detail row component for consistent styling (matches WorkflowDetails) */
+const DetailRow = memo(function DetailRow({
+  label,
+  value,
+  copyable = false,
+}: {
+  label: string;
+  value: string;
+  copyable?: boolean;
+}) {
   return (
-    <div className="space-y-4">
-      {/* Exit status - special treatment at top when non-zero */}
-      {task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0 && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
-          <div className="flex items-start gap-2">
-            <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
-                Exit Code: {task.exit_code}
+    <>
+      <span className="text-muted-foreground whitespace-nowrap">{label}</span>
+      <span className="flex min-w-0 items-center">
+        <span
+          className="min-w-0 truncate font-mono text-xs"
+          title={value}
+        >
+          {value}
+        </span>
+        {copyable && (
+          <CopyButton
+            value={value}
+            label={label}
+          />
+        )}
+      </span>
+    </>
+  );
+});
+
+const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
+  const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
+  const hasDetails = task.task_uuid || task.node_name || task.pod_name || task.pod_ip;
+
+  // Build links array - cast to access grafana_url which may not be in generated types yet
+  const taskWithLinks = task as typeof task & { grafana_url?: string };
+  const links = [
+    { id: "dashboard", label: "Dashboard", description: "Kubernetes pod details", url: task.dashboard_url, icon: BarChart3 },
+    { id: "grafana", label: "Grafana", description: "Metrics & monitoring", url: taskWithLinks.grafana_url, icon: Activity },
+  ].filter((link) => link.url);
+
+  const hasLinks = links.length > 0;
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Timeline section */}
+      <section>
+        <h3 className={STYLES.sectionHeader}>Timeline</h3>
+        <Card className="gap-0 overflow-hidden py-0">
+          <CardContent className="min-w-0 overflow-hidden p-3">
+            <TaskTimeline task={task} />
+
+            {/* Exit status - shown after timeline when non-zero */}
+            {hasError && (
+              <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
+                <div className="flex items-start gap-2">
+                  <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
+                      Exit Code: {task.exit_code}
+                    </div>
+                    {task.failure_message && (
+                      <p className="mt-1 text-xs break-words text-red-700 dark:text-red-400">{task.failure_message}</p>
+                    )}
+                  </div>
+                </div>
               </div>
-              {task.failure_message && (
-                <p className="mt-1 text-xs break-words text-red-700 dark:text-red-400">{task.failure_message}</p>
-              )}
-            </div>
-          </div>
-        </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Details section - using Card like WorkflowDetails */}
+      {hasDetails && (
+        <section>
+          <h3 className={STYLES.sectionHeader}>Details</h3>
+          <Card className="gap-0 overflow-hidden py-0">
+            <CardContent className="min-w-0 p-3">
+              {/* auto column for labels (shrinks to fit), 1fr for values (uses remaining space) */}
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-8 gap-y-2 text-sm">
+                {task.task_uuid && (
+                  <DetailRow
+                    label="UUID"
+                    value={task.task_uuid}
+                    copyable
+                  />
+                )}
+                {task.node_name && (
+                  <DetailRow
+                    label="Node"
+                    value={task.node_name}
+                    copyable
+                  />
+                )}
+                {task.pod_name && (
+                  <DetailRow
+                    label="Pod"
+                    value={task.pod_name}
+                    copyable
+                  />
+                )}
+                {task.pod_ip && (
+                  <DetailRow
+                    label="Pod IP"
+                    value={task.pod_ip}
+                    copyable
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       )}
 
-      {/* Task details - Option D layout */}
-      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
-        {/* Task UUID - first */}
-        <dt className="text-gray-500 dark:text-zinc-400">UUID</dt>
-        <dd className="flex min-w-0 items-center">
-          <span
-            className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-            title={task.task_uuid}
-          >
-            {task.task_uuid}
-          </span>
-          <CopyButton
-            value={task.task_uuid}
-            label="Task UUID"
-          />
-        </dd>
-
-        {/* Node */}
-        {task.node_name && (
-          <>
-            <dt className="text-gray-500 dark:text-zinc-400">Node</dt>
-            <dd className="flex min-w-0 items-center">
-              <span className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200">{task.node_name}</span>
-              <CopyButton
-                value={task.node_name}
-                label="Node"
-              />
-            </dd>
-          </>
-        )}
-
-        {/* Pod */}
-        {task.pod_name && (
-          <>
-            <dt className="text-gray-500 dark:text-zinc-400">Pod</dt>
-            <dd className="flex min-w-0 items-center">
-              <span
-                className="truncate font-mono text-xs text-gray-700 dark:text-zinc-200"
-                title={task.pod_name}
-              >
-                {task.pod_name}
-              </span>
-              <CopyButton
-                value={task.pod_name}
-                label="Pod"
-              />
-            </dd>
-          </>
-        )}
-
-        {/* Pod IP */}
-        {task.pod_ip && (
-          <>
-            <dt className="text-gray-500 dark:text-zinc-400">Pod IP</dt>
-            <dd className="flex min-w-0 items-center">
-              <span className="font-mono text-xs text-gray-700 dark:text-zinc-200">{task.pod_ip}</span>
-              <CopyButton
-                value={task.pod_ip}
-                label="Pod IP"
-              />
-            </dd>
-          </>
-        )}
-
-        {/* Exit code - only show if success (0), failures shown above */}
-        {task.exit_code === 0 && (
-          <>
-            <dt className="text-gray-500 dark:text-zinc-400">Exit Code</dt>
-            <dd className="font-mono text-xs text-gray-700 dark:text-zinc-200">0</dd>
-          </>
-        )}
-      </dl>
+      {/* Links section */}
+      {hasLinks && (
+        <section>
+          <h3 className={STYLES.sectionHeader}>Links</h3>
+          <Card className="gap-0 overflow-hidden py-0">
+            <CardContent className="divide-border divide-y p-0">
+              {links.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50"
+                  >
+                    <Icon className="text-muted-foreground size-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{link.label}</div>
+                      <div className="text-muted-foreground text-xs">{link.description}</div>
+                    </div>
+                    <ExternalLink className="text-muted-foreground/50 size-3.5 shrink-0" />
+                  </a>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   );
 });
@@ -387,9 +448,8 @@ export const TaskDetails = memo(function TaskDetails({
 
   // Check if we have any expandable content
   const hasFailureMessage = !!task.failure_message;
-  const hasTimeline = task.scheduling_start_time || task.start_time;
   const hasDependencies = isStandaloneTask && (upstreamGroups.length > 0 || downstreamGroups.length > 0);
-  const hasExpandableContent = hasFailureMessage || hasTimeline || hasDependencies;
+  const hasExpandableContent = hasFailureMessage || hasDependencies;
 
   // Expandable content for header
   const expandableContent = hasExpandableContent ? (
@@ -401,7 +461,6 @@ export const TaskDetails = memo(function TaskDetails({
           <span>{task.failure_message}</span>
         </div>
       )}
-      {hasTimeline && <TaskTimeline task={task} />}
       {hasDependencies && (
         <DependencyPills
           upstreamGroups={upstreamGroups}

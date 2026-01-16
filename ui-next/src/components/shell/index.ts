@@ -10,6 +10,7 @@
  * Shell Components
  *
  * Interactive shell for exec into running task containers.
+ * Zero-chrome design with contextual overlays.
  *
  * Usage:
  * ```tsx
@@ -25,12 +26,16 @@
 // Main Component
 export { ShellTerminal } from "./ShellTerminal";
 
-// Sub-components
-export { ConnectionStatus } from "./ConnectionStatus";
-export { ShellToolbar } from "./ShellToolbar";
+// Overlay Components
+export { ShellConnectCard } from "./ShellConnectCard";
+export { ShellConnecting } from "./ShellConnecting";
+export { ShellDisconnectedOverlay } from "./ShellDisconnectedOverlay";
 export { ShellSearch } from "./ShellSearch";
+
+// Activity Components
 export { ShellActivityStrip } from "./ShellActivityStrip";
 export { ShellSessionIcon } from "./ShellSessionIcon";
+export { ConnectionStatus } from "./ConnectionStatus";
 
 // Hooks
 export { useShell, useShellSearch } from "./use-shell";
