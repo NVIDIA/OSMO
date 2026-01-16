@@ -35,12 +35,12 @@ import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XC
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
-import { formatDuration } from "../../lib/workflow-types";
-import { getStatusIcon } from "../../lib/status";
-import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../lib/status";
-import { DetailsPanelHeader } from "./DetailsPanelHeader";
+import { formatDuration } from "../../../lib/workflow-types";
+import { getStatusIcon } from "../../../lib/status";
+import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "../../../lib/status";
+import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { WorkflowTimeline } from "./WorkflowTimeline";
-import { parseTime } from "./Timeline";
+import { parseTime } from "../shared/Timeline";
 import { useTick } from "@/hooks";
 
 // =============================================================================

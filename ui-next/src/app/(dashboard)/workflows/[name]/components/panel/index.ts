@@ -1,18 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto. Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
  * Panel Components
@@ -20,39 +12,49 @@
  * Unified inspector panel for workflow, group, and task details.
  * Re-exports all panel-related components from a single entry point.
  *
- * Main Components:
- * - DetailsPanel: Main container with resize, collapse, and view switching
- * - WorkflowDetails: Workflow-level info (base layer)
- * - GroupDetails: Task list with search, sort, filter
- * - TaskDetails: Task info, actions, sibling navigation
- *
- * Supporting Components:
- * - DetailsPanelHeader: Shared header with breadcrumbs, menus, badges
- * - GroupTimeline: Visual timeline for group lifecycle
- * - TaskTimeline: Visual timeline for task lifecycle
- * - DependencyPills: Upstream/downstream group navigation
+ * Structure:
+ * - shared/: Components used across all views (DetailsPanel, Header, Timeline, etc.)
+ * - workflow/: Workflow-specific components
+ * - group/: Group-specific components
+ * - task/: Task-specific components
  */
 
-// Main panel components
-export { DetailsPanel } from "./DetailsPanel";
-export { WorkflowDetails } from "./WorkflowDetails";
-export type { WorkflowDetailsProps } from "./WorkflowDetails";
-export { GroupDetails } from "./GroupDetails";
-export { TaskDetails } from "./TaskDetails";
+// =============================================================================
+// Shared Components
+// =============================================================================
 
-// Header and supporting components
-export { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
-export type { HeaderViewType } from "./DetailsPanelHeader";
+export { DetailsPanel } from "./shared/DetailsPanel";
+export { DetailsPanelHeader, ColumnMenuContent } from "./shared/DetailsPanelHeader";
+export type { HeaderViewType } from "./shared/DetailsPanelHeader";
+export { Timeline, parseTime } from "./shared/Timeline";
+export { DependencyPills } from "./shared/DependencyPills";
 
-// Timeline components
-export { GroupTimeline } from "./GroupTimeline";
-export { TaskTimeline } from "./TaskTimeline";
-export { WorkflowTimeline } from "./WorkflowTimeline";
+// =============================================================================
+// Workflow Components
+// =============================================================================
 
-// Dependency pills
-export { DependencyPills } from "./DependencyPills";
+export { WorkflowDetails } from "./workflow/WorkflowDetails";
+export type { WorkflowDetailsProps } from "./workflow/WorkflowDetails";
+export { WorkflowTimeline } from "./workflow/WorkflowTimeline";
 
-// Re-export types from lib/panel for convenience
+// =============================================================================
+// Group Components
+// =============================================================================
+
+export { GroupDetails } from "./group/GroupDetails";
+export { GroupTimeline } from "./group/GroupTimeline";
+
+// =============================================================================
+// Task Components
+// =============================================================================
+
+export { TaskDetails } from "./task/TaskDetails";
+export { TaskTimeline } from "./task/TaskTimeline";
+
+// =============================================================================
+// Types (re-exported from lib/panel for convenience)
+// =============================================================================
+
 export type {
   DetailsPanelView,
   DetailsPanelProps,

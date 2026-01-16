@@ -33,27 +33,27 @@ import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
 import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
 import { useSharedPreferences } from "@/stores";
-import { STATUS_SORT_ORDER } from "../../lib/status";
-import { calculateDuration, formatDuration } from "../../lib/workflow-types";
-import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../lib/status";
-import type { GroupDetailsProps } from "../../lib/panel-types";
-import type { TaskWithDuration } from "../../lib/workflow-types";
+import { STATUS_SORT_ORDER } from "../../../lib/status";
+import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
+import { computeTaskStats, computeGroupStatus, computeGroupDuration } from "../../../lib/status";
+import type { GroupDetailsProps } from "../../../lib/panel-types";
+import type { TaskWithDuration } from "../../../lib/workflow-types";
 import {
   OPTIONAL_COLUMNS_ALPHABETICAL,
   MANDATORY_COLUMN_IDS,
   TASK_COLUMN_SIZE_CONFIG,
   asTaskColumnIds,
-} from "../../lib/task-columns";
-import { createTaskColumns } from "../../lib/task-column-defs";
+} from "../../../lib/task-columns";
+import { createTaskColumns } from "../../../lib/task-column-defs";
 import { filterByChips, type SearchChip } from "@/components/smart-search";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../lib/task-search-fields";
-import { useTaskTableStore } from "../../stores";
-import { DetailsPanelHeader, ColumnMenuContent } from "./DetailsPanelHeader";
+import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "../../../lib/task-search-fields";
+import { useTaskTableStore } from "../../../stores";
+import { DetailsPanelHeader, ColumnMenuContent } from "../shared/DetailsPanelHeader";
 import { GroupTimeline } from "./GroupTimeline";
-import { DependencyPills } from "./DependencyPills";
+import { DependencyPills } from "../shared/DependencyPills";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount, useTick } from "@/hooks";
-import type { BreadcrumbSegment } from "../../lib/panel-types";
+import type { BreadcrumbSegment } from "../../../lib/panel-types";
 
 // =============================================================================
 // Constants
