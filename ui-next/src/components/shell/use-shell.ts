@@ -95,13 +95,22 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     const container = containerRef.current;
     if (!container) return;
 
+    // Get the actual font family from CSS variable (Next.js generates unique names)
+    // Fallback to common monospace fonts if CSS variable isn't available
+    const computedStyle = getComputedStyle(document.documentElement);
+    const geistMono = computedStyle.getPropertyValue("--font-geist-mono").trim();
+    const fontFamily = geistMono
+      ? `${geistMono}, "SF Mono", "Monaco", "Menlo", "Consolas", monospace`
+      : '"SF Mono", "Monaco", "Menlo", "Consolas", "Liberation Mono", "Courier New", monospace';
+
     // Create xterm instance
     const terminal = new Terminal({
       cursorBlink: true,
       cursorStyle: "block",
       fontSize: SHELL_CONFIG.FONT_SIZE,
-      fontFamily: 'var(--font-geist-mono), "SF Mono", Consolas, monospace',
-      lineHeight: 1.5,
+      fontFamily,
+      lineHeight: 1.2,
+      letterSpacing: 0,
       scrollback: SHELL_CONFIG.SCROLLBACK,
       theme: SHELL_THEME,
       allowProposedApi: true,

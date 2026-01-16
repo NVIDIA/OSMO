@@ -31,10 +31,9 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  // Use 'optional' for mono font - if it doesn't load quickly, use fallback
-  // This prevents layout shift without blocking render
-  display: "optional",
-  preload: false,
+  // Use 'swap' for mono font - essential for terminal/code rendering
+  display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
