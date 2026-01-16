@@ -7,20 +7,20 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * useWebSocketTerminal Hook
+ * useWebSocketShell Hook
  *
  * Manages the WebSocket connection to the backend PTY:
  * - Creates exec session via API
  * - Establishes WebSocket connection
- * - Handles send/receive of terminal data
+ * - Handles send/receive of shell data
  * - Manages connection lifecycle and reconnection
  *
  * Usage:
  * ```tsx
- * const { status, connect, disconnect, send, resize } = useWebSocketTerminal({
+ * const { status, connect, disconnect, send, resize } = useWebSocketShell({
  *   workflowName: "my-workflow",
  *   taskName: "train-model",
- *   onData: (data) => terminal.write(data),
+ *   onData: (data) => shell.write(data),
  * });
  * ```
  */
@@ -29,21 +29,21 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost } from "@/lib/api/generated";
-import type { ConnectionStatus, UseWebSocketTerminalReturn } from "./types";
-import { TERMINAL_CONFIG } from "./types";
+import type { ConnectionStatus, UseWebSocketShellReturn } from "./types";
+import { SHELL_CONFIG } from "./types";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface UseWebSocketTerminalOptions {
+export interface UseWebSocketShellOptions {
   /** Workflow name for the exec API */
   workflowName: string;
   /** Task name to exec into */
   taskName: string;
   /** Shell to use */
   shell?: string;
-  /** Called when data is received from the terminal */
+  /** Called when data is received from the shell */
   onData?: (data: Uint8Array) => void;
   /** Called when connection status changes */
   onStatusChange?: (status: ConnectionStatus) => void;
@@ -61,11 +61,11 @@ export interface UseWebSocketTerminalOptions {
 // Hook
 // =============================================================================
 
-export function useWebSocketTerminal(options: UseWebSocketTerminalOptions): UseWebSocketTerminalReturn {
+export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSocketShellReturn {
   const {
     workflowName,
     taskName,
-    shell = TERMINAL_CONFIG.DEFAULT_SHELL,
+    shell = SHELL_CONFIG.DEFAULT_SHELL,
     onData,
     onStatusChange,
     onConnected,
@@ -96,7 +96,7 @@ export function useWebSocketTerminal(options: UseWebSocketTerminalOptions): UseW
     [onStatusChange],
   );
 
-  // Connect to terminal
+  // Connect to shell
   const connect = useCallback(async () => {
     // Clean up any existing connection
     if (wsRef.current) {
@@ -178,7 +178,7 @@ export function useWebSocketTerminal(options: UseWebSocketTerminalOptions): UseW
     onSessionEnded,
   ]);
 
-  // Disconnect from terminal
+  // Disconnect from shell
   const disconnect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -187,7 +187,7 @@ export function useWebSocketTerminal(options: UseWebSocketTerminalOptions): UseW
     updateStatus("disconnected");
   }, [updateStatus]);
 
-  // Send data to terminal
+  // Send data to shell
   const send = useCallback((data: string | Uint8Array) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;

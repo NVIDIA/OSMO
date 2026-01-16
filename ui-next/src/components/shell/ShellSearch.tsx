@@ -7,9 +7,9 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * TerminalSearch Component
+ * ShellSearch Component
  *
- * Search bar for terminal content using xterm.js SearchAddon.
+ * Search bar for shell content using xterm.js SearchAddon.
  */
 
 "use client";
@@ -23,7 +23,7 @@ import { Button } from "@/components/shadcn/button";
 // Types
 // =============================================================================
 
-export interface TerminalSearchProps {
+export interface ShellSearchProps {
   /** Current search query */
   query: string;
   /** Called when query changes */
@@ -44,7 +44,7 @@ export interface TerminalSearchProps {
 // Component
 // =============================================================================
 
-export const TerminalSearch = memo(function TerminalSearch({
+export const ShellSearch = memo(function ShellSearch({
   query,
   onQueryChange,
   onFindNext,
@@ -52,7 +52,7 @@ export const TerminalSearch = memo(function TerminalSearch({
   onClose,
   matchInfo,
   className,
-}: TerminalSearchProps) {
+}: ShellSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input on mount
@@ -86,7 +86,7 @@ export const TerminalSearch = memo(function TerminalSearch({
   );
 
   return (
-    <div className={cn("terminal-search", className)}>
+    <div className={cn("shell-search", className)}>
       <input
         ref={inputRef}
         type="text"
@@ -94,12 +94,12 @@ export const TerminalSearch = memo(function TerminalSearch({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder="Search..."
-        className="terminal-search-input"
-        aria-label="Search terminal"
+        className="shell-search-input"
+        aria-label="Search shell"
       />
 
       {/* Navigation buttons */}
-      <div className="terminal-search-buttons flex gap-0.5">
+      <div className="shell-search-buttons flex gap-0.5">
         <Button
           variant="ghost"
           size="sm"
@@ -123,7 +123,7 @@ export const TerminalSearch = memo(function TerminalSearch({
       </div>
 
       {/* Match info */}
-      {matchInfo && <span className="terminal-search-count">{matchInfo}</span>}
+      {matchInfo && <span className="shell-search-count">{matchInfo}</span>}
 
       {/* Close button */}
       <Button

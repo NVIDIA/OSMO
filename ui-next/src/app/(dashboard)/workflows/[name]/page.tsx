@@ -48,8 +48,6 @@ export const metadata: Metadata = {
  */
 
 import { Suspense } from "react";
-import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { fetchWorkflowByName, shouldSkipServerPrefetch } from "@/lib/api/server";
 import { WorkflowDetailContent } from "./workflow-detail-content";
 import { WorkflowDetailSkeleton } from "./workflow-detail-skeleton";
 
@@ -62,7 +60,7 @@ interface WorkflowDetailPageProps {
 }
 
 // =============================================================================
-// Server Component (Prefetch + Hydration)
+// Streaming SSR - Fast TTFB + Progressive Content
 // =============================================================================
 
 export default async function WorkflowDetailPage({ params }: WorkflowDetailPageProps) {
@@ -70,25 +68,11 @@ export default async function WorkflowDetailPage({ params }: WorkflowDetailPageP
   const { name } = await params;
   const decodedName = decodeURIComponent(name);
 
-  // Create a new QueryClient for this request
-  const queryClient = new QueryClient();
-
-  // Skip server prefetching in mock mode during development for fast iteration
-  // Client-side MSW handles data fetching much faster than server-side
-  if (!shouldSkipServerPrefetch()) {
-    // Prefetch workflow data on the server
-    // Use short revalidation for workflow detail (it changes frequently)
-    await queryClient.prefetchQuery({
-      queryKey: ["workflow", decodedName],
-      queryFn: () => fetchWorkflowByName(decodedName, true, { revalidate: 30 }),
-    });
-  }
-
+  // Shell renders immediately, WorkflowDetailContent fetches data on render
+  // DAG visualization streams in as workflow data becomes available
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<WorkflowDetailSkeleton />}>
-        <WorkflowDetailContent name={decodedName} />
-      </Suspense>
-    </HydrationBoundary>
+    <Suspense fallback={<WorkflowDetailSkeleton />}>
+      <WorkflowDetailContent name={decodedName} />
+    </Suspense>
   );
 }
