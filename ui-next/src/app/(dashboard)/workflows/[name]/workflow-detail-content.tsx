@@ -170,6 +170,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [panelPct, setPanelPct] = useState<number>(PANEL.DEFAULT_WIDTH_PCT);
   const [isPanelDragging, setIsPanelDragging] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
   const { resolvedTheme } = useTheme();
 
   // Sidebar state for viewport re-centering
@@ -189,9 +190,12 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   // Synchronized tick for live durations - only tick when workflow is active
   // Completed/failed workflows have static durations, no need to tick
+  // PERFORMANCE: Pause ticking during pan/zoom to prevent React re-renders mid-frame
+  // This eliminates the occasional frame drop when tick fires during drag
   const workflowStatus = workflow?.status;
   const isWorkflowActive = workflowStatus === "PENDING" || workflowStatus === "RUNNING" || workflowStatus === "WAITING";
-  useTickController(isWorkflowActive);
+  const shouldTick = isWorkflowActive && !isPanning;
+  useTickController(shouldTick);
 
   // URL-synced navigation state (nuqs)
   const {
@@ -418,6 +422,16 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     console.log("Cancel workflow:", name);
   });
 
+  // Pan detection for performance optimization
+  // Sets data-panning attribute on ReactFlow container to disable transitions during drag
+  const handleMoveStart = useEventCallback(() => {
+    setIsPanning(true);
+  });
+
+  const handleMoveEnd = useEventCallback(() => {
+    setIsPanning(false);
+  });
+
   // Navigate back from group to workflow (URL navigation)
   const handleBackToWorkflow = useEventCallback(() => {
     navigateToWorkflow();
@@ -535,6 +549,11 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
                   // See: https://reactflow.dev/learn/advanced-use/performance
                   onlyRenderVisibleElements={true}
                   proOptions={proOptions}
+                  // Pan detection for performance optimization (disables animations during drag)
+                  onMoveStart={handleMoveStart}
+                  onMoveEnd={handleMoveEnd}
+                  // Data attribute for CSS performance optimization
+                  data-panning={isPanning ? "true" : "false"}
                 >
                   <Background
                     variant={BackgroundVariant.Dots}

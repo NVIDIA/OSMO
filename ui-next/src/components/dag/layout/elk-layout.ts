@@ -199,16 +199,20 @@ export type EdgeStyleProvider = (sourceId: string, targetId: string) => EdgeStyl
 /**
  * Build ReactFlow edges from input nodes.
  *
+ * Performance: Uses for...of loops instead of flatMap for better JIT optimization.
+ *
  * @param nodes - Input nodes with downstream connections
  * @param getStyle - Optional function to get edge style per edge
  * @returns ReactFlow edges
  */
 export function buildEdges(nodes: DAGInputNode[], getStyle?: EdgeStyleProvider): Edge[] {
-  return nodes.flatMap((node) =>
-    node.downstreamIds.map((downstreamId) => {
+  const edges: Edge[] = [];
+
+  for (const node of nodes) {
+    for (const downstreamId of node.downstreamIds) {
       const style = getStyle?.(node.id, downstreamId);
 
-      return {
+      edges.push({
         id: `${node.id}-${downstreamId}`,
         source: node.id,
         target: downstreamId,
@@ -227,9 +231,11 @@ export function buildEdges(nodes: DAGInputNode[], getStyle?: EdgeStyleProvider):
           width: EDGE_STYLE.ARROW_WIDTH,
           height: EDGE_STYLE.ARROW_HEIGHT,
         },
-      };
-    }),
-  );
+      });
+    }
+  }
+
+  return edges;
 }
 
 // ============================================================================
@@ -262,6 +268,8 @@ export function findRootNodes(nodes: DAGInputNode[]): string[] {
 /**
  * Compute which nodes should be initially expanded based on thresholds.
  *
+ * Performance: Uses for...of loops instead of filter/map chains for better JIT optimization.
+ *
  * @param nodes - Input nodes
  * @param isExpandable - Function to determine if a node is expandable
  * @param shouldExpand - Function to determine if an expandable node should be initially expanded
@@ -274,19 +282,32 @@ export function computeInitialExpandedNodes(
   shouldExpand: (node: DAGInputNode) => boolean,
   groupThreshold = 10,
 ): Set<string> {
-  const expandableNodes = nodes.filter(isExpandable);
+  // First pass: collect expandable nodes
+  const expandableNodes: DAGInputNode[] = [];
+  for (const node of nodes) {
+    if (isExpandable(node)) {
+      expandableNodes.push(node);
+    }
+  }
 
   if (expandableNodes.length === 0) {
     return new Set();
   }
 
   if (expandableNodes.length === 1) {
-    return new Set(expandableNodes.map((n) => n.id));
+    return new Set([expandableNodes[0].id]);
   }
 
   if (nodes.length >= groupThreshold) {
     return new Set();
   }
 
-  return new Set(expandableNodes.filter(shouldExpand).map((n) => n.id));
+  // Second pass: collect nodes that should be expanded
+  const result = new Set<string>();
+  for (const node of expandableNodes) {
+    if (shouldExpand(node)) {
+      result.add(node.id);
+    }
+  }
+  return result;
 }
