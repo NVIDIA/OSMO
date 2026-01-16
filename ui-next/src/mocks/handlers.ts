@@ -39,8 +39,8 @@ import {
   type PTYScenario,
 } from "./generators";
 
-// Simulate network delay (ms) - realistic latency
-const MOCK_DELAY = 50;
+// Simulate network delay (ms) - minimal in dev for fast iteration
+const MOCK_DELAY = process.env.NODE_ENV === "development" ? 5 : 50;
 
 // ============================================================================
 // Handlers

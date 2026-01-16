@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 
 import { Suspense } from "react";
 import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchWorkflows } from "@/lib/api/server";
+import { prefetchWorkflows, shouldSkipServerPrefetch } from "@/lib/api/server";
 import { WorkflowsPageContent } from "./workflows-page-content";
 import { WorkflowsPageSkeleton } from "./workflows-page-skeleton";
 
@@ -52,9 +52,13 @@ export default async function WorkflowsPage() {
   // Create a new QueryClient for this request
   const queryClient = new QueryClient();
 
-  // Prefetch initial workflows data on the server
-  // We prefetch the default query (first page, no filters)
-  await prefetchWorkflows(queryClient, {}, { revalidate: 30 });
+  // Skip server prefetching in mock mode during development for fast iteration
+  // Client-side MSW handles data fetching much faster than server-side
+  if (!shouldSkipServerPrefetch()) {
+    // Prefetch initial workflows data on the server
+    // We prefetch the default query (first page, no filters)
+    await prefetchWorkflows(queryClient, {}, { revalidate: 30 });
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
