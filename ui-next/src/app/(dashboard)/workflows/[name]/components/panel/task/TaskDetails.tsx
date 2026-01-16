@@ -28,12 +28,12 @@
 "use client";
 
 import { useMemo, useCallback, memo, useState } from "react";
-import { FileText, Terminal, AlertCircle, Copy, Check, XCircle } from "lucide-react";
+import { FileText, Terminal, AlertCircle, Copy, Check, XCircle, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/shadcn/tabs";
 import { useCopy, useTick } from "@/hooks";
-import { ShellTerminal } from "@/components/shell";
+import { TaskShell } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
@@ -73,10 +73,112 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
 interface OverviewTabProps {
   task: TaskDetailsProps["task"];
-  category: string;
 }
 
-const OverviewTab = memo(function OverviewTab({ task, category }: OverviewTabProps) {
+// ============================================================================
+// Logs Tab Content (Placeholder)
+// ============================================================================
+
+interface LogsTabProps {
+  task: TaskDetailsProps["task"];
+}
+
+const LogsTab = memo(function LogsTab({ task }: LogsTabProps) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
+        <FileText className="size-6 text-gray-400 dark:text-zinc-500" />
+      </div>
+      <div>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Task Logs</h3>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+          View stdout/stderr output from the task execution
+        </p>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-2"
+        asChild
+      >
+        <a
+          href={task.logs}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <FileText className="mr-1.5 size-3.5" />
+          Open in New Tab
+        </a>
+      </Button>
+      {task.error_logs && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
+          asChild
+        >
+          <a
+            href={task.error_logs}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <AlertCircle className="mr-1.5 size-3.5" />
+            View Error Logs
+          </a>
+        </Button>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// Events Tab Content (Placeholder)
+// ============================================================================
+
+interface EventsTabProps {
+  task: TaskDetailsProps["task"];
+}
+
+const EventsTab = memo(function EventsTab({ task }: EventsTabProps) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
+        <Calendar className="size-6 text-gray-400 dark:text-zinc-500" />
+      </div>
+      <div>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Kubernetes Events</h3>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+          Pod scheduling, container lifecycle, and resource events
+        </p>
+      </div>
+      {task.events ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          asChild
+        >
+          <a
+            href={task.events}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Calendar className="mr-1.5 size-3.5" />
+            View Events
+          </a>
+        </Button>
+      ) : (
+        <p className="text-xs text-gray-400 dark:text-zinc-500">No events available</p>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// Overview Tab Content
+// ============================================================================
+
+const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
   return (
     <div className="space-y-4">
       {/* Exit status - special treatment at top when non-zero */}
@@ -168,69 +270,6 @@ const OverviewTab = memo(function OverviewTab({ task, category }: OverviewTabPro
           </>
         )}
       </dl>
-
-      {/* Actions */}
-      <div
-        className="flex gap-2"
-        role="group"
-        aria-label="Task actions"
-      >
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
-          asChild
-        >
-          <a
-            href={task.logs}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`View logs for ${task.name}`}
-          >
-            <FileText
-              className="mr-1.5 size-3.5"
-              aria-hidden="true"
-            />
-            View Logs
-          </a>
-        </Button>
-        {category === "running" && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 flex-1 border-gray-300 bg-gray-100/50 text-xs text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-white"
-            aria-label={`Open shell for ${task.name}`}
-            disabled
-          >
-            <Terminal
-              className="mr-1.5 size-3.5"
-              aria-hidden="true"
-            />
-            Shell
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-});
-
-// ============================================================================
-// Shell Tab Content
-// ============================================================================
-
-interface ShellTabProps {
-  workflowName: string;
-  taskName: string;
-}
-
-const ShellTab = memo(function ShellTab({ workflowName, taskName }: ShellTabProps) {
-  return (
-    <div className="flex h-full min-h-[300px] flex-col">
-      <ShellTerminal
-        workflowName={workflowName}
-        taskName={taskName}
-        className="flex-1"
-      />
     </div>
   );
 });
@@ -441,6 +480,20 @@ export const TaskDetails = memo(function TaskDetails({
                 Shell
               </TabsTrigger>
             )}
+            <TabsTrigger
+              value="logs"
+              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <FileText className="mr-1.5 size-3" />
+              Logs
+            </TabsTrigger>
+            <TabsTrigger
+              value="events"
+              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              <Calendar className="mr-1.5 size-3" />
+              Events
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -449,10 +502,7 @@ export const TaskDetails = memo(function TaskDetails({
           value="overview"
           className="mt-0 flex-1 overflow-y-auto p-4 pb-16"
         >
-          <OverviewTab
-            task={task}
-            category={category}
-          />
+          <OverviewTab task={task} />
         </TabsContent>
 
         {isRunning && workflowName && (
@@ -460,12 +510,26 @@ export const TaskDetails = memo(function TaskDetails({
             value="shell"
             className="mt-0 flex-1 overflow-hidden p-4"
           >
-            <ShellTab
+            <TaskShell
               workflowName={workflowName}
               taskName={task.name}
             />
           </TabsContent>
         )}
+
+        <TabsContent
+          value="logs"
+          className="mt-0 flex-1 overflow-y-auto p-4"
+        >
+          <LogsTab task={task} />
+        </TabsContent>
+
+        <TabsContent
+          value="events"
+          className="mt-0 flex-1 overflow-y-auto p-4"
+        >
+          <EventsTab task={task} />
+        </TabsContent>
       </Tabs>
     </div>
   );
