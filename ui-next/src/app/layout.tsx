@@ -31,7 +31,9 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  display: "swap",
+  // Use 'optional' for mono font - if it doesn't load quickly, use fallback
+  // This prevents layout shift without blocking render
+  display: "optional",
   preload: false,
 });
 
@@ -72,7 +74,19 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <head>
-        {/* Preconnect to API for faster data fetching */}
+        {/* Preconnect for faster resource loading */}
+        {/* Fonts - preconnect reduces connection setup time by ~100-200ms */}
+        <link
+          rel="preconnect"
+          href="https://fonts.googleapis.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* DNS prefetch as fallback for browsers that don't support preconnect */}
         <link
           rel="dns-prefetch"
           href="//fonts.googleapis.com"
