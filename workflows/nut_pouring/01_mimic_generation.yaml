@@ -36,13 +36,7 @@ workflow:
       ACCEPT_EULA: Y
       NO_NUCLEUS: Y
       OMNI_KIT_ALLOW_ROOT: 1
-      OMNI_SERVER: isaac-dev.ov.nvidia.com
 
-    inputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step0-Mimic
-
-    outputs:
-    - url: swift://pdx.s8k.io/AUTH_team-sauravn-osmo-runai/physai-datasets/PhysAI-Step1-MimicGenerated
 
     command: ["bash"]
     args: ["/tmp/entry.sh"]
