@@ -31,7 +31,7 @@
 "use client";
 
 import { InlineErrorBoundary } from "@/components/error";
-import { usePage } from "@/components/shell";
+import { usePage } from "@/components/chrome";
 import { useUrlChips, useResultsCount } from "@/hooks";
 import { WorkflowsDataTable } from "./components/table/workflows-data-table";
 import { WorkflowsToolbar } from "./components/workflows-toolbar";

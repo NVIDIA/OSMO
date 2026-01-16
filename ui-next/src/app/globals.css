@@ -22,8 +22,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Shell layout spacing */
-  --spacing-shell-header: var(--shell-header-height);
+  /* Chrome layout spacing */
+  --spacing-chrome-header: var(--chrome-header-height);
 
   /* Typography */
   --font-sans: var(--font-geist-sans);
@@ -143,8 +143,8 @@
 }
 
 :root {
-  /* Shell Layout */
-  --shell-header-height: 3.5rem;
+  /* Chrome Layout */
+  --chrome-header-height: 3.5rem;
 
   /* ==========================================================================
      Animation Timing Tokens
@@ -386,14 +386,14 @@
   }
 
   /* ==========================================================================
-     Shell Layout Utilities
+     Chrome Layout Utilities
      ========================================================================== */
 
   /* Fixed overlay that covers only the page content area */
   .fixed-below-header {
     position: fixed;
     inset: 0;
-    top: var(--shell-header-height);
+    top: var(--chrome-header-height);
   }
 
   /* ==========================================================================

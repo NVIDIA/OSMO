@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-export { Shell } from "./shell";
+export { Chrome } from "./chrome";
 export { AppSidebar } from "./app-sidebar";
 export { PageProvider, usePage, usePageConfig } from "./page-context";
 export type { PageConfig, BreadcrumbSegment } from "./page-context";

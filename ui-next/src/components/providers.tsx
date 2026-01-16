@@ -23,7 +23,7 @@ import type { DehydratedState } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
-import { PageProvider } from "@/components/shell/page-context";
+import { PageProvider } from "@/components/chrome/page-context";
 import { ConfigProvider, ServiceProvider } from "@/contexts";
 import { AuthProvider, UserProvider } from "@/lib/auth";
 import { MockProvider } from "@/mocks/MockProvider";
