@@ -127,7 +127,7 @@ export {
   type GeneratedPortForwardResponse,
 } from "./portforward-generator";
 
-export { TerminalSimulator, terminalSimulator, type TerminalSession, type CommandResult } from "./terminal-simulator";
+export { PTYSimulator, ptySimulator, type PTYSession, type PTYScenario } from "./pty-simulator";
 
 // ============================================================================
 // Configuration (from seed)
