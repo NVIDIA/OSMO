@@ -121,6 +121,13 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
       const routerAddress = response.router_address.replace(/^https?:/, wsProtocol);
       const wsUrl = `${routerAddress}/api/router/exec/${workflowName}/client/${response.key}`;
 
+      // Debug: log connection details
+      console.debug("[Shell] Connecting to PTY:", {
+        router_address: response.router_address,
+        key: response.key,
+        wsUrl,
+      });
+
       // Create WebSocket connection
       const ws = new WebSocket(wsUrl);
       ws.binaryType = "arraybuffer";
