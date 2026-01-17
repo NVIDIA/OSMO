@@ -29,7 +29,7 @@ export { ShellTerminal } from "./ShellTerminal";
 // Overlay Components
 export { ShellConnectCard } from "./ShellConnectCard";
 export { ShellConnecting } from "./ShellConnecting";
-export { ShellDisconnectedOverlay } from "./ShellDisconnectedOverlay";
+export { ShellReconnectButton } from "./ShellReconnectButton";
 export { ShellSearch } from "./ShellSearch";
 
 // Activity Components
