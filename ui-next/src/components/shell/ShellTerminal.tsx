@@ -40,9 +40,9 @@ import { useShellStore } from "@/app/(dashboard)/workflows/[name]/stores";
 
 import { useShell } from "./use-shell";
 import { useWebSocketShell } from "./use-websocket-shell";
-import { ShellConnectCard } from "./ShellConnectCard";
 import { ShellConnecting } from "./ShellConnecting";
 import { ShellSearch } from "./ShellSearch";
+import { hadPreviousConnection } from "./shell-session-cache";
 import type { ShellTerminalProps, ShellTerminalRef } from "./types";
 import { SHELL_CONFIG } from "./types";
 
@@ -90,7 +90,6 @@ export const ShellTerminal = memo(
       workflowName,
       taskName,
       shell: initialShell = SHELL_CONFIG.DEFAULT_SHELL,
-      autoConnect = true,
       onConnected,
       onDisconnected,
       onError,
@@ -105,7 +104,7 @@ export const ShellTerminal = memo(
 
     // Local state
     const [isActive, setIsActive] = useState(false);
-    const [shell, setShell] = useState(initialShell);
+    const shell = initialShell;
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -120,7 +119,6 @@ export const ShellTerminal = memo(
     // Shell store for session tracking
     const openSession = useShellStore((s) => s.openSession);
     const updateStatus = useShellStore((s) => s.updateStatus);
-    const closeSession = useShellStore((s) => s.closeSession);
 
     // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
     const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
@@ -136,7 +134,7 @@ export const ShellTerminal = memo(
     }, []);
 
     // Shell hook - manages xterm.js instance
-    // Pass taskName as terminalKey to enable persistence across navigation
+    // Pass taskName as sessionKey to enable persistence across navigation
     const {
       containerRef,
       getTerminal,
@@ -149,11 +147,16 @@ export const ShellTerminal = memo(
     } = useShell({
       onData: handleShellData,
       onResize: handleShellResize,
-      terminalKey: taskName,
+      sessionKey: taskName,
+      workflowName,
+      taskName,
+      shell,
     });
 
     // WebSocket hook - manages connection to backend PTY
+    // Pass sessionKey to enable WebSocket persistence across navigation
     const { status, connect, disconnect, send, resize } = useWebSocketShell({
+      sessionKey: taskName,
       workflowName,
       taskName,
       shell,
@@ -200,17 +203,10 @@ export const ShellTerminal = memo(
       },
       onSessionEnded: () => {
         announce("Shell session ended", "polite");
-        // Keep terminal in cache for history viewing - only closeSession from store
-        closeSession(taskName);
+        // Let parent handle session state (marks as disconnected, keeps terminal in cache)
         onSessionEnded?.();
       },
     });
-
-    // Handle connect with shell selection
-    const handleConnect = useCallback((selectedShell: string) => {
-      setShell(selectedShell);
-      // Connect will be triggered by effect when shell is set
-    }, []);
 
     // Expose imperative methods via ref
     useImperativeHandle(
@@ -243,20 +239,13 @@ export const ShellTerminal = memo(
       };
     }, [workflowName, taskName, shell, openSession]);
 
-    // Connect when shell is selected (from connect card)
+    // Start session when shell is ready (only if no previous connection exists)
+    // If a previous connection exists, its state is already restored
     useEffect(() => {
-      if (isShellReady && status === "idle" && shell !== initialShell) {
-        // Shell was changed via connect card, initiate connection
+      if (isShellReady && status === "idle" && !hadPreviousConnection(taskName)) {
         connect();
       }
-    }, [isShellReady, status, shell, initialShell, connect]);
-
-    // Auto-connect when shell is ready (only if autoConnect is true)
-    useEffect(() => {
-      if (autoConnect && isShellReady && status === "idle") {
-        connect();
-      }
-    }, [autoConnect, isShellReady, status, connect]);
+    }, [isShellReady, status, taskName, connect]);
 
     // Update terminal active state based on connection status
     useEffect(() => {
@@ -368,13 +357,20 @@ export const ShellTerminal = memo(
     // Determine UI state
     const isConnected = status === "connected";
     const isConnecting = status === "connecting";
-    const showConnectCard = status === "idle" && !autoConnect;
+
+    // Check if this is a reconnection vs first connection:
+    // - First connection: hadPreviousConnection = false → show full overlay
+    // - Reattach: status is already "connected" → no overlay
+    // - Reconnection: hadPreviousConnection = true but WebSocket closed → show minimal bar
+    const isReconnecting = isConnecting && hadPreviousConnection(taskName);
+    const showConnectingOverlay = isConnecting && !isReconnecting;
 
     return (
       <div
         className={cn("shell-container", className)}
         data-active={isActive}
         data-connected={isConnected}
+        data-reconnecting={isReconnecting}
         onFocus={handleFocus}
         onBlur={handleBlur}
         role="application"
@@ -387,11 +383,16 @@ export const ShellTerminal = memo(
           tabIndex={0}
         />
 
-        {/* Connect Card - shown on idle (when autoConnect is false) */}
-        {showConnectCard && <ShellConnectCard onConnect={handleConnect} />}
+        {/* Connecting Overlay - only for first connection, not reconnection */}
+        {showConnectingOverlay && <ShellConnecting />}
 
-        {/* Connecting Spinner */}
-        {isConnecting && <ShellConnecting />}
+        {/* Reconnecting Indicator - minimal, non-blocking */}
+        {isReconnecting && (
+          <div className="shell-reconnecting">
+            <span className="shell-reconnecting-dot" />
+            <span className="shell-reconnecting-label">Reconnecting...</span>
+          </div>
+        )}
 
         {/* Search Bar - floating top-right when open */}
         {isSearchOpen && (

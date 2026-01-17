@@ -46,12 +46,13 @@ import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 import { SHELL_THEME, SHELL_CONFIG } from "./types";
 import type { UseShellReturn } from "./types";
 import {
-  getTerminal as getCachedTerminal,
-  storeTerminal,
-  updateContainer,
-  disposeTerminal,
-  type CachedTerminal,
-} from "./terminal-cache";
+  getSession,
+  createSession,
+  updateSessionContainer,
+  updateSessionDataDisposable,
+  disposeSession,
+  type ShellSession,
+} from "./shell-session-cache";
 
 // Import xterm CSS
 import "@xterm/xterm/css/xterm.css";
@@ -72,6 +73,7 @@ function createTerminal(
   fitAddon: FitAddon;
   searchAddon: SearchAddon;
   webglAddon: WebglAddon | null;
+  dataDisposable: ReturnType<Terminal["onData"]> | null;
 } {
   // Get the actual font family from CSS variable (Next.js generates unique names)
   // Fallback to common monospace fonts if CSS variable isn't available
@@ -134,37 +136,52 @@ function createTerminal(
   // Initial fit
   fitAddon.fit();
 
-  // Set up data handler
+  // Set up data handler and store disposable to prevent duplicate handlers
+  let dataDisposable: ReturnType<Terminal["onData"]> | null = null;
   if (onData) {
-    terminal.onData(onData);
+    dataDisposable = terminal.onData(onData);
   }
 
-  return { terminal, fitAddon, searchAddon, webglAddon };
+  return { terminal, fitAddon, searchAddon, webglAddon, dataDisposable };
 }
 
 /**
  * Reattach a cached terminal to a new container.
  * This is called when navigating back to a shell that was previously detached.
+ * Returns the new data disposable so it can be stored in the session.
  */
-function reattachTerminal(cached: CachedTerminal, container: HTMLElement, onData?: (data: string) => void): void {
-  const { terminal } = cached;
+function reattachTerminal(
+  session: ShellSession,
+  container: HTMLElement,
+  onData?: (data: string) => void,
+): ReturnType<Terminal["onData"]> | null {
+  const { terminal } = session;
 
   // Clear the container and append the terminal element
   // xterm.js doesn't have a built-in "reattach" method, so we move the element
-  const terminalElement = terminal.element;
+  const terminalElement = terminal.instance.element;
   if (terminalElement && terminalElement.parentElement !== container) {
     // Move terminal element to new container
     container.innerHTML = "";
     container.appendChild(terminalElement);
   }
 
-  // Re-register data handler (previous one was on old mount)
+  // Dispose previous data handler to prevent duplicate keystrokes
+  if (terminal.dataDisposable) {
+    terminal.dataDisposable.dispose();
+    terminal.dataDisposable = null;
+  }
+
+  // Re-register data handler
+  let dataDisposable: ReturnType<Terminal["onData"]> | null = null;
   if (onData) {
-    terminal.onData(onData);
+    dataDisposable = terminal.instance.onData(onData);
   }
 
   // Scroll to bottom to show latest content
-  terminal.scrollToBottom();
+  terminal.instance.scrollToBottom();
+
+  return dataDisposable;
 }
 
 // =============================================================================
@@ -179,17 +196,40 @@ export interface UseShellOptions {
   /** Callback when a link is clicked */
   onLinkClick?: (url: string) => void;
   /**
-   * Unique key for terminal persistence. When provided, the terminal instance
-   * is cached and survives component unmount/remount. This preserves shell
-   * history when navigating within the workflow page.
+   * Session key for terminal and connection persistence.
+   * When provided, the session (terminal + WebSocket) is cached and survives
+   * component unmount/remount. This preserves shell state when navigating.
    *
    * Typically set to the taskName for workflow shells.
    */
-  terminalKey?: string;
+  sessionKey?: string;
+  /**
+   * Workflow name (required when sessionKey is provided).
+   * Used for creating the session and reconnection.
+   */
+  workflowName?: string;
+  /**
+   * Task name (required when sessionKey is provided).
+   * Used for creating the session and reconnection.
+   */
+  taskName?: string;
+  /**
+   * Shell executable (default: /bin/bash).
+   * Used for creating the session.
+   */
+  shell?: string;
 }
 
 export function useShell(options: UseShellOptions = {}): UseShellReturn {
-  const { onData, onResize, onLinkClick, terminalKey } = options;
+  const {
+    onData,
+    onResize,
+    onLinkClick,
+    sessionKey,
+    workflowName = "",
+    taskName = "",
+    shell = SHELL_CONFIG.DEFAULT_SHELL,
+  } = options;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -197,14 +237,14 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const webglAddonRef = useRef<WebglAddon | null>(null);
   // Track the key used for this instance to handle cleanup correctly
-  const terminalKeyRef = useRef<string | undefined>(terminalKey);
+  const sessionKeyRef = useRef<string | undefined>(sessionKey);
 
   const [isReady, setIsReady] = useState(false);
 
-  // Keep terminalKeyRef in sync
+  // Keep sessionKeyRef in sync
   useEffect(() => {
-    terminalKeyRef.current = terminalKey;
-  }, [terminalKey]);
+    sessionKeyRef.current = sessionKey;
+  }, [sessionKey]);
 
   // Debounced resize handler
   const debouncedFit = useDebounceCallback(() => {
@@ -237,42 +277,56 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     const container = containerRef.current;
     if (!container) return;
 
-    // Check if we have a cached terminal for this key
-    const cached = terminalKey ? getCachedTerminal(terminalKey) : undefined;
+    // Check if we have a cached session for this key
+    const session = sessionKey ? getSession(sessionKey) : undefined;
 
-    if (cached) {
+    if (session) {
       // Reattach cached terminal to new container
-      reattachTerminal(cached, container, onData);
+      const dataDisposable = reattachTerminal(session, container, onData);
+
+      // Store the new data disposable in the session
+      updateSessionDataDisposable(sessionKey!, dataDisposable);
 
       // Store refs
-      terminalRef.current = cached.terminal;
-      fitAddonRef.current = cached.fitAddon;
-      searchAddonRef.current = cached.searchAddon;
-      webglAddonRef.current = cached.webglAddon;
+      terminalRef.current = session.terminal.instance;
+      fitAddonRef.current = session.terminal.fitAddon;
+      searchAddonRef.current = session.terminal.searchAddon;
+      webglAddonRef.current = session.terminal.webglAddon;
 
-      // Update container reference in cache
-      updateContainer(terminalKey!, container);
+      // Update container reference in session
+      updateSessionContainer(sessionKey!, container);
 
-      // Fit to new container size
-      try {
-        cached.fitAddon.fit();
-      } catch {
-        // Fit may fail if container is not visible
-      }
+      // Wait for container to have non-zero dimensions before fitting.
+      // This handles cases where the container is inside an animating panel.
+      // Only set isReady after fit, so WebSocket connect gets correct dimensions.
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+          observer.disconnect();
 
-      // Use startTransition to avoid cascading renders
-      startTransition(() => {
-        setIsReady(true);
+          try {
+            session.terminal.fitAddon.fit();
+          } catch {
+            // Fit may fail if container is not visible
+          }
+
+          // Now safe to mark as ready - dimensions are correct
+          startTransition(() => {
+            setIsReady(true);
+          });
+        }
       });
+      observer.observe(container);
 
       // Cleanup: detach but don't dispose
       return () => {
+        observer.disconnect();
         startTransition(() => {
           setIsReady(false);
         });
-        // Update cache to mark as detached
-        if (terminalKeyRef.current) {
-          updateContainer(terminalKeyRef.current, null);
+        // Update session to mark as detached
+        if (sessionKeyRef.current) {
+          updateSessionContainer(sessionKeyRef.current, null);
         }
         // Clear local refs but don't dispose
         terminalRef.current = null;
@@ -282,8 +336,12 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
       };
     }
 
-    // No cached terminal - create new one
-    const { terminal, fitAddon, searchAddon, webglAddon } = createTerminal(container, onData, onLinkClick);
+    // No cached session - create new terminal and session
+    const { terminal, fitAddon, searchAddon, webglAddon, dataDisposable } = createTerminal(
+      container,
+      onData,
+      onLinkClick,
+    );
 
     // Store refs
     terminalRef.current = terminal;
@@ -291,15 +349,21 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     searchAddonRef.current = searchAddon;
     webglAddonRef.current = webglAddon;
 
-    // If terminalKey is provided, store in cache for persistence
-    if (terminalKey) {
-      storeTerminal(terminalKey, {
-        terminal,
-        fitAddon,
-        searchAddon,
-        webglAddon,
+    // If sessionKey is provided, create session in cache for persistence
+    if (sessionKey) {
+      createSession({
+        key: sessionKey,
+        workflowName,
+        taskName,
+        shell,
+        terminal: {
+          instance: terminal,
+          fitAddon,
+          searchAddon,
+          webglAddon,
+          dataDisposable,
+        },
         container,
-        createdAt: Date.now(),
       });
     }
 
@@ -314,16 +378,16 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
         setIsReady(false);
       });
 
-      // If terminalKey is set, detach but don't dispose (persist for reattachment)
-      if (terminalKeyRef.current) {
-        updateContainer(terminalKeyRef.current, null);
+      // If sessionKey is set, detach but don't dispose (persist for reattachment)
+      if (sessionKeyRef.current) {
+        updateSessionContainer(sessionKeyRef.current, null);
         // Clear local refs but don't dispose
         terminalRef.current = null;
         fitAddonRef.current = null;
         searchAddonRef.current = null;
         webglAddonRef.current = null;
       } else {
-        // No terminalKey - dispose immediately
+        // No sessionKey - dispose immediately
         webglAddonRef.current?.dispose();
         terminal.dispose();
         terminalRef.current = null;
@@ -333,10 +397,10 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
       }
     };
     // Note: onData and onLinkClick are intentionally excluded from deps when
-    // using cached terminals to avoid recreating on callback changes.
+    // using cached sessions to avoid recreating on callback changes.
     // For non-cached terminals, changing these would require remount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terminalKey]);
+  }, [sessionKey]);
 
   // Focus the shell
   const focus = useCallback(() => {
@@ -384,13 +448,13 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   // Get xterm instance (for use in effects only, not render)
   const getTerminal = useCallback(() => terminalRef.current, []);
 
-  // Dispose the terminal (removes from cache if using terminalKey)
+  // Dispose the session (removes from cache if using sessionKey)
   // Call this when the session explicitly ends (user types exit, Ctrl+D, etc.)
   const dispose = useCallback(() => {
-    if (terminalKeyRef.current) {
-      disposeTerminal(terminalKeyRef.current);
+    if (sessionKeyRef.current) {
+      disposeSession(sessionKeyRef.current);
     } else {
-      // No terminalKey - dispose local refs
+      // No sessionKey - dispose local refs
       webglAddonRef.current?.dispose();
       terminalRef.current?.dispose();
     }
