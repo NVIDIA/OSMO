@@ -22,7 +22,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { useShellStore } from "@/app/(dashboard)/workflows/[name]/stores";
+import { useShellSessions } from "./use-shell-sessions";
+import { disposeAllSessions } from "./shell-session-cache";
 
 /**
  * Hook that warns users before navigating away when shell sessions are active.
@@ -36,8 +37,7 @@ import { useShellStore } from "@/app/(dashboard)/workflows/[name]/stores";
  * for security reasons. The browser shows its own generic message.
  */
 export function useShellNavigationGuard() {
-  const hasActiveSessions = useShellStore((s) => s.hasActiveSessions);
-  const activeSessionCount = useShellStore((s) => s.activeSessionCount);
+  const { hasActiveSessions, activeSessionCount } = useShellSessions();
 
   useEffect(() => {
     if (!hasActiveSessions) return;
@@ -70,9 +70,7 @@ export function useShellNavigationGuard() {
  * ```
  */
 export function useNavigateWithShellWarning() {
-  const hasActiveSessions = useShellStore((s) => s.hasActiveSessions);
-  const activeSessionCount = useShellStore((s) => s.activeSessionCount);
-  const closeAllSessions = useShellStore((s) => s.closeAllSessions);
+  const { hasActiveSessions, activeSessionCount } = useShellSessions();
 
   const navigateWithWarning = (href: string, navigate: () => void) => {
     if (hasActiveSessions) {
@@ -80,7 +78,7 @@ export function useNavigateWithShellWarning() {
         `You have ${activeSessionCount} active shell session(s). ` + `Navigating away will disconnect them. Continue?`,
       );
       if (!confirmed) return false;
-      closeAllSessions();
+      disposeAllSessions();
     }
     navigate();
     return true;
