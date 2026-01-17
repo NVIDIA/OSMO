@@ -80,44 +80,55 @@
 .shell-body {
   flex: 1;
   min-height: 0;
-  /* Padding on top and sides only - bottom extends to edge */
-  padding: var(--shell-padding) var(--shell-padding) 0;
+  padding: var(--shell-padding);
   overflow: hidden;
   background: var(--shell-bg);
 
   /* GPU acceleration */
   transform: translateZ(0);
   backface-visibility: hidden;
-
-  /* Use layout containment only - strict breaks xterm WebGL */
-  contain: layout style;
 }
 
-.shell-body .xterm {
+/* Inner wrapper - this is what FitAddon measures via parentElement */
+.shell-body-inner {
+  height: 100%;
+  width: 100%;
+}
+
+.shell-body-inner .xterm {
   height: 100%;
 }
 
 .shell-body .xterm-viewport {
-  /* Thin scrollbar */
+  /* Match app scrollbar styling (dark theme) */
   scrollbar-width: thin;
-  scrollbar-color: var(--shell-border) transparent;
+  scrollbar-color: rgb(113 113 122 / 40%) rgb(39 39 42 / 50%);
 }
 
 .shell-body .xterm-viewport::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 .shell-body .xterm-viewport::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgb(39 39 42 / 60%);
+  border-radius: 5px;
+  margin: 2px;
 }
 
 .shell-body .xterm-viewport::-webkit-scrollbar-thumb {
-  background: var(--shell-border);
-  border-radius: 4px;
+  background: rgb(113 113 122 / 50%);
+  border-radius: 5px;
+  border: 2px solid rgb(39 39 42 / 60%);
 }
 
 .shell-body .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: rgb(161 161 170 / 60%);
+}
+
+.shell-body .xterm-viewport::-webkit-scrollbar-corner {
+  background: rgb(39 39 42 / 60%);
+  border-radius: 5px;
 }
 
 /* =============================================================================

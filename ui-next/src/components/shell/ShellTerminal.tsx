@@ -372,11 +372,14 @@ export const ShellTerminal = memo(
         aria-label={`Shell for ${taskName}`}
       >
         {/* Terminal Body - always mounted to preserve history */}
-        <div
-          ref={containerRef}
-          className="shell-body"
-          tabIndex={0}
-        />
+        {/* Outer shell-body has padding, inner wrapper is what FitAddon measures */}
+        <div className="shell-body">
+          <div
+            ref={containerRef}
+            className="shell-body-inner"
+            tabIndex={0}
+          />
+        </div>
 
         {/* Connecting Overlay - only for first connection, not reconnection */}
         {showConnectingOverlay && <ShellConnecting />}
