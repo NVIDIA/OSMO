@@ -28,7 +28,6 @@ export const metadata: Metadata = {
   description: "View workflow details, DAG visualization, and task status.",
 };
 
-
 /**
  * Workflow Detail Page (Server Component)
  *
