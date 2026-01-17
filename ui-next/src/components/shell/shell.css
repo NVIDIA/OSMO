@@ -319,25 +319,73 @@
   animation: shell-slide-down var(--shell-transition-normal) forwards;
 }
 
-.shell-search-input {
-  width: 160px;
-  height: 24px;
-  padding: 0 8px;
-  font-size: 12px;
+/* Input wrapper - contains input and inline options */
+.shell-search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
   background: var(--shell-bg);
   border: 1px solid var(--shell-border);
   border-radius: 4px;
-  color: var(--shell-fg);
-  outline: none;
   transition: border-color var(--shell-transition-fast);
 }
 
-.shell-search-input:focus {
+.shell-search-input-wrapper:focus-within {
   border-color: var(--shell-cursor);
+}
+
+.shell-search-input {
+  width: 120px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  color: var(--shell-fg);
+  outline: none;
 }
 
 .shell-search-input::placeholder {
   color: var(--shell-fg-dim);
+}
+
+/* Inline search options (inside input) */
+.shell-search-options {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 4px;
+}
+
+.shell-search-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--shell-fg-dim);
+  cursor: pointer;
+  transition:
+    color var(--shell-transition-fast),
+    background-color var(--shell-transition-fast);
+}
+
+.shell-search-option:hover {
+  color: var(--shell-fg);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.shell-search-option.active {
+  color: var(--nvidia-green);
+}
+
+.shell-search-option.active:hover {
+  color: var(--nvidia-green-light);
+  background: rgba(118, 185, 0, 0.15);
 }
 
 .shell-search-count {
@@ -434,19 +482,6 @@
 }
 
 /* =============================================================================
-   Search Match Highlighting (xterm addon)
-   ============================================================================= */
-
-.xterm-find-result-decoration {
-  background-color: rgba(250, 204, 21, 0.3);
-}
-
-.xterm-find-active-result-decoration {
-  background-color: rgba(250, 204, 21, 0.6);
-  outline: 1px solid #facc15;
-}
-
-/* =============================================================================
    Responsive Adjustments
    ============================================================================= */
 
@@ -458,6 +493,10 @@
   .shell-search {
     left: 8px;
     right: 8px;
+  }
+
+  .shell-search-input-wrapper {
+    flex: 1;
   }
 
   .shell-search-input {
