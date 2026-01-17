@@ -215,63 +215,18 @@
 }
 
 /* =============================================================================
-   Disconnected Overlay
+   Reconnect Button (Floating Bottom Center)
    ============================================================================= */
 
-.shell-disconnected-overlay {
+.shell-reconnect-button {
   position: absolute;
-  inset-inline: 0;
-  bottom: 0;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 10;
-  padding: 16px 24px 24px;
-  background: linear-gradient(to top, var(--shell-bg) 60%, transparent);
 
-  /* Fade in animation */
-  animation: shell-fade-in var(--shell-transition-normal) forwards;
-}
-
-.shell-disconnected-divider {
-  width: 100%;
-  height: 1px;
-  margin-bottom: 16px;
-  background: linear-gradient(to right, transparent, var(--shell-border) 20%, var(--shell-border) 80%, transparent);
-}
-
-.shell-disconnected-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.shell-disconnected-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.shell-disconnected-dot {
-  width: 8px;
-  height: 8px;
-  background: transparent;
-  border: 2px solid #71717a;
-  border-radius: 50%;
-}
-
-.shell-disconnected-label {
-  font-size: 13px;
-  color: var(--shell-fg-dim);
-}
-
-.shell-disconnected-label--error {
-  color: #f87171;
-}
-
-.shell-disconnected-error {
-  font-size: 11px;
-  color: #fca5a5;
-  max-width: 200px;
-  text-align: center;
+  /* Fade in + slide up animation */
+  animation: shell-slide-up var(--shell-transition-normal) forwards;
 }
 
 /* =============================================================================
@@ -331,17 +286,12 @@
 }
 
 /* =============================================================================
-   Inactive/Disconnected State (Terminal Dimming)
+   Inactive/Disconnected State
    ============================================================================= */
 
 .shell-container[data-connected="false"] {
   /* Subtle border color change to indicate inactive */
   border-color: #1f1f23;
-}
-
-.shell-container[data-connected="false"] .shell-body {
-  /* Slight desaturation for inactive terminal */
-  filter: saturate(0.7) brightness(0.85);
 }
 
 /* Hide cursor completely when not connected */
@@ -373,6 +323,17 @@
   }
 }
 
+@keyframes shell-slide-up {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 @keyframes shell-pulse {
   0%,
   100% {
@@ -387,9 +348,14 @@
 @media (prefers-reduced-motion: reduce) {
   .shell-connect-card,
   .shell-connecting,
-  .shell-disconnected-overlay,
+  .shell-reconnect-button,
   .shell-search {
     animation: none;
+  }
+
+  .shell-reconnect-button {
+    /* Reset transform since animation is disabled */
+    transform: translateX(-50%);
   }
 
   .shell-connecting-dot {

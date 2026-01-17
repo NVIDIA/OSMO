@@ -131,7 +131,7 @@ export class TaskGenerator {
     const isScheduling = status === TaskGroupStatus.SCHEDULING;
     const isInitializing = status === TaskGroupStatus.INITIALIZING;
     const started = !notStartedStatuses.includes(status);
-    const isRunning = status === TaskGroupStatus.RUNNING;
+    const _isRunning = status === TaskGroupStatus.RUNNING;
     const completed = status === TaskGroupStatus.COMPLETED || status.toString().startsWith("FAILED");
     const isFailed = status.toString().startsWith("FAILED");
 

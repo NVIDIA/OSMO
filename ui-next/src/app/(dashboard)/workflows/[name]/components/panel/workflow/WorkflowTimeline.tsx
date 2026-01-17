@@ -134,11 +134,5 @@ export const WorkflowTimeline = memo(function WorkflowTimeline({ workflow }: Wor
 
   if (phases.length === 0) return null;
 
-  return (
-    <Timeline
-      phases={phases}
-      showHeader
-      headerText="Timeline"
-    />
-  );
+  return <Timeline phases={phases} />;
 });

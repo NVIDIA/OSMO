@@ -42,12 +42,44 @@ import { useShell } from "./use-shell";
 import { useWebSocketShell } from "./use-websocket-shell";
 import { ShellConnectCard } from "./ShellConnectCard";
 import { ShellConnecting } from "./ShellConnecting";
-import { ShellDisconnectedOverlay } from "./ShellDisconnectedOverlay";
+import { ShellReconnectButton } from "./ShellReconnectButton";
 import { ShellSearch } from "./ShellSearch";
 import type { ShellTerminalProps, ShellTerminalRef } from "./types";
 import { SHELL_CONFIG } from "./types";
 
 import "./shell.css";
+
+// =============================================================================
+// ANSI Escape Codes for Terminal Messages
+// =============================================================================
+
+const ANSI = {
+  RESET: "\x1b[0m",
+  DIM: "\x1b[2m",
+  RED: "\x1b[31m",
+  YELLOW: "\x1b[33m",
+  GRAY: "\x1b[90m",
+} as const;
+
+/**
+ * Generate an inline disconnect message for the terminal buffer.
+ * Uses ANSI escape codes for styling.
+ */
+function getDisconnectMessage(isError: boolean, errorMessage?: string | null): string {
+  const divider = `${ANSI.GRAY}${"─".repeat(40)}${ANSI.RESET}`;
+  const icon = isError ? `${ANSI.RED}✗${ANSI.RESET}` : `${ANSI.GRAY}○${ANSI.RESET}`;
+  const label = isError ? `${ANSI.RED}Connection lost${ANSI.RESET}` : `${ANSI.GRAY}Session ended${ANSI.RESET}`;
+
+  let message = `\r\n\r\n${divider}\r\n  ${icon} ${label}\r\n`;
+
+  if (isError && errorMessage) {
+    message += `  ${ANSI.DIM}${errorMessage}${ANSI.RESET}\r\n`;
+  }
+
+  message += `${divider}\r\n`;
+
+  return message;
+}
 
 // =============================================================================
 // Component
@@ -77,6 +109,9 @@ export const ShellTerminal = memo(
     const [shell, setShell] = useState(initialShell);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+
+    // Track if we've written the disconnect message to avoid duplicates
+    const hasWrittenDisconnectRef = useRef(false);
 
     // Refs for search addon
     const searchAddonRef = useRef<{ findNext: (q: string) => boolean; findPrevious: (q: string) => boolean } | null>(
@@ -117,7 +152,7 @@ export const ShellTerminal = memo(
     });
 
     // WebSocket hook - manages connection to backend PTY
-    const { status, error, connect, disconnect, send, resize } = useWebSocketShell({
+    const { status, connect, disconnect, send, resize } = useWebSocketShell({
       workflowName,
       taskName,
       shell,
@@ -128,6 +163,11 @@ export const ShellTerminal = memo(
       onStatusChange: (newStatus) => {
         updateStatus(taskName, newStatus);
         onStatusChange?.(newStatus);
+
+        // Reset disconnect message flag when connecting
+        if (newStatus === "connecting" || newStatus === "connected") {
+          hasWrittenDisconnectRef.current = false;
+        }
       },
       onConnected: () => {
         // Send initial shell size
@@ -140,10 +180,20 @@ export const ShellTerminal = memo(
         onConnected?.();
       },
       onDisconnected: () => {
+        // Write disconnect message to terminal buffer
+        if (!hasWrittenDisconnectRef.current) {
+          write(getDisconnectMessage(false));
+          hasWrittenDisconnectRef.current = true;
+        }
         announce("Shell disconnected", "polite");
         onDisconnected?.();
       },
       onError: (err) => {
+        // Write error message to terminal buffer
+        if (!hasWrittenDisconnectRef.current) {
+          write(getDisconnectMessage(true, err.message));
+          hasWrittenDisconnectRef.current = true;
+        }
         announce(`Shell error: ${err.message}`, "assertive");
         onError?.(err);
       },
@@ -324,7 +374,7 @@ export const ShellTerminal = memo(
     const isDisconnected = status === "disconnected";
     const isError = status === "error";
     const showConnectCard = status === "idle" && !autoConnect;
-    const showDisconnectedOverlay = isDisconnected || isError;
+    const showReconnectButton = isDisconnected || isError;
 
     return (
       <div
@@ -349,14 +399,8 @@ export const ShellTerminal = memo(
         {/* Connecting Spinner */}
         {isConnecting && <ShellConnecting />}
 
-        {/* Disconnected/Error Overlay */}
-        {showDisconnectedOverlay && (
-          <ShellDisconnectedOverlay
-            isError={isError}
-            errorMessage={error}
-            onReconnect={handleReconnect}
-          />
-        )}
+        {/* Reconnect Button - floating at bottom when disconnected */}
+        {showReconnectButton && <ShellReconnectButton onReconnect={handleReconnect} />}
 
         {/* Search Bar - floating top-right when open */}
         {isSearchOpen && (
