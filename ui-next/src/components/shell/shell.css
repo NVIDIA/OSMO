@@ -217,6 +217,43 @@
 }
 
 /* =============================================================================
+   Reconnecting Indicator (Minimal, Non-Blocking)
+   Shows at bottom when reconnecting to an existing terminal.
+   Doesn't obscure terminal content.
+   ============================================================================= */
+
+.shell-reconnecting {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(to top, rgba(9, 9, 11, 0.95), rgba(9, 9, 11, 0.8));
+  border-top: 1px solid rgba(63, 63, 70, 0.5);
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+.shell-reconnecting-dot {
+  width: 6px;
+  height: 6px;
+  background: #fbbf24;
+  border-radius: 50%;
+  animation: shell-pulse 1s ease-in-out infinite;
+}
+
+.shell-reconnecting-label {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+/* =============================================================================
    Reconnect Button (Floating Bottom Center)
    ============================================================================= */
 
@@ -350,6 +387,7 @@
 @media (prefers-reduced-motion: reduce) {
   .shell-connect-card,
   .shell-connecting,
+  .shell-reconnecting,
   .shell-reconnect-button,
   .shell-search {
     animation: none;
@@ -360,7 +398,8 @@
     transform: translateX(-50%);
   }
 
-  .shell-connecting-dot {
+  .shell-connecting-dot,
+  .shell-reconnecting-dot {
     animation: none;
   }
 }
