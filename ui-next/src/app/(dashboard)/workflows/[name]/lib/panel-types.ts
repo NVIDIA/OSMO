@@ -22,6 +22,7 @@
 
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import type { TaskQueryResponse, GroupWithLayout } from "./workflow-types";
+import type { TaskTab } from "../hooks/use-navigation-state";
 
 // ============================================================================
 // Panel View Types
@@ -100,6 +101,16 @@ export interface DetailsPanelProps {
    * Called with taskName when shell tab becomes active, null when deactivated.
    */
   onShellTabChange?: (taskName: string | null) => void;
+  /**
+   * Currently selected task tab (URL-synced).
+   * Defaults to "overview" when not specified.
+   */
+  selectedTab?: TaskTab;
+  /**
+   * Callback to change the selected task tab.
+   * Updates the URL with the new tab value.
+   */
+  setSelectedTab?: (tab: TaskTab) => void;
 }
 
 /**
@@ -130,6 +141,16 @@ export interface TaskDetailsProps {
   onBackToGroup: () => void;
   /** Callback when selecting a different task in the same group */
   onSelectTask: (task: TaskQueryResponse, group: GroupWithLayout) => void;
+  /**
+   * Currently selected task tab (URL-synced).
+   * Defaults to "overview" when not specified.
+   */
+  selectedTab?: TaskTab;
+  /**
+   * Callback to change the selected task tab.
+   * Updates the URL with the new tab value.
+   */
+  setSelectedTab?: (tab: TaskTab) => void;
 }
 
 /** View type for visual differentiation */
