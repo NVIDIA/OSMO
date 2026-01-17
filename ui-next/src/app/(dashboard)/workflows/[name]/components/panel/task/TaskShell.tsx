@@ -7,14 +7,17 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * TaskShell Component
+ * TaskShell Components
  *
  * Shell interface for a running task within the details panel.
- * Wraps ShellTerminal with task-specific context and overlays.
  *
- * Behavior:
- * - Initial: Terminal rendered with semi-transparent overlay + Connect button
- * - Connected: Full interactive shell, no overlay
+ * Exports:
+ * - ShellConnectPrompt: Initial connect UI with shell selector
+ * - TaskShell: Active shell terminal with reconnect handling
+ *
+ * TaskShell behavior:
+ * - Auto-connects when mounted
+ * - Connected: Full interactive shell
  * - Disconnected: Terminal history preserved, inline status bar with Reconnect
  * - Reconnect: Preserves history, reconnects WebSocket
  *
@@ -25,9 +28,16 @@
 "use client";
 
 import { memo, useCallback, useState, useRef } from "react";
-import { Terminal, Plug, AlertCircle } from "lucide-react";
+import { Plug, AlertCircle, Terminal, ChevronDown, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
+import { Input } from "@/components/shadcn/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { ShellTerminal, type ShellTerminalRef, type ConnectionStatusType } from "@/components/shell";
 
 // =============================================================================
@@ -39,6 +49,8 @@ export interface TaskShellProps {
   workflowName: string;
   /** Task name to exec into */
   taskName: string;
+  /** Shell to use (e.g., /bin/bash, /bin/sh, /bin/zsh) */
+  shell?: string;
   /** Called when connection status changes */
   onStatusChange?: (status: ConnectionStatusType) => void;
   /** Called when shell session ends (user types exit or Ctrl+D) */
@@ -47,39 +59,151 @@ export interface TaskShellProps {
   className?: string;
 }
 
-// =============================================================================
-// Connect Overlay Component
-// =============================================================================
-
-interface ConnectOverlayProps {
-  taskName: string;
-  onConnect: () => void;
+export interface ShellConnectPromptProps {
+  /** Called when user clicks connect with selected shell */
+  onConnect: (shell: string) => void;
 }
 
-const ConnectOverlay = memo(function ConnectOverlay({ taskName, onConnect }: ConnectOverlayProps) {
+// =============================================================================
+// Shell Connect Prompt (initial state before connection)
+// =============================================================================
+
+/** Shell options for the dropdown */
+const SHELL_PRESETS = [
+  { value: "/bin/bash", label: "/bin/bash" },
+  { value: "/bin/zsh", label: "/bin/zsh" },
+] as const;
+
+export const ShellConnectPrompt = memo(function ShellConnectPrompt({ onConnect }: ShellConnectPromptProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customShell, setCustomShell] = useState("");
+
+  const handleShellSelect = useCallback(
+    (shell: string) => {
+      setIsOpen(false);
+      onConnect(shell);
+    },
+    [onConnect],
+  );
+
+  const handleCustomSelect = useCallback(() => {
+    setIsOpen(false);
+    setShowCustomInput(true);
+  }, []);
+
+  const handleCustomConnect = useCallback(() => {
+    if (customShell.trim()) {
+      onConnect(customShell.trim());
+    }
+  }, [customShell, onConnect]);
+
+  const handleCustomKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && customShell.trim()) {
+        onConnect(customShell.trim());
+      } else if (e.key === "Escape") {
+        setShowCustomInput(false);
+        setCustomShell("");
+      }
+    },
+    [customShell, onConnect],
+  );
+
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900/90 p-6 shadow-xl">
-        <div className="flex size-12 items-center justify-center rounded-full bg-zinc-800">
-          <Terminal className="size-6 text-zinc-400" />
-        </div>
-        <div className="text-center">
-          <h3 className="text-sm font-medium text-zinc-100">Interactive Shell</h3>
-          <p className="mt-1 max-w-xs text-xs text-zinc-400">
-            Connect to open a shell session in <span className="font-medium text-zinc-300">{taskName}</span>
-          </p>
-        </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onConnect}
-          className="mt-1"
-        >
-          <Plug className="mr-1.5 size-3.5" />
-          Connect
-        </Button>
-        <p className="text-xs text-zinc-500">Shell sessions use container resources while active</p>
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
+        <Terminal className="size-6 text-gray-400 dark:text-zinc-500" />
       </div>
+      <div>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Interactive Shell</h3>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+          Connect to open a shell session in the running container
+        </p>
+      </div>
+
+      {showCustomInput ? (
+        <div className="mt-2 flex w-full max-w-xs items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            onClick={() => {
+              setShowCustomInput(false);
+              setCustomShell("");
+            }}
+            aria-label="Back to shell selection"
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+          <Input
+            type="text"
+            placeholder="/bin/sh"
+            value={customShell}
+            onChange={(e) => setCustomShell(e.target.value)}
+            onKeyDown={handleCustomKeyDown}
+            className="h-8 flex-1 font-mono text-xs"
+            autoFocus
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCustomConnect}
+            disabled={!customShell.trim()}
+          >
+            Connect
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-2 flex">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleShellSelect("/bin/bash")}
+            className="rounded-r-none border-r-0"
+          >
+            <Terminal className="mr-1.5 size-3.5" />
+            Connect
+          </Button>
+          <DropdownMenu
+            open={isOpen}
+            onOpenChange={setIsOpen}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-l-none px-2"
+                aria-label="Select shell"
+              >
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[140px]"
+            >
+              {SHELL_PRESETS.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => handleShellSelect(option.value)}
+                  className="font-mono text-xs"
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                onClick={handleCustomSelect}
+                className="text-xs"
+              >
+                Custom...
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 dark:text-zinc-500">Uses container resources while active</p>
     </div>
   );
 });
@@ -131,6 +255,7 @@ const DisconnectedBar = memo(function DisconnectedBar({ error, onReconnect }: Di
 export const TaskShell = memo(function TaskShell({
   workflowName,
   taskName,
+  shell,
   onStatusChange: onStatusChangeProp,
   onSessionEnded,
   className,
@@ -138,20 +263,13 @@ export const TaskShell = memo(function TaskShell({
   // Ref to control ShellTerminal imperatively
   const shellRef = useRef<ShellTerminalRef>(null);
 
-  // Track connection status
-  const [status, setStatus] = useState<ConnectionStatusType>("idle");
+  // Track connection status (starts as "connecting" since we auto-connect on mount)
+  const [status, setStatus] = useState<ConnectionStatusType>("connecting");
   const [lastError, setLastError] = useState<string | null>(null);
 
   // Determine UI state
-  const showConnectOverlay = status === "idle";
   const showDisconnectedBar = status === "disconnected" || status === "error";
   const isConnecting = status === "connecting";
-
-  // Handle connect button click
-  const handleConnect = useCallback(() => {
-    setLastError(null);
-    shellRef.current?.connect();
-  }, []);
 
   // Handle reconnect button click
   const handleReconnect = useCallback(() => {
@@ -185,30 +303,19 @@ export const TaskShell = memo(function TaskShell({
 
   return (
     <div className={cn("relative flex h-full min-h-[300px] flex-col", className)}>
-      {/* Terminal - always mounted to preserve history */}
+      {/* Terminal - auto-connects when mounted, preserves history across reconnects */}
       <ShellTerminal
         ref={shellRef}
         workflowName={workflowName}
         taskName={taskName}
-        autoConnect={false}
+        shell={shell}
+        autoConnect={true}
         onStatusChange={handleStatusChange}
         onConnected={handleConnected}
         onError={handleError}
         onSessionEnded={onSessionEnded}
-        className={cn(
-          "flex-1 transition-opacity duration-200",
-          showConnectOverlay && "opacity-40",
-          isConnecting && "opacity-70",
-        )}
+        className={cn("flex-1 transition-opacity duration-200", isConnecting && "opacity-70")}
       />
-
-      {/* Connect overlay - shown on initial state */}
-      {showConnectOverlay && (
-        <ConnectOverlay
-          taskName={taskName}
-          onConnect={handleConnect}
-        />
-      )}
 
       {/* Disconnected bar - shown when disconnected but preserving history */}
       {showDisconnectedBar && (
