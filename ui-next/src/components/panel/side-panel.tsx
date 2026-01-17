@@ -101,6 +101,16 @@ export interface SidePanelProps {
 
   /** Callback when drag state changes (for coordinating with viewport centering) */
   onDraggingChange?: (isDragging: boolean) => void;
+
+  /**
+   * Optional ref to override focus behavior when panel expands.
+   * - undefined (default): use default behavior (focus first focusable element)
+   * - HTMLElement: focus that specific element
+   * - null: skip focus entirely (useful when another component handles its own focus)
+   *
+   * The ref is automatically reset to undefined after the transition.
+   */
+  focusTargetRef?: React.MutableRefObject<HTMLElement | null | undefined>;
 }
 
 // =============================================================================
@@ -125,6 +135,7 @@ export function SidePanel({
   onEscapeKey,
   containerRef: externalContainerRef,
   onDraggingChange,
+  focusTargetRef,
 }: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const internalContainerRef = useRef<HTMLDivElement>(null);
@@ -275,14 +286,26 @@ export function SidePanel({
       // Only handle opacity transitions on this container (not bubbled from children)
       if (e.propertyName !== "opacity" || e.target !== panelContentRef.current) return;
 
-      // Focus first element in panel when expanding completes
+      // Focus when expanding completes
       if (pendingFocusRef.current === "expanded" && panelContentRef.current) {
         pendingFocusRef.current = null;
+
+        // Check if focus target ref has an override value (not undefined)
+        if (focusTargetRef && focusTargetRef.current !== undefined) {
+          const target = focusTargetRef.current;
+          // Reset to undefined so future expands use default behavior
+          focusTargetRef.current = undefined;
+          // If an element was provided, focus it; if null, skip focus entirely
+          target?.focus();
+          return;
+        }
+
+        // Default behavior: focus first focusable element in panel
         const firstFocusable = panelContentRef.current.querySelector<HTMLElement>(focusableSelector);
         firstFocusable?.focus();
       }
     },
-    [focusableSelector],
+    [focusableSelector, focusTargetRef],
   );
 
   // Calculate panel width based on collapsed state
