@@ -40,6 +40,7 @@ export { ConnectionStatus } from "./ConnectionStatus";
 export { useShell, useShellSearch } from "./use-shell";
 export { useWebSocketShell } from "./use-websocket-shell";
 export { useShellNavigationGuard, useNavigateWithShellWarning } from "./use-shell-navigation-guard";
+export { useShellSessions, useShellSession } from "./use-shell-sessions";
 
 // Session Cache (for managing persistent shell sessions)
 export {
@@ -51,19 +52,20 @@ export {
   hadPreviousConnection,
   getSessionStatus,
   getSessionError,
+  updateSessionStatus,
 } from "./shell-session-cache";
 
 // Types
 export type {
   ConnectionStatus as ConnectionStatusType,
-  ShellSession,
-  PersistedSession,
   ShellTerminalProps,
   ShellTerminalRef,
   ConnectionStatusProps,
   UseShellReturn,
   UseWebSocketShellReturn,
 } from "./types";
+
+export type { ShellSessionSnapshot } from "./shell-session-cache";
 
 // Constants
 export { SHELL_THEME, SHELL_CONFIG, SHELL_OPTIONS } from "./types";

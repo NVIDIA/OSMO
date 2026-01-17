@@ -54,6 +54,14 @@
   --dag-status-failed-border: oklch(0.6 0.18 25);
   --dag-status-failed-text: oklch(0.45 0.18 25);
   --dag-status-failed-color: oklch(0.55 0.2 25);
+
+  /* Timeline - Brighter, more vibrant variants for better visibility */
+  --timeline-running-marker: oklch(0.59 0.24 250);
+  --timeline-running-text: oklch(0.48 0.2 250);
+  --timeline-completed-marker: oklch(0.6 0.19 155);
+  --timeline-completed-text: oklch(0.45 0.16 155);
+  --timeline-failed-marker: oklch(0.58 0.24 25);
+  --timeline-failed-text: oklch(0.5 0.21 25);
 }
 
 /* ==========================================================================
@@ -84,6 +92,14 @@
   --dag-status-failed-border: oklch(0.55 0.2 25);
   --dag-status-failed-text: oklch(0.7 0.18 25);
   --dag-status-failed-color: oklch(0.55 0.2 25);
+
+  /* Timeline - Brighter, more vibrant variants for better visibility */
+  --timeline-running-marker: oklch(0.68 0.2 250);
+  --timeline-running-text: oklch(0.76 0.16 250);
+  --timeline-completed-marker: oklch(0.72 0.2 155);
+  --timeline-completed-text: oklch(0.78 0.17 155);
+  --timeline-failed-marker: oklch(0.65 0.22 25);
+  --timeline-failed-text: oklch(0.74 0.2 25);
 }
 
 /* ==========================================================================
@@ -235,18 +251,18 @@
    ========================================================================== */
 
 .timeline-marker-completed {
-  background-color: var(--dag-status-completed-color);
-  border-color: var(--dag-status-completed-color);
+  background-color: var(--timeline-completed-marker);
+  border-color: var(--timeline-completed-marker);
 }
 
 .timeline-marker-running {
-  background-color: var(--dag-status-running-color);
-  border-color: var(--dag-status-running-color);
+  background-color: var(--timeline-running-marker);
+  border-color: var(--timeline-running-marker);
 }
 
 .timeline-marker-failed {
-  background-color: var(--dag-status-failed-color);
-  border-color: var(--dag-status-failed-color);
+  background-color: var(--timeline-failed-marker);
+  border-color: var(--timeline-failed-marker);
 }
 
 .timeline-marker-pending {
@@ -255,19 +271,19 @@
 }
 
 .timeline-segment-completed {
-  background-color: var(--dag-status-completed-color);
+  background-color: var(--timeline-completed-marker);
 }
 
 .timeline-segment-failed {
-  background-color: var(--dag-status-failed-color);
+  background-color: var(--timeline-failed-marker);
 }
 
 .timeline-active-segment {
   background: linear-gradient(
     90deg,
-    var(--dag-status-running-color) 0%,
-    var(--dag-status-running-border) 50%,
-    var(--dag-status-running-color) 100%
+    var(--timeline-running-marker) 0%,
+    oklch(0.65 0.28 250) 50%,
+    var(--timeline-running-marker) 100%
   );
   background-size: 200% 100%;
   animation: timeline-pulse 2s ease-in-out infinite;
@@ -284,15 +300,15 @@
 }
 
 .timeline-text-completed {
-  color: var(--dag-status-completed-text);
+  color: var(--timeline-completed-text);
 }
 
 .timeline-text-running {
-  color: var(--dag-status-running-text);
+  color: var(--timeline-running-text);
 }
 
 .timeline-text-failed {
-  color: var(--dag-status-failed-text);
+  color: var(--timeline-failed-text);
 }
 
 .timeline-text-pending {

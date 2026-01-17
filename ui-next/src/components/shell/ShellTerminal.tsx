@@ -36,9 +36,9 @@
 import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
-import { useShellStore } from "@/app/(dashboard)/workflows/[name]/stores";
 
 import { useShell } from "./use-shell";
+import { updateSessionStatus } from "./shell-session-cache";
 import { useWebSocketShell } from "./use-websocket-shell";
 import { ShellConnecting } from "./ShellConnecting";
 import { ShellSearch } from "./ShellSearch";
@@ -87,6 +87,7 @@ function getDisconnectMessage(isError: boolean, errorMessage?: string | null): s
 export const ShellTerminal = memo(
   forwardRef<ShellTerminalRef, ShellTerminalProps>(function ShellTerminal(
     {
+      taskId,
       workflowName,
       taskName,
       shell: initialShell = SHELL_CONFIG.DEFAULT_SHELL,
@@ -116,9 +117,7 @@ export const ShellTerminal = memo(
       null,
     );
 
-    // Shell store for session tracking
-    const openSession = useShellStore((s) => s.openSession);
-    const updateStatus = useShellStore((s) => s.updateStatus);
+    // Update status in cache for activity strip
 
     // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
     const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
@@ -133,8 +132,10 @@ export const ShellTerminal = memo(
       resizeRef.current(rows, cols);
     }, []);
 
+    // Use taskId (UUID) as the session key for uniqueness
+    const sessionKey = taskId;
+
     // Shell hook - manages xterm.js instance
-    // Pass taskName as sessionKey to enable persistence across navigation
     const {
       containerRef,
       getTerminal,
@@ -147,16 +148,15 @@ export const ShellTerminal = memo(
     } = useShell({
       onData: handleShellData,
       onResize: handleShellResize,
-      sessionKey: taskName,
+      sessionKey,
       workflowName,
       taskName,
       shell,
     });
 
     // WebSocket hook - manages connection to backend PTY
-    // Pass sessionKey to enable WebSocket persistence across navigation
     const { status, connect, disconnect, send, resize } = useWebSocketShell({
-      sessionKey: taskName,
+      sessionKey,
       workflowName,
       taskName,
       shell,
@@ -165,7 +165,7 @@ export const ShellTerminal = memo(
         write(data);
       },
       onStatusChange: (newStatus) => {
-        updateStatus(taskName, newStatus);
+        updateSessionStatus(sessionKey, newStatus);
         onStatusChange?.(newStatus);
 
         // Reset disconnect message flag when connecting
@@ -231,21 +231,16 @@ export const ShellTerminal = memo(
       resizeRef.current = resize;
     }, [send, resize]);
 
-    // Register session on mount
-    useEffect(() => {
-      openSession(workflowName, taskName, shell);
-      return () => {
-        // Don't close session on unmount - keep it for reconnection
-      };
-    }, [workflowName, taskName, shell, openSession]);
+    // Session is already created by TaskDetails.handleConnectShell
+    // before ShellTerminal mounts, so no registration needed here
 
     // Start session when shell is ready (only if no previous connection exists)
     // If a previous connection exists, its state is already restored
     useEffect(() => {
-      if (isShellReady && status === "idle" && !hadPreviousConnection(taskName)) {
+      if (isShellReady && status === "idle" && !hadPreviousConnection(sessionKey)) {
         connect();
       }
-    }, [isShellReady, status, taskName, connect]);
+    }, [isShellReady, status, sessionKey, connect]);
 
     // Update terminal active state based on connection status
     useEffect(() => {
@@ -362,7 +357,7 @@ export const ShellTerminal = memo(
     // - First connection: hadPreviousConnection = false → show full overlay
     // - Reattach: status is already "connected" → no overlay
     // - Reconnection: hadPreviousConnection = true but WebSocket closed → show minimal bar
-    const isReconnecting = isConnecting && hadPreviousConnection(taskName);
+    const isReconnecting = isConnecting && hadPreviousConnection(sessionKey);
     const showConnectingOverlay = isConnecting && !isReconnecting;
 
     return (

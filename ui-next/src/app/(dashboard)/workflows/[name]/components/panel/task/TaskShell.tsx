@@ -27,7 +27,7 @@
 
 "use client";
 
-import { memo, useCallback, useState, useRef } from "react";
+import { memo, useCallback, useState, useRef, useEffect, startTransition } from "react";
 import { Plug, AlertCircle, Terminal, ChevronDown, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
@@ -52,6 +52,8 @@ import {
 // =============================================================================
 
 export interface TaskShellProps {
+  /** Task UUID from backend - used as unique session key */
+  taskId: string;
   /** Workflow name for the exec API */
   workflowName: string;
   /** Task name to exec into */
@@ -260,6 +262,7 @@ const DisconnectedBar = memo(function DisconnectedBar({ error, onReconnect }: Di
 // =============================================================================
 
 export const TaskShell = memo(function TaskShell({
+  taskId,
   workflowName,
   taskName,
   shell,
@@ -270,10 +273,13 @@ export const TaskShell = memo(function TaskShell({
   // Ref to control ShellTerminal imperatively
   const shellRef = useRef<ShellTerminalRef>(null);
 
+  // Use taskId (UUID) as the session key for uniqueness
+  const sessionKey = taskId;
+
   // Check if this is a fresh session or returning to an existing one
-  const sessionExists = hasSession(taskName);
-  const cachedStatus = getSessionStatus(taskName);
-  const cachedError = getSessionError(taskName);
+  const sessionExists = hasSession(sessionKey);
+  const cachedStatus = getSessionStatus(sessionKey);
+  const cachedError = getSessionError(sessionKey);
 
   // Track connection status - restore from cache if session exists
   // This preserves the exact state when switching tabs (connected, disconnected, error)
@@ -291,6 +297,25 @@ export const TaskShell = memo(function TaskShell({
   // Track if session ended cleanly (user typed exit or Ctrl+D)
   // Used to suppress disconnected bar when session ends intentionally
   const [sessionEnded, setSessionEnded] = useState(false);
+
+  // Reset state when session changes (different workflow/task selected)
+  // useState initializer only runs on first mount, so we need this effect
+  useEffect(() => {
+    const exists = hasSession(sessionKey);
+    const cached = getSessionStatus(sessionKey);
+    const cachedErr = getSessionError(sessionKey);
+
+    startTransition(() => {
+      if (exists && cached) {
+        setStatus(cached);
+        setLastError(cachedErr ?? null);
+      } else {
+        setStatus("connecting");
+        setLastError(null);
+      }
+      setSessionEnded(false);
+    });
+  }, [sessionKey]);
 
   // Determine UI state - don't show disconnected bar if session ended cleanly
   const showDisconnectedBar = (status === "disconnected" || status === "error") && !sessionEnded;
@@ -339,6 +364,7 @@ export const TaskShell = memo(function TaskShell({
       {/* Terminal - starts session if none exists, restores state if one does */}
       <ShellTerminal
         ref={shellRef}
+        taskId={taskId}
         workflowName={workflowName}
         taskName={taskName}
         shell={shell}

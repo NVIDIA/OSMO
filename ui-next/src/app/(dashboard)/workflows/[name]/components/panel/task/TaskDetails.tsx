@@ -53,9 +53,8 @@ import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from
 import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "../shared/DependencyPills";
-import { useShellPortal } from "../../shell";
+import { useShellPortal, useShellContext } from "../../shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
-import { useShellStore } from "../../../stores";
 
 // ============================================================================
 // Types
@@ -416,9 +415,9 @@ export const TaskDetails = memo(function TaskDetails({
     };
   }, [onShellTabChange]);
 
-  // Get shell session and openSession action from store
-  const shellSession = useShellStore((s) => s.getSession(task.name));
-  const openSession = useShellStore((s) => s.openSession);
+  // Shell context for connecting shells
+  const { connectShell, hasActiveShell } = useShellContext();
+  const hasShellSession = hasActiveShell(task.task_uuid);
 
   // Shell portal for rendering shell in correct position
   const { setPortalTarget } = useShellPortal();
@@ -427,15 +426,12 @@ export const TaskDetails = memo(function TaskDetails({
   // Handle clicking Connect in the shell tab (with shell selection)
   const handleConnectShell = useCallback(
     (shell: string) => {
-      if (workflowName) {
-        openSession(workflowName, task.name, shell);
+      if (workflowName && task.task_uuid) {
+        connectShell(task.task_uuid, task.name, shell);
       }
     },
-    [workflowName, task.name, openSession],
+    [workflowName, task.task_uuid, task.name, connectShell],
   );
-
-  // Check if we should show the connect overlay vs the actual shell
-  const hasShellSession = !!shellSession;
 
   // Register/unregister portal target when shell tab is active
   useEffect(() => {
@@ -450,26 +446,16 @@ export const TaskDetails = memo(function TaskDetails({
     };
   }, [activeTab, hasShellSession, setPortalTarget]);
 
-  // Compute shell status indicator for tab based on store state
+  // Shell status indicator - just show connected if there's an active shell
+  // The actual connection status is managed by ShellTerminal internally
   const shellStatusIndicator = useMemo((): TabStatusIndicator | undefined => {
-    if (!shellSession) {
+    if (!hasShellSession) {
       return undefined;
     }
-    const { status } = shellSession;
-    // Active connection
-    if (status === "connected" || status === "connecting") {
-      return "connected";
-    }
-    // Disconnected (can reconnect, history preserved)
-    if (status === "disconnected" || status === "idle") {
-      return "disconnected";
-    }
-    // Error state
-    if (status === "error") {
-      return "error";
-    }
-    return undefined;
-  }, [shellSession]);
+    // When there's an active shell, show as connected
+    // More detailed status (connecting, error) is shown in the terminal itself
+    return "connected";
+  }, [hasShellSession]);
 
   // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
