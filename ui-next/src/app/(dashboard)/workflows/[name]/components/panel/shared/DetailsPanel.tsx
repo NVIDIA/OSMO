@@ -149,6 +149,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   containerRef,
   onDraggingChange,
   onShellTabChange,
+  selectedTab,
+  setSelectedTab,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
@@ -272,6 +274,8 @@ export const DetailsPanel = memo(function DetailsPanel({
           isDetailsExpanded={isDetailsExpanded}
           onToggleDetailsExpanded={onToggleDetailsExpanded}
           onShellTabChange={onShellTabChange}
+          selectedTab={selectedTab}
+          setSelectedTab={setSelectedTab}
         />
       )}
 
