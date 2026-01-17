@@ -18,3 +18,4 @@ export type { HeaderViewType } from "./DetailsPanelHeader";
 export { Timeline, parseTime, createPhaseDurationCalculator } from "./Timeline";
 export type { TimelinePhase } from "./Timeline";
 export { DependencyPills } from "./DependencyPills";
+export { ShellContainer } from "./ShellContainer";
