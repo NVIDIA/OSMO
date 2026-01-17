@@ -136,6 +136,7 @@ export const ShellTerminal = memo(
     }, []);
 
     // Shell hook - manages xterm.js instance
+    // Pass taskName as terminalKey to enable persistence across navigation
     const {
       containerRef,
       getTerminal,
@@ -148,6 +149,7 @@ export const ShellTerminal = memo(
     } = useShell({
       onData: handleShellData,
       onResize: handleShellResize,
+      terminalKey: taskName,
     });
 
     // WebSocket hook - manages connection to backend PTY
@@ -198,6 +200,7 @@ export const ShellTerminal = memo(
       },
       onSessionEnded: () => {
         announce("Shell session ended", "polite");
+        // Keep terminal in cache for history viewing - only closeSession from store
         closeSession(taskName);
         onSessionEnded?.();
       },
