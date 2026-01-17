@@ -14,7 +14,8 @@
 
 "use client";
 
-import { memo, useCallback, useRef, useEffect } from "react";
+import { memo, useRef, useEffect } from "react";
+import { useEventCallback } from "usehooks-ts";
 import { ChevronUp, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
@@ -61,29 +62,25 @@ export const ShellSearch = memo(function ShellSearch({
   }, []);
 
   // Handle keyboard shortcuts
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        if (e.shiftKey) {
-          onFindPrevious();
-        } else {
-          onFindNext();
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
+  // useEventCallback: stable ref, always accesses latest props
+  const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        onFindPrevious();
+      } else {
+        onFindNext();
       }
-    },
-    [onFindNext, onFindPrevious, onClose],
-  );
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  });
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      onQueryChange(e.target.value);
-    },
-    [onQueryChange],
-  );
+  // useEventCallback: stable ref for input onChange
+  const handleChange = useEventCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onQueryChange(e.target.value);
+  });
 
   return (
     <div className={cn("shell-search", className)}>
