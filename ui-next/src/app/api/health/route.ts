@@ -39,12 +39,17 @@
  * ```
  */
 
-export const dynamic = "force-dynamic"; // Don't cache health checks
-
 export async function GET() {
-  return Response.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
+  return Response.json(
+    {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    },
+  );
 }

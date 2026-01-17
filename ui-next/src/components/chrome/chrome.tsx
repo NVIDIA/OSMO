@@ -34,45 +34,110 @@ interface ChromeProps {
  * - Keyboard shortcut (Cmd/Ctrl+B) to toggle
  * - Collapsible with icon-only mode
  * - Accessibility out of the box
+ *
+ * PPR Compatibility:
+ * - SidebarProvider, AppSidebar, and Header are wrapped in Suspense
+ * - This allows the static shell structure to be prerendered at build time
+ * - Dynamic content (sidebar state, nav highlighting) streams in after hydration
  */
 export const Chrome = memo(function Chrome({ children }: ChromeProps) {
   return (
-    <SidebarProvider
-      defaultOpen={true}
-      className="h-screen overflow-hidden"
+    <Suspense fallback={<ChromeSkeleton>{children}</ChromeSkeleton>}>
+      <SidebarProvider
+        defaultOpen={true}
+        className="h-screen overflow-hidden"
+        style={SIDEBAR_CSS_VARS as React.CSSProperties}
+      >
+        {/* Skip to main content link - WCAG 2.1 bypass block */}
+        <a
+          href="#main-content"
+          className="focus:bg-nvidia sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:px-4 focus:py-2 focus:text-black focus:outline-none"
+        >
+          Skip to main content
+        </a>
+
+        {/* Sidebar */}
+        <AppSidebar />
+
+        {/* Main area - flex to fill remaining space */}
+        <SidebarInset className="flex flex-col overflow-hidden">
+          {/* Header */}
+          <Header />
+
+          {/* Content - with optimized scrolling */}
+          {/* Note: Pages are responsible for their own padding. This allows pages */}
+          {/* with edge-to-edge layouts (like resizable panels) to use full space. */}
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
+            aria-label="Main content"
+          >
+            <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </Suspense>
+  );
+});
+
+/**
+ * Chrome skeleton for PPR - matches the Chrome layout structure.
+ *
+ * This is shown during prerender/streaming while the Chrome components hydrate.
+ * Children are rendered immediately so page content isn't blocked.
+ */
+function ChromeSkeleton({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="flex h-screen w-full overflow-hidden"
       style={SIDEBAR_CSS_VARS as React.CSSProperties}
     >
-      {/* Skip to main content link - WCAG 2.1 bypass block */}
-      <a
-        href="#main-content"
-        className="focus:bg-nvidia sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:px-4 focus:py-2 focus:text-black focus:outline-none"
-      >
-        Skip to main content
-      </a>
+      {/* Sidebar skeleton - matches expanded sidebar width */}
+      <div className="hidden h-full w-64 shrink-0 border-r border-zinc-200 bg-white md:block dark:border-zinc-800 dark:bg-zinc-950">
+        {/* Logo header skeleton */}
+        <div className="flex h-14 items-center gap-2 border-b border-zinc-200 px-4 dark:border-zinc-800">
+          <Skeleton className="h-5 w-7" />
+          <Skeleton className="h-5 w-16" />
+        </div>
+        {/* Nav items skeleton */}
+        <div className="space-y-2 p-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton
+              key={i}
+              className="h-9 w-full rounded-lg"
+            />
+          ))}
+        </div>
+      </div>
 
-      {/* Sidebar */}
-      <AppSidebar />
+      {/* Main area skeleton */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header skeleton */}
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
+        </div>
 
-      {/* Main area - flex to fill remaining space */}
-      <SidebarInset className="flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header />
-
-        {/* Content - with optimized scrolling */}
-        {/* Note: Pages are responsible for their own padding. This allows pages */}
-        {/* with edge-to-edge layouts (like resizable panels) to use full space. */}
+        {/* Content area - render children immediately */}
         <main
           id="main-content"
           tabIndex={-1}
           className="scroll-optimized flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
           aria-label="Main content"
         >
-          <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
+          {children}
         </main>
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
+    </div>
   );
-});
+}
 
 /**
  * Skeleton for main content area - prevents CLS during page transitions.
