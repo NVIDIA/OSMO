@@ -59,6 +59,8 @@ export type {
   ShellTerminalRef,
   UseShellReturn,
   UseWebSocketShellReturn,
+  SearchOptions,
+  SearchResultInfo,
 } from "./types";
 
 export type { ShellSessionSnapshot } from "./shell-session-cache";

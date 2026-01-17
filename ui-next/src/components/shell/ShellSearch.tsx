@@ -16,9 +16,10 @@
 
 import { memo, useRef, useEffect } from "react";
 import { useEventCallback } from "usehooks-ts";
-import { ChevronUp, ChevronDown, X } from "lucide-react";
+import { ChevronUp, ChevronDown, X, CaseSensitive, WholeWord, Regex } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
+import type { SearchResultInfo } from "./types";
 
 // =============================================================================
 // Types
@@ -35,8 +36,20 @@ export interface ShellSearchProps {
   onFindPrevious: () => void;
   /** Called to close search */
   onClose: () => void;
-  /** Match count info */
-  matchInfo?: string;
+  /** Whether search is case sensitive */
+  caseSensitive: boolean;
+  /** Called when case sensitivity changes */
+  onCaseSensitiveChange: (value: boolean) => void;
+  /** Whether to match whole words only */
+  wholeWord: boolean;
+  /** Called when whole word changes */
+  onWholeWordChange: (value: boolean) => void;
+  /** Whether to use regex */
+  regex: boolean;
+  /** Called when regex changes */
+  onRegexChange: (value: boolean) => void;
+  /** Search result info from xterm.js */
+  searchResults: SearchResultInfo | null;
   /** Additional className */
   className?: string;
 }
@@ -51,10 +64,26 @@ export const ShellSearch = memo(function ShellSearch({
   onFindNext,
   onFindPrevious,
   onClose,
-  matchInfo,
+  caseSensitive,
+  onCaseSensitiveChange,
+  wholeWord,
+  onWholeWordChange,
+  regex,
+  onRegexChange,
+  searchResults,
   className,
 }: ShellSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Compute match info text
+  const matchInfo = (() => {
+    if (!query) return null;
+    if (!searchResults) return null;
+    if (searchResults.resultCount === 0) return "No results";
+    // resultIndex is -1 when no match is focused yet, treat as first match
+    const displayIndex = searchResults.resultIndex < 0 ? 1 : searchResults.resultIndex + 1;
+    return `${displayIndex} of ${searchResults.resultCount}`;
+  })();
 
   // Focus input on mount
   useEffect(() => {
@@ -84,16 +113,49 @@ export const ShellSearch = memo(function ShellSearch({
 
   return (
     <div className={cn("shell-search", className)}>
-      <input
-        ref={inputRef}
-        type="text"
-        value={query}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        placeholder="Search..."
-        className="shell-search-input"
-        aria-label="Search shell"
-      />
+      {/* Input with inline filter buttons */}
+      <div className="shell-search-input-wrapper">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Search..."
+          className="shell-search-input"
+          aria-label="Search shell"
+        />
+        {/* Search options - inside input */}
+        <div className="shell-search-options">
+          <button
+            type="button"
+            className={cn("shell-search-option", caseSensitive && "active")}
+            onClick={() => onCaseSensitiveChange(!caseSensitive)}
+            title="Match case (Aa)"
+            aria-pressed={caseSensitive}
+          >
+            <CaseSensitive className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn("shell-search-option", wholeWord && "active")}
+            onClick={() => onWholeWordChange(!wholeWord)}
+            title="Match whole word"
+            aria-pressed={wholeWord}
+          >
+            <WholeWord className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn("shell-search-option", regex && "active")}
+            onClick={() => onRegexChange(!regex)}
+            title="Use regular expression"
+            aria-pressed={regex}
+          >
+            <Regex className="size-3.5" />
+          </button>
+        </div>
+      </div>
 
       {/* Navigation buttons */}
       <div className="shell-search-buttons flex gap-0.5">
