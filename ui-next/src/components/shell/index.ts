@@ -35,6 +35,7 @@ export { ShellSearch } from "./ShellSearch";
 export { ShellActivityStrip } from "./ShellActivityStrip";
 export { ShellSessionIcon } from "./ShellSessionIcon";
 export { ConnectionStatus } from "./ConnectionStatus";
+export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from "./StatusDot";
 
 // Hooks
 export { useShell, useShellSearch } from "./use-shell";
