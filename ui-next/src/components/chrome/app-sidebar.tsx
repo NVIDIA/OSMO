@@ -16,6 +16,7 @@
 
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine } from "lucide-react";
@@ -46,9 +47,13 @@ import {
  * - Keyboard shortcut (Cmd/Ctrl+B) to toggle
  * - Collapsible with icon-only mode
  * - Accessible and well-tested
+ *
+ * PPR Compatibility:
+ * - Active state is deferred to client via useEffect (not during render)
+ * - This allows the sidebar structure to be prerendered at build time
+ * - Active highlighting applies after hydration (~50ms, imperceptible)
  */
 export function AppSidebar() {
-  const pathname = usePathname();
   const { state, isMobile } = useSidebar();
   // On mobile (hamburger overlay), always show expanded state regardless of desktop sidebar state
   const collapsed = isMobile ? false : state === "collapsed";
@@ -56,7 +61,24 @@ export function AppSidebar() {
   // Get navigation from hook (server-driven when wired up)
   const { sections, isLoading } = useNavigation();
 
-  const isItemActive = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href));
+  // PPR: Defer pathname reading to client effect
+  // During prerender/SSR, activePath is null so no items are highlighted
+  // After hydration, activePath updates and correct item highlights
+  const pathname = usePathname();
+  const [activePath, setActivePath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActivePath(pathname);
+  }, [pathname]);
+
+  // Active state only applies after client hydration
+  const isItemActive = useCallback(
+    (href: string) => {
+      if (activePath === null) return false; // SSR/prerender: nothing active
+      return activePath === href || (href !== "/" && activePath.startsWith(href));
+    },
+    [activePath],
+  );
 
   return (
     <Sidebar
