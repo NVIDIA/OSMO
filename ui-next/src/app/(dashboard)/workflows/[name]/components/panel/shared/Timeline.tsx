@@ -188,27 +188,28 @@ export const Timeline = memo(function Timeline({
 
   // Detect overflow with hysteresis to prevent flip-flopping
   // Only switch layouts when there's a significant change
+  // Uses RAF to batch state updates after browser paint (avoids cascading renders)
   useLayoutEffect(() => {
     if (containerWidth <= 0) return;
 
-    // Always use vertical for narrow containers
-    if (containerWidth < MIN_HORIZONTAL_WIDTH) {
-      setIsVertical(true);
-      lastWidthRef.current = containerWidth;
-      return;
-    }
-
-    // Check if we need to measure the grid
-    if (!gridRef.current) {
-      // No grid to measure yet, default to horizontal for wide containers
-      if (!isVertical && containerWidth >= MIN_HORIZONTAL_WIDTH) {
-        lastWidthRef.current = containerWidth;
+    const checkLayout = () => {
+      // Always use vertical for narrow containers
+      if (containerWidth < MIN_HORIZONTAL_WIDTH) {
+        setIsVertical((prev) => {
+          if (!prev) lastWidthRef.current = containerWidth;
+          return true;
+        });
+        return;
       }
-      return;
-    }
 
-    const checkOverflow = () => {
-      if (!gridRef.current) return;
+      // Check if we need to measure the grid
+      if (!gridRef.current) {
+        // No grid to measure yet, default to horizontal for wide containers
+        if (containerWidth >= MIN_HORIZONTAL_WIDTH) {
+          lastWidthRef.current = containerWidth;
+        }
+        return;
+      }
 
       const scrollWidth = gridRef.current.scrollWidth;
       const clientWidth = gridRef.current.clientWidth;
@@ -217,24 +218,26 @@ export const Timeline = memo(function Timeline({
       // Apply hysteresis: only switch if change is significant
       const widthDelta = Math.abs(containerWidth - lastWidthRef.current);
 
-      if (hasOverflow && !isVertical) {
-        // Switch to vertical when overflowing
-        setIsVertical(true);
-        lastWidthRef.current = containerWidth;
-      } else if (!hasOverflow && isVertical && widthDelta > LAYOUT_HYSTERESIS) {
-        // Only switch back to horizontal if container grew significantly
-        // and there's enough room
-        if (containerWidth > lastWidthRef.current + LAYOUT_HYSTERESIS) {
-          setIsVertical(false);
+      setIsVertical((prev) => {
+        if (hasOverflow && !prev) {
+          // Switch to vertical when overflowing
           lastWidthRef.current = containerWidth;
+          return true;
+        } else if (!hasOverflow && prev && widthDelta > LAYOUT_HYSTERESIS) {
+          // Only switch back to horizontal if container grew significantly
+          if (containerWidth > lastWidthRef.current + LAYOUT_HYSTERESIS) {
+            lastWidthRef.current = containerWidth;
+            return false;
+          }
         }
-      }
+        return prev;
+      });
     };
 
     // Use RAF to batch the state update after browser paint
-    const rafId = requestAnimationFrame(checkOverflow);
+    const rafId = requestAnimationFrame(checkLayout);
     return () => cancelAnimationFrame(rafId);
-  }, [containerWidth, phases.length, isVertical]);
+  }, [containerWidth, phases.length]);
 
   // Use horizontal if not in vertical mode
   const useHorizontal = !isVertical && containerWidth >= MIN_HORIZONTAL_WIDTH;
