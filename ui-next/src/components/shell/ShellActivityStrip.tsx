@@ -11,6 +11,7 @@
  *
  * Shows active shell sessions in the panel's collapsed strip.
  * Each session is shown as an icon with status indicator.
+ * Right-click on icons to access session actions (disconnect, reconnect, remove).
  */
 
 "use client";
@@ -29,8 +30,14 @@ import { useShellSessions } from "./use-shell-sessions";
 export interface ShellActivityStripProps {
   /** Currently viewed task ID (to highlight active session) */
   currentTaskId?: string;
-  /** Called when a session is clicked */
+  /** Called when a session is clicked (left-click to select) */
   onSelectSession?: (taskId: string) => void;
+  /** Called when disconnect action is selected from context menu */
+  onDisconnectSession?: (taskId: string) => void;
+  /** Called when reconnect action is selected from context menu */
+  onReconnectSession?: (taskId: string) => void;
+  /** Called when remove action is selected from context menu */
+  onRemoveSession?: (taskId: string) => void;
   /** Additional className */
   className?: string;
 }
@@ -42,6 +49,9 @@ export interface ShellActivityStripProps {
 export const ShellActivityStrip = memo(function ShellActivityStrip({
   currentTaskId,
   onSelectSession,
+  onDisconnectSession,
+  onReconnectSession,
+  onRemoveSession,
   className,
 }: ShellActivityStripProps) {
   const { sessions } = useShellSessions();
@@ -52,6 +62,23 @@ export const ShellActivityStrip = memo(function ShellActivityStrip({
     if (taskId) {
       onSelectSession?.(taskId);
     }
+  });
+
+  // Context menu action handlers
+  const handleSelect = useEventCallback((taskId: string) => {
+    onSelectSession?.(taskId);
+  });
+
+  const handleDisconnect = useEventCallback((taskId: string) => {
+    onDisconnectSession?.(taskId);
+  });
+
+  const handleReconnect = useEventCallback((taskId: string) => {
+    onReconnectSession?.(taskId);
+  });
+
+  const handleRemove = useEventCallback((taskId: string) => {
+    onRemoveSession?.(taskId);
   });
 
   if (sessions.length === 0) {
@@ -74,6 +101,10 @@ export const ShellActivityStrip = memo(function ShellActivityStrip({
             session={session}
             isActive={session.taskId === currentTaskId}
             onClick={handleSessionClick}
+            onSelect={() => handleSelect(session.taskId)}
+            onDisconnect={() => handleDisconnect(session.taskId)}
+            onReconnect={() => handleReconnect(session.taskId)}
+            onRemove={() => handleRemove(session.taskId)}
             data-task-id={session.taskId}
           />
         ))}

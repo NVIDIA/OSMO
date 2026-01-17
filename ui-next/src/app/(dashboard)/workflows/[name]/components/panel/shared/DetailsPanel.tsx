@@ -53,7 +53,8 @@ import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
-import { ShellActivityStrip, useShellNavigationGuard } from "@/components/shell";
+import { ShellActivityStrip, reconnectSession } from "@/components/shell";
+import { useShellContext } from "../../shell";
 
 // NOTE: We intentionally do NOT use a focus trap here.
 // This is a non-modal side panel (role="complementary"), not a dialog.
@@ -153,15 +154,13 @@ export const DetailsPanel = memo(function DetailsPanel({
   setSelectedTab,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
+  const { disconnectOnly, removeShell } = useShellContext();
 
   // Ref to override focus behavior when panel expands.
   // - undefined: use default (focus first focusable)
   // - null: skip focus (shell will handle its own focus)
   // - HTMLElement: focus that element
   const focusTargetRef = useRef<HTMLElement | null | undefined>(undefined);
-
-  // Warn before page unload when shell sessions are active
-  useShellNavigationGuard();
 
   // Escape key collapses the panel
   const handleEscapeKey = useCallback(() => {
@@ -190,7 +189,7 @@ export const DetailsPanel = memo(function DetailsPanel({
         ? `Group details: ${group?.name}`
         : `Task details: ${task?.name}`;
 
-  // Handle selecting a shell session from activity strip
+  // Handle selecting a shell session from activity strip (opens panel + shell tab)
   const handleSelectShellSession = useCallback(
     (taskId: string) => {
       // Expand the panel if collapsed
@@ -217,6 +216,33 @@ export const DetailsPanel = memo(function DetailsPanel({
     [isCollapsed, onToggleCollapsed, onSelectTask, allGroups, setSelectedTab],
   );
 
+  // Handle disconnecting a shell session (closes WebSocket, keeps in list)
+  const handleDisconnectSession = useCallback(
+    (taskId: string) => {
+      disconnectOnly(taskId);
+    },
+    [disconnectOnly],
+  );
+
+  // Handle reconnecting a shell session (opens panel + shell tab + triggers reconnection)
+  const handleReconnectSession = useCallback(
+    (taskId: string) => {
+      // Trigger reconnection directly through the session cache
+      reconnectSession(taskId);
+      // Expand panel and go to shell tab
+      handleSelectShellSession(taskId);
+    },
+    [handleSelectShellSession],
+  );
+
+  // Handle removing a shell session (closes WebSocket + removes from list)
+  const handleRemoveSession = useCallback(
+    (taskId: string) => {
+      removeShell(taskId);
+    },
+    [removeShell],
+  );
+
   // Collapsed content with workflow quick links and shell activity strip
   // Focus management is handled by SidePanel via onTransitionEnd
   const collapsedContent = onToggleCollapsed ? (
@@ -225,6 +251,9 @@ export const DetailsPanel = memo(function DetailsPanel({
       <ShellActivityStrip
         currentTaskId={task?.task_uuid}
         onSelectSession={handleSelectShellSession}
+        onDisconnectSession={handleDisconnectSession}
+        onReconnectSession={handleReconnectSession}
+        onRemoveSession={handleRemoveSession}
       />
     </PanelCollapsedStrip>
   ) : undefined;
