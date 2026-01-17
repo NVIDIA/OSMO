@@ -1,10 +1,18 @@
-// Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 //
-// NVIDIA CORPORATION and its licensors retain all intellectual property
-// and proprietary rights in and to this software, related documentation
-// and any modifications thereto. Any use, reproduction, disclosure or
-// distribution of this software and related documentation without an express
-// license agreement from NVIDIA CORPORATION is strictly prohibited.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
 
 /**
  * TaskShell Components
@@ -40,6 +48,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import {
   ShellTerminal,
+  SHELL_OPTIONS,
   type ShellTerminalRef,
   type ConnectionStatusType,
   hasSession,
@@ -79,11 +88,7 @@ export interface ShellConnectPromptProps {
 // Shell Connect Prompt (initial state before connection)
 // =============================================================================
 
-/** Shell options for the dropdown */
-const SHELL_PRESETS = [
-  { value: "/bin/bash", label: "/bin/bash" },
-  { value: "/bin/zsh", label: "/bin/zsh" },
-] as const;
+// Use shared SHELL_OPTIONS from @/components/shell for single source of truth
 
 export const ShellConnectPrompt = memo(function ShellConnectPrompt({ onConnect }: ShellConnectPromptProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -194,7 +199,7 @@ export const ShellConnectPrompt = memo(function ShellConnectPrompt({ onConnect }
               align="end"
               className="min-w-[140px]"
             >
-              {SHELL_PRESETS.map((option) => (
+              {SHELL_OPTIONS.map((option) => (
                 <DropdownMenuItem
                   key={option.value}
                   onClick={() => handleShellSelect(option.value)}

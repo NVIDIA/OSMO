@@ -112,13 +112,6 @@ export const ShellTerminal = memo(
     // Track if we've written the disconnect message to avoid duplicates
     const hasWrittenDisconnectRef = useRef(false);
 
-    // Refs for search addon
-    const searchAddonRef = useRef<{ findNext: (q: string) => boolean; findPrevious: (q: string) => boolean } | null>(
-      null,
-    );
-
-    // Update status in cache for activity strip
-
     // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
     const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
     const resizeRef = useRef<(rows: number, cols: number) => void>(() => {});
@@ -145,6 +138,9 @@ export const ShellTerminal = memo(
       getDimensions,
       fit,
       setActive: setTerminalActive,
+      findNext,
+      findPrevious,
+      clearSearch,
     } = useShell({
       onData: handleShellData,
       onResize: handleShellResize,
@@ -255,22 +251,6 @@ export const ShellTerminal = memo(
       }
     }, [isShellReady, fit]);
 
-    // Set up search addon when shell is ready
-    useEffect(() => {
-      const terminal = getTerminal();
-      if (!terminal) return;
-
-      // Import SearchAddon dynamically to avoid SSR issues
-      import("@xterm/addon-search").then(({ SearchAddon }) => {
-        const addon = new SearchAddon();
-        terminal.loadAddon(addon);
-        searchAddonRef.current = {
-          findNext: (q: string) => addon.findNext(q),
-          findPrevious: (q: string) => addon.findPrevious(q),
-        };
-      });
-    }, [isShellReady, getTerminal]);
-
     // Handle keyboard shortcuts
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -325,29 +305,30 @@ export const ShellTerminal = memo(
     const handleCloseSearch = useCallback(() => {
       setIsSearchOpen(false);
       setSearchQuery("");
+      clearSearch();
       focus();
-    }, [focus]);
+    }, [focus, clearSearch]);
 
-    // Handle find next
+    // Handle find next - uses search methods from useShell
     const handleFindNext = useCallback(() => {
-      if (searchAddonRef.current && searchQuery) {
-        searchAddonRef.current.findNext(searchQuery);
+      if (searchQuery) {
+        findNext(searchQuery);
       }
-    }, [searchQuery]);
+    }, [searchQuery, findNext]);
 
-    // Handle find previous
+    // Handle find previous - uses search methods from useShell
     const handleFindPrevious = useCallback(() => {
-      if (searchAddonRef.current && searchQuery) {
-        searchAddonRef.current.findPrevious(searchQuery);
+      if (searchQuery) {
+        findPrevious(searchQuery);
       }
-    }, [searchQuery]);
+    }, [searchQuery, findPrevious]);
 
     // Search when query changes
     useEffect(() => {
-      if (searchQuery && searchAddonRef.current) {
-        searchAddonRef.current.findNext(searchQuery);
+      if (searchQuery) {
+        findNext(searchQuery);
       }
-    }, [searchQuery]);
+    }, [searchQuery, findNext]);
 
     // Determine UI state
     const isConnected = status === "connected";
