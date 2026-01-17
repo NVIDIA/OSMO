@@ -21,13 +21,14 @@
  * 1. User clicks Connect → connectShell() adds to activeShells
  * 2. ShellContainer sees activeShells → renders TaskShell for each
  * 3. TaskShell mounts → useShell creates session in cache (with terminal)
- * 4. User disconnects → disconnectShell() removes from activeShells + disposes session
+ * 4. User disconnects → disconnectOnly() closes WebSocket but keeps in list
+ * 5. User removes → removeShell() removes from activeShells + disposes session
  */
 
 "use client";
 
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
-import { disposeSession } from "@/components/shell";
+import { disconnectSession, disposeSession } from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -50,8 +51,11 @@ interface ShellContextValue {
   /** Request a shell to be rendered (called by TaskDetails on Connect click) */
   connectShell: (taskId: string, taskName: string, shell: string) => void;
 
+  /** Disconnect only - closes WebSocket but keeps session in list for reconnect */
+  disconnectOnly: (taskId: string) => void;
+
   /** Remove a shell from rendering and dispose its session */
-  disconnectShell: (taskId: string) => void;
+  removeShell: (taskId: string) => void;
 
   /** Check if a shell is active for a given task */
   hasActiveShell: (taskId: string) => boolean;
@@ -83,7 +87,13 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const disconnectShell = useCallback((taskId: string) => {
+  const disconnectOnly = useCallback((taskId: string) => {
+    // Disconnect WebSocket but keep session in cache and activeShells
+    // Session remains visible in activity strip with "disconnected" status
+    disconnectSession(taskId);
+  }, []);
+
+  const removeShell = useCallback((taskId: string) => {
     // Remove from active shells
     setActiveShells((prev) => prev.filter((s) => s.taskId !== taskId));
     // Dispose the session in cache (cleans up terminal + WebSocket)
@@ -110,11 +120,12 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     () => ({
       activeShells,
       connectShell,
-      disconnectShell,
+      disconnectOnly,
+      removeShell,
       hasActiveShell,
       disconnectAll,
     }),
-    [activeShells, connectShell, disconnectShell, hasActiveShell, disconnectAll],
+    [activeShells, connectShell, disconnectOnly, removeShell, hasActiveShell, disconnectAll],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
