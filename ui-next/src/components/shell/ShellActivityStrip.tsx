@@ -15,12 +15,12 @@
 
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, type MouseEvent } from "react";
+import { useEventCallback } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/shadcn/tooltip";
 import { ShellSessionIcon } from "./ShellSessionIcon";
 import { useShellSessions } from "./use-shell-sessions";
-import type { ShellSessionSnapshot } from "./shell-session-cache";
 
 // =============================================================================
 // Types
@@ -46,12 +46,13 @@ export const ShellActivityStrip = memo(function ShellActivityStrip({
 }: ShellActivityStripProps) {
   const { sessions } = useShellSessions();
 
-  const handleSessionClick = useCallback(
-    (session: ShellSessionSnapshot) => {
-      onSelectSession?.(session.taskId);
-    },
-    [onSelectSession],
-  );
+  // Stable callback that reads taskId from data attribute - no closures per item
+  const handleSessionClick = useEventCallback((e: MouseEvent<HTMLButtonElement>) => {
+    const taskId = e.currentTarget.dataset.taskId;
+    if (taskId) {
+      onSelectSession?.(taskId);
+    }
+  });
 
   if (sessions.length === 0) {
     return null;
@@ -66,13 +67,14 @@ export const ShellActivityStrip = memo(function ShellActivityStrip({
           aria-hidden="true"
         />
 
-        {/* Session icons */}
+        {/* Session icons - using data attributes for O(1) handler binding */}
         {sessions.map((session) => (
           <ShellSessionIcon
             key={session.taskId}
             session={session}
             isActive={session.taskId === currentTaskId}
-            onClick={() => handleSessionClick(session)}
+            onClick={handleSessionClick}
+            data-task-id={session.taskId}
           />
         ))}
       </div>

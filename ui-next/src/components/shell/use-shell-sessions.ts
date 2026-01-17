@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useSyncExternalStore, useCallback } from "react";
+import { useSyncExternalStore, useMemo } from "react";
 import { subscribe, getSessionsSnapshot, type ShellSessionSnapshot } from "./shell-session-cache";
 
 // =============================================================================
@@ -30,9 +30,11 @@ import { subscribe, getSessionsSnapshot, type ShellSessionSnapshot } from "./she
 export interface UseShellSessionsReturn {
   /** All sessions as an array */
   sessions: ShellSessionSnapshot[];
-  /** Get a session by taskId */
+  /** Session lookup map by taskId (O(1) access) */
+  sessionMap: Map<string, ShellSessionSnapshot>;
+  /** Get a session by taskId (O(1)) */
   getSession: (taskId: string) => ShellSessionSnapshot | undefined;
-  /** Check if a session exists */
+  /** Check if a session exists (O(1)) */
   hasSession: (taskId: string) => boolean;
   /** Whether there are any active sessions */
   hasActiveSessions: boolean;
@@ -41,35 +43,56 @@ export interface UseShellSessionsReturn {
 }
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Check if a session status is considered "active".
+ */
+function isActiveStatus(status: ShellSessionSnapshot["status"]): boolean {
+  return status === "connecting" || status === "connected";
+}
+
+// =============================================================================
 // Hook
 // =============================================================================
 
 /**
  * Hook to access shell session state with automatic updates.
+ * Uses memoized Map for O(1) lookups and computed active counts.
  */
 export function useShellSessions(): UseShellSessionsReturn {
   const sessions = useSyncExternalStore(subscribe, getSessionsSnapshot, getSessionsSnapshot);
 
-  const getSession = useCallback(
-    (taskId: string): ShellSessionSnapshot | undefined => {
-      return sessions.find((s) => s.key === taskId);
-    },
-    [sessions],
-  );
+  // Memoize the session map and computed values to avoid recalculating on every render.
+  // These only change when `sessions` reference changes (from cache updates).
+  const { sessionMap, hasActiveSessions, activeSessionCount } = useMemo(() => {
+    const map = new Map<string, ShellSessionSnapshot>();
+    let activeCount = 0;
 
-  const hasSession = useCallback(
-    (taskId: string): boolean => {
-      return sessions.some((s) => s.key === taskId);
-    },
-    [sessions],
-  );
+    for (const session of sessions) {
+      map.set(session.key, session);
+      if (isActiveStatus(session.status)) {
+        activeCount++;
+      }
+    }
 
-  const hasActiveSessions = sessions.some((s) => s.status === "connecting" || s.status === "connected");
+    return {
+      sessionMap: map,
+      hasActiveSessions: activeCount > 0,
+      activeSessionCount: activeCount,
+    };
+  }, [sessions]);
 
-  const activeSessionCount = sessions.filter((s) => s.status === "connecting" || s.status === "connected").length;
+  // Stable getSession - uses map reference which is stable per sessions update
+  const getSession = sessionMap.get.bind(sessionMap);
+
+  // Stable hasSession - uses map reference which is stable per sessions update
+  const hasSession = sessionMap.has.bind(sessionMap);
 
   return {
     sessions,
+    sessionMap,
     getSession,
     hasSession,
     hasActiveSessions,
@@ -80,8 +103,9 @@ export function useShellSessions(): UseShellSessionsReturn {
 /**
  * Hook to get a specific session by taskId.
  * Returns undefined if session doesn't exist.
+ * Reuses useShellSessions for O(1) lookup via Map.
  */
 export function useShellSession(taskId: string | undefined): ShellSessionSnapshot | undefined {
-  const sessions = useSyncExternalStore(subscribe, getSessionsSnapshot, getSessionsSnapshot);
-  return taskId ? sessions.find((s) => s.key === taskId) : undefined;
+  const { getSession } = useShellSessions();
+  return taskId ? getSession(taskId) : undefined;
 }

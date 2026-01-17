@@ -26,17 +26,13 @@ import type { ShellSessionSnapshot } from "./shell-session-cache";
 // Types
 // =============================================================================
 
-export interface ShellSessionIconProps {
+export interface ShellSessionIconProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** The shell session */
   session: ShellSessionSnapshot;
   /** Whether this session is currently active/focused */
   isActive?: boolean;
-  /** Called when the icon is clicked */
-  onClick?: () => void;
   /** Called when the session should be closed */
   onClose?: () => void;
-  /** Additional className */
-  className?: string;
 }
 
 // =============================================================================
@@ -46,15 +42,15 @@ export interface ShellSessionIconProps {
 export const ShellSessionIcon = memo(function ShellSessionIcon({
   session,
   isActive,
-  onClick,
   className,
+  ...buttonProps
 }: ShellSessionIconProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           type="button"
-          onClick={onClick}
+          {...buttonProps}
           className={cn(
             "relative flex size-8 items-center justify-center rounded-lg transition-colors",
             "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900",
