@@ -334,9 +334,10 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
     const workflow = workflowGenerator.getByName(workflowName);
     const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
     const status = task?.status || "RUNNING";
-    const duration = task?.end_time && task?.start_time
-      ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
-      : undefined;
+    const duration =
+      task?.end_time && task?.start_time
+        ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
+        : undefined;
 
     const logs = logGenerator.generateTaskLogs(workflowName, taskName, status, duration);
 
