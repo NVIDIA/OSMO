@@ -474,6 +474,21 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     });
   }, []);
 
+  // Search functionality - uses the SearchAddon created in createTerminal()
+  const findNext = useCallback((query: string): boolean => {
+    if (!searchAddonRef.current || !query) return false;
+    return searchAddonRef.current.findNext(query);
+  }, []);
+
+  const findPrevious = useCallback((query: string): boolean => {
+    if (!searchAddonRef.current || !query) return false;
+    return searchAddonRef.current.findPrevious(query);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    searchAddonRef.current?.clearDecorations();
+  }, []);
+
   return {
     containerRef,
     // Note: Direct xterm access is through getTerminal() in effects
@@ -488,79 +503,11 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     fit,
     setActive,
     dispose,
-  };
-}
-
-// =============================================================================
-// Search Hook (companion to useShell)
-// =============================================================================
-
-export interface UseShellSearchOptions {
-  /** The xterm instance from useShell */
-  terminal: Terminal | null;
-}
-
-export interface UseShellSearchReturn {
-  /** Current search query */
-  query: string;
-  /** Set search query */
-  setQuery: (query: string) => void;
-  /** Find next match */
-  findNext: () => boolean;
-  /** Find previous match */
-  findPrevious: () => boolean;
-  /** Clear search */
-  clearSearch: () => void;
-}
-
-/**
- * Hook for shell search functionality.
- * Must be used with a shell that has the SearchAddon loaded.
- */
-export function useShellSearch(terminal: Terminal | null): UseShellSearchReturn {
-  const [query, setQuery] = useState("");
-  const searchAddonRef = useRef<SearchAddon | null>(null);
-
-  // Get search addon from xterm
-  useEffect(() => {
-    if (!terminal) {
-      searchAddonRef.current = null;
-      return;
-    }
-
-    // Create a new search addon if needed
-    // Note: This assumes the terminal already has a SearchAddon loaded
-    // In practice, the addon is shared with useShell
-    const addon = new SearchAddon();
-    terminal.loadAddon(addon);
-    searchAddonRef.current = addon;
-
-    return () => {
-      addon.dispose();
-      searchAddonRef.current = null;
-    };
-  }, [terminal]);
-
-  const findNext = useCallback(() => {
-    if (!searchAddonRef.current || !query) return false;
-    return searchAddonRef.current.findNext(query);
-  }, [query]);
-
-  const findPrevious = useCallback(() => {
-    if (!searchAddonRef.current || !query) return false;
-    return searchAddonRef.current.findPrevious(query);
-  }, [query]);
-
-  const clearSearch = useCallback(() => {
-    setQuery("");
-    searchAddonRef.current?.clearDecorations();
-  }, []);
-
-  return {
-    query,
-    setQuery,
     findNext,
     findPrevious,
     clearSearch,
   };
 }
+
+// Note: useShellSearch has been removed. Search functionality is now built into useShell.
+// Use findNext, findPrevious, and clearSearch methods from useShell directly.
