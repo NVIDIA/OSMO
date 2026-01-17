@@ -97,6 +97,7 @@ export const ShellContainer = memo(function ShellContainer({
               workflowName={workflowName}
               taskName={visibleShell.taskName}
               shell={visibleShell.shell}
+              isVisible
               onStatusChange={(status) => handleStatusChange(visibleShell.taskId, status)}
               onSessionEnded={() => handleSessionEnded(visibleShell.taskId)}
             />

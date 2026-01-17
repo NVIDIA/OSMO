@@ -64,6 +64,8 @@ export interface TaskShellProps {
   onStatusChange?: (status: ConnectionStatusType) => void;
   /** Called when shell session ends (user types exit or Ctrl+D) */
   onSessionEnded?: () => void;
+  /** Whether this shell is currently visible (triggers focus when becoming visible) */
+  isVisible?: boolean;
   /** Additional className for the container */
   className?: string;
 }
@@ -268,6 +270,7 @@ export const TaskShell = memo(function TaskShell({
   shell,
   onStatusChange: onStatusChangeProp,
   onSessionEnded,
+  isVisible = false,
   className,
 }: TaskShellProps) {
   // Ref to control ShellTerminal imperatively
@@ -358,6 +361,14 @@ export const TaskShell = memo(function TaskShell({
   const handleConnected = useCallback(() => {
     shellRef.current?.focus();
   }, []);
+
+  // Auto-focus when becoming visible (e.g., navigating to shell tab)
+  // This allows immediate typing without an extra click
+  useEffect(() => {
+    if (isVisible && status === "connected") {
+      shellRef.current?.focus();
+    }
+  }, [isVisible, status]);
 
   return (
     <div className={cn("relative flex h-full min-h-[300px] flex-col", className)}>
