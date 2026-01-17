@@ -39,6 +39,8 @@ export interface TaskShellProps {
   workflowName: string;
   /** Task name to exec into */
   taskName: string;
+  /** Called when connection status changes */
+  onStatusChange?: (status: ConnectionStatusType) => void;
   /** Called when shell session ends (user types exit or Ctrl+D) */
   onSessionEnded?: () => void;
   /** Additional className for the container */
@@ -129,6 +131,7 @@ const DisconnectedBar = memo(function DisconnectedBar({ error, onReconnect }: Di
 export const TaskShell = memo(function TaskShell({
   workflowName,
   taskName,
+  onStatusChange: onStatusChangeProp,
   onSessionEnded,
   className,
 }: TaskShellProps) {
@@ -157,13 +160,18 @@ export const TaskShell = memo(function TaskShell({
   }, []);
 
   // Handle status changes from ShellTerminal
-  const handleStatusChange = useCallback((newStatus: ConnectionStatusType) => {
-    setStatus(newStatus);
-    // Clear error when successfully connected
-    if (newStatus === "connected") {
-      setLastError(null);
-    }
-  }, []);
+  const handleStatusChange = useCallback(
+    (newStatus: ConnectionStatusType) => {
+      setStatus(newStatus);
+      // Clear error when successfully connected
+      if (newStatus === "connected") {
+        setLastError(null);
+      }
+      // Forward to parent
+      onStatusChangeProp?.(newStatus);
+    },
+    [onStatusChangeProp],
+  );
 
   // Handle connection error
   const handleError = useCallback((error: Error) => {
