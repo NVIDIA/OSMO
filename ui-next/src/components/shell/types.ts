@@ -67,6 +67,32 @@ export interface ShellTerminalRef {
 }
 
 // =============================================================================
+// Search Options
+// =============================================================================
+
+/**
+ * Options for shell search (xterm.js SearchAddon).
+ */
+export interface SearchOptions {
+  /** Whether to match case (default: false - case insensitive) */
+  caseSensitive?: boolean;
+  /** Whether to match whole words only (default: false) */
+  wholeWord?: boolean;
+  /** Whether to treat search term as regex (default: false) */
+  regex?: boolean;
+}
+
+/**
+ * Search result info from xterm.js SearchAddon.
+ */
+export interface SearchResultInfo {
+  /** Current match index (0-based, -1 if no results) */
+  resultIndex: number;
+  /** Total number of matches */
+  resultCount: number;
+}
+
+// =============================================================================
 // Shell Hook Returns
 // =============================================================================
 
@@ -100,11 +126,13 @@ export interface UseShellReturn {
    */
   dispose: () => void;
   /** Search: find next occurrence of query */
-  findNext: (query: string) => boolean;
+  findNext: (query: string, options?: SearchOptions) => boolean;
   /** Search: find previous occurrence of query */
-  findPrevious: (query: string) => boolean;
+  findPrevious: (query: string, options?: SearchOptions) => boolean;
   /** Search: clear search decorations */
   clearSearch: () => void;
+  /** Current search result info (null if no search active) */
+  searchResults: SearchResultInfo | null;
 }
 
 /**

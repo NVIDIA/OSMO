@@ -44,7 +44,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
 import { SHELL_THEME, SHELL_CONFIG } from "./types";
-import type { UseShellReturn } from "./types";
+import type { UseShellReturn, SearchOptions, SearchResultInfo } from "./types";
 import {
   getSession,
   createSession,
@@ -236,9 +236,11 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const webglAddonRef = useRef<WebglAddon | null>(null);
+  const searchResultsDisposableRef = useRef<ReturnType<SearchAddon["onDidChangeResults"]> | null>(null);
   // Track the key used for this instance to handle cleanup correctly
   const sessionKeyRef = useRef<string | undefined>(sessionKey);
   const [isReady, setIsReady] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchResultInfo | null>(null);
 
   // Keep sessionKeyRef in sync
   useEffect(() => {
@@ -410,6 +412,32 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionKey]);
 
+  // Set up search results listener when search addon is ready
+  useEffect(() => {
+    const searchAddon = searchAddonRef.current;
+    if (!searchAddon) return;
+
+    // Dispose previous listener if any
+    searchResultsDisposableRef.current?.dispose();
+
+    // Listen for search result changes
+    searchResultsDisposableRef.current = searchAddon.onDidChangeResults((results) => {
+      if (results) {
+        setSearchResults({
+          resultIndex: results.resultIndex,
+          resultCount: results.resultCount,
+        });
+      } else {
+        setSearchResults(null);
+      }
+    });
+
+    return () => {
+      searchResultsDisposableRef.current?.dispose();
+      searchResultsDisposableRef.current = null;
+    };
+  }, [isReady]); // Re-run when terminal becomes ready
+
   // Focus the shell
   const focus = useCallback(() => {
     terminalRef.current?.focus();
@@ -475,18 +503,38 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   }, []);
 
   // Search functionality - uses the SearchAddon created in createTerminal()
-  const findNext = useCallback((query: string): boolean => {
+  // Active match gets prominent amber highlight with white border
+  const findNext = useCallback((query: string, options?: SearchOptions): boolean => {
     if (!searchAddonRef.current || !query) return false;
-    return searchAddonRef.current.findNext(query);
+    return searchAddonRef.current.findNext(query, {
+      ...options,
+      decorations: {
+        matchOverviewRuler: "#f59e0b",
+        // Active match - prominent
+        activeMatchBackground: "#f59e0b60",
+        activeMatchBorder: "#ffffff",
+        activeMatchColorOverviewRuler: "#ffffff",
+      },
+    });
   }, []);
 
-  const findPrevious = useCallback((query: string): boolean => {
+  const findPrevious = useCallback((query: string, options?: SearchOptions): boolean => {
     if (!searchAddonRef.current || !query) return false;
-    return searchAddonRef.current.findPrevious(query);
+    return searchAddonRef.current.findPrevious(query, {
+      ...options,
+      decorations: {
+        matchOverviewRuler: "#f59e0b",
+        // Active match - prominent
+        activeMatchBackground: "#f59e0b60",
+        activeMatchBorder: "#ffffff",
+        activeMatchColorOverviewRuler: "#ffffff",
+      },
+    });
   }, []);
 
   const clearSearch = useCallback(() => {
     searchAddonRef.current?.clearDecorations();
+    setSearchResults(null);
   }, []);
 
   return {
@@ -506,6 +554,7 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     findNext,
     findPrevious,
     clearSearch,
+    searchResults,
   };
 }
 
