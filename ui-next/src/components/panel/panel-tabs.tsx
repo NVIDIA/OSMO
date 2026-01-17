@@ -15,15 +15,12 @@ import { cn } from "@/lib/utils";
 // Types
 // =============================================================================
 
-/** Status indicator values for tabs */
-export type TabStatusIndicator = "connected" | "disconnected" | "error";
-
 export interface PanelTab {
   id: string;
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
-  /** Optional status indicator (maps to colored dot) */
-  statusIndicator?: TabStatusIndicator;
+  /** Optional status content (e.g., StatusDot component) - caller provides the UI */
+  statusContent?: React.ReactNode;
 }
 
 export interface PanelTabsProps {
@@ -263,17 +260,7 @@ export function PanelTabs({
             >
               {tab.icon && <tab.icon className={iconOnly ? "size-4" : "size-3.5"} />}
               {!iconOnly && <span>{tab.label}</span>}
-              {tab.statusIndicator && (
-                <span
-                  className={cn(
-                    "size-1.5 shrink-0 rounded-full",
-                    tab.statusIndicator === "connected" && "bg-emerald-500",
-                    tab.statusIndicator === "disconnected" && "bg-zinc-400 dark:bg-zinc-500",
-                    tab.statusIndicator === "error" && "bg-red-500",
-                  )}
-                  aria-hidden="true"
-                />
-              )}
+              {tab.statusContent}
             </button>
           );
         })}

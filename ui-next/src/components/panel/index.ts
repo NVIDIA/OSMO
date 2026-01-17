@@ -68,3 +68,5 @@ export {
 } from "./panel-header";
 
 export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "./use-resizable-panel";
+
+export { PanelTabs, type PanelTab, type PanelTabsProps } from "./panel-tabs";

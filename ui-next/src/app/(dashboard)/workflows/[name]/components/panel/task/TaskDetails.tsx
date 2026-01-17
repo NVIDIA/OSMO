@@ -44,7 +44,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Card, CardContent } from "@/components/shadcn/card";
-import { PanelTabs, type PanelTab, type TabStatusIndicator } from "@/components/panel-tabs";
+import { PanelTabs, type PanelTab } from "@/components/panel";
 import { useCopy, useTick } from "@/hooks";
 import { ShellConnectPrompt } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
@@ -54,6 +54,7 @@ import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "../shared/DependencyPills";
 import { useShellPortal, useShellContext } from "../../shell";
+import { useShellSession, StatusDot } from "@/components/shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 
 // ============================================================================
@@ -419,6 +420,9 @@ export const TaskDetails = memo(function TaskDetails({
   const { connectShell, hasActiveShell } = useShellContext();
   const hasShellSession = hasActiveShell(task.task_uuid);
 
+  // Get actual session status from cache (for accurate status indicator)
+  const shellSession = useShellSession(task.task_uuid);
+
   // Shell portal for rendering shell in correct position
   const { setPortalTarget } = useShellPortal();
   const shellTabRef = useRef<HTMLDivElement>(null);
@@ -445,17 +449,6 @@ export const TaskDetails = memo(function TaskDetails({
       setPortalTarget(null);
     };
   }, [activeTab, hasShellSession, setPortalTarget]);
-
-  // Shell status indicator - just show connected if there's an active shell
-  // The actual connection status is managed by ShellTerminal internally
-  const shellStatusIndicator = useMemo((): TabStatusIndicator | undefined => {
-    if (!hasShellSession) {
-      return undefined;
-    }
-    // When there's an active shell, show as connected
-    // More detailed status (connecting, error) is shown in the terminal itself
-    return "connected";
-  }, [hasShellSession]);
 
   // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
@@ -589,13 +582,16 @@ export const TaskDetails = memo(function TaskDetails({
     const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
 
     if (isRunning && workflowName) {
-      tabs.push({ id: "shell", label: "Shell", icon: Terminal, statusIndicator: shellStatusIndicator });
+      // Shell status: idle shows no indicator, other statuses show StatusDot
+      const statusContent =
+        shellSession && shellSession.status !== "idle" ? <StatusDot status={shellSession.status} /> : undefined;
+      tabs.push({ id: "shell", label: "Shell", icon: Terminal, statusContent });
     }
 
     tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: Calendar });
 
     return tabs;
-  }, [isRunning, workflowName, shellStatusIndicator]);
+  }, [isRunning, workflowName, shellSession]);
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">

@@ -19,7 +19,7 @@ import { memo } from "react";
 import { Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import type { ConnectionStatus } from "./types";
+import { StatusDot, STATUS_LABELS } from "./StatusDot";
 import type { ShellSessionSnapshot } from "./shell-session-cache";
 
 // =============================================================================
@@ -38,26 +38,6 @@ export interface ShellSessionIconProps {
   /** Additional className */
   className?: string;
 }
-
-// =============================================================================
-// Status Dot Styles
-// =============================================================================
-
-const STATUS_DOT_STYLES: Record<ConnectionStatus, string> = {
-  idle: "bg-zinc-500",
-  connecting: "animate-pulse bg-amber-400",
-  connected: "bg-emerald-400",
-  disconnected: "border border-red-400 bg-transparent",
-  error: "bg-red-400",
-};
-
-const STATUS_LABELS: Record<ConnectionStatus, string> = {
-  idle: "Idle",
-  connecting: "Connecting...",
-  connected: "Connected",
-  disconnected: "Disconnected - Click to reconnect",
-  error: "Error",
-};
 
 // =============================================================================
 // Component
@@ -92,9 +72,9 @@ export const ShellSessionIcon = memo(function ShellSessionIcon({
             aria-hidden="true"
           />
           {/* Status dot */}
-          <span
-            className={cn("absolute -right-0.5 -bottom-0.5 size-2 rounded-full", STATUS_DOT_STYLES[session.status])}
-            aria-hidden="true"
+          <StatusDot
+            status={session.status}
+            className="absolute -right-0.5 -bottom-0.5"
           />
         </button>
       </TooltipTrigger>
