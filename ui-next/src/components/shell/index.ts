@@ -38,11 +38,11 @@ export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from
 // Hooks
 export { useShell } from "./use-shell";
 export { useWebSocketShell } from "./use-websocket-shell";
-export { useShellNavigationGuard } from "./use-shell-navigation-guard";
 export { useShellSessions, useShellSession } from "./use-shell-sessions";
 
 // Session Cache (for managing persistent shell sessions)
 export {
+  disconnectSession,
   disposeSession,
   hasSession,
   hasActiveConnection,
@@ -50,6 +50,9 @@ export {
   getSessionStatus,
   getSessionError,
   updateSessionStatus,
+  registerReconnectHandler,
+  unregisterReconnectHandler,
+  reconnectSession,
 } from "./shell-session-cache";
 
 // Types

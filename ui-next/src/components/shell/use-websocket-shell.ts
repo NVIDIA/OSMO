@@ -54,6 +54,8 @@ import {
   updateSessionStatus,
   sendData,
   sendResize,
+  registerReconnectHandler,
+  unregisterReconnectHandler,
 } from "./shell-session-cache";
 
 // =============================================================================
@@ -89,12 +91,10 @@ export interface UseWebSocketShellOptions {
   onStatusChange?: (status: ConnectionStatus) => void;
   /** Called when connection is established */
   onConnected?: () => void;
-  /** Called when connection is closed */
+  /** Called when connection is closed (for any reason) */
   onDisconnected?: () => void;
   /** Called when an error occurs */
   onError?: (error: Error) => void;
-  /** Called when the session ends cleanly (user typed exit) */
-  onSessionEnded?: () => void;
 }
 
 // =============================================================================
@@ -112,7 +112,6 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
     onConnected,
     onDisconnected,
     onError,
-    onSessionEnded,
   } = options;
 
   // Initialize state from session cache if available
@@ -170,22 +169,18 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         }
       };
 
-      ws.onclose = (event) => {
-        // Clear from cache/local
+      ws.onclose = () => {
+        // Clear WebSocket from cache/local
         if (sessionKey) {
           updateSessionWebSocket(sessionKey, null);
         } else {
           localWsRef.current = null;
         }
 
-        // Check if this was a clean close (user typed exit)
-        if (event.wasClean && event.code === 1000) {
-          updateStatus("disconnected");
-          onSessionEnded?.();
-        } else {
-          updateStatus("disconnected");
-          onDisconnected?.();
-        }
+        // Always just update status to disconnected - session stays in list
+        // User must explicitly click "Remove" to remove from list
+        updateStatus("disconnected");
+        onDisconnected?.();
       };
 
       ws.onerror = () => {
@@ -194,7 +189,7 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         onError?.(err);
       };
     },
-    [sessionKey, onData, onDisconnected, onError, onSessionEnded, updateStatus],
+    [sessionKey, onData, onDisconnected, onError, updateStatus],
   );
 
   // Connect to shell
@@ -343,6 +338,14 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
       }
     }
   }, [sessionKey, attachCallbacks]);
+
+  // Register reconnect handler so external code can trigger reconnection
+  useEffect(() => {
+    if (sessionKey) {
+      registerReconnectHandler(sessionKey, connect);
+      return () => unregisterReconnectHandler(sessionKey);
+    }
+  }, [sessionKey, connect]);
 
   // Cleanup on unmount
   // IMPORTANT: We DON'T close the WebSocket if using session cache
