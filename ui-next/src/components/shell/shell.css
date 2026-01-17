@@ -80,8 +80,10 @@
 .shell-body {
   flex: 1;
   min-height: 0;
-  padding: var(--shell-padding);
+  /* Padding on top and sides only - bottom extends to edge */
+  padding: var(--shell-padding) var(--shell-padding) 0;
   overflow: hidden;
+  background: var(--shell-bg);
 
   /* GPU acceleration */
   transform: translateZ(0);
