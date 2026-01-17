@@ -72,8 +72,6 @@ export interface ShellTerminalProps {
   taskName: string;
   /** Shell to use (default: /bin/bash) */
   shell?: string;
-  /** Auto-connect when ready (default: true) */
-  autoConnect?: boolean;
   /** Called when shell connects successfully */
   onConnected?: () => void;
   /** Called when shell disconnects */

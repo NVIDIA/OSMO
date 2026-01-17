@@ -27,7 +27,6 @@
 export { ShellTerminal } from "./ShellTerminal";
 
 // Overlay Components
-export { ShellConnectCard } from "./ShellConnectCard";
 export { ShellConnecting } from "./ShellConnecting";
 export { ShellReconnectButton } from "./ShellReconnectButton";
 export { ShellSearch } from "./ShellSearch";
@@ -42,8 +41,17 @@ export { useShell, useShellSearch } from "./use-shell";
 export { useWebSocketShell } from "./use-websocket-shell";
 export { useShellNavigationGuard, useNavigateWithShellWarning } from "./use-shell-navigation-guard";
 
-// Terminal Cache (for managing persistent terminal instances)
-export { disposeTerminal, disposeAllTerminals, hasTerminal, getTerminalCount } from "./terminal-cache";
+// Session Cache (for managing persistent shell sessions)
+export {
+  disposeSession,
+  disposeAllSessions,
+  hasSession,
+  getSessionCount,
+  hasActiveConnection,
+  hadPreviousConnection,
+  getSessionStatus,
+  getSessionError,
+} from "./shell-session-cache";
 
 // Types
 export type {

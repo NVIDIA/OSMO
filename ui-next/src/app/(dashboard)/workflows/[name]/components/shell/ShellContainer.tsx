@@ -56,7 +56,7 @@ export const ShellContainer = memo(function ShellContainer({
   // Get sessions and store actions
   const sessions = useShellStore(useShallow((s) => Object.values(s.sessions)));
   const updateStatus = useShellStore((s) => s.updateStatus);
-  const closeSession = useShellStore((s) => s.closeSession);
+  const markDisconnected = useShellStore((s) => s.markDisconnected);
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
@@ -69,28 +69,32 @@ export const ShellContainer = memo(function ShellContainer({
     [updateStatus],
   );
 
-  // Handle session ended - remove from store
+  // Handle session ended - mark as disconnected (don't remove - keep for history/reconnect)
   const handleSessionEnded = useCallback(
     (taskName: string) => {
-      closeSession(taskName);
+      markDisconnected(taskName);
     },
-    [closeSession],
+    [markDisconnected],
   );
 
-  // Don't render if no sessions or no portal target
-  if (sessions.length === 0 || !portalTarget) {
+  // Don't render if no sessions
+  if (sessions.length === 0) {
     return null;
   }
 
-  // Render the visible shell into the portal target
-  // Hidden shells are rendered in an invisible container to maintain WebSocket connections
-  const visibleSession = sessions.find((session) => isShellTabActive && session.taskName === currentTaskName);
-  const hiddenSessions = sessions.filter((session) => !(isShellTabActive && session.taskName === currentTaskName));
+  // Determine which session is visible (if any)
+  // A session is visible when: shell tab is active + portal target exists + session matches current task
+  const visibleSession =
+    isShellTabActive && portalTarget ? sessions.find((session) => session.taskName === currentTaskName) : undefined;
+
+  // All other sessions are hidden but stay mounted to preserve terminal instances
+  const hiddenSessions = sessions.filter((session) => session !== visibleSession);
 
   return (
     <>
       {/* Visible shell - portaled into TaskDetails shell tab area */}
       {visibleSession &&
+        portalTarget &&
         createPortal(
           <div className="h-full w-full p-4">
             <TaskShell
@@ -104,7 +108,7 @@ export const ShellContainer = memo(function ShellContainer({
           portalTarget,
         )}
 
-      {/* Hidden shells - maintain WebSocket connections in invisible container */}
+      {/* Hidden shells - stay mounted in invisible container to preserve terminal instances */}
       {hiddenSessions.length > 0 && (
         <div className="pointer-events-none invisible absolute -left-[9999px] size-0 overflow-hidden">
           {hiddenSessions.map((session) => (
