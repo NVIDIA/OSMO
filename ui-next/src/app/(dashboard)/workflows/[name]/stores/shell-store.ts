@@ -29,7 +29,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import type { ShellSession, ConnectionStatus, PersistedSession } from "@/components/shell/types";
 import { SHELL_CONFIG } from "@/components/shell/types";
-import { disposeAllTerminals } from "@/components/shell";
+import { disposeAllSessions } from "@/components/shell";
 
 // =============================================================================
 // Storage Key
@@ -234,8 +234,8 @@ export const useShellStore = create<ShellStore>()(
       },
 
       closeAllSessions: () => {
-        // Dispose all terminal instances from cache
-        disposeAllTerminals();
+        // Dispose all session instances from cache
+        disposeAllSessions();
 
         set(
           (state) => {
