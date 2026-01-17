@@ -25,43 +25,6 @@ import type { Terminal } from "@xterm/xterm";
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 
 // =============================================================================
-// Shell Session
-// =============================================================================
-
-/**
- * Shell session state tracked in the store.
- */
-export interface ShellSession {
-  /** Task UUID from backend - used as unique session key */
-  taskId: string;
-  /** Task name this session is connected to */
-  taskName: string;
-  /** Shell executable (e.g., /bin/bash, /bin/sh) */
-  shell: string;
-  /** Workflow name for the session */
-  workflowName: string;
-  /** Current connection status */
-  status: ConnectionStatus;
-  /** Error message if status is 'error' */
-  error?: string;
-  /** Timestamp when session was created */
-  createdAt: number;
-  /** Timestamp when session connected */
-  connectedAt?: number;
-}
-
-/**
- * Persisted session info for sessionStorage.
- * Minimal data needed for reconnection.
- */
-export interface PersistedSession {
-  taskId: string;
-  taskName: string;
-  shell: string;
-  workflowName: string;
-}
-
-// =============================================================================
 // Shell Props
 // =============================================================================
 
@@ -103,20 +66,6 @@ export interface ShellTerminalRef {
   focus: () => void;
 }
 
-/**
- * Props for the ConnectionStatus indicator.
- */
-export interface ConnectionStatusProps {
-  /** Current status */
-  status: ConnectionStatus;
-  /** Size variant */
-  size?: "sm" | "md";
-  /** Show label text */
-  showLabel?: boolean;
-  /** Additional className */
-  className?: string;
-}
-
 // =============================================================================
 // Shell Hook Returns
 // =============================================================================
@@ -150,6 +99,12 @@ export interface UseShellReturn {
    * Call this when the session explicitly ends (user types exit, Ctrl+D, etc.)
    */
   dispose: () => void;
+  /** Search: find next occurrence of query */
+  findNext: (query: string) => boolean;
+  /** Search: find previous occurrence of query */
+  findPrevious: (query: string) => boolean;
+  /** Search: clear search decorations */
+  clearSearch: () => void;
 }
 
 /**
@@ -239,9 +194,10 @@ export const SHELL_CONFIG = {
 
 /**
  * Available shell options for the shell selector.
+ * Labels use full paths for clarity in UI dropdowns.
  */
 export const SHELL_OPTIONS = [
-  { value: "/bin/bash", label: "bash" },
-  { value: "/bin/sh", label: "sh" },
-  { value: "/bin/zsh", label: "zsh" },
+  { value: "/bin/bash", label: "/bin/bash" },
+  { value: "/bin/zsh", label: "/bin/zsh" },
+  { value: "/bin/sh", label: "/bin/sh" },
 ] as const;

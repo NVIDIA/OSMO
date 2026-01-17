@@ -28,27 +28,23 @@ export { ShellTerminal } from "./ShellTerminal";
 
 // Overlay Components
 export { ShellConnecting } from "./ShellConnecting";
-export { ShellReconnectButton } from "./ShellReconnectButton";
 export { ShellSearch } from "./ShellSearch";
 
 // Activity Components
 export { ShellActivityStrip } from "./ShellActivityStrip";
 export { ShellSessionIcon } from "./ShellSessionIcon";
-export { ConnectionStatus } from "./ConnectionStatus";
 export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from "./StatusDot";
 
 // Hooks
-export { useShell, useShellSearch } from "./use-shell";
+export { useShell } from "./use-shell";
 export { useWebSocketShell } from "./use-websocket-shell";
-export { useShellNavigationGuard, useNavigateWithShellWarning } from "./use-shell-navigation-guard";
+export { useShellNavigationGuard } from "./use-shell-navigation-guard";
 export { useShellSessions, useShellSession } from "./use-shell-sessions";
 
 // Session Cache (for managing persistent shell sessions)
 export {
   disposeSession,
-  disposeAllSessions,
   hasSession,
-  getSessionCount,
   hasActiveConnection,
   hadPreviousConnection,
   getSessionStatus,
@@ -61,7 +57,6 @@ export type {
   ConnectionStatus as ConnectionStatusType,
   ShellTerminalProps,
   ShellTerminalRef,
-  ConnectionStatusProps,
   UseShellReturn,
   UseWebSocketShellReturn,
 } from "./types";
