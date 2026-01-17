@@ -24,11 +24,13 @@
  * - /workflows/[name] - Workflow view (default)
  * - /workflows/[name]?group=step-1 - Group view
  * - /workflows/[name]?group=step-1&task=my-task - Task view
+ * - /workflows/[name]?group=step-1&task=my-task&tab=shell - Task view with shell tab
  *
  * Navigation flow:
  * - workflowlist → workflow (route navigation)
  * - workflow → group (URL param: ?group=...)
  * - group → task (URL param: ?group=...&task=...)
+ * - task tabs (URL param: ?...&tab=shell) - replace history, no back button
  * - Back button navigates through URL history automatically
  */
 
@@ -47,6 +49,15 @@ import type { GroupWithLayout, TaskQueryResponse } from "../lib/workflow-types";
  * Current navigation view derived from URL state.
  */
 export type NavigationView = "workflow" | "group" | "task";
+
+/**
+ * Task detail tabs.
+ * - "overview": Default tab showing task timeline and details
+ * - "shell": Interactive shell (only available for running tasks)
+ * - "logs": Task logs output
+ * - "events": Kubernetes events
+ */
+export type TaskTab = "overview" | "shell" | "logs" | "events";
 
 /**
  * Selected item identifiers from URL.
@@ -74,6 +85,9 @@ export interface UseNavigationStateReturn {
 
   /** Selected task retry ID from URL */
   selectedTaskRetryId: number | null;
+
+  /** Selected task tab from URL (defaults to "overview") */
+  selectedTab: TaskTab;
 
   /** Resolved selected group object (null if not found) */
   selectedGroup: GroupWithLayout | null;
@@ -104,6 +118,12 @@ export interface UseNavigationStateReturn {
    * Updates URL: ?group={name} (removes task params)
    */
   navigateBackToGroup: () => void;
+
+  /**
+   * Set the active task tab.
+   * Updates URL: ?...&tab={tab} (uses replace history, no back button for tab changes)
+   */
+  setSelectedTab: (tab: TaskTab) => void;
 
   /**
    * Clear all URL navigation state.
@@ -172,6 +192,25 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
     }),
   );
 
+  // URL state for task tab (only relevant in task view)
+  // Uses "replace" history so tab changes don't create new history entries
+  const [tabParam, setTabParam] = useQueryState(
+    "tab",
+    parseAsString.withOptions({
+      shallow: true,
+      history: "replace",
+      clearOnDefault: true,
+    }),
+  );
+
+  // Resolve tab param to TaskTab type (defaults to "overview" if null or invalid)
+  const selectedTab: TaskTab = useMemo(() => {
+    if (tabParam === "shell" || tabParam === "logs" || tabParam === "events") {
+      return tabParam;
+    }
+    return "overview";
+  }, [tabParam]);
+
   // Resolve group name to group object
   const selectedGroup = useMemo(() => {
     if (!groupName) return null;
@@ -207,11 +246,13 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
       setGroupName(group.name);
       setTaskName(task.name);
       setTaskRetryId(task.retry_id);
+      // Keep tab if navigating to same task, otherwise reset
     } else {
       // Multi-task group: show group view
       setGroupName(group.name);
       setTaskName(null);
       setTaskRetryId(null);
+      setTabParam(null); // Clear tab when leaving task view
     }
   });
 
@@ -219,24 +260,34 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
     setGroupName(group.name);
     setTaskName(task.name);
     setTaskRetryId(task.retry_id);
+    // Note: Tab is preserved when navigating between tasks (user preference)
+    // Reset to overview only if current tab is shell but shell won't be available
   });
 
   const navigateToWorkflow = useEventCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
+    setTabParam(null); // Clear tab when leaving task view
   });
 
   const navigateBackToGroup = useEventCallback(() => {
-    // Keep group, clear task
+    // Keep group, clear task and tab
     setTaskName(null);
     setTaskRetryId(null);
+    setTabParam(null);
+  });
+
+  const setSelectedTab = useEventCallback((tab: TaskTab) => {
+    // Only set non-overview tabs in URL (overview is the default)
+    setTabParam(tab === "overview" ? null : tab);
   });
 
   const clearNavigation = useEventCallback(() => {
     setGroupName(null);
     setTaskName(null);
     setTaskRetryId(null);
+    setTabParam(null);
   });
 
   // Clear stale URL params if referenced group/task no longer exists
@@ -253,12 +304,14 @@ export function useNavigationState({ groups }: UseNavigationStateOptions): UseNa
     selectedGroupName: groupName,
     selectedTaskName: taskName,
     selectedTaskRetryId: taskRetryId,
+    selectedTab,
     selectedGroup,
     selectedTask,
     navigateToGroup,
     navigateToTask,
     navigateToWorkflow,
     navigateBackToGroup,
+    setSelectedTab,
     clearNavigation,
   };
 }

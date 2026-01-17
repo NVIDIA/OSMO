@@ -27,7 +27,7 @@
 
 "use client";
 
-import { useMemo, useCallback, memo, useState, useEffect, useRef } from "react";
+import { useMemo, useCallback, memo, useEffect, useRef } from "react";
 import {
   FileText,
   Terminal,
@@ -49,6 +49,7 @@ import { useCopy, useTick } from "@/hooks";
 import { ShellConnectPrompt } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
+import type { TaskTab } from "../../../hooks/use-navigation-state";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
 import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
@@ -56,12 +57,6 @@ import { DependencyPills } from "../shared/DependencyPills";
 import { useShellPortal, useShellContext } from "../../shell";
 import { useShellSession, StatusDot } from "@/components/shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-type TaskTab = "overview" | "shell" | "logs" | "events";
 
 // ============================================================================
 // Copy Button Component
@@ -376,6 +371,10 @@ interface TaskDetailsInternalProps extends TaskDetailsProps {
   onToggleDetailsExpanded: () => void;
   /** Called when shell tab becomes active/inactive. Passes taskName when active, null when inactive. */
   onShellTabChange?: (taskName: string | null) => void;
+  /** Currently selected tab (URL-synced) */
+  selectedTab?: TaskTab;
+  /** Callback to change the selected tab */
+  setSelectedTab?: (tab: TaskTab) => void;
 }
 
 export const TaskDetails = memo(function TaskDetails({
@@ -392,22 +391,35 @@ export const TaskDetails = memo(function TaskDetails({
   isDetailsExpanded,
   onToggleDetailsExpanded,
   onShellTabChange,
+  selectedTab: selectedTabProp,
+  setSelectedTab: setSelectedTabProp,
 }: TaskDetailsInternalProps) {
   const category = getStatusCategory(task.status);
   const style = getStatusStyle(task.status);
   const isRunning = category === "running";
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<TaskTab>("overview");
+  // Shell is only available for running tasks with a workflow name
+  const isShellAvailable = isRunning && !!workflowName;
+
+  // Tab state - use URL-synced state if provided, otherwise default to "overview"
+  // Fallback to overview if shell tab is selected but shell is not available
+  const activeTab = selectedTabProp === "shell" && !isShellAvailable ? "overview" : (selectedTabProp ?? "overview");
+
+  // Update URL when shell becomes unavailable while on shell tab
+  useEffect(() => {
+    if (selectedTabProp === "shell" && !isShellAvailable) {
+      setSelectedTabProp?.("overview");
+    }
+  }, [selectedTabProp, isShellAvailable, setSelectedTabProp]);
 
   // Notify parent when shell tab becomes active/inactive
   useEffect(() => {
-    if (activeTab === "shell" && isRunning && workflowName) {
+    if (activeTab === "shell" && isShellAvailable) {
       onShellTabChange?.(task.name);
     } else {
       onShellTabChange?.(null);
     }
-  }, [activeTab, isRunning, workflowName, task.name, onShellTabChange]);
+  }, [activeTab, isShellAvailable, task.name, onShellTabChange]);
 
   // Clean up when component unmounts (navigating away)
   useEffect(() => {
@@ -569,19 +581,19 @@ export const TaskDetails = memo(function TaskDetails({
     return segments;
   }, [onBackToWorkflow, onBackToGroup, isFromGroup, group.name]);
 
-  // Handle tab change
+  // Handle tab change - update URL state
   const handleTabChange = useCallback(
     (value: string) => {
-      setActiveTab(value as TaskTab);
+      setSelectedTabProp?.(value as TaskTab);
     },
-    [setActiveTab],
+    [setSelectedTabProp],
   );
 
   // Build tabs array dynamically based on whether shell is available
   const availableTabs: PanelTab[] = useMemo(() => {
     const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
 
-    if (isRunning && workflowName) {
+    if (isShellAvailable) {
       // Shell status: idle shows no indicator, other statuses show StatusDot
       const statusContent =
         shellSession && shellSession.status !== "idle" ? <StatusDot status={shellSession.status} /> : undefined;
@@ -591,7 +603,7 @@ export const TaskDetails = memo(function TaskDetails({
     tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: Calendar });
 
     return tabs;
-  }, [isRunning, workflowName, shellSession]);
+  }, [isShellAvailable, shellSession]);
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
@@ -629,7 +641,7 @@ export const TaskDetails = memo(function TaskDetails({
         </div>
 
         {/* Shell tab - shows connect prompt OR ShellContainer renders via portal */}
-        {isRunning && workflowName && (
+        {isShellAvailable && (
           <div
             ref={shellTabRef}
             className={cn("absolute inset-0", activeTab !== "shell" && "invisible")}
