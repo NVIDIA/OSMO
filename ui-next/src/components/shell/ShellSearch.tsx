@@ -93,6 +93,14 @@ export const ShellSearch = memo(function ShellSearch({
   // Handle keyboard shortcuts
   // useEventCallback: stable ref, always accesses latest props
   const handleKeyDown = useEventCallback((e: React.KeyboardEvent) => {
+    // Prevent Ctrl/Cmd+F from triggering browser find when search is already open
+    if (e.key === "f" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      inputRef.current?.select();
+      return;
+    }
+
     if (e.key === "Enter") {
       e.preventDefault();
       if (e.shiftKey) {

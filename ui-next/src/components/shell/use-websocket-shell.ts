@@ -52,11 +52,19 @@ import {
   getSessionStatus,
   updateSessionWebSocket,
   updateSessionStatus,
-  updateSessionCallbacks,
   sendData,
   sendResize,
-  type SessionCallbacks,
 } from "./shell-session-cache";
+
+// =============================================================================
+// Shared Encoder (Module Scope)
+// =============================================================================
+
+/**
+ * Shared TextEncoder instance for encoding string data.
+ * TextEncoder is stateless, so a single instance can be safely reused.
+ */
+const sharedEncoder = new TextEncoder();
 
 // =============================================================================
 // Types
@@ -117,7 +125,6 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
 
   // Local WebSocket ref for non-persisted connections
   const localWsRef = useRef<WebSocket | null>(null);
-  const encoderRef = useRef(new TextEncoder());
 
   // Track if we're using cached connection
   const usingCachedConnectionRef = useRef(false);
@@ -158,7 +165,7 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
           const data = new Uint8Array(event.data);
           onData?.(data);
         } else if (typeof event.data === "string") {
-          const data = encoderRef.current.encode(event.data);
+          const data = sharedEncoder.encode(event.data);
           onData?.(data);
         }
       };
@@ -186,20 +193,8 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
         updateStatus("error", err.message);
         onError?.(err);
       };
-
-      // Store callbacks in session cache for future reattachment
-      if (sessionKey) {
-        const callbacks: SessionCallbacks = {
-          onData,
-          onConnected,
-          onDisconnected,
-          onError,
-          onSessionEnded,
-        };
-        updateSessionCallbacks(sessionKey, callbacks);
-      }
     },
-    [sessionKey, onData, onConnected, onDisconnected, onError, onSessionEnded, updateStatus],
+    [sessionKey, onData, onDisconnected, onError, onSessionEnded, updateStatus],
   );
 
   // Connect to shell
@@ -304,7 +299,7 @@ export function useWebSocketShell(options: UseWebSocketShellOptions): UseWebSock
       }
 
       if (typeof data === "string") {
-        ws.send(encoderRef.current.encode(data));
+        ws.send(sharedEncoder.encode(data));
       } else {
         ws.send(data);
       }
