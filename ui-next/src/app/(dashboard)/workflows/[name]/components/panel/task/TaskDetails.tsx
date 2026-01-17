@@ -46,6 +46,7 @@ import { Button } from "@/components/shadcn/button";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { PanelTabs, type PanelTab } from "@/components/panel-tabs";
 import { useCopy, useTick } from "@/hooks";
+import { ShellConnectPrompt } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
@@ -98,7 +99,7 @@ interface LogsTabProps {
 
 const LogsTab = memo(function LogsTab({ task }: LogsTabProps) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+    <div className="flex flex-col items-center gap-4 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
         <FileText className="size-6 text-gray-400 dark:text-zinc-500" />
       </div>
@@ -154,7 +155,7 @@ interface EventsTabProps {
 
 const EventsTab = memo(function EventsTab({ task }: EventsTabProps) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+    <div className="flex flex-col items-center gap-4 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
         <Calendar className="size-6 text-gray-400 dark:text-zinc-500" />
       </div>
@@ -414,8 +415,22 @@ export const TaskDetails = memo(function TaskDetails({
     };
   }, [onShellTabChange]);
 
-  // Get shell session from store for status indicator
+  // Get shell session and openSession action from store
   const shellSession = useShellStore((s) => s.getSession(task.name));
+  const openSession = useShellStore((s) => s.openSession);
+
+  // Handle clicking Connect in the shell tab (with shell selection)
+  const handleConnectShell = useCallback(
+    (shell: string) => {
+      if (workflowName) {
+        openSession(workflowName, task.name, shell);
+      }
+    },
+    [workflowName, task.name, openSession],
+  );
+
+  // Check if we should show the connect overlay vs the actual shell
+  const hasShellSession = !!shellSession;
 
   // Compute shell status indicator for tab based on store state
   const shellStatusIndicator = useMemo((): "green" | "red" | undefined => {
@@ -610,26 +625,32 @@ export const TaskDetails = memo(function TaskDetails({
           </div>
         </div>
 
-        {/* Shell tab - placeholder container, actual shell rendered by ShellContainer */}
+        {/* Shell tab - shows connect prompt OR ShellContainer renders the active shell */}
         {isRunning && workflowName && (
           <div
-            className={cn("absolute inset-0", activeTab !== "shell" && "pointer-events-none invisible")}
+            className={cn("absolute inset-0 overflow-y-auto", activeTab !== "shell" && "invisible")}
             aria-label={`Shell for ${task.name}`}
           >
-            {/* ShellContainer renders the actual shell and overlays this area */}
+            {/* Show connect prompt when no session exists */}
+            {!hasShellSession && (
+              <div className="flex h-full items-center justify-center p-4">
+                <ShellConnectPrompt onConnect={handleConnectShell} />
+              </div>
+            )}
+            {/* When session exists, ShellContainer (rendered at DetailsPanel level) overlays this area */}
           </div>
         )}
 
         {/* Logs tab */}
         <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "logs" && "invisible")}>
-          <div className="p-4">
+          <div className="flex h-full items-center justify-center p-4">
             <LogsTab task={task} />
           </div>
         </div>
 
         {/* Events tab */}
         <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "events" && "invisible")}>
-          <div className="p-4">
+          <div className="flex h-full items-center justify-center p-4">
             <EventsTab task={task} />
           </div>
         </div>
