@@ -44,7 +44,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Card, CardContent } from "@/components/shadcn/card";
-import { PanelTabs, type PanelTab } from "@/components/panel-tabs";
+import { PanelTabs, type PanelTab, type TabStatusIndicator } from "@/components/panel-tabs";
 import { useCopy, useTick } from "@/hooks";
 import { ShellConnectPrompt } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
@@ -451,20 +451,23 @@ export const TaskDetails = memo(function TaskDetails({
   }, [activeTab, hasShellSession, setPortalTarget]);
 
   // Compute shell status indicator for tab based on store state
-  const shellStatusIndicator = useMemo((): "green" | "red" | undefined => {
+  const shellStatusIndicator = useMemo((): TabStatusIndicator | undefined => {
     if (!shellSession) {
       return undefined;
     }
     const { status } = shellSession;
-    // Connected - green
+    // Active connection
     if (status === "connected" || status === "connecting") {
-      return "green";
+      return "connected";
     }
-    // Disconnected or error - red
-    if (status === "disconnected" || status === "error") {
-      return "red";
+    // Disconnected (can reconnect, history preserved)
+    if (status === "disconnected" || status === "idle") {
+      return "disconnected";
     }
-    // Idle - no indicator
+    // Error state
+    if (status === "error") {
+      return "error";
+    }
     return undefined;
   }, [shellSession]);
 

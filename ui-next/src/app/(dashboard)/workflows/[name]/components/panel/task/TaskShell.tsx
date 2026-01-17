@@ -38,7 +38,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { ShellTerminal, type ShellTerminalRef, type ConnectionStatusType } from "@/components/shell";
+import {
+  ShellTerminal,
+  type ShellTerminalRef,
+  type ConnectionStatusType,
+  hasSession,
+  getSessionStatus,
+  getSessionError,
+} from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -263,9 +270,24 @@ export const TaskShell = memo(function TaskShell({
   // Ref to control ShellTerminal imperatively
   const shellRef = useRef<ShellTerminalRef>(null);
 
-  // Track connection status (starts as "connecting" since we auto-connect on mount)
-  const [status, setStatus] = useState<ConnectionStatusType>("connecting");
-  const [lastError, setLastError] = useState<string | null>(null);
+  // Check if this is a fresh session or returning to an existing one
+  const sessionExists = hasSession(taskName);
+  const cachedStatus = getSessionStatus(taskName);
+  const cachedError = getSessionError(taskName);
+
+  // Track connection status - restore from cache if session exists
+  // This preserves the exact state when switching tabs (connected, disconnected, error)
+  const [status, setStatus] = useState<ConnectionStatusType>(() => {
+    if (sessionExists && cachedStatus) {
+      return cachedStatus;
+    }
+    // No session yet - will auto-connect
+    return "connecting";
+  });
+
+  // Restore error from cache if session exists
+  const [lastError, setLastError] = useState<string | null>(() => (sessionExists ? (cachedError ?? null) : null));
+
   // Track if session ended cleanly (user typed exit or Ctrl+D)
   // Used to suppress disconnected bar when session ends intentionally
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -314,13 +336,12 @@ export const TaskShell = memo(function TaskShell({
 
   return (
     <div className={cn("relative flex h-full min-h-[300px] flex-col", className)}>
-      {/* Terminal - auto-connects when mounted, preserves history across reconnects */}
+      {/* Terminal - starts session if none exists, restores state if one does */}
       <ShellTerminal
         ref={shellRef}
         workflowName={workflowName}
         taskName={taskName}
         shell={shell}
-        autoConnect={true}
         onStatusChange={handleStatusChange}
         onConnected={handleConnected}
         onError={handleError}
