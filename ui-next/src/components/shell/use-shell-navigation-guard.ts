@@ -23,7 +23,6 @@
 
 import { useEffect } from "react";
 import { useShellSessions } from "./use-shell-sessions";
-import { disposeAllSessions } from "./shell-session-cache";
 
 /**
  * Hook that warns users before navigating away when shell sessions are active.
@@ -53,36 +52,4 @@ export function useShellNavigationGuard() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasActiveSessions, activeSessionCount]);
-}
-
-/**
- * Hook to get a navigation function that warns about active shells.
- *
- * Use this instead of direct navigation when you need to warn users
- * about active sessions before navigating within the app.
- *
- * Usage:
- * ```tsx
- * const { navigateWithWarning } = useNavigateWithShellWarning();
- *
- * // Instead of router.push('/other-page')
- * navigateWithWarning('/other-page');
- * ```
- */
-export function useNavigateWithShellWarning() {
-  const { hasActiveSessions, activeSessionCount } = useShellSessions();
-
-  const navigateWithWarning = (href: string, navigate: () => void) => {
-    if (hasActiveSessions) {
-      const confirmed = window.confirm(
-        `You have ${activeSessionCount} active shell session(s). ` + `Navigating away will disconnect them. Continue?`,
-      );
-      if (!confirmed) return false;
-      disposeAllSessions();
-    }
-    navigate();
-    return true;
-  };
-
-  return { navigateWithWarning, hasActiveSessions, activeSessionCount };
 }
