@@ -202,7 +202,13 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
 
   // Write data to shell
   const write = useCallback((data: string | Uint8Array) => {
-    terminalRef.current?.write(data);
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+    terminal.write(data, () => {
+      // After write completes, scroll to bottom to ensure visibility
+      // This fixes clipping when receiving rapid output
+      terminal.scrollToBottom();
+    });
   }, []);
 
   // Clear shell screen

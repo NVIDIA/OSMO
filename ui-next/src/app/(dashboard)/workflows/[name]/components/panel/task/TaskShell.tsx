@@ -219,7 +219,7 @@ interface DisconnectedBarProps {
 
 const DisconnectedBar = memo(function DisconnectedBar({ error, onReconnect }: DisconnectedBarProps) {
   return (
-    <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 border-b border-amber-600/30 bg-amber-950/90 px-3 py-2 backdrop-blur-sm">
+    <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t border-amber-600/30 bg-amber-950/90 px-3 py-2 backdrop-blur-sm">
       <div className="flex items-center gap-2">
         {error ? (
           <>
@@ -266,24 +266,35 @@ export const TaskShell = memo(function TaskShell({
   // Track connection status (starts as "connecting" since we auto-connect on mount)
   const [status, setStatus] = useState<ConnectionStatusType>("connecting");
   const [lastError, setLastError] = useState<string | null>(null);
+  // Track if session ended cleanly (user typed exit or Ctrl+D)
+  // Used to suppress disconnected bar when session ends intentionally
+  const [sessionEnded, setSessionEnded] = useState(false);
 
-  // Determine UI state
-  const showDisconnectedBar = status === "disconnected" || status === "error";
+  // Determine UI state - don't show disconnected bar if session ended cleanly
+  const showDisconnectedBar = (status === "disconnected" || status === "error") && !sessionEnded;
   const isConnecting = status === "connecting";
 
   // Handle reconnect button click
   const handleReconnect = useCallback(() => {
     setLastError(null);
+    setSessionEnded(false);
     shellRef.current?.connect();
   }, []);
+
+  // Handle session ended - mark as ended to suppress disconnected bar
+  const handleSessionEnded = useCallback(() => {
+    setSessionEnded(true);
+    onSessionEnded?.();
+  }, [onSessionEnded]);
 
   // Handle status changes from ShellTerminal
   const handleStatusChange = useCallback(
     (newStatus: ConnectionStatusType) => {
       setStatus(newStatus);
-      // Clear error when successfully connected
-      if (newStatus === "connected") {
+      // Clear error and reset session ended flag when connecting/connected
+      if (newStatus === "connecting" || newStatus === "connected") {
         setLastError(null);
+        setSessionEnded(false);
       }
       // Forward to parent
       onStatusChangeProp?.(newStatus);
@@ -313,7 +324,7 @@ export const TaskShell = memo(function TaskShell({
         onStatusChange={handleStatusChange}
         onConnected={handleConnected}
         onError={handleError}
-        onSessionEnded={onSessionEnded}
+        onSessionEnded={handleSessionEnded}
         className={cn("flex-1 transition-opacity duration-200", isConnecting && "opacity-70")}
       />
 
@@ -327,7 +338,7 @@ export const TaskShell = memo(function TaskShell({
 
       {/* Connecting indicator */}
       {isConnecting && (
-        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 border-b border-blue-600/30 bg-blue-950/90 px-3 py-2 backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-2 border-t border-blue-600/30 bg-blue-950/90 px-3 py-2 backdrop-blur-sm">
           <div className="size-2 animate-pulse rounded-full bg-blue-400" />
           <span className="text-xs font-medium text-blue-200">Connecting...</span>
         </div>
