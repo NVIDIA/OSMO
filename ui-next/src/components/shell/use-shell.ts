@@ -246,14 +246,23 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     sessionKeyRef.current = sessionKey;
   }, [sessionKey]);
 
-  // Debounced resize handler
+  // Debounced resize handler with dimension guard to prevent buffer corruption.
+  // When panel collapses or shell moves to hidden container, fitting to small
+  // dimensions corrupts the terminal buffer. We check BEFORE fitting.
   const debouncedFit = useDebounceCallback(() => {
     if (fitAddonRef.current && terminalRef.current) {
       try {
+        // Check what dimensions we WOULD get before actually fitting.
+        // This prevents corruption during panel transitions where container
+        // passes through intermediate sizes (e.g., 800px → 400px → 0px).
+        const proposed = fitAddonRef.current.proposeDimensions();
+        if (!proposed || proposed.cols < SHELL_CONFIG.MIN_COLS || proposed.rows < SHELL_CONFIG.MIN_ROWS) {
+          return; // Skip fit - dimensions too small
+        }
+
         fitAddonRef.current.fit();
-        const dimensions = fitAddonRef.current.proposeDimensions();
-        if (dimensions && onResize) {
-          onResize(dimensions.cols, dimensions.rows);
+        if (onResize) {
+          onResize(proposed.cols, proposed.rows);
         }
       } catch {
         // Fit may fail if shell is not visible
