@@ -115,6 +115,13 @@ export interface ShellSession {
 
   /** WebSocket connection state */
   connection: SessionConnection;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Reconnect Handler
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Function to trigger reconnection (registered by useWebSocketShell) */
+  reconnect?: () => void;
 }
 
 // =============================================================================
@@ -301,6 +308,40 @@ export function updateSessionDataDisposable(key: string, disposable: IDisposable
 // =============================================================================
 
 /**
+ * Custom WebSocket close code for user-initiated disconnect.
+ * Used to distinguish from session ended (code 1000) in onclose handler.
+ */
+export const WS_CLOSE_USER_DISCONNECT = 4000;
+
+/**
+ * Disconnect a session's WebSocket but keep it in the cache.
+ * The terminal and session remain available for reconnection.
+ * Use this when the user wants to stop the connection but keep the session visible.
+ *
+ * Uses custom close code 4000 so the onclose handler knows not to remove the session.
+ */
+export function disconnectSession(key: string): void {
+  const session = sessionCache.get(key);
+  if (!session) return;
+
+  // Close WebSocket if open - use custom code to indicate user disconnect
+  if (session.connection.webSocket) {
+    try {
+      session.connection.webSocket.close(WS_CLOSE_USER_DISCONNECT, "user-disconnect");
+    } catch {
+      // WebSocket may already be closed
+    }
+    session.connection.webSocket = null;
+  }
+
+  // Update status to disconnected
+  session.connection.status = "disconnected";
+  session.connection.error = null;
+
+  notifySubscribers();
+}
+
+/**
  * Dispose a session and remove it from the cache.
  * Cleans up terminal, WebSocket, and all resources.
  */
@@ -425,4 +466,44 @@ export function sendResize(key: string, rows: number, cols: number): boolean {
   const msg = JSON.stringify({ Rows: rows, Cols: cols });
   ws.send(msg);
   return true;
+}
+
+// =============================================================================
+// Reconnect Handler
+// =============================================================================
+
+/**
+ * Register a reconnect handler for a session.
+ * Called by useWebSocketShell when it mounts.
+ */
+export function registerReconnectHandler(key: string, handler: () => void): void {
+  const session = sessionCache.get(key);
+  if (session) {
+    session.reconnect = handler;
+  }
+}
+
+/**
+ * Unregister the reconnect handler for a session.
+ * Called by useWebSocketShell when it unmounts.
+ */
+export function unregisterReconnectHandler(key: string): void {
+  const session = sessionCache.get(key);
+  if (session) {
+    session.reconnect = undefined;
+  }
+}
+
+/**
+ * Trigger reconnection for a session.
+ * Calls the registered reconnect handler directly.
+ * Returns true if handler was called, false if no handler registered.
+ */
+export function reconnectSession(key: string): boolean {
+  const session = sessionCache.get(key);
+  if (session?.reconnect) {
+    session.reconnect();
+    return true;
+  }
+  return false;
 }

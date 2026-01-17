@@ -54,7 +54,7 @@ export const ShellContainer = memo(function ShellContainer({
   isShellTabActive,
 }: ShellContainerProps) {
   // Get active shells from context (what to render)
-  const { activeShells, disconnectShell } = useShellContext();
+  const { activeShells } = useShellContext();
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
@@ -63,14 +63,6 @@ export const ShellContainer = memo(function ShellContainer({
   const handleStatusChange = useCallback((taskId: string, status: ConnectionStatusType) => {
     updateSessionStatus(taskId, status);
   }, []);
-
-  // Handle session ended - disconnect via context (removes from activeShells + disposes session)
-  const handleSessionEnded = useCallback(
-    (taskId: string) => {
-      disconnectShell(taskId);
-    },
-    [disconnectShell],
-  );
 
   // Don't render if no active shells
   if (activeShells.length === 0) {
@@ -99,7 +91,6 @@ export const ShellContainer = memo(function ShellContainer({
               shell={visibleShell.shell}
               isVisible
               onStatusChange={(status) => handleStatusChange(visibleShell.taskId, status)}
-              onSessionEnded={() => handleSessionEnded(visibleShell.taskId)}
             />
           </div>,
           portalTarget,
@@ -116,7 +107,6 @@ export const ShellContainer = memo(function ShellContainer({
               taskName={shell.taskName}
               shell={shell.shell}
               onStatusChange={(status) => handleStatusChange(shell.taskId, status)}
-              onSessionEnded={() => handleSessionEnded(shell.taskId)}
             />
           ))}
         </div>

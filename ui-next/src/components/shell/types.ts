@@ -46,8 +46,6 @@ export interface ShellTerminalProps {
   onDisconnected?: () => void;
   /** Called when an error occurs */
   onError?: (error: Error) => void;
-  /** Called when user exits the shell (types exit or Ctrl+D) */
-  onSessionEnded?: () => void;
   /** Called when connection status changes */
   onStatusChange?: (status: ConnectionStatus) => void;
   /** Additional className for the container */

@@ -111,7 +111,6 @@ export const ShellTerminal = memo(
       onConnected,
       onDisconnected,
       onError,
-      onSessionEnded,
       onStatusChange,
       className,
     },
@@ -220,11 +219,6 @@ export const ShellTerminal = memo(
         }
         announce(`Shell error: ${err.message}`, "assertive");
         onError?.(err);
-      },
-      onSessionEnded: () => {
-        announce("Shell session ended", "polite");
-        // Let parent handle session state (marks as disconnected, keeps terminal in cache)
-        onSessionEnded?.();
       },
     });
 

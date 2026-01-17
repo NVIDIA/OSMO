@@ -72,8 +72,6 @@ export interface TaskShellProps {
   shell?: string;
   /** Called when connection status changes */
   onStatusChange?: (status: ConnectionStatusType) => void;
-  /** Called when shell session ends (user types exit or Ctrl+D) */
-  onSessionEnded?: () => void;
   /** Whether this shell is currently visible (triggers focus when becoming visible) */
   isVisible?: boolean;
   /** Additional className for the container */
@@ -270,7 +268,6 @@ export const TaskShell = memo(function TaskShell({
   taskName,
   shell,
   onStatusChange: onStatusChangeProp,
-  onSessionEnded,
   isVisible = false,
   className,
 }: TaskShellProps) {
@@ -298,10 +295,6 @@ export const TaskShell = memo(function TaskShell({
   // Restore error from cache if session exists
   const [lastError, setLastError] = useState<string | null>(() => (sessionExists ? (cachedError ?? null) : null));
 
-  // Track if session ended cleanly (user typed exit or Ctrl+D)
-  // Used to suppress disconnected bar when session ends intentionally
-  const [sessionEnded, setSessionEnded] = useState(false);
-
   // Reset state when session changes (different workflow/task selected)
   // useState initializer only runs on first mount, so we need this effect
   useEffect(() => {
@@ -317,37 +310,28 @@ export const TaskShell = memo(function TaskShell({
         setStatus("connecting");
         setLastError(null);
       }
-      setSessionEnded(false);
     });
   }, [sessionKey]);
 
-  // Determine UI state - don't show disconnected bar if session ended cleanly
-  const showDisconnectedBar = (status === "disconnected" || status === "error") && !sessionEnded;
+  // Determine UI state - always show disconnected bar when disconnected/error
+  // User must explicitly click "Remove" in context menu to remove session
+  const showDisconnectedBar = status === "disconnected" || status === "error";
   const isConnecting = status === "connecting";
 
   // Handle reconnect button click
   // useEventCallback: stable ref, no deps needed, avoids re-renders
   const handleReconnect = useEventCallback(() => {
     setLastError(null);
-    setSessionEnded(false);
     shellRef.current?.connect();
-  });
-
-  // Handle session ended - mark as ended to suppress disconnected bar
-  // useEventCallback: always has access to latest onSessionEnded
-  const handleSessionEnded = useEventCallback(() => {
-    setSessionEnded(true);
-    onSessionEnded?.();
   });
 
   // Handle status changes from ShellTerminal
   // useEventCallback: frequently called, stable reference avoids child re-renders
   const handleStatusChange = useEventCallback((newStatus: ConnectionStatusType) => {
     setStatus(newStatus);
-    // Clear error and reset session ended flag when connecting/connected
+    // Clear error when connecting/connected
     if (newStatus === "connecting" || newStatus === "connected") {
       setLastError(null);
-      setSessionEnded(false);
     }
     // Forward to parent
     onStatusChangeProp?.(newStatus);
@@ -385,7 +369,6 @@ export const TaskShell = memo(function TaskShell({
         onStatusChange={handleStatusChange}
         onConnected={handleConnected}
         onError={handleError}
-        onSessionEnded={handleSessionEnded}
         className={cn("flex-1 transition-opacity duration-200", isConnecting && "opacity-70")}
       />
 
