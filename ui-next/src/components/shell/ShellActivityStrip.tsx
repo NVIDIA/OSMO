@@ -15,23 +15,22 @@
 
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
-import { useShallow } from "zustand/react/shallow";
+import { memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/shadcn/tooltip";
-import { useShellStore } from "@/app/(dashboard)/workflows/[name]/stores";
 import { ShellSessionIcon } from "./ShellSessionIcon";
-import type { ShellSession } from "./types";
+import { useShellSessions } from "./use-shell-sessions";
+import type { ShellSessionSnapshot } from "./shell-session-cache";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface ShellActivityStripProps {
-  /** Currently viewed task name (to highlight active session) */
-  currentTaskName?: string;
+  /** Currently viewed task ID (to highlight active session) */
+  currentTaskId?: string;
   /** Called when a session is clicked */
-  onSelectSession?: (taskName: string) => void;
+  onSelectSession?: (taskId: string) => void;
   /** Additional className */
   className?: string;
 }
@@ -41,19 +40,15 @@ export interface ShellActivityStripProps {
 // =============================================================================
 
 export const ShellActivityStrip = memo(function ShellActivityStrip({
-  currentTaskName,
+  currentTaskId,
   onSelectSession,
   className,
 }: ShellActivityStripProps) {
-  // Use shallow comparison for the sessions object to avoid infinite loop
-  const sessionsMap = useShellStore(useShallow((s) => s.sessions));
-
-  // Derive list from map - memoized to avoid creating new array each render
-  const sessions = useMemo(() => Object.values(sessionsMap), [sessionsMap]);
+  const { sessions } = useShellSessions();
 
   const handleSessionClick = useCallback(
-    (session: ShellSession) => {
-      onSelectSession?.(session.taskName);
+    (session: ShellSessionSnapshot) => {
+      onSelectSession?.(session.taskId);
     },
     [onSelectSession],
   );
@@ -74,9 +69,9 @@ export const ShellActivityStrip = memo(function ShellActivityStrip({
         {/* Session icons */}
         {sessions.map((session) => (
           <ShellSessionIcon
-            key={session.taskName}
+            key={session.taskId}
             session={session}
-            isActive={session.taskName === currentTaskName}
+            isActive={session.taskId === currentTaskId}
             onClick={() => handleSessionClick(session)}
           />
         ))}

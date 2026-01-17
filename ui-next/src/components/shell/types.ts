@@ -32,6 +32,8 @@ export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnect
  * Shell session state tracked in the store.
  */
 export interface ShellSession {
+  /** Task UUID from backend - used as unique session key */
+  taskId: string;
   /** Task name this session is connected to */
   taskName: string;
   /** Shell executable (e.g., /bin/bash, /bin/sh) */
@@ -53,6 +55,7 @@ export interface ShellSession {
  * Minimal data needed for reconnection.
  */
 export interface PersistedSession {
+  taskId: string;
   taskName: string;
   shell: string;
   workflowName: string;
@@ -66,6 +69,8 @@ export interface PersistedSession {
  * Props for the ShellTerminal component.
  */
 export interface ShellTerminalProps {
+  /** Task UUID from backend - used as unique session key */
+  taskId: string;
   /** Workflow name for the exec API */
   workflowName: string;
   /** Task name to exec into */
