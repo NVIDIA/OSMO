@@ -21,21 +21,27 @@ import Link from "next/link";
 
 import { useAuth } from "~/components/AuthProvider";
 import { allDateRange, customDateRange } from "~/components/DateRangePicker";
-import { FilledIcon, OutlinedIcon } from "~/components/Icon";
+import { FilterButton } from "~/components/FilterButton";
+import { FilledIcon } from "~/components/Icon";
+import { IconButton } from "~/components/IconButton";
 import { PageError } from "~/components/PageError";
+import PageHeader from "~/components/PageHeader";
 import { SlideOut } from "~/components/SlideOut";
 import { Spinner } from "~/components/Spinner";
+import { StatusFilterType } from "~/components/StatusFilter";
 import { TASK_PINNED_KEY, UrlTypes } from "~/components/StoreProvider";
 import { Colors, Tag } from "~/components/Tag";
 import { UserFilterType } from "~/components/UserFilter";
 import useSafeTimeout from "~/hooks/useSafeTimeout";
-import { TaskStatusValues, type TaskStatusType } from "~/models";
+import { type TaskStatusType } from "~/models";
 import { type TaskListItem } from "~/models/tasks-model";
 import { api } from "~/trpc/react";
 import { formatForWrapping } from "~/utils/string";
 
+import { getTaskStatusArray } from "./components/StatusFilter";
 import { TasksFilters, type TasksFiltersDataProps } from "./components/TasksFilters";
 import { TasksTable } from "./components/TasksTable";
+import { getActionId } from "./components/TasksTable";
 import TaskDetails from "../workflows/components/TaskDetails";
 import { ToolsModal } from "../workflows/components/ToolsModal";
 import WorkflowDetails from "../workflows/components/WorkflowDetails";
@@ -45,15 +51,14 @@ import useToolParamUpdater, { type ToolType } from "../workflows/hooks/useToolPa
 export default function Tasks() {
   const { username } = useAuth();
   const defaultState = {
-    status: "PROCESSING,SCHEDULING,INITIALIZING,RUNNING",
-    allStatuses: "false",
+    statusFilterType: StatusFilterType.CURRENT,
     dateRange: allDateRange.toString(),
   };
   const {
     updateUrl,
     userFilter,
     poolFilter,
-    allStatuses,
+    statusFilterType,
     statusFilter,
     userType,
     isSelectAllPoolsChecked,
@@ -74,9 +79,7 @@ export default function Tasks() {
     nodes,
     isSelectAllNodesChecked,
   } = useToolParamUpdater(UrlTypes.Tasks, username, defaultState);
-
-  const headerRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const focusReturnIdRef = useRef<string | undefined>(undefined);
   const lastFetchTimeRef = useRef<number>(Date.now());
   const [taskPinned, setTaskPinned] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType | undefined>(tool);
@@ -87,7 +90,7 @@ export default function Tasks() {
     data: selectedWorkflow,
     error: selectedWorkflowError,
     isLoading: isLoadingWorkflow,
-  } = useWorkflow(selectedWorkflowName, true, false);
+  } = useWorkflow(selectedTaskName ? selectedWorkflowName : undefined, true, false);
 
   const {
     data: tasks,
@@ -102,7 +105,10 @@ export default function Tasks() {
       users: userType === UserFilterType.CUSTOM ? (userFilter?.split(",") ?? []) : [],
       all_pools: isSelectAllPoolsChecked,
       pools: isSelectAllPoolsChecked ? [] : poolFilter ? poolFilter.split(",") : [],
-      statuses: allStatuses ? undefined : (statusFilter?.split(",") as TaskStatusType[]),
+      statuses:
+        statusFilterType === StatusFilterType.CUSTOM
+          ? (statusFilter?.split(",") as TaskStatusType[])
+          : getTaskStatusArray(statusFilterType),
       priority: priority,
       started_after: dateRangeDates?.fromDate?.toISOString(),
       started_before: dateRangeDates?.toDate?.toISOString(),
@@ -120,6 +126,12 @@ export default function Tasks() {
       ?.find((g) => g.tasks.some((t) => t.name === selectedTaskName && t.retry_id === retryId))
       ?.tasks.find((t) => t.name === selectedTaskName && t.retry_id === retryId);
   }, [selectedWorkflow, selectedTaskName, retryId]);
+
+  useEffect(() => {
+    if (selectedTaskName && selectedWorkflowName && retryId !== undefined) {
+      focusReturnIdRef.current = getActionId(!!showWF, selectedWorkflowName, selectedTaskName, retryId);
+    }
+  }, [selectedTaskName, selectedWorkflowName, retryId, showWF]);
 
   // Initialize localStorage values after component mounts
   useEffect(() => {
@@ -142,29 +154,24 @@ export default function Tasks() {
 
   const validateFilters = useCallback(
     ({
-      selectedUsers,
-      userType,
       isSelectAllPoolsChecked,
       selectedPools,
       dateRange,
       startedAfter,
       startedBefore,
-      allStatuses,
+      statusFilterType,
       statuses,
       nodes,
       isSelectAllNodesChecked,
     }: TasksFiltersDataProps): string[] => {
       const errors: string[] = [];
-      if (selectedUsers.length === 0 && userType !== UserFilterType.ALL) {
-        errors.push("Please select at least one user");
-      }
       if (!isSelectAllPoolsChecked && selectedPools.length === 0) {
         errors.push("Please select at least one pool");
       }
       if (dateRange === customDateRange && (startedAfter === undefined || startedBefore === undefined)) {
         errors.push("Please select a date range");
       }
-      if (!allStatuses && statuses.length === 0) {
+      if (statusFilterType === StatusFilterType.CUSTOM && !statuses?.length) {
         errors.push("Please select at least one status");
       }
       if (!isSelectAllNodesChecked && nodes.length === 0) {
@@ -188,7 +195,7 @@ export default function Tasks() {
         workflowId: nameFilter ?? "",
         nodes: nodes ?? "",
         isSelectAllNodesChecked: isSelectAllNodesChecked ?? true,
-        allStatuses: allStatuses ?? true,
+        statusFilterType,
         statuses: statusFilter ?? "",
       }).length > 0
     ) {
@@ -208,7 +215,7 @@ export default function Tasks() {
     nodes,
     isSelectAllNodesChecked,
     updateUrl,
-    allStatuses,
+    statusFilterType,
     statusFilter,
   ]);
   const { setSafeTimeout } = useSafeTimeout();
@@ -307,50 +314,42 @@ export default function Tasks() {
 
   return (
     <>
-      <div
-        className="page-header mb-3"
-        ref={headerRef}
-      >
-        <h1>Tasks</h1>
-        <div className="flex flex-row gap-3">
-          <button
-            className={`btn ${showTotalResources ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowTotalResources(!showTotalResources);
-            }}
-          >
-            <OutlinedIcon name="memory" />
-            Total Resources
-          </button>
-          <button
-            className={`btn ${showFilters ? "btn-primary" : ""}`}
-            onClick={() => {
-              setShowFilters(!showFilters);
-            }}
-          >
-            <FilledIcon name="filter_list" />
-            Filters {filterCount > 0 ? `(${filterCount})` : ""}
-          </button>
-        </div>
+      <PageHeader>
+        <IconButton
+          icon="memory"
+          text="Total Resources"
+          className={`btn ${showTotalResources ? "btn-primary" : ""}`}
+          onClick={() => {
+            setShowTotalResources(!showTotalResources);
+          }}
+          aria-expanded={showTotalResources}
+          aria-haspopup="dialog"
+          aria-controls="total-resources"
+        />
+        <FilterButton
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          filterCount={filterCount}
+          aria-controls="tasks-filters"
+        />
+      </PageHeader>
+      <div className={`${gridClass} h-full w-full overflow-x-auto relative`}>
         <SlideOut
           id="tasks-filters"
           open={showFilters}
           onClose={() => setShowFilters(false)}
           className="w-100 border-t-0"
-          containerRef={headerRef}
-          top={headerRef.current?.offsetHeight ?? 0}
-          dimBackground={false}
+          aria-label="Tasks Filter"
         >
           {/* By only adding it if showFilters is true, it will reset to url params if closed and reopened */}
           {showFilters && (
             <TasksFilters
-              statusValues={Object.values(TaskStatusValues)}
               selectedUsers={userFilter ?? ""}
               userType={userType}
               dateRange={dateRange}
               startedAfter={dateAfterFilter}
               startedBefore={dateBeforeFilter}
-              allStatuses={allStatuses ?? true}
+              statusFilterType={statusFilterType}
               statuses={statusFilter ?? ""}
               selectedPools={poolFilter}
               isSelectAllPoolsChecked={isSelectAllPoolsChecked}
@@ -362,7 +361,6 @@ export default function Tasks() {
               updateUrl={updateUrl}
               nodes={nodes ?? ""}
               isSelectAllNodesChecked={isSelectAllNodesChecked ?? true}
-              defaults={defaultState}
             />
           )}
         </SlideOut>
@@ -370,14 +368,14 @@ export default function Tasks() {
           id="total-resources"
           open={showTotalResources}
           onClose={() => setShowTotalResources(false)}
-          containerRef={headerRef}
-          top={headerRef.current?.offsetHeight ?? 0}
-          header={<h2>Total Resources</h2>}
-          dimBackground={false}
-          className="mr-26 border-t-0"
+          header="Total Resources"
+          className="lg:mr-20 border-t-0"
         >
-          <div className="h-full w-full p-3 dag-details-body">
-            <dl>
+          <div className="w-full p-global dag-details-body">
+            <dl
+              className="grid-cols-2"
+              aria-labelledby="total-resources-header"
+            >
               <dt>Storage</dt>
               <dd className="text-right">
                 {Intl.NumberFormat("en-US", { style: "decimal" }).format(totalResources.Storage)}
@@ -397,11 +395,6 @@ export default function Tasks() {
             </dl>
           </div>
         </SlideOut>
-      </div>
-      <div
-        ref={containerRef}
-        className={`${gridClass} h-full w-full overflow-x-auto relative px-3 gap-3`}
-      >
         <TasksTable
           processResources={processResources}
           isLoading={isLoading}
@@ -412,6 +405,7 @@ export default function Tasks() {
           showWF={showWF ?? false}
         />
         <SlideOut
+          animate={true}
           header={
             showWF ? (
               <Link
@@ -420,7 +414,6 @@ export default function Tasks() {
                 href={`/workflows/${selectedWorkflowName}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Open in new tab"
               >
                 <span className="font-semibold">Workflow Details</span>
                 <FilledIcon name="open_in_new" />
@@ -432,7 +425,14 @@ export default function Tasks() {
           id="tasks-details"
           open={!!selectedTaskName}
           paused={!!selectedTaskName && !selectedTask}
+          returnFocusOnDeactivate={false}
           onClose={() => {
+            setSafeTimeout(() => {
+              // focus-trap-react does not work well with useReactTable as the ref for button inside the table that triggered the slideout is not persistent
+              const el = focusReturnIdRef.current ? document.getElementById(focusReturnIdRef.current) : undefined;
+              el?.focus();
+            }, 500);
+
             if (showWF) {
               updateUrl({ showWF: false });
             } else {
@@ -448,14 +448,11 @@ export default function Tasks() {
           className="workflow-details-slideout border-t-0"
           headerClassName="brand-header"
           bodyClassName="dag-details-body"
-          containerRef={containerRef}
-          heightOffset={10}
         >
           {selectedWorkflowError ? (
             <PageError
               title="Error loading workflow"
               errorMessage={selectedWorkflowError.message}
-              subText={selectedWorkflowName}
               size="md"
             />
           ) : showWF && selectedWorkflow ? (
@@ -468,7 +465,6 @@ export default function Tasks() {
           ) : selectedTask ? (
             <TaskDetails
               task={selectedTask}
-              showTaskName={true}
               updateUrl={updateUrl}
               extraData={extraData}
             />
@@ -479,7 +475,7 @@ export default function Tasks() {
               size="md"
             />
           ) : (
-            <div className="h-full flex justify-center items-center">
+            <div className="h-full w-full flex justify-center items-center">
               <Spinner />
             </div>
           )}

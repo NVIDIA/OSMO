@@ -32,7 +32,7 @@ export const TaskListRequestSchema = z.object({
   users: z.array(z.string()).default([]),
   pools: z.array(z.string()).default([]),
   nodes: z.array(z.string()).default([]),
-  statuses: z.array(z.enum(TaskStatusValues)).default([]),
+  statuses: z.enum(TaskStatusValues).array().optional().default([]),
   priority: z.enum(PriorityValues).optional(),
   summary: z.boolean().default(false),
   aggregate_by_workflow: z.boolean().default(false),

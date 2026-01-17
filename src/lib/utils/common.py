@@ -87,10 +87,10 @@ DATASET_BUCKET_NAME_TAG_IN_WORKFLOW_REGEX =\
 
 # Regex rules for apps
 APP_NAME_REGEX = r'(?:[a-zA-Z0-9_-]+)'
-APP_VERSION_REGEX = r'(?:[a-zA-Z0-9_-]*)'
+APP_VERSION_REGEX_PART = r'(?:[a-zA-Z0-9_-]*)'
 APP_VERSION_REGEX = \
     fr'^(?P<name>{APP_NAME_REGEX})' +\
-    fr'(:(?P<version>{APP_VERSION_REGEX}))?$'
+    fr'(:(?P<version>{APP_VERSION_REGEX_PART}))?$'
 
 UUID_REGEX = r'[a-f0-9]{32}'
 GROUP_UUID_REGEX = r'osmo-[a-f0-9]{32}'
@@ -1016,8 +1016,7 @@ def list_directory_sorted(path: str) -> Generator[str, None, None]:
     for item in sorted(os.listdir(path)):
         item_path = os.path.join(path, item)
         if os.path.isdir(item_path):
-            for item_path in list_directory_sorted(item_path):
-                yield item_path
+            yield from list_directory_sorted(item_path)
         else:
             yield item_path
 

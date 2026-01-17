@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,6 @@ NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
 # Helm chart versions
 GPU_OPERATOR_VERSION="v25.10.0"
 KAI_SCHEDULER_VERSION="v0.8.1"
-OSMO_QUICKSTART_VERSION="1.0.0"
 
 # ============================================
 # Step 0: System Configuration
@@ -350,10 +349,10 @@ print_status "KAI Scheduler installed successfully"
 # ============================================
 print_status "Installing OSMO (this may take 5-10 minutes)..."
 
-cd ~/osmo-deployment
-helm fetch https://helm.ngc.nvidia.com/nvidia/osmo/charts/quick-start-${OSMO_QUICKSTART_VERSION}.tgz
+helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+helm repo update
 
-helm upgrade --install osmo quick-start-${OSMO_QUICKSTART_VERSION}.tgz \
+helm upgrade --install osmo osmo/quick-start \
   --namespace osmo \
   --create-namespace \
   --set web-ui.services.ui.hostname="" \

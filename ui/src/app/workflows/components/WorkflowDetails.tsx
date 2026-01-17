@@ -15,6 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 import Link from "next/link";
 
+import { FilledIcon } from "~/components/Icon";
 import StatusBadge from "~/components/StatusBadge";
 import { Colors, Tag } from "~/components/Tag";
 import type { WorkflowResponse } from "~/models";
@@ -32,21 +33,25 @@ interface WorkflowDetailsProps {
   updateUrl: (params: ToolParamUpdaterProps) => void;
 }
 
+export const linkToUserWorkflows = (username: string) => {
+  return `/workflows?allUsers=false&dateRange=-2&users=${encodeURIComponent(username)}`;
+};
+
 const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, updateUrl }: WorkflowDetailsProps) => {
   const runtimeEnv = useRuntimeEnv();
   const totalTasks = workflow.groups?.reduce((acc, group) => acc + group.tasks.length, 0);
 
   return (
-    <>
-      <div>
-        <div className="flex flex-col gap-1 body-header text-center py-3">
-          {includeName && <p className="px-3 font-semibold">{workflow.name}</p>}
-          <p className="px-1 text-xxs italic overflow-hidden text-ellipsis whitespace-nowrap">
+    <div className="h-full w-full flex flex-col">
+      <div className="w-full grow">
+        <div className="flex flex-col gap-1 body-header text-center py-global">
+          {includeName && <p className="px-global font-semibold">{workflow.name}</p>}
+          <p className="px-1 italic overflow-hidden text-ellipsis whitespace-nowrap">
             <strong>UUID:</strong> {workflow.uuid}
           </p>
         </div>
-        <div className="p-3 w-full flex flex-col">
-          <dl>
+        <div className="p-global w-full flex flex-col">
+          <dl aria-label={workflow.name}>
             <dt>Status</dt>
             <dd>
               {workflow.status && (
@@ -64,7 +69,18 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
             {workflow.submitted_by && (
               <>
                 <dt>Submitted by</dt>
-                <dd>{formatForWrapping(workflow.submitted_by)}</dd>
+                <dd>
+                  <Link
+                    href={linkToUserWorkflows(workflow.submitted_by)}
+                    className="no-underline p-0 flex items-center gap-1"
+                  >
+                    {formatForWrapping(workflow.submitted_by)}
+                    <FilledIcon
+                      name="open_in_new"
+                      className="my-[-1rem] text-base!"
+                    />
+                  </Link>
+                </dd>
               </>
             )}
             {workflow.cancelled_by && (
@@ -150,14 +166,32 @@ const WorkflowDetails = ({ workflow, includeName = false, includeTasks = false, 
               </>
             )}
           </dl>
+          {workflow.events &&
+            ["SCHEDULING", "WAITING", "PROCESSING", "INITIALIZING", "RUNNING", "PENDING"].includes(workflow.status) && (
+              <div>
+                <a
+                  className="btn btn-action font-bold justify-between"
+                  href={workflow.events}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Events <FilledIcon name="open_in_new" />
+                </a>
+                <iframe
+                  className="w-full border-1 border-border"
+                  src={workflow.events}
+                  title="Events"
+                />
+              </div>
+            )}
         </div>
       </div>
       <WorkflowActions
         workflow={workflow}
-        className="lg:sticky lg:bottom-0"
+        className="xl:sticky xl:bottom-0"
         updateUrl={updateUrl}
       />
-    </>
+    </div>
   );
 };
 

@@ -64,6 +64,12 @@ class DeleteParams:
 class DeleteSummary(common.OperationSummary):
     """
     Summary of a delete operation.
+
+    :ivar datetime.datetime start_time: The start time of the delete.
+    :ivar datetime.datetime end_time: The end time of the delete.
+    :ivar int retries: The number of retries that were made during the delete.
+    :ivar List[str] failures: A list of messages describing failed deletes.
+    :ivar int success_count: The number of objects that were successfully deleted.
     """
 
     success_count: int = pydantic.Field(

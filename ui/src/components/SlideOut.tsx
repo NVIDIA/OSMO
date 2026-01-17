@@ -13,17 +13,23 @@
 //limitations under the License.
 
 //SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FocusTrap } from "focus-trap-react";
+import { useMediaQuery } from "usehooks-ts";
 
 import { FilledIcon, OutlinedIcon } from "./Icon";
+
+export const useMinScreenWidth = (minWidth = 1024) => {
+  return useMediaQuery(`(min-width: ${minWidth}px)`);
+};
 
 export const SlideOut = ({
   id,
   top = 0,
   left,
   open,
+  canClose = true,
   onClose,
   header,
   children,
@@ -35,15 +41,17 @@ export const SlideOut = ({
   pinned = false,
   onPinChange,
   paused = false,
-  containerRef,
-  heightOffset = 0,
   dimBackground = true,
+  returnFocusOnDeactivate = true,
+  ariaLabel,
+  animate = false,
   ...props
 }: {
   id: string;
   top?: number;
   left?: number;
   open: boolean;
+  canClose?: boolean;
   onClose: () => void;
   header?: string | React.ReactNode;
   headerClassName?: string;
@@ -53,37 +61,77 @@ export const SlideOut = ({
   pinned?: boolean;
   onPinChange?: (pinned: boolean) => void;
   paused?: boolean;
-  containerRef?: React.RefObject<HTMLDivElement>;
-  heightOffset?: number;
   dimBackground?: boolean;
+  returnFocusOnDeactivate?: boolean;
+  ariaLabel?: string;
+  animate?: boolean;
 } & React.HTMLAttributes<HTMLDivElement>) => {
+  const allowPinning = useMinScreenWidth();
   const isActivated = useRef(false);
   const [active, setActive] = useState(false);
+  const localPinned = canPin ? pinned && allowPinning : pinned;
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // This fixes the issue where the slideout does not unpause when another slideout is opened
     // It also fixes the slideout deactivating unpinned (the else)
     if (!isActivated.current) {
-      setActive(open && !pinned && !paused);
+      setActive(open && !localPinned && !paused);
     } else {
       setActive(open);
     }
-  }, [open, pinned, paused]);
+  }, [open, localPinned, paused]);
+
+  // While closed (but still mounted for animation), make subtree unfocusable
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    if (!open && !localPinned) {
+      el.setAttribute("inert", "");
+    } else {
+      el.removeAttribute("inert");
+    }
+  }, [open, localPinned]);
+
+  const slideOutClass = useMemo(() => {
+    let result = "text-left flex flex-col ";
+
+    if (localPinned) {
+      result += open ? `relative ${className}` : "hidden";
+    } else {
+      result += `${animate ? "fixed" : "absolute"} z-30 body-component max-h-full ${position === "right" ? "right-0" : "left-0"} ${dimBackground ? "shadow-xl shadow-black/50" : ""} ${className} `;
+
+      if (!animate) {
+        if (!open) {
+          result += "hidden";
+        }
+      } else {
+        result += "transition-transform duration-300 ease-in-out ";
+
+        if (position === "right") {
+          result += open ? "-translate-x-0" : "translate-x-full";
+        } else {
+          result += open ? "translate-x-0" : "-translate-x-full";
+        }
+      }
+    }
+
+    return result;
+  }, [className, dimBackground, localPinned, open, position, animate]);
 
   return (
     <>
-      {open && !pinned && (
-        <div
-          className={`fixed top-0 left-0 w-full h-full z-20 ${dimBackground ? "bg-black/20" : "bg-transparent"}`}
-        ></div>
+      {open && !localPinned && (
+        <div className={`fixed top-0 left-0 w-full h-full z-20 ${dimBackground ? "bg-black/10" : ""}`}></div>
       )}
       <FocusTrap
         active={active}
-        paused={pinned || paused}
+        paused={localPinned || paused}
         focusTrapOptions={{
           allowOutsideClick: true,
           clickOutsideDeactivates: true,
           escapeDeactivates: true,
+          returnFocusOnDeactivate: returnFocusOnDeactivate,
           onDeactivate: () => {
             isActivated.current = false;
             console.info(id, "deactivated");
@@ -114,22 +162,25 @@ export const SlideOut = ({
         }}
       >
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={header ? `${id}-header` : undefined}
-          className={`text-left flex flex-col ${open ? "block" : "hidden"} ${pinned ? "relative" : "absolute z-30"} ${position === "right" ? "right-0" : "left-0"} body-component ${className}`}
+          ref={panelRef}
+          role={localPinned ? "region" : "dialog"}
+          aria-live={localPinned ? "polite" : undefined}
+          aria-modal={localPinned ? undefined : "true"}
+          aria-label={ariaLabel}
+          aria-labelledby={header && !ariaLabel ? `${id}-header` : undefined}
+          aria-hidden={!open}
+          className={slideOutClass}
           style={{
             top: top,
             left: left,
-            maxHeight: `calc(100vh - ${top + heightOffset + (containerRef?.current?.getBoundingClientRect()?.top ?? 0)}px)`,
           }}
           {...props}
         >
           {header && (
             <div className={`popup-header ${headerClassName}`}>
               {typeof header === "string" ? <h2 id={`${id}-header`}>{header}</h2> : header}
-              <div className="flex items-center gap-2">
-                {canPin && onPinChange && (
+              <div className="flex items-center gap-global">
+                {canPin && onPinChange && allowPinning && (
                   <button
                     className="btn btn-action"
                     onClick={() => {
@@ -140,15 +191,17 @@ export const SlideOut = ({
                     {pinned ? <FilledIcon name="push_pin" /> : <OutlinedIcon name="push_pin" />}
                   </button>
                 )}
-                <button
-                  className="btn btn-action"
-                  aria-label="Close"
-                  onClick={() => {
-                    onClose();
-                  }}
-                >
-                  <OutlinedIcon name="close" />
-                </button>
+                {canClose && (
+                  <button
+                    className="btn btn-action"
+                    aria-label="Close"
+                    onClick={() => {
+                      onClose();
+                    }}
+                  >
+                    <OutlinedIcon name="close" />
+                  </button>
+                )}
               </div>
             </div>
           )}

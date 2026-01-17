@@ -39,15 +39,21 @@ export function TablePagination<TData>({ table, totalRows, className }: TablePag
   }, [pageIndex, pageSize, table]);
 
   return (
-    <div className={`flex items-center justify-between px-3 py-2 ${className}`}>
+    <div className={`flex items-center justify-between px-global py-1 ${className}`}>
       <div className="flex items-center gap-1">
-        <label htmlFor="pageSize">Rows per page:</label>
+        <label
+          htmlFor="pageSize"
+          className="hidden xs:block"
+        >
+          Rows per page:
+        </label>
         <select
           id="pageSize"
           value={pageSize}
           onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
             updateUrl({ pageIndex, pageSize: parseInt(event.target.value) });
           }}
+          aria-label="Rows per page"
         >
           <option value="20">20</option>
           <option value="40">40</option>

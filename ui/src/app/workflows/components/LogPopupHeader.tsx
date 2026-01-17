@@ -24,7 +24,7 @@ interface LogPopupHeaderProps {
 
 const LogPopupHeader = ({ children, href }: LogPopupHeaderProps) => {
   return (
-    <div className="flex flex-row gap-3 items-center">
+    <div className="flex flex-row gap-global items-center">
       {children}
       {href && (
         <a

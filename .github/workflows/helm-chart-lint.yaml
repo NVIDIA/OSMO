@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [main]
+    branches: [ main, 'feature/**' ]
     paths:
       - 'deployments/charts/**'
       - '.github/workflows/helm-chart-lint.yaml'
@@ -96,6 +96,16 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: 'v3.14.0'
+
+      - name: Build Helm Dependencies
+        run: |
+          echo "Building dependencies for: ${{ matrix.chart }}"
+          helm dependency build deployments/charts/${{ matrix.chart }} || true
+          # Show what was fetched
+          if [ -d "deployments/charts/${{ matrix.chart }}/charts" ]; then
+            echo "Dependencies fetched:"
+            ls -la deployments/charts/${{ matrix.chart }}/charts/
+          fi
 
       - name: Helm Lint
         run: |

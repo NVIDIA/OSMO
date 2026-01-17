@@ -48,6 +48,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `services.ui.serviceName` | Name of the service | `osmo-ui` |
 | `services.ui.hostname` | Hostname for the service | `""` (empty, must be configured) |
 | `services.ui.apiHostname` | Hostname on which the API is served | `"osmo-service.osmo.svc.cluster.local:80"` |
+| `services.ui.portForwardEnabled` | Enable port-forwarding through Web UI | `false` |
 | `service.ui.nextjsSslEnabled` | SSL/TLS encryption for nextjs server to connect to the osmo API server | `false` |
 | `services.ui.nodeSelector` | Node selector constraints for UI pod scheduling | `{}` |
 | `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
@@ -55,6 +56,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `services.ui.resources` | Resource limits and requests for the UI container | `{}` |
 | `services.ui.docsBaseUrl` | Documentation base URL users will see from the UI | `"https://nvidia.github.io/OSMO/main/user_guide/"` |
 | `services.ui.cliInstallScriptUrl` | CLI Installation Script URL displayed in the UI | `"https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"` |
+| `services.ui.maxHttpHeaderSizeKb` | Maximum HTTP header size in KB for Node.js server (should match Envoy's limit to prevent 431 errors) | `128` |
 
 ### UI Scaling Settings
 

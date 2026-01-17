@@ -19,6 +19,7 @@ import { headers } from "next/headers";
 import Script from "next/script";
 
 import { AuthProvider } from "~/components/AuthProvider";
+import { Layout } from "~/components/Layout";
 import { StoreProvider } from "~/components/StoreProvider";
 import { env } from "~/env.mjs";
 import { RuntimeEnvProvider } from "~/runtime-env";
@@ -38,13 +39,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body>
-        <RuntimeEnvProvider value={{
-          DOCS_BASE_URL: env.DOCS_BASE_URL,
-          CLI_INSTALL_SCRIPT_URL: env.CLI_INSTALL_SCRIPT_URL,
-        }}>
+        <RuntimeEnvProvider
+          value={{
+            DOCS_BASE_URL: env.DOCS_BASE_URL,
+            CLI_INSTALL_SCRIPT_URL: env.CLI_INSTALL_SCRIPT_URL,
+            PORT_FORWARD_ENABLED: env.NEXT_PUBLIC_OSMO_PORT_FORWARD_ENABLED,
+          }}
+        >
           <TRPCReactProvider headers={headers()}>
             <AuthProvider>
-              <StoreProvider>{children}</StoreProvider>
+              <StoreProvider>
+                <Layout>{children}</Layout>
+              </StoreProvider>
             </AuthProvider>
           </TRPCReactProvider>
         </RuntimeEnvProvider>

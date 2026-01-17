@@ -119,6 +119,12 @@ class ListParams:
 class ListSummary(common.OperationSummary):
     """
     Summary of a list operation.
+
+    :ivar int count: The number of objects found.
+    :ivar datetime.datetime start_time: The start time of the list operation.
+    :ivar datetime.datetime end_time: The end time of the list operation.
+    :ivar int retries: The number of retries that were made during the list operation.
+    :ivar List[str] failures: A list of messages describing failed list operations.
     """
 
     count: int = pydantic.Field(

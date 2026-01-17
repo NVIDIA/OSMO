@@ -29,7 +29,6 @@ import Link from "next/link";
 import { Checkbox } from "~/components/Checkbox";
 import { commonFilterFns } from "~/components/commonFilterFns";
 import { TableBase } from "~/components/TableBase";
-import { TableLoader } from "~/components/TableLoader";
 import { TablePagination } from "~/components/TablePagination";
 import { DatasetTag } from "~/components/Tag";
 import { useTableSortLoader } from "~/hooks/useTableSortLoader";
@@ -183,6 +182,7 @@ const DatasetsTable: React.FC<{
     onColumnVisibilityChange: setColumnVisibility,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => `${row.bucket}-${row.name}`,
     enableMultiSort: true,
     enableSortingRemoval: false,
     state: { sorting, columnVisibility },
@@ -207,28 +207,20 @@ const DatasetsTable: React.FC<{
       selectedBuckets.size === 1 ? Array.from(selectedBuckets)[0] : undefined,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getSelectedRowModel().rows]);
+  }, [table.getSelectedRowModel().rows, onRowSelectionChange]);
 
   return (
-    <div className="h-full w-full">
-      {isLoading ? (
-        <TableLoader table={table} />
-      ) : (
-        <div className="flex flex-col h-full w-full">
-          <TableBase
-            columns={columns}
-            table={table}
-            paddingOffset={10}
-            className="body-component"
-          >
-            <TablePagination
-              table={table}
-              totalRows={processResources.length}
-            />
-          </TableBase>
-        </div>
-      )}
-    </div>
+    <TableBase
+      columns={columns}
+      table={table}
+      className="body-component"
+      isLoading={isLoading}
+    >
+      <TablePagination
+        table={table}
+        totalRows={processResources.length}
+      />
+    </TableBase>
   );
 };
 

@@ -82,6 +82,10 @@ services:
     ##
     apiHostname: "osmo-service.osmo.svc.cluster.local:80"
 
+    ## Enable port-forwarding through Web UI
+    ##
+    portForwardEnabled: false
+
     ## Enable SSL/TLS encryption for nextjs server to connect to the osmo API server
     ##
     nextjsSslEnabled: false
@@ -93,6 +97,12 @@ services:
     ## Kubernetes service account name for the pods
     ##
     serviceAccountName: osmo
+
+    ## Maximum HTTP header size in KB for Node.js server
+    ## Prevents 431 "Request Header Fields Too Large" errors
+    ## Should match sidecars.envoy.maxHeadersSizeKb
+    ##
+    maxHttpHeaderSizeKb: 128
 
     ## Command override for the container
     ## Leave empty to use the default command from the image

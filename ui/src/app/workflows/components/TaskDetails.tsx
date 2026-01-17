@@ -18,6 +18,7 @@ import React from "react";
 
 import Link from "next/link";
 
+import { FilledIcon, OutlinedIcon } from "~/components/Icon";
 import { Colors, Tag } from "~/components/Tag";
 import { type Task } from "~/models";
 import { useRuntimeEnv } from "~/runtime-env";
@@ -29,12 +30,25 @@ import { type ToolParamUpdaterProps, ToolType } from "../hooks/useToolParamUpdat
 
 interface TaskDetailsProps {
   task: Task;
-  showTaskName?: boolean;
   updateUrl: (params: ToolParamUpdaterProps) => void;
   extraData?: Record<string, React.ReactNode>;
+  hasNavigation?: boolean;
+  onNext?: () => void;
+  onPrevious?: () => void;
+  hasNext?: boolean;
+  hasPrevious?: boolean;
 }
 
-const TaskDetails = ({ task, showTaskName = true, updateUrl, extraData }: TaskDetailsProps) => {
+const TaskDetails = ({
+  task,
+  updateUrl,
+  extraData,
+  hasNavigation,
+  onNext,
+  onPrevious,
+  hasNext,
+  hasPrevious,
+}: TaskDetailsProps) => {
   const runtimeEnv = useRuntimeEnv();
   const [processingDuration, setProcessingDuration] = useState<string | undefined>(undefined);
   const [schedulingDuration, setSchedulingDuration] = useState<string | undefined>(undefined);
@@ -49,128 +63,182 @@ const TaskDetails = ({ task, showTaskName = true, updateUrl, extraData }: TaskDe
   }, [task]);
 
   return (
-    <>
-      <div>
-        {showTaskName && <p className="font-semibold body-header p-3 text-center">{task.name}</p>}
-        <div className="p-3 w-full flex flex-col">
-          <dl>
-            <dt>Status</dt>
-            <dd>
-              <TaskStatusInfo status={task.status} />
-            </dd>
-            <dt>Lead</dt>
-            <dd>{task.lead ? "True" : "False"}</dd>
-            {task.retry_id !== null && (
-              <>
-                <dt>Retry ID</dt>
-                <dd>{task.retry_id}</dd>
-              </>
-            )}
-            {task.node_name && (
-              <>
-                <dt>Node</dt>
-                <dd>
-                  <button
-                    className="tag-container"
-                    onClick={() => {
-                      updateUrl({
-                        task: task.name,
-                        retry_id: task.retry_id,
-                        tool: ToolType.Nodes,
-                      });
-                    }}
-                  >
-                    <Tag color={Colors.platform}>{task.node_name}</Tag>
-                  </button>
-                </dd>
-              </>
-            )}
-            {task.pod_name && (
-              <>
-                <dt>Pod Name</dt>
-                <dd>{task.pod_name}</dd>
-              </>
-            )}
-            {task.pod_ip && (
-              <>
-                <dt>Pod IP</dt>
-                <dd>{task.pod_ip}</dd>
-              </>
-            )}
-            {processingDuration && (
-              <>
-                <dt>Processing Time</dt>
-                <dd>{processingDuration}</dd>
-              </>
-            )}
-            {schedulingDuration && (
-              <>
-                <dt>Scheduling Time</dt>
-                <dd>{schedulingDuration}</dd>
-              </>
-            )}
-            {initializingDuration && (
-              <>
-                <dt>Initializing Time</dt>
-                <dd>{initializingDuration}</dd>
-              </>
-            )}
-            {runningDuration && (
-              <>
-                <dt>Run Time</dt>
-                <dd>{runningDuration}</dd>
-              </>
-            )}
-            {task.start_time && (
-              <>
-                <dt>Start</dt>
-                <dd>{convertToReadableTimezone(task.start_time)}</dd>
-              </>
-            )}
-            {task.end_time && (
-              <>
-                <dt>End</dt>
-                <dd>{convertToReadableTimezone(task.end_time)}</dd>
-              </>
-            )}
-            {task.exit_code !== null && (
-              <>
-                <dt>Exit Code</dt>
-                <dd>
-                  <Link
-                    color={task.exit_code === 0 ? Colors.tag : Colors.error}
-                    href={`${runtimeEnv.DOCS_BASE_URL}workflows/exit_codes.html`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="tag-container"
-                  >
-                    <Tag color={task.exit_code === 0 ? Colors.tag : Colors.error}>{task.exit_code}</Tag>
-                  </Link>
-                </dd>
-              </>
-            )}
-            {extraData &&
-              Object.entries(extraData).map(([key, value]) => (
-                <React.Fragment key={key}>
-                  <dt>{key}</dt>
-                  <dd>{value}</dd>
-                </React.Fragment>
-              ))}
-          </dl>
-          {task.failure_message && (
-            <div className="mt-2">
-              <label>Failure Reason</label>
-              <p className="break-words">{task.failure_message}</p>
+    <div className="h-full w-full flex flex-col">
+      <div className="body-header flex flex-row items-center justify-between">
+        {!hasNavigation ? (
+          <p className="font-semibold p-global text-center w-full">{task.name}</p>
+        ) : (
+          <>
+            <button
+              className="no-underline p-0 m-1"
+              onClick={() => {
+                if (hasPrevious) {
+                  onPrevious?.();
+                }
+              }}
+              title="Previous Task"
+              aria-disabled={!hasPrevious}
+            >
+              <OutlinedIcon
+                name="keyboard_double_arrow_left"
+                className="text-lg!"
+              />
+            </button>
+            <p className="font-semibold">{task.name}</p>
+            <button
+              className="no-underline p-0 m-1"
+              onClick={() => {
+                if (hasNext) {
+                  onNext?.();
+                }
+              }}
+              title="Next Task"
+              aria-disabled={!hasNext}
+            >
+              <OutlinedIcon
+                name="keyboard_double_arrow_right"
+                className="text-lg!"
+              />
+            </button>
+          </>
+        )}
+      </div>
+      <div className="p-global w-full flex flex-col grow">
+        <dl aria-label={task.name}>
+          <dt>Status</dt>
+          <dd>
+            <TaskStatusInfo status={task.status} />
+          </dd>
+          <dt>Lead</dt>
+          <dd>{task.lead ? "True" : "False"}</dd>
+          {task.retry_id !== null && (
+            <>
+              <dt>Retry ID</dt>
+              <dd>{task.retry_id}</dd>
+            </>
+          )}
+          {task.node_name && (
+            <>
+              <dt>Node</dt>
+              <dd>
+                <button
+                  className="tag-container"
+                  onClick={() => {
+                    updateUrl({
+                      task: task.name,
+                      retry_id: task.retry_id,
+                      tool: ToolType.Nodes,
+                    });
+                  }}
+                >
+                  <Tag color={Colors.platform}>{task.node_name}</Tag>
+                </button>
+              </dd>
+            </>
+          )}
+          {task.pod_name && (
+            <>
+              <dt>Pod Name</dt>
+              <dd>{task.pod_name}</dd>
+            </>
+          )}
+          {task.pod_ip && (
+            <>
+              <dt>Pod IP</dt>
+              <dd>{task.pod_ip}</dd>
+            </>
+          )}
+          {processingDuration && (
+            <>
+              <dt>Processing Time</dt>
+              <dd>{processingDuration}</dd>
+            </>
+          )}
+          {schedulingDuration && (
+            <>
+              <dt>Scheduling Time</dt>
+              <dd>{schedulingDuration}</dd>
+            </>
+          )}
+          {initializingDuration && (
+            <>
+              <dt>Initializing Time</dt>
+              <dd>{initializingDuration}</dd>
+            </>
+          )}
+          {runningDuration && (
+            <>
+              <dt>Run Time</dt>
+              <dd>{runningDuration}</dd>
+            </>
+          )}
+          {task.start_time && (
+            <>
+              <dt>Start</dt>
+              <dd>{convertToReadableTimezone(task.start_time)}</dd>
+            </>
+          )}
+          {task.end_time && (
+            <>
+              <dt>End</dt>
+              <dd>{convertToReadableTimezone(task.end_time)}</dd>
+            </>
+          )}
+          {task.exit_code !== null && (
+            <>
+              <dt>Exit Code</dt>
+              <dd>
+                <Link
+                  color={task.exit_code === 0 ? Colors.tag : Colors.error}
+                  href={`${runtimeEnv.DOCS_BASE_URL}workflows/exit_codes.html`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tag-container"
+                >
+                  <Tag color={task.exit_code === 0 ? Colors.tag : Colors.error}>{task.exit_code}</Tag>
+                </Link>
+              </dd>
+            </>
+          )}
+          {extraData &&
+            Object.entries(extraData).map(([key, value]) => (
+              <React.Fragment key={key}>
+                <dt>{key}</dt>
+                <dd>{value}</dd>
+              </React.Fragment>
+            ))}
+        </dl>
+        {task.failure_message && (
+          <div className="mt-2">
+            <label>Failure Reason</label>
+            <p className="break-words">{task.failure_message}</p>
+          </div>
+        )}
+        {task.events &&
+          ["SUBMITTING", "SCHEDULING", "WAITING", "PROCESSING", "INITIALIZING", "RUNNING"].includes(task.status) && (
+            <div>
+              <a
+                className="btn btn-action font-bold justify-between"
+                href={task.events}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Events <FilledIcon name="open_in_new" />
+              </a>
+              <iframe
+                className="w-full border-1 border-border"
+                src={task.events}
+                title="Events"
+              />
             </div>
           )}
-        </div>
       </div>
       <TaskActions
         task={task}
-        className="lg:sticky lg:bottom-0"
+        className="xl:sticky xl:bottom-0"
         updateUrl={updateUrl}
       />
-    </>
+    </div>
   );
 };
 

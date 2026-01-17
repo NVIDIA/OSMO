@@ -30,7 +30,7 @@ from . import common
 from .. import storage
 from ..storage import common as storage_common, copying
 from ..storage.core import client, executor, progress, provider
-from ...utils import cache, client_configs, osmo_errors
+from ...utils import cache, osmo_errors
 
 
 MANIFEST_REGEX_PATTERN = re.compile(r'.*\/manifests\/[0-9]+\.json$')
@@ -221,15 +221,9 @@ def migrate(
     # Resolve the region for the destination storage backend.
     # This is necessary for generating a valid regional HTTP URL for uploaded objects
     # for certain storage backends (e.g. AWS S3).
-    destination_creds = client_configs.get_credentials(destination_backend.profile)
-    destination_region = destination_backend.region(
-        destination_creds.access_key_id,
-        destination_creds.access_key.get_secret_value(),
-    )
+    destination_region = destination_backend.region()
 
     client_factory = destination_backend.client_factory(
-        access_key_id=destination_creds.access_key_id,
-        access_key=destination_creds.access_key.get_secret_value(),
         region=destination_region,
     )
 

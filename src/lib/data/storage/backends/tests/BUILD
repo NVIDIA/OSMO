@@ -24,5 +24,6 @@ osmo_py_test(
     deps = [
         "//src/lib/data/storage/backends",
         "//src/lib/data/storage/core",
+        "//src/lib/data/storage/credentials",
     ],
 )

@@ -23,7 +23,9 @@ from typing import cast
 from unittest import mock
 
 from src.lib.data.storage.backends import backends, s3
+from src.lib.data.storage.credentials import credentials
 from src.lib.data.storage.core import header
+from src.lib.utils import osmo_errors
 
 
 class TestBackends(unittest.TestCase):
@@ -43,12 +45,17 @@ class TestBackends(unittest.TestCase):
             header.DownloadRequestHeaders(headers={'x-download-header': 'test-unsupported-header'}),
         ]
 
-        # Act
-        s3_client_factory = s3_backend.client_factory(
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket/test-key',
             access_key_id='test-access-key-id',
             access_key='test-access-key',
-            request_headers=request_headers,
             region='us-east-1',
+        )
+
+        # Act
+        s3_client_factory = s3_backend.client_factory(
+            data_cred=data_cred,
+            request_headers=request_headers,
         )
 
         # Assert
@@ -85,11 +92,16 @@ class TestBackends(unittest.TestCase):
             'before-call.s3.UploadPart': {'x-upload-header': 'test-upload-header'},
             'before-call.s3.CompleteMultipartUpload': {'x-upload-header': 'test-upload-header'},
         }
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://test-bucket/test-key',
+            access_key_id='test-access-key-id',
+            access_key='test-access-key',
+            region='us-east-1',
+        )
 
         # Act
         s3.create_client(
-            access_key_id='test-access-key-id',
-            access_key='test-access-key',
+            data_cred=data_cred,
             scheme='s3',
             extra_headers=extra_headers
         )
@@ -143,6 +155,72 @@ class TestBackends(unittest.TestCase):
 
         self.assertTrue(storage_backend_2 in storage_backend_1)
         self.assertTrue(storage_backend_1 not in storage_backend_2)
+
+    @mock.patch(
+        'src.lib.data.storage.credentials.credentials.get_static_data_credential_from_config',
+        return_value=None,
+    )
+    def test_environment_auth_support(self, mock_get_config):
+        """
+        Test that S3/Azure support environment authentication while other backends do not.
+        When no static credential is found in config:
+        - S3 and Azure should return DefaultDataCredential
+        - Other backends (Swift, GS, TOS) should raise OSMOCredentialError
+        """
+        # pylint: disable=unused-argument
+        test_cases = [
+            # Backends that support environment auth
+            (
+                's3://test-bucket/test-key',
+                's3://test-bucket',
+                True,
+            ),
+            (
+                'azure://testaccount/testcontainer/testpath',
+                'azure://testaccount',
+                True,
+            ),
+            # Backends that do NOT support environment auth
+            (
+                'swift://test.example.com/AUTH_namespace/testcontainer/testpath',
+                'swift://test.example.com/AUTH_namespace',
+                False,
+            ),
+            (
+                'gs://test-bucket/test-key',
+                'gs://test-bucket',
+                False,
+            ),
+            (
+                'tos://tos-cn-beijing.volces.com/test-bucket/test-key',
+                'tos://tos-cn-beijing.volces.com/test-bucket',
+                False,
+            ),
+        ]
+
+        for uri, expected_profile, supports_env_auth in test_cases:
+            with self.subTest(uri=uri, supports_env_auth=supports_env_auth):
+                # Arrange
+                backend = backends.construct_storage_backend(uri=uri)
+
+                if supports_env_auth:
+                    # Act
+                    data_cred = backend.resolved_data_credential
+
+                    # Assert
+                    self.assertIsInstance(
+                        data_cred,
+                        credentials.DefaultDataCredential,
+                        f'{uri} should support environment auth'
+                    )
+                    self.assertEqual(data_cred.endpoint, expected_profile)
+                else:
+                    # Act & Assert
+                    with self.assertRaises(osmo_errors.OSMOCredentialError) as context:
+                        _ = backend.resolved_data_credential
+
+                    self.assertIn('Data credential not found', str(context.exception))
+                    self.assertIn(expected_profile, str(context.exception))
 
 
 if __name__ == '__main__':

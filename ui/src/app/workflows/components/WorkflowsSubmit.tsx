@@ -83,6 +83,7 @@ export const WorkflowsSubmit = ({
   const footerRef = useRef<HTMLDivElement>(null);
   const [warnLocalPath, setWarnLocalPath] = useState(false);
   const [warningList, setWarningList] = useState<ReactNode[]>([]);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
 
   useEffect(() => {
     setFile(placeholderFile);
@@ -201,7 +202,7 @@ export const WorkflowsSubmit = ({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen translate-y-[-10%]">
+      <div className="flex justify-center items-center h-full w-full">
         <Spinner
           size="large"
           description="Loading..."
@@ -213,7 +214,7 @@ export const WorkflowsSubmit = ({
   if (!parsedProfileData?.success || !selectedPool) {
     return (
       <PageError
-        className="h-screen"
+        className="h-full w-full"
         title="Failed to Fetch Available Pools"
         errorMessage="Please contact support or restart your session and try again."
         icon="error_outline"
@@ -223,7 +224,7 @@ export const WorkflowsSubmit = ({
 
   return (
     <div className="body-component flex flex-col w-full h-full">
-      <div className="flex flex-row gap-3 p-3">
+      <div className="flex flex-row gap-global p-global">
         <Select
           id="pool-select"
           className="w-[25vw]"
@@ -272,10 +273,9 @@ export const WorkflowsSubmit = ({
             htmlFor="workflow-editor"
             className="sr-only display-none"
           >
-            Workflow Submit
+            Workflow Spec
           </label>
           <Editor
-            autoFocus
             value={file ?? ""}
             onValueChange={(code) => {
               setFile(code);
@@ -285,6 +285,12 @@ export const WorkflowsSubmit = ({
             padding={15}
             textareaClassName="editor"
             textareaId="workflow-editor"
+            onFocus={() => {
+              setIsEditorFocused(true);
+            }}
+            onBlur={() => {
+              setIsEditorFocused(false);
+            }}
           />
         </div>
       </div>
@@ -296,11 +302,15 @@ export const WorkflowsSubmit = ({
           status={error ? "error" : warningList.length > 0 ? "warning" : "none"}
           className="w-full"
         >
-          <div className="flex flex-row gap-3 justify-between w-full items-center">
+          <div className="flex flex-row gap-global justify-between w-full items-center">
             {error ? (
               <div className="whitespace-pre-wrap">{error}</div>
             ) : warningList.length > 0 ? (
               <div className="flex flex-col">{warningList}</div>
+            ) : isEditorFocused ? (
+              <p>
+                Press <strong>Ctrl+Shift+M</strong> to toggle between indentation and focus mode
+              </p>
             ) : (
               <div />
             )}

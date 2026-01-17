@@ -61,7 +61,7 @@ data:
     metadata:
       name: "{{ "{{" }} resource_name {{ "}}" }}"
       labels:
-        {{ .Values.global.nodeConditionPrefix }}{{ .Values.backendTestRunner.labels.component }}: backend-test
+        {{ .Values.global.nodeConditionPrefix }}component: backend-test
         {{ .Values.global.nodeConditionPrefix }}backend: "{{ "{{" }} backend_name {{ "}}" }}"
         {{ .Values.global.nodeConditionPrefix }}test: "{{ "{{" }} test_name {{ "}}" }}"
         {{- range $key, $value := .Values.backendTestRunner.labels }}
@@ -158,6 +158,7 @@ data:
               initContainers:
                 - name: config-validator
                   image: {{ .Values.backendTestRunner.podTemplate.initContainer.image | quote }}
+                  imagePullPolicy: {{ .Values.backendTestRunner.podTemplate.initContainer.imagePullPolicy }}
                   command: ["/bin/sh"]
                   args:
                     - -c

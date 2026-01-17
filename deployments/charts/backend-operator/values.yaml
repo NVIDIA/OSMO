@@ -55,6 +55,10 @@ global:
       ##
       enabled: false
 
+      ## Number of replicas for the squid proxy
+      ##
+      proxyReplicas: 1
+
       ## Node selector for the squid proxy pod
       #
       nodeSelector: {}
@@ -531,6 +535,10 @@ backendTestRunner:
       ##
       image: "ubuntu:22.04"
 
+      ## Image pull policy for init container
+      ##
+      imagePullPolicy: "IfNotPresent"
+
       ## Resource limits and requests for init container
       ##
       resources:
@@ -715,7 +723,6 @@ backendTestRunner:
   ## Labels to apply to all created resources
   ##
   labels:
-    component: "backend-test"
     managed-by: "backend-operator"
 
   ## Annotations to apply to CronJob resources

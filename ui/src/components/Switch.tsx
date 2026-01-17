@@ -24,7 +24,7 @@ export const Switch = ({
   disabled = false,
   title,
 }: {
-  id?: string;
+  id: string;
   size?: "small" | "medium" | "large";
   labelPosition?: "left" | "right";
   label?: string;
@@ -59,7 +59,7 @@ export const Switch = ({
   };
 
   return (
-    <div className={`flex items-center group gap-2 w-min ${className}`}>
+    <div className={`flex items-center group gap-global w-min ${className}`}>
       {labelPosition === "left" && getLabel()}
       <button
         id={id}
@@ -72,7 +72,7 @@ export const Switch = ({
         title={title}
       >
         <span
-          className={`flex items-center flex-shrink-0 p-1 rounded-full duration-300 ease-in-out after:bg-white after:rounded-full after:shadow-md after:duration-300 ${switchClass} ${!checked ? " bg-gray-300 " : " bg-brand"} ${switchMove} ${disabled ? " opacity-70" : ""}`}
+          className={`flex items-center flex-shrink-0 p-1 rounded-full duration-300 ease-in-out after:bg-white after:rounded-full after:shadow-md after:duration-300 ${switchClass} ${!checked ? " bg-gray-200 " : " bg-brand"} ${switchMove} ${disabled ? " opacity-70" : ""}`}
         ></span>
       </button>
       {labelPosition === "right" && getLabel()}
