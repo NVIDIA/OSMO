@@ -42,7 +42,7 @@
 
 "use client";
 
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { FileText, BarChart3, Activity } from "lucide-react";
 import { SidePanel, PanelCollapsedStrip, PanelHeader, PanelCollapseButton, PanelTitle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
@@ -154,6 +154,12 @@ export const DetailsPanel = memo(function DetailsPanel({
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
 
+  // Ref to override focus behavior when panel expands.
+  // - undefined: use default (focus first focusable)
+  // - null: skip focus (shell will handle its own focus)
+  // - HTMLElement: focus that element
+  const focusTargetRef = useRef<HTMLElement | null | undefined>(undefined);
+
   // Warn before page unload when shell sessions are active
   useShellNavigationGuard();
 
@@ -189,6 +195,9 @@ export const DetailsPanel = memo(function DetailsPanel({
     (taskId: string) => {
       // Expand the panel if collapsed
       if (isCollapsed && onToggleCollapsed) {
+        // Set focus target to null to skip panel's default focus
+        // (the shell will handle its own focus via isVisible)
+        focusTargetRef.current = null;
         onToggleCollapsed();
       }
       // If there's a task selection handler and we have groups, select the task
@@ -198,12 +207,14 @@ export const DetailsPanel = memo(function DetailsPanel({
           const foundTask = g.tasks?.find((t) => t.task_uuid === taskId);
           if (foundTask) {
             onSelectTask(foundTask, g);
+            // Switch to shell tab - focus will be handled by TaskShell's isVisible effect
+            setSelectedTab?.("shell");
             break;
           }
         }
       }
     },
-    [isCollapsed, onToggleCollapsed, onSelectTask, allGroups],
+    [isCollapsed, onToggleCollapsed, onSelectTask, allGroups, setSelectedTab],
   );
 
   // Collapsed content with workflow quick links and shell activity strip
@@ -230,6 +241,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       className="dag-details-panel"
       containerRef={containerRef}
       onDraggingChange={onDraggingChange}
+      focusTargetRef={focusTargetRef}
     >
       {/* Workflow Details (base layer) */}
       {view === "workflow" && workflow && (
