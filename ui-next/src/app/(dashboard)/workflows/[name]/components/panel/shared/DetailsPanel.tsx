@@ -42,7 +42,7 @@
 
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { FileText, BarChart3, Activity } from "lucide-react";
 import { SidePanel, PanelCollapsedStrip, PanelHeader, PanelCollapseButton, PanelTitle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
@@ -51,7 +51,6 @@ import { cn } from "@/lib/utils";
 import { WorkflowDetails } from "../workflow/WorkflowDetails";
 import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
-import { ShellContainer } from "./ShellContainer";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
 import { ShellActivityStrip, useShellNavigationGuard } from "@/components/shell";
@@ -149,17 +148,9 @@ export const DetailsPanel = memo(function DetailsPanel({
   fallbackContent,
   containerRef,
   onDraggingChange,
+  onShellTabChange,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
-
-  // Track which task's shell tab is currently active
-  const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
-
-  // Callback for TaskDetails to signal shell tab activation
-  // TaskDetails calls this with taskName when shell tab is active, null on unmount/tab change
-  const handleShellTabChange = useCallback((taskName: string | null) => {
-    setActiveShellTaskName(taskName);
-  }, []);
 
   // Warn before page unload when shell sessions are active
   useShellNavigationGuard();
@@ -280,16 +271,7 @@ export const DetailsPanel = memo(function DetailsPanel({
           onPanelResize={onPanelResize}
           isDetailsExpanded={isDetailsExpanded}
           onToggleDetailsExpanded={onToggleDetailsExpanded}
-          onShellTabChange={handleShellTabChange}
-        />
-      )}
-
-      {/* Shell Container - renders all active shells, persists across navigation */}
-      {workflow?.name && (
-        <ShellContainer
-          workflowName={workflow.name}
-          currentTaskName={task?.name}
-          isShellTabActive={activeShellTaskName !== null}
+          onShellTabChange={onShellTabChange}
         />
       )}
 

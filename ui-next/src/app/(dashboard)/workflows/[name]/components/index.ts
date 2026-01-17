@@ -51,3 +51,6 @@ export {
   type TaskDetailsProps,
   type DetailsPanelHeaderProps,
 } from "./panel";
+
+// Shell components
+export { ShellContainer, ShellPortalProvider, useShellPortal, type ShellContainerProps } from "./shell";
