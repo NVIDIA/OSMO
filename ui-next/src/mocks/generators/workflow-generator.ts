@@ -864,7 +864,11 @@ export class WorkflowGenerator {
    * | FAILED_UPSTREAM  | All tasks: FAILED_UPSTREAM                     |
    * | FAILED_*         | Lead: specific failure, others: FAILED         |
    */
-  private deriveTaskStatusFromGroup(groupStatus: TaskGroupStatus, taskIndex: number, _totalTasks: number): TaskGroupStatus {
+  private deriveTaskStatusFromGroup(
+    groupStatus: TaskGroupStatus,
+    taskIndex: number,
+    _totalTasks: number,
+  ): TaskGroupStatus {
     const isLead = taskIndex === 0;
 
     switch (groupStatus) {
@@ -939,7 +943,9 @@ export class WorkflowGenerator {
       pod_name: podName,
       ...timestamps,
       logs: `/api/workflow/${workflowName}/task/${name}/logs`,
-      error_logs: status.toString().startsWith("FAILED") ? `/api/workflow/${workflowName}/task/${name}/error-logs` : undefined,
+      error_logs: status.toString().startsWith("FAILED")
+        ? `/api/workflow/${workflowName}/task/${name}/error-logs`
+        : undefined,
       events: `/api/workflow/${workflowName}/task/${name}/events`,
       storage,
       cpu,
@@ -961,11 +967,7 @@ export class WorkflowGenerator {
    * | COMPLETED     | ✓              | ✓        | ✓         | ✓       | ✓        |
    * | FAILED_*      | ✓              | ✓        | ✓         | ✓       | ✓        |
    */
-  private generateTaskTimestamps(
-    status: TaskGroupStatus,
-    podName: string,
-    taskUuid: string,
-  ): Partial<MockTask> {
+  private generateTaskTimestamps(status: TaskGroupStatus, podName: string, taskUuid: string): Partial<MockTask> {
     const baseTime = faker.date.recent({ days: 7 });
 
     // WAITING/SUBMITTING: no timestamps
@@ -1214,8 +1216,7 @@ export class WorkflowGenerator {
       for (let i = numCompleted; i < sortedGroups.length; i++) {
         const group = sortedGroups[i];
         const allUpstreamComplete =
-          group.upstream_groups.length === 0 ||
-          group.upstream_groups.every((upName) => completedGroups.has(upName));
+          group.upstream_groups.length === 0 || group.upstream_groups.every((upName) => completedGroups.has(upName));
 
         if (allUpstreamComplete) {
           eligibleToRun.push(group);

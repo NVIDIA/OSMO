@@ -27,7 +27,7 @@
 
 "use client";
 
-import { useMemo, useCallback, memo, useState } from "react";
+import { useMemo, useCallback, memo, useState, useEffect } from "react";
 import {
   FileText,
   Terminal,
@@ -46,7 +46,6 @@ import { Button } from "@/components/shadcn/button";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { PanelTabs, type PanelTab } from "@/components/panel-tabs";
 import { useCopy, useTick } from "@/hooks";
-import { TaskShell } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from "../../../lib/status";
@@ -54,6 +53,7 @@ import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "../shared/DependencyPills";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
+import { useShellStore } from "../../../stores";
 
 // ============================================================================
 // Types
@@ -372,6 +372,8 @@ interface TaskDetailsInternalProps extends TaskDetailsProps {
   onSelectGroup?: (group: GroupWithLayout) => void;
   isDetailsExpanded: boolean;
   onToggleDetailsExpanded: () => void;
+  /** Called when shell tab becomes active/inactive. Passes taskName when active, null when inactive. */
+  onShellTabChange?: (taskName: string | null) => void;
 }
 
 export const TaskDetails = memo(function TaskDetails({
@@ -387,6 +389,7 @@ export const TaskDetails = memo(function TaskDetails({
   onPanelResize,
   isDetailsExpanded,
   onToggleDetailsExpanded,
+  onShellTabChange,
 }: TaskDetailsInternalProps) {
   const category = getStatusCategory(task.status);
   const style = getStatusStyle(task.status);
@@ -394,6 +397,43 @@ export const TaskDetails = memo(function TaskDetails({
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TaskTab>("overview");
+
+  // Notify parent when shell tab becomes active/inactive
+  useEffect(() => {
+    if (activeTab === "shell" && isRunning && workflowName) {
+      onShellTabChange?.(task.name);
+    } else {
+      onShellTabChange?.(null);
+    }
+  }, [activeTab, isRunning, workflowName, task.name, onShellTabChange]);
+
+  // Clean up when component unmounts (navigating away)
+  useEffect(() => {
+    return () => {
+      onShellTabChange?.(null);
+    };
+  }, [onShellTabChange]);
+
+  // Get shell session from store for status indicator
+  const shellSession = useShellStore((s) => s.getSession(task.name));
+
+  // Compute shell status indicator for tab based on store state
+  const shellStatusIndicator = useMemo((): "green" | "red" | undefined => {
+    if (!shellSession) {
+      return undefined;
+    }
+    const { status } = shellSession;
+    // Connected - green
+    if (status === "connected" || status === "connecting") {
+      return "green";
+    }
+    // Disconnected or error - red
+    if (status === "disconnected" || status === "error") {
+      return "red";
+    }
+    // Idle - no indicator
+    return undefined;
+  }, [shellSession]);
 
   // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
@@ -527,13 +567,13 @@ export const TaskDetails = memo(function TaskDetails({
     const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
 
     if (isRunning && workflowName) {
-      tabs.push({ id: "shell", label: "Shell", icon: Terminal });
+      tabs.push({ id: "shell", label: "Shell", icon: Terminal, statusIndicator: shellStatusIndicator });
     }
 
     tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: Calendar });
 
     return tabs;
-  }, [isRunning, workflowName]);
+  }, [isRunning, workflowName, shellStatusIndicator]);
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
@@ -562,33 +602,37 @@ export const TaskDetails = memo(function TaskDetails({
       />
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-900">
-        {activeTab === "overview" && (
+      <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
+        {/* Overview tab */}
+        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "overview" && "invisible")}>
           <div className="p-4 pb-16">
             <OverviewTab task={task} />
           </div>
-        )}
+        </div>
 
-        {activeTab === "shell" && isRunning && workflowName && (
-          <div className="h-full overflow-hidden p-4">
-            <TaskShell
-              workflowName={workflowName}
-              taskName={task.name}
-            />
+        {/* Shell tab - placeholder container, actual shell rendered by ShellContainer */}
+        {isRunning && workflowName && (
+          <div
+            className={cn("absolute inset-0", activeTab !== "shell" && "pointer-events-none invisible")}
+            aria-label={`Shell for ${task.name}`}
+          >
+            {/* ShellContainer renders the actual shell and overlays this area */}
           </div>
         )}
 
-        {activeTab === "logs" && (
+        {/* Logs tab */}
+        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "logs" && "invisible")}>
           <div className="p-4">
             <LogsTab task={task} />
           </div>
-        )}
+        </div>
 
-        {activeTab === "events" && (
+        {/* Events tab */}
+        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "events" && "invisible")}>
           <div className="p-4">
             <EventsTab task={task} />
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
