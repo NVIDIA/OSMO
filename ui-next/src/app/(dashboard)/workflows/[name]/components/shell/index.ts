@@ -15,3 +15,4 @@
 
 export { ShellContainer, type ShellContainerProps } from "./ShellContainer";
 export { ShellPortalProvider, useShellPortal } from "./ShellPortalContext";
+export { ShellProvider, useShellContext, type ActiveShell } from "./ShellContext";

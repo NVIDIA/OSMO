@@ -184,16 +184,16 @@ export const DetailsPanel = memo(function DetailsPanel({
 
   // Handle selecting a shell session from activity strip
   const handleSelectShellSession = useCallback(
-    (taskName: string) => {
+    (taskId: string) => {
       // Expand the panel if collapsed
       if (isCollapsed && onToggleCollapsed) {
         onToggleCollapsed();
       }
       // If there's a task selection handler and we have groups, select the task
       if (onSelectTask && allGroups) {
-        // Find the group containing this task
+        // Find the group containing this task by UUID
         for (const g of allGroups) {
-          const foundTask = g.tasks?.find((t) => t.name === taskName);
+          const foundTask = g.tasks?.find((t) => t.task_uuid === taskId);
           if (foundTask) {
             onSelectTask(foundTask, g);
             break;
@@ -210,7 +210,7 @@ export const DetailsPanel = memo(function DetailsPanel({
     <PanelCollapsedStrip onExpand={onToggleCollapsed}>
       <WorkflowQuickLinks workflow={workflow} />
       <ShellActivityStrip
-        currentTaskName={task?.name}
+        currentTaskId={task?.task_uuid}
         onSelectSession={handleSelectShellSession}
       />
     </PanelCollapsedStrip>

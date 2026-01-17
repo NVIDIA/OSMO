@@ -53,4 +53,12 @@ export {
 } from "./panel";
 
 // Shell components
-export { ShellContainer, ShellPortalProvider, useShellPortal, type ShellContainerProps } from "./shell";
+export {
+  ShellContainer,
+  ShellPortalProvider,
+  ShellProvider,
+  useShellPortal,
+  useShellContext,
+  type ShellContainerProps,
+  type ActiveShell,
+} from "./shell";

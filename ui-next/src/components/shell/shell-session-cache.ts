@@ -169,6 +169,62 @@ export interface ShellSession {
 /** Map of sessionKey -> ShellSession */
 const sessionCache = new Map<string, ShellSession>();
 
+/** Subscribers for cache changes (for React useSyncExternalStore) */
+const subscribers = new Set<() => void>();
+
+/** Cached snapshot for useSyncExternalStore */
+let cachedSnapshot: ShellSessionSnapshot[] = [];
+
+/**
+ * Session snapshot for UI components (excludes non-serializable fields).
+ */
+export interface ShellSessionSnapshot {
+  key: string;
+  taskId: string;
+  taskName: string;
+  workflowName: string;
+  shell: string;
+  status: ConnectionStatus;
+  error: string | null;
+  createdAt: number;
+}
+
+/**
+ * Notify all subscribers of cache changes.
+ */
+function notifySubscribers(): void {
+  // Update cached snapshot
+  cachedSnapshot = Array.from(sessionCache.values()).map((s) => ({
+    key: s.key,
+    taskId: s.key, // key is the taskId
+    taskName: s.taskName,
+    workflowName: s.workflowName,
+    shell: s.shell,
+    status: s.connection.status,
+    error: s.connection.error,
+    createdAt: s.createdAt,
+  }));
+  // Notify React
+  for (const callback of subscribers) {
+    callback();
+  }
+}
+
+/**
+ * Subscribe to cache changes (for useSyncExternalStore).
+ */
+export function subscribe(callback: () => void): () => void {
+  subscribers.add(callback);
+  return () => subscribers.delete(callback);
+}
+
+/**
+ * Get current snapshot of all sessions (for useSyncExternalStore).
+ */
+export function getSessionsSnapshot(): ShellSessionSnapshot[] {
+  return cachedSnapshot;
+}
+
 // =============================================================================
 // Session Retrieval
 // =============================================================================
@@ -206,7 +262,9 @@ export function getSessionCount(): number {
 // =============================================================================
 
 /**
- * Create a new session and store it in the cache.
+ * Create a new session with terminal instance.
+ * Called by useShell when terminal is ready.
+ * Sessions always have a terminal - no two-phase creation.
  */
 export function createSession(params: {
   key: string;
@@ -216,6 +274,16 @@ export function createSession(params: {
   terminal: SessionTerminal;
   container: HTMLElement;
 }): ShellSession {
+  // If session already exists, just update terminal/container and return
+  const existing = sessionCache.get(params.key);
+  if (existing) {
+    existing.terminal = params.terminal;
+    existing.container = params.container;
+    notifySubscribers();
+    return existing;
+  }
+
+  // Create new session (direct creation without openSession)
   const session: ShellSession = {
     key: params.key,
     workflowName: params.workflowName,
@@ -238,6 +306,7 @@ export function createSession(params: {
   };
 
   sessionCache.set(params.key, session);
+  notifySubscribers();
   return session;
 }
 
@@ -277,6 +346,7 @@ export function updateSessionStatus(key: string, status: ConnectionStatus, error
   if (session) {
     session.connection.status = status;
     session.connection.error = error ?? null;
+    notifySubscribers();
   }
 }
 
@@ -350,6 +420,7 @@ export function disposeSession(key: string): void {
 
   // Remove from cache
   sessionCache.delete(key);
+  notifySubscribers();
 }
 
 /**
