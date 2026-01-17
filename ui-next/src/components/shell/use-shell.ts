@@ -238,7 +238,6 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   const webglAddonRef = useRef<WebglAddon | null>(null);
   // Track the key used for this instance to handle cleanup correctly
   const sessionKeyRef = useRef<string | undefined>(sessionKey);
-
   const [isReady, setIsReady] = useState(false);
 
   // Keep sessionKeyRef in sync
@@ -432,7 +431,6 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     if (!terminal) return;
     terminal.write(data, () => {
       // After write completes, scroll to bottom to ensure visibility
-      // This fixes clipping when receiving rapid output
       terminal.scrollToBottom();
     });
   }, []);
