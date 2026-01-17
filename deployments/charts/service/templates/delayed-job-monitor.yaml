@@ -28,6 +28,9 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.delayedJobMonitor.serviceName }}
+        {{- with .Values.services.delayedJobMonitor.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
       {{- include "osmo.extra-annotations" .Values.services.delayedJobMonitor | nindent 8 }}
       {{- if .Values.sidecars.otel.enabled }}

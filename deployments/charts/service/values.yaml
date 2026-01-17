@@ -55,6 +55,23 @@ global:
     ##
     k8sLogLevel: WARNING
 
+## Service account configuration for core Osmo services
+##
+serviceAccount:
+  ## Create the chart-managed ServiceAccount. Set to false to re-use
+  ## an existing ServiceAccount that already has workload identity bindings.
+  ##
+  create: true
+
+  ## ServiceAccount name override. When empty, uses global.serviceAccountName.
+  ##
+  name: ""
+
+  ## Extra ServiceAccount annotations such as
+  ## `azure.workload.identity/client-id` for AKS workload identity.
+  ##
+  annotations: {}
+
 ## Configuration for individual Osmo services
 ##
 services:
@@ -335,6 +352,11 @@ services:
     ##
     extraPodAnnotations: {}
 
+    ## Extra pod labels for the delayed job monitor service pods.
+    ## Use for workload identity labels like `azure.workload.identity/use`.
+    ##
+    extraPodLabels: {}
+
     ## Extra environment variables for the delayed job monitor service container
     ##
     extraEnv: []
@@ -438,6 +460,11 @@ services:
     ## Extra pod annotations for the worker service
     ##
     extraPodAnnotations: {}
+
+    ## Extra pod labels for the worker service pods.
+    ## Use for workload identity labels like `azure.workload.identity/use`.
+    ##
+    extraPodLabels: {}
 
     ## Extra environment variables for the worker service container
     ##
@@ -663,6 +690,11 @@ services:
     ##
     extraPodAnnotations: {}
 
+    ## Extra pod labels for the API service pods.
+    ## Use for workload identity labels like `azure.workload.identity/use`.
+    ##
+    extraPodLabels: {}
+
     ## Extra environment variables for the API service container
     ##
     extraEnv: []
@@ -775,6 +807,11 @@ services:
     ##
     extraPodAnnotations: {}
 
+    ## Extra pod labels for the logger service pods.
+    ## Use for workload identity labels like `azure.workload.identity/use`.
+    ##
+    extraPodLabels: {}
+
     ## Extra environment variables for the logger service container
     ##
     extraEnv: []
@@ -883,6 +920,11 @@ services:
     ## Extra pod annotations for the agent service
     ##
     extraPodAnnotations: {}
+
+    ## Extra pod labels for the agent service pods.
+    ## Use for workload identity labels like `azure.workload.identity/use`.
+    ##
+    extraPodLabels: {}
 
     ## Extra environment variables for the agent service container
     ##

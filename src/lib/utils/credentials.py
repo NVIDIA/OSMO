@@ -20,6 +20,8 @@ import pydantic
 
 from ..data.storage import credentials
 
+DataCredential = credentials.DataCredential
+DefaultDataCredential = credentials.DefaultDataCredential
 StaticDataCredential = credentials.StaticDataCredential
 get_static_data_credential_from_config = credentials.get_static_data_credential_from_config
 
