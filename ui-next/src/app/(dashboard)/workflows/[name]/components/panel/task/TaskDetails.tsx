@@ -27,7 +27,7 @@
 
 "use client";
 
-import { useMemo, useCallback, memo, useState, useEffect } from "react";
+import { useMemo, useCallback, memo, useState, useEffect, useRef } from "react";
 import {
   FileText,
   Terminal,
@@ -53,6 +53,7 @@ import { getStatusIcon, getStatusCategory, getStatusStyle, getStatusLabel } from
 import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { TaskTimeline } from "./TaskTimeline";
 import { DependencyPills } from "../shared/DependencyPills";
+import { useShellPortal } from "../../shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 import { useShellStore } from "../../../stores";
 
@@ -419,6 +420,10 @@ export const TaskDetails = memo(function TaskDetails({
   const shellSession = useShellStore((s) => s.getSession(task.name));
   const openSession = useShellStore((s) => s.openSession);
 
+  // Shell portal for rendering shell in correct position
+  const { setPortalTarget } = useShellPortal();
+  const shellTabRef = useRef<HTMLDivElement>(null);
+
   // Handle clicking Connect in the shell tab (with shell selection)
   const handleConnectShell = useCallback(
     (shell: string) => {
@@ -431,6 +436,19 @@ export const TaskDetails = memo(function TaskDetails({
 
   // Check if we should show the connect overlay vs the actual shell
   const hasShellSession = !!shellSession;
+
+  // Register/unregister portal target when shell tab is active
+  useEffect(() => {
+    if (activeTab === "shell" && hasShellSession && shellTabRef.current) {
+      setPortalTarget(shellTabRef.current);
+    } else {
+      setPortalTarget(null);
+    }
+
+    return () => {
+      setPortalTarget(null);
+    };
+  }, [activeTab, hasShellSession, setPortalTarget]);
 
   // Compute shell status indicator for tab based on store state
   const shellStatusIndicator = useMemo((): "green" | "red" | undefined => {
@@ -625,10 +643,11 @@ export const TaskDetails = memo(function TaskDetails({
           </div>
         </div>
 
-        {/* Shell tab - shows connect prompt OR ShellContainer renders the active shell */}
+        {/* Shell tab - shows connect prompt OR ShellContainer renders via portal */}
         {isRunning && workflowName && (
           <div
-            className={cn("absolute inset-0 overflow-y-auto", activeTab !== "shell" && "invisible")}
+            ref={shellTabRef}
+            className={cn("absolute inset-0", activeTab !== "shell" && "invisible")}
             aria-label={`Shell for ${task.name}`}
           >
             {/* Show connect prompt when no session exists */}
@@ -637,7 +656,7 @@ export const TaskDetails = memo(function TaskDetails({
                 <ShellConnectPrompt onConnect={handleConnectShell} />
               </div>
             )}
-            {/* When session exists, ShellContainer (rendered at DetailsPanel level) overlays this area */}
+            {/* When session exists, ShellContainer portals into this container */}
           </div>
         )}
 

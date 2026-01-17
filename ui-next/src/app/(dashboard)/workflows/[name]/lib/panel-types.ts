@@ -95,6 +95,11 @@ export interface DetailsPanelProps {
    * Called with true when resize drag starts, false when it ends.
    */
   onDraggingChange?: (isDragging: boolean) => void;
+  /**
+   * Callback when shell tab activation changes.
+   * Called with taskName when shell tab becomes active, null when deactivated.
+   */
+  onShellTabChange?: (taskName: string | null) => void;
 }
 
 /**
