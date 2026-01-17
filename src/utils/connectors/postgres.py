@@ -283,6 +283,8 @@ class PostgresConnector:
         try:
             with conn.cursor() as cur:
                 cur.execute('SELECT 1')
+            # Rollback to ensure clean state after the check
+            conn.rollback()
             return True
         except (psycopg2.DatabaseError, psycopg2.InterfaceError):
             return False
@@ -311,12 +313,17 @@ class PostgresConnector:
                 conn = self._pool.getconn()
 
             if autocommit:
+                # Rollback any pending transaction before setting autocommit
+                # set_session cannot be called inside a transaction
+                conn.rollback()
                 conn.set_session(autocommit=True)
 
             yield conn
         finally:
             if conn is not None:
                 try:
+                    # Rollback any uncommitted transaction to ensure clean state
+                    conn.rollback()
                     # Reset autocommit mode before returning to pool
                     if autocommit:
                         conn.set_session(autocommit=False)
