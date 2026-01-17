@@ -235,7 +235,9 @@ def retry(func=None, *, reconnect: bool = True):
 
 class PostgresConnector:
     """ Manages the connection to the postgres database using a ThreadedConnectionPool. """
-    _instance = None
+    _instance: 'PostgresConnector | None' = None
+    _pool: psycopg2.pool.ThreadedConnectionPool | None
+    _pool_lock: threading.Lock
 
     @staticmethod
     def get_instance():
@@ -300,17 +302,20 @@ class PostgresConnector:
         Yields:
             A database connection from the pool.
         """
+        pool = self._pool
+        if pool is None:
+            raise osmo_errors.OSMOConnectionError('Connection pool is not initialized.')
         conn = None
         try:
-            conn = self._pool.getconn()
+            conn = pool.getconn()
             # Validate the connection
             if not self._is_connection_healthy(conn):
                 # Return bad connection and get a fresh one
                 try:
-                    self._pool.putconn(conn, close=True)
+                    pool.putconn(conn, close=True)
                 except Exception:  # pylint: disable=broad-except
                     pass
-                conn = self._pool.getconn()
+                conn = pool.getconn()
 
             if autocommit:
                 # Rollback any pending transaction before setting autocommit
@@ -327,11 +332,11 @@ class PostgresConnector:
                     # Reset autocommit mode before returning to pool
                     if autocommit:
                         conn.set_session(autocommit=False)
-                    self._pool.putconn(conn)
+                    pool.putconn(conn)
                 except Exception:  # pylint: disable=broad-except
                     # If we can't return it properly, close it
                     try:
-                        self._pool.putconn(conn, close=True)
+                        pool.putconn(conn, close=True)
                     except Exception:  # pylint: disable=broad-except
                         pass
 
@@ -343,7 +348,6 @@ class PostgresConnector:
         logging.debug('Connecting to postgres server at %s:%s...', config.postgres_host,
                       config.postgres_port)
         self.config = config
-        self._pool: psycopg2.pool.ThreadedConnectionPool | None = None
         self._pool_lock = threading.Lock()
         self._create_pool()
         logging.debug('Finished connecting to postgres database')
