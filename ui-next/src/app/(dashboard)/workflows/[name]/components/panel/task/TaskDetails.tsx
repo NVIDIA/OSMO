@@ -28,7 +28,19 @@
 "use client";
 
 import { useMemo, useCallback, memo, useState } from "react";
-import { FileText, Terminal, AlertCircle, Copy, Check, XCircle, Calendar, Info, ExternalLink, BarChart3, Activity } from "lucide-react";
+import {
+  FileText,
+  Terminal,
+  AlertCircle,
+  Copy,
+  Check,
+  XCircle,
+  Calendar,
+  Info,
+  ExternalLink,
+  BarChart3,
+  Activity,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Card, CardContent } from "@/components/shadcn/card";
@@ -225,8 +237,20 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
   // Build links array - cast to access grafana_url which may not be in generated types yet
   const taskWithLinks = task as typeof task & { grafana_url?: string };
   const links = [
-    { id: "dashboard", label: "Dashboard", description: "Kubernetes pod details", url: task.dashboard_url, icon: BarChart3 },
-    { id: "grafana", label: "Grafana", description: "Metrics & monitoring", url: taskWithLinks.grafana_url, icon: Activity },
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      description: "Kubernetes pod details",
+      url: task.dashboard_url,
+      icon: BarChart3,
+    },
+    {
+      id: "grafana",
+      label: "Grafana",
+      description: "Metrics & monitoring",
+      url: taskWithLinks.grafana_url,
+      icon: Activity,
+    },
   ].filter((link) => link.url);
 
   const hasLinks = links.length > 0;
@@ -316,7 +340,7 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50"
+                    className="hover:bg-muted/50 flex items-center gap-3 p-3 transition-colors"
                   >
                     <Icon className="text-muted-foreground size-4 shrink-0" />
                     <div className="min-w-0 flex-1">
