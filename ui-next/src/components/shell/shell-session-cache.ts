@@ -33,25 +33,18 @@ import type { WebglAddon } from "@xterm/addon-webgl";
 import type { ConnectionStatus } from "./types";
 
 // =============================================================================
-// Types
+// Shared Encoder (Module Scope)
 // =============================================================================
 
 /**
- * Callbacks for WebSocket events.
- * Stored in session so they can be reattached when component remounts.
+ * Shared TextEncoder instance for all sessions.
+ * TextEncoder is stateless, so a single instance can be safely reused.
  */
-export interface SessionCallbacks {
-  /** Called when data is received from the PTY */
-  onData?: (data: Uint8Array) => void;
-  /** Called when connection is established */
-  onConnected?: () => void;
-  /** Called when connection is closed */
-  onDisconnected?: () => void;
-  /** Called when an error occurs */
-  onError?: (error: Error) => void;
-  /** Called when session ends cleanly (user typed exit) */
-  onSessionEnded?: () => void;
-}
+const sharedEncoder = new TextEncoder();
+
+// =============================================================================
+// Types
+// =============================================================================
 
 /**
  * Terminal-related data in a session.
@@ -79,8 +72,6 @@ export interface SessionConnection {
   status: ConnectionStatus;
   /** Error message if status is 'error' */
   error: string | null;
-  /** Text encoder for sending string data */
-  encoder: TextEncoder;
   /**
    * Whether this session has ever had a WebSocket connection.
    * Used to distinguish first connection from reconnection.
@@ -124,8 +115,6 @@ export interface ShellSession {
 
   /** WebSocket connection state */
   connection: SessionConnection;
-  /** Callbacks for connection events */
-  callbacks: SessionCallbacks;
 }
 
 // =============================================================================
@@ -248,10 +237,8 @@ export function createSession(params: {
       webSocket: null,
       status: "idle",
       error: null,
-      encoder: new TextEncoder(),
       hadConnection: false,
     },
-    callbacks: {},
   };
 
   sessionCache.set(params.key, session);
@@ -296,16 +283,6 @@ export function updateSessionStatus(key: string, status: ConnectionStatus, error
     session.connection.status = status;
     session.connection.error = error ?? null;
     notifySubscribers();
-  }
-}
-
-/**
- * Update the callbacks for a session.
- */
-export function updateSessionCallbacks(key: string, callbacks: SessionCallbacks): void {
-  const session = sessionCache.get(key);
-  if (session) {
-    session.callbacks = callbacks;
   }
 }
 
@@ -418,6 +395,7 @@ export function getSessionError(key: string): string | null | undefined {
 
 /**
  * Send data through the session's WebSocket.
+ * Uses shared TextEncoder for efficient string encoding.
  */
 export function sendData(key: string, data: string | Uint8Array): boolean {
   const session = sessionCache.get(key);
@@ -427,7 +405,7 @@ export function sendData(key: string, data: string | Uint8Array): boolean {
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
 
   if (typeof data === "string") {
-    ws.send(session.connection.encoder.encode(data));
+    ws.send(sharedEncoder.encode(data));
   } else {
     ws.send(data);
   }
