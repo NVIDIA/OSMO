@@ -42,6 +42,9 @@ export { useShell, useShellSearch } from "./use-shell";
 export { useWebSocketShell } from "./use-websocket-shell";
 export { useShellNavigationGuard, useNavigateWithShellWarning } from "./use-shell-navigation-guard";
 
+// Terminal Cache (for managing persistent terminal instances)
+export { disposeTerminal, disposeAllTerminals, hasTerminal, getTerminalCount } from "./terminal-cache";
+
 // Types
 export type {
   ConnectionStatus as ConnectionStatusType,
