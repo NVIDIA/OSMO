@@ -193,37 +193,48 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
 /** External links */
 const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryResponse }) {
   const links = [
-    { id: "logs", label: "Logs", url: workflow.logs, icon: FileText },
-    { id: "dashboard", label: "Dashboard", url: workflow.dashboard_url, icon: BarChart3 },
-    { id: "grafana", label: "Grafana", url: workflow.grafana_url, icon: Activity },
-    { id: "events", label: "Events", url: workflow.events, icon: ClipboardList },
-    { id: "outputs", label: "Outputs", url: workflow.outputs, icon: Package },
+    { id: "logs", label: "Logs", description: "Stdout & stderr output", url: workflow.logs, icon: FileText },
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      description: "Kubernetes details",
+      url: workflow.dashboard_url,
+      icon: BarChart3,
+    },
+    { id: "grafana", label: "Grafana", description: "Metrics & monitoring", url: workflow.grafana_url, icon: Activity },
+    { id: "events", label: "Events", description: "Kubernetes events", url: workflow.events, icon: ClipboardList },
+    { id: "outputs", label: "Outputs", description: "Artifacts & results", url: workflow.outputs, icon: Package },
   ].filter((link) => link.url);
 
   if (links.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-1">
+    <section>
       <h3 className={STYLES.sectionHeader}>Links</h3>
-      <div className="flex flex-wrap gap-2">
-        {links.map((link) => {
-          const Icon = link.icon;
-          return (
-            <a
-              key={link.id}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={STYLES.link}
-            >
-              <Icon className="size-3.5" />
-              {link.label}
-              <ExternalLink className="size-2.5 opacity-50" />
-            </a>
-          );
-        })}
-      </div>
-    </div>
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardContent className="divide-border divide-y p-0">
+          {links.map((link) => {
+            const Icon = link.icon;
+            return (
+              <a
+                key={link.id}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:bg-muted/50 flex items-center gap-3 p-3 transition-colors"
+              >
+                <Icon className="text-muted-foreground size-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">{link.label}</div>
+                  <div className="text-muted-foreground text-xs">{link.description}</div>
+                </div>
+                <ExternalLink className="text-muted-foreground/50 size-3.5 shrink-0" />
+              </a>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </section>
   );
 });
 
@@ -261,32 +272,36 @@ export const WorkflowDetails = memo(function WorkflowDetails({
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-4 p-4">
-          <WorkflowTimeline workflow={workflow} />
-          <hr className={STYLES.divider} />
+        <div className="flex flex-col gap-6 p-4">
+          {/* Timeline section */}
+          <section>
+            <h3 className={STYLES.sectionHeader}>Timeline</h3>
+            <Card className="gap-0 overflow-hidden py-0">
+              <CardContent className="min-w-0 overflow-hidden p-3">
+                <WorkflowTimeline workflow={workflow} />
+              </CardContent>
+            </Card>
+          </section>
+
           <Details workflow={workflow} />
-          <hr className={STYLES.divider} />
           <Links workflow={workflow} />
 
           {/* Cancel action */}
           {canCancel && onCancel && (
-            <>
-              <hr className={STYLES.divider} />
-              <button
-                type="button"
-                onClick={onCancel}
-                className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
-                  "text-red-600 ring-1 ring-red-200 ring-inset",
-                  "hover:bg-red-50 hover:text-red-700",
-                  "dark:text-red-400 dark:ring-red-800",
-                  "dark:hover:bg-red-950/50 dark:hover:text-red-300",
-                )}
-              >
-                <XCircle className="size-4" />
-                Cancel Workflow
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={onCancel}
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+                "text-red-600 ring-1 ring-red-200 ring-inset",
+                "hover:bg-red-50 hover:text-red-700",
+                "dark:text-red-400 dark:ring-red-800",
+                "dark:hover:bg-red-950/50 dark:hover:text-red-300",
+              )}
+            >
+              <XCircle className="size-4" />
+              Cancel Workflow
+            </button>
           )}
         </div>
       </div>

@@ -26,7 +26,6 @@
 import { http, HttpResponse, delay } from "msw";
 import {
   workflowGenerator,
-  taskGenerator,
   poolGenerator,
   resourceGenerator,
   logGenerator,
@@ -270,43 +269,97 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // ==========================================================================
 
   // Get task details
+  // SINGLE SOURCE OF TRUTH: Task data comes from the workflow, not a separate generator
   http.get("/api/workflow/:name/task/:taskName", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
 
-    const task = taskGenerator.generate(workflowName, taskName);
-    return HttpResponse.json(task);
+    const workflow = workflowGenerator.getByName(workflowName);
+    if (!workflow) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    // Find the task in the workflow's groups
+    for (const group of workflow.groups) {
+      const task = group.tasks.find((t) => t.name === taskName);
+      if (task) {
+        return HttpResponse.json({
+          name: task.name,
+          workflow_name: workflowName,
+          group_name: group.name,
+          status: task.status,
+          retry_id: task.retry_id,
+          lead: task.lead,
+          task_uuid: task.task_uuid,
+          pod_name: task.pod_name,
+          pod_ip: task.pod_ip,
+          node_name: task.node_name,
+          scheduling_start_time: task.scheduling_start_time,
+          initializing_start_time: task.initializing_start_time,
+          input_download_start_time: task.input_download_start_time,
+          input_download_end_time: task.input_download_end_time,
+          processing_start_time: task.processing_start_time,
+          start_time: task.start_time,
+          output_upload_start_time: task.output_upload_start_time,
+          end_time: task.end_time,
+          exit_code: task.exit_code,
+          failure_message: task.failure_message,
+          logs: task.logs,
+          error_logs: task.error_logs,
+          events: task.events,
+          dashboard_url: task.dashboard_url,
+          grafana_url: task.grafana_url,
+          gpu: task.gpu,
+          cpu: task.cpu,
+          memory: task.memory,
+          storage: task.storage,
+          image: task.image,
+        });
+      }
+    }
+
+    return new HttpResponse(null, { status: 404 });
   }),
 
   // Task logs
+  // SINGLE SOURCE OF TRUTH: Get task status from workflow
   http.get("/api/workflow/:name/task/:taskName/logs", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
-    const task = taskGenerator.generate(workflowName, taskName);
 
-    const logs = logGenerator.generateTaskLogs(workflowName, taskName, task.status, task.duration);
+    const workflow = workflowGenerator.getByName(workflowName);
+    const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
+    const status = task?.status || "RUNNING";
+    const duration = task?.end_time && task?.start_time
+      ? new Date(task.end_time).getTime() - new Date(task.start_time).getTime()
+      : undefined;
+
+    const logs = logGenerator.generateTaskLogs(workflowName, taskName, status, duration);
 
     return HttpResponse.text(logs);
   }),
 
   // Task events
+  // SINGLE SOURCE OF TRUTH: Get task data from workflow
   http.get("/api/workflow/:name/task/:taskName/events", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
-    const task = taskGenerator.generate(workflowName, taskName);
+
+    const workflow = workflowGenerator.getByName(workflowName);
+    const task = workflow?.groups.flatMap((g) => g.tasks).find((t) => t.name === taskName);
 
     const events = eventGenerator.generateTaskEvents(
       workflowName,
       taskName,
-      task.status,
-      task.start_time,
-      task.end_time,
+      task?.status || "RUNNING",
+      task?.start_time,
+      task?.end_time,
     );
 
     return HttpResponse.json({ events });
