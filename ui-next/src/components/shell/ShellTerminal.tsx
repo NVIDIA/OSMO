@@ -18,8 +18,8 @@
  * - Auto-resize to container
  * - NVIDIA-themed dark colors
  * - Screen reader support
- * - Search with Ctrl+Shift+F
- * - Copy/paste support
+ * - Search with Cmd+F (Mac) / Ctrl+F (Windows/Linux)
+ * - Copy/paste with Cmd+C/V (Mac) or Ctrl+C/V (Windows/Linux)
  *
  * Usage:
  * ```tsx
@@ -33,7 +33,7 @@
 
 "use client";
 
-import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle } from "react";
+import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
@@ -109,6 +109,9 @@ export const ShellTerminal = memo(
     const shell = initialShell;
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [caseSensitive, setCaseSensitive] = useState(false);
+    const [wholeWord, setWholeWord] = useState(false);
+    const [regex, setRegex] = useState(false);
     // Debounce search query to reduce SearchAddon calls (150ms is responsive yet efficient)
     const [debouncedSearchQuery] = useDebounceValue(searchQuery, 150);
 
@@ -144,6 +147,7 @@ export const ShellTerminal = memo(
       findNext,
       findPrevious,
       clearSearch,
+      searchResults,
     } = useShell({
       onData: handleShellData,
       onResize: handleShellResize,
@@ -257,29 +261,32 @@ export const ShellTerminal = memo(
     // Handle keyboard shortcuts
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
-        // Ctrl+Shift+F - Toggle search
-        if (e.ctrlKey && e.shiftKey && e.key === "F") {
+        // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
+        // Prevents browser's native find from kicking in when inside the terminal
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
           e.preventDefault();
           setIsSearchOpen((prev) => !prev);
           return;
         }
 
-        // Ctrl+Shift+C - Copy selection
-        if (e.ctrlKey && e.shiftKey && e.key === "C") {
-          e.preventDefault();
+        // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
+        // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
           const terminal = getTerminal();
           if (terminal) {
             const selection = terminal.getSelection();
             if (selection) {
+              e.preventDefault();
               copy(selection);
               announce("Copied to clipboard", "polite");
+              return;
             }
           }
-          return;
+          // No selection - let the event propagate for Ctrl+C (SIGINT) to work
         }
 
-        // Ctrl+Shift+V - Paste
-        if (e.ctrlKey && e.shiftKey && e.key === "V") {
+        // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
           e.preventDefault();
           navigator.clipboard.readText().then((text) => {
             send(text);
@@ -312,28 +319,33 @@ export const ShellTerminal = memo(
       focus();
     }, [focus, clearSearch]);
 
+    // Memoize search options to avoid unnecessary effect triggers
+    const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
+
     // Handle find next - uses search methods from useShell
     const handleFindNext = useCallback(() => {
       if (searchQuery) {
-        findNext(searchQuery);
+        findNext(searchQuery, searchOptions);
       }
-    }, [searchQuery, findNext]);
+    }, [searchQuery, searchOptions, findNext]);
 
     // Handle find previous - uses search methods from useShell
     const handleFindPrevious = useCallback(() => {
       if (searchQuery) {
-        findPrevious(searchQuery);
+        findPrevious(searchQuery, searchOptions);
       }
-    }, [searchQuery, findPrevious]);
+    }, [searchQuery, searchOptions, findPrevious]);
 
-    // Search when debounced query changes (avoids excessive SearchAddon calls)
+    // Search when debounced query changes or search options change
+    // Clear old results first, then restart search with new options
     useEffect(() => {
       if (debouncedSearchQuery) {
-        findNext(debouncedSearchQuery);
+        clearSearch(); // Clear old decorations before applying new options
+        findNext(debouncedSearchQuery, searchOptions);
       } else {
         clearSearch();
       }
-    }, [debouncedSearchQuery, findNext, clearSearch]);
+    }, [debouncedSearchQuery, searchOptions, findNext, clearSearch]);
 
     // Determine UI state
     const isConnected = status === "connected";
@@ -386,6 +398,13 @@ export const ShellTerminal = memo(
             onFindNext={handleFindNext}
             onFindPrevious={handleFindPrevious}
             onClose={handleCloseSearch}
+            caseSensitive={caseSensitive}
+            onCaseSensitiveChange={setCaseSensitive}
+            wholeWord={wholeWord}
+            onWholeWordChange={setWholeWord}
+            regex={regex}
+            onRegexChange={setRegex}
+            searchResults={searchResults}
           />
         )}
       </div>
