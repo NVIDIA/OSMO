@@ -142,6 +142,11 @@ export interface UseShellReturn {
   fit: () => void;
   /** Set active state (controls cursor blink) */
   setActive: (active: boolean) => void;
+  /**
+   * Dispose the terminal and remove from cache.
+   * Call this when the session explicitly ends (user types exit, Ctrl+D, etc.)
+   */
+  dispose: () => void;
 }
 
 /**
