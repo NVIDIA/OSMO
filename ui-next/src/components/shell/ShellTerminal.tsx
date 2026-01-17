@@ -34,6 +34,7 @@
 "use client";
 
 import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle } from "react";
+import { useDebounceValue } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
 
@@ -108,6 +109,8 @@ export const ShellTerminal = memo(
     const shell = initialShell;
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    // Debounce search query to reduce SearchAddon calls (150ms is responsive yet efficient)
+    const [debouncedSearchQuery] = useDebounceValue(searchQuery, 150);
 
     // Track if we've written the disconnect message to avoid duplicates
     const hasWrittenDisconnectRef = useRef(false);
@@ -323,12 +326,14 @@ export const ShellTerminal = memo(
       }
     }, [searchQuery, findPrevious]);
 
-    // Search when query changes
+    // Search when debounced query changes (avoids excessive SearchAddon calls)
     useEffect(() => {
-      if (searchQuery) {
-        findNext(searchQuery);
+      if (debouncedSearchQuery) {
+        findNext(debouncedSearchQuery);
+      } else {
+        clearSearch();
       }
-    }, [searchQuery, findNext]);
+    }, [debouncedSearchQuery, findNext, clearSearch]);
 
     // Determine UI state
     const isConnected = status === "connected";

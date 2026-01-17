@@ -60,6 +60,9 @@
 
   /* Subtle inset shadow for depth */
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  /* Performance: CSS containment for paint/layout isolation */
+  contain: layout style paint;
 }
 
 .shell-container:focus-within {
@@ -87,6 +90,9 @@
   /* GPU acceleration */
   transform: translateZ(0);
   backface-visibility: hidden;
+
+  /* Performance: Strict containment for xterm rendering */
+  contain: strict;
 }
 
 /* Inner wrapper - this is what FitAddon measures via parentElement */
@@ -144,6 +150,9 @@
   justify-content: center;
   background: var(--shell-bg-overlay);
   backdrop-filter: blur(4px);
+
+  /* Performance: Prep GPU for animation */
+  will-change: opacity;
 
   /* Fade in animation */
   animation: shell-fade-in var(--shell-transition-normal) forwards;
@@ -204,6 +213,9 @@
   background: var(--shell-bg-overlay);
   backdrop-filter: blur(4px);
 
+  /* Performance: Prep GPU for animation */
+  will-change: opacity;
+
   /* Fade in animation */
   animation: shell-fade-in var(--shell-transition-normal) forwards;
 }
@@ -246,6 +258,9 @@
   padding: 8px 16px;
   background: linear-gradient(to top, rgba(9, 9, 11, 0.95), rgba(9, 9, 11, 0.8));
   border-top: 1px solid rgba(63, 63, 70, 0.5);
+
+  /* Performance: Prep GPU for animation */
+  will-change: opacity;
 
   /* Fade in animation */
   animation: shell-fade-in var(--shell-transition-normal) forwards;
@@ -296,6 +311,9 @@
   border: 1px solid var(--shell-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* Performance: Prep GPU for animation */
+  will-change: opacity, transform;
 
   /* Slide down + fade in */
   animation: shell-slide-down var(--shell-transition-normal) forwards;

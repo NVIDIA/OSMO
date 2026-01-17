@@ -35,7 +35,8 @@
 
 "use client";
 
-import { memo, useCallback, useState, useRef, useEffect, startTransition } from "react";
+import { memo, useState, useRef, useEffect, startTransition } from "react";
+import { useEventCallback } from "usehooks-ts";
 import { Plug, AlertCircle, Terminal, ChevronDown, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
@@ -95,36 +96,31 @@ export const ShellConnectPrompt = memo(function ShellConnectPrompt({ onConnect }
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customShell, setCustomShell] = useState("");
 
-  const handleShellSelect = useCallback(
-    (shell: string) => {
-      setIsOpen(false);
-      onConnect(shell);
-    },
-    [onConnect],
-  );
+  // useEventCallback: stable refs that always access latest props/state
+  const handleShellSelect = useEventCallback((shell: string) => {
+    setIsOpen(false);
+    onConnect(shell);
+  });
 
-  const handleCustomSelect = useCallback(() => {
+  const handleCustomSelect = useEventCallback(() => {
     setIsOpen(false);
     setShowCustomInput(true);
-  }, []);
+  });
 
-  const handleCustomConnect = useCallback(() => {
+  const handleCustomConnect = useEventCallback(() => {
     if (customShell.trim()) {
       onConnect(customShell.trim());
     }
-  }, [customShell, onConnect]);
+  });
 
-  const handleCustomKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && customShell.trim()) {
-        onConnect(customShell.trim());
-      } else if (e.key === "Escape") {
-        setShowCustomInput(false);
-        setCustomShell("");
-      }
-    },
-    [customShell, onConnect],
-  );
+  const handleCustomKeyDown = useEventCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && customShell.trim()) {
+      onConnect(customShell.trim());
+    } else if (e.key === "Escape") {
+      setShowCustomInput(false);
+      setCustomShell("");
+    }
+  });
 
   return (
     <div className="flex flex-col items-center gap-4 text-center">
@@ -330,42 +326,44 @@ export const TaskShell = memo(function TaskShell({
   const isConnecting = status === "connecting";
 
   // Handle reconnect button click
-  const handleReconnect = useCallback(() => {
+  // useEventCallback: stable ref, no deps needed, avoids re-renders
+  const handleReconnect = useEventCallback(() => {
     setLastError(null);
     setSessionEnded(false);
     shellRef.current?.connect();
-  }, []);
+  });
 
   // Handle session ended - mark as ended to suppress disconnected bar
-  const handleSessionEnded = useCallback(() => {
+  // useEventCallback: always has access to latest onSessionEnded
+  const handleSessionEnded = useEventCallback(() => {
     setSessionEnded(true);
     onSessionEnded?.();
-  }, [onSessionEnded]);
+  });
 
   // Handle status changes from ShellTerminal
-  const handleStatusChange = useCallback(
-    (newStatus: ConnectionStatusType) => {
-      setStatus(newStatus);
-      // Clear error and reset session ended flag when connecting/connected
-      if (newStatus === "connecting" || newStatus === "connected") {
-        setLastError(null);
-        setSessionEnded(false);
-      }
-      // Forward to parent
-      onStatusChangeProp?.(newStatus);
-    },
-    [onStatusChangeProp],
-  );
+  // useEventCallback: frequently called, stable reference avoids child re-renders
+  const handleStatusChange = useEventCallback((newStatus: ConnectionStatusType) => {
+    setStatus(newStatus);
+    // Clear error and reset session ended flag when connecting/connected
+    if (newStatus === "connecting" || newStatus === "connected") {
+      setLastError(null);
+      setSessionEnded(false);
+    }
+    // Forward to parent
+    onStatusChangeProp?.(newStatus);
+  });
 
   // Handle connection error
-  const handleError = useCallback((error: Error) => {
+  // useEventCallback: stable ref for ShellTerminal's onError prop
+  const handleError = useEventCallback((error: Error) => {
     setLastError(error.message);
-  }, []);
+  });
 
   // Handle connection success - focus the terminal
-  const handleConnected = useCallback(() => {
+  // useEventCallback: stable ref for ShellTerminal's onConnected prop
+  const handleConnected = useEventCallback(() => {
     shellRef.current?.focus();
-  }, []);
+  });
 
   // Auto-focus when becoming visible (e.g., navigating to shell tab)
   // This allows immediate typing without an extra click
