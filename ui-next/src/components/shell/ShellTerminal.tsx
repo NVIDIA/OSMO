@@ -42,7 +42,6 @@ import { useShell } from "./use-shell";
 import { useWebSocketShell } from "./use-websocket-shell";
 import { ShellConnectCard } from "./ShellConnectCard";
 import { ShellConnecting } from "./ShellConnecting";
-import { ShellReconnectButton } from "./ShellReconnectButton";
 import { ShellSearch } from "./ShellSearch";
 import type { ShellTerminalProps, ShellTerminalRef } from "./types";
 import { SHELL_CONFIG } from "./types";
@@ -210,11 +209,6 @@ export const ShellTerminal = memo(
       // Connect will be triggered by effect when shell is set
     }, []);
 
-    // Handle reconnect - uses last shell
-    const handleReconnect = useCallback(() => {
-      connect();
-    }, [connect]);
-
     // Expose imperative methods via ref
     useImperativeHandle(
       ref,
@@ -371,10 +365,7 @@ export const ShellTerminal = memo(
     // Determine UI state
     const isConnected = status === "connected";
     const isConnecting = status === "connecting";
-    const isDisconnected = status === "disconnected";
-    const isError = status === "error";
     const showConnectCard = status === "idle" && !autoConnect;
-    const showReconnectButton = isDisconnected || isError;
 
     return (
       <div
@@ -398,9 +389,6 @@ export const ShellTerminal = memo(
 
         {/* Connecting Spinner */}
         {isConnecting && <ShellConnecting />}
-
-        {/* Reconnect Button - floating at bottom when disconnected */}
-        {showReconnectButton && <ShellReconnectButton onReconnect={handleReconnect} />}
 
         {/* Search Bar - floating top-right when open */}
         {isSearchOpen && (
