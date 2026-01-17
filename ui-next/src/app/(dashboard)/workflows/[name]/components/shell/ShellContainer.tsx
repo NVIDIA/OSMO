@@ -14,22 +14,22 @@
  * into the correct position within TaskDetails' shell tab content area.
  *
  * Flow:
- * 1. User clicks "Connect" in TaskDetails → openSession() creates session in store
- * 2. TaskDetails registers portal target via ShellPortalContext when shell tab active
- * 3. ShellContainer portals into the target and renders TaskShell
- * 4. TaskShell auto-connects and updates store status via callbacks
- * 5. Sessions persist across navigation until user closes or session ends
+ * 1. User clicks "Connect" in TaskDetails → ShellContext.connectShell() adds to activeShells
+ * 2. ShellContainer sees activeShells → renders TaskShell for each
+ * 3. TaskShell mounts → useShell creates session in cache (with terminal)
+ * 4. TaskDetails registers portal target via ShellPortalContext when shell tab active
+ * 5. ShellContainer portals into the target
+ * 6. Sessions persist across navigation until user closes or session ends
  */
 
 "use client";
 
 import { memo, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useShallow } from "zustand/react/shallow";
-import { useShellStore } from "../../stores";
 import { TaskShell } from "../panel/task/TaskShell";
 import { useShellPortal } from "./ShellPortalContext";
-import type { ConnectionStatusType } from "@/components/shell";
+import { useShellContext } from "./ShellContext";
+import { updateSessionStatus, type ConnectionStatusType } from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -38,8 +38,8 @@ import type { ConnectionStatusType } from "@/components/shell";
 export interface ShellContainerProps {
   /** Workflow name for shell connections */
   workflowName: string;
-  /** Currently viewed task name (if any) */
-  currentTaskName?: string;
+  /** Currently viewed task ID (UUID) */
+  currentTaskId?: string;
   /** Whether the shell tab is currently active */
   isShellTabActive: boolean;
 }
@@ -50,75 +50,72 @@ export interface ShellContainerProps {
 
 export const ShellContainer = memo(function ShellContainer({
   workflowName,
-  currentTaskName,
+  currentTaskId,
   isShellTabActive,
 }: ShellContainerProps) {
-  // Get sessions and store actions
-  const sessions = useShellStore(useShallow((s) => Object.values(s.sessions)));
-  const updateStatus = useShellStore((s) => s.updateStatus);
-  const markDisconnected = useShellStore((s) => s.markDisconnected);
+  // Get active shells from context (what to render)
+  const { activeShells, disconnectShell } = useShellContext();
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
 
-  // Handle status changes from TaskShell - update the store
-  const handleStatusChange = useCallback(
-    (taskName: string, status: ConnectionStatusType) => {
-      updateStatus(taskName, status);
-    },
-    [updateStatus],
-  );
+  // Handle status changes from TaskShell - update the session cache
+  const handleStatusChange = useCallback((taskId: string, status: ConnectionStatusType) => {
+    updateSessionStatus(taskId, status);
+  }, []);
 
-  // Handle session ended - mark as disconnected (don't remove - keep for history/reconnect)
+  // Handle session ended - disconnect via context (removes from activeShells + disposes session)
   const handleSessionEnded = useCallback(
-    (taskName: string) => {
-      markDisconnected(taskName);
+    (taskId: string) => {
+      disconnectShell(taskId);
     },
-    [markDisconnected],
+    [disconnectShell],
   );
 
-  // Don't render if no sessions
-  if (sessions.length === 0) {
+  // Don't render if no active shells
+  if (activeShells.length === 0) {
     return null;
   }
 
-  // Determine which session is visible (if any)
-  // A session is visible when: shell tab is active + portal target exists + session matches current task
-  const visibleSession =
-    isShellTabActive && portalTarget ? sessions.find((session) => session.taskName === currentTaskName) : undefined;
+  // Determine which shell is visible (if any)
+  // A shell is visible when: shell tab is active + portal target exists + shell matches current task
+  const visibleShell =
+    isShellTabActive && portalTarget ? activeShells.find((shell) => shell.taskId === currentTaskId) : undefined;
 
-  // All other sessions are hidden but stay mounted to preserve terminal instances
-  const hiddenSessions = sessions.filter((session) => session !== visibleSession);
+  // All other shells are hidden but stay mounted to preserve terminal instances
+  const hiddenShells = activeShells.filter((shell) => shell !== visibleShell);
 
   return (
     <>
       {/* Visible shell - portaled into TaskDetails shell tab area */}
-      {visibleSession &&
+      {visibleShell &&
         portalTarget &&
         createPortal(
           <div className="h-full w-full p-4">
             <TaskShell
+              taskId={visibleShell.taskId}
               workflowName={workflowName}
-              taskName={visibleSession.taskName}
-              shell={visibleSession.shell}
-              onStatusChange={(status) => handleStatusChange(visibleSession.taskName, status)}
-              onSessionEnded={() => handleSessionEnded(visibleSession.taskName)}
+              taskName={visibleShell.taskName}
+              shell={visibleShell.shell}
+              onStatusChange={(status) => handleStatusChange(visibleShell.taskId, status)}
+              onSessionEnded={() => handleSessionEnded(visibleShell.taskId)}
             />
           </div>,
           portalTarget,
         )}
 
       {/* Hidden shells - stay mounted in invisible container to preserve terminal instances */}
-      {hiddenSessions.length > 0 && (
+      {hiddenShells.length > 0 && (
         <div className="pointer-events-none invisible absolute -left-[9999px] size-0 overflow-hidden">
-          {hiddenSessions.map((session) => (
+          {hiddenShells.map((shell) => (
             <TaskShell
-              key={session.taskName}
+              key={shell.taskId}
+              taskId={shell.taskId}
               workflowName={workflowName}
-              taskName={session.taskName}
-              shell={session.shell}
-              onStatusChange={(status) => handleStatusChange(session.taskName, status)}
-              onSessionEnded={() => handleSessionEnded(session.taskName)}
+              taskName={shell.taskName}
+              shell={shell.shell}
+              onStatusChange={(status) => handleStatusChange(shell.taskId, status)}
+              onSessionEnded={() => handleSessionEnded(shell.taskId)}
             />
           ))}
         </div>

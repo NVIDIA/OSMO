@@ -19,7 +19,8 @@ import { memo } from "react";
 import { Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import type { ConnectionStatus, ShellSession } from "./types";
+import type { ConnectionStatus } from "./types";
+import type { ShellSessionSnapshot } from "./shell-session-cache";
 
 // =============================================================================
 // Types
@@ -27,7 +28,7 @@ import type { ConnectionStatus, ShellSession } from "./types";
 
 export interface ShellSessionIconProps {
   /** The shell session */
-  session: ShellSession;
+  session: ShellSessionSnapshot;
   /** Whether this session is currently active/focused */
   isActive?: boolean;
   /** Called when the icon is clicked */
