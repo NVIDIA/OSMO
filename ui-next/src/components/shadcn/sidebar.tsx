@@ -21,7 +21,6 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
 
-import { useMediaQuery } from "@react-hookz/web";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
@@ -36,6 +35,31 @@ const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+const MOBILE_BREAKPOINT = "(max-width: 767px)";
+
+/**
+ * SSR-safe mobile detection hook.
+ *
+ * PPR Compatibility:
+ * - Returns false during SSR/prerender (assumes desktop layout)
+ * - Updates to actual mobile state after hydration
+ * - This allows the sidebar to be prerendered with desktop layout
+ * - Mobile users see correct layout after hydration (~50ms)
+ */
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const mq = window.matchMedia(MOBILE_BREAKPOINT);
+    setIsMobile(mq.matches);
+
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  return isMobile;
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -71,7 +95,8 @@ function SidebarProvider({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
-  const isMobile = useMediaQuery("(max-width: 767px)", { initializeWithValue: false }) ?? false;
+  // PPR-compatible: SSR-safe mobile detection (assumes desktop during prerender)
+  const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
@@ -593,8 +618,9 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean;
 }) {
-  // Random width between 50 to 90% - use useState lazy initializer for purity
-  const [width] = React.useState(() => `${Math.floor(Math.random() * 40) + 50}%`);
+  // Fixed width for skeleton - using 70% as a reasonable middle value
+  // Avoids Math.random() which is not compatible with PPR/cacheComponents
+  const width = "70%";
 
   return (
     <div
