@@ -10,7 +10,7 @@
  * Shell Session Cache
  *
  * Manages shell sessions (terminal + connection) outside of React's lifecycle.
- * Sessions are stored by a unique key (typically taskName) and persist when
+ * Sessions are stored by a unique key (typically taskId UUID) and persist when
  * navigating within a workflow page.
  *
  * Architecture:
@@ -18,16 +18,10 @@
  * - When navigating away, both terminal and WebSocket are preserved
  * - When returning, the same session is reattached without creating a new PTY
  *
- * Future: Half-Open Connection Support
- * - Backend will support releasing WebSocket while keeping PTY alive
- * - Session will store a `reconnectionToken` for reattaching to same PTY
- * - `releaseConnection()` will close WebSocket but preserve reconnection ability
- * - `reconnect(token)` will reattach to existing PTY instead of creating new one
- *
  * Lifecycle:
- * 1. User opens shell → getOrCreateSession() creates session with Terminal + WebSocket
- * 2. User navigates away → detachSession() removes from DOM, keeps session alive
- * 3. User returns → attachSession() reattaches Terminal to new container
+ * 1. User opens shell → createSession() creates session with Terminal + WebSocket
+ * 2. User navigates away → updateSessionContainer(null) detaches from DOM
+ * 3. User returns → reattachTerminal() attaches Terminal to new container
  * 4. User closes shell / exit → disposeSession() cleans up everything
  */
 
@@ -96,27 +90,6 @@ export interface SessionConnection {
 }
 
 /**
- * Future: Reconnection support for half-open connections.
- * When backend supports keeping PTY alive after WebSocket closes.
- */
-export interface SessionReconnection {
-  /**
-   * Token from backend for reconnecting to the same PTY.
-   * Future: Backend will provide this when connection is "released".
-   */
-  token?: string;
-  /**
-   * Whether this session supports reconnection.
-   * Future: Will be true when backend supports half-open connections.
-   */
-  supportsReconnect: boolean;
-  /**
-   * Router address for reconnection.
-   */
-  routerAddress?: string;
-}
-
-/**
  * A shell session bundles terminal, connection, and metadata.
  */
 export interface ShellSession {
@@ -153,13 +126,6 @@ export interface ShellSession {
   connection: SessionConnection;
   /** Callbacks for connection events */
   callbacks: SessionCallbacks;
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Reconnection (Future)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /** Reconnection support for half-open connections */
-  reconnection: SessionReconnection;
 }
 
 // =============================================================================
@@ -243,20 +209,6 @@ export function hasSession(key: string): boolean {
   return sessionCache.has(key);
 }
 
-/**
- * Get all session keys.
- */
-export function getSessionKeys(): string[] {
-  return Array.from(sessionCache.keys());
-}
-
-/**
- * Get the count of cached sessions.
- */
-export function getSessionCount(): number {
-  return sessionCache.size;
-}
-
 // =============================================================================
 // Session Creation
 // =============================================================================
@@ -300,9 +252,6 @@ export function createSession(params: {
       hadConnection: false,
     },
     callbacks: {},
-    reconnection: {
-      supportsReconnect: false, // Future: Will be true when backend supports
-    },
   };
 
   sessionCache.set(params.key, session);
@@ -423,16 +372,6 @@ export function disposeSession(key: string): void {
   notifySubscribers();
 }
 
-/**
- * Dispose all sessions in the cache.
- * Called when leaving the workflow page.
- */
-export function disposeAllSessions(): void {
-  for (const key of sessionCache.keys()) {
-    disposeSession(key);
-  }
-}
-
 // =============================================================================
 // Connection Helpers
 // =============================================================================
@@ -508,56 +447,4 @@ export function sendResize(key: string, rows: number, cols: number): boolean {
   const msg = JSON.stringify({ Rows: rows, Cols: cols });
   ws.send(msg);
   return true;
-}
-
-// =============================================================================
-// Future: Half-Open Connection Support
-// =============================================================================
-
-/**
- * Future: Release the WebSocket connection but keep the session.
- * Backend will keep PTY alive and provide a reconnection token.
- *
- * @param key - Session key
- * @returns Reconnection token (or undefined if not supported)
- */
-export function releaseConnection(key: string): string | undefined {
-  const session = sessionCache.get(key);
-  if (!session) return undefined;
-
-  // Future: Backend API call to release connection and get token
-  // For now, just close the WebSocket
-  if (session.connection.webSocket) {
-    session.connection.webSocket.close();
-    session.connection.webSocket = null;
-  }
-
-  session.connection.status = "disconnected";
-
-  // Future: Return the reconnection token from backend
-  return session.reconnection.token;
-}
-
-/**
- * Future: Check if a session can be reconnected to its existing PTY.
- */
-export function canReconnect(key: string): boolean {
-  const session = sessionCache.get(key);
-  if (!session) return false;
-
-  // Future: Check if we have a valid reconnection token
-  return session.reconnection.supportsReconnect && !!session.reconnection.token;
-}
-
-/**
- * Future: Store reconnection data for a session.
- * Called when backend provides reconnection token.
- */
-export function setReconnectionData(key: string, data: { token: string; routerAddress: string }): void {
-  const session = sessionCache.get(key);
-  if (!session) return;
-
-  session.reconnection.token = data.token;
-  session.reconnection.routerAddress = data.routerAddress;
-  session.reconnection.supportsReconnect = true;
 }
