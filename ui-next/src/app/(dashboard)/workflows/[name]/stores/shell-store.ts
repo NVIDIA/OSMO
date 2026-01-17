@@ -29,6 +29,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import type { ShellSession, ConnectionStatus, PersistedSession } from "@/components/shell/types";
 import { SHELL_CONFIG } from "@/components/shell/types";
+import { disposeAllTerminals } from "@/components/shell";
 
 // =============================================================================
 // Storage Key
@@ -220,6 +221,8 @@ export const useShellStore = create<ShellStore>()(
       },
 
       closeSession: (taskName) => {
+        // Note: Terminal instance stays in cache for history viewing
+        // Cache is only cleared on page navigation via closeAllSessions
         set(
           (state) => {
             delete state.sessions[taskName];
@@ -231,6 +234,9 @@ export const useShellStore = create<ShellStore>()(
       },
 
       closeAllSessions: () => {
+        // Dispose all terminal instances from cache
+        disposeAllTerminals();
+
         set(
           (state) => {
             state.sessions = {};

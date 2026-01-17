@@ -14,11 +14,20 @@
  * - Fit addon for auto-resize
  * - Search addon for Ctrl+Shift+F
  * - Web links addon for clickable URLs
- * - Cleanup on unmount
+ * - Terminal persistence via terminalKey
+ *
+ * Terminal Persistence:
+ * When `terminalKey` is provided, the terminal instance is stored in a cache
+ * and persists across component unmount/remount. This allows shell history
+ * to be preserved when navigating within a workflow page.
  *
  * Usage:
  * ```tsx
+ * // Without persistence (disposes on unmount)
  * const { containerRef, isReady, fit } = useShell();
+ *
+ * // With persistence (survives navigation)
+ * const { containerRef, isReady, fit } = useShell({ terminalKey: taskName });
  *
  * return <div ref={containerRef} className="shell-body" />;
  * ```
@@ -36,9 +45,127 @@ import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
 import { SHELL_THEME, SHELL_CONFIG } from "./types";
 import type { UseShellReturn } from "./types";
+import {
+  getTerminal as getCachedTerminal,
+  storeTerminal,
+  updateContainer,
+  disposeTerminal,
+  type CachedTerminal,
+} from "./terminal-cache";
 
 // Import xterm CSS
 import "@xterm/xterm/css/xterm.css";
+
+// =============================================================================
+// Terminal Creation Helpers
+// =============================================================================
+
+/**
+ * Create a new xterm.js Terminal instance with all addons configured.
+ */
+function createTerminal(
+  container: HTMLElement,
+  onData?: (data: string) => void,
+  onLinkClick?: (url: string) => void,
+): {
+  terminal: Terminal;
+  fitAddon: FitAddon;
+  searchAddon: SearchAddon;
+  webglAddon: WebglAddon | null;
+} {
+  // Get the actual font family from CSS variable (Next.js generates unique names)
+  // Fallback to common monospace fonts if CSS variable isn't available
+  const computedStyle = getComputedStyle(document.documentElement);
+  const geistMono = computedStyle.getPropertyValue("--font-geist-mono").trim();
+  const fontFamily = geistMono
+    ? `${geistMono}, "SF Mono", "Monaco", "Menlo", "Consolas", monospace`
+    : '"SF Mono", "Monaco", "Menlo", "Consolas", "Liberation Mono", "Courier New", monospace';
+
+  // Create xterm instance
+  const terminal = new Terminal({
+    cursorBlink: true,
+    cursorStyle: "block",
+    fontSize: SHELL_CONFIG.FONT_SIZE,
+    fontFamily,
+    lineHeight: 1.2,
+    letterSpacing: 0,
+    scrollback: SHELL_CONFIG.SCROLLBACK,
+    theme: SHELL_THEME,
+    allowProposedApi: true,
+    screenReaderMode: true,
+    rightClickSelectsWord: true,
+  });
+
+  // Create addons
+  const fitAddon = new FitAddon();
+  const searchAddon = new SearchAddon();
+  const webLinksAddon = new WebLinksAddon((event, url) => {
+    event.preventDefault();
+    if (onLinkClick) {
+      onLinkClick(url);
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  });
+
+  // Load addons
+  terminal.loadAddon(fitAddon);
+  terminal.loadAddon(searchAddon);
+  terminal.loadAddon(webLinksAddon);
+
+  // Open terminal in container
+  terminal.open(container);
+
+  // Try to load WebGL addon (graceful fallback to canvas)
+  let webglAddon: WebglAddon | null = null;
+  try {
+    webglAddon = new WebglAddon();
+    webglAddon.onContextLoss(() => {
+      // WebGL context lost - dispose and fall back to canvas
+      webglAddon?.dispose();
+    });
+    terminal.loadAddon(webglAddon);
+  } catch {
+    // WebGL not available, canvas renderer is used automatically
+    console.debug("[Shell] WebGL not available, using canvas renderer");
+    webglAddon = null;
+  }
+
+  // Initial fit
+  fitAddon.fit();
+
+  // Set up data handler
+  if (onData) {
+    terminal.onData(onData);
+  }
+
+  return { terminal, fitAddon, searchAddon, webglAddon };
+}
+
+/**
+ * Reattach a cached terminal to a new container.
+ * This is called when navigating back to a shell that was previously detached.
+ */
+function reattachTerminal(cached: CachedTerminal, container: HTMLElement, onData?: (data: string) => void): void {
+  const { terminal } = cached;
+
+  // Clear the container and append the terminal element
+  // xterm.js doesn't have a built-in "reattach" method, so we move the element
+  const terminalElement = terminal.element;
+  if (terminalElement && terminalElement.parentElement !== container) {
+    // Move terminal element to new container
+    container.innerHTML = "";
+    container.appendChild(terminalElement);
+  }
+
+  // Re-register data handler (previous one was on old mount)
+  if (onData) {
+    terminal.onData(onData);
+  }
+
+  // Scroll to bottom to show latest content
+  terminal.scrollToBottom();
+}
 
 // =============================================================================
 // Hook
@@ -51,18 +178,33 @@ export interface UseShellOptions {
   onResize?: (cols: number, rows: number) => void;
   /** Callback when a link is clicked */
   onLinkClick?: (url: string) => void;
+  /**
+   * Unique key for terminal persistence. When provided, the terminal instance
+   * is cached and survives component unmount/remount. This preserves shell
+   * history when navigating within the workflow page.
+   *
+   * Typically set to the taskName for workflow shells.
+   */
+  terminalKey?: string;
 }
 
 export function useShell(options: UseShellOptions = {}): UseShellReturn {
-  const { onData, onResize, onLinkClick } = options;
+  const { onData, onResize, onLinkClick, terminalKey } = options;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const webglAddonRef = useRef<WebglAddon | null>(null);
+  // Track the key used for this instance to handle cleanup correctly
+  const terminalKeyRef = useRef<string | undefined>(terminalKey);
 
   const [isReady, setIsReady] = useState(false);
+
+  // Keep terminalKeyRef in sync
+  useEffect(() => {
+    terminalKeyRef.current = terminalKey;
+  }, [terminalKey]);
 
   // Debounced resize handler
   const debouncedFit = useDebounceCallback(() => {
@@ -90,81 +232,76 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     onResize: handleResize,
   });
 
-  // Initialize xterm on mount
+  // Initialize xterm on mount (or reattach if cached)
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Get the actual font family from CSS variable (Next.js generates unique names)
-    // Fallback to common monospace fonts if CSS variable isn't available
-    const computedStyle = getComputedStyle(document.documentElement);
-    const geistMono = computedStyle.getPropertyValue("--font-geist-mono").trim();
-    const fontFamily = geistMono
-      ? `${geistMono}, "SF Mono", "Monaco", "Menlo", "Consolas", monospace`
-      : '"SF Mono", "Monaco", "Menlo", "Consolas", "Liberation Mono", "Courier New", monospace';
+    // Check if we have a cached terminal for this key
+    const cached = terminalKey ? getCachedTerminal(terminalKey) : undefined;
 
-    // Create xterm instance
-    const terminal = new Terminal({
-      cursorBlink: true,
-      cursorStyle: "block",
-      fontSize: SHELL_CONFIG.FONT_SIZE,
-      fontFamily,
-      lineHeight: 1.2,
-      letterSpacing: 0,
-      scrollback: SHELL_CONFIG.SCROLLBACK,
-      theme: SHELL_THEME,
-      allowProposedApi: true,
-      screenReaderMode: true,
-      rightClickSelectsWord: true,
-    });
+    if (cached) {
+      // Reattach cached terminal to new container
+      reattachTerminal(cached, container, onData);
 
-    // Create addons
-    const fitAddon = new FitAddon();
-    const searchAddon = new SearchAddon();
-    const webLinksAddon = new WebLinksAddon((event, url) => {
-      event.preventDefault();
-      if (onLinkClick) {
-        onLinkClick(url);
-      } else {
-        window.open(url, "_blank", "noopener,noreferrer");
+      // Store refs
+      terminalRef.current = cached.terminal;
+      fitAddonRef.current = cached.fitAddon;
+      searchAddonRef.current = cached.searchAddon;
+      webglAddonRef.current = cached.webglAddon;
+
+      // Update container reference in cache
+      updateContainer(terminalKey!, container);
+
+      // Fit to new container size
+      try {
+        cached.fitAddon.fit();
+      } catch {
+        // Fit may fail if container is not visible
       }
-    });
 
-    // Load addons
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(searchAddon);
-    terminal.loadAddon(webLinksAddon);
-
-    // Open terminal in container
-    terminal.open(container);
-
-    // Try to load WebGL addon (graceful fallback to canvas)
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        // WebGL context lost - dispose and fall back to canvas
-        webglAddon.dispose();
-        webglAddonRef.current = null;
+      // Use startTransition to avoid cascading renders
+      startTransition(() => {
+        setIsReady(true);
       });
-      terminal.loadAddon(webglAddon);
-      webglAddonRef.current = webglAddon;
-    } catch {
-      // WebGL not available, canvas renderer is used automatically
-      console.debug("[Shell] WebGL not available, using canvas renderer");
+
+      // Cleanup: detach but don't dispose
+      return () => {
+        startTransition(() => {
+          setIsReady(false);
+        });
+        // Update cache to mark as detached
+        if (terminalKeyRef.current) {
+          updateContainer(terminalKeyRef.current, null);
+        }
+        // Clear local refs but don't dispose
+        terminalRef.current = null;
+        fitAddonRef.current = null;
+        searchAddonRef.current = null;
+        webglAddonRef.current = null;
+      };
     }
 
-    // Initial fit
-    fitAddon.fit();
-
-    // Set up data handler
-    if (onData) {
-      terminal.onData(onData);
-    }
+    // No cached terminal - create new one
+    const { terminal, fitAddon, searchAddon, webglAddon } = createTerminal(container, onData, onLinkClick);
 
     // Store refs
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     searchAddonRef.current = searchAddon;
+    webglAddonRef.current = webglAddon;
+
+    // If terminalKey is provided, store in cache for persistence
+    if (terminalKey) {
+      storeTerminal(terminalKey, {
+        terminal,
+        fitAddon,
+        searchAddon,
+        webglAddon,
+        container,
+        createdAt: Date.now(),
+      });
+    }
 
     // Use startTransition to avoid cascading renders
     startTransition(() => {
@@ -176,14 +313,30 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
       startTransition(() => {
         setIsReady(false);
       });
-      webglAddonRef.current?.dispose();
-      terminal.dispose();
-      terminalRef.current = null;
-      fitAddonRef.current = null;
-      searchAddonRef.current = null;
-      webglAddonRef.current = null;
+
+      // If terminalKey is set, detach but don't dispose (persist for reattachment)
+      if (terminalKeyRef.current) {
+        updateContainer(terminalKeyRef.current, null);
+        // Clear local refs but don't dispose
+        terminalRef.current = null;
+        fitAddonRef.current = null;
+        searchAddonRef.current = null;
+        webglAddonRef.current = null;
+      } else {
+        // No terminalKey - dispose immediately
+        webglAddonRef.current?.dispose();
+        terminal.dispose();
+        terminalRef.current = null;
+        fitAddonRef.current = null;
+        searchAddonRef.current = null;
+        webglAddonRef.current = null;
+      }
     };
-  }, [onData, onLinkClick]);
+    // Note: onData and onLinkClick are intentionally excluded from deps when
+    // using cached terminals to avoid recreating on callback changes.
+    // For non-cached terminals, changing these would require remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalKey]);
 
   // Focus the shell
   const focus = useCallback(() => {
@@ -231,6 +384,25 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
   // Get xterm instance (for use in effects only, not render)
   const getTerminal = useCallback(() => terminalRef.current, []);
 
+  // Dispose the terminal (removes from cache if using terminalKey)
+  // Call this when the session explicitly ends (user types exit, Ctrl+D, etc.)
+  const dispose = useCallback(() => {
+    if (terminalKeyRef.current) {
+      disposeTerminal(terminalKeyRef.current);
+    } else {
+      // No terminalKey - dispose local refs
+      webglAddonRef.current?.dispose();
+      terminalRef.current?.dispose();
+    }
+    terminalRef.current = null;
+    fitAddonRef.current = null;
+    searchAddonRef.current = null;
+    webglAddonRef.current = null;
+    startTransition(() => {
+      setIsReady(false);
+    });
+  }, []);
+
   return {
     containerRef,
     // Note: Direct xterm access is through getTerminal() in effects
@@ -244,6 +416,7 @@ export function useShell(options: UseShellOptions = {}): UseShellReturn {
     getDimensions,
     fit,
     setActive,
+    dispose,
   };
 }
 
