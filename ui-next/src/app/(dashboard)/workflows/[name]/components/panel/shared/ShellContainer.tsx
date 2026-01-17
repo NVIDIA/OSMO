@@ -9,21 +9,25 @@
 /**
  * ShellContainer Component
  *
- * Renders all active shell sessions at the DetailsPanel level to persist
+ * Renders all shell sessions at the DetailsPanel level to persist
  * connections across task/group navigation. Each shell is rendered but
  * hidden unless it's the currently viewed task on the Shell tab.
  *
- * This component subscribes to the shell store and renders a TaskShell
- * for each session that has been connected at least once.
+ * Flow:
+ * 1. User clicks "Connect" in TaskDetails → openSession() creates session in store
+ * 2. ShellContainer picks up the session and renders TaskShell
+ * 3. TaskShell auto-connects and updates store status via callbacks
+ * 4. Sessions persist across navigation until user closes or session ends
  */
 
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useShellStore } from "../../../stores";
 import { TaskShell } from "../task/TaskShell";
+import type { ConnectionStatusType } from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -36,10 +40,6 @@ export interface ShellContainerProps {
   currentTaskName?: string;
   /** Whether the shell tab is currently active */
   isShellTabActive: boolean;
-  /** Called when shell status changes */
-  onShellStatusChange?: (taskName: string, status: string) => void;
-  /** Called when a shell session ends cleanly */
-  onShellSessionEnded?: (taskName: string) => void;
 }
 
 // =============================================================================
@@ -50,25 +50,36 @@ export const ShellContainer = memo(function ShellContainer({
   workflowName,
   currentTaskName,
   isShellTabActive,
-  onShellStatusChange,
-  onShellSessionEnded,
 }: ShellContainerProps) {
-  // Get sessions from store - only render sessions that exist
+  // Get sessions and store actions
   const sessions = useShellStore(useShallow((s) => Object.values(s.sessions)));
+  const updateStatus = useShellStore((s) => s.updateStatus);
+  const closeSession = useShellStore((s) => s.closeSession);
 
-  // Filter to only sessions that have been interacted with (not just registered)
-  // Sessions with status other than "idle" have been connected at some point
-  const activeSessions = sessions.filter(
-    (s) => s.status === "connecting" || s.status === "connected" || s.status === "disconnected" || s.status === "error",
+  // Handle status changes from TaskShell - update the store
+  const handleStatusChange = useCallback(
+    (taskName: string, status: ConnectionStatusType) => {
+      updateStatus(taskName, status);
+    },
+    [updateStatus],
   );
 
-  if (activeSessions.length === 0) {
+  // Handle session ended - remove from store
+  const handleSessionEnded = useCallback(
+    (taskName: string) => {
+      closeSession(taskName);
+    },
+    [closeSession],
+  );
+
+  // Render all registered sessions (sessions are created when user clicks "Connect")
+  if (sessions.length === 0) {
     return null;
   }
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {activeSessions.map((session) => {
+      {sessions.map((session) => {
         const isVisible = isShellTabActive && session.taskName === currentTaskName;
 
         return (
@@ -79,8 +90,9 @@ export const ShellContainer = memo(function ShellContainer({
             <TaskShell
               workflowName={workflowName}
               taskName={session.taskName}
-              onStatusChange={(status) => onShellStatusChange?.(session.taskName, status)}
-              onSessionEnded={() => onShellSessionEnded?.(session.taskName)}
+              shell={session.shell}
+              onStatusChange={(status) => handleStatusChange(session.taskName, status)}
+              onSessionEnded={() => handleSessionEnded(session.taskName)}
             />
           </div>
         );
