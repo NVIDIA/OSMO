@@ -33,8 +33,18 @@
 
 "use client";
 
-import { memo, useEffect, useCallback, useState, useRef, forwardRef, useImperativeHandle, useMemo } from "react";
-import { useDebounceValue } from "usehooks-ts";
+import {
+  memo,
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+  useDeferredValue,
+} from "react";
+import { useEventCallback } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { useAnnouncer, useCopy } from "@/hooks";
 
@@ -61,22 +71,28 @@ const ANSI = {
   GRAY: "\x1b[90m",
 } as const;
 
+// Pre-computed constants at module load (avoids runtime computation)
+const ANSI_DIVIDER = `${ANSI.GRAY}${"─".repeat(40)}${ANSI.RESET}`;
+const ANSI_ICON_ERROR = `${ANSI.RED}✗${ANSI.RESET}`;
+const ANSI_ICON_NORMAL = `${ANSI.GRAY}○${ANSI.RESET}`;
+const ANSI_LABEL_ERROR = `${ANSI.RED}Connection lost${ANSI.RESET}`;
+const ANSI_LABEL_NORMAL = `${ANSI.GRAY}Session ended${ANSI.RESET}`;
+
 /**
  * Generate an inline disconnect message for the terminal buffer.
- * Uses ANSI escape codes for styling.
+ * Uses pre-computed ANSI escape codes for styling.
  */
 function getDisconnectMessage(isError: boolean, errorMessage?: string | null): string {
-  const divider = `${ANSI.GRAY}${"─".repeat(40)}${ANSI.RESET}`;
-  const icon = isError ? `${ANSI.RED}✗${ANSI.RESET}` : `${ANSI.GRAY}○${ANSI.RESET}`;
-  const label = isError ? `${ANSI.RED}Connection lost${ANSI.RESET}` : `${ANSI.GRAY}Session ended${ANSI.RESET}`;
+  const icon = isError ? ANSI_ICON_ERROR : ANSI_ICON_NORMAL;
+  const label = isError ? ANSI_LABEL_ERROR : ANSI_LABEL_NORMAL;
 
-  let message = `\r\n\r\n${divider}\r\n  ${icon} ${label}\r\n`;
+  let message = `\r\n\r\n${ANSI_DIVIDER}\r\n  ${icon} ${label}\r\n`;
 
   if (isError && errorMessage) {
     message += `  ${ANSI.DIM}${errorMessage}${ANSI.RESET}\r\n`;
   }
 
-  message += `${divider}\r\n`;
+  message += `${ANSI_DIVIDER}\r\n`;
 
   return message;
 }
@@ -112,8 +128,9 @@ export const ShellTerminal = memo(
     const [caseSensitive, setCaseSensitive] = useState(false);
     const [wholeWord, setWholeWord] = useState(false);
     const [regex, setRegex] = useState(false);
-    // Debounce search query to reduce SearchAddon calls (150ms is responsive yet efficient)
-    const [debouncedSearchQuery] = useDebounceValue(searchQuery, 150);
+    // Use React 19's useDeferredValue for concurrent rendering - keeps UI responsive
+    // while deferring expensive search operations to lower priority updates
+    const deferredSearchQuery = useDeferredValue(searchQuery);
 
     // Track if we've written the disconnect message to avoid duplicates
     const hasWrittenDisconnectRef = useRef(false);
@@ -288,9 +305,12 @@ export const ShellTerminal = memo(
         // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
           e.preventDefault();
-          navigator.clipboard.readText().then((text) => {
-            send(text);
-          });
+          // Use void operator to handle Promise without floating promise lint error
+          void navigator.clipboard.readText().then(
+            (text) => send(text),
+            // Silently fail if clipboard access denied (user didn't grant permission)
+            () => {},
+          );
           return;
         }
       };
@@ -302,50 +322,51 @@ export const ShellTerminal = memo(
       }
     }, [getTerminal, containerRef, copy, announce, send]);
 
-    // Handle focus/blur for active state
-    const handleFocus = useCallback(() => {
+    // Handle focus/blur for active state - stable refs via useEventCallback
+    const handleFocus = useEventCallback(() => {
       setIsActive(true);
-    }, []);
+    });
 
-    const handleBlur = useCallback(() => {
+    const handleBlur = useEventCallback(() => {
       setIsActive(false);
-    }, []);
+    });
 
-    // Handle search close
-    const handleCloseSearch = useCallback(() => {
+    // Handle search close - stable ref via useEventCallback
+    const handleCloseSearch = useEventCallback(() => {
       setIsSearchOpen(false);
       setSearchQuery("");
       clearSearch();
       focus();
-    }, [focus, clearSearch]);
+    });
 
     // Memoize search options to avoid unnecessary effect triggers
     const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
 
-    // Handle find next - uses search methods from useShell
-    const handleFindNext = useCallback(() => {
+    // Handle find next - stable ref via useEventCallback
+    const handleFindNext = useEventCallback(() => {
       if (searchQuery) {
         findNext(searchQuery, searchOptions);
       }
-    }, [searchQuery, searchOptions, findNext]);
+    });
 
-    // Handle find previous - uses search methods from useShell
-    const handleFindPrevious = useCallback(() => {
+    // Handle find previous - stable ref via useEventCallback
+    const handleFindPrevious = useEventCallback(() => {
       if (searchQuery) {
         findPrevious(searchQuery, searchOptions);
       }
-    }, [searchQuery, searchOptions, findPrevious]);
+    });
 
-    // Search when debounced query changes or search options change
+    // Search when deferred query changes or search options change
     // Clear old results first, then restart search with new options
+    // useDeferredValue schedules this at lower priority, keeping input responsive
     useEffect(() => {
-      if (debouncedSearchQuery) {
+      if (deferredSearchQuery) {
         clearSearch(); // Clear old decorations before applying new options
-        findNext(debouncedSearchQuery, searchOptions);
+        findNext(deferredSearchQuery, searchOptions);
       } else {
         clearSearch();
       }
-    }, [debouncedSearchQuery, searchOptions, findNext, clearSearch]);
+    }, [deferredSearchQuery, searchOptions, findNext, clearSearch]);
 
     // Determine UI state
     const isConnected = status === "connected";
