@@ -1360,29 +1360,38 @@ Optional: Show dimensions overlay during resize:
 
 Fades out 500ms after resize stops.
 
-### Implementation: Shell Session Store
+### Implementation: Shell Session Cache
+
+Sessions are managed outside React using a module-scope cache with React integration
+via `useSyncExternalStore`. This approach:
+- Preserves terminal instances and WebSocket connections across React unmount/remount
+- Enables reactive UI updates without Zustand overhead
+- Prepares for future half-open connection support from the backend
 
 ```typescript
+// In shell-session-cache.ts
 interface ShellSession {
-  taskName: string;
+  key: string;           // taskId (UUID from backend)
+  taskName: string;      // Display name
+  workflowName: string;
   shell: string;
-  status: 'connecting' | 'connected' | 'disconnected' | 'error';
-  websocket: WebSocket | null;
-  terminal: Terminal | null;  // xterm.js instance
+  terminal: SessionTerminal;    // xterm.js instance + addons
+  connection: SessionConnection; // WebSocket + status
+  reconnection: SessionReconnection; // Future: half-open support
 }
 
-interface ShellStore {
-  // Active sessions (persisted while on workflow page)
-  sessions: Map<string, ShellSession>;
+// Functions for managing sessions:
+export function openSession(params): boolean;      // Register new session
+export function createSession(params): ShellSession; // Add terminal
+export function disposeSession(key): void;         // Clean up
+export function hasActiveConnection(key): boolean; // Check WebSocket state
+export function updateSessionStatus(key, status): void;
 
-  // Computed
+// React integration (use-shell-sessions.ts)
+export function useShellSessions(): {
+  sessions: ShellSessionSnapshot[];
   hasActiveSessions: boolean;
   activeSessionCount: number;
-
-  // Actions
-  getOrCreateSession: (taskName: string, shell: string) => ShellSession;
-  closeSession: (taskName: string) => void;
-  closeAllSessions: () => void;
 }
 ```
 
@@ -1590,16 +1599,23 @@ Logs Tab
 **Shared Components** (reusable across features):
 
 ```
-src/components/terminal/           # THIS COMPONENT
+src/components/shell/              # THIS COMPONENT
 ├── DESIGN.md                      # This document
 ├── index.ts                       # Public exports
 ├── ShellTerminal.tsx              # xterm.js wrapper (core)
-├── ShellToolbar.tsx               # Shell selector + status
-├── ConnectionStatus.tsx           # Status indicator
+├── ShellActivityStrip.tsx         # Session icons in panel strip
+├── ShellSessionIcon.tsx           # Individual session icon
+├── ShellConnecting.tsx            # Connecting overlay
+├── ShellReconnectButton.tsx       # Reconnect button
+├── ShellSearch.tsx                # Search overlay (Ctrl+Shift+F)
+├── ConnectionStatus.tsx           # Status indicator component
 ├── types.ts                       # TypeScript interfaces
-├── terminal.css                   # Terminal-specific styles
-├── use-terminal.ts                # xterm.js lifecycle hook
-└── use-websocket-terminal.ts      # WebSocket connection hook
+├── shell.css                      # Terminal-specific styles
+├── shell-session-cache.ts         # Module-scope session cache
+├── use-shell.ts                   # xterm.js lifecycle hook
+├── use-websocket-shell.ts         # WebSocket connection hook
+├── use-shell-sessions.ts          # React hook for session state
+└── use-shell-navigation-guard.ts  # beforeunload warning
 
 src/components/log-viewer/         # FUTURE: Inline log viewing
 ├── index.ts
@@ -1617,17 +1633,16 @@ src/components/event-list/         # FUTURE: Kubernetes events
 
 ```
 src/app/(dashboard)/workflows/[name]/
-├── components/panel/
-│   ├── TaskDetails.tsx            # MODIFY: Add tab system
-│   ├── TaskTabBar.tsx             # NEW: Tab navigation
-│   ├── TaskOverview.tsx           # NEW: Extract from TaskDetails
-│   ├── TaskShellTab.tsx           # NEW: Shell tab wrapper
-│   ├── TaskLogsTab.tsx            # NEW: Logs tab wrapper
-│   └── TaskEventsTab.tsx          # NEW: Events tab wrapper
-├── hooks/
-│   └── use-task-shell.ts          # NEW: Task-specific shell logic
+├── components/
+│   ├── panel/
+│   │   └── task/
+│   │       ├── TaskDetails.tsx    # Tab system, shell connect
+│   │       └── TaskShell.tsx      # Shell tab wrapper
+│   └── shell/
+│       ├── ShellContainer.tsx     # Renders all sessions (portal)
+│       └── ShellPortalContext.tsx # Portal target management
 └── stores/
-    └── shell-store.ts             # NEW: Shell session state
+    └── task-table-store.ts        # (shell-store removed)
 ```
 
 ### Component Hierarchy
@@ -1714,30 +1729,36 @@ interface ShellTerminalProps {
 
 ## State Management
 
-### Shell Store (Zustand)
+### Unified Session Cache
+
+Shell sessions are managed in a module-scope cache (`shell-session-cache.ts`) with
+React integration via `useSyncExternalStore`. This replaces the previous Zustand store
+approach with a simpler, more direct solution.
+
+**Why module-scope cache instead of Zustand?**
+- Terminal instances and WebSockets need to survive React unmount/remount
+- Single source of truth for both UI state and connection state
+- Simpler mental model: cache owns everything, React just subscribes
+- Prepares for half-open connection support (backend can keep PTY alive)
 
 ```typescript
-interface ShellSession {
-  taskName: string;
-  shell: string;
-  status: 'connecting' | 'connected' | 'disconnected' | 'error';
-  error?: string;
-  connectedAt?: Date;
-}
+// shell-session-cache.ts (module scope)
+const sessionCache = new Map<string, ShellSession>();
+const subscribers = new Set<() => void>();
 
-interface ShellStore {
-  // State
-  sessions: Map<string, ShellSession>;
+// React hook for subscribing to changes
+export function useShellSessions() {
+  const sessions = useSyncExternalStore(
+    subscribe,
+    getSessionsSnapshot,
+    getSessionsSnapshot
+  );
 
-  // Computed
-  hasActiveSessions: boolean;
-  getSession: (taskName: string) => ShellSession | undefined;
-
-  // Actions
-  openSession: (taskName: string, shell: string) => void;
-  updateSessionStatus: (taskName: string, status: ShellSession['status'], error?: string) => void;
-  closeSession: (taskName: string) => void;
-  closeAllSessions: () => void;
+  return {
+    sessions,
+    hasActiveSessions: sessions.some(s => s.status === 'connected'),
+    activeSessionCount: sessions.filter(s => s.status === 'connected').length,
+  };
 }
 ```
 
@@ -1746,19 +1767,19 @@ interface ShellStore {
 ```typescript
 // use-shell-navigation-guard.ts
 export function useShellNavigationGuard() {
-  const hasActiveSessions = useShellStore((s) => s.hasActiveSessions);
+  const { hasActiveSessions, activeSessionCount } = useShellSessions();
 
   useEffect(() => {
     if (!hasActiveSessions) return;
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = 'You have active shell sessions. Leave anyway?';
+      e.returnValue = `You have ${activeSessionCount} active shell session(s).`;
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasActiveSessions]);
+  }, [hasActiveSessions, activeSessionCount]);
 }
 ```
 

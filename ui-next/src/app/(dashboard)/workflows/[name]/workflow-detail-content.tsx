@@ -91,6 +91,7 @@ import {
   DetailsPanel,
   ShellContainer,
   ShellPortalProvider,
+  ShellProvider,
   type DetailsPanelView,
 } from "./components";
 
@@ -507,133 +508,135 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
 
   return (
     <DAGErrorBoundary>
-      <ShellPortalProvider>
-        {/* Main Content: Side-by-Side Layout (DAG + Panel) */}
-        <div
-          ref={containerRef}
-          className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
-        >
-          {/* DAG Canvas - fills remaining space */}
+      <ShellProvider>
+        <ShellPortalProvider>
+          {/* Main Content: Side-by-Side Layout (DAG + Panel) */}
           <div
-            ref={dagContainerRef}
-            className="min-w-0 flex-1"
+            ref={containerRef}
+            className="flex h-full overflow-hidden bg-gray-50 dark:bg-zinc-950"
           >
-            {isReady ? (
-              <main
-                id="dag-canvas"
-                className="h-full w-full"
-                role="application"
-                aria-label="Workflow DAG visualization"
-              >
-                <DAGProvider
-                  selectedNodeId={selectedGroup?.name ?? null}
-                  onSelectGroup={handleSelectGroup}
-                  onSelectTask={handleSelectTask}
-                  onToggleExpand={handleToggleExpand}
+            {/* DAG Canvas - fills remaining space */}
+            <div
+              ref={dagContainerRef}
+              className="min-w-0 flex-1"
+            >
+              {isReady ? (
+                <main
+                  id="dag-canvas"
+                  className="h-full w-full"
+                  role="application"
+                  aria-label="Workflow DAG visualization"
                 >
-                  <ReactFlowDynamic
-                    nodes={nodes}
-                    edges={edges}
-                    nodeTypes={nodeTypes}
-                    // Read-only DAG
-                    nodesDraggable={false}
-                    nodesConnectable={false}
-                    elementsSelectable={true}
-                    edgesFocusable={false}
-                    nodesFocusable={true}
-                    selectNodesOnDrag={false}
-                    // Viewport boundaries via translateExtent (instant clamp)
-                    // React Flow enforces natively via d3-zoom - no snap-back
-                    // Uses static bounds calculated at MIN_ZOOM for performance
-                    translateExtent={translateExtent}
-                    minZoom={nodeBounds.fitAllZoom}
-                    maxZoom={VIEWPORT.MAX_ZOOM}
-                    // Scroll behavior
-                    panOnScroll={true}
-                    zoomOnScroll={false}
-                    panOnScrollMode={PanOnScrollMode.Free}
-                    zoomOnPinch={true}
-                    preventScrolling={true}
-                    // Performance: Only render nodes/edges visible in viewport
-                    // See: https://reactflow.dev/learn/advanced-use/performance
-                    onlyRenderVisibleElements={true}
-                    proOptions={proOptions}
-                    // Pan detection for performance optimization (disables animations during drag)
-                    onMoveStart={handleMoveStart}
-                    onMoveEnd={handleMoveEnd}
-                    // Data attribute for CSS performance optimization
-                    data-panning={isPanning ? "true" : "false"}
+                  <DAGProvider
+                    selectedNodeId={selectedGroup?.name ?? null}
+                    onSelectGroup={handleSelectGroup}
+                    onSelectTask={handleSelectTask}
+                    onToggleExpand={handleToggleExpand}
                   >
-                    <Background
-                      variant={BackgroundVariant.Dots}
-                      gap={BACKGROUND.GAP}
-                      size={BACKGROUND.DOT_SIZE}
-                      color={backgroundDotColor}
-                    />
-                    {/* Controls panel */}
-                    <DAGControls
-                      layoutDirection={layoutDirection}
-                      onLayoutChange={handleLayoutChange}
-                      showMinimap={showMinimap}
-                      onToggleMinimap={handleToggleMinimap}
-                    />
-                    {/* Conditional minimap */}
-                    {showMinimap && (
-                      <MiniMap
-                        pannable
-                        zoomable
-                        position="top-left"
-                        style={minimapStyle}
-                        nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
-                        nodeComponent={MiniMapNode}
-                        nodeColor={getMiniMapNodeColor}
-                        nodeStrokeColor={getMiniMapStrokeColor}
-                        aria-label="Workflow minimap"
+                    <ReactFlowDynamic
+                      nodes={nodes}
+                      edges={edges}
+                      nodeTypes={nodeTypes}
+                      // Read-only DAG
+                      nodesDraggable={false}
+                      nodesConnectable={false}
+                      elementsSelectable={true}
+                      edgesFocusable={false}
+                      nodesFocusable={true}
+                      selectNodesOnDrag={false}
+                      // Viewport boundaries via translateExtent (instant clamp)
+                      // React Flow enforces natively via d3-zoom - no snap-back
+                      // Uses static bounds calculated at MIN_ZOOM for performance
+                      translateExtent={translateExtent}
+                      minZoom={nodeBounds.fitAllZoom}
+                      maxZoom={VIEWPORT.MAX_ZOOM}
+                      // Scroll behavior
+                      panOnScroll={true}
+                      zoomOnScroll={false}
+                      panOnScrollMode={PanOnScrollMode.Free}
+                      zoomOnPinch={true}
+                      preventScrolling={true}
+                      // Performance: Only render nodes/edges visible in viewport
+                      // See: https://reactflow.dev/learn/advanced-use/performance
+                      onlyRenderVisibleElements={true}
+                      proOptions={proOptions}
+                      // Pan detection for performance optimization (disables animations during drag)
+                      onMoveStart={handleMoveStart}
+                      onMoveEnd={handleMoveEnd}
+                      // Data attribute for CSS performance optimization
+                      data-panning={isPanning ? "true" : "false"}
+                    >
+                      <Background
+                        variant={BackgroundVariant.Dots}
+                        gap={BACKGROUND.GAP}
+                        size={BACKGROUND.DOT_SIZE}
+                        color={backgroundDotColor}
                       />
-                    )}
-                  </ReactFlowDynamic>
-                </DAGProvider>
-              </main>
-            ) : (
-              <DAGCanvasSkeleton />
+                      {/* Controls panel */}
+                      <DAGControls
+                        layoutDirection={layoutDirection}
+                        onLayoutChange={handleLayoutChange}
+                        showMinimap={showMinimap}
+                        onToggleMinimap={handleToggleMinimap}
+                      />
+                      {/* Conditional minimap */}
+                      {showMinimap && (
+                        <MiniMap
+                          pannable
+                          zoomable
+                          position="top-left"
+                          style={minimapStyle}
+                          nodeStrokeWidth={MINIMAP.NODE_STROKE_WIDTH}
+                          nodeComponent={MiniMapNode}
+                          nodeColor={getMiniMapNodeColor}
+                          nodeStrokeColor={getMiniMapStrokeColor}
+                          aria-label="Workflow minimap"
+                        />
+                      )}
+                    </ReactFlowDynamic>
+                  </DAGProvider>
+                </main>
+              ) : (
+                <DAGCanvasSkeleton />
+              )}
+            </div>
+
+            {/* Details Panel - fixed width, sibling to DAG */}
+            <DetailsPanel
+              view={currentPanelView}
+              workflow={workflow ?? undefined}
+              group={selectedGroup}
+              allGroups={dagGroups}
+              task={selectedTask}
+              onClose={handleClosePanel}
+              onBackToGroup={navigateBackToGroup}
+              onBackToWorkflow={handleBackToWorkflow}
+              onSelectTask={navigateToTask}
+              onSelectGroup={navigateToGroup}
+              panelPct={panelPct}
+              onPanelResize={setPanelPct}
+              isDetailsExpanded={isDetailsExpanded}
+              onToggleDetailsExpanded={handleToggleDetailsExpanded}
+              isCollapsed={isPanelCollapsed}
+              onToggleCollapsed={togglePanelCollapsed}
+              onCancelWorkflow={handleCancel}
+              fallbackContent={panelOverrideContent}
+              containerRef={containerRef}
+              onDraggingChange={setIsPanelDragging}
+              onShellTabChange={handleShellTabChange}
+            />
+
+            {/* Shell Container - renders shells at workflow level, portals into TaskDetails */}
+            {workflow?.name && (
+              <ShellContainer
+                workflowName={workflow.name}
+                currentTaskId={selectedTask?.task_uuid}
+                isShellTabActive={activeShellTaskName !== null}
+              />
             )}
           </div>
-
-          {/* Details Panel - fixed width, sibling to DAG */}
-          <DetailsPanel
-            view={currentPanelView}
-            workflow={workflow ?? undefined}
-            group={selectedGroup}
-            allGroups={dagGroups}
-            task={selectedTask}
-            onClose={handleClosePanel}
-            onBackToGroup={navigateBackToGroup}
-            onBackToWorkflow={handleBackToWorkflow}
-            onSelectTask={navigateToTask}
-            onSelectGroup={navigateToGroup}
-            panelPct={panelPct}
-            onPanelResize={setPanelPct}
-            isDetailsExpanded={isDetailsExpanded}
-            onToggleDetailsExpanded={handleToggleDetailsExpanded}
-            isCollapsed={isPanelCollapsed}
-            onToggleCollapsed={togglePanelCollapsed}
-            onCancelWorkflow={handleCancel}
-            fallbackContent={panelOverrideContent}
-            containerRef={containerRef}
-            onDraggingChange={setIsPanelDragging}
-            onShellTabChange={handleShellTabChange}
-          />
-
-          {/* Shell Container - renders shells at workflow level, portals into TaskDetails */}
-          {workflow?.name && (
-            <ShellContainer
-              workflowName={workflow.name}
-              currentTaskName={selectedTask?.name}
-              isShellTabActive={activeShellTaskName !== null}
-            />
-          )}
-        </div>
-      </ShellPortalProvider>
+        </ShellPortalProvider>
+      </ShellProvider>
     </DAGErrorBoundary>
   );
 }
