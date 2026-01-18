@@ -106,6 +106,14 @@ export interface SidePanelProps {
   /** Custom escape key handler */
   onEscapeKey?: () => void;
 
+  // Toggle hotkey
+  /**
+   * Keyboard shortcut to toggle panel expand/collapse (e.g., "mod+]").
+   * Uses react-hotkeys-hook syntax: mod = Cmd on Mac, Ctrl on Windows/Linux.
+   * Only works when onToggleCollapsed is provided.
+   */
+  toggleHotkey?: string;
+
   /** Ref to the parent container (for resize calculations) */
   containerRef?: RefObject<HTMLDivElement | null>;
 
@@ -146,6 +154,8 @@ export function SidePanel({
   collapsedWidth = PANEL.COLLAPSED_WIDTH_PX,
   // Escape key handling
   onEscapeKey,
+  // Toggle hotkey
+  toggleHotkey,
   containerRef: externalContainerRef,
   onDraggingChange,
   focusTargetRef,
@@ -200,6 +210,26 @@ export function SidePanel({
       enableOnFormTags: false, // Don't trigger when focused on input/textarea/select
     },
     [stableOnEscapeKey],
+  );
+
+  // Stable callback for toggle
+  const stableOnToggleCollapsed = useEventCallback(onToggleCollapsed ?? (() => {}));
+
+  // Global toggle hotkey handler using react-hotkeys-hook
+  // Allows quick expand/collapse via keyboard shortcut (e.g., Cmd+] or Ctrl+])
+  useHotkeys(
+    toggleHotkey ?? "",
+    (e) => {
+      // Skip if target is in a dropdown or interactive element
+      if (isInteractiveTarget(e.target)) return;
+      e.preventDefault();
+      stableOnToggleCollapsed();
+    },
+    {
+      enabled: !!toggleHotkey && !!onToggleCollapsed,
+      enableOnFormTags: false,
+    },
+    [stableOnToggleCollapsed],
   );
 
   // Resize drag handler

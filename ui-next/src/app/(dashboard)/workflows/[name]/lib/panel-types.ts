@@ -77,6 +77,12 @@ export interface DetailsPanelProps {
   isCollapsed?: boolean;
   /** Callback to toggle collapsed state */
   onToggleCollapsed?: () => void;
+  /**
+   * Keyboard shortcut to toggle panel expand/collapse (e.g., "mod+]").
+   * Uses react-hotkeys-hook syntax: mod = Cmd on Mac, Ctrl on Windows/Linux.
+   * Displayed in tooltips and passed to SidePanel for global handling.
+   */
+  toggleHotkey?: string;
   /** Callback when workflow cancel is requested */
   onCancelWorkflow?: () => void;
   /**

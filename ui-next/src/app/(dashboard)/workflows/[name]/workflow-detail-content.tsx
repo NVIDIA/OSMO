@@ -80,6 +80,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { useEventCallback } from "usehooks-ts";
 import { PANEL } from "@/components/panel";
 import { useTickController } from "@/hooks";
+import { useSharedPreferences } from "@/stores";
 
 // Route-level components
 import {
@@ -170,8 +171,12 @@ function PanelContentSkeleton() {
 
 function WorkflowDetailPageInner({ name }: { name: string }) {
   const [showMinimap, setShowMinimap] = useState(true);
-  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
-  const [panelPct, setPanelPct] = useState<number>(PANEL.DEFAULT_WIDTH_PCT);
+
+  // Persisted panel preferences from Zustand store
+  const panelPct = useSharedPreferences((s) => s.panelWidthPct);
+  const setPanelPct = useSharedPreferences((s) => s.setPanelWidthPct);
+  const isDetailsExpanded = useSharedPreferences((s) => s.detailsExpanded);
+  const toggleDetailsExpanded = useSharedPreferences((s) => s.toggleDetailsExpanded);
   const [isPanelDragging, setIsPanelDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [activeShellTaskName, setActiveShellTaskName] = useState<string | null>(null);
@@ -416,8 +421,9 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     setShowMinimap((prev) => !prev);
   });
 
+  // Stable callback wrapper for toggle (store action is already stable, but this is cleaner for props)
   const handleToggleDetailsExpanded = useEventCallback(() => {
-    setIsDetailsExpanded((prev) => !prev);
+    toggleDetailsExpanded();
   });
 
   const handleLayoutChange = useEventCallback((direction: "TB" | "LR") => {
@@ -616,6 +622,7 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
               onToggleDetailsExpanded={handleToggleDetailsExpanded}
               isCollapsed={isPanelCollapsed}
               onToggleCollapsed={togglePanelCollapsed}
+              toggleHotkey="mod+i"
               onCancelWorkflow={handleCancel}
               fallbackContent={panelOverrideContent}
               containerRef={containerRef}
