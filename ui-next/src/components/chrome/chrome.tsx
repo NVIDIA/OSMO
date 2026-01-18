@@ -86,10 +86,15 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
  *
  * This is shown during prerender/streaming while the Chrome components hydrate.
  * Children are rendered immediately so page content isn't blocked.
+ *
+ * IMPORTANT: We wrap children in SidebarProvider so components using useSidebar()
+ * don't crash during the skeleton phase. The provider uses defaultOpen=true to match
+ * the skeleton's visual layout (showing expanded sidebar).
  */
 function ChromeSkeleton({ children }: { children: React.ReactNode }) {
   return (
-    <div
+    <SidebarProvider
+      defaultOpen={true}
       className="flex h-screen w-full overflow-hidden"
       style={SIDEBAR_CSS_VARS as React.CSSProperties}
     >
@@ -135,7 +140,7 @@ function ChromeSkeleton({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
 
