@@ -75,7 +75,6 @@ const STYLES = {
 
 export interface WorkflowDetailsProps {
   workflow: WorkflowQueryResponse;
-  onClose: () => void;
   onCancel?: () => void;
   onPanelResize?: (pct: number) => void;
   /** Whether the header details section is expanded (global for page) */
@@ -244,7 +243,6 @@ const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryRespons
 
 export const WorkflowDetails = memo(function WorkflowDetails({
   workflow,
-  onClose,
   onCancel,
   onPanelResize,
   isDetailsExpanded,
@@ -264,7 +262,6 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         viewType="workflow"
         title={workflow.name}
         statusContent={statusContent}
-        onClose={onClose}
         onPanelResize={onPanelResize}
         isExpanded={isDetailsExpanded}
         onToggleExpand={onToggleDetailsExpanded}
