@@ -16,12 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  COLUMN_MIN_WIDTHS_REM,
-  COLUMN_PREFERRED_WIDTHS_REM,
-  type ColumnSizeConfig,
-  type ColumnDefinition,
-} from "@/components/data-table";
+import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM, createColumnConfig } from "@/components/data-table";
 
 // =============================================================================
 // Column IDs
@@ -29,135 +24,95 @@ import {
 
 export type PoolColumnId = "name" | "status" | "description" | "quota" | "capacity" | "platforms" | "backend";
 
-/** Set of all valid pool column IDs for type validation */
-const VALID_COLUMN_IDS = new Set<string>([
-  "name",
-  "status",
-  "description",
-  "quota",
-  "capacity",
-  "platforms",
-  "backend",
-]);
+// =============================================================================
+// Column Configuration (via factory)
+// =============================================================================
+
+const poolColumnConfig = createColumnConfig<PoolColumnId>({
+  columns: ["name", "status", "description", "quota", "capacity", "platforms", "backend"] as const,
+  labels: {
+    name: "Pool",
+    status: "Status",
+    description: "Description",
+    quota: "Quota (GPU)",
+    capacity: "Capacity (GPU)",
+    platforms: "Platforms",
+    backend: "Backend",
+  },
+  mandatory: ["name"],
+  defaultVisible: ["name", "status", "description", "quota", "capacity", "platforms"],
+  defaultOrder: ["name", "status", "description", "quota", "capacity", "platforms", "backend"],
+  sizeConfig: [
+    {
+      id: "name",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
+    },
+    {
+      id: "status",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE,
+    },
+    {
+      id: "description",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
+    },
+    {
+      id: "quota",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+    },
+    {
+      id: "capacity",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR + COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+    },
+    {
+      id: "platforms",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PLATFORM_ICONS,
+    },
+    {
+      id: "backend",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+    },
+  ],
+  defaultSort: { column: "name", direction: "asc" },
+  defaultPanelWidth: 40,
+});
+
+// =============================================================================
+// Exports (backward compatible)
+// =============================================================================
 
 /** Type guard to check if a string is a valid PoolColumnId */
-export function isPoolColumnId(id: string): id is PoolColumnId {
-  return VALID_COLUMN_IDS.has(id);
-}
+export const isPoolColumnId = poolColumnConfig.isColumnId;
 
 /** Filter and type an array of strings to PoolColumnId[] (filters out invalid IDs) */
-export function asPoolColumnIds(ids: string[]): PoolColumnId[] {
-  return ids.filter(isPoolColumnId);
-}
+export const asPoolColumnIds = poolColumnConfig.asColumnIds;
 
-// =============================================================================
-// Column Labels (for menus and headers)
-// =============================================================================
-
-export const COLUMN_LABELS: Record<PoolColumnId, string> = {
-  name: "Pool",
-  status: "Status",
-  description: "Description",
-  quota: "Quota (GPU)",
-  capacity: "Capacity (GPU)",
-  platforms: "Platforms",
-  backend: "Backend",
-};
-
-// =============================================================================
-// Column Definitions (for toolbar column visibility menu)
-// =============================================================================
+/** Column labels for header display */
+export const COLUMN_LABELS = poolColumnConfig.COLUMN_LABELS;
 
 /** Columns that can be toggled in the column visibility menu */
-export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
-  { id: "status", label: "Status", menuLabel: "Status" },
-  { id: "description", label: "Description", menuLabel: "Description" },
-  { id: "quota", label: "Quota (GPU)", menuLabel: "Quota (GPU)" },
-  { id: "capacity", label: "Capacity (GPU)", menuLabel: "Capacity (GPU)" },
-  { id: "platforms", label: "Platforms", menuLabel: "Platforms" },
-  { id: "backend", label: "Backend", menuLabel: "Backend" },
-];
+export const OPTIONAL_COLUMNS = poolColumnConfig.OPTIONAL_COLUMNS;
 
 /** Default visible columns (excludes backend) */
-export const DEFAULT_VISIBLE_COLUMNS: PoolColumnId[] = [
-  "name",
-  "status",
-  "description",
-  "quota",
-  "capacity",
-  "platforms",
-];
+export const DEFAULT_VISIBLE_COLUMNS = poolColumnConfig.DEFAULT_VISIBLE_COLUMNS;
 
 /** Default column order */
-export const DEFAULT_COLUMN_ORDER: PoolColumnId[] = [
-  "name",
-  "status",
-  "description",
-  "quota",
-  "capacity",
-  "platforms",
-  "backend",
-];
+export const DEFAULT_COLUMN_ORDER = poolColumnConfig.DEFAULT_COLUMN_ORDER;
 
 /** Columns that cannot be hidden */
-export const MANDATORY_COLUMN_IDS: ReadonlySet<PoolColumnId> = new Set(["name"]);
+export const MANDATORY_COLUMN_IDS = poolColumnConfig.MANDATORY_COLUMN_IDS;
 
-// =============================================================================
-// Column Size Configuration (for DataTable)
-// =============================================================================
+/** Column sizing configuration */
+export const POOL_COLUMN_SIZE_CONFIG = poolColumnConfig.COLUMN_SIZE_CONFIG;
 
-/**
- * Column sizing configuration.
- * Uses rem for accessibility (scales with user font size).
- *
- * - minWidthRem: Absolute floor (column never smaller than this)
- * - preferredWidthRem: Ideal width when space allows (used for initial sizing)
- */
-export const POOL_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
-  {
-    id: "name",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
-  },
-  {
-    id: "status",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE,
-  },
-  {
-    id: "description",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
-  },
-  {
-    id: "quota",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
-  },
-  {
-    id: "capacity",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR + COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
-  },
-  {
-    id: "platforms",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PLATFORM_ICONS,
-  },
-  {
-    id: "backend",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
-  },
-];
+/** Default sort configuration */
+export const DEFAULT_SORT = poolColumnConfig.DEFAULT_SORT;
 
-// =============================================================================
-// Default Sort Configuration
-// =============================================================================
-
-export const DEFAULT_SORT = { column: "name" as PoolColumnId, direction: "asc" as const };
-
-/**
- * Default panel width percentage.
- */
-export const DEFAULT_PANEL_WIDTH = 40;
+/** Default panel width percentage */
+export const DEFAULT_PANEL_WIDTH = poolColumnConfig.DEFAULT_PANEL_WIDTH;

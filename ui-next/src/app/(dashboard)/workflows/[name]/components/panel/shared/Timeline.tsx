@@ -67,6 +67,96 @@ export function createPhaseDurationCalculator(now: number) {
   };
 }
 
+/**
+ * Context for finalizing timeline phases - provides duration calculator and status flags.
+ */
+export interface TimelineFinalizeContext {
+  /** Duration calculator created from synchronized tick */
+  calculatePhaseDuration: (start: Date | null, end: Date | null) => number | null;
+  /** Entity end time (workflow/group/task end_time) */
+  endTime: Date | null;
+  /** Whether the entity is currently running */
+  isRunning: boolean;
+  /** Whether the entity completed successfully */
+  isCompleted: boolean;
+  /** Whether the entity failed */
+  isFailed: boolean;
+}
+
+/**
+ * Finalize timeline phases by sorting and recalculating durations/statuses.
+ *
+ * This shared utility consolidates the phase recalculation logic that was
+ * duplicated across GroupTimeline (~45 lines) and TaskTimeline (~45 lines).
+ *
+ * Steps:
+ * 1. Sort phases by start time (phases without time go to end)
+ * 2. Recalculate duration for each phase based on when next phase starts
+ * 3. Update status based on relationships with neighboring phases
+ *
+ * @param phases - Mutable array of phases to finalize (will be sorted in place)
+ * @param ctx - Context with duration calculator and status flags
+ * @returns The finalized phases array (same reference, mutated)
+ */
+export function finalizeTimelinePhases(phases: TimelinePhase[], ctx: TimelineFinalizeContext): TimelinePhase[] {
+  const { calculatePhaseDuration, endTime, isRunning, isCompleted, isFailed } = ctx;
+
+  // Sort phases by start time to ensure chronological order
+  phases.sort((a, b) => {
+    if (!a.time) return 1; // Phases without start time go to the end
+    if (!b.time) return -1;
+    return a.time.getTime() - b.time.getTime();
+  });
+
+  // Recalculate duration and status to ensure contiguous segments
+  for (let i = 0; i < phases.length; i++) {
+    const phase = phases[i];
+    const nextPhase = phases[i + 1];
+    const prevPhase = phases[i - 1];
+    const isLastPhase = i === phases.length - 1;
+    // Check if next phase is a terminal indicator (no time, just state)
+    const nextIsTerminal = nextPhase && !nextPhase.time;
+
+    if (nextPhase?.time) {
+      // This phase ends when the next phase starts
+      const rawDuration = calculatePhaseDuration(phase.time, nextPhase.time);
+      phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
+      // Any phase followed by another phase is completed
+      phase.status = "completed";
+    } else if (nextIsTerminal) {
+      // Work phase followed by terminal indicator (Running/Done/Failed)
+      // Don't show duration here - the terminal phase shows it to avoid redundancy
+      phase.duration = null;
+      phase.status = "completed";
+    } else if (isLastPhase) {
+      // Terminal phases (done/failed/running) are state indicators
+      const isTerminalPhase = phase.id === "done" || phase.id === "failed" || phase.id === "running";
+      if (isTerminalPhase) {
+        // For "running" state: calculate duration from previous phase start to now
+        // This gives it proportional visual weight representing "running for X time"
+        if (phase.id === "running" && prevPhase?.time) {
+          phase.duration = calculatePhaseDuration(prevPhase.time, null);
+        } else {
+          // Done/Failed are instantaneous milestones
+          phase.duration = null;
+        }
+      } else {
+        // Last work phase (no terminal after): ends at entity end time or now
+        const rawDuration = calculatePhaseDuration(phase.time, endTime);
+        phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
+      }
+      // Last phase status depends on entity state
+      if (isRunning && !endTime) {
+        phase.status = "active";
+      } else if (endTime) {
+        phase.status = isCompleted ? "completed" : isFailed ? "failed" : "completed";
+      }
+    }
+  }
+
+  return phases;
+}
+
 // ============================================================================
 // Types
 // ============================================================================

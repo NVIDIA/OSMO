@@ -169,7 +169,7 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
    * Column size configurations (min and preferred widths in rem).
    * Used for initial sizing and shrink/expand algorithm.
    */
-  columnSizeConfigs?: ColumnSizeConfig[];
+  columnSizeConfigs?: readonly ColumnSizeConfig[];
   /**
    * User sizing preferences from persistence.
    * Contains mode (proportional/no-truncate) and multiplier for each column.

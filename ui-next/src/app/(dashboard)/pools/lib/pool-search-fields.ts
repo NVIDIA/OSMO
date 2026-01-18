@@ -16,107 +16,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SearchField, ChipVariant } from "@/components/filter-bar";
+import type { SearchField } from "@/components/filter-bar";
 import type { Pool } from "@/lib/api/adapter";
-
-// ============================================================================
-// Numeric Filter Parsing
-// ============================================================================
-
-type CompareOp = ">=" | ">" | "<=" | "<" | "=";
-
-interface ParsedNumericFilter {
-  operator: CompareOp;
-  value: number;
-  isPercent: boolean;
-}
-
-const VALID_OPERATORS: CompareOp[] = [">=", "<=", ">", "<", "="];
-
-/**
- * Parse a numeric filter string like ">=10" or ">=90%"
- */
-function parseNumericFilter(input: string): ParsedNumericFilter | null {
-  const trimmed = input.trim();
-  // Order matters: check >= and <= before > and < to avoid partial matches
-  const match = trimmed.match(/^(>=|<=|>|<|=)(\d+(?:\.\d+)?)(%)?\s*$/);
-  if (!match) return null;
-
-  const value = parseFloat(match[2]);
-  if (!Number.isFinite(value) || value < 0) return null;
-
-  return {
-    operator: match[1] as CompareOp,
-    value,
-    isPercent: match[3] === "%",
-  };
-}
-
-/**
- * Validate a numeric filter string
- * @param opts.allowPercent - If true, accepts percentage values (default: true)
- * @param opts.allowDiscrete - If true, accepts discrete values (default: true)
- */
-function validateNumericFilter(
-  input: string,
-  opts: { allowPercent?: boolean; allowDiscrete?: boolean } = {},
-): true | string {
-  const { allowPercent = true, allowDiscrete = true } = opts;
-  const trimmed = input.trim();
-  if (!trimmed) return "Enter a value (e.g. >=10)";
-
-  const hasOp = VALID_OPERATORS.some((op) => trimmed.startsWith(op));
-  if (!hasOp) return "Start with >=, >, <=, <, or =";
-
-  const parsed = parseNumericFilter(trimmed);
-  if (!parsed) return "Invalid format";
-
-  if (parsed.isPercent && !allowPercent) return "Don't use % for this field";
-  if (!parsed.isPercent && !allowDiscrete) return "Use % (e.g. >=90%)";
-  if (parsed.isPercent && parsed.value > 100) return "Max 100%";
-
-  return true;
-}
-
-/**
- * Compare a numeric value against a parsed filter
- * For percentages, rounds to nearest integer before comparing
- */
-function compareNumeric(actual: number, op: CompareOp, target: number, isPercent: boolean): boolean {
-  // Round percentages to nearest integer for comparison
-  const value = isPercent ? Math.round(actual) : actual;
-
-  switch (op) {
-    case ">=":
-      return value >= target;
-    case ">":
-      return value > target;
-    case "<=":
-      return value <= target;
-    case "<":
-      return value < target;
-    case "=":
-      return value === target;
-  }
-}
-
-/**
- * Create a match function for numeric filters
- */
-function createNumericMatch(getValue: (pool: Pool) => number, getMax?: (pool: Pool) => number) {
-  return (pool: Pool, value: string): boolean => {
-    const parsed = parseNumericFilter(value);
-    if (!parsed) return false;
-
-    let actual = getValue(pool);
-    if (parsed.isPercent && getMax) {
-      const max = getMax(pool);
-      actual = max > 0 ? (actual / max) * 100 : 0;
-    }
-
-    return compareNumeric(actual, parsed.operator, parsed.value, parsed.isPercent);
-  };
-}
+import { createNumericSearchFieldPair } from "@/lib/filter-utils";
 
 // ============================================================================
 // Base Search Fields
@@ -167,68 +69,28 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
 // Numeric Search Fields (Quota & Capacity)
 // ============================================================================
 
-/** Explicit quota/capacity fields with variant styling */
-const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
-  // === Quota Fields ===
-  {
-    id: "quota-free",
-    label: "Quota Free",
-    prefix: "quota:free:",
-    hint: "available guaranteed GPUs",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v), // Accepts both
-    match: createNumericMatch(
-      (p) => p.quota.free,
-      (p) => p.quota.limit,
-    ),
-    variant: "free" as ChipVariant,
-  },
-  {
-    id: "quota-used",
-    label: "Quota Used",
-    prefix: "quota:used:",
-    hint: "quota consumption",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v), // Accepts both
-    match: createNumericMatch(
-      (p) => p.quota.used,
-      (p) => p.quota.limit,
-    ),
-    variant: "used" as ChipVariant,
-  },
+/** Quota and capacity fields with free/used variants */
+const [quotaFree, quotaUsed] = createNumericSearchFieldPair<Pool>({
+  category: "quota",
+  label: "Quota",
+  hintFree: "available guaranteed GPUs",
+  hintUsed: "quota consumption",
+  getFree: (p) => p.quota.free,
+  getUsed: (p) => p.quota.used,
+  getMax: (p) => p.quota.limit,
+});
 
-  // === Capacity Fields ===
-  {
-    id: "capacity-free",
-    label: "Capacity Free",
-    prefix: "capacity:free:",
-    hint: "total GPUs available",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v), // Accepts both
-    match: createNumericMatch(
-      (p) => p.quota.totalFree,
-      (p) => p.quota.totalCapacity,
-    ),
-    variant: "free" as ChipVariant,
-  },
-  {
-    id: "capacity-used",
-    label: "Capacity Used",
-    prefix: "capacity:used:",
-    hint: "pool consumption",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v), // Accepts both
-    match: createNumericMatch(
-      (p) => p.quota.totalUsage,
-      (p) => p.quota.totalCapacity,
-    ),
-    variant: "used" as ChipVariant,
-  },
-];
+const [capacityFree, capacityUsed] = createNumericSearchFieldPair<Pool>({
+  category: "capacity",
+  label: "Capacity",
+  hintFree: "total GPUs available",
+  hintUsed: "pool consumption",
+  getFree: (p) => p.quota.totalFree,
+  getUsed: (p) => p.quota.totalUsage,
+  getMax: (p) => p.quota.totalCapacity,
+});
+
+const NUMERIC_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [quotaFree, quotaUsed, capacityFree, capacityUsed];
 
 // ============================================================================
 // Exports
@@ -272,5 +134,5 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
   return [...BASE_POOL_SEARCH_FIELDS, sharedField, ...NUMERIC_POOL_SEARCH_FIELDS];
 }
 
-/** Export numeric filter utilities for testing */
-export { parseNumericFilter, validateNumericFilter, compareNumeric };
+/** Re-export numeric filter utilities for testing */
+export { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";
