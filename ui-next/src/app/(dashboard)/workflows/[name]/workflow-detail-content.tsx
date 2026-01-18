@@ -210,11 +210,13 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     selectedTaskName,
     selectedTaskRetryId,
     selectedTab,
+    selectedWorkflowTab,
     navigateToGroup,
     navigateToTask,
     navigateToWorkflow,
     navigateBackToGroup,
     setSelectedTab,
+    setSelectedWorkflowTab,
   } = useNavigationState({ groups: groupsWithLayout });
 
   // Compute selection key for panel collapse behavior
@@ -621,6 +623,8 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
               onShellTabChange={handleShellTabChange}
               selectedTab={selectedTab}
               setSelectedTab={setSelectedTab}
+              selectedWorkflowTab={selectedWorkflowTab}
+              setSelectedWorkflowTab={setSelectedWorkflowTab}
             />
 
             {/* Shell Container - renders shells at workflow level, portals into TaskDetails */}

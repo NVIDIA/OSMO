@@ -20,7 +20,8 @@
  * Displays workflow-level details in the unified inspector panel.
  * This is the "base layer" shown when no group/task is selected.
  *
- * Includes:
+ * Features:
+ * - Tabbed interface: Overview, Logs, Events
  * - Status, priority, and duration
  * - Vertical timeline (submitted → started → running/completed)
  * - Details (user, pool, backend, tags)
@@ -30,10 +31,12 @@
 
 "use client";
 
-import { memo, useMemo } from "react";
-import { ExternalLink, FileText, BarChart3, Activity, ClipboardList, Package, XCircle, Tag } from "lucide-react";
+import { memo, useMemo, useCallback } from "react";
+import { ExternalLink, FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
+import { PanelTabs, type PanelTab } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { formatDuration } from "../../../lib/workflow-types";
 import { getStatusIcon } from "../../../lib/status";
@@ -42,6 +45,7 @@ import { DetailsPanelHeader } from "../shared/DetailsPanelHeader";
 import { WorkflowTimeline } from "./WorkflowTimeline";
 import { parseTime } from "../shared/Timeline";
 import { useTick } from "@/hooks";
+import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 
 // =============================================================================
 // Styling Constants (Single Source of Truth)
@@ -81,6 +85,10 @@ export interface WorkflowDetailsProps {
   isDetailsExpanded?: boolean;
   /** Toggle the details expansion state (global for page) */
   onToggleDetailsExpanded?: () => void;
+  /** Currently selected tab (URL-synced) */
+  selectedTab?: WorkflowTab;
+  /** Callback to change the selected tab */
+  setSelectedTab?: (tab: WorkflowTab) => void;
 }
 
 // =============================================================================
@@ -189,10 +197,9 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
   );
 });
 
-/** External links */
+/** Links section for Overview tab */
 const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryResponse }) {
   const links = [
-    { id: "logs", label: "Logs", description: "Stdout & stderr output", url: workflow.logs, icon: FileText },
     {
       id: "dashboard",
       label: "Dashboard",
@@ -201,7 +208,6 @@ const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryRespons
       icon: BarChart3,
     },
     { id: "grafana", label: "Grafana", description: "Metrics & monitoring", url: workflow.grafana_url, icon: Activity },
-    { id: "events", label: "Events", description: "Kubernetes events", url: workflow.events, icon: ClipboardList },
     { id: "outputs", label: "Outputs", description: "Artifacts & results", url: workflow.outputs, icon: Package },
   ].filter((link) => link.url);
 
@@ -237,6 +243,132 @@ const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryRespons
   );
 });
 
+/** Logs tab content */
+const LogsTab = memo(function LogsTab({ workflow }: { workflow: WorkflowQueryResponse }) {
+  return (
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
+        <FileText className="size-6 text-gray-400 dark:text-zinc-500" />
+      </div>
+      <div>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Workflow Logs</h3>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+          View stdout/stderr output from the workflow execution
+        </p>
+      </div>
+      {workflow.logs ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          asChild
+        >
+          <a
+            href={workflow.logs}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <FileText className="mr-1.5 size-3.5" />
+            Open in New Tab
+          </a>
+        </Button>
+      ) : (
+        <p className="text-xs text-gray-400 dark:text-zinc-500">No logs available</p>
+      )}
+    </div>
+  );
+});
+
+/** Events tab content */
+const EventsTab = memo(function EventsTab({ workflow }: { workflow: WorkflowQueryResponse }) {
+  return (
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
+        <History className="size-6 text-gray-400 dark:text-zinc-500" />
+      </div>
+      <div>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Kubernetes Events</h3>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+          Pod scheduling, container lifecycle, and resource events
+        </p>
+      </div>
+      {workflow.events ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          asChild
+        >
+          <a
+            href={workflow.events}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <History className="mr-1.5 size-3.5" />
+            View Events
+          </a>
+        </Button>
+      ) : (
+        <p className="text-xs text-gray-400 dark:text-zinc-500">No events available</p>
+      )}
+    </div>
+  );
+});
+
+/** Overview tab content */
+interface OverviewTabProps {
+  workflow: WorkflowQueryResponse;
+  canCancel: boolean;
+  onCancel?: () => void;
+}
+
+const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }: OverviewTabProps) {
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Timeline section */}
+      <section>
+        <h3 className={STYLES.sectionHeader}>Timeline</h3>
+        <Card className="gap-0 overflow-hidden py-0">
+          <CardContent className="min-w-0 overflow-hidden p-3">
+            <WorkflowTimeline workflow={workflow} />
+          </CardContent>
+        </Card>
+      </section>
+
+      <Details workflow={workflow} />
+      <Links workflow={workflow} />
+
+      {/* Cancel action */}
+      {canCancel && onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+            "text-red-600 ring-1 ring-red-200 ring-inset",
+            "hover:bg-red-50 hover:text-red-700",
+            "dark:text-red-400 dark:ring-red-800",
+            "dark:hover:bg-red-950/50 dark:hover:text-red-300",
+          )}
+        >
+          <XCircle className="size-4" />
+          Cancel Workflow
+        </button>
+      )}
+    </div>
+  );
+});
+
+// =============================================================================
+// Tab Configuration
+// =============================================================================
+
+const WORKFLOW_TABS: PanelTab[] = [
+  { id: "overview", label: "Overview", icon: Info },
+  { id: "logs", label: "Logs", icon: FileText },
+  { id: "events", label: "Events", icon: History },
+];
+
 // =============================================================================
 // Main Component
 // =============================================================================
@@ -247,16 +379,29 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   onPanelResize,
   isDetailsExpanded,
   onToggleDetailsExpanded,
+  selectedTab: selectedTabProp,
+  setSelectedTab: setSelectedTabProp,
 }: WorkflowDetailsProps) {
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
   const canCancel = statusCategory === "running" || statusCategory === "waiting";
 
+  // Tab state - use URL-synced state if provided, otherwise default to "overview"
+  const activeTab = selectedTabProp ?? "overview";
+
+  // Handle tab change - update URL state
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setSelectedTabProp?.(value as WorkflowTab);
+    },
+    [setSelectedTabProp],
+  );
+
   // Status content for header Row 2
   const statusContent = <StatusDisplay workflow={workflow} />;
 
   return (
-    <>
+    <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
       {/* Shared Header (consistent with Group/Task views) */}
       <DetailsPanelHeader
         viewType="workflow"
@@ -267,41 +412,41 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         onToggleExpand={onToggleDetailsExpanded}
       />
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-6 p-4">
-          {/* Timeline section */}
-          <section>
-            <h3 className={STYLES.sectionHeader}>Timeline</h3>
-            <Card className="gap-0 overflow-hidden py-0">
-              <CardContent className="min-w-0 overflow-hidden p-3">
-                <WorkflowTimeline workflow={workflow} />
-              </CardContent>
-            </Card>
-          </section>
+      {/* Tab Navigation - Chrome-style tabs with curved connectors */}
+      <PanelTabs
+        tabs={WORKFLOW_TABS}
+        value={activeTab}
+        onValueChange={handleTabChange}
+        compactBreakpoint={280}
+      />
 
-          <Details workflow={workflow} />
-          <Links workflow={workflow} />
+      {/* Tab Content */}
+      <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
+        {/* Overview tab */}
+        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "overview" && "invisible")}>
+          <div className="p-4 pb-16">
+            <OverviewTab
+              workflow={workflow}
+              canCancel={canCancel}
+              onCancel={onCancel}
+            />
+          </div>
+        </div>
 
-          {/* Cancel action */}
-          {canCancel && onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
-                "text-red-600 ring-1 ring-red-200 ring-inset",
-                "hover:bg-red-50 hover:text-red-700",
-                "dark:text-red-400 dark:ring-red-800",
-                "dark:hover:bg-red-950/50 dark:hover:text-red-300",
-              )}
-            >
-              <XCircle className="size-4" />
-              Cancel Workflow
-            </button>
-          )}
+        {/* Logs tab */}
+        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "logs" && "invisible")}>
+          <div className="flex h-full items-center justify-center p-4">
+            <LogsTab workflow={workflow} />
+          </div>
+        </div>
+
+        {/* Events tab */}
+        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "events" && "invisible")}>
+          <div className="flex h-full items-center justify-center p-4">
+            <EventsTab workflow={workflow} />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 });
