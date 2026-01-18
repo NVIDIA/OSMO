@@ -14,18 +14,32 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
 import { Chrome } from "@/components/chrome";
+import { prefetchVersion } from "@/lib/api/server";
 
 /**
- * Dashboard layout.
+ * Dashboard layout with shared data prefetch.
+ *
+ * Prefetches shared data needed by layout-level components (like Header):
+ * - Version: Used by Header, static metadata that rarely changes
+ *
+ * This ensures useVersion() in Header finds data in cache during SSR,
+ * avoiding network requests that would fail in mock mode.
  *
  * Error handling is automatic via Next.js error.tsx files:
  * - (dashboard)/error.tsx - Catches all dashboard errors
  * - (dashboard)/pools/error.tsx - Catches pool-specific errors
  * - (dashboard)/resources/error.tsx - Catches resource-specific errors
- *
- * No manual ErrorBoundary wrapper needed!
  */
-export default function DashboardLayout(props: { children: React.ReactNode }) {
-  return <Chrome>{props.children}</Chrome>;
+export default async function DashboardLayout(props: { children: React.ReactNode }) {
+  // Prefetch shared data needed by Chrome/Header
+  const queryClient = new QueryClient();
+  await prefetchVersion(queryClient);
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Chrome>{props.children}</Chrome>
+    </HydrationBoundary>
+  );
 }

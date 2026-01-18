@@ -29,7 +29,7 @@
  */
 
 import { dehydrate, QueryClient, HydrationBoundary } from "@tanstack/react-query";
-import { prefetchPoolsForDashboard, prefetchWorkflowsList, prefetchVersion } from "@/lib/api/server";
+import { prefetchPoolsForDashboard, prefetchWorkflowsList } from "@/lib/api/server";
 import { DashboardContent } from "./dashboard-content";
 
 export async function DashboardWithData() {
@@ -38,11 +38,8 @@ export async function DashboardWithData() {
 
   // This await causes the component to suspend
   // Parallel prefetch - all APIs called simultaneously for fastest loading
-  await Promise.all([
-    prefetchPoolsForDashboard(queryClient),
-    prefetchWorkflowsList(queryClient),
-    prefetchVersion(queryClient),
-  ]);
+  // Note: Version is NOT prefetched - it's static metadata fetched client-side only
+  await Promise.all([prefetchPoolsForDashboard(queryClient), prefetchWorkflowsList(queryClient)]);
 
   // Wrap in HydrationBoundary so client gets the cached data
   return (

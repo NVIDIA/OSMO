@@ -102,7 +102,7 @@ export const fetchWorkflows = cache(
     }
 
     const queryString = queryParams.toString();
-    const url = `${baseUrl}/api/workflows${queryString ? `?${queryString}` : ""}`;
+    const url = `${baseUrl}/api/workflow${queryString ? `?${queryString}` : ""}`;
 
     const response = await fetch(url, {
       headers,
