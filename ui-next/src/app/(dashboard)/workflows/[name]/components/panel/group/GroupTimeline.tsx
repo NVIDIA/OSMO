@@ -17,8 +17,13 @@
 /**
  * GroupTimeline Component
  *
- * Displays a sequential timeline showing the group lifecycle phases:
- * Scheduled → Initializing → Processing → Done/Failed
+ * Displays a sequential timeline showing the group lifecycle phases.
+ *
+ * Backend status progression:
+ *   WAITING → PROCESSING → SCHEDULING → INITIALIZING → RUNNING → COMPLETED/FAILED
+ *
+ * Timeline phases shown:
+ *   Processing → Scheduling → Initializing → Executing → Done/Failed
  *
  * Uses the shared Timeline component with group-specific phase logic.
  */
@@ -61,19 +66,40 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
   const calculatePhaseDuration = createPhaseDurationCalculator(now);
 
   // Parse timestamps (normalized in adapter layer)
+  // Canonical order from backend (see external/src/service/core/workflow/objects.py):
+  //   1. processing_start_time (PROCESSING - queue processing)
+  //   2. scheduling_start_time (SCHEDULING - placing on node, earliest among tasks)
+  //   3. initializing_start_time (INITIALIZING - container startup, earliest among tasks)
+  //   4. start_time (RUNNING - execution begins, earliest among tasks)
+  //   5. end_time (COMPLETED/FAILED, latest among tasks)
+  //
+  // Backend stores these in the `groups` table, set when group status changes.
+  // For groups, these represent when the group entered each phase (when first task did).
+  const processingStart = parseTime(group.processing_start_time);
   const schedulingStart = parseTime(group.scheduling_start_time);
   const initializingStart = parseTime(group.initializing_start_time);
-  const processingStart = parseTime(group.processing_start_time);
-  const startTime = parseTime(group.start_time);
+  const executionStart = parseTime(group.start_time); // When RUNNING status begins
   const endTime = parseTime(group.end_time);
 
   // Compute phases for the Timeline component
   const phases = useMemo<TimelinePhase[]>(() => {
     const result: TimelinePhase[] = [];
 
-    // Scheduling phase (from scheduling_start to initializing_start or processing_start)
+    // 1. Processing phase (queue processing - first step)
+    if (processingStart) {
+      const procEnd = schedulingStart || initializingStart || executionStart;
+      result.push({
+        id: "processing",
+        label: "Processing",
+        time: processingStart,
+        duration: calculatePhaseDuration(processingStart, procEnd),
+        status: procEnd ? "completed" : "active",
+      });
+    }
+
+    // 2. Scheduling phase (placing on node)
     if (schedulingStart) {
-      const schedEnd = initializingStart || processingStart || startTime;
+      const schedEnd = initializingStart || executionStart;
       result.push({
         id: "scheduling",
         label: "Scheduling",
@@ -83,10 +109,10 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // Initializing phase (from initializing_start to processing_start or start_time)
+    // 3. Initializing phase (container startup)
     if (initializingStart) {
-      const initEnd = processingStart || startTime;
-      const initActive = !initEnd && !processingStart && isRunning;
+      const initEnd = executionStart;
+      const initActive = !initEnd && isRunning;
       result.push({
         id: "initializing",
         label: "Initializing",
@@ -96,20 +122,19 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // Processing phase (from processing_start or start_time to end_time)
-    const procStart = processingStart || startTime;
-    if (procStart) {
+    // 4. Executing phase (from start_time to end_time)
+    if (executionStart) {
       const isActive = isRunning && !endTime;
       result.push({
-        id: "processing",
-        label: "Processing",
-        time: procStart,
-        duration: calculatePhaseDuration(procStart, endTime),
+        id: "executing",
+        label: "Executing",
+        time: executionStart,
+        duration: calculatePhaseDuration(executionStart, endTime),
         status: isActive ? "active" : endTime ? "completed" : "pending",
       });
     }
 
-    // Add current state phase (running, completed, or failed)
+    // 5. Terminal phases: only for completed/failed groups
     if ((isCompleted || isFailed) && endTime) {
       result.push({
         id: isFailed ? "failed" : "done",
@@ -117,14 +142,6 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
         time: endTime,
         duration: null, // Terminal phases are instantaneous milestones
         status: isFailed ? "failed" : "completed",
-      });
-    } else if (isRunning) {
-      result.push({
-        id: "running",
-        label: "Running",
-        time: null,
-        status: "active",
-        duration: null,
       });
     }
 
@@ -137,10 +154,10 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       isFailed,
     });
   }, [
+    processingStart,
     schedulingStart,
     initializingStart,
-    processingStart,
-    startTime,
+    executionStart,
     endTime,
     isRunning,
     isCompleted,

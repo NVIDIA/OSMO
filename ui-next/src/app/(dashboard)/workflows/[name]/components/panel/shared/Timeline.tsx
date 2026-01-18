@@ -199,7 +199,8 @@ const STYLES = {
   smallLabel: "text-xs",
   mutedText: "text-muted-foreground",
   subtleText: "text-xs text-muted-foreground/70",
-  timelinePending: "border-dashed border-border",
+  // Uses timeline-pending-marker CSS variable for amber color (defined in dag.css)
+  timelinePending: "border-dashed border-[color:var(--timeline-pending-marker)]",
 } as const;
 
 // ============================================================================
