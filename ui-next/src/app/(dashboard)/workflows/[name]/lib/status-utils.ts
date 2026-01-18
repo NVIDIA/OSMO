@@ -126,6 +126,7 @@ export type StateCategory = "completed" | "running" | "failed" | "pending";
  * - "running" → "running"
  * - "failed" → "failed"
  * - "waiting" → "pending" (UI uses "pending" for display consistency)
+ * - "pending" → "pending" (pre-running states like PROCESSING, SCHEDULING, INITIALIZING)
  */
 function buildStateCategories(): Record<StateCategory, Set<string>> {
   const categories: Record<StateCategory, Set<string>> = {
@@ -147,6 +148,8 @@ function buildStateCategories(): Record<StateCategory, Set<string>> {
         categories.failed.add(status);
         break;
       case "waiting":
+      case "pending":
+        // Both "waiting" and "pending" StatusCategory map to "pending" StateCategory
         categories.pending.add(status);
         break;
     }
@@ -193,6 +196,15 @@ export const STATUS_STYLES = {
     // Raw colors for ReactFlow (edges, minimap)
     color: "#71717a",
     strokeColor: "#52525b",
+  },
+  pending: {
+    bg: "bg-amber-50 dark:bg-amber-950/60",
+    border: "border-amber-400 dark:border-amber-500",
+    text: "text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-500",
+    // Raw colors for ReactFlow (edges, minimap)
+    color: "#f59e0b",
+    strokeColor: "#d97706",
   },
   running: {
     bg: "bg-blue-50 dark:bg-blue-950/60",

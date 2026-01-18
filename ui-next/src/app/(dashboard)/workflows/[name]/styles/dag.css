@@ -37,6 +37,12 @@
   --dag-status-waiting-text: oklch(0.5 0 0);
   --dag-status-waiting-color: oklch(0.6 0 0);
 
+  /* Pending (amber - processing/scheduling states) */
+  --dag-status-pending-bg: oklch(0.97 0.04 85);
+  --dag-status-pending-border: oklch(0.7 0.14 85);
+  --dag-status-pending-text: oklch(0.5 0.12 85);
+  --dag-status-pending-color: oklch(0.65 0.16 85);
+
   /* Running */
   --dag-status-running-bg: oklch(0.95 0.04 250);
   --dag-status-running-border: oklch(0.6 0.15 250);
@@ -62,6 +68,8 @@
   --timeline-completed-text: oklch(0.45 0.16 155);
   --timeline-failed-marker: oklch(0.58 0.24 25);
   --timeline-failed-text: oklch(0.5 0.21 25);
+  --timeline-pending-marker: oklch(0.7 0.16 85);
+  --timeline-pending-text: oklch(0.5 0.14 85);
 }
 
 /* ==========================================================================
@@ -74,6 +82,12 @@
   --dag-status-waiting-border: oklch(0.37 0 0);
   --dag-status-waiting-text: oklch(0.64 0 0);
   --dag-status-waiting-color: oklch(0.47 0 0);
+
+  /* Pending (amber - processing/scheduling states) */
+  --dag-status-pending-bg: oklch(0.28 0.06 85 / 0.6);
+  --dag-status-pending-border: oklch(0.6 0.14 85);
+  --dag-status-pending-text: oklch(0.75 0.12 85);
+  --dag-status-pending-color: oklch(0.65 0.16 85);
 
   /* Running */
   --dag-status-running-bg: oklch(0.25 0.07 250 / 0.6);
@@ -100,6 +114,8 @@
   --timeline-completed-text: oklch(0.78 0.17 155);
   --timeline-failed-marker: oklch(0.65 0.22 25);
   --timeline-failed-text: oklch(0.74 0.2 25);
+  --timeline-pending-marker: oklch(0.75 0.18 85);
+  --timeline-pending-text: oklch(0.78 0.14 85);
 }
 
 /* ==========================================================================
@@ -266,8 +282,8 @@
 }
 
 .timeline-marker-pending {
-  background-color: var(--dag-surface-elevated);
-  border-color: var(--dag-border-strong);
+  background-color: transparent;
+  border-color: var(--timeline-pending-marker);
 }
 
 .timeline-segment-completed {
@@ -312,7 +328,7 @@
 }
 
 .timeline-text-pending {
-  color: var(--dag-text-tertiary);
+  color: var(--timeline-pending-text);
 }
 
 /* ==========================================================================
@@ -349,6 +365,12 @@
   background-color: var(--dag-status-waiting-bg);
   border-color: var(--dag-status-waiting-border);
   color: var(--dag-status-waiting-text);
+}
+
+.dependency-pill-pending {
+  background-color: var(--dag-status-pending-bg);
+  border-color: var(--dag-status-pending-border);
+  color: var(--dag-status-pending-text);
 }
 
 .dependency-pill-failed {

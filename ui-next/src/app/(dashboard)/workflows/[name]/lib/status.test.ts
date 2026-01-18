@@ -77,23 +77,25 @@ describe("getStatusCategory", () => {
     it("categorizes WAITING as waiting", () => {
       expect(getStatusCategory("WAITING")).toBe("waiting");
     });
+  });
 
-    it("categorizes PROCESSING as waiting", () => {
-      expect(getStatusCategory("PROCESSING")).toBe("waiting");
+  describe("pending statuses (pre-running)", () => {
+    it("categorizes PROCESSING as pending", () => {
+      expect(getStatusCategory("PROCESSING")).toBe("pending");
     });
 
-    it("categorizes SCHEDULING as waiting", () => {
-      expect(getStatusCategory("SCHEDULING")).toBe("waiting");
+    it("categorizes SCHEDULING as pending", () => {
+      expect(getStatusCategory("SCHEDULING")).toBe("pending");
+    });
+
+    it("categorizes INITIALIZING as pending", () => {
+      expect(getStatusCategory("INITIALIZING")).toBe("pending");
     });
   });
 
   describe("running statuses", () => {
     it("categorizes RUNNING as running", () => {
       expect(getStatusCategory("RUNNING")).toBe("running");
-    });
-
-    it("categorizes INITIALIZING as running", () => {
-      expect(getStatusCategory("INITIALIZING")).toBe("running");
     });
   });
 
@@ -436,7 +438,7 @@ describe("computeGroupDuration", () => {
 
 describe("STATUS_CATEGORY_MAP", () => {
   it("contains all expected statuses", () => {
-    const expectedCategories: StatusCategory[] = ["waiting", "running", "completed", "failed"];
+    const expectedCategories: StatusCategory[] = ["waiting", "pending", "running", "completed", "failed"];
     const categories = new Set(Object.values(STATUS_CATEGORY_MAP));
 
     expectedCategories.forEach((cat) => {
@@ -471,8 +473,14 @@ describe("STATE_CATEGORIES", () => {
     expect(STATE_CATEGORIES.failed.has("FAILED_IMAGE_PULL")).toBe(true);
   });
 
-  it("includes waiting statuses in pending", () => {
-    expect(STATE_CATEGORIES.pending.has("WAITING")).toBe(true);
+  it("includes pending statuses (pre-running)", () => {
+    expect(STATE_CATEGORIES.pending.has("PROCESSING")).toBe(true);
     expect(STATE_CATEGORIES.pending.has("SCHEDULING")).toBe(true);
+    expect(STATE_CATEGORIES.pending.has("INITIALIZING")).toBe(true);
+  });
+
+  it("includes waiting statuses", () => {
+    expect(STATE_CATEGORIES.pending.has("SUBMITTING")).toBe(true);
+    expect(STATE_CATEGORIES.pending.has("WAITING")).toBe(true);
   });
 });

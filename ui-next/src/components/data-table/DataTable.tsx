@@ -30,7 +30,7 @@
 
 "use client";
 
-import { useMemo, useRef, useCallback } from "react";
+import { useMemo, useRef, useCallback, useId } from "react";
 import { useSyncedRef } from "@react-hookz/web";
 import {
   useReactTable,
@@ -219,6 +219,10 @@ export function DataTable<TData, TSectionMeta = unknown>({
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
+
+  // Stable ID for DndContext - prevents SSR hydration mismatch
+  // DndContext uses internal counter for accessibility IDs which differs server vs client
+  const dndContextId = useId();
 
   // Stable refs for optional callbacks to prevent re-render loops
   const onSortingChangeRef = useSyncedRef(onSortingChange);
@@ -491,6 +495,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   return (
     <DndContext
+      id={dndContextId}
       sensors={sensors}
       modifiers={modifiers}
       collisionDetection={closestCenter}
