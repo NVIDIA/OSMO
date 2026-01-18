@@ -14,103 +14,26 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-"use client";
-
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FlaskConical, LayoutPanelTop } from "lucide-react";
-import { usePage } from "@/components/chrome";
+import { Suspense } from "react";
+import { ExperimentalPageClient } from "./experimental-client";
 
 /**
  * Experimental Pages Index
  *
  * This page lists all experimental pages for design exploration, prototyping, and testing.
- *
- * Tree-shaken in production via NODE_ENV check below.
+ * Redirects to home in production builds.
  */
 
-// Redirect away in production - this check is evaluated at build time
-// allowing the bundler to tree-shake the entire page in prod builds
-if (process.env.NODE_ENV === "production") {
-  redirect("/");
-}
-
-interface ExperimentalPage {
-  title: string;
-  href: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-const experimentalPages: ExperimentalPage[] = [
-  {
-    title: "Tab Designs",
-    href: "/experimental/tabs",
-    description: "Compare 12 different tab patterns for panel navigation",
-    icon: LayoutPanelTop,
-  },
-];
-
 export default function ExperimentalIndexPage() {
-  usePage({ title: "Experimental" });
+  // Redirect to home in production
+  if (process.env.NODE_ENV === "production") {
+    redirect("/");
+  }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      {/* Header */}
-      <div className="mb-8 flex items-center gap-3">
-        <div className="rounded-lg bg-purple-500/10 p-2">
-          <FlaskConical className="h-6 w-6 text-purple-400" />
-        </div>
-        <p className="text-muted-foreground text-sm">Design exploration, prototypes, and experimental features</p>
-      </div>
-
-      {/* Warning */}
-      <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-        <p className="text-sm text-amber-200">
-          <strong>Note:</strong> These pages are for development only and use mock data. This page is not accessible in
-          production.
-        </p>
-      </div>
-
-      {/* Page Grid */}
-      {experimentalPages.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {experimentalPages.map((page) => (
-            <Link
-              key={page.href}
-              href={page.href}
-              className="border-border bg-card hover:border-primary/50 hover:bg-accent/50 group rounded-lg border p-4 transition-all"
-            >
-              <div className="flex items-start gap-3">
-                <div className="bg-muted group-hover:bg-primary/10 rounded-lg p-2 transition-colors">
-                  <page.icon className="text-muted-foreground group-hover:text-primary h-5 w-5 transition-colors" />
-                </div>
-                <div>
-                  <h2 className="text-foreground group-hover:text-primary font-semibold transition-colors">
-                    {page.title}
-                  </h2>
-                  <p className="text-muted-foreground mt-1 text-sm">{page.description}</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="border-border bg-card/50 rounded-lg border border-dashed p-8 text-center">
-          <p className="text-muted-foreground text-sm">
-            No experimental pages currently. Add pages to the experimentalPages array.
-          </p>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="border-border mt-12 border-t pt-8">
-        <h3 className="text-muted-foreground mb-2 text-sm font-medium">Adding New Experimental Pages</h3>
-        <p className="text-muted-foreground text-sm">
-          Create a new folder under <code className="bg-muted rounded px-1 py-0.5">/experimental</code> and add it to
-          the <code className="bg-muted rounded px-1 py-0.5">experimentalPages</code> array in this file.
-        </p>
-      </div>
-    </div>
+    <Suspense fallback={<div className="p-6">Loading experimental page...</div>}>
+      <ExperimentalPageClient />
+    </Suspense>
   );
 }

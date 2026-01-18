@@ -17,13 +17,17 @@
 /**
  * MSW Mock API
  *
+ * Architecture:
+ * - All mocking happens server-side via MSW Node (see server.ts)
+ * - Client requests go through Next.js rewrites → proxy → MSW intercepts
+ * - No browser-side MSW needed - same code path as production
+ *
  * Usage:
  * 1. Set NEXT_PUBLIC_MOCK_API=true in .env.local
- * 2. Or toggle "Use mock data" in the dev login page
- * 3. Run `pnpm scrape` to populate testdata/
+ * 2. Or run: pnpm dev:mock
  *
- * See: external/ui-next-design/docs/HERMETIC_DEV.md
+ * Console API (in browser devtools):
+ *   __mockConfig.help()  // See all options
  */
 
 export { handlers } from "./handlers";
-export { initMocking } from "./browser";
