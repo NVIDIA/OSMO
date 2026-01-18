@@ -57,9 +57,9 @@ export interface CreateTableStoreOptions {
   /** Unique storage key for localStorage */
   storageKey: string;
   /** Default visible column IDs */
-  defaultVisibleColumns: string[];
+  defaultVisibleColumns: readonly string[];
   /** Default column order */
-  defaultColumnOrder: string[];
+  defaultColumnOrder: readonly string[];
   /** Default sort (optional) */
   defaultSort?: TableState["sort"];
   /** Default panel width percentage */
@@ -93,8 +93,8 @@ export function createTableStore(options: CreateTableStoreOptions) {
 
   // Initial state (what gets persisted)
   const initialState: TableState = {
-    visibleColumnIds: defaultVisibleColumns,
-    columnOrder: defaultColumnOrder,
+    visibleColumnIds: [...defaultVisibleColumns],
+    columnOrder: [...defaultColumnOrder],
     columnSizingPreferences: {},
     sort: defaultSort,
     compactMode: false,

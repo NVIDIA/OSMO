@@ -7,422 +7,84 @@
 // license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 /**
- * ShellTerminal Component
+ * ShellTerminal Component (Lazy-Loaded)
  *
  * Interactive shell for exec into running task containers.
- * Combines xterm.js with WebSocket connection to backend PTY.
- *
- * Features:
- * - Zero permanent chrome - contextual overlays only
- * - WebGL-accelerated rendering
- * - Auto-resize to container
- * - NVIDIA-themed dark colors
- * - Screen reader support
- * - Search with Cmd+F (Mac) / Ctrl+F (Windows/Linux)
- * - Copy/paste with Cmd+C/V (Mac) or Ctrl+C/V (Windows/Linux)
+ * xterm.js (~480KB) is lazy-loaded only when this component renders.
  *
  * Usage:
  * ```tsx
+ * import { ShellTerminal } from "@/components/shell";
+ *
  * <ShellTerminal
+ *   ref={shellRef}
+ *   taskId={task.task_uuid}
  *   workflowName="my-workflow"
  *   taskName="train-model"
- *   onConnected={() => console.log("Connected!")}
  * />
  * ```
  */
 
 "use client";
 
-import {
-  memo,
-  useEffect,
-  useCallback,
-  useState,
-  useRef,
-  forwardRef,
-  useImperativeHandle,
-  useMemo,
-  useDeferredValue,
-} from "react";
-import { useEventCallback } from "usehooks-ts";
+import dynamic from "next/dynamic";
+import { forwardRef, memo } from "react";
 import { cn } from "@/lib/utils";
-import { useAnnouncer, useCopy } from "@/hooks";
-
-import { useShell } from "./use-shell";
-import { updateSessionStatus } from "./shell-session-cache";
-import { useWebSocketShell } from "./use-websocket-shell";
-import { ShellConnecting } from "./ShellConnecting";
-import { ShellSearch } from "./ShellSearch";
-import { hadPreviousConnection } from "./shell-session-cache";
 import type { ShellTerminalProps, ShellTerminalRef } from "./types";
-import { SHELL_CONFIG } from "./types";
-
-import "./shell.css";
 
 // =============================================================================
-// ANSI Escape Codes for Terminal Messages
+// Loading Skeleton
 // =============================================================================
-
-const ANSI = {
-  RESET: "\x1b[0m",
-  DIM: "\x1b[2m",
-  RED: "\x1b[31m",
-  YELLOW: "\x1b[33m",
-  GRAY: "\x1b[90m",
-} as const;
-
-// Pre-computed constants at module load (avoids runtime computation)
-const ANSI_DIVIDER = `${ANSI.GRAY}${"─".repeat(40)}${ANSI.RESET}`;
-const ANSI_ICON_ERROR = `${ANSI.RED}✗${ANSI.RESET}`;
-const ANSI_ICON_NORMAL = `${ANSI.GRAY}○${ANSI.RESET}`;
-const ANSI_LABEL_ERROR = `${ANSI.RED}Connection lost${ANSI.RESET}`;
-const ANSI_LABEL_NORMAL = `${ANSI.GRAY}Session ended${ANSI.RESET}`;
 
 /**
- * Generate an inline disconnect message for the terminal buffer.
- * Uses pre-computed ANSI escape codes for styling.
+ * Shell loading skeleton - matches terminal aesthetic
  */
-function getDisconnectMessage(isError: boolean, errorMessage?: string | null): string {
-  const icon = isError ? ANSI_ICON_ERROR : ANSI_ICON_NORMAL;
-  const label = isError ? ANSI_LABEL_ERROR : ANSI_LABEL_NORMAL;
-
-  let message = `\r\n\r\n${ANSI_DIVIDER}\r\n  ${icon} ${label}\r\n`;
-
-  if (isError && errorMessage) {
-    message += `  ${ANSI.DIM}${errorMessage}${ANSI.RESET}\r\n`;
-  }
-
-  message += `${ANSI_DIVIDER}\r\n`;
-
-  return message;
-}
-
-// =============================================================================
-// Component
-// =============================================================================
-
-export const ShellTerminal = memo(
-  forwardRef<ShellTerminalRef, ShellTerminalProps>(function ShellTerminal(
-    {
-      taskId,
-      workflowName,
-      taskName,
-      shell: initialShell = SHELL_CONFIG.DEFAULT_SHELL,
-      onConnected,
-      onDisconnected,
-      onError,
-      onStatusChange,
-      className,
-    },
-    ref,
-  ) {
-    const announce = useAnnouncer();
-    const { copy } = useCopy();
-
-    // Local state
-    const [isActive, setIsActive] = useState(false);
-    const shell = initialShell;
-    const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [caseSensitive, setCaseSensitive] = useState(false);
-    const [wholeWord, setWholeWord] = useState(false);
-    const [regex, setRegex] = useState(false);
-    // Use React 19's useDeferredValue for concurrent rendering - keeps UI responsive
-    // while deferring expensive search operations to lower priority updates
-    const deferredSearchQuery = useDeferredValue(searchQuery);
-
-    // Track if we've written the disconnect message to avoid duplicates
-    const hasWrittenDisconnectRef = useRef(false);
-
-    // Refs to hold latest send/resize functions to avoid recreating terminal on callback changes
-    const sendRef = useRef<(data: string | Uint8Array) => void>(() => {});
-    const resizeRef = useRef<(rows: number, cols: number) => void>(() => {});
-
-    // Stable callbacks for useShell - these never change reference
-    const handleShellData = useCallback((data: string) => {
-      sendRef.current(data);
-    }, []);
-
-    const handleShellResize = useCallback((cols: number, rows: number) => {
-      resizeRef.current(rows, cols);
-    }, []);
-
-    // Use taskId (UUID) as the session key for uniqueness
-    const sessionKey = taskId;
-
-    // Shell hook - manages xterm.js instance
-    const {
-      containerRef,
-      getTerminal,
-      isReady: isShellReady,
-      write,
-      focus,
-      getDimensions,
-      fit,
-      setActive: setTerminalActive,
-      findNext,
-      findPrevious,
-      clearSearch,
-      searchResults,
-    } = useShell({
-      onData: handleShellData,
-      onResize: handleShellResize,
-      sessionKey,
-      workflowName,
-      taskName,
-      shell,
-    });
-
-    // WebSocket hook - manages connection to backend PTY
-    const { status, connect, disconnect, send, resize } = useWebSocketShell({
-      sessionKey,
-      workflowName,
-      taskName,
-      shell,
-      onData: (data) => {
-        // Write received data to shell
-        write(data);
-      },
-      onStatusChange: (newStatus) => {
-        updateSessionStatus(sessionKey, newStatus);
-        onStatusChange?.(newStatus);
-
-        // Reset disconnect message flag when connecting
-        if (newStatus === "connecting" || newStatus === "connected") {
-          hasWrittenDisconnectRef.current = false;
-        }
-      },
-      onConnected: () => {
-        // Send initial shell size
-        const dims = getDimensions();
-        if (dims) {
-          resize(dims.rows, dims.cols);
-        }
-        focus();
-        announce("Shell connected", "polite");
-        onConnected?.();
-      },
-      onDisconnected: () => {
-        // Write disconnect message to terminal buffer
-        if (!hasWrittenDisconnectRef.current) {
-          write(getDisconnectMessage(false));
-          hasWrittenDisconnectRef.current = true;
-        }
-        announce("Shell disconnected", "polite");
-        onDisconnected?.();
-      },
-      onError: (err) => {
-        // Write error message to terminal buffer
-        if (!hasWrittenDisconnectRef.current) {
-          write(getDisconnectMessage(true, err.message));
-          hasWrittenDisconnectRef.current = true;
-        }
-        announce(`Shell error: ${err.message}`, "assertive");
-        onError?.(err);
-      },
-    });
-
-    // Expose imperative methods via ref
-    useImperativeHandle(
-      ref,
-      () => ({
-        connect: () => {
-          connect();
-        },
-        disconnect: () => {
-          disconnect();
-        },
-        focus: () => {
-          focus();
-        },
-      }),
-      [connect, disconnect, focus],
-    );
-
-    // Sync refs with latest send/resize functions
-    useEffect(() => {
-      sendRef.current = send;
-      resizeRef.current = resize;
-    }, [send, resize]);
-
-    // Session is already created by TaskDetails.handleConnectShell
-    // before ShellTerminal mounts, so no registration needed here
-
-    // Start session when shell is ready (only if no previous connection exists)
-    // If a previous connection exists, its state is already restored
-    useEffect(() => {
-      if (isShellReady && status === "idle" && !hadPreviousConnection(sessionKey)) {
-        connect();
-      }
-    }, [isShellReady, status, sessionKey, connect]);
-
-    // Update terminal active state based on connection status
-    useEffect(() => {
-      const isConnected = status === "connected";
-      setTerminalActive(isConnected);
-    }, [status, setTerminalActive]);
-
-    // Re-fit shell when container might have changed
-    useEffect(() => {
-      if (isShellReady) {
-        fit();
-      }
-    }, [isShellReady, fit]);
-
-    // Handle keyboard shortcuts
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Cmd+F (Mac) / Ctrl+F (Windows/Linux) - Toggle search
-        // Prevents browser's native find from kicking in when inside the terminal
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
-          e.preventDefault();
-          setIsSearchOpen((prev) => !prev);
-          return;
-        }
-
-        // Cmd+C (Mac) / Ctrl+C (Windows/Linux) - Copy selection
-        // Only intercept if there's a selection, otherwise let terminal handle Ctrl+C (SIGINT)
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "c") {
-          const terminal = getTerminal();
-          if (terminal) {
-            const selection = terminal.getSelection();
-            if (selection) {
-              e.preventDefault();
-              copy(selection);
-              announce("Copied to clipboard", "polite");
-              return;
-            }
-          }
-          // No selection - let the event propagate for Ctrl+C (SIGINT) to work
-        }
-
-        // Cmd+V (Mac) / Ctrl+V (Windows/Linux) - Paste
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "v") {
-          e.preventDefault();
-          // Use void operator to handle Promise without floating promise lint error
-          void navigator.clipboard.readText().then(
-            (text) => send(text),
-            // Silently fail if clipboard access denied (user didn't grant permission)
-            () => {},
-          );
-          return;
-        }
-      };
-
-      const container = containerRef.current;
-      if (container) {
-        container.addEventListener("keydown", handleKeyDown);
-        return () => container.removeEventListener("keydown", handleKeyDown);
-      }
-    }, [getTerminal, containerRef, copy, announce, send]);
-
-    // Handle focus/blur for active state - stable refs via useEventCallback
-    const handleFocus = useEventCallback(() => {
-      setIsActive(true);
-    });
-
-    const handleBlur = useEventCallback(() => {
-      setIsActive(false);
-    });
-
-    // Handle search close - stable ref via useEventCallback
-    const handleCloseSearch = useEventCallback(() => {
-      setIsSearchOpen(false);
-      setSearchQuery("");
-      clearSearch();
-      focus();
-    });
-
-    // Memoize search options to avoid unnecessary effect triggers
-    const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
-
-    // Handle find next - stable ref via useEventCallback
-    const handleFindNext = useEventCallback(() => {
-      if (searchQuery) {
-        findNext(searchQuery, searchOptions);
-      }
-    });
-
-    // Handle find previous - stable ref via useEventCallback
-    const handleFindPrevious = useEventCallback(() => {
-      if (searchQuery) {
-        findPrevious(searchQuery, searchOptions);
-      }
-    });
-
-    // Search when deferred query changes or search options change
-    // Clear old results first, then restart search with new options
-    // useDeferredValue schedules this at lower priority, keeping input responsive
-    useEffect(() => {
-      if (deferredSearchQuery) {
-        clearSearch(); // Clear old decorations before applying new options
-        findNext(deferredSearchQuery, searchOptions);
-      } else {
-        clearSearch();
-      }
-    }, [deferredSearchQuery, searchOptions, findNext, clearSearch]);
-
-    // Determine UI state
-    const isConnected = status === "connected";
-    const isConnecting = status === "connecting";
-
-    // Check if this is a reconnection vs first connection:
-    // - First connection: hadPreviousConnection = false → show full overlay
-    // - Reattach: status is already "connected" → no overlay
-    // - Reconnection: hadPreviousConnection = true but WebSocket closed → show minimal bar
-    const isReconnecting = isConnecting && hadPreviousConnection(sessionKey);
-    const showConnectingOverlay = isConnecting && !isReconnecting;
-
-    return (
-      <div
-        className={cn("shell-container", className)}
-        data-active={isActive}
-        data-connected={isConnected}
-        data-reconnecting={isReconnecting}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        role="application"
-        aria-label={`Shell for ${taskName}`}
-      >
-        {/* Terminal Body - always mounted to preserve history */}
-        {/* Outer shell-body has padding, inner wrapper is what FitAddon measures */}
-        <div className="shell-body">
-          <div
-            ref={containerRef}
-            className="shell-body-inner"
-            tabIndex={0}
-          />
+const ShellLoadingSkeleton = memo(function ShellLoadingSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-[200px] items-center justify-center",
+        "bg-[#0a0a0f]", // Match terminal background
+        className,
+      )}
+    >
+      <div className="flex flex-col items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
+          <span className="text-sm text-zinc-400">Loading terminal...</span>
         </div>
-
-        {/* Connecting Overlay - only for first connection, not reconnection */}
-        {showConnectingOverlay && <ShellConnecting />}
-
-        {/* Reconnecting Indicator - minimal, non-blocking */}
-        {isReconnecting && (
-          <div className="shell-reconnecting">
-            <span className="shell-reconnecting-dot" />
-            <span className="shell-reconnecting-label">Reconnecting...</span>
-          </div>
-        )}
-
-        {/* Search Bar - floating top-right when open */}
-        {isSearchOpen && (
-          <ShellSearch
-            query={searchQuery}
-            onQueryChange={setSearchQuery}
-            onFindNext={handleFindNext}
-            onFindPrevious={handleFindPrevious}
-            onClose={handleCloseSearch}
-            caseSensitive={caseSensitive}
-            onCaseSensitiveChange={setCaseSensitive}
-            wholeWord={wholeWord}
-            onWholeWordChange={setWholeWord}
-            regex={regex}
-            onRegexChange={setRegex}
-            searchResults={searchResults}
-          />
-        )}
       </div>
-    );
-  }),
-);
+    </div>
+  );
+});
+
+// =============================================================================
+// Dynamic Import
+// =============================================================================
+
+/**
+ * Dynamically import the implementation with SSR disabled.
+ * This creates a separate chunk for xterm.js (~480KB) that only loads when needed.
+ */
+const ShellTerminalImpl = dynamic(() => import("./ShellTerminalImpl").then((mod) => mod.ShellTerminal), {
+  ssr: false,
+  loading: () => <ShellLoadingSkeleton />,
+});
+
+// =============================================================================
+// Public API
+// =============================================================================
+
+/**
+ * ShellTerminal - Lazy-loaded terminal component with ref forwarding.
+ *
+ * Note: Due to dynamic loading, the ref may be null during the loading phase.
+ */
+export const ShellTerminal = forwardRef<ShellTerminalRef, ShellTerminalProps>(function ShellTerminal(props, ref) {
+  return (
+    <ShellTerminalImpl
+      {...props}
+      ref={ref}
+    />
+  );
+});

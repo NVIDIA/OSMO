@@ -101,6 +101,8 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-tooltip",
       // TanStack libraries
       "@tanstack/react-table",
+      // DAG visualization (large library with many exports)
+      "@xyflow/react",
       // Drag and drop
       "@dnd-kit/core",
       "@dnd-kit/sortable",

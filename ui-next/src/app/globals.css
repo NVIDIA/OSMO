@@ -372,6 +372,12 @@
 
   /* ==========================================================================
      CSS Containment - Isolate layout/paint calculations for performance
+     
+     Usage:
+     - contain-layout: Basic layout isolation
+     - contain-layout-style: Layout + style isolation (recommended for most cases)
+     - contain-layout-paint: Layout + paint isolation (clips overflow)
+     - contain-strict: Strongest isolation, equivalent to size + layout + style + paint
      ========================================================================== */
   .contain-layout {
     contain: layout;
@@ -383,6 +389,10 @@
 
   .contain-layout-paint {
     contain: layout paint;
+  }
+
+  .contain-strict {
+    contain: strict;
   }
 
   /* ==========================================================================

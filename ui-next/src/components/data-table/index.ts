@@ -83,6 +83,19 @@ export {
 } from "./hooks/use-row-navigation";
 
 // =============================================================================
+// Factories
+// =============================================================================
+
+export { createColumnConfig, type ColumnConfigInput, type ColumnConfig } from "./create-column-config";
+export {
+  createToolbarHooks,
+  type TableStoreState,
+  type ColumnVisibilityHookResult,
+  type DisplayModeHookResult,
+  type ToolbarHooksResult,
+} from "./create-toolbar-hooks";
+
+// =============================================================================
 // Types
 // =============================================================================
 

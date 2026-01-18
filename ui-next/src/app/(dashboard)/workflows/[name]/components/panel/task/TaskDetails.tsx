@@ -28,24 +28,19 @@
 "use client";
 
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
-import {
-  FileText,
-  Terminal,
-  AlertCircle,
-  Copy,
-  Check,
-  XCircle,
-  History,
-  Info,
-  ExternalLink,
-  BarChart3,
-  Activity,
-} from "lucide-react";
+import { FileText, Terminal, AlertCircle, XCircle, History, Info, BarChart3, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/shadcn/button";
 import { Card, CardContent } from "@/components/shadcn/card";
-import { PanelTabs, type PanelTab } from "@/components/panel";
-import { useCopy, useTick } from "@/hooks";
+import {
+  PanelTabs,
+  DetailsSection,
+  LinksSection,
+  EmptyTabPrompt,
+  TabPanel,
+  SeparatedParts,
+  type PanelTab,
+} from "@/components/panel";
+import { useTick } from "@/hooks";
 import { ShellConnectPrompt } from "./TaskShell";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
@@ -59,25 +54,6 @@ import { useShellSession, StatusDot } from "@/components/shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 
 // ============================================================================
-// Copy Button Component
-// ============================================================================
-
-function CopyButton({ value, label }: { value: string; label: string }) {
-  const { copied, copy } = useCopy();
-
-  return (
-    <button
-      onClick={() => copy(value)}
-      className="text-muted-foreground hover:bg-accent hover:text-foreground ml-1.5 shrink-0 rounded p-0.5 transition-colors"
-      aria-label={`Copy ${label}`}
-      title={copied ? "Copied!" : `Copy ${label}`}
-    >
-      {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-    </button>
-  );
-}
-
-// ============================================================================
 // Overview Tab Content
 // ============================================================================
 
@@ -85,155 +61,13 @@ interface OverviewTabProps {
   task: TaskDetailsProps["task"];
 }
 
-// ============================================================================
-// Logs Tab Content (Placeholder)
-// ============================================================================
+/** Section header styling */
+const SECTION_HEADER = "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase";
 
-interface LogsTabProps {
-  task: TaskDetailsProps["task"];
-}
-
-const LogsTab = memo(function LogsTab({ task }: LogsTabProps) {
-  return (
-    <div className="flex flex-col items-center gap-4 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
-        <FileText className="size-6 text-gray-400 dark:text-zinc-500" />
-      </div>
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Task Logs</h3>
-        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
-          View stdout/stderr output from the task execution
-        </p>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-2"
-        asChild
-      >
-        <a
-          href={task.logs}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <FileText className="mr-1.5 size-3.5" />
-          Open in New Tab
-        </a>
-      </Button>
-      {task.error_logs && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
-          asChild
-        >
-          <a
-            href={task.error_logs}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <AlertCircle className="mr-1.5 size-3.5" />
-            View Error Logs
-          </a>
-        </Button>
-      )}
-    </div>
-  );
-});
-
-// ============================================================================
-// Events Tab Content (Placeholder)
-// ============================================================================
-
-interface EventsTabProps {
-  task: TaskDetailsProps["task"];
-}
-
-const EventsTab = memo(function EventsTab({ task }: EventsTabProps) {
-  return (
-    <div className="flex flex-col items-center gap-4 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
-        <History className="size-6 text-gray-400 dark:text-zinc-500" />
-      </div>
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Kubernetes Events</h3>
-        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
-          Pod scheduling, container lifecycle, and resource events
-        </p>
-      </div>
-      {task.events ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2"
-          asChild
-        >
-          <a
-            href={task.events}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <History className="mr-1.5 size-3.5" />
-            View Events
-          </a>
-        </Button>
-      ) : (
-        <p className="text-xs text-gray-400 dark:text-zinc-500">No events available</p>
-      )}
-    </div>
-  );
-});
-
-// ============================================================================
-// Overview Tab Content
-// ============================================================================
-
-/** Reusable style patterns (matches WorkflowDetails) */
-const STYLES = {
-  /** Section header styling */
-  sectionHeader: "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase",
-  /** External link styling */
-  link: "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted",
-} as const;
-
-/** Detail row component for consistent styling (matches WorkflowDetails) */
-const DetailRow = memo(function DetailRow({
-  label,
-  value,
-  copyable = false,
-}: {
-  label: string;
-  value: string;
-  copyable?: boolean;
-}) {
-  return (
-    <>
-      <span className="text-muted-foreground whitespace-nowrap">{label}</span>
-      <span className="flex min-w-0 items-center">
-        <span
-          className="min-w-0 truncate font-mono text-xs"
-          title={value}
-        >
-          {value}
-        </span>
-        {copyable && (
-          <CopyButton
-            value={value}
-            label={label}
-          />
-        )}
-      </span>
-    </>
-  );
-});
-
-const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
-  const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
-  const hasDetails = task.task_uuid || task.node_name || task.pod_name || task.pod_ip;
-
-  // Build links array - cast to access grafana_url which may not be in generated types yet
+/** Build links configuration for task */
+const getTaskLinks = (task: TaskDetailsProps["task"]) => {
   const taskWithLinks = task as typeof task & { grafana_url?: string };
-  const links = [
+  return [
     {
       id: "dashboard",
       label: "Dashboard",
@@ -248,15 +82,17 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
       url: taskWithLinks.grafana_url,
       icon: Activity,
     },
-  ].filter((link) => link.url);
+  ];
+};
 
-  const hasLinks = links.length > 0;
+const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
+  const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
 
   return (
     <div className="flex flex-col gap-6">
       {/* Timeline section */}
       <section>
-        <h3 className={STYLES.sectionHeader}>Timeline</h3>
+        <h3 className={SECTION_HEADER}>Timeline</h3>
         <Card className="gap-0 overflow-hidden py-0">
           <CardContent className="min-w-0 overflow-hidden p-3">
             <TaskTimeline task={task} />
@@ -281,77 +117,22 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
         </Card>
       </section>
 
-      {/* Details section - using Card like WorkflowDetails */}
-      {hasDetails && (
-        <section>
-          <h3 className={STYLES.sectionHeader}>Details</h3>
-          <Card className="gap-0 overflow-hidden py-0">
-            <CardContent className="min-w-0 p-3">
-              {/* auto column for labels (shrinks to fit), 1fr for values (uses remaining space) */}
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-8 gap-y-2 text-sm">
-                {task.task_uuid && (
-                  <DetailRow
-                    label="UUID"
-                    value={task.task_uuid}
-                    copyable
-                  />
-                )}
-                {task.node_name && (
-                  <DetailRow
-                    label="Node"
-                    value={task.node_name}
-                    copyable
-                  />
-                )}
-                {task.pod_name && (
-                  <DetailRow
-                    label="Pod"
-                    value={task.pod_name}
-                    copyable
-                  />
-                )}
-                {task.pod_ip && (
-                  <DetailRow
-                    label="Pod IP"
-                    value={task.pod_ip}
-                    copyable
-                  />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
+      {/* Details section - using DetailsSection component */}
+      <DetailsSection
+        title="Details"
+        items={[
+          { label: "UUID", value: task.task_uuid, copyable: true, mono: true, truncate: true, show: !!task.task_uuid },
+          { label: "Node", value: task.node_name, copyable: true, mono: true, truncate: true, show: !!task.node_name },
+          { label: "Pod", value: task.pod_name, copyable: true, mono: true, truncate: true, show: !!task.pod_name },
+          { label: "Pod IP", value: task.pod_ip, copyable: true, mono: true, truncate: true, show: !!task.pod_ip },
+        ]}
+      />
 
-      {/* Links section */}
-      {hasLinks && (
-        <section>
-          <h3 className={STYLES.sectionHeader}>Links</h3>
-          <Card className="gap-0 overflow-hidden py-0">
-            <CardContent className="divide-border divide-y p-0">
-              {links.map((link) => {
-                const Icon = link.icon;
-                return (
-                  <a
-                    key={link.id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:bg-muted/50 flex items-center gap-3 p-3 transition-colors"
-                  >
-                    <Icon className="text-muted-foreground size-4 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium">{link.label}</div>
-                      <div className="text-muted-foreground text-xs">{link.description}</div>
-                    </div>
-                    <ExternalLink className="text-muted-foreground/50 size-3.5 shrink-0" />
-                  </a>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </section>
-      )}
+      {/* Links section - using LinksSection component */}
+      <LinksSection
+        title="Links"
+        links={getTaskLinks(task)}
+      />
     </div>
   );
 });
@@ -517,22 +298,14 @@ export const TaskDetails = memo(function TaskDetails({
 
   // Status content for header (Row 2 - clean, consistent with GroupDetails)
   const statusContent = (
-    <div className={cn("flex items-center gap-1.5 text-xs", style.text)}>
-      {getStatusIcon(task.status, "size-3")}
-      <span className="font-medium">{getStatusLabel(task.status)}</span>
-      {duration !== null && (
-        <>
-          <span className="text-gray-400 dark:text-zinc-600">·</span>
-          <span className="text-gray-500 dark:text-zinc-400">{formatDuration(duration)}</span>
-        </>
-      )}
-      {task.retry_id > 0 && (
-        <>
-          <span className="text-gray-400 dark:text-zinc-600">·</span>
-          <span className="text-gray-500 dark:text-zinc-400">Retry #{task.retry_id}</span>
-        </>
-      )}
-    </div>
+    <SeparatedParts className={cn("text-xs", style.text)}>
+      <span className="flex items-center gap-1.5">
+        {getStatusIcon(task.status, "size-3")}
+        <span className="font-medium">{getStatusLabel(task.status)}</span>
+      </span>
+      {duration !== null && <span className="text-gray-500 dark:text-zinc-400">{formatDuration(duration)}</span>}
+      {task.retry_id > 0 && <span className="text-gray-500 dark:text-zinc-400">Retry #{task.retry_id}</span>}
+    </SeparatedParts>
   );
 
   // Check if we have any expandable content
@@ -630,12 +403,13 @@ export const TaskDetails = memo(function TaskDetails({
 
       {/* Tab Content */}
       <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
-        {/* Overview tab */}
-        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "overview" && "invisible")}>
-          <div className="p-4 pb-16">
-            <OverviewTab task={task} />
-          </div>
-        </div>
+        <TabPanel
+          tab="overview"
+          activeTab={activeTab}
+          padding="with-bottom"
+        >
+          <OverviewTab task={task} />
+        </TabPanel>
 
         {/* Shell tab - shows connect prompt OR ShellContainer renders via portal */}
         {isShellAvailable && (
@@ -654,19 +428,38 @@ export const TaskDetails = memo(function TaskDetails({
           </div>
         )}
 
-        {/* Logs tab */}
-        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "logs" && "invisible")}>
-          <div className="flex h-full items-center justify-center p-4">
-            <LogsTab task={task} />
-          </div>
-        </div>
+        <TabPanel
+          tab="logs"
+          activeTab={activeTab}
+          centered
+          className="p-4"
+        >
+          <EmptyTabPrompt
+            icon={FileText}
+            title="Task Logs"
+            description="View stdout/stderr output from the task execution"
+            url={task.logs}
+            secondaryAction={
+              task.error_logs ? { url: task.error_logs, label: "View Error Logs", icon: AlertCircle } : undefined
+            }
+          />
+        </TabPanel>
 
-        {/* Events tab */}
-        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "events" && "invisible")}>
-          <div className="flex h-full items-center justify-center p-4">
-            <EventsTab task={task} />
-          </div>
-        </div>
+        <TabPanel
+          tab="events"
+          activeTab={activeTab}
+          centered
+          className="p-4"
+        >
+          <EmptyTabPrompt
+            icon={History}
+            title="Kubernetes Events"
+            description="Pod scheduling, container lifecycle, and resource events"
+            url={task.events}
+            buttonLabel="View Events"
+            emptyText="No events available"
+          />
+        </TabPanel>
       </div>
     </div>
   );
