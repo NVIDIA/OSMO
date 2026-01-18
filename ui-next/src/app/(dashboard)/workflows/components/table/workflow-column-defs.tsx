@@ -39,6 +39,7 @@ import { formatDuration } from "../../[name]/lib/workflow-types";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
+  pending: Loader2,
   running: Loader2,
   completed: CheckCircle2,
   failed: XCircle,
