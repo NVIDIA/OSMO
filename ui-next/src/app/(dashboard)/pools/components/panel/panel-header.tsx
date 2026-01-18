@@ -32,7 +32,7 @@ import { memo } from "react";
 import { Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter";
-import { PanelHeader, PanelTitle, PanelHeaderActions } from "@/components/panel";
+import { PanelHeader, PanelTitle, PanelHeaderActions, SeparatedParts } from "@/components/panel";
 import { getStatusDisplay, getStatusStyles } from "../../lib/constants";
 
 export interface PoolPanelHeaderProps {
@@ -47,25 +47,21 @@ export const PoolPanelHeader = memo(function PoolPanelHeader({ pool, onClose, on
 
   // Build subtitle content with status, backend, and platform count
   const subtitleContent = (
-    <>
+    <SeparatedParts>
       <span className="flex items-center gap-1.5">
         <span className={cn("size-2 rounded-full", statusStyles.dot)} />
         <span className="font-medium text-zinc-600 dark:text-zinc-300">{statusDisplay.label}</span>
       </span>
-      <span className="text-zinc-400 dark:text-zinc-600">·</span>
       <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
         <Server className="size-3" />
         {pool.backend}
       </span>
       {pool.platforms.length > 0 && (
-        <>
-          <span className="text-zinc-400 dark:text-zinc-600">·</span>
-          <span className="text-zinc-500 dark:text-zinc-400">
-            {pool.platforms.length} platform{pool.platforms.length !== 1 ? "s" : ""}
-          </span>
-        </>
+        <span className="text-zinc-500 dark:text-zinc-400">
+          {pool.platforms.length} platform{pool.platforms.length !== 1 ? "s" : ""}
+        </span>
       )}
-    </>
+    </SeparatedParts>
   );
 
   return (

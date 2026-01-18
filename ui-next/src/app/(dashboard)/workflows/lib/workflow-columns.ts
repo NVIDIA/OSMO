@@ -14,12 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  COLUMN_MIN_WIDTHS_REM,
-  COLUMN_PREFERRED_WIDTHS_REM,
-  type ColumnSizeConfig,
-  type ColumnDefinition,
-} from "@/components/data-table";
+import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM, createColumnConfig } from "@/components/data-table";
 
 // =============================================================================
 // Column IDs
@@ -38,167 +33,139 @@ export type WorkflowColumnId =
   | "priority"
   | "app_name";
 
-/** Set of all valid workflow column IDs for type validation */
-const VALID_COLUMN_IDS = new Set<string>([
-  "name",
-  "status",
-  "user",
-  "submit_time",
-  "start_time",
-  "end_time",
-  "duration",
-  "queued_time",
-  "pool",
-  "priority",
-  "app_name",
-]);
+// =============================================================================
+// Column Configuration (via factory)
+// =============================================================================
+
+const workflowColumnConfig = createColumnConfig<WorkflowColumnId>({
+  columns: [
+    "name",
+    "status",
+    "user",
+    "submit_time",
+    "start_time",
+    "end_time",
+    "duration",
+    "queued_time",
+    "pool",
+    "priority",
+    "app_name",
+  ] as const,
+  labels: {
+    name: "Name",
+    status: "Status",
+    user: "User",
+    submit_time: "Submitted",
+    start_time: "Started",
+    end_time: "Ended",
+    duration: "Duration",
+    queued_time: "Queue Time",
+    pool: "Pool",
+    priority: "Priority",
+    app_name: "App",
+  },
+  mandatory: ["name"],
+  defaultVisible: ["name", "status", "user", "submit_time", "duration", "pool", "priority"],
+  defaultOrder: [
+    "name",
+    "status",
+    "user",
+    "submit_time",
+    "start_time",
+    "end_time",
+    "duration",
+    "queued_time",
+    "pool",
+    "priority",
+    "app_name",
+  ],
+  sizeConfig: [
+    {
+      id: "name",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE * 1.5,
+    },
+    {
+      id: "status",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.STATUS_BADGE_LONG,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE_LONG,
+    },
+    {
+      id: "user",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+    },
+    {
+      id: "submit_time",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
+    },
+    {
+      id: "start_time",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
+    },
+    {
+      id: "end_time",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
+    },
+    {
+      id: "duration",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
+    },
+    {
+      id: "queued_time",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
+    },
+    {
+      id: "pool",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+    },
+    {
+      id: "priority",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+    },
+    {
+      id: "app_name",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
+    },
+  ],
+  defaultSort: { column: "submit_time", direction: "desc" },
+});
+
+// =============================================================================
+// Exports (backward compatible)
+// =============================================================================
 
 /** Type guard to check if a string is a valid WorkflowColumnId */
-export function isWorkflowColumnId(id: string): id is WorkflowColumnId {
-  return VALID_COLUMN_IDS.has(id);
-}
+export const isWorkflowColumnId = workflowColumnConfig.isColumnId;
 
 /** Filter and type an array of strings to WorkflowColumnId[] (filters out invalid IDs) */
-export function asWorkflowColumnIds(ids: string[]): WorkflowColumnId[] {
-  return ids.filter(isWorkflowColumnId);
-}
+export const asWorkflowColumnIds = workflowColumnConfig.asColumnIds;
 
-// =============================================================================
-// Column Labels (for menus and headers)
-// =============================================================================
-
-export const COLUMN_LABELS: Record<WorkflowColumnId, string> = {
-  name: "Name",
-  status: "Status",
-  user: "User",
-  submit_time: "Submitted",
-  start_time: "Started",
-  end_time: "Ended",
-  duration: "Duration",
-  queued_time: "Queue Time",
-  pool: "Pool",
-  priority: "Priority",
-  app_name: "App",
-};
-
-// =============================================================================
-// Column Definitions (for toolbar column visibility menu)
-// =============================================================================
+/** Column labels for header display */
+export const COLUMN_LABELS = workflowColumnConfig.COLUMN_LABELS;
 
 /** Columns that can be toggled in the column visibility menu */
-export const OPTIONAL_COLUMNS: ColumnDefinition[] = [
-  { id: "status", label: "Status", menuLabel: "Status" },
-  { id: "user", label: "User", menuLabel: "User" },
-  { id: "submit_time", label: "Submitted", menuLabel: "Submitted" },
-  { id: "start_time", label: "Started", menuLabel: "Started" },
-  { id: "end_time", label: "Ended", menuLabel: "Ended" },
-  { id: "duration", label: "Duration", menuLabel: "Duration" },
-  { id: "queued_time", label: "Queue Time", menuLabel: "Queue Time" },
-  { id: "pool", label: "Pool", menuLabel: "Pool" },
-  { id: "priority", label: "Priority", menuLabel: "Priority" },
-  { id: "app_name", label: "App", menuLabel: "App" },
-];
+export const OPTIONAL_COLUMNS = workflowColumnConfig.OPTIONAL_COLUMNS;
 
 /** Default visible columns */
-export const DEFAULT_VISIBLE_COLUMNS: WorkflowColumnId[] = [
-  "name",
-  "status",
-  "user",
-  "submit_time",
-  "duration",
-  "pool",
-  "priority",
-];
+export const DEFAULT_VISIBLE_COLUMNS = workflowColumnConfig.DEFAULT_VISIBLE_COLUMNS;
 
 /** Default column order */
-export const DEFAULT_COLUMN_ORDER: WorkflowColumnId[] = [
-  "name",
-  "status",
-  "user",
-  "submit_time",
-  "start_time",
-  "end_time",
-  "duration",
-  "queued_time",
-  "pool",
-  "priority",
-  "app_name",
-];
+export const DEFAULT_COLUMN_ORDER = workflowColumnConfig.DEFAULT_COLUMN_ORDER;
 
 /** Columns that cannot be hidden */
-export const MANDATORY_COLUMN_IDS: ReadonlySet<WorkflowColumnId> = new Set(["name"]);
+export const MANDATORY_COLUMN_IDS = workflowColumnConfig.MANDATORY_COLUMN_IDS;
 
-// =============================================================================
-// Column Size Configuration (for DataTable)
-// =============================================================================
+/** Column sizing configuration */
+export const WORKFLOW_COLUMN_SIZE_CONFIG = workflowColumnConfig.COLUMN_SIZE_CONFIG;
 
-/**
- * Column sizing configuration.
- * Uses rem for accessibility (scales with user font size).
- *
- * - minWidthRem: Absolute floor (column never smaller than this)
- * - preferredWidthRem: Ideal width when space allows (used for initial sizing)
- */
-export const WORKFLOW_COLUMN_SIZE_CONFIG: ColumnSizeConfig[] = [
-  {
-    id: "name",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE * 1.5,
-  },
-  {
-    id: "status",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.STATUS_BADGE_LONG,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE_LONG,
-  },
-  {
-    id: "user",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
-  },
-  {
-    id: "submit_time",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
-  },
-  {
-    id: "start_time",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
-  },
-  {
-    id: "end_time",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TIMESTAMP,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
-  },
-  {
-    id: "duration",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
-  },
-  {
-    id: "queued_time",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
-  },
-  {
-    id: "pool",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
-  },
-  {
-    id: "priority",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
-  },
-  {
-    id: "app_name",
-    minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-    preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
-  },
-];
-
-// =============================================================================
-// Default Sort Configuration
-// =============================================================================
-
-export const DEFAULT_SORT = { column: "submit_time" as WorkflowColumnId, direction: "desc" as const };
+/** Default sort configuration */
+export const DEFAULT_SORT = workflowColumnConfig.DEFAULT_SORT;
