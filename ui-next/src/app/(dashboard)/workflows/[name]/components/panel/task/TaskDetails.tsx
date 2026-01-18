@@ -14,17 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * TaskDetails Component
- *
- * Content component for displaying task details within DetailsPanel.
- * Features:
- * - Tabbed interface: Overview, Shell (for running tasks), Logs, Events
- * - Task information display
- * - Sibling task navigation within the same group
- * - Visual hierarchy matching GroupDetails
- */
-
 "use client";
 
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
@@ -66,10 +55,6 @@ import { useShellSession, StatusDot } from "@/components/shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
 
-// ============================================================================
-// Overview Tab Content
-// ============================================================================
-
 interface OverviewTabProps {
   task: TaskDetailsProps["task"];
 }
@@ -98,19 +83,11 @@ const getTaskLinks = (task: TaskDetailsProps["task"]) => {
   ];
 };
 
-// ============================================================================
-// Shell Status Prompt (for non-running states)
-// ============================================================================
-
 interface ShellStatusPromptProps {
   status: string;
   category: "waiting" | "pending" | "running" | "completed" | "failed";
 }
 
-/**
- * Shows contextual messages for the shell tab when the task is not in RUNNING state.
- * This helps users understand why shell access is not available and what to expect.
- */
 const ShellStatusPrompt = memo(function ShellStatusPrompt({ status, category }: ShellStatusPromptProps) {
   // Determine message based on status category and specific status
   const isInitializing = status === TaskGroupStatus.INITIALIZING;
@@ -266,10 +243,6 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
     </div>
   );
 });
-
-// ============================================================================
-// Main Component
-// ============================================================================
 
 interface TaskDetailsInternalProps extends TaskDetailsProps {
   allGroups: GroupWithLayout[];

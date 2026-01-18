@@ -15,22 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Timeline Component
- *
- * A reusable, responsive timeline visualization for workflow, group, and task lifecycles.
- *
- * Responsive behavior:
- * 1. Wide container: segments sized proportionally based on duration
- * 2. Shrinking: all segments shrink proportionally together
- * 3. Segment hits minimum: that segment stops at text width, others continue shrinking
- * 4. All segments at minimum: if still doesn't fit, switch to vertical layout
- *
- * Features:
- * - CSS Grid with minmax(max-content, Xfr) for proportional + minimum sizing
- * - Square root scaling for durations to prevent extreme visual disparities
- * - Tooltips on markers with timestamps
- * - Visual states: completed, active, pending, failed
- * - Accessible screen reader descriptions
+ * Responsive timeline visualization for workflow/group/task lifecycles.
+ * Uses CSS Grid with sqrt scaling and automatic vertical fallback for narrow containers.
  */
 
 "use client";
@@ -42,110 +28,63 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { calculateLiveDuration } from "@/hooks";
 import { formatDuration } from "../../../lib/workflow-types";
 
-// ============================================================================
-// Shared Utilities
-// ============================================================================
-
-/**
- * Parse timestamp string to Date.
- * Timestamps are normalized in the adapter layer (useWorkflow hook),
- * so we can safely use new Date() directly.
- */
 export function parseTime(timeStr?: string | null): Date | null {
   if (!timeStr) return null;
   return new Date(timeStr);
 }
 
-/**
- * Create a phase duration calculator using the synchronized tick.
- * Returns a function that calculates duration between start and end times,
- * using the current time (now) for running phases.
- */
 export function createPhaseDurationCalculator(now: number) {
   return (start: Date | null, end: Date | null): number | null => {
     return calculateLiveDuration(now, start, end);
   };
 }
 
-/**
- * Context for finalizing timeline phases - provides duration calculator and status flags.
- */
 export interface TimelineFinalizeContext {
-  /** Duration calculator created from synchronized tick */
   calculatePhaseDuration: (start: Date | null, end: Date | null) => number | null;
-  /** Entity end time (workflow/group/task end_time) */
   endTime: Date | null;
-  /** Whether the entity is currently running */
   isRunning: boolean;
-  /** Whether the entity completed successfully */
   isCompleted: boolean;
-  /** Whether the entity failed */
   isFailed: boolean;
 }
 
 /**
- * Finalize timeline phases by sorting and recalculating durations/statuses.
- *
- * This shared utility consolidates the phase recalculation logic that was
- * duplicated across GroupTimeline (~45 lines) and TaskTimeline (~45 lines).
- *
- * Steps:
- * 1. Sort phases by start time (phases without time go to end)
- * 2. Recalculate duration for each phase based on when next phase starts
- * 3. Update status based on relationships with neighboring phases
- *
- * @param phases - Mutable array of phases to finalize (will be sorted in place)
- * @param ctx - Context with duration calculator and status flags
- * @returns The finalized phases array (same reference, mutated)
+ * Sort phases chronologically and recalculate durations/statuses to ensure contiguous segments.
  */
 export function finalizeTimelinePhases(phases: TimelinePhase[], ctx: TimelineFinalizeContext): TimelinePhase[] {
   const { calculatePhaseDuration, endTime, isRunning, isCompleted, isFailed } = ctx;
 
-  // Sort phases by start time to ensure chronological order
   phases.sort((a, b) => {
-    if (!a.time) return 1; // Phases without start time go to the end
+    if (!a.time) return 1;
     if (!b.time) return -1;
     return a.time.getTime() - b.time.getTime();
   });
 
-  // Recalculate duration and status to ensure contiguous segments
   for (let i = 0; i < phases.length; i++) {
     const phase = phases[i];
     const nextPhase = phases[i + 1];
     const prevPhase = phases[i - 1];
     const isLastPhase = i === phases.length - 1;
-    // Check if next phase is a terminal indicator (no time, just state)
     const nextIsTerminal = nextPhase && !nextPhase.time;
 
     if (nextPhase?.time) {
-      // This phase ends when the next phase starts
       const rawDuration = calculatePhaseDuration(phase.time, nextPhase.time);
       phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
-      // Any phase followed by another phase is completed
       phase.status = "completed";
     } else if (nextIsTerminal) {
-      // Work phase followed by terminal indicator (Running/Done/Failed)
-      // Don't show duration here - the terminal phase shows it to avoid redundancy
       phase.duration = null;
       phase.status = "completed";
     } else if (isLastPhase) {
-      // Terminal phases (done/failed/running) are state indicators
       const isTerminalPhase = phase.id === "done" || phase.id === "failed" || phase.id === "running";
       if (isTerminalPhase) {
-        // For "running" state: calculate duration from previous phase start to now
-        // This gives it proportional visual weight representing "running for X time"
         if (phase.id === "running" && prevPhase?.time) {
           phase.duration = calculatePhaseDuration(prevPhase.time, null);
         } else {
-          // Done/Failed are instantaneous milestones
           phase.duration = null;
         }
       } else {
-        // Last work phase (no terminal after): ends at entity end time or now
         const rawDuration = calculatePhaseDuration(phase.time, endTime);
         phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
       }
-      // Last phase status depends on entity state
       if (isRunning && !endTime) {
         phase.status = "active";
       } else if (endTime) {
@@ -157,41 +96,22 @@ export function finalizeTimelinePhases(phases: TimelinePhase[], ctx: TimelineFin
   return phases;
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface TimelinePhase {
-  /** Unique identifier for this phase */
   id: string;
-  /** Label for the phase */
   label: string;
-  /** Start time of this phase */
   time: Date | null;
-  /** Duration in seconds (used for proportional width and display) */
   duration: number | null;
-  /** Additional annotation text (e.g., "queued 5m", "ran 2h") */
   annotation?: string;
-  /** Current status of this phase */
   status: "completed" | "active" | "pending" | "failed";
 }
 
 export interface TimelineProps {
-  /** Array of timeline phases to display */
   phases: TimelinePhase[];
-  /** Message to show when there are no phases (e.g., "Waiting to be scheduled") */
   emptyMessage?: string;
-  /** Additional class name for the container */
   className?: string;
-  /** Whether to show the section header (default: false) */
   showHeader?: boolean;
-  /** Custom header text (default: "Timeline") */
   headerText?: string;
 }
-
-// ============================================================================
-// Styling Constants
-// ============================================================================
 
 const STYLES = {
   sectionHeader: "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase",
@@ -199,13 +119,8 @@ const STYLES = {
   smallLabel: "text-xs",
   mutedText: "text-muted-foreground",
   subtleText: "text-xs text-muted-foreground/70",
-  // Uses timeline-pending-marker CSS variable for amber color (defined in dag.css)
   timelinePending: "border-dashed border-[color:var(--timeline-pending-marker)]",
 } as const;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
 
 function formatTimeFull(date: Date | null): string {
   if (!date) return "";
@@ -236,24 +151,13 @@ function formatTimeShort(date: Date | null): string {
   });
 }
 
-// ============================================================================
-// Component
-// ============================================================================
-
-/**
- * Calculate scaled fr value for proportional grid sizing.
- * Uses square root scaling to prevent extreme visual disparities
- * (e.g., 3600s vs 5s would be 60:1 instead of 720:1)
- */
+// Sqrt scaling prevents extreme visual disparities (3600s vs 5s = 60:1 not 720:1)
 function getScaledFr(duration: number | null): number {
   const d = Math.max(1, duration ?? 1);
   return Math.max(1, Math.sqrt(d));
 }
 
-/** Minimum width for horizontal layout - below this, always use vertical */
 const MIN_HORIZONTAL_WIDTH = 280;
-
-/** Hysteresis buffer to prevent flip-flopping between layouts */
 const LAYOUT_HYSTERESIS = 20;
 
 export const Timeline = memo(function Timeline({
@@ -263,28 +167,21 @@ export const Timeline = memo(function Timeline({
   showHeader = false,
   headerText = "Timeline",
 }: TimelineProps) {
-  // Content-aware layout: measure container and detect overflow
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-
-  // Track layout mode with hysteresis to prevent flip-flopping
   const [isVertical, setIsVertical] = useState(false);
   const lastWidthRef = useRef<number>(0);
 
-  // Use useResizeObserver for efficient container dimension tracking
   const { width: containerWidth = 0 } = useResizeObserver({
     ref: containerRef as React.RefObject<HTMLElement>,
     box: "border-box",
   });
 
-  // Detect overflow with hysteresis to prevent flip-flopping
-  // Only switch layouts when there's a significant change
-  // Uses RAF to batch state updates after browser paint (avoids cascading renders)
+  // Hysteresis prevents layout flip-flopping; RAF batches after paint
   useLayoutEffect(() => {
     if (containerWidth <= 0) return;
 
     const checkLayout = () => {
-      // Always use vertical for narrow containers
       if (containerWidth < MIN_HORIZONTAL_WIDTH) {
         setIsVertical((prev) => {
           if (!prev) lastWidthRef.current = containerWidth;
@@ -293,9 +190,7 @@ export const Timeline = memo(function Timeline({
         return;
       }
 
-      // Check if we need to measure the grid
       if (!gridRef.current) {
-        // No grid to measure yet, default to horizontal for wide containers
         if (containerWidth >= MIN_HORIZONTAL_WIDTH) {
           lastWidthRef.current = containerWidth;
         }
@@ -305,17 +200,13 @@ export const Timeline = memo(function Timeline({
       const scrollWidth = gridRef.current.scrollWidth;
       const clientWidth = gridRef.current.clientWidth;
       const hasOverflow = scrollWidth > clientWidth + 1;
-
-      // Apply hysteresis: only switch if change is significant
       const widthDelta = Math.abs(containerWidth - lastWidthRef.current);
 
       setIsVertical((prev) => {
         if (hasOverflow && !prev) {
-          // Switch to vertical when overflowing
           lastWidthRef.current = containerWidth;
           return true;
         } else if (!hasOverflow && prev && widthDelta > LAYOUT_HYSTERESIS) {
-          // Only switch back to horizontal if container grew significantly
           if (containerWidth > lastWidthRef.current + LAYOUT_HYSTERESIS) {
             lastWidthRef.current = containerWidth;
             return false;
@@ -325,15 +216,12 @@ export const Timeline = memo(function Timeline({
       });
     };
 
-    // Use RAF to batch the state update after browser paint
     const rafId = requestAnimationFrame(checkLayout);
     return () => cancelAnimationFrame(rafId);
   }, [containerWidth, phases.length]);
 
-  // Use horizontal if not in vertical mode
   const useHorizontal = !isVertical && containerWidth >= MIN_HORIZONTAL_WIDTH;
 
-  // No timeline data - show empty message or nothing
   if (phases.length === 0) {
     if (emptyMessage) {
       return (
@@ -346,7 +234,6 @@ export const Timeline = memo(function Timeline({
     return null;
   }
 
-  // Build accessible description
   const accessibleDescription = phases
     .map((phase) => {
       const time = phase.time ? formatTimeFull(phase.time) : "";
@@ -361,7 +248,6 @@ export const Timeline = memo(function Timeline({
         ref={containerRef}
         className={cn("relative flex flex-col", className)}
       >
-        {/* Screen reader description */}
         <div
           className="sr-only"
           role="img"
@@ -372,7 +258,6 @@ export const Timeline = memo(function Timeline({
 
         {showHeader && <h3 className={STYLES.sectionHeader}>{headerText}</h3>}
 
-        {/* Vertical layout (for narrow containers or many phases) */}
         {!useHorizontal && (
           <div className={STYLES.timelineVertical}>
             {phases.map((phase, index) => {
@@ -408,7 +293,6 @@ export const Timeline = memo(function Timeline({
                         )}
                       </TooltipContent>
                     </Tooltip>
-                    {/* Segment styled based on NEXT phase (destination) */}
                     {!isLast && nextPhase && (
                       <div
                         className={cn(
@@ -461,26 +345,15 @@ export const Timeline = memo(function Timeline({
           </div>
         )}
 
-        {/* Horizontal layout - always render for measurement, hide when in vertical mode */}
-        {/* Uses CSS Grid with minmax(max-content, Xfr) for proportional sizing with minimum text width */}
-        {/* Behavior: segments shrink proportionally, stop at text width, then switch to vertical */}
         {containerWidth >= MIN_HORIZONTAL_WIDTH && (
           <div
             ref={gridRef}
-            className={cn(
-              "grid",
-              // Hide when in vertical mode, but keep in DOM for measurement
-              // Use fixed positioning to prevent affecting layout/scrollbars
-              isVertical && "pointer-events-none invisible fixed -left-[9999px]",
-            )}
+            className={cn("grid", isVertical && "pointer-events-none invisible fixed -left-[9999px]")}
             aria-hidden={isVertical}
             style={{
-              // minmax(max-content, Xfr): columns shrink proportionally, stop at text content width
-              // Uses sqrt scaling to prevent extreme visual disparities (3600s vs 5s = 60:1 not 720:1)
               gridTemplateColumns: phases.map((p) => `minmax(max-content, ${getScaledFr(p.duration)}fr)`).join(" "),
             }}
           >
-            {/* Row 1: Timeline bar with markers and segments */}
             {phases.map((phase, index) => {
               const isLast = index === phases.length - 1;
               const nextPhase = phases[index + 1];
@@ -490,7 +363,6 @@ export const Timeline = memo(function Timeline({
                   key={phase.id}
                   className="flex h-6 items-center"
                 >
-                  {/* Connecting segment for last phase (styled based on current/destination phase) */}
                   {isLast && index > 0 && (
                     <div
                       className={cn(
@@ -502,7 +374,6 @@ export const Timeline = memo(function Timeline({
                       )}
                     />
                   )}
-                  {/* Phase marker with tooltip */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -527,7 +398,6 @@ export const Timeline = memo(function Timeline({
                       )}
                     </TooltipContent>
                   </Tooltip>
-                  {/* Segment to next marker (styled based on next/destination phase) */}
                   {!isLast && nextPhase && (
                     <div
                       className={cn(
@@ -543,17 +413,12 @@ export const Timeline = memo(function Timeline({
               );
             })}
 
-            {/* Row 2: Phase labels (same grid ensures alignment with markers) */}
             {phases.map((phase, index) => {
               const isLast = index === phases.length - 1;
               return (
                 <div
                   key={`${phase.id}-label`}
-                  className={cn(
-                    "mt-1 flex flex-col whitespace-nowrap",
-                    // Add padding between phases; last phase is right-aligned
-                    isLast ? "items-end text-right" : "pr-8",
-                  )}
+                  className={cn("mt-1 flex flex-col whitespace-nowrap", isLast ? "items-end text-right" : "pr-8")}
                 >
                   <span
                     className={cn(

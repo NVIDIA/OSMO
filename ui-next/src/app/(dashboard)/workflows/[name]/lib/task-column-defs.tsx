@@ -14,13 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Task Table Column Definitions
- *
- * TanStack Table column definitions for the task table in group details.
- * Contains JSX cell renderers - colocated with task table usage.
- */
-
 import type { ColumnDef } from "@tanstack/react-table";
 import { Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { remToPx } from "@/components/data-table";
@@ -30,10 +23,6 @@ import { getStatusCategory, STATUS_STYLES, type StatusCategory } from "./status"
 import type { TaskWithDuration } from "./workflow-types";
 import { TASK_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type TaskColumnId } from "./task-columns";
 
-// =============================================================================
-// Status Icons (matches workflow table)
-// =============================================================================
-
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
   pending: Loader2,
@@ -42,19 +31,11 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
   failed: XCircle,
 };
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/** Get column minimum size from rem-based config */
 function getMinSize(id: TaskColumnId): number {
   const col = TASK_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-/**
- * Format time to short display: "1/5 2:30p"
- */
 function formatTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   const date = new Date(dateStr);
@@ -67,17 +48,6 @@ function formatTime(dateStr: string | null | undefined): string {
   return `${month}/${day} ${hour12}:${minutes}${ampm}`;
 }
 
-// =============================================================================
-// Column Definitions Factory
-// =============================================================================
-
-/**
- * Create TanStack Table column definitions for tasks.
- *
- * Uses plain object notation (not helper.accessor) for correct type inference.
- *
- * @returns Array of column definitions compatible with DataTable
- */
 export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
   return [
     {

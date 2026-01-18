@@ -14,20 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * GroupTimeline Component
- *
- * Displays a sequential timeline showing the group lifecycle phases.
- *
- * Backend status progression:
- *   WAITING → PROCESSING → SCHEDULING → INITIALIZING → RUNNING → COMPLETED/FAILED
- *
- * Timeline phases shown:
- *   Processing → Scheduling → Initializing → Executing → Done/Failed
- *
- * Uses the shared Timeline component with group-specific phase logic.
- */
-
 "use client";
 
 import { memo, useMemo } from "react";
@@ -42,17 +28,9 @@ import {
 } from "../shared/Timeline";
 import { useTick } from "@/hooks";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface GroupTimelineProps {
   group: GroupWithLayout;
 }
-
-// ============================================================================
-// Component
-// ============================================================================
 
 export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelineProps) {
   const statusCategory = getStatusCategory(group.status);
@@ -61,31 +39,19 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
   const isRunning = statusCategory === "running";
   const isPending = statusCategory === "waiting";
 
-  // Synchronized tick for live durations
   const now = useTick();
   const calculatePhaseDuration = createPhaseDurationCalculator(now);
 
-  // Parse timestamps (normalized in adapter layer)
-  // Canonical order from backend (see external/src/service/core/workflow/objects.py):
-  //   1. processing_start_time (PROCESSING - queue processing)
-  //   2. scheduling_start_time (SCHEDULING - placing on node, earliest among tasks)
-  //   3. initializing_start_time (INITIALIZING - container startup, earliest among tasks)
-  //   4. start_time (RUNNING - execution begins, earliest among tasks)
-  //   5. end_time (COMPLETED/FAILED, latest among tasks)
-  //
-  // Backend stores these in the `groups` table, set when group status changes.
-  // For groups, these represent when the group entered each phase (when first task did).
+  // Timestamps follow backend canonical order (see objects.py)
   const processingStart = parseTime(group.processing_start_time);
   const schedulingStart = parseTime(group.scheduling_start_time);
   const initializingStart = parseTime(group.initializing_start_time);
-  const executionStart = parseTime(group.start_time); // When RUNNING status begins
+  const executionStart = parseTime(group.start_time);
   const endTime = parseTime(group.end_time);
 
-  // Compute phases for the Timeline component
   const phases = useMemo<TimelinePhase[]>(() => {
     const result: TimelinePhase[] = [];
 
-    // 1. Processing phase (queue processing - first step)
     if (processingStart) {
       const procEnd = schedulingStart || initializingStart || executionStart;
       result.push({
@@ -97,7 +63,6 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // 2. Scheduling phase (placing on node)
     if (schedulingStart) {
       const schedEnd = initializingStart || executionStart;
       result.push({
@@ -109,7 +74,6 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // 3. Initializing phase (container startup)
     if (initializingStart) {
       const initEnd = executionStart;
       const initActive = !initEnd && isRunning;
@@ -122,7 +86,6 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // 4. Executing phase (from start_time to end_time)
     if (executionStart) {
       const isActive = isRunning && !endTime;
       result.push({
@@ -134,18 +97,16 @@ export const GroupTimeline = memo(function GroupTimeline({ group }: GroupTimelin
       });
     }
 
-    // 5. Terminal phases: only for completed/failed groups
     if ((isCompleted || isFailed) && endTime) {
       result.push({
         id: isFailed ? "failed" : "done",
         label: isFailed ? "Failed" : "Done",
         time: endTime,
-        duration: null, // Terminal phases are instantaneous milestones
+        duration: null,
         status: isFailed ? "failed" : "completed",
       });
     }
 
-    // Finalize: sort and recalculate durations/statuses
     return finalizeTimelinePhases(result, {
       calculatePhaseDuration,
       endTime,

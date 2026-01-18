@@ -14,18 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Status Utility Functions (Pure, Testable)
- *
- * Pure functions for task/group status categorization and computation.
- * These functions have no React dependencies and can be easily tested.
- *
- * Status metadata is generated from the Python backend at build time by
- * `pnpm generate-api`. This ensures the UI stays in sync with backend
- * status definitions automatically.
- *
- * See: @/lib/api/status-metadata.generated.ts
- */
+// Pure status functions. Metadata generated from backend via `pnpm generate-api`.
 
 import { TaskGroupStatus } from "@/lib/api/generated";
 import {
@@ -38,29 +27,15 @@ import {
   isTaskInQueue,
 } from "@/lib/api/status-metadata.generated";
 
-// =============================================================================
-// Re-export from Generated Metadata (Single Source of Truth)
-// =============================================================================
-
 export type { StatusCategory };
 export { TASK_STATUS_METADATA, getTaskStatusCategory, isTaskFailed, isTaskOngoing, isTaskTerminal, isTaskInQueue };
 
-// =============================================================================
-// Derived Lookups (computed once at module load from generated metadata)
-// =============================================================================
-
-/**
- * Pre-computed status category lookup for O(1) access.
- * Derived from TASK_STATUS_METADATA.
- */
+// Derived lookups computed once at module load
 export const STATUS_CATEGORY_MAP: Record<string, StatusCategory> = {};
 for (const [status, meta] of Object.entries(TASK_STATUS_METADATA)) {
   STATUS_CATEGORY_MAP[status] = meta.category;
 }
 
-/**
- * Pre-computed sort order for status (failures first, completed last).
- */
 export const STATUS_SORT_ORDER: Record<string, number> = {
   FAILED: 0,
   FAILED_CANCELED: 1,
@@ -84,10 +59,6 @@ export const STATUS_SORT_ORDER: Record<string, number> = {
   COMPLETED: 19,
 } as const;
 
-/**
- * Human-readable labels for statuses.
- * Format matches workflow labels for consistency (e.g., "Failed: Image Pull").
- */
 export const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Completed",
   RESCHEDULED: "Rescheduled",
@@ -111,23 +82,8 @@ export const STATUS_LABELS: Record<string, string> = {
   PROCESSING: "Processing",
 } as const;
 
-// =============================================================================
-// State Categories (for filtering) - DERIVED FROM GENERATED METADATA
-// =============================================================================
-
 export type StateCategory = "completed" | "running" | "failed" | "pending";
 
-/**
- * State categories derived from TASK_STATUS_METADATA.
- * This ensures filtering categories stay in sync with backend status definitions.
- *
- * Mapping: StatusCategory → StateCategory
- * - "completed" → "completed"
- * - "running" → "running"
- * - "failed" → "failed"
- * - "waiting" → "pending" (UI uses "pending" for display consistency)
- * - "pending" → "pending" (pre-running states like PROCESSING, SCHEDULING, INITIALIZING)
- */
 function buildStateCategories(): Record<StateCategory, Set<string>> {
   const categories: Record<StateCategory, Set<string>> = {
     completed: new Set(),
@@ -162,31 +118,15 @@ export const STATE_CATEGORIES: Record<StateCategory, Set<string>> = buildStateCa
 
 export const STATE_CATEGORY_NAMES: StateCategory[] = ["completed", "running", "failed", "pending"];
 
-// =============================================================================
-// Status Helper Functions
-// =============================================================================
-
-/**
- * Get the status category for a given status string.
- * For type-safe code, prefer `getTaskStatusCategory(status: TaskGroupStatus)`.
- */
 export function getStatusCategory(status: string): StatusCategory {
   return STATUS_CATEGORY_MAP[status] ?? "failed";
 }
 
-/** Get human-readable label for a status. */
 export function getStatusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status;
 }
 
-// =============================================================================
-// Status Styling (Tailwind classes)
-// =============================================================================
-
-/**
- * Status category styling using Tailwind classes.
- * The `color` and `strokeColor` are hex values needed for ReactFlow edges/minimap.
- */
+// `color` and `strokeColor` are hex values needed for ReactFlow edges/minimap
 export const STATUS_STYLES = {
   waiting: {
     bg: "bg-gray-100 dark:bg-zinc-800/60",
@@ -232,15 +172,10 @@ export const STATUS_STYLES = {
   },
 } as const;
 
-/** Get styling for a status. */
 export function getStatusStyle(status: string) {
   const category = getStatusCategory(status);
   return STATUS_STYLES[category];
 }
-
-// =============================================================================
-// Stats Computation
-// =============================================================================
 
 export interface TaskStats {
   total: number;
@@ -254,10 +189,6 @@ export interface TaskStats {
   hasRunning: boolean;
 }
 
-/**
- * Compute all stats for a list of tasks in a single pass.
- * Uses generated metadata for status categorization.
- */
 export function computeTaskStats<T extends { status: string; start_time?: string | null; end_time?: string | null }>(
   tasks: T[],
 ): TaskStats {
@@ -326,7 +257,6 @@ export interface GroupStatus {
   label: string;
 }
 
-/** Compute group status from task stats. */
 export function computeGroupStatus(stats: TaskStats): GroupStatus {
   if (stats.completed === stats.total) {
     return { status: "completed", label: "Completed" };
@@ -340,11 +270,6 @@ export function computeGroupStatus(stats: TaskStats): GroupStatus {
   return { status: "pending", label: "Pending" };
 }
 
-/**
- * Compute group duration from task stats.
- * @param stats - Task statistics
- * @param now - Current timestamp in milliseconds (for running workflows, use synchronized tick)
- */
 export function computeGroupDuration(stats: TaskStats, now?: number): number | null {
   if (stats.earliestStart === null) return null;
   const endTime = stats.hasRunning ? (now ?? Date.now()) : stats.latestEnd;

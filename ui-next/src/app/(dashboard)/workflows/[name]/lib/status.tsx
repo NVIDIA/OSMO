@@ -14,18 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Task/Group Status Utilities
- *
- * Re-exports pure functions from status-utils.ts and adds React components.
- *
- * Architecture:
- * - status-utils.ts: Pure functions (testable, no React dependencies)
- * - status.tsx: React components + re-exports from status-utils
- *
- * This split enables easier testing of the pure logic while keeping
- * the API surface the same for consumers.
- */
+// Status utilities with React components. Pure functions are in status-utils.ts.
 
 "use client";
 
@@ -33,10 +22,6 @@ import { memo } from "react";
 import { Clock, Loader2, CheckCircle, XCircle, AlertCircle, Check, Circle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GroupNodeData } from "./dag-layout";
-
-// =============================================================================
-// Re-export Pure Functions and Constants from status-utils.ts
-// =============================================================================
 
 export {
   // Types
@@ -71,11 +56,6 @@ export {
 import { getStatusCategory, STATUS_STYLES } from "./status-utils";
 import type { StatusCategory } from "./status-utils";
 
-// =============================================================================
-// Status Icon Components (Optimized with Pre-rendering)
-// =============================================================================
-
-/** Icon configuration per category */
 const ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string }> = {
   waiting: { Icon: Clock, className: "text-gray-400 dark:text-zinc-400" },
   pending: { Icon: Loader2, className: "text-amber-400 animate-spin motion-reduce:animate-none" },
@@ -84,7 +64,6 @@ const ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string 
   failed: { Icon: XCircle, className: "text-red-400" },
 };
 
-/** Compact icon configuration for tables */
 const COMPACT_ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string }> = {
   waiting: { Icon: Clock, className: "text-gray-400 dark:text-zinc-400" },
   pending: { Icon: Loader2, className: "text-amber-500 animate-spin motion-reduce:animate-none" },
@@ -93,24 +72,13 @@ const COMPACT_ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className:
   failed: { Icon: AlertCircle, className: "text-red-500" },
 };
 
-// =============================================================================
-// Pre-rendered Icon Cache
-//
-// Instead of creating new React elements on every render, we pre-render
-// icons for common sizes and cache them. This eliminates:
-// - Object allocation for props
-// - React.createElement calls
-// - Reconciliation work for identical elements
-// =============================================================================
-
-/** Cache key format: "category:size" */
+// Pre-rendered icon cache for performance (avoids element allocation on every render)
 type IconCacheKey = `${StatusCategory}:${string}`;
 
 /** Pre-rendered icon element cache (module-level singleton) */
 const iconCache = new Map<IconCacheKey, React.ReactNode>();
 const compactIconCache = new Map<IconCacheKey, React.ReactNode>();
 
-/** Generate and cache a status icon */
 function getCachedIcon(category: StatusCategory, size: string): React.ReactNode {
   const key: IconCacheKey = `${category}:${size}`;
   let cached = iconCache.get(key);
@@ -127,7 +95,6 @@ function getCachedIcon(category: StatusCategory, size: string): React.ReactNode 
   return cached;
 }
 
-/** Generate and cache a compact status icon */
 function getCachedCompactIcon(category: StatusCategory, size: string): React.ReactNode {
   const key: IconCacheKey = `${category}:${size}`;
   let cached = compactIconCache.get(key);
@@ -196,13 +163,6 @@ const StatusIconCompact = memo(function StatusIconCompact({ status, size = "size
   );
 });
 
-/**
- * Get the appropriate status icon for a given status.
- *
- * Performance: Uses pre-rendered icon cache for common sizes.
- * First call for a category+size combo creates the element,
- * subsequent calls return the cached React element directly.
- */
 export function getStatusIcon(status: string, size = "size-4") {
   return (
     <StatusIconLucide
@@ -212,11 +172,6 @@ export function getStatusIcon(status: string, size = "size-4") {
   );
 }
 
-/**
- * Get a compact status icon for table rows.
- *
- * Performance: Uses pre-rendered icon cache for common sizes.
- */
 export function getStatusIconCompact(status: string, size = "size-3.5") {
   return (
     <StatusIconCompact
@@ -226,11 +181,6 @@ export function getStatusIconCompact(status: string, size = "size-3.5") {
   );
 }
 
-// =============================================================================
-// MiniMap Color Helpers (for ReactFlow)
-// =============================================================================
-
-/** Get node fill color for MiniMap based on status. */
 export function getMiniMapNodeColor(node: { data: unknown }): string {
   const data = node.data as GroupNodeData;
   if (!data?.group) return "#52525b";
@@ -238,7 +188,6 @@ export function getMiniMapNodeColor(node: { data: unknown }): string {
   return STATUS_STYLES[category].color;
 }
 
-/** Get node stroke color for MiniMap based on status. */
 export function getMiniMapStrokeColor(node: { data: unknown }): string {
   const data = node.data as GroupNodeData;
   if (!data?.group) return "#3f3f46";
@@ -246,15 +195,7 @@ export function getMiniMapStrokeColor(node: { data: unknown }): string {
   return STATUS_STYLES[category].strokeColor;
 }
 
-// =============================================================================
-// Cold Start Optimization: Prewarm Icon Cache
-// =============================================================================
-
-/**
- * Prewarm the icon cache during browser idle time.
- * This ensures icons are ready before they're needed, eliminating
- * first-render allocation overhead.
- */
+// Prewarm icon cache during idle time
 function prewarmIconCache(): void {
   const categories: StatusCategory[] = ["waiting", "pending", "running", "completed", "failed"];
   const sizes = ["size-3", "size-3.5", "size-4"];

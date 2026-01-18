@@ -14,19 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Server-side MSW setup for Next.js Server Components.
- *
- * This intercepts fetch calls made by server-side code (Server Components, API routes)
- * so that mock mode works seamlessly with our Streaming SSR architecture.
- *
- * Key features:
- * - Uses the SAME handlers as browser.ts for consistency
- * - Matches both relative (/api/*) and absolute (http://localhost:8080/api/*) URLs
- * - Enables mock mode to work with server prefetching (no double-fetch!)
- *
- * @see instrumentation.ts - where this server is started
- */
 import { setupServer } from "msw/node";
 import { http, HttpResponse, delay } from "msw";
 import {
@@ -41,11 +28,8 @@ import {
   type MockGroup,
 } from "./generators";
 
-// Simulate network delay (ms) - minimal for fast server-side rendering
-const MOCK_DELAY = 0; // No delay on server - we want fast SSR!
+const MOCK_DELAY = 0;
 
-// Backend base URL - MUST match what server-side fetch uses
-// Read from env vars to match getServerApiBaseUrl() in config.ts
 function getBackendUrl(): string {
   const hostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
   const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
@@ -56,13 +40,7 @@ function getBackendUrl(): string {
 }
 
 const BACKEND_URL = getBackendUrl();
-
-// Next.js dev server URL - SSR/client requests may go here
 const NEXTJS_URL = "http://localhost:3000";
-
-// =============================================================================
-// Helper to create handlers for relative, backend, and Next.js URLs
-// =============================================================================
 
 type HandlerFn = Parameters<typeof http.get>[1];
 
@@ -76,45 +54,20 @@ function createDualHandler(method: "get" | "post" | "put" | "delete", path: stri
   ];
 }
 
-// =============================================================================
-// Helper to transform workflow groups for API response
-// =============================================================================
-
-/**
- * Transform MockGroup to API response format.
- *
- * BACKEND PARITY (see external/src/service/core/workflow/objects.py lines 1055-1102):
- *
- * Group timestamps are stored in the `groups` table, set when the group status changes:
- * - processing_start_time: set when group enters PROCESSING
- * - scheduling_start_time: set when group enters SCHEDULING
- * - initializing_start_time: set when group enters INITIALIZING
- * - start_time: set when group enters RUNNING (first task starts)
- * - end_time: set when group finishes (last task completes)
- *
- * For the mock, we derive group timestamps from tasks:
- * - Phase timestamps: EARLIEST among all tasks (group enters phase when first task does)
- * - end_time: LATEST among all tasks (group ends when last task ends)
- *
- * CRITICAL: Task's processing_start_time in API response uses the GROUP's value,
- * not the task's own! (backend line 1067: processing_start_time=group_row['processing_start_time'])
- * This is because processing is a group-level operation (service worker processes entire group).
- */
+// BACKEND PARITY: Group timestamps derived from tasks (earliest for phase starts, latest for end_time)
+// Task's processing_start_time uses GROUP's value (backend objects.py line 1067)
 function transformGroupForResponse(g: MockGroup) {
-  // Helper to find earliest timestamp across all tasks
   const earliest = (field: keyof (typeof g.tasks)[0]) => {
     const times = g.tasks.map((t) => t[field]).filter(Boolean) as string[];
     if (times.length === 0) return undefined;
     return times.reduce((min, t) => (t < min ? t : min));
   };
-  // Helper to find latest timestamp across all tasks
   const latest = (field: keyof (typeof g.tasks)[0]) => {
     const times = g.tasks.map((t) => t[field]).filter(Boolean) as string[];
     if (times.length === 0) return undefined;
     return times.reduce((max, t) => (t > max ? t : max));
   };
 
-  // Group-level timestamps
   const groupProcessingStartTime = earliest("processing_start_time");
   const groupSchedulingStartTime = earliest("scheduling_start_time");
   const groupInitializingStartTime = earliest("initializing_start_time");
@@ -124,7 +77,6 @@ function transformGroupForResponse(g: MockGroup) {
   return {
     name: g.name,
     status: g.status,
-    // Group timeline timestamps
     processing_start_time: groupProcessingStartTime,
     scheduling_start_time: groupSchedulingStartTime,
     initializing_start_time: groupInitializingStartTime,
@@ -142,10 +94,7 @@ function transformGroupForResponse(g: MockGroup) {
       pod_name: t.pod_name,
       pod_ip: t.pod_ip,
       node_name: t.node_name,
-      // BACKEND PARITY: Task's processing_start_time comes from GROUP, not task!
-      // (see objects.py line 1067)
       processing_start_time: groupProcessingStartTime,
-      // These come from the task's own values
       scheduling_start_time: t.scheduling_start_time,
       initializing_start_time: t.initializing_start_time,
       input_download_start_time: t.input_download_start_time,
@@ -164,14 +113,7 @@ function transformGroupForResponse(g: MockGroup) {
   };
 }
 
-// =============================================================================
-// Server Handlers - Duplicate of browser handlers but matching absolute URLs
-// =============================================================================
-
 export const server = setupServer(
-  // ===========================================================================
-  // Version - Critical for app startup
-  // ===========================================================================
   ...createDualHandler("get", "/api/version", async () => {
     await delay(MOCK_DELAY);
     return HttpResponse.json({
@@ -182,9 +124,6 @@ export const server = setupServer(
     });
   }),
 
-  // ===========================================================================
-  // Auth endpoints
-  // ===========================================================================
   ...createDualHandler("get", "/api/auth/login", async () => {
     await delay(MOCK_DELAY);
     return HttpResponse.json({
@@ -198,7 +137,6 @@ export const server = setupServer(
     });
   }),
 
-  // Next.js API routes for auth
   http.get("/auth/login_info", async () => {
     await delay(MOCK_DELAY);
     return HttpResponse.json({
@@ -226,9 +164,6 @@ export const server = setupServer(
     return HttpResponse.json({ redirectTo: null });
   }),
 
-  // ===========================================================================
-  // Workflows
-  // ===========================================================================
   ...createDualHandler("get", "/api/workflow", async ({ request }) => {
     await delay(MOCK_DELAY);
     const url = new URL(request.url);
@@ -276,7 +211,6 @@ export const server = setupServer(
     return HttpResponse.json({ workflows, more_entries: moreEntries });
   }),
 
-  // Get single workflow (with path parameter) - uses shared handler via createDualHandler
   ...createDualHandler("get", "/api/workflow/:name", async ({ params }) => {
     await delay(MOCK_DELAY);
     const name = (params as { name: string }).name;
@@ -312,7 +246,6 @@ export const server = setupServer(
     });
   }),
 
-  // Workflow logs
   ...createDualHandler("get", "/api/workflow/:name/logs", async ({ params }) => {
     await delay(MOCK_DELAY);
     const name = params.name as string;
@@ -322,7 +255,6 @@ export const server = setupServer(
     return HttpResponse.text(logs);
   }),
 
-  // Workflow events
   ...createDualHandler("get", "/api/workflow/:name/events", async ({ params }) => {
     await delay(MOCK_DELAY);
     const name = params.name as string;
@@ -337,9 +269,6 @@ export const server = setupServer(
     return HttpResponse.json({ events });
   }),
 
-  // ===========================================================================
-  // Pools
-  // ===========================================================================
   ...createDualHandler("get", "/api/pool_quota", async ({ request }) => {
     await delay(MOCK_DELAY);
     const url = new URL(request.url);
@@ -382,9 +311,6 @@ export const server = setupServer(
     return HttpResponse.json({ resources });
   }),
 
-  // ===========================================================================
-  // Resources
-  // ===========================================================================
   ...createDualHandler("get", "/api/resources", async ({ request }) => {
     await delay(MOCK_DELAY);
     const url = new URL(request.url);
@@ -411,9 +337,6 @@ export const server = setupServer(
     return HttpResponse.json({ resources });
   }),
 
-  // ===========================================================================
-  // Buckets
-  // ===========================================================================
   ...createDualHandler("get", "/api/bucket", async ({ request }) => {
     await delay(MOCK_DELAY);
     const url = new URL(request.url);
@@ -431,9 +354,6 @@ export const server = setupServer(
     return HttpResponse.json(bucket);
   }),
 
-  // ===========================================================================
-  // Datasets
-  // ===========================================================================
   ...createDualHandler("get", "/api/bucket/list_dataset", async ({ request }) => {
     await delay(MOCK_DELAY);
     const url = new URL(request.url);
@@ -443,9 +363,6 @@ export const server = setupServer(
     return HttpResponse.json({ entries, total });
   }),
 
-  // ===========================================================================
-  // Profile
-  // ===========================================================================
   ...createDualHandler("get", "/api/profile", async () => {
     await delay(MOCK_DELAY);
     const profile = profileGenerator.generateProfile("current.user");
