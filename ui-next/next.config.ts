@@ -124,8 +124,13 @@ const nextConfig: NextConfig = {
   },
 
   // =============================================================================
-  // Turbopack Configuration
+  // Turbopack Configuration (default bundler in Next.js 16+)
   // =============================================================================
+  //
+  // Turbopack is the default bundler for BOTH dev and build in Next.js 16+.
+  // See: https://nextjs.org/docs/app/api-reference/turbopack
+  //
+  // Note: webpack() config is IGNORED by Turbopack. Use turbopack.resolveAlias instead.
 
   turbopack: {
     resolveAlias:
@@ -134,9 +139,12 @@ const nextConfig: NextConfig = {
             // Replace debug utilities with no-op stubs in production
             // This eliminates all debug code from the production bundle
             "./utils/debug": "./utils/debug.production",
-            // Replace MockProvider with production stub to eliminate faker/msw (~400KB+)
-            // This completely removes dev dependencies from the production bundle
+            // Replace MockProvider with production stub to eliminate faker/msw from CLIENT bundle
+            // This completely removes dev dependencies from the production client bundle
             "@/mocks/MockProvider": "@/mocks/MockProvider.production",
+            // Replace MSW server with production stub to eliminate faker/msw from SERVER bundle
+            // This ensures instrumentation.ts doesn't pull in any mock code
+            "@/mocks/server": "@/mocks/server.production",
           }
         : {},
   },
@@ -146,11 +154,9 @@ const nextConfig: NextConfig = {
   // =============================================================================
 
   // Proxy API requests to the backend (avoids CORS issues)
-  // In mock mode, don't proxy - let MSW handle client requests and API routes handle server requests
+  // In mock mode: Keep rewrites enabled! MSW node server intercepts the proxied requests.
+  // This means ALL API calls (SSR + client) go through the same MSW node handlers.
   async rewrites() {
-    if (isMockMode) {
-      return { beforeFiles: [] };
-    }
     return {
       beforeFiles: [
         {
