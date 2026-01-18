@@ -46,11 +46,6 @@ export {
   type Priority,
 } from "./workflow-generator";
 
-// TaskGenerator is kept for backwards compatibility but DEPRECATED.
-// Tasks should come from WorkflowGenerator (single source of truth).
-// Use workflowGenerator.getByName(name).groups[].tasks[] to get task data.
-export { TaskGenerator, taskGenerator, type MockTaskDetail } from "./task-generator";
-
 // ============================================================================
 // Infrastructure (all support infinite pagination)
 // ============================================================================

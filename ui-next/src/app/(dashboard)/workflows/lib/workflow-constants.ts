@@ -106,6 +106,13 @@ export const STATUS_STYLES: Record<
     dot: "bg-gray-400 dark:bg-zinc-500",
     border: "border-gray-300 dark:border-zinc-600",
   },
+  pending: {
+    bg: "bg-amber-50 dark:bg-amber-950/60",
+    text: "text-amber-700 dark:text-amber-400",
+    icon: "text-amber-500 dark:text-amber-400",
+    dot: "bg-amber-500",
+    border: "border-amber-400 dark:border-amber-500",
+  },
   running: {
     bg: "bg-blue-50 dark:bg-blue-950/60",
     text: "text-blue-700 dark:text-blue-400",
