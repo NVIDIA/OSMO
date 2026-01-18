@@ -26,10 +26,6 @@
 
 import { TaskGroupStatus, WorkflowStatus } from "./generated";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export type StatusCategory = "waiting" | "pending" | "running" | "completed" | "failed";
 
 export interface TaskStatusMetadata {
@@ -46,10 +42,6 @@ export interface WorkflowStatusMetadata {
   isOngoing: boolean;
   isFailed: boolean;
 }
-
-// =============================================================================
-// Generated Metadata
-// =============================================================================
 
 export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> = {
   SUBMITTING: {
@@ -293,51 +285,38 @@ export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMeta
   },
 } as const;
 
-// =============================================================================
-// Helper Functions (O(1) lookups)
-// =============================================================================
-
-/** Get the category for a task/group status */
 export function getTaskStatusCategory(status: TaskGroupStatus): StatusCategory {
   return TASK_STATUS_METADATA[status]?.category ?? "failed";
 }
 
-/** Get the category for a workflow status */
 export function getWorkflowStatusCategory(status: WorkflowStatus): StatusCategory {
   return WORKFLOW_STATUS_METADATA[status]?.category ?? "failed";
 }
 
-/** Check if a task/group status is terminal (finished) */
 export function isTaskTerminal(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isTerminal ?? true;
 }
 
-/** Check if a task/group status means duration is ongoing (start_time → now) */
 export function isTaskOngoing(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isOngoing ?? false;
 }
 
-/** Check if a task/group status is a failure */
 export function isTaskFailed(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isFailed ?? false;
 }
 
-/** Check if a task/group status is in queue (not yet running) */
 export function isTaskInQueue(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isInQueue ?? false;
 }
 
-/** Check if a workflow status is terminal (finished) */
 export function isWorkflowTerminal(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isTerminal ?? true;
 }
 
-/** Check if a workflow status means duration is ongoing */
 export function isWorkflowOngoing(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isOngoing ?? false;
 }
 
-/** Check if a workflow status is a failure */
 export function isWorkflowFailed(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isFailed ?? false;
 }

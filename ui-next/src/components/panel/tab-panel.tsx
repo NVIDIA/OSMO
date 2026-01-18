@@ -14,57 +14,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * TabPanel - Generic tab content container with visibility handling.
- *
- * Consolidates the visibility pattern used across WorkflowDetails,
- * TaskDetails, and GroupDetails tabbed interfaces.
- *
- * @example
- * ```tsx
- * <TabPanel tab="overview" activeTab={activeTab}>
- *   <div className="p-4">
- *     <OverviewContent />
- *   </div>
- * </TabPanel>
- *
- * <TabPanel tab="logs" activeTab={activeTab} scrollable>
- *   <LogsContent />
- * </TabPanel>
- * ```
- */
-
 "use client";
 
 import { memo, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface TabPanelProps {
-  /** The tab ID this panel represents */
   tab: string;
-  /** Currently active tab */
   activeTab: string;
-  /** Panel content */
   children: React.ReactNode;
-  /** Whether to enable scrolling (default: true) */
   scrollable?: boolean;
-  /** Center content vertically and horizontally (for empty states) */
   centered?: boolean;
-  /** Additional className */
   className?: string;
-  /** Padding preset (default: none - caller controls padding) */
   padding?: "none" | "standard" | "with-bottom";
-  /** Aria label for the panel */
   "aria-label"?: string;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const TabPanel = memo(
   forwardRef<HTMLDivElement, TabPanelProps>(function TabPanel(

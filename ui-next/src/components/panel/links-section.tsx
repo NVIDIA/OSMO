@@ -14,24 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * LinksSection - Generic external links section.
- *
- * Consolidates the pattern used in WorkflowDetails.Links and
- * TaskDetails.OverviewTab link rendering.
- *
- * @example
- * ```tsx
- * <LinksSection
- *   title="Links"
- *   links={[
- *     { id: 'dashboard', label: 'Dashboard', description: 'Kubernetes details', url: entity.dashboard_url, icon: BarChart3 },
- *     { id: 'grafana', label: 'Grafana', description: 'Metrics & monitoring', url: entity.grafana_url, icon: Activity },
- *   ]}
- * />
- * ```
- */
-
 "use client";
 
 import { memo, useMemo } from "react";
@@ -39,37 +21,20 @@ import { ExternalLink, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { cn } from "@/lib/utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface LinkItem {
-  /** Unique identifier */
   id: string;
-  /** Link label */
   label: string;
-  /** Optional description */
   description?: string;
-  /** URL (if falsy, link is filtered out) */
   url?: string | null;
-  /** Icon component */
   icon: LucideIcon;
 }
 
 export interface LinksSectionProps {
-  /** Section title */
   title: string;
-  /** Links to display (falsy URLs are automatically filtered) */
   links: LinkItem[];
-  /** Additional className for the section */
   className?: string;
-  /** Header className override */
   headerClassName?: string;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const LinksSection = memo(function LinksSection({
   title,
