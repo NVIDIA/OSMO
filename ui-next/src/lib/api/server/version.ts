@@ -21,6 +21,7 @@
  */
 
 import { cache } from "react";
+import { QueryClient } from "@tanstack/react-query";
 import { getServerApiBaseUrl, getServerFetchHeaders, handleResponse, type ServerFetchOptions } from "./config";
 import { transformVersionResponse } from "../adapter/transforms";
 import type { Version } from "../adapter/types";
@@ -61,3 +62,47 @@ export const fetchVersion = cache(async (options: ServerFetchOptions = {}): Prom
     return null;
   }
 });
+
+/**
+ * Fetch raw version response for prefetching.
+ * Returns the raw response that the generated hook expects.
+ */
+const fetchVersionRaw = cache(async (options: ServerFetchOptions = {}): Promise<unknown> => {
+  const { revalidate = VERSION_REVALIDATE, tags = ["version"] } = options;
+
+  const baseUrl = getServerApiBaseUrl();
+  const headers = await getServerFetchHeaders();
+  const url = `${baseUrl}/api/version`;
+
+  try {
+    const response = await fetch(url, {
+      headers,
+      next: {
+        revalidate,
+        tags,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return handleResponse<unknown>(response, url);
+  } catch {
+    return null;
+  }
+});
+
+/**
+ * Prefetch version for Dashboard using the generated hook's query key.
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param options - Fetch options
+ */
+export async function prefetchVersion(queryClient: QueryClient, options: ServerFetchOptions = {}): Promise<void> {
+  // Query key matches generated: ["/api/version"]
+  await queryClient.prefetchQuery({
+    queryKey: ["/api/version"],
+    queryFn: () => fetchVersionRaw(options),
+  });
+}

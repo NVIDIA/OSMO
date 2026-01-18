@@ -28,30 +28,41 @@ export const metadata: Metadata = {
 };
 
 /**
- * Resources Page (Server Component)
+ * Resources Page (Streaming SSR with Server Prefetch)
  *
- * This is a Server Component that prefetches resource data during SSR.
- * The actual interactive content is rendered by ResourcesPageContent (Client Component).
+ * Architecture: Hybrid streaming for optimal UX
+ * 1. Page shell + skeleton stream immediately (fast TTFB)
+ * 2. ResourcesWithData suspends while prefetching on server
+ * 3. When API responds, content streams in and replaces skeleton
+ * 4. Client hydrates with data already in cache (no client fetch!)
  *
- * Architecture:
- * 1. Server Component prefetches data using prefetchResources()
- * 2. Data is dehydrated and passed to HydrationBoundary
- * 3. Client Component hydrates and uses useResourcesData() which gets cached data
- * 4. TanStack Query handles background refetching after hydration
+ * nuqs Compatibility:
+ * - URL params passed to async component for query key matching
+ * - Client's nuqs hooks read same params → cache hit!
  */
 
 import { Suspense } from "react";
-import { ResourcesPageContent } from "./resources-page-content";
 import { ResourcesPageSkeleton } from "./resources-page-skeleton";
+import { ResourcesWithData } from "./resources-with-data";
 
 // =============================================================================
-// Streaming SSR - Fast TTFB + Progressive Content
+// Types
 // =============================================================================
 
-export default function ResourcesPage() {
+interface ResourcesPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+// =============================================================================
+// Streaming SSR - Fast TTFB + Server Prefetch
+// =============================================================================
+
+export default function ResourcesPage({ searchParams }: ResourcesPageProps) {
+  // No await - returns immediately with skeleton
+  // ResourcesWithData suspends and streams when data is ready
   return (
     <Suspense fallback={<ResourcesPageSkeleton />}>
-      <ResourcesPageContent />
+      <ResourcesWithData searchParams={searchParams} />
     </Suspense>
   );
 }

@@ -108,3 +108,100 @@ export async function prefetchResources(queryClient: QueryClient, options: Serve
     queryFn: () => fetchResources(options),
   });
 }
+
+// Re-export SearchChip type for server use
+import type { SearchChip } from "@/stores";
+
+/**
+ * Build query key for resources list (matches client-side useResourcesData).
+ *
+ * This must match the key format in use-resources-data.ts to enable hydration.
+ *
+ * @param chips - Filter chips from URL
+ */
+function buildServerResourcesQueryKey(chips: SearchChip[] = []): readonly unknown[] {
+  // Extract filter values matching client-side chipsToParams format
+  const pools = chips
+    .filter((c) => c.field === "pool")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const platforms = chips
+    .filter((c) => c.field === "platform")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const resourceTypes = chips
+    .filter((c) => c.field === "type")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const backends = chips
+    .filter((c) => c.field === "backend")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const search = chips.find((c) => c.field === "name")?.value ?? "";
+  const hostname = chips.find((c) => c.field === "hostname")?.value ?? "";
+
+  // Client-only chips (numeric filters) - empty for server prefetch
+  const clientFilters = "";
+
+  return [
+    "resources",
+    "filtered",
+    {
+      pools,
+      platforms,
+      resourceTypes,
+      backends,
+      search,
+      hostname,
+      clientFilters,
+    },
+  ] as const;
+}
+
+/**
+ * Prefetch the first page of resources for infinite query hydration.
+ *
+ * Uses prefetchInfiniteQuery to match the client's useInfiniteQuery.
+ * Only prefetches the first page - subsequent pages are fetched on demand.
+ *
+ * nuqs Compatibility:
+ * - Accepts filter chips parsed from URL searchParams
+ * - Builds query key matching what client will use
+ * - Ensures cache hit even with URL filters
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param filterChips - Filter chips from URL (optional, for nuqs compatibility)
+ * @param options - Fetch options
+ */
+export async function prefetchResourcesList(
+  queryClient: QueryClient,
+  filterChips: SearchChip[] = [],
+  options: ServerFetchOptions = {},
+): Promise<void> {
+  const queryKey = buildServerResourcesQueryKey(filterChips);
+
+  await queryClient.prefetchInfiniteQuery({
+    queryKey,
+    queryFn: async () => {
+      const response = await fetchResources(options);
+      const resources = response?.resources ?? [];
+
+      // Return first page in PaginatedResponse format
+      const pageSize = 50;
+      const firstPage = resources.slice(0, pageSize);
+
+      return {
+        items: firstPage,
+        hasMore: resources.length > pageSize,
+        nextOffset: resources.length > pageSize ? pageSize : undefined,
+        total: resources.length,
+        filteredTotal: resources.length,
+      };
+    },
+    initialPageParam: { cursor: undefined, offset: 0 },
+  });
+}
