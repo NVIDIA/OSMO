@@ -14,12 +14,12 @@
  * into the correct position within TaskDetails' shell tab content area.
  *
  * Flow:
- * 1. User clicks "Connect" in TaskDetails → ShellContext.connectShell() adds to activeShells
- * 2. ShellContainer sees activeShells → renders TaskShell for each
+ * 1. User clicks "Connect" → openShellIntent() adds to cache
+ * 2. ShellContainer sees new shell via useShellSessions() → renders TaskShell
  * 3. TaskShell mounts → useShell creates session in cache (with terminal)
  * 4. TaskDetails registers portal target via ShellPortalContext when shell tab active
  * 5. ShellContainer portals into the target
- * 6. Sessions persist across navigation until user closes or session ends
+ * 6. Sessions persist across navigation until user removes or session ends
  */
 
 "use client";
@@ -28,8 +28,7 @@ import { memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { TaskShell } from "../panel/task/TaskShell";
 import { useShellPortal } from "./ShellPortalContext";
-import { useShellContext } from "./ShellContext";
-import { updateSessionStatus, type ConnectionStatusType } from "@/components/shell";
+import { useShellSessions, updateSessionStatus, type ConnectionStatusType } from "@/components/shell";
 
 // =============================================================================
 // Types
@@ -53,8 +52,8 @@ export const ShellContainer = memo(function ShellContainer({
   currentTaskId,
   isShellTabActive,
 }: ShellContainerProps) {
-  // Get active shells from context (what to render)
-  const { activeShells } = useShellContext();
+  // Get shells from cache (unified snapshot of intents + sessions)
+  const { sessions: shells } = useShellSessions();
 
   // Get the portal target from context
   const { portalTarget } = useShellPortal();
@@ -64,18 +63,18 @@ export const ShellContainer = memo(function ShellContainer({
     updateSessionStatus(taskId, status);
   }, []);
 
-  // Don't render if no active shells
-  if (activeShells.length === 0) {
+  // Don't render if no shells
+  if (shells.length === 0) {
     return null;
   }
 
   // Determine which shell is visible (if any)
   // A shell is visible when: shell tab is active + portal target exists + shell matches current task
   const visibleShell =
-    isShellTabActive && portalTarget ? activeShells.find((shell) => shell.taskId === currentTaskId) : undefined;
+    isShellTabActive && portalTarget ? shells.find((shell) => shell.taskId === currentTaskId) : undefined;
 
   // All other shells are hidden but stay mounted to preserve terminal instances
-  const hiddenShells = activeShells.filter((shell) => shell !== visibleShell);
+  const hiddenShells = shells.filter((shell) => shell !== visibleShell);
 
   return (
     <>

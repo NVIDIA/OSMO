@@ -21,8 +21,15 @@ import type { Terminal } from "@xterm/xterm";
 
 /**
  * Shell connection status states.
+ *
+ * - mounting: Intent exists, TaskShell component is mounting
+ * - idle: Terminal ready, no connection attempt yet
+ * - connecting: WebSocket connection in progress
+ * - connected: WebSocket open, shell is interactive
+ * - disconnected: WebSocket closed, terminal preserved
+ * - error: Connection failed, error message available
  */
-export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
+export type ConnectionStatus = "mounting" | "idle" | "connecting" | "connected" | "disconnected" | "error";
 
 // =============================================================================
 // Shell Props
