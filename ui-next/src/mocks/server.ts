@@ -65,14 +65,9 @@ const NEXTJS_URL = "http://localhost:3000";
 
 type HandlerFn = Parameters<typeof http.get>[1];
 
-// Log the URLs once at startup
-console.log(`[MSW Server] Backend URL: ${BACKEND_URL}`);
-console.log(`[MSW Server] Next.js URL: ${NEXTJS_URL}`);
-
 function createDualHandler(method: "get" | "post" | "put" | "delete", path: string, handler: HandlerFn) {
   const backendPath = `${BACKEND_URL}${path}`;
   const nextjsPath = `${NEXTJS_URL}${path}`;
-  console.log(`[MSW Server] Registering: ${method.toUpperCase()} ${path}, ${backendPath}, ${nextjsPath}`);
   return [
     http[method](path, handler), // Relative path
     http[method](backendPath, handler), // Backend URL (production/staging)
