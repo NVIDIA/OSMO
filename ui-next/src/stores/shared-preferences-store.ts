@@ -39,11 +39,18 @@ import { immer } from "zustand/middleware/immer";
 
 export type DisplayMode = "free" | "used";
 
+/** Default panel width percentage (matches PANEL.DEFAULT_WIDTH_PCT) */
+const DEFAULT_PANEL_WIDTH_PCT = 50;
+
 interface SharedPreferencesState {
   /** Display mode for capacity values: "free" shows available, "used" shows utilization */
   displayMode: DisplayMode;
   /** Whether tables use compact row height */
   compactMode: boolean;
+  /** Panel width as percentage of container (applies to workflow/pools/resources panels) */
+  panelWidthPct: number;
+  /** Whether panel header details are expanded (unified across workflow/group/task views) */
+  detailsExpanded: boolean;
 }
 
 interface SharedPreferencesActions {
@@ -55,6 +62,12 @@ interface SharedPreferencesActions {
   toggleCompactMode: () => void;
   /** Set compact mode explicitly */
   setCompactMode: (compact: boolean) => void;
+  /** Set panel width percentage */
+  setPanelWidthPct: (pct: number) => void;
+  /** Toggle details expanded state */
+  toggleDetailsExpanded: () => void;
+  /** Set details expanded state explicitly */
+  setDetailsExpanded: (expanded: boolean) => void;
   /** Reset to defaults */
   reset: () => void;
 }
@@ -74,6 +87,8 @@ export type SharedPreferencesStore = SharedPreferencesState & SharedPreferencesA
 export const initialState: SharedPreferencesState = {
   displayMode: "free",
   compactMode: false,
+  panelWidthPct: DEFAULT_PANEL_WIDTH_PCT,
+  detailsExpanded: false,
 };
 
 // =============================================================================
@@ -120,6 +135,33 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
             },
             false,
             "setCompactMode",
+          ),
+
+        setPanelWidthPct: (pct) =>
+          set(
+            (state) => {
+              state.panelWidthPct = pct;
+            },
+            false,
+            "setPanelWidthPct",
+          ),
+
+        toggleDetailsExpanded: () =>
+          set(
+            (state) => {
+              state.detailsExpanded = !state.detailsExpanded;
+            },
+            false,
+            "toggleDetailsExpanded",
+          ),
+
+        setDetailsExpanded: (expanded) =>
+          set(
+            (state) => {
+              state.detailsExpanded = expanded;
+            },
+            false,
+            "setDetailsExpanded",
           ),
 
         reset: () => set(initialState, false, "reset"),
