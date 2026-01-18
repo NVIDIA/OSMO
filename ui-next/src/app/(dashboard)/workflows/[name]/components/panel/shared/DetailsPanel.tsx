@@ -52,7 +52,6 @@ import { FileText, Info, History, ArrowLeftFromLine, ArrowRightFromLine, type Lu
 import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
-import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 import { cn, formatHotkey } from "@/lib/utils";
 import { WorkflowDetails } from "../workflow/WorkflowDetails";

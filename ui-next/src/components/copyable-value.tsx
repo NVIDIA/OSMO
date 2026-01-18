@@ -25,9 +25,50 @@
 
 "use client";
 
+import { memo } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCopy } from "@/hooks";
+
+// =============================================================================
+// CopyButton - Standalone copy button
+// =============================================================================
+
+export interface CopyButtonProps {
+  /** The value to copy */
+  value: string;
+  /** Accessible label for the button */
+  label: string;
+  /** Additional CSS classes */
+  className?: string;
+}
+
+/**
+ * Standalone copy button with checkmark feedback.
+ * Used in DetailsSection and other places that need a copy icon.
+ *
+ * @example
+ * ```tsx
+ * <CopyButton value={uuid} label="UUID" />
+ * ```
+ */
+export const CopyButton = memo(function CopyButton({ value, label, className }: CopyButtonProps) {
+  const { copied, copy } = useCopy();
+
+  return (
+    <button
+      onClick={() => copy(value)}
+      className={cn(
+        "text-muted-foreground hover:bg-accent hover:text-foreground ml-1.5 shrink-0 rounded p-0.5 transition-colors",
+        className,
+      )}
+      aria-label={`Copy ${label}`}
+      title={copied ? "Copied!" : `Copy ${label}`}
+    >
+      {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+    </button>
+  );
+});
 
 // =============================================================================
 // CopyableValue - Inline copyable text

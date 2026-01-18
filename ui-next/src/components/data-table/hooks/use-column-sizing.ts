@@ -51,7 +51,7 @@ export interface UseColumnSizingOptions {
   /** Table element ref for direct DOM updates during resize */
   tableRef?: React.RefObject<HTMLTableElement | null>;
   /** Column size configurations (min and preferred widths in rem) */
-  columnConfigs?: ColumnSizeConfig[];
+  columnConfigs?: readonly ColumnSizeConfig[];
   /** User sizing preferences from persistence */
   sizingPreferences?: ColumnSizingPreferences;
   /** Callback when user manually resizes a column or auto-fits */

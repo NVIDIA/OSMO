@@ -47,7 +47,7 @@ export interface TableToolbarProps<T> {
   /** Search field definitions */
   searchFields: readonly SearchField<T>[];
   /** Column definitions for visibility dropdown */
-  columns: ColumnDefinition[];
+  columns: readonly ColumnDefinition[];
   /** Currently visible column IDs */
   visibleColumnIds: string[];
   /** Callback to toggle column visibility */

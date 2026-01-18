@@ -70,3 +70,13 @@ export {
 export { useResizablePanel, type UseResizablePanelOptions, type UseResizablePanelReturn } from "./use-resizable-panel";
 
 export { PanelTabs, type PanelTab, type PanelTabsProps } from "./panel-tabs";
+
+export { EmptyTabPrompt, type EmptyTabPromptProps } from "./empty-tab-prompt";
+
+export { DetailsSection, type DetailsSectionProps, type DetailsItem } from "./details-section";
+
+export { LinksSection, type LinksSectionProps, type LinkItem } from "./links-section";
+
+export { TabPanel, type TabPanelProps } from "./tab-panel";
+
+export { SeparatedParts, type SeparatedPartsProps } from "./separated-parts";

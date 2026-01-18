@@ -16,103 +16,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SearchField, ChipVariant } from "@/components/filter-bar";
+import type { SearchField } from "@/components/filter-bar";
 import type { Resource } from "@/lib/api/adapter";
 import { BackendResourceType } from "@/lib/api/generated";
-
-// ============================================================================
-// Numeric Filter Parsing (copied from pools pattern)
-// ============================================================================
-
-type CompareOp = ">=" | ">" | "<=" | "<" | "=";
-
-interface ParsedNumericFilter {
-  operator: CompareOp;
-  value: number;
-  isPercent: boolean;
-}
-
-const VALID_OPERATORS: CompareOp[] = [">=", "<=", ">", "<", "="];
-
-/**
- * Parse a numeric filter string like ">=10" or ">=90%"
- */
-function parseNumericFilter(input: string): ParsedNumericFilter | null {
-  const trimmed = input.trim();
-  const match = trimmed.match(/^(>=|<=|>|<|=)(\d+(?:\.\d+)?)(%)?\s*$/);
-  if (!match) return null;
-
-  const value = parseFloat(match[2]);
-  if (!Number.isFinite(value) || value < 0) return null;
-
-  return {
-    operator: match[1] as CompareOp,
-    value,
-    isPercent: match[3] === "%",
-  };
-}
-
-/**
- * Validate a numeric filter string
- */
-function validateNumericFilter(
-  input: string,
-  opts: { allowPercent?: boolean; allowDiscrete?: boolean } = {},
-): true | string {
-  const { allowPercent = true, allowDiscrete = true } = opts;
-  const trimmed = input.trim();
-  if (!trimmed) return "Enter a value (e.g. >=10)";
-
-  const hasOp = VALID_OPERATORS.some((op) => trimmed.startsWith(op));
-  if (!hasOp) return "Start with >=, >, <=, <, or =";
-
-  const parsed = parseNumericFilter(trimmed);
-  if (!parsed) return "Invalid format";
-
-  if (parsed.isPercent && !allowPercent) return "Don't use % for this field";
-  if (!parsed.isPercent && !allowDiscrete) return "Use % (e.g. >=90%)";
-  if (parsed.isPercent && parsed.value > 100) return "Max 100%";
-
-  return true;
-}
-
-/**
- * Compare a numeric value against a parsed filter
- */
-function compareNumeric(actual: number, op: CompareOp, target: number, isPercent: boolean): boolean {
-  const value = isPercent ? Math.round(actual) : actual;
-
-  switch (op) {
-    case ">=":
-      return value >= target;
-    case ">":
-      return value > target;
-    case "<=":
-      return value <= target;
-    case "<":
-      return value < target;
-    case "=":
-      return value === target;
-  }
-}
-
-/**
- * Create a match function for numeric resource filters
- */
-function createNumericMatch(getValue: (resource: Resource) => number, getMax?: (resource: Resource) => number) {
-  return (resource: Resource, value: string): boolean => {
-    const parsed = parseNumericFilter(value);
-    if (!parsed) return false;
-
-    let actual = getValue(resource);
-    if (parsed.isPercent && getMax) {
-      const max = getMax(resource);
-      actual = max > 0 ? (actual / max) * 100 : 0;
-    }
-
-    return compareNumeric(actual, parsed.operator, parsed.value, parsed.isPercent);
-  };
-}
+import { createNumericSearchFieldPair } from "@/lib/filter-utils";
 
 // ============================================================================
 // Base Search Fields
@@ -187,94 +94,47 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
 // Numeric Search Fields
 // ============================================================================
 
+/** GPU free/used fields */
+const [gpuFree, gpuUsed] = createNumericSearchFieldPair<Resource>({
+  category: "gpu",
+  label: "GPU",
+  hintFree: "available GPUs",
+  hintUsed: "GPU utilization",
+  getFree: (r) => r.gpu.total - r.gpu.used,
+  getUsed: (r) => r.gpu.used,
+  getMax: (r) => r.gpu.total,
+});
+
+/** CPU free/used fields */
+const [cpuFree, cpuUsed] = createNumericSearchFieldPair<Resource>({
+  category: "cpu",
+  label: "CPU",
+  hintFree: "available CPUs",
+  hintUsed: "CPU utilization",
+  getFree: (r) => r.cpu.total - r.cpu.used,
+  getUsed: (r) => r.cpu.used,
+  getMax: (r) => r.cpu.total,
+});
+
+/** Memory free/used fields (percentage only) */
+const [memoryFree, memoryUsed] = createNumericSearchFieldPair<Resource>({
+  category: "memory",
+  label: "Memory",
+  hintFree: "available memory",
+  hintUsed: "memory utilization",
+  getFree: (r) => r.memory.total - r.memory.used,
+  getUsed: (r) => r.memory.used,
+  getMax: (r) => r.memory.total,
+  validateOptions: { allowDiscrete: false },
+});
+
 const NUMERIC_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
-  // GPU fields
-  {
-    id: "gpu-free",
-    label: "GPU Free",
-    prefix: "gpu:free:",
-    hint: "available GPUs",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v),
-    match: createNumericMatch(
-      (r) => r.gpu.total - r.gpu.used,
-      (r) => r.gpu.total,
-    ),
-    variant: "free" as ChipVariant,
-  },
-  {
-    id: "gpu-used",
-    label: "GPU Used",
-    prefix: "gpu:used:",
-    hint: "GPU utilization",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v),
-    match: createNumericMatch(
-      (r) => r.gpu.used,
-      (r) => r.gpu.total,
-    ),
-    variant: "used" as ChipVariant,
-  },
-  // CPU fields
-  {
-    id: "cpu-free",
-    label: "CPU Free",
-    prefix: "cpu:free:",
-    hint: "available CPUs",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v),
-    match: createNumericMatch(
-      (r) => r.cpu.total - r.cpu.used,
-      (r) => r.cpu.total,
-    ),
-    variant: "free" as ChipVariant,
-  },
-  {
-    id: "cpu-used",
-    label: "CPU Used",
-    prefix: "cpu:used:",
-    hint: "CPU utilization",
-    freeFormHint: "<, <=, =, >, >=, N (count) or N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v),
-    match: createNumericMatch(
-      (r) => r.cpu.used,
-      (r) => r.cpu.total,
-    ),
-    variant: "used" as ChipVariant,
-  },
-  // Memory fields
-  {
-    id: "memory-free",
-    label: "Memory Free",
-    prefix: "memory:free:",
-    hint: "available memory",
-    freeFormHint: "<, <=, =, >, >=, N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v, { allowDiscrete: false }),
-    match: createNumericMatch(
-      (r) => r.memory.total - r.memory.used,
-      (r) => r.memory.total,
-    ),
-    variant: "free" as ChipVariant,
-  },
-  {
-    id: "memory-used",
-    label: "Memory Used",
-    prefix: "memory:used:",
-    hint: "memory utilization",
-    freeFormHint: "<, <=, =, >, >=, N% (percentage)",
-    getValues: () => [],
-    validate: (v) => validateNumericFilter(v, { allowDiscrete: false }),
-    match: createNumericMatch(
-      (r) => r.memory.used,
-      (r) => r.memory.total,
-    ),
-    variant: "used" as ChipVariant,
-  },
+  gpuFree,
+  gpuUsed,
+  cpuFree,
+  cpuUsed,
+  memoryFree,
+  memoryUsed,
 ];
 
 // ============================================================================
@@ -298,5 +158,5 @@ export function createResourceSearchFields(): SearchField<Resource>[] {
   return [...RESOURCE_SEARCH_FIELDS];
 }
 
-/** Export numeric filter utilities for testing */
-export { parseNumericFilter, validateNumericFilter, compareNumeric };
+/** Re-export numeric filter utilities for testing */
+export { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";
