@@ -49,7 +49,6 @@ import {
 import {
   PanelHeader,
   PanelBackButton,
-  PanelCollapseButton,
   PanelBadge,
   PanelTitle,
   PanelSubtitle,
@@ -228,7 +227,6 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   subtitle,
   statusContent,
   onBack,
-  onClose,
   menuContent,
   onPanelResize,
   breadcrumb,
@@ -330,9 +328,6 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-
-      {/* Collapse button */}
-      <PanelCollapseButton onCollapse={onClose} />
     </>
   );
 

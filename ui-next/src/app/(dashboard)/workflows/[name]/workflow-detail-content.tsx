@@ -443,12 +443,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
     navigateToWorkflow();
   });
 
-  // Close panel handler (for panel close button)
-  // This navigates back to workflow view and optionally collapses
-  const handleClosePanel = useEventCallback(() => {
-    navigateToWorkflow();
-  });
-
   // Handle shell tab activation/deactivation from TaskDetails
   const handleShellTabChange = useCallback((taskName: string | null) => {
     setActiveShellTaskName(taskName);
@@ -610,7 +604,6 @@ function WorkflowDetailPageInner({ name }: { name: string }) {
               group={selectedGroup}
               allGroups={dagGroups}
               task={selectedTask}
-              onClose={handleClosePanel}
               onBackToGroup={navigateBackToGroup}
               onBackToWorkflow={handleBackToWorkflow}
               onSelectTask={navigateToTask}

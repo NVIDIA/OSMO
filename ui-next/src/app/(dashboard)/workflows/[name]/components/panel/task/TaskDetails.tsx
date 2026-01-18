@@ -362,7 +362,6 @@ const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
 
 interface TaskDetailsInternalProps extends TaskDetailsProps {
   allGroups: GroupWithLayout[];
-  onClose: () => void;
   /** Navigate back to workflow view */
   onBackToWorkflow?: () => void;
   onPanelResize: (pct: number) => void;
@@ -386,7 +385,6 @@ export const TaskDetails = memo(function TaskDetails({
   onBackToWorkflow,
   onSelectTask,
   onSelectGroup,
-  onClose,
   onPanelResize,
   isDetailsExpanded,
   onToggleDetailsExpanded,
@@ -443,7 +441,7 @@ export const TaskDetails = memo(function TaskDetails({
   const handleConnectShell = useCallback(
     (shell: string) => {
       if (workflowName && task.task_uuid) {
-        connectShell(task.task_uuid, task.name, shell);
+        connectShell(task.task_uuid, task.name, workflowName, shell);
       }
     },
     [workflowName, task.task_uuid, task.name, connectShell],
@@ -614,7 +612,6 @@ export const TaskDetails = memo(function TaskDetails({
         breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
         title={task.name}
         statusContent={statusContent}
-        onClose={onClose}
         onPanelResize={onPanelResize}
         siblingTasks={isFromGroup ? siblingTasks : undefined}
         onSelectSibling={isFromGroup ? handleSelectSibling : undefined}

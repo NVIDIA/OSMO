@@ -14,7 +14,6 @@ Core shell functionality is complete.
 |-----------|----------|---------|
 | `ShellTerminal` | `@/components/shell/` | xterm.js wrapper with WebGL |
 | `ShellSearch` | `@/components/shell/` | Ctrl+Shift+F search overlay |
-| `ShellActivityStrip` | `@/components/shell/` | Session icons in panel strip |
 | `ShellSessionIcon` | `@/components/shell/` | Individual session status icon |
 | `StatusDot` | `@/components/shell/` | Connection status indicator |
 | `ShellConnecting` | `@/components/shell/` | Connecting overlay |
@@ -27,6 +26,7 @@ Core shell functionality is complete.
 | `ShellContainer` | `workflows/[name]/components/shell/` | Portal-based session rendering |
 | `ShellContext` | `workflows/[name]/components/shell/` | Active shells state management |
 | `ShellPortalContext` | `workflows/[name]/components/shell/` | Portal target management |
+| `WorkflowEdgeStrip` | `workflows/[name]/components/panel/shared/` | Unified edge strip with expand, links, shells |
 
 ### Features
 
@@ -37,7 +37,7 @@ Core shell functionality is complete.
 - **Copy/Paste** - Ctrl+Shift+C/V (preserves Ctrl+C for SIGINT)
 - **Shell Selector** - bash/sh/zsh dropdown + custom shell input
 - **Session Persistence** - Module-scope cache survives React lifecycle
-- **Activity Strip** - Visual indicator for active shells
+- **Unified Edge Strip** - Always-visible strip with expand button, workflow links, and shell sessions
 - **Navigation Guard** - beforeunload warning when sessions active
 - **Connection States** - idle, connecting, connected, disconnected, error
 - **Reconnect UI** - Inline status bar with manual reconnect button

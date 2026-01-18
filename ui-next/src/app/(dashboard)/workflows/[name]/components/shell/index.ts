@@ -9,50 +9,41 @@
 /**
  * Shell Components - Route-Level Session Management
  *
- * This module provides persistent shell sessions across task/group navigation
- * within the workflow detail page. The architecture uses three layers:
+ * Provides persistent shell sessions across task/group navigation
+ * within the workflow detail page.
+ *
+ * ARCHITECTURE:
+ * All shell state is managed in @/components/shell/shell-session-cache.ts.
+ * This module provides React integration:
  *
  * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │                            ARCHITECTURE                                     │
+ * │  Session Cache (source of truth)                                           │
+ * │  ├── shellIntents Map: what UI wants to render                             │
+ * │  └── sessionCache Map: xterm + WebSocket instances                         │
  * ├─────────────────────────────────────────────────────────────────────────────┤
- * │                                                                             │
- * │  ┌─────────────────┐      ┌──────────────────┐      ┌──────────────────┐   │
- * │  │  ShellContext   │      │ ShellPortalCtx   │      │  Session Cache   │   │
- * │  │  (what to       │      │ (where to        │      │  (xterm + WS     │   │
- * │  │   render)       │      │  portal into)    │      │   instances)     │   │
- * │  └────────┬────────┘      └────────┬─────────┘      └────────┬─────────┘   │
- * │           │                        │                         │             │
- * │           ▼                        ▼                         ▼             │
- * │  ┌────────────────────────────────────────────────────────────────────┐   │
- * │  │                        ShellContainer                              │   │
- * │  │  - Renders TaskShell for each activeShell                          │   │
- * │  │  - Portals visible shell into TaskDetails' shell tab               │   │
- * │  │  - Keeps hidden shells mounted (preserves xterm instances)         │   │
- * │  └────────────────────────────────────────────────────────────────────┘   │
- * │                                                                             │
+ * │  ShellContext (thin wrapper)                                               │
+ * │  └── Provides actions: connectShell, removeShell, disconnectOnly           │
+ * ├─────────────────────────────────────────────────────────────────────────────┤
+ * │  ShellContainer (renderer)                                                 │
+ * │  ├── Uses useShellSessions() to get shells to render                       │
+ * │  ├── Portals visible shell into TaskDetails' shell tab                     │
+ * │  └── Keeps hidden shells mounted (preserves xterm instances)               │
+ * ├─────────────────────────────────────────────────────────────────────────────┤
+ * │  ShellPortalContext                                                        │
+ * │  └── Provides portal target for visible shell                              │
  * └─────────────────────────────────────────────────────────────────────────────┘
  *
  * DATA FLOW:
- * 1. User clicks "Connect" in TaskDetails → ShellContext.connectShell()
- * 2. ShellContainer sees new activeShell → renders TaskShell
- * 3. TaskShell mounts → useShell creates terminal, useWebSocketShell connects
- * 4. Session Cache stores xterm + WebSocket for persistence
+ * 1. User clicks "Connect" → connectShell() → openShellIntent() in cache
+ * 2. Cache notifies subscribers → ShellContainer re-renders
+ * 3. ShellContainer renders TaskShell for new intent
+ * 4. TaskShell mounts → useShell creates session in cache
  * 5. User navigates away → shell stays mounted (hidden), connection preserved
  * 6. User returns → shell portals back, same terminal instance
  *
- * KEY COMPONENTS:
- * - ShellProvider: Wraps workflow page, provides activeShells state
- * - ShellPortalProvider: Provides portal target for visible shell
- * - ShellContainer: Renders all shells, manages portal
- * - TaskShell: UI wrapper with connect prompt, reconnect bar
- * - ShellTerminal: xterm.js terminal component
- *
- * SESSION CACHE (@/components/shell/shell-session-cache.ts):
- * - Module-scope Map storing xterm Terminal + WebSocket per session
- * - Survives React unmount/remount during navigation
- * - Cleaned up on page leave or explicit disconnect
+ * @see @/components/shell/shell-session-cache.ts for lifecycle documentation
  */
 
 export { ShellContainer, type ShellContainerProps } from "./ShellContainer";
 export { ShellPortalProvider, useShellPortal } from "./ShellPortalContext";
-export { ShellProvider, useShellContext, type ActiveShell } from "./ShellContext";
+export { ShellProvider, useShellContext } from "./ShellContext";
