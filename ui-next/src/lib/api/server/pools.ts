@@ -163,3 +163,27 @@ export async function prefetchPools(queryClient: QueryClient, options: ServerFet
     },
   });
 }
+
+/**
+ * Prefetch pools for Dashboard using the generated hook's query key.
+ *
+ * The Dashboard uses usePools() which calls the generated useGetPoolQuotasApiPoolQuotaGet hook.
+ * This prefetch uses the same query key format as the generated hook.
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param options - Fetch options
+ */
+export async function prefetchPoolsForDashboard(
+  queryClient: QueryClient,
+  options: ServerFetchOptions = {},
+): Promise<void> {
+  // Query key matches generated: ["/api/pool_quota", { all_pools: true }]
+  await queryClient.prefetchQuery({
+    queryKey: ["/api/pool_quota", { all_pools: true }],
+    queryFn: async () => {
+      const result = await fetchPools(options);
+      // Return raw response format that generated hook expects
+      return result._raw;
+    },
+  });
+}

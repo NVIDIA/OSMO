@@ -159,6 +159,55 @@ export const fetchWorkflowByName = cache(
   },
 );
 
+/**
+ * Fetch raw workflow response for prefetching (without timestamp normalization).
+ * The client hook will normalize timestamps after hydration.
+ */
+const fetchWorkflowByNameRaw = cache(
+  async (name: string, verbose = true, options: ServerFetchOptions = {}): Promise<unknown> => {
+    const { revalidate = DEFAULT_REVALIDATE, tags = ["workflows", `workflow-${name}`] } = options;
+
+    const baseUrl = getServerApiBaseUrl();
+    const headers = await getServerFetchHeaders();
+    const url = `${baseUrl}/api/workflow/${encodeURIComponent(name)}?verbose=${verbose}`;
+
+    const response = await fetch(url, {
+      headers,
+      next: {
+        revalidate,
+        tags,
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    return handleResponse<unknown>(response, url);
+  },
+);
+
+/**
+ * Prefetch a single workflow by name for hydration.
+ *
+ * Uses the same query key format as the generated useGetWorkflowApiWorkflowNameGet hook.
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param name - Workflow name
+ * @param options - Fetch options
+ */
+export async function prefetchWorkflowByName(
+  queryClient: QueryClient,
+  name: string,
+  options: ServerFetchOptions = {},
+): Promise<void> {
+  // Query key matches generated: ["/api/workflow/${name}", { verbose: true }]
+  await queryClient.prefetchQuery({
+    queryKey: [`/api/workflow/${name}`, { verbose: true }],
+    queryFn: () => fetchWorkflowByNameRaw(name, true, options),
+  });
+}
+
 // =============================================================================
 // Prefetch for TanStack Query Hydration
 // =============================================================================
@@ -178,5 +227,94 @@ export async function prefetchWorkflows(
   await queryClient.prefetchQuery({
     queryKey: ["workflows", params],
     queryFn: () => fetchWorkflows(params, options),
+  });
+}
+
+/**
+ * Build query key for workflows list (matches client-side buildWorkflowsQueryKey).
+ *
+ * This must match the key format in workflows-shim.ts to enable hydration.
+ *
+ * @param chipsString - Sorted, comma-joined chip string (from chipsToKeyString)
+ * @param showAllUsers - Whether showing all users' workflows
+ * @param sortDirection - Sort direction
+ */
+export function buildServerWorkflowsQueryKey(
+  chipsString = "",
+  showAllUsers = false,
+  sortDirection = "DESC",
+): readonly unknown[] {
+  return [
+    "workflows",
+    "paginated",
+    {
+      chips: chipsString,
+      showAllUsers,
+      sortDirection,
+    },
+  ] as const;
+}
+
+// Re-export SearchChip type for server use
+import type { SearchChip } from "@/stores";
+import { chipsToKeyString } from "@/lib/url-utils";
+
+/**
+ * Prefetch the first page of workflows for infinite query hydration.
+ *
+ * Uses prefetchInfiniteQuery to match the client's useInfiniteQuery.
+ * Only prefetches the first page - subsequent pages are fetched on demand.
+ *
+ * nuqs Compatibility:
+ * - Accepts filter chips parsed from URL searchParams
+ * - Builds query key matching what client will use
+ * - Ensures cache hit even with URL filters
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param filterChips - Filter chips from URL (optional, for nuqs compatibility)
+ * @param options - Fetch options
+ */
+export async function prefetchWorkflowsList(
+  queryClient: QueryClient,
+  filterChips: SearchChip[] = [],
+  options: ServerFetchOptions = {},
+): Promise<void> {
+  // Build query key with chips string matching client format
+  const chipsString = chipsToKeyString(filterChips);
+  const queryKey = buildServerWorkflowsQueryKey(chipsString, false, "DESC");
+
+  // Extract filter values from chips for API call
+  // Note: Only status is used currently; others reserved for future backend support
+  const statusFilters = filterChips.filter((c) => c.field === "status").map((c) => c.value as WorkflowStatus);
+  const _userFilters = filterChips.filter((c) => c.field === "user").map((c) => c.value);
+  const _poolFilters = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
+
+  await queryClient.prefetchInfiniteQuery({
+    queryKey,
+    queryFn: async () => {
+      const response = await fetchWorkflows(
+        {
+          limit: 50,
+          offset: 0,
+          status: statusFilters.length > 0 ? statusFilters : undefined,
+          // Note: Backend API may not support all filter types
+          // For now, we at least match the query key so cache hits work
+        },
+        options,
+      );
+
+      // Parse the response (backend returns string)
+      const workflows = response?.workflows ?? [];
+
+      // Return in PaginatedResponse format expected by usePaginatedData
+      return {
+        items: workflows,
+        hasMore: workflows.length === 50,
+        nextOffset: workflows.length === 50 ? 50 : undefined,
+        total: undefined,
+        filteredTotal: undefined,
+      };
+    },
+    initialPageParam: { cursor: undefined, offset: 0 },
   });
 }
