@@ -17,10 +17,20 @@
 "use client";
 
 /**
- * MockProvider
+ * MockProvider - Non-Blocking MSW Initialization
  *
  * Initializes MSW (Mock Service Worker) for offline development.
- * Wraps children and only renders them after mocking is ready.
+ *
+ * IMPORTANT: This provider does NOT block rendering!
+ * - Server-side prefetch uses MSW node server (via instrumentation.ts)
+ * - Client hydrates immediately with server-prefetched data
+ * - MSW worker starts in background for subsequent client requests
+ *
+ * This architecture enables zero-flash mock mode with our Streaming SSR:
+ * 1. Server prefetches data via MSW node server → data in HTML
+ * 2. Client hydrates instantly (data already present)
+ * 3. MSW browser worker starts in background
+ * 4. Subsequent client requests are intercepted by MSW
  *
  * Enable mock mode:
  * - Set NEXT_PUBLIC_MOCK_API=true in environment
@@ -33,7 +43,7 @@
  * Volume settings persist in localStorage across refreshes.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 interface MockProviderProps {
   children: ReactNode;
@@ -90,91 +100,99 @@ function saveVolumes(volumes: PersistedVolumes): void {
 }
 
 export function MockProvider({ children }: MockProviderProps) {
-  const [isReady, setIsReady] = useState(false);
+  // Track initialization to prevent duplicate runs
+  const initStartedRef = useRef(false);
 
   useEffect(() => {
+    // Only initialize once
+    if (initStartedRef.current) return;
+    initStartedRef.current = true;
+
     async function init() {
       // Check if we should enable mocking
       const shouldMock =
         process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
-      if (shouldMock && typeof window !== "undefined") {
-        try {
-          const { initMocking } = await import("./browser");
-          await initMocking();
+      if (!shouldMock || typeof window === "undefined") return;
 
-          // Expose config API on window for browser console access
-          const generators = await import("./generators");
+      try {
+        // Start MSW worker in background - don't await to avoid blocking
+        // The server has already prefetched data, so first render uses that
+        const { initMocking } = await import("./browser");
+        await initMocking();
 
-          // Load persisted volumes and apply them
-          const persisted = loadPersistedVolumes();
-          if (persisted.workflows !== undefined) {
-            generators.setWorkflowTotal(persisted.workflows);
-          }
-          if (persisted.pools !== undefined) {
-            generators.setPoolTotal(persisted.pools);
-          }
-          if (persisted.resourcesPerPool !== undefined) {
-            generators.setResourcePerPool(persisted.resourcesPerPool);
-          }
-          if (persisted.resourcesGlobal !== undefined) {
-            generators.setResourceTotalGlobal(persisted.resourcesGlobal);
-          }
-          if (persisted.buckets !== undefined) {
-            generators.setBucketTotal(persisted.buckets);
-          }
-          if (persisted.datasets !== undefined) {
-            generators.setDatasetTotal(persisted.datasets);
-          }
+        // Load generators and config API
+        const generators = await import("./generators");
 
-          // Helper to get current volumes
-          const getCurrentVolumes = () => ({
-            workflows: generators.getWorkflowTotal(),
-            pools: generators.getPoolTotal(),
-            resourcesPerPool: generators.getResourcePerPool(),
-            resourcesGlobal: generators.getResourceTotalGlobal(),
-            buckets: generators.getBucketTotal(),
-            datasets: generators.getDatasetTotal(),
-          });
+        // Load persisted volumes and apply them
+        const persisted = loadPersistedVolumes();
+        if (persisted.workflows !== undefined) {
+          generators.setWorkflowTotal(persisted.workflows);
+        }
+        if (persisted.pools !== undefined) {
+          generators.setPoolTotal(persisted.pools);
+        }
+        if (persisted.resourcesPerPool !== undefined) {
+          generators.setResourcePerPool(persisted.resourcesPerPool);
+        }
+        if (persisted.resourcesGlobal !== undefined) {
+          generators.setResourceTotalGlobal(persisted.resourcesGlobal);
+        }
+        if (persisted.buckets !== undefined) {
+          generators.setBucketTotal(persisted.buckets);
+        }
+        if (persisted.datasets !== undefined) {
+          generators.setDatasetTotal(persisted.datasets);
+        }
 
-          window.__mockConfig = {
-            setWorkflowTotal: (n: number) => {
-              generators.setWorkflowTotal(n);
-              saveVolumes({ ...loadPersistedVolumes(), workflows: n });
-              console.log(`✅ Workflow total set to ${n.toLocaleString()} (persisted)`);
-            },
-            setPoolTotal: (n: number) => {
-              generators.setPoolTotal(n);
-              saveVolumes({ ...loadPersistedVolumes(), pools: n });
-              console.log(`✅ Pool total set to ${n.toLocaleString()} (persisted)`);
-            },
-            setResourcePerPool: (n: number) => {
-              generators.setResourcePerPool(n);
-              saveVolumes({ ...loadPersistedVolumes(), resourcesPerPool: n });
-              console.log(`✅ Resources per pool set to ${n.toLocaleString()} (persisted)`);
-            },
-            setResourceTotalGlobal: (n: number) => {
-              generators.setResourceTotalGlobal(n);
-              saveVolumes({ ...loadPersistedVolumes(), resourcesGlobal: n });
-              console.log(`✅ Global resource total set to ${n.toLocaleString()} (persisted)`);
-            },
-            setBucketTotal: (n: number) => {
-              generators.setBucketTotal(n);
-              saveVolumes({ ...loadPersistedVolumes(), buckets: n });
-              console.log(`✅ Bucket total set to ${n.toLocaleString()} (persisted)`);
-            },
-            setDatasetTotal: (n: number) => {
-              generators.setDatasetTotal(n);
-              saveVolumes({ ...loadPersistedVolumes(), datasets: n });
-              console.log(`✅ Dataset total set to ${n.toLocaleString()} (persisted)`);
-            },
-            getVolumes: getCurrentVolumes,
-            resetVolumes: () => {
-              localStorage.removeItem(VOLUMES_STORAGE_KEY);
-              console.log("✅ Volume settings reset. Refresh to apply defaults.");
-            },
-            help: () => {
-              console.log(`
+        // Helper to get current volumes
+        const getCurrentVolumes = () => ({
+          workflows: generators.getWorkflowTotal(),
+          pools: generators.getPoolTotal(),
+          resourcesPerPool: generators.getResourcePerPool(),
+          resourcesGlobal: generators.getResourceTotalGlobal(),
+          buckets: generators.getBucketTotal(),
+          datasets: generators.getDatasetTotal(),
+        });
+
+        window.__mockConfig = {
+          setWorkflowTotal: (n: number) => {
+            generators.setWorkflowTotal(n);
+            saveVolumes({ ...loadPersistedVolumes(), workflows: n });
+            console.log(`✅ Workflow total set to ${n.toLocaleString()} (persisted)`);
+          },
+          setPoolTotal: (n: number) => {
+            generators.setPoolTotal(n);
+            saveVolumes({ ...loadPersistedVolumes(), pools: n });
+            console.log(`✅ Pool total set to ${n.toLocaleString()} (persisted)`);
+          },
+          setResourcePerPool: (n: number) => {
+            generators.setResourcePerPool(n);
+            saveVolumes({ ...loadPersistedVolumes(), resourcesPerPool: n });
+            console.log(`✅ Resources per pool set to ${n.toLocaleString()} (persisted)`);
+          },
+          setResourceTotalGlobal: (n: number) => {
+            generators.setResourceTotalGlobal(n);
+            saveVolumes({ ...loadPersistedVolumes(), resourcesGlobal: n });
+            console.log(`✅ Global resource total set to ${n.toLocaleString()} (persisted)`);
+          },
+          setBucketTotal: (n: number) => {
+            generators.setBucketTotal(n);
+            saveVolumes({ ...loadPersistedVolumes(), buckets: n });
+            console.log(`✅ Bucket total set to ${n.toLocaleString()} (persisted)`);
+          },
+          setDatasetTotal: (n: number) => {
+            generators.setDatasetTotal(n);
+            saveVolumes({ ...loadPersistedVolumes(), datasets: n });
+            console.log(`✅ Dataset total set to ${n.toLocaleString()} (persisted)`);
+          },
+          getVolumes: getCurrentVolumes,
+          resetVolumes: () => {
+            localStorage.removeItem(VOLUMES_STORAGE_KEY);
+            console.log("✅ Volume settings reset. Refresh to apply defaults.");
+          },
+          help: () => {
+            console.log(`
 🎯 Mock Config API
 
 Configure volumes (persisted across refreshes):
@@ -192,34 +210,28 @@ Reset to defaults:
   __mockConfig.resetVolumes()
 
 Settings are saved to localStorage and persist across page refreshes.
-              `);
-            },
-          };
+            `);
+          },
+        };
 
-          // Log current volumes on startup
-          const volumes = getCurrentVolumes();
-          const hasCustom = Object.keys(persisted).length > 0;
-          console.log(`🔧 Mock mode enabled.${hasCustom ? " Custom volumes loaded:" : ""}`);
-          if (hasCustom) {
-            console.table(volumes);
-          }
-          console.log("Type __mockConfig.help() for options.");
-        } catch (error) {
-          console.error("Failed to initialize mocking:", error);
+        // Log current volumes on startup
+        const volumes = getCurrentVolumes();
+        const hasCustom = Object.keys(persisted).length > 0;
+        console.log(`🔧 Mock mode enabled.${hasCustom ? " Custom volumes loaded:" : ""}`);
+        if (hasCustom) {
+          console.table(volumes);
         }
+        console.log("Type __mockConfig.help() for options.");
+      } catch (error) {
+        console.error("Failed to initialize mocking:", error);
       }
-
-      setIsReady(true);
     }
 
     init();
   }, []);
 
-  // Show nothing until mocking is initialized
-  // This prevents requests from going to the real API before MSW intercepts
-  if (!isReady) {
-    return null;
-  }
-
+  // NON-BLOCKING: Render children immediately!
+  // Server-side MSW has already prefetched data, so hydration uses that.
+  // Browser MSW starts in background for subsequent requests.
   return <>{children}</>;
 }

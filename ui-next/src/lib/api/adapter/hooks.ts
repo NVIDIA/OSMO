@@ -204,9 +204,17 @@ export function useAllResources() {
 /**
  * Fetch OSMO version information.
  * Returns ideal Version type.
+ *
+ * SSR: Version is prefetched at the dashboard layout level (layout.tsx)
+ * so this hook finds data in cache during SSR.
  */
 export function useVersion() {
-  const query = useGetVersionApiVersionGet();
+  const query = useGetVersionApiVersionGet({
+    query: {
+      // Version rarely changes - cache for 5 minutes
+      staleTime: 5 * 60 * 1000,
+    },
+  });
 
   const version = useMemo(() => {
     if (!query.data) return null;
