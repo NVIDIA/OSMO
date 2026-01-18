@@ -35,7 +35,7 @@ import {
   Copy,
   Check,
   XCircle,
-  Calendar,
+  History,
   Info,
   ExternalLink,
   BarChart3,
@@ -153,7 +153,7 @@ const EventsTab = memo(function EventsTab({ task }: EventsTabProps) {
   return (
     <div className="flex flex-col items-center gap-4 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
-        <Calendar className="size-6 text-gray-400 dark:text-zinc-500" />
+        <History className="size-6 text-gray-400 dark:text-zinc-500" />
       </div>
       <div>
         <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Kubernetes Events</h3>
@@ -173,7 +173,7 @@ const EventsTab = memo(function EventsTab({ task }: EventsTabProps) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Calendar className="mr-1.5 size-3.5" />
+            <History className="mr-1.5 size-3.5" />
             View Events
           </a>
         </Button>
@@ -598,7 +598,7 @@ export const TaskDetails = memo(function TaskDetails({
       tabs.push({ id: "shell", label: "Shell", icon: Terminal, statusContent });
     }
 
-    tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: Calendar });
+    tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: History });
 
     return tabs;
   }, [isShellAvailable, shellSession]);
