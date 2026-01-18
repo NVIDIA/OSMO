@@ -432,6 +432,12 @@ const EDGE_MARKERS: Record<
     width: EDGE_STYLE.ARROW_WIDTH,
     height: EDGE_STYLE.ARROW_HEIGHT,
   },
+  pending: {
+    type: MarkerType.ArrowClosed,
+    color: STATUS_STYLES.pending.color,
+    width: EDGE_STYLE.ARROW_WIDTH,
+    height: EDGE_STYLE.ARROW_HEIGHT,
+  },
   running: {
     type: MarkerType.ArrowClosed,
     color: STATUS_STYLES.running.color,
@@ -455,6 +461,7 @@ const EDGE_MARKERS: Record<
 /** Pre-computed data objects per category */
 const EDGE_DATA: Record<StatusCategory, { status: StatusCategory }> = {
   waiting: { status: "waiting" },
+  pending: { status: "pending" },
   running: { status: "running" },
   completed: { status: "completed" },
   failed: { status: "failed" },
@@ -482,8 +489,9 @@ export function buildEdges(groups: GroupWithLayout[]): Edge[] {
 
     const category = getStatusCategory(group.status);
     const isTerminal = category === "completed" || category === "failed";
-    const isRunning = category === "running";
+    const isRunning = category === "running" || category === "pending";
     // Reuse pre-computed objects instead of creating new ones per edge
+    // Solid for running/pending/terminal, dashed for waiting
     const edgeStyle = isTerminal || isRunning ? EDGE_STYLE_SOLID : EDGE_STYLE_DASHED;
     const marker = EDGE_MARKERS[category];
     const data = EDGE_DATA[category];

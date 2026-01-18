@@ -38,6 +38,7 @@ import {
   bucketGenerator,
   datasetGenerator,
   profileGenerator,
+  type MockGroup,
 } from "./generators";
 
 // Simulate network delay (ms) - minimal for fast server-side rendering
@@ -73,6 +74,94 @@ function createDualHandler(method: "get" | "post" | "put" | "delete", path: stri
     http[method](backendPath, handler), // Backend URL (production/staging)
     http[method](nextjsPath, handler), // Next.js dev server URL
   ];
+}
+
+// =============================================================================
+// Helper to transform workflow groups for API response
+// =============================================================================
+
+/**
+ * Transform MockGroup to API response format.
+ *
+ * BACKEND PARITY (see external/src/service/core/workflow/objects.py lines 1055-1102):
+ *
+ * Group timestamps are stored in the `groups` table, set when the group status changes:
+ * - processing_start_time: set when group enters PROCESSING
+ * - scheduling_start_time: set when group enters SCHEDULING
+ * - initializing_start_time: set when group enters INITIALIZING
+ * - start_time: set when group enters RUNNING (first task starts)
+ * - end_time: set when group finishes (last task completes)
+ *
+ * For the mock, we derive group timestamps from tasks:
+ * - Phase timestamps: EARLIEST among all tasks (group enters phase when first task does)
+ * - end_time: LATEST among all tasks (group ends when last task ends)
+ *
+ * CRITICAL: Task's processing_start_time in API response uses the GROUP's value,
+ * not the task's own! (backend line 1067: processing_start_time=group_row['processing_start_time'])
+ * This is because processing is a group-level operation (service worker processes entire group).
+ */
+function transformGroupForResponse(g: MockGroup) {
+  // Helper to find earliest timestamp across all tasks
+  const earliest = (field: keyof (typeof g.tasks)[0]) => {
+    const times = g.tasks.map((t) => t[field]).filter(Boolean) as string[];
+    if (times.length === 0) return undefined;
+    return times.reduce((min, t) => (t < min ? t : min));
+  };
+  // Helper to find latest timestamp across all tasks
+  const latest = (field: keyof (typeof g.tasks)[0]) => {
+    const times = g.tasks.map((t) => t[field]).filter(Boolean) as string[];
+    if (times.length === 0) return undefined;
+    return times.reduce((max, t) => (t > max ? t : max));
+  };
+
+  // Group-level timestamps
+  const groupProcessingStartTime = earliest("processing_start_time");
+  const groupSchedulingStartTime = earliest("scheduling_start_time");
+  const groupInitializingStartTime = earliest("initializing_start_time");
+  const groupStartTime = earliest("start_time");
+  const groupEndTime = latest("end_time");
+
+  return {
+    name: g.name,
+    status: g.status,
+    // Group timeline timestamps
+    processing_start_time: groupProcessingStartTime,
+    scheduling_start_time: groupSchedulingStartTime,
+    initializing_start_time: groupInitializingStartTime,
+    start_time: groupStartTime,
+    end_time: groupEndTime,
+    remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
+    downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
+    failure_message: g.failure_message,
+    tasks: g.tasks.map((t) => ({
+      name: t.name,
+      retry_id: t.retry_id,
+      status: t.status,
+      lead: t.lead,
+      task_uuid: t.task_uuid,
+      pod_name: t.pod_name,
+      pod_ip: t.pod_ip,
+      node_name: t.node_name,
+      // BACKEND PARITY: Task's processing_start_time comes from GROUP, not task!
+      // (see objects.py line 1067)
+      processing_start_time: groupProcessingStartTime,
+      // These come from the task's own values
+      scheduling_start_time: t.scheduling_start_time,
+      initializing_start_time: t.initializing_start_time,
+      input_download_start_time: t.input_download_start_time,
+      input_download_end_time: t.input_download_end_time,
+      start_time: t.start_time,
+      output_upload_start_time: t.output_upload_start_time,
+      end_time: t.end_time,
+      exit_code: t.exit_code,
+      failure_message: t.failure_message,
+      logs: t.logs,
+      error_logs: t.error_logs,
+      events: t.events,
+      dashboard_url: t.dashboard_url,
+      grafana_url: t.grafana_url,
+    })),
+  };
 }
 
 // =============================================================================
@@ -187,115 +276,14 @@ export const server = setupServer(
     return HttpResponse.json({ workflows, more_entries: moreEntries });
   }),
 
-  // Get single workflow (with path parameter)
-  http.get(`${BACKEND_URL}/api/workflow/:name`, async ({ params }) => {
+  // Get single workflow (with path parameter) - uses shared handler via createDualHandler
+  ...createDualHandler("get", "/api/workflow/:name", async ({ params }) => {
     await delay(MOCK_DELAY);
-    const name = params.name as string;
+    const name = (params as { name: string }).name;
     const workflow = workflowGenerator.getByName(name);
     if (!workflow) return new HttpResponse(null, { status: 404 });
 
-    const groups = workflow.groups.map((g) => ({
-      name: g.name,
-      status: g.status,
-      start_time: g.tasks[0]?.start_time,
-      end_time: g.tasks[g.tasks.length - 1]?.end_time,
-      remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
-      downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
-      failure_message: g.failure_message,
-      tasks: g.tasks.map((t) => ({
-        name: t.name,
-        retry_id: t.retry_id,
-        status: t.status,
-        lead: t.lead,
-        task_uuid: t.task_uuid,
-        pod_name: t.pod_name,
-        pod_ip: t.pod_ip,
-        node_name: t.node_name,
-        scheduling_start_time: t.scheduling_start_time,
-        initializing_start_time: t.initializing_start_time,
-        input_download_start_time: t.input_download_start_time,
-        input_download_end_time: t.input_download_end_time,
-        processing_start_time: t.processing_start_time,
-        start_time: t.start_time,
-        output_upload_start_time: t.output_upload_start_time,
-        end_time: t.end_time,
-        exit_code: t.exit_code,
-        failure_message: t.failure_message,
-        logs: t.logs,
-        error_logs: t.error_logs,
-        events: t.events,
-        dashboard_url: t.dashboard_url,
-        grafana_url: t.grafana_url,
-      })),
-    }));
-
-    return HttpResponse.json({
-      name: workflow.name,
-      uuid: workflow.uuid,
-      submitted_by: workflow.submitted_by,
-      cancelled_by: workflow.cancelled_by,
-      spec: workflow.spec_url,
-      template_spec: workflow.spec_url,
-      logs: workflow.logs_url,
-      events: workflow.events_url,
-      overview: `${workflow.groups.length} groups, ${workflow.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
-      dashboard_url: `https://dashboard.example.com/workflow/${workflow.name}`,
-      grafana_url: `https://grafana.example.com/d/workflow/${workflow.name}`,
-      tags: workflow.tags,
-      submit_time: workflow.submit_time,
-      start_time: workflow.start_time,
-      end_time: workflow.end_time,
-      duration: workflow.duration,
-      queued_time: workflow.queued_time,
-      status: workflow.status,
-      groups,
-      pool: workflow.pool,
-      backend: workflow.backend,
-      plugins: {},
-      priority: workflow.priority,
-    });
-  }),
-  // Also match relative path
-  http.get("/api/workflow/:name", async ({ params }) => {
-    await delay(MOCK_DELAY);
-    const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-    if (!workflow) return new HttpResponse(null, { status: 404 });
-
-    const groups = workflow.groups.map((g) => ({
-      name: g.name,
-      status: g.status,
-      start_time: g.tasks[0]?.start_time,
-      end_time: g.tasks[g.tasks.length - 1]?.end_time,
-      remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
-      downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
-      failure_message: g.failure_message,
-      tasks: g.tasks.map((t) => ({
-        name: t.name,
-        retry_id: t.retry_id,
-        status: t.status,
-        lead: t.lead,
-        task_uuid: t.task_uuid,
-        pod_name: t.pod_name,
-        pod_ip: t.pod_ip,
-        node_name: t.node_name,
-        scheduling_start_time: t.scheduling_start_time,
-        initializing_start_time: t.initializing_start_time,
-        input_download_start_time: t.input_download_start_time,
-        input_download_end_time: t.input_download_end_time,
-        processing_start_time: t.processing_start_time,
-        start_time: t.start_time,
-        output_upload_start_time: t.output_upload_start_time,
-        end_time: t.end_time,
-        exit_code: t.exit_code,
-        failure_message: t.failure_message,
-        logs: t.logs,
-        error_logs: t.error_logs,
-        events: t.events,
-        dashboard_url: t.dashboard_url,
-        grafana_url: t.grafana_url,
-      })),
-    }));
+    const groups = workflow.groups.map(transformGroupForResponse);
 
     return HttpResponse.json({
       name: workflow.name,

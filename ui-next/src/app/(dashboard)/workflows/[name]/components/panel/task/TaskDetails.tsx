@@ -28,7 +28,19 @@
 "use client";
 
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
-import { FileText, Terminal, AlertCircle, XCircle, History, Info, BarChart3, Activity } from "lucide-react";
+import {
+  FileText,
+  Terminal,
+  AlertCircle,
+  XCircle,
+  History,
+  Info,
+  BarChart3,
+  Activity,
+  Clock,
+  Loader2,
+  CheckCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import {
@@ -52,6 +64,7 @@ import { DependencyPills } from "../shared/DependencyPills";
 import { useShellPortal, useShellContext } from "../../shell";
 import { useShellSession, StatusDot } from "@/components/shell";
 import type { TaskDetailsProps, SiblingTask, BreadcrumbSegment } from "../../../lib/panel-types";
+import { TaskGroupStatus } from "@/lib/api/generated";
 
 // ============================================================================
 // Overview Tab Content
@@ -84,6 +97,123 @@ const getTaskLinks = (task: TaskDetailsProps["task"]) => {
     },
   ];
 };
+
+// ============================================================================
+// Shell Status Prompt (for non-running states)
+// ============================================================================
+
+interface ShellStatusPromptProps {
+  status: string;
+  category: "waiting" | "pending" | "running" | "completed" | "failed";
+}
+
+/**
+ * Shows contextual messages for the shell tab when the task is not in RUNNING state.
+ * This helps users understand why shell access is not available and what to expect.
+ */
+const ShellStatusPrompt = memo(function ShellStatusPrompt({ status, category }: ShellStatusPromptProps) {
+  // Determine message based on status category and specific status
+  const isInitializing = status === TaskGroupStatus.INITIALIZING;
+
+  if (category === "waiting") {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
+          <Clock className="size-6 text-gray-400 dark:text-zinc-500" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Waiting to Start</h3>
+          <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+            Shell will be available once the container is running
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-zinc-500">
+          <span className="inline-block size-1.5 animate-pulse rounded-full bg-gray-400 dark:bg-zinc-500" />
+          <span>{getStatusLabel(status)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Pending category: PROCESSING, SCHEDULING, INITIALIZING (pre-running states)
+  if (category === "pending") {
+    // Special case for INITIALIZING - container is starting up
+    if (isInitializing) {
+      return (
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex size-12 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/50">
+            <Loader2 className="size-6 animate-spin text-amber-500 dark:text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Container Initializing</h3>
+            <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+              Shell will be available shortly once initialization completes
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-amber-500 dark:text-amber-400">
+            <span className="inline-block size-1.5 animate-pulse rounded-full bg-amber-500" />
+            <span>Initializing...</span>
+          </div>
+        </div>
+      );
+    }
+
+    // PROCESSING or SCHEDULING - not yet on a node
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/50">
+          <Loader2 className="size-6 animate-spin text-amber-500 dark:text-amber-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Starting Up</h3>
+          <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+            Shell will be available once the container is running
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-amber-500 dark:text-amber-400">
+          <span className="inline-block size-1.5 animate-pulse rounded-full bg-amber-500" />
+          <span>{getStatusLabel(status)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (category === "completed") {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/50">
+          <CheckCircle className="size-6 text-emerald-500 dark:text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Task Completed</h3>
+          <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+            Shell is no longer available after task completion
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (category === "failed") {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-950/50">
+          <XCircle className="size-6 text-red-500 dark:text-red-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Task Failed</h3>
+          <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
+            Shell is no longer available after task failure
+          </p>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-zinc-500">Check logs for error details</p>
+      </div>
+    );
+  }
+
+  // Fallback (shouldn't happen)
+  return null;
+});
 
 const OverviewTab = memo(function OverviewTab({ task }: OverviewTabProps) {
   const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
@@ -175,30 +305,21 @@ export const TaskDetails = memo(function TaskDetails({
 }: TaskDetailsInternalProps) {
   const category = getStatusCategory(task.status);
   const style = getStatusStyle(task.status);
-  const isRunning = category === "running";
 
-  // Shell is only available for running tasks with a workflow name
-  const isShellAvailable = isRunning && !!workflowName;
+  // Shell connection is only allowed for tasks in exact RUNNING status (not INITIALIZING)
+  const canConnectShell = task.status === TaskGroupStatus.RUNNING && !!workflowName;
 
-  // Tab state - use URL-synced state if provided, otherwise default to "overview"
-  // Fallback to overview if shell tab is selected but shell is not available
-  const activeTab = selectedTabProp === "shell" && !isShellAvailable ? "overview" : (selectedTabProp ?? "overview");
+  // Shell tab is always shown (with contextual messages for non-running states)
+  const activeTab = selectedTabProp ?? "overview";
 
-  // Update URL when shell becomes unavailable while on shell tab
+  // Notify parent when shell tab becomes active/inactive (only when connectable)
   useEffect(() => {
-    if (selectedTabProp === "shell" && !isShellAvailable) {
-      setSelectedTabProp?.("overview");
-    }
-  }, [selectedTabProp, isShellAvailable, setSelectedTabProp]);
-
-  // Notify parent when shell tab becomes active/inactive
-  useEffect(() => {
-    if (activeTab === "shell" && isShellAvailable) {
+    if (activeTab === "shell" && canConnectShell) {
       onShellTabChange?.(task.name);
     } else {
       onShellTabChange?.(null);
     }
-  }, [activeTab, isShellAvailable, task.name, onShellTabChange]);
+  }, [activeTab, canConnectShell, task.name, onShellTabChange]);
 
   // Clean up when component unmounts (navigating away)
   useEffect(() => {
@@ -221,16 +342,16 @@ export const TaskDetails = memo(function TaskDetails({
   // Handle clicking Connect in the shell tab (with shell selection)
   const handleConnectShell = useCallback(
     (shell: string) => {
-      if (workflowName && task.task_uuid) {
+      if (workflowName && task.task_uuid && canConnectShell) {
         connectShell(task.task_uuid, task.name, workflowName, shell);
       }
     },
-    [workflowName, task.task_uuid, task.name, connectShell],
+    [workflowName, task.task_uuid, task.name, connectShell, canConnectShell],
   );
 
-  // Register/unregister portal target when shell tab is active
+  // Register/unregister portal target when shell tab is active and we have a session
   useEffect(() => {
-    if (activeTab === "shell" && hasShellSession && shellTabRef.current) {
+    if (activeTab === "shell" && hasShellSession && canConnectShell && shellTabRef.current) {
       setPortalTarget(shellTabRef.current);
     } else {
       setPortalTarget(null);
@@ -239,7 +360,7 @@ export const TaskDetails = memo(function TaskDetails({
     return () => {
       setPortalTarget(null);
     };
-  }, [activeTab, hasShellSession, setPortalTarget]);
+  }, [activeTab, hasShellSession, canConnectShell, setPortalTarget]);
 
   // Wrap in useMemo to avoid unstable reference when group.tasks is falsy
   const tasks = useMemo(() => group.tasks || [], [group.tasks]);
@@ -360,21 +481,19 @@ export const TaskDetails = memo(function TaskDetails({
     [setSelectedTabProp],
   );
 
-  // Build tabs array dynamically based on whether shell is available
+  // Build tabs array - shell tab is always shown with contextual content
   const availableTabs: PanelTab[] = useMemo(() => {
-    const tabs: PanelTab[] = [{ id: "overview", label: "Overview", icon: Info }];
+    // Shell status indicator: show StatusDot when connected, nothing otherwise
+    const shellStatusContent =
+      shellSession && shellSession.status !== "idle" ? <StatusDot status={shellSession.status} /> : undefined;
 
-    if (isShellAvailable) {
-      // Shell status: idle shows no indicator, other statuses show StatusDot
-      const statusContent =
-        shellSession && shellSession.status !== "idle" ? <StatusDot status={shellSession.status} /> : undefined;
-      tabs.push({ id: "shell", label: "Shell", icon: Terminal, statusContent });
-    }
-
-    tabs.push({ id: "logs", label: "Logs", icon: FileText }, { id: "events", label: "Events", icon: History });
-
-    return tabs;
-  }, [isShellAvailable, shellSession]);
+    return [
+      { id: "overview", label: "Overview", icon: Info },
+      { id: "shell", label: "Shell", icon: Terminal, statusContent: shellStatusContent },
+      { id: "logs", label: "Logs", icon: FileText },
+      { id: "events", label: "Events", icon: History },
+    ];
+  }, [shellSession]);
 
   return (
     <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
@@ -411,22 +530,29 @@ export const TaskDetails = memo(function TaskDetails({
           <OverviewTab task={task} />
         </TabPanel>
 
-        {/* Shell tab - shows connect prompt OR ShellContainer renders via portal */}
-        {isShellAvailable && (
-          <div
-            ref={shellTabRef}
-            className={cn("absolute inset-0", activeTab !== "shell" && "invisible")}
-            aria-label={`Shell for ${task.name}`}
-          >
-            {/* Show connect prompt when no session exists */}
-            {!hasShellSession && (
-              <div className="flex h-full items-center justify-center p-4">
-                <ShellConnectPrompt onConnect={handleConnectShell} />
-              </div>
-            )}
-            {/* When session exists, ShellContainer portals into this container */}
-          </div>
-        )}
+        {/* Shell tab - always shown with contextual content based on task status */}
+        <div
+          ref={shellTabRef}
+          className={cn("absolute inset-0", activeTab !== "shell" && "invisible")}
+          aria-label={`Shell for ${task.name}`}
+        >
+          {/* When task is RUNNING and no session exists, show connect prompt */}
+          {canConnectShell && !hasShellSession && (
+            <div className="flex h-full items-center justify-center p-4">
+              <ShellConnectPrompt onConnect={handleConnectShell} />
+            </div>
+          )}
+          {/* When task is not RUNNING (or not connectable), show status message */}
+          {!canConnectShell && (
+            <div className="flex h-full items-center justify-center p-4">
+              <ShellStatusPrompt
+                status={task.status}
+                category={category}
+              />
+            </div>
+          )}
+          {/* When session exists and task is running, ShellContainer portals into this container */}
+        </div>
 
         <TabPanel
           tab="logs"

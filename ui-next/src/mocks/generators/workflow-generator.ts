@@ -90,13 +90,15 @@ export interface MockTask {
   pod_ip?: string;
   node_name?: string;
 
-  // Timeline timestamps
+  // Timeline timestamps (canonical order - linear timeline, no phases can be skipped)
+  // Phase: 1. Processing → 2. Scheduling → 3. Initializing → 4. Running (start_time)
+  //        Then during RUNNING: Input Download → [Execute] → Output Upload → end_time
+  processing_start_time?: string;
   scheduling_start_time?: string;
   initializing_start_time?: string;
+  start_time?: string;
   input_download_start_time?: string;
   input_download_end_time?: string;
-  processing_start_time?: string;
-  start_time?: string;
   output_upload_start_time?: string;
   end_time?: string;
 
@@ -273,6 +275,9 @@ export class WorkflowGenerator {
    * 2. COMPLETED workflow → all groups COMPLETED, all tasks COMPLETED
    * 3. PENDING workflow → all groups WAITING
    * 4. FAILED workflow → at least 1 FAILED group
+   *
+   * CRITICAL: When changing task status, we MUST also update timestamps.
+   * This uses updateTaskStatus() which regenerates timestamps for the new status.
    */
   private enforceInvariants(workflow: MockWorkflow): void {
     if (workflow.groups.length === 0) return;
@@ -292,22 +297,21 @@ export class WorkflowGenerator {
             });
 
           if (allUpstreamComplete && group.status !== TaskGroupStatus.COMPLETED) {
-            group.status = TaskGroupStatus.RUNNING;
-            // Ensure at least one task is RUNNING
-            if (group.tasks.length > 0) {
-              group.tasks[0].status = TaskGroupStatus.RUNNING;
-            }
+            // Use updateGroupStatus - single entry point for group status changes
+            this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
             break;
           }
         }
       }
 
       // INVARIANT: RUNNING groups MUST have at least one RUNNING task
+      // (handled by updateGroupStatus via deriveTaskStatusFromGroup)
       for (const group of workflow.groups) {
         if (group.status === TaskGroupStatus.RUNNING) {
           const hasRunningTask = group.tasks.some((t) => t.status === TaskGroupStatus.RUNNING);
           if (!hasRunningTask && group.tasks.length > 0) {
-            group.tasks[0].status = TaskGroupStatus.RUNNING;
+            // Re-apply group status to fix task states
+            this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
           }
         }
       }
@@ -317,10 +321,10 @@ export class WorkflowGenerator {
         g.tasks.every((t) => t.status === TaskGroupStatus.COMPLETED),
       );
       if (allTasksCompleted) {
-        // Find the first RUNNING group and set its first task to RUNNING
+        // Find the first RUNNING group and re-apply its status
         const runningGroup = workflow.groups.find((g) => g.status === TaskGroupStatus.RUNNING);
-        if (runningGroup && runningGroup.tasks.length > 0) {
-          runningGroup.tasks[0].status = TaskGroupStatus.RUNNING;
+        if (runningGroup) {
+          this.updateGroupStatus(runningGroup, TaskGroupStatus.RUNNING);
         }
       }
     }
@@ -328,20 +332,14 @@ export class WorkflowGenerator {
     if (workflow.status === WorkflowStatus.COMPLETED) {
       // INVARIANT: All groups and tasks must be COMPLETED
       for (const group of workflow.groups) {
-        group.status = TaskGroupStatus.COMPLETED;
-        for (const task of group.tasks) {
-          task.status = TaskGroupStatus.COMPLETED;
-        }
+        this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
       }
     }
 
     if (workflow.status === WorkflowStatus.PENDING) {
       // INVARIANT: All groups must be WAITING
       for (const group of workflow.groups) {
-        group.status = TaskGroupStatus.WAITING;
-        for (const task of group.tasks) {
-          task.status = TaskGroupStatus.WAITING;
-        }
+        this.updateGroupStatus(group, TaskGroupStatus.WAITING);
       }
     }
 
@@ -350,11 +348,89 @@ export class WorkflowGenerator {
       const hasFailedGroup = workflow.groups.some((g) => g.status.toString().startsWith("FAILED"));
       if (!hasFailedGroup && workflow.groups.length > 0) {
         const failureStatus = this.mapWorkflowFailureToTaskFailure(workflow.status);
-        workflow.groups[0].status = failureStatus;
-        if (workflow.groups[0].tasks.length > 0) {
-          workflow.groups[0].tasks[0].status = failureStatus;
-        }
+        this.updateGroupStatus(workflow.groups[0], failureStatus);
       }
+    }
+  }
+
+  /**
+   * Update a task's status AND regenerate its timestamps to match.
+   *
+   * This is the SINGLE SOURCE OF TRUTH for task state transitions.
+   * NEVER update task.status directly - always use this method!
+   *
+   * Timeline state machine (canonical order):
+   * | Status        | proc | sched | init | start | inp_dl | out_up | end |
+   * |---------------|------|-------|------|-------|--------|--------|-----|
+   * | WAITING       | ✗    | ✗     | ✗    | ✗     | ✗      | ✗      | ✗   |
+   * | PROCESSING    | ✓    | ✗     | ✗    | ✗     | ✗      | ✗      | ✗   |
+   * | SCHEDULING    | ✓    | ✓     | ✗    | ✗     | ✗      | ✗      | ✗   |
+   * | INITIALIZING  | ✓    | ✓     | ✓    | ✗     | ✗      | ✗      | ✗   |
+   * | RUNNING       | ✓    | ✓     | ✓    | ✓     | ✓      | ✗      | ✗   |
+   * | COMPLETED     | ✓    | ✓     | ✓    | ✓     | ✓      | ✓      | ✓   |
+   * | FAILED_*      | ✓    | ✓     | ✓    | ✓     | ✓      | ✗      | ✓   |
+   */
+  private updateTaskStatus(task: MockTask, newStatus: TaskGroupStatus): void {
+    task.status = newStatus;
+
+    // Regenerate timestamps based on the new status
+    const timestamps = this.generateTaskTimestamps(newStatus, task.pod_name, task.task_uuid);
+
+    // Apply all timestamp fields
+    task.processing_start_time = timestamps.processing_start_time;
+    task.scheduling_start_time = timestamps.scheduling_start_time;
+    task.initializing_start_time = timestamps.initializing_start_time;
+    task.start_time = timestamps.start_time;
+    task.input_download_start_time = timestamps.input_download_start_time;
+    task.input_download_end_time = timestamps.input_download_end_time;
+    task.output_upload_start_time = timestamps.output_upload_start_time;
+    task.end_time = timestamps.end_time;
+
+    // Also update related fields
+    task.pod_ip = timestamps.pod_ip;
+    task.node_name = timestamps.node_name;
+    task.dashboard_url = timestamps.dashboard_url;
+    task.grafana_url = timestamps.grafana_url;
+    task.exit_code = timestamps.exit_code;
+    task.failure_message = timestamps.failure_message;
+  }
+
+  /**
+   * Update a group's status AND update all its tasks to match.
+   *
+   * This is the SINGLE SOURCE OF TRUTH for group state transitions.
+   * NEVER update group.status directly - always use this method!
+   *
+   * Works in both phases:
+   * - Phase 2 (before tasks exist): Just sets status + failure_message
+   * - Phase 3+ (after tasks exist): Also updates all task statuses/timestamps
+   *
+   * Group → Task status rules:
+   * | Group Status    | Task Status Rules                              |
+   * |-----------------|------------------------------------------------|
+   * | WAITING         | All tasks: WAITING                             |
+   * | SCHEDULING      | All tasks: SCHEDULING                          |
+   * | INITIALIZING    | Lead: INITIALIZING, others: SCHEDULING/INIT    |
+   * | RUNNING         | Lead: RUNNING, others: RUNNING/INIT            |
+   * | COMPLETED       | All tasks: COMPLETED                           |
+   * | FAILED_UPSTREAM | All tasks: FAILED_UPSTREAM                     |
+   * | FAILED_*        | Lead: specific failure, others: FAILED         |
+   */
+  private updateGroupStatus(group: MockGroup, newStatus: TaskGroupStatus): void {
+    group.status = newStatus;
+
+    // Set failure message if failed
+    if (newStatus.toString().startsWith("FAILED") && !group.failure_message) {
+      group.failure_message = this.generateFailureMessage(newStatus);
+    } else if (!newStatus.toString().startsWith("FAILED")) {
+      group.failure_message = undefined;
+    }
+
+    // Update all tasks to be consistent with the new group status
+    // (skips if no tasks exist yet - Phase 2)
+    for (let i = 0; i < group.tasks.length; i++) {
+      const taskStatus = this.deriveTaskStatusFromGroup(newStatus, i, group.tasks.length);
+      this.updateTaskStatus(group.tasks[i], taskStatus);
     }
   }
 
@@ -958,14 +1034,20 @@ export class WorkflowGenerator {
   /**
    * Generate task timestamps based on status (state machine)
    *
-   * | Status        | Has scheduling | Has init | Has start | Has end | Has node |
-   * |---------------|----------------|----------|-----------|---------|----------|
-   * | WAITING       | ✗              | ✗        | ✗         | ✗       | ✗        |
-   * | SCHEDULING    | ✓              | ✗        | ✗         | ✗       | ✗        |
-   * | INITIALIZING  | ✓              | ✓        | ✗         | ✗       | ✓        |
-   * | RUNNING       | ✓              | ✓        | ✓         | ✗       | ✓        |
-   * | COMPLETED     | ✓              | ✓        | ✓         | ✓       | ✓        |
-   * | FAILED_*      | ✓              | ✓        | ✓         | ✓       | ✓        |
+   * Canonical order from backend:
+   *   WAITING → PROCESSING → SCHEDULING → INITIALIZING → RUNNING → COMPLETED/FAILED
+   *
+   * | Status        | Has proc | Has sched | Has init | Has start | Has end | Has node |
+   * |---------------|----------|-----------|----------|-----------|---------|----------|
+   * | WAITING       | ✗        | ✗         | ✗        | ✗         | ✗       | ✗        |
+   * | PROCESSING    | ✓        | ✗         | ✗        | ✗         | ✗       | ✗        |
+   * | SCHEDULING    | ✓        | ✓         | ✗        | ✗         | ✗       | ✗        |
+   * | INITIALIZING  | ✓        | ✓         | ✓        | ✗         | ✗       | ✓        |
+   * | RUNNING       | ✓        | ✓         | ✓        | ✓         | ✗       | ✓        |
+   * | COMPLETED     | ✓        | ✓         | ✓        | ✓         | ✓       | ✓        |
+   * | FAILED_*      | ✓        | ✓         | ✓        | ✓         | ✓       | ✓        |
+   *
+   * During RUNNING: input_download_start → input_download_end → [execute] → output_upload_start → end
    */
   private generateTaskTimestamps(status: TaskGroupStatus, podName: string, taskUuid: string): Partial<MockTask> {
     const baseTime = faker.date.recent({ days: 7 });
@@ -973,12 +1055,12 @@ export class WorkflowGenerator {
     // WAITING/SUBMITTING: no timestamps
     if (status === TaskGroupStatus.WAITING || status === TaskGroupStatus.SUBMITTING) {
       return {
+        processing_start_time: undefined,
         scheduling_start_time: undefined,
         initializing_start_time: undefined,
+        start_time: undefined,
         input_download_start_time: undefined,
         input_download_end_time: undefined,
-        processing_start_time: undefined,
-        start_time: undefined,
         output_upload_start_time: undefined,
         end_time: undefined,
         pod_ip: undefined,
@@ -990,15 +1072,35 @@ export class WorkflowGenerator {
       };
     }
 
-    // SCHEDULING: only scheduling time
+    // PROCESSING: only processing time (queue processing - first step)
+    if (status === TaskGroupStatus.PROCESSING) {
+      return {
+        processing_start_time: new Date(baseTime.getTime() - 30000).toISOString(),
+        scheduling_start_time: undefined,
+        initializing_start_time: undefined,
+        start_time: undefined,
+        input_download_start_time: undefined,
+        input_download_end_time: undefined,
+        output_upload_start_time: undefined,
+        end_time: undefined,
+        pod_ip: undefined,
+        node_name: undefined,
+        dashboard_url: undefined,
+        grafana_url: undefined,
+        exit_code: undefined,
+        failure_message: undefined,
+      };
+    }
+
+    // SCHEDULING: processing + scheduling time
     if (status === TaskGroupStatus.SCHEDULING) {
       return {
+        processing_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
         scheduling_start_time: new Date(baseTime.getTime() - 30000).toISOString(),
         initializing_start_time: undefined,
+        start_time: undefined,
         input_download_start_time: undefined,
         input_download_end_time: undefined,
-        processing_start_time: undefined,
-        start_time: undefined,
         output_upload_start_time: undefined,
         end_time: undefined,
         pod_ip: undefined,
@@ -1010,21 +1112,21 @@ export class WorkflowGenerator {
       };
     }
 
-    // Generate node info for started tasks
+    // Generate node info for tasks that have been placed (INITIALIZING+)
     const podIp = `10.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 1, max: 254 })}`;
     const nodeName = this.generateNodeName();
     const dashboardUrl = `https://kubernetes.example.com/pod/${podName}`;
     const grafanaUrl = `https://grafana.example.com/d/task/${taskUuid}`;
 
-    // INITIALIZING: scheduling + init times, has node
+    // INITIALIZING: processing + scheduling + init times, has node
     if (status === TaskGroupStatus.INITIALIZING) {
       return {
-        scheduling_start_time: new Date(baseTime.getTime() - 120000).toISOString(),
-        initializing_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
+        processing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
+        scheduling_start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min
+        initializing_start_time: new Date(baseTime.getTime() - 60000).toISOString(), // -1 min
+        start_time: undefined,
         input_download_start_time: undefined,
         input_download_end_time: undefined,
-        processing_start_time: undefined,
-        start_time: undefined,
         output_upload_start_time: undefined,
         end_time: undefined,
         pod_ip: podIp,
@@ -1036,17 +1138,17 @@ export class WorkflowGenerator {
       };
     }
 
-    // RUNNING: has start_time, no end_time
+    // RUNNING: all pre-execution timestamps + start_time + input download
     if (status === TaskGroupStatus.RUNNING) {
       return {
-        scheduling_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
-        initializing_start_time: new Date(baseTime.getTime() - 120000).toISOString(),
-        input_download_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
-        input_download_end_time: new Date(baseTime.getTime() - 30000).toISOString(),
-        processing_start_time: new Date(baseTime.getTime() - 15000).toISOString(),
-        start_time: baseTime.toISOString(),
-        output_upload_start_time: undefined,
-        end_time: undefined,
+        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(), // -5 min
+        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(), // -4 min
+        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
+        start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min (RUNNING begins)
+        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(), // -1:50 (10s after start)
+        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(), // -1:30 (30s after start)
+        output_upload_start_time: undefined, // Not started yet
+        end_time: undefined, // Still running
         pod_ip: podIp,
         node_name: nodeName,
         dashboard_url: dashboardUrl,
@@ -1059,14 +1161,14 @@ export class WorkflowGenerator {
     // COMPLETED: all timestamps, exit_code 0
     if (status === TaskGroupStatus.COMPLETED) {
       return {
-        scheduling_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
-        initializing_start_time: new Date(baseTime.getTime() - 120000).toISOString(),
-        input_download_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
-        input_download_end_time: new Date(baseTime.getTime() - 30000).toISOString(),
-        processing_start_time: new Date(baseTime.getTime() - 15000).toISOString(),
-        start_time: baseTime.toISOString(),
-        output_upload_start_time: new Date(baseTime.getTime() + 3600000).toISOString(),
-        end_time: new Date(baseTime.getTime() + 3660000).toISOString(),
+        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(), // -5 min
+        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(), // -4 min
+        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
+        start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min
+        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(), // -1:50
+        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(), // -1:30
+        output_upload_start_time: new Date(baseTime.getTime() - 30000).toISOString(), // -30s (before end)
+        end_time: baseTime.toISOString(), // Now
         pod_ip: podIp,
         node_name: nodeName,
         dashboard_url: dashboardUrl,
@@ -1076,17 +1178,17 @@ export class WorkflowGenerator {
       };
     }
 
-    // FAILED_*: all timestamps, non-zero exit_code, failure message
+    // FAILED_*: all timestamps except output upload, non-zero exit_code, failure message
     if (status.toString().startsWith("FAILED")) {
       return {
-        scheduling_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
-        initializing_start_time: new Date(baseTime.getTime() - 120000).toISOString(),
-        input_download_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
-        input_download_end_time: new Date(baseTime.getTime() - 30000).toISOString(),
-        processing_start_time: new Date(baseTime.getTime() - 15000).toISOString(),
-        start_time: baseTime.toISOString(),
-        output_upload_start_time: undefined,
-        end_time: new Date(baseTime.getTime() + 60000).toISOString(),
+        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(), // -5 min
+        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(), // -4 min
+        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
+        start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min
+        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(), // -1:50
+        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(), // -1:30
+        output_upload_start_time: undefined, // Failed before output upload
+        end_time: baseTime.toISOString(), // Now
         pod_ip: podIp,
         node_name: nodeName,
         dashboard_url: dashboardUrl,
@@ -1129,7 +1231,7 @@ export class WorkflowGenerator {
     // All completed: every group is COMPLETED
     if (workflowStatus === WorkflowStatus.COMPLETED) {
       for (const group of sortedGroups) {
-        this.setGroupStatus(group, TaskGroupStatus.COMPLETED, workflowName);
+        this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
       }
       return;
     }
@@ -1137,7 +1239,7 @@ export class WorkflowGenerator {
     // Pending/Waiting: every group is WAITING
     if (workflowStatus === WorkflowStatus.PENDING || workflowStatus === WorkflowStatus.WAITING) {
       for (const group of sortedGroups) {
-        this.setGroupStatus(group, TaskGroupStatus.WAITING, workflowName);
+        this.updateGroupStatus(group, TaskGroupStatus.WAITING);
       }
       return;
     }
@@ -1158,17 +1260,17 @@ export class WorkflowGenerator {
 
         if (hasFailedUpstream) {
           // Downstream of failure: cascade failure using FAILED_UPSTREAM (matches backend behavior)
-          this.setGroupStatus(group, TaskGroupStatus.FAILED_UPSTREAM, workflowName);
+          this.updateGroupStatus(group, TaskGroupStatus.FAILED_UPSTREAM);
           group.failure_message = "Upstream task failed.";
           failedGroupNames.add(group.name);
         } else if (i === failureIndex) {
           // This is the primary failure point
-          this.setGroupStatus(group, failureStatus, workflowName);
+          this.updateGroupStatus(group, failureStatus);
           group.failure_message = this.generateFailureMessage(failureStatus);
           failedGroupNames.add(group.name);
         } else if (i < failureIndex) {
           // Before failure point: completed
-          this.setGroupStatus(group, TaskGroupStatus.COMPLETED, workflowName);
+          this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
         } else {
           // After failure point but not downstream: could be pending (not reachable)
           // In a proper DAG, everything after failure should cascade, but parallel branches might not
@@ -1181,10 +1283,10 @@ export class WorkflowGenerator {
 
           if (anyUpstreamCompleted && !hasFailedUpstream) {
             // Parallel branch that didn't get affected
-            this.setGroupStatus(group, TaskGroupStatus.COMPLETED, workflowName);
+            this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
           } else {
             // Waiting - upstream not done
-            this.setGroupStatus(group, TaskGroupStatus.WAITING, workflowName);
+            this.updateGroupStatus(group, TaskGroupStatus.WAITING);
           }
         }
       }
@@ -1206,7 +1308,7 @@ export class WorkflowGenerator {
       // Step 2: Mark the first numCompleted groups as COMPLETED
       const completedGroups = new Set<string>();
       for (let i = 0; i < numCompleted; i++) {
-        this.setGroupStatus(sortedGroups[i], TaskGroupStatus.COMPLETED, workflowName);
+        this.updateGroupStatus(sortedGroups[i], TaskGroupStatus.COMPLETED);
         completedGroups.add(sortedGroups[i].name);
       }
 
@@ -1228,7 +1330,7 @@ export class WorkflowGenerator {
       if (eligibleToRun.length === 0) {
         // Fallback: first non-completed group becomes running
         const firstNonCompleted = sortedGroups[numCompleted];
-        this.setGroupStatus(firstNonCompleted, TaskGroupStatus.RUNNING, workflowName);
+        this.updateGroupStatus(firstNonCompleted, TaskGroupStatus.RUNNING);
         eligibleToRun.push(firstNonCompleted);
       } else {
         // Pick which eligible group is the "primary" running one
@@ -1238,20 +1340,20 @@ export class WorkflowGenerator {
           const group = eligibleToRun[i];
           if (i === runningIdx) {
             // This is THE running group (guaranteed)
-            this.setGroupStatus(group, TaskGroupStatus.RUNNING, workflowName);
+            this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
           } else {
             // Other eligible groups: could be RUNNING, INITIALIZING, or SCHEDULING
             // (all are valid "active" states for a RUNNING workflow)
             const stateHash = Math.abs(this.hashString(workflowName + group.name)) % 4;
             if (stateHash === 0) {
-              this.setGroupStatus(group, TaskGroupStatus.RUNNING, workflowName);
+              this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
             } else if (stateHash === 1) {
-              this.setGroupStatus(group, TaskGroupStatus.INITIALIZING, workflowName);
+              this.updateGroupStatus(group, TaskGroupStatus.INITIALIZING);
             } else if (stateHash === 2) {
-              this.setGroupStatus(group, TaskGroupStatus.SCHEDULING, workflowName);
+              this.updateGroupStatus(group, TaskGroupStatus.SCHEDULING);
             } else {
               // 25% chance of already COMPLETED (just finished)
-              this.setGroupStatus(group, TaskGroupStatus.COMPLETED, workflowName);
+              this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
               completedGroups.add(group.name);
             }
           }
@@ -1263,7 +1365,7 @@ export class WorkflowGenerator {
         const group = sortedGroups[i];
         if (group.status === TaskGroupStatus.WAITING) {
           // Still has placeholder status - it's waiting for upstream
-          this.setGroupStatus(group, TaskGroupStatus.WAITING, workflowName);
+          this.updateGroupStatus(group, TaskGroupStatus.WAITING);
         }
       }
 
@@ -1272,22 +1374,7 @@ export class WorkflowGenerator {
 
     // Fallback: all waiting
     for (const group of sortedGroups) {
-      this.setGroupStatus(group, TaskGroupStatus.WAITING, workflowName);
-    }
-  }
-
-  /**
-   * Set group status (Phase 2 helper)
-   *
-   * Note: Tasks are populated in Phase 3 AFTER status is assigned,
-   * so we don't update tasks here - they don't exist yet!
-   */
-  private setGroupStatus(group: MockGroup, status: TaskGroupStatus, _workflowName: string): void {
-    group.status = status;
-
-    // Set failure message if failed
-    if (status.toString().startsWith("FAILED") && !group.failure_message) {
-      group.failure_message = this.generateFailureMessage(status);
+      this.updateGroupStatus(group, TaskGroupStatus.WAITING);
     }
   }
 

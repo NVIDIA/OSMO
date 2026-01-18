@@ -78,6 +78,7 @@ import type { StatusCategory } from "./status-utils";
 /** Icon configuration per category */
 const ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string }> = {
   waiting: { Icon: Clock, className: "text-gray-400 dark:text-zinc-400" },
+  pending: { Icon: Loader2, className: "text-amber-400 animate-spin motion-reduce:animate-none" },
   running: { Icon: Loader2, className: "text-blue-400 animate-spin motion-reduce:animate-none" },
   completed: { Icon: CheckCircle, className: "text-emerald-400" },
   failed: { Icon: XCircle, className: "text-red-400" },
@@ -86,6 +87,7 @@ const ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string 
 /** Compact icon configuration for tables */
 const COMPACT_ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string }> = {
   waiting: { Icon: Clock, className: "text-gray-400 dark:text-zinc-400" },
+  pending: { Icon: Loader2, className: "text-amber-500 animate-spin motion-reduce:animate-none" },
   running: { Icon: Loader2, className: "text-blue-500 animate-spin motion-reduce:animate-none" },
   completed: { Icon: Check, className: "text-emerald-500" },
   failed: { Icon: AlertCircle, className: "text-red-500" },
@@ -254,7 +256,7 @@ export function getMiniMapStrokeColor(node: { data: unknown }): string {
  * first-render allocation overhead.
  */
 function prewarmIconCache(): void {
-  const categories: StatusCategory[] = ["waiting", "running", "completed", "failed"];
+  const categories: StatusCategory[] = ["waiting", "pending", "running", "completed", "failed"];
   const sizes = ["size-3", "size-3.5", "size-4"];
 
   for (const category of categories) {

@@ -30,7 +30,7 @@ import { TaskGroupStatus, WorkflowStatus } from "./generated";
 // Types
 // =============================================================================
 
-export type StatusCategory = "waiting" | "running" | "completed" | "failed";
+export type StatusCategory = "waiting" | "pending" | "running" | "completed" | "failed";
 
 export interface TaskStatusMetadata {
   category: StatusCategory;
@@ -67,21 +67,21 @@ export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> =
     isInQueue: true,
   },
   PROCESSING: {
-    category: "waiting",
+    category: "pending",
     isTerminal: false,
     isOngoing: false,
     isFailed: false,
     isInQueue: true,
   },
   SCHEDULING: {
-    category: "waiting",
+    category: "pending",
     isTerminal: false,
     isOngoing: false,
     isFailed: false,
     isInQueue: true,
   },
   INITIALIZING: {
-    category: "running",
+    category: "pending",
     isTerminal: false,
     isOngoing: true,
     isFailed: false,

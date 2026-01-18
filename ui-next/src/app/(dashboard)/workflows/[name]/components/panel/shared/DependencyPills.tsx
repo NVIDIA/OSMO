@@ -73,6 +73,11 @@ const STATUS_PILL_STYLES = {
     icon: Clock,
     iconClass: "",
   },
+  pending: {
+    pillClass: "dependency-pill-pending",
+    icon: Clock,
+    iconClass: "",
+  },
   failed: {
     pillClass: "dependency-pill-failed",
     icon: AlertCircle,
