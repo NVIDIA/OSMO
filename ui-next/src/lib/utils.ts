@@ -268,6 +268,45 @@ export function formatBytesPair(
 // =============================================================================
 
 /**
+ * Format a react-hotkeys-hook hotkey string for display.
+ * Converts "mod+]" to "⌘]" on Mac or "Ctrl+]" on Windows/Linux.
+ *
+ * @param hotkey - Hotkey string using react-hotkeys-hook syntax
+ * @returns Formatted string for display in tooltips/UI
+ *
+ * @example
+ * ```ts
+ * formatHotkey("mod+]")       // "⌘]" on Mac, "Ctrl+]" on Windows
+ * formatHotkey("mod+shift+k") // "⌘⇧K" on Mac, "Ctrl+Shift+K" on Windows
+ * formatHotkey("escape")      // "Esc"
+ * ```
+ */
+export function formatHotkey(hotkey: string): string {
+  const parts = hotkey.toLowerCase().split("+");
+
+  const symbols = parts.map((part) => {
+    switch (part) {
+      case "mod":
+        return isMac ? "⌘" : "Ctrl+";
+      case "shift":
+        return isMac ? "⇧" : "Shift+";
+      case "alt":
+        return isMac ? "⌥" : "Alt+";
+      case "ctrl":
+        return isMac ? "⌃" : "Ctrl+";
+      case "escape":
+        return "Esc";
+      default:
+        // Uppercase single letters, keep symbols as-is
+        return part.length === 1 ? part.toUpperCase() : part;
+    }
+  });
+
+  // Join without separators (Mac uses symbols, Windows already has + in modifier names)
+  return symbols.join("");
+}
+
+/**
  * Check if a keyboard event target is an interactive element that should
  * capture keyboard input (inputs, textareas, contenteditable, dropdowns).
  *

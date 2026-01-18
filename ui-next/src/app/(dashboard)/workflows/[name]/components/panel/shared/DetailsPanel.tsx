@@ -54,7 +54,7 @@ import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, formatHotkey } from "@/lib/utils";
 import { WorkflowDetails } from "../workflow/WorkflowDetails";
 import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
@@ -83,6 +83,8 @@ interface QuickAction {
 interface WorkflowEdgeStripProps {
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** Keyboard shortcut for toggle (e.g., "mod+]") - displayed in tooltip */
+  toggleHotkey?: string;
   /** Generic quick actions to display */
   quickActions?: QuickAction[];
   currentTaskId?: string;
@@ -100,6 +102,7 @@ interface WorkflowEdgeStripProps {
 const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   isCollapsed,
   onToggleCollapsed,
+  toggleHotkey,
   quickActions,
   currentTaskId,
   onSelectSession,
@@ -183,7 +186,17 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
                 )}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left">{isCollapsed ? "Expand panel" : "Collapse panel"}</TooltipContent>
+            <TooltipContent
+              side="left"
+              className="flex items-center gap-2"
+            >
+              <span>{isCollapsed ? "Expand panel" : "Collapse panel"}</span>
+              {toggleHotkey && (
+                <kbd className="rounded border border-zinc-600 bg-zinc-700 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">
+                  {formatHotkey(toggleHotkey)}
+                </kbd>
+              )}
+            </TooltipContent>
           </Tooltip>
         )}
 
@@ -271,6 +284,7 @@ export const DetailsPanel = memo(function DetailsPanel({
   onToggleDetailsExpanded,
   isCollapsed,
   onToggleCollapsed,
+  toggleHotkey,
   onCancelWorkflow,
   fallbackContent,
   containerRef,
@@ -401,6 +415,7 @@ export const DetailsPanel = memo(function DetailsPanel({
     <WorkflowEdgeStrip
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}
+      toggleHotkey={toggleHotkey}
       quickActions={quickActions}
       currentTaskId={task?.task_uuid}
       onSelectSession={handleSelectShellSession}
@@ -416,6 +431,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       onWidthChange={onPanelResize}
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}
+      toggleHotkey={toggleHotkey}
       edgeContent={edgeContent}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}

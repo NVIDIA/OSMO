@@ -170,7 +170,7 @@ export const ShellSearch = memo(function ShellSearch({
         <Button
           variant="ghost"
           size="sm"
-          className="size-6 p-0 text-zinc-400 hover:text-zinc-200"
+          className="size-6 p-0 text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
           onClick={onFindPrevious}
           title="Previous match (Shift+Enter)"
           disabled={!query}
@@ -180,7 +180,7 @@ export const ShellSearch = memo(function ShellSearch({
         <Button
           variant="ghost"
           size="sm"
-          className="size-6 p-0 text-zinc-400 hover:text-zinc-200"
+          className="size-6 p-0 text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
           onClick={onFindNext}
           title="Next match (Enter)"
           disabled={!query}
@@ -196,7 +196,7 @@ export const ShellSearch = memo(function ShellSearch({
       <Button
         variant="ghost"
         size="sm"
-        className="size-6 p-0 text-zinc-400 hover:text-zinc-200"
+        className="size-6 p-0 text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
         onClick={onClose}
         title="Close (Escape)"
       >
