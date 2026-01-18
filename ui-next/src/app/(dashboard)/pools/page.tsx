@@ -28,36 +28,39 @@ export const metadata: Metadata = {
 };
 
 /**
- * Pools Page (Server Component)
+ * Pools Page (Streaming SSR with Server Prefetch)
  *
- * This is a Server Component that prefetches pool data during SSR.
- * The actual interactive content is rendered by PoolsPageContent (Client Component).
+ * Architecture: Hybrid streaming for optimal UX
+ * 1. Page shell + skeleton stream immediately (fast TTFB)
+ * 2. PoolsWithData suspends while prefetching on server
+ * 3. When API responds, content streams in and replaces skeleton
+ * 4. Client hydrates with data already in cache (no client fetch!)
  *
- * Architecture:
- * 1. Server Component prefetches data using fetchPools()
- * 2. Data is dehydrated and passed to HydrationBoundary
- * 3. Client Component hydrates and uses usePoolsData() which gets cached data
- * 4. TanStack Query handles background refetching after hydration
+ * Performance:
+ * - TTFB: ~100ms (shell + skeleton)
+ * - Time to content: ~API response time
+ * - Client network requests: 0 (data in hydrated cache)
  *
- * Benefits:
- * - No loading spinner on initial page load (data is pre-rendered)
- * - Faster Time to First Contentful Paint (FCP)
- * - Reduced client JavaScript for initial data fetch
- * - SEO-friendly (content is in HTML)
+ * This gives the best of both worlds:
+ * - User sees immediate feedback (skeleton)
+ * - Content streams in as soon as server has it
+ * - No client-side data fetching needed
  */
 
 import { Suspense } from "react";
-import { PoolsPageContent } from "./pools-page-content";
 import { PoolsPageSkeleton } from "./pools-page-skeleton";
+import { PoolsWithData } from "./pools-with-data";
 
 // =============================================================================
-// Streaming SSR - Fast TTFB + Progressive Content
+// Streaming SSR - Fast TTFB + Server Prefetch
 // =============================================================================
 
 export default function PoolsPage() {
+  // No await - returns immediately with skeleton
+  // PoolsWithData suspends and streams when data is ready
   return (
     <Suspense fallback={<PoolsPageSkeleton />}>
-      <PoolsPageContent />
+      <PoolsWithData />
     </Suspense>
   );
 }
