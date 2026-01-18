@@ -11,36 +11,21 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface PanelTab {
   id: string;
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
-  /** Optional status content (e.g., StatusDot component) - caller provides the UI */
   statusContent?: React.ReactNode;
 }
 
 export interface PanelTabsProps {
-  /** Array of tab definitions */
   tabs: PanelTab[];
-  /** Currently active tab id */
   value: string;
-  /** Callback when tab changes */
   onValueChange: (value: string) => void;
-  /** Force icon-only mode (overrides auto-detection) */
   iconOnly?: boolean;
-  /** Breakpoint in pixels below which to show icons only (default: 280) */
   compactBreakpoint?: number;
-  /** Additional className for the container */
   className?: string;
 }
-
-// =============================================================================
-// Styles (injected once)
-// =============================================================================
 
 let stylesInjected = false;
 
@@ -128,10 +113,6 @@ function injectStyles() {
   `;
   document.head.appendChild(style);
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export function PanelTabs({
   tabs,

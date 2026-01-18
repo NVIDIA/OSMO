@@ -14,18 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflow-Level Status Constants
- *
- * Single source of truth for WorkflowStatus (workflow-level status for the list view).
- * Used by the workflows list (`/workflows`).
- *
- * Note: Task/group-level status utilities (TaskGroupStatus for the detail view) are in
- * `./[name]/lib/status.tsx`. These are separate because:
- * 1. They operate on different API types (WorkflowStatus vs TaskGroupStatus)
- * 2. They have different status values and mappings
- * 3. The detail view needs extra fields (color, strokeColor) for ReactFlow rendering
- */
+// Workflow-level status constants for list view.
+// Task/group status is in ./[name]/lib/status.tsx (different API types and ReactFlow needs)
 
 import { WorkflowStatus, WorkflowPriority, type WorkflowStatus as WorkflowStatusType } from "@/lib/api/generated";
 import {
@@ -33,24 +23,13 @@ import {
   type StatusCategory as GeneratedStatusCategory,
 } from "@/lib/api/status-metadata.generated";
 
-// =============================================================================
-// Status Categories - DERIVED FROM GENERATED METADATA
-// =============================================================================
-
 export type StatusCategory = GeneratedStatusCategory | "unknown";
 
-/**
- * Map workflow status to display category.
- * DERIVED FROM WORKFLOW_STATUS_METADATA - stays in sync with backend automatically.
- */
+// Derived from WORKFLOW_STATUS_METADATA - stays in sync with backend
 export const STATUS_CATEGORY_MAP: Record<WorkflowStatusType, StatusCategory> = Object.fromEntries(
   Object.entries(WORKFLOW_STATUS_METADATA).map(([status, meta]) => [status, meta.category]),
 ) as Record<WorkflowStatusType, StatusCategory>;
 
-/**
- * Human-readable labels for workflow statuses.
- * Uses generated WorkflowStatus enum values for type safety.
- */
 export const STATUS_LABELS: Record<WorkflowStatusType, string> = {
   [WorkflowStatus.PENDING]: "Pending",
   [WorkflowStatus.WAITING]: "Waiting",
@@ -70,10 +49,6 @@ export const STATUS_LABELS: Record<WorkflowStatusType, string> = {
   [WorkflowStatus.FAILED_PREEMPTED]: "Failed: Preempted",
 };
 
-/**
- * Get status display info (category and label).
- * Falls back to "Unknown" category for unrecognized statuses.
- */
 export function getStatusDisplay(status: WorkflowStatusType): { category: StatusCategory; label: string } {
   return {
     category: STATUS_CATEGORY_MAP[status] ?? "unknown",
@@ -81,14 +56,6 @@ export function getStatusDisplay(status: WorkflowStatusType): { category: Status
   };
 }
 
-// =============================================================================
-// Status Styling
-// =============================================================================
-
-/**
- * Status category styling for badges and UI elements.
- * Uses Tailwind classes for light/dark mode support.
- */
 export const STATUS_STYLES: Record<
   StatusCategory,
   {
@@ -143,20 +110,10 @@ export const STATUS_STYLES: Record<
   },
 };
 
-// =============================================================================
-// Priority Styling
-// =============================================================================
-
-/**
- * Priority type - derived from generated WorkflowPriority enum.
- * Using the generated type ensures type safety with backend.
- */
 export type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
 
-/** Valid priorities set derived from generated enum for O(1) lookup */
 const VALID_PRIORITIES: ReadonlySet<string> = new Set(Object.values(WorkflowPriority));
 
-/** Type guard for Priority */
 function isPriority(value: string): value is Priority {
   return VALID_PRIORITIES.has(value);
 }
@@ -194,19 +151,11 @@ export function getPriorityDisplay(priority: string): { label: string; bg: strin
   return PRIORITY_STYLES[WorkflowPriority.NORMAL];
 }
 
-// =============================================================================
-// Status Fuzzy Search Index (Fully Static - Zero Runtime Computation)
-// =============================================================================
-
-/**
- * All valid workflow statuses derived from generated enum.
- * This ensures the list stays in sync with backend automatically.
- */
+// Static fuzzy search index - all derived from generated enum
 export const ALL_WORKFLOW_STATUSES: readonly WorkflowStatusType[] = Object.values(
   WorkflowStatus,
 ) as WorkflowStatusType[];
 
-/** Static lookup: lowercase label → canonical status (using generated enum values) */
 const LABEL_TO_STATUS: Readonly<Record<string, WorkflowStatusType>> = {
   pending: WorkflowStatus.PENDING,
   waiting: WorkflowStatus.WAITING,
@@ -226,7 +175,6 @@ const LABEL_TO_STATUS: Readonly<Record<string, WorkflowStatusType>> = {
   "failed: preempted": WorkflowStatus.FAILED_PREEMPTED,
 };
 
-/** Static lookup: token → statuses containing that token (using generated enum values) */
 const TOKEN_TO_STATUSES: Readonly<Record<string, readonly WorkflowStatusType[]>> = {
   pending: [WorkflowStatus.PENDING],
   waiting: [WorkflowStatus.WAITING],
@@ -265,7 +213,6 @@ const TOKEN_TO_STATUSES: Readonly<Record<string, readonly WorkflowStatusType[]>>
   preempted: [WorkflowStatus.FAILED_PREEMPTED],
 };
 
-/** Static lookup: status → its tokens (for scoring). Uses generated enum values. */
 const STATUS_TOKENS: Readonly<Record<WorkflowStatusType, readonly string[]>> = {
   [WorkflowStatus.PENDING]: ["pending"],
   [WorkflowStatus.WAITING]: ["waiting"],
@@ -285,12 +232,8 @@ const STATUS_TOKENS: Readonly<Record<WorkflowStatusType, readonly string[]>> = {
   [WorkflowStatus.FAILED_PREEMPTED]: ["failed", "preempted"],
 };
 
-/** Valid status set for O(1) exact match lookup */
 const VALID_STATUSES: ReadonlySet<string> = new Set(ALL_WORKFLOW_STATUSES);
 
-/**
- * Tokenize input string into lowercase words (only function with runtime logic).
- */
 function tokenize(str: string): string[] {
   return str
     .toLowerCase()
@@ -298,69 +241,45 @@ function tokenize(str: string): string[] {
     .filter((t) => t.length > 0);
 }
 
-/**
- * Result of a status match attempt.
- */
 export interface StatusMatchResult {
-  /** The canonical status if matched, null if no match */
   status: WorkflowStatusType | null;
-  /** Confidence score: 1.0 = exact/full match, 0-1 = partial */
   confidence: number;
-  /** All statuses that partially match (for suggestions) */
   candidates: WorkflowStatusType[];
 }
 
-/**
- * Match user input to a workflow status.
- * Uses static lookup tables - zero runtime index building.
- *
- * - Exact: "FAILED_IMAGE_PULL" → FAILED_IMAGE_PULL (confidence: 1.0)
- * - Label: "failed: image pull" → FAILED_IMAGE_PULL (confidence: 1.0)
- * - Natural: "failed image pull" → FAILED_IMAGE_PULL (confidence: 1.0)
- * - Partial: "image" → candidates: [FAILED_IMAGE_PULL] (confidence: 0.33)
- *
- * @param input - User's search input
- * @returns Match result with status, confidence, and candidates
- */
 export function matchStatus(input: string): StatusMatchResult {
   const trimmed = input.trim();
   if (!trimmed) {
     return { status: null, confidence: 0, candidates: [] };
   }
 
-  // 1. Exact match (fastest path) - O(1) Set lookup
   const exactUpper = trimmed.toUpperCase();
   if (VALID_STATUSES.has(exactUpper)) {
     const status = exactUpper as WorkflowStatusType;
     return { status, confidence: 1.0, candidates: [status] };
   }
 
-  // 2. Label match (e.g., "Failed: Image Pull") - O(1) object lookup
   const labelMatch = LABEL_TO_STATUS[trimmed.toLowerCase()];
   if (labelMatch) {
     return { status: labelMatch, confidence: 1.0, candidates: [labelMatch] };
   }
 
-  // 3. Token-based matching - O(tokens)
   const inputTokens = tokenize(trimmed);
   if (inputTokens.length === 0) {
     return { status: null, confidence: 0, candidates: [] };
   }
 
-  // Find statuses that contain ALL input tokens (intersection)
   let candidates: WorkflowStatusType[] | null = null;
 
   for (const token of inputTokens) {
     const matching = TOKEN_TO_STATUSES[token];
     if (!matching || matching.length === 0) {
-      // Token not found in any status - no matches
       return { status: null, confidence: 0, candidates: [] };
     }
 
     if (candidates === null) {
       candidates = [...matching];
     } else {
-      // Intersect: keep only statuses that have ALL tokens
       candidates = candidates.filter((s) => matching.includes(s));
     }
 
@@ -371,8 +290,6 @@ export function matchStatus(input: string): StatusMatchResult {
 
   const candidateArray = candidates ?? [];
 
-  // Calculate confidence based on token coverage
-  // If user typed all tokens of a status, confidence = 1.0
   if (candidateArray.length === 1) {
     const statusTokens = STATUS_TOKENS[candidateArray[0]];
     const coverage = inputTokens.length / statusTokens.length;
@@ -384,7 +301,6 @@ export function matchStatus(input: string): StatusMatchResult {
     };
   }
 
-  // Multiple candidates - find best match by token coverage
   let bestStatus: WorkflowStatusType | null = null;
   let bestConfidence = 0;
 
@@ -404,19 +320,9 @@ export function matchStatus(input: string): StatusMatchResult {
   };
 }
 
-/**
- * Get autocomplete suggestions for a status input.
- * Returns statuses that match the input tokens, sorted by relevance.
- *
- * @param input - Partial user input (e.g., "image" or "failed im")
- * @param limit - Maximum suggestions to return
- * @returns Array of matching statuses, best matches first
- */
 export function getStatusSuggestions(input: string, limit = 10): WorkflowStatusType[] {
   const result = matchStatus(input);
 
-  // Sort candidates: higher confidence (more tokens matched) first
-  // Then alphabetically for stability
   const inputTokens = tokenize(input);
   return result.candidates
     .map((status) => {
@@ -429,18 +335,9 @@ export function getStatusSuggestions(input: string, limit = 10): WorkflowStatusT
     .map((s) => s.status);
 }
 
-/**
- * Check if Tab should autocomplete (high confidence single match).
- *
- * @param input - Current user input
- * @returns The status to autocomplete to, or null if not confident enough
- */
 export function shouldTabComplete(input: string): WorkflowStatusType | null {
   const result = matchStatus(input);
 
-  // Tab complete if:
-  // 1. Single candidate with any token match, OR
-  // 2. Exact prefix match on a single status
   if (result.candidates.length === 1 && result.confidence > 0) {
     return result.candidates[0];
   }

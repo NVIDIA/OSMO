@@ -14,17 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * DependencyPills Component
- *
- * Displays upstream and downstream group dependencies as interactive pills.
- * Features:
- * - Responsive layout: shows as many pills as fit on one line
- * - +N indicator for overflow (collapsed state)
- * - Expandable to show all pills with "show less" button
- * - Each pill reflects the status visually (completed, running, pending, failed)
- */
-
 "use client";
 
 import { memo } from "react";
@@ -34,16 +23,9 @@ import { useExpandableChips } from "@/hooks";
 import type { GroupWithLayout } from "../../../lib/workflow-types";
 import { getStatusCategory } from "../../../lib/status";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface DependencyPillsProps {
-  /** Upstream (parent) groups */
   upstreamGroups: GroupWithLayout[];
-  /** Downstream (child) groups */
   downstreamGroups: GroupWithLayout[];
-  /** Callback when clicking a pill */
   onSelectGroup?: (groupName: string) => void;
 }
 
@@ -52,10 +34,6 @@ interface PillRowProps {
   groups: GroupWithLayout[];
   onSelectGroup?: (groupName: string) => void;
 }
-
-// ============================================================================
-// Status Pill Styling
-// ============================================================================
 
 const STATUS_PILL_STYLES = {
   completed: {
@@ -90,14 +68,9 @@ const STATUS_PILL_STYLES = {
   },
 } as const;
 
-// ============================================================================
-// Single Pill Component
-// ============================================================================
-
 interface DependencyPillProps {
   group: GroupWithLayout;
   onClick?: () => void;
-  /** For measurement container - renders as span instead of button */
   isMeasurement?: boolean;
 }
 
@@ -137,19 +110,14 @@ const DependencyPill = memo(function DependencyPill({ group, onClick, isMeasurem
   );
 });
 
-// ============================================================================
-// Pill Row Component (uses CSS-driven measurement)
-// ============================================================================
-
 const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowProps) {
   const { containerRef, measureRef, expanded, setExpanded, displayedItems, overflowCount } =
     useExpandableChips<GroupWithLayout>({
       items: groups,
-      sortAlphabetically: false, // Keep original order for dependencies
+      sortAlphabetically: false,
       getKey: (g) => g.name,
     });
 
-  // Don't render empty rows
   if (groups.length === 0) {
     return null;
   }
@@ -159,7 +127,6 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
       <span className="w-24 shrink-0 py-1 text-xs text-gray-500 dark:text-zinc-500">{label}</span>
 
       <div className="relative flex-1 overflow-hidden">
-        {/* Hidden measurement container - renders all pills to measure their widths */}
         <div
           ref={measureRef}
           className="pointer-events-none invisible absolute flex items-center gap-2"
@@ -173,7 +140,6 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
               isMeasurement
             />
           ))}
-          {/* Overflow button placeholder for measuring its width */}
           <span
             data-overflow
             className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-blue-600"
@@ -182,7 +148,6 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
           </span>
         </div>
 
-        {/* Visible container */}
         <div
           ref={containerRef}
           className={cn("flex items-center gap-2", expanded ? "flex-wrap" : "flex-nowrap overflow-hidden")}
@@ -194,7 +159,6 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
               onClick={onSelectGroup ? () => onSelectGroup(group.name) : undefined}
             />
           ))}
-          {/* +N button (collapsed state) */}
           {!expanded && overflowCount > 0 && (
             <button
               onClick={() => setExpanded(true)}
@@ -203,7 +167,6 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
               +{overflowCount}
             </button>
           )}
-          {/* Show less button (expanded state) */}
           {expanded && overflowCount > 0 && (
             <button
               onClick={() => setExpanded(false)}
@@ -218,16 +181,11 @@ const PillRow = memo(function PillRow({ label, groups, onSelectGroup }: PillRowP
   );
 });
 
-// ============================================================================
-// Main Component
-// ============================================================================
-
 export const DependencyPills = memo(function DependencyPills({
   upstreamGroups,
   downstreamGroups,
   onSelectGroup,
 }: DependencyPillsProps) {
-  // Don't render if no dependencies at all
   if (upstreamGroups.length === 0 && downstreamGroups.length === 0) {
     return null;
   }

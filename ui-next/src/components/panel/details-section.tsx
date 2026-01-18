@@ -14,25 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * DetailsSection - Generic key-value grid section.
- *
- * Consolidates the pattern used in WorkflowDetails.Details,
- * TaskDetails.DetailRow, and pool/resource panel-content.tsx.
- *
- * @example
- * ```tsx
- * <DetailsSection
- *   title="Details"
- *   items={[
- *     { label: 'User', value: workflow.submitted_by },
- *     { label: 'Pool', value: workflow.pool, show: !!workflow.pool },
- *     { label: 'UUID', value: task.task_uuid, copyable: true, mono: true },
- *   ]}
- * />
- * ```
- */
-
 "use client";
 
 import { memo, Fragment } from "react";
@@ -40,41 +21,22 @@ import { Card, CardContent } from "@/components/shadcn/card";
 import { CopyButton } from "@/components/copyable-value";
 import { cn } from "@/lib/utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface DetailsItem {
-  /** Label for the item */
   label: string;
-  /** Value to display */
   value: React.ReactNode;
-  /** Whether to show this item (default: true) */
   show?: boolean;
-  /** Whether to show a copy button */
   copyable?: boolean;
-  /** Value to copy (defaults to stringified value) */
   copyValue?: string;
-  /** Whether to use monospace font for value */
   mono?: boolean;
-  /** Whether value should truncate with ellipsis */
   truncate?: boolean;
 }
 
 export interface DetailsSectionProps {
-  /** Section title */
   title: string;
-  /** Items to display in the grid */
   items: DetailsItem[];
-  /** Additional className for the section */
   className?: string;
-  /** Header className override */
   headerClassName?: string;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const DetailsSection = memo(function DetailsSection({
   title,

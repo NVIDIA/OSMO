@@ -26,20 +26,7 @@ interface ChromeProps {
   children: React.ReactNode;
 }
 
-/**
- * Application chrome with optimized layout.
- *
- * Uses shadcn/ui Sidebar for:
- * - Mobile-responsive Sheet behavior
- * - Keyboard shortcut (Cmd/Ctrl+B) to toggle
- * - Collapsible with icon-only mode
- * - Accessibility out of the box
- *
- * PPR Compatibility:
- * - SidebarProvider, AppSidebar, and Header are wrapped in Suspense
- * - This allows the static shell structure to be prerendered at build time
- * - Dynamic content (sidebar state, nav highlighting) streams in after hydration
- */
+// PPR: Suspense allows static shell to prerender, dynamic content streams after hydration
 export const Chrome = memo(function Chrome({ children }: ChromeProps) {
   return (
     <Suspense fallback={<ChromeSkeleton>{children}</ChromeSkeleton>}>
@@ -81,16 +68,6 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
   );
 });
 
-/**
- * Chrome skeleton for PPR - matches the Chrome layout structure.
- *
- * This is shown during prerender/streaming while the Chrome components hydrate.
- * Children are rendered immediately so page content isn't blocked.
- *
- * IMPORTANT: We wrap children in SidebarProvider so components using useSidebar()
- * don't crash during the skeleton phase. The provider uses defaultOpen=true to match
- * the skeleton's visual layout (showing expanded sidebar).
- */
 function ChromeSkeleton({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider
@@ -144,9 +121,6 @@ function ChromeSkeleton({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Skeleton for main content area - prevents CLS during page transitions.
- */
 function MainContentSkeleton() {
   return (
     <div className="animate-in fade-in flex h-full flex-col gap-6 p-6 duration-300">

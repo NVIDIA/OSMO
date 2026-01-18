@@ -16,18 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * DataTable
- *
- * Canonical data table component built on TanStack Table.
- * Features:
- * - Native <table> markup for accessibility
- * - Virtualization for large datasets
- * - DnD column reordering
- * - Optional section grouping with sticky headers
- * - Infinite scroll pagination
- */
-
 "use client";
 
 import { useMemo, useRef, useCallback, useId } from "react";
@@ -60,128 +48,42 @@ import type { Section, SortState, ColumnSizeConfig } from "./types";
 import { getColumnCSSValue, measureColumnContentWidth } from "./utils/column-sizing";
 import { SortDirections, VirtualItemTypes } from "./constants";
 
-// Component-specific styles (resize handles, table layout, etc.)
 import "./styles.css";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-/**
- * DataTable props.
- *
- * @template TData - The data item type for rows
- * @template TSectionMeta - Optional metadata type for section grouping.
- *   Only needed when using the `sections` prop with custom section headers.
- *   Defaults to `unknown` for flat data tables without sections.
- *
- * @example
- * // Flat table (no sections) - TSectionMeta defaults to unknown
- * <DataTable<Pool> data={pools} columns={columns} getRowId={p => p.name} />
- *
- * @example
- * // Sectioned table with custom metadata
- * interface SectionMeta { priority: number; color: string }
- * <DataTable<Task, SectionMeta>
- *   sections={[{ id: 'high', label: 'High Priority', items: tasks, meta: { priority: 1, color: 'red' } }]}
- *   renderSectionHeader={(section) => <Header color={section.meta.color}>{section.label}</Header>}
- * />
- */
 export interface DataTableProps<TData, TSectionMeta = unknown> {
-  // === Data ===
-  /** Flat data items (used when not using sections) */
   data: TData[];
-  /** Column definitions */
   columns: ColumnDef<TData, unknown>[];
-  /** Get unique row ID */
   getRowId: (row: TData) => string;
-
-  // === Sections (optional) ===
-  /** Sectioned data (overrides data prop if provided) */
   sections?: Section<TData, TSectionMeta>[];
-  /** Render custom section header */
   renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
-  /** Enable sticky section headers */
   stickyHeaders?: boolean;
-  // === Column Management ===
-  /** Column order (controlled) */
   columnOrder?: string[];
-  /** Column order change handler */
   onColumnOrderChange?: (order: string[]) => void;
-  /** Column visibility (controlled) */
   columnVisibility?: VisibilityState;
-  /** Column visibility change handler */
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
-  /** Columns that cannot be reordered (stay at start) */
   fixedColumns?: string[];
-
-  // === Sorting ===
-  /** Current sort state */
   sorting?: SortState<string>;
-  /** Sort change handler */
   onSortingChange?: (sorting: SortState<string>) => void;
-
-  // === Pagination ===
-  /** Has more data to load */
   hasNextPage?: boolean;
-  /** Load more callback */
   onLoadMore?: () => void;
-  /** Is currently fetching next page */
   isFetchingNextPage?: boolean;
-  /** Total row count (for aria-rowcount) */
   totalCount?: number;
-
-  // === Layout ===
-  /** Row height in pixels */
   rowHeight?: number;
-  /** Section header height in pixels */
   sectionHeight?: number;
-  /** Table container class name */
   className?: string;
-  /** Scroll container class name */
   scrollClassName?: string;
-  /** Compact mode - reduces cell padding for denser display */
   compact?: boolean;
-
-  // === State ===
-  /** Is loading initial data */
   isLoading?: boolean;
-  /** Empty state content */
   emptyContent?: React.ReactNode;
-
-  // === Interaction ===
-  /** Row click handler */
   onRowClick?: (row: TData) => void;
-  /**
-   * Get the href for a row (if clicking navigates to a page).
-   * Used for middle-click behavior:
-   * - If getRowHref returns a URL → middle-click opens in new tab
-   * - If getRowHref returns undefined or is not provided → middle-click calls onRowClick (shows overlay)
-   */
+  /** For middle-click: returns URL for new tab, or undefined to call onRowClick */
   getRowHref?: (row: TData) => string | undefined;
-  /** Selected row ID */
   selectedRowId?: string;
-  /** Custom row class name */
   rowClassName?: string | ((item: TData) => string);
-
-  // === Column Sizing ===
-  /**
-   * Column size configurations (min and preferred widths in rem).
-   * Used for initial sizing and shrink/expand algorithm.
-   */
   columnSizeConfigs?: readonly ColumnSizeConfig[];
-  /**
-   * User sizing preferences from persistence.
-   * Contains mode (proportional/no-truncate) and multiplier for each column.
-   */
   columnSizingPreferences?: ColumnSizingPreferences;
-  /** Callback when user manually resizes a column or auto-fits */
   onColumnSizingPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export function DataTable<TData, TSectionMeta = unknown>({
   data,
@@ -219,17 +121,12 @@ export function DataTable<TData, TSectionMeta = unknown>({
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
-
-  // Stable ID for DndContext - prevents SSR hydration mismatch
-  // DndContext uses internal counter for accessibility IDs which differs server vs client
   const dndContextId = useId();
 
-  // Stable refs for optional callbacks to prevent re-render loops
   const onSortingChangeRef = useSyncedRef(onSortingChange);
   const onRowClickRef = useSyncedRef(onRowClick);
   const onLoadMoreRef = useSyncedRef(onLoadMore);
 
-  // Get all data items (from sections or flat data)
   const allItems = useMemo(() => {
     if (sections && sections.length > 0) {
       return sections.flatMap((s) => s.items);
@@ -237,13 +134,11 @@ export function DataTable<TData, TSectionMeta = unknown>({
     return data;
   }, [data, sections]);
 
-  // Convert our SortState to TanStack SortingState
   const tanstackSorting = useMemo<SortingState>(() => {
     if (!sorting?.column) return [];
     return [{ id: sorting.column, desc: sorting.direction === SortDirections.DESC }];
   }, [sorting]);
 
-  // Column order with fallback
   const columnOrder = useMemo(() => {
     if (controlledColumnOrder) return controlledColumnOrder;
     return columns
@@ -256,7 +151,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
       .filter(Boolean);
   }, [controlledColumnOrder, columns]);
 
-  // Get visible column IDs for DnD - derive from props to avoid re-render loops
   const visibleColumnIds = useMemo(() => {
     if (!columnVisibility) {
       return columnOrder;
@@ -271,8 +165,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
   const visibleColumnCount = visibleColumnIds.length;
 
-  // Extract minSizes from column definitions for enforcement
-  // TanStack only enforces minSize on read (column.getSize()), not in state
   const columnMinSizes = useMemo(() => {
     const sizes: Record<string, number> = {};
     for (const col of columns) {
@@ -284,16 +176,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
     return sizes;
   }, [columns]);
 
-  // Column sizing - handles initial sizing, container resize, and user preferences
-  // TanStack handles: drag, min/max enforcement, size state
-  // Hook adds:
-  // - Initial sizing based on container width and preferred widths
-  // - Container resize handling (via ResizeObserver)
-  // - User preference detection (proportional vs no-truncate mode)
-  // - Persistence via callbacks
-  // - CSS variables for performance
-  // - minSize enforcement
-  // Loading state - show skeleton only during actual data loading
   const showSkeleton = isLoading && allItems.length === 0;
 
   const columnSizingHook = useColumnSizing({
@@ -308,11 +190,7 @@ export function DataTable<TData, TSectionMeta = unknown>({
     isLoading: showSkeleton,
   });
 
-  // Create TanStack table instance
-  // manualSorting: true means we control sorting via props (server-side or external)
-  // enableColumnResizing: true enables TanStack's native resize handling
-  // columnResizeMode: 'onChange' updates size during drag (smoother UX)
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design. React Compiler skips optimization. See: https://github.com/facebook/react/issues/33057
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design
   const table = useReactTable({
     data: allItems,
     columns,
@@ -333,7 +211,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
     columnResizeMode: "onChange",
   });
 
-  // DnD setup - with bounds restriction to prevent dragging beyond table width
   const { sensors, modifiers, autoScrollConfig } = useTableDnd();
 
   const handleDragEnd = useCallback(
@@ -348,15 +225,9 @@ export function DataTable<TData, TSectionMeta = unknown>({
 
       if (oldIndex === -1 || newIndex === -1) return;
 
-      // Find the boundary: fixed columns must stay at the start
       const firstMovableIndex = columnOrder.findIndex((id) => !fixedColumns.includes(id));
-
-      // If there are fixed columns, ensure we don't move anything before them
-      if (firstMovableIndex > 0) {
-        // Cannot drop at an index before the first movable column
-        if (newIndex < firstMovableIndex) {
-          return; // Reject this drop
-        }
+      if (firstMovableIndex > 0 && newIndex < firstMovableIndex) {
+        return;
       }
 
       const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
@@ -365,7 +236,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
     [columnOrder, onColumnOrderChange, fixedColumns],
   );
 
-  // Virtualization
   const { virtualRows, totalHeight, totalRowCount, virtualItemCount, getItem, scrollToIndex, measureElement } =
     useVirtualizedTable<TData, TSectionMeta>({
       items: sections ? undefined : data,
@@ -379,10 +249,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
       isFetchingNextPage,
     });
 
-  // Stable access to table instance in callbacks
   const tableRef = useSyncedRef(table);
 
-  // Map virtual row index to TanStack table row
   const getTableRow = useCallback(
     (virtualIndex: number): Row<TData> | undefined => {
       const item = getItem(virtualIndex);
@@ -395,37 +263,25 @@ export function DataTable<TData, TSectionMeta = unknown>({
     [getItem, getRowId, tableRef],
   );
 
-  // Compute aria-rowcount
   const ariaRowCount = totalCount ?? totalRowCount;
 
-  // ==========================================================================
-  // Auto-fit column width (double-click on resize handle)
-  // Uses shared measureColumnContentWidth utility for single source of truth
-  // ==========================================================================
   const handleAutoFit = useCallback(
     (columnId: string) => {
       const container = scrollRef.current;
       if (!container) return;
 
-      // Use shared utility for consistent measurement across all operations
       const targetWidth = measureColumnContentWidth(container, columnId);
       if (targetWidth === 0) return;
 
-      // Hook handles: set size + save "no-truncate" preference
       columnSizingHook.autoFit(columnId, targetWidth);
     },
     [columnSizingHook],
   );
 
-  // ==========================================================================
-  // Stable sort handler (avoids creating functions in render loop)
-  // Takes columnId and current sort state to determine next sort action
-  // ==========================================================================
   const handleHeaderSort = useCallback(
     (columnId: string, isSortable: boolean, currentSortDirection: false | "asc" | "desc") => {
       if (!isSortable) return;
 
-      // Cycle: none -> asc -> desc -> asc (toggle between asc/desc once sorted)
       if (!currentSortDirection || currentSortDirection === SortDirections.DESC) {
         onSortingChangeRef.current?.({ column: columnId, direction: SortDirections.ASC });
       } else {
@@ -435,40 +291,32 @@ export function DataTable<TData, TSectionMeta = unknown>({
     [onSortingChangeRef],
   );
 
-  // Row click and load more are accessed via refs (set above)
-
-  // Keyboard navigation for rows (uses virtual indices which include sections)
   const rowNavigation = useRowNavigation({
-    rowCount: virtualItemCount, // Use virtual count (sections + data rows)
-    visibleRowCount: Math.floor(600 / rowHeight), // Approximate visible rows
+    rowCount: virtualItemCount,
+    visibleRowCount: Math.floor(600 / rowHeight),
     onRowActivate: useCallback(
       (virtualIndex: number) => {
         const item = getItem(virtualIndex);
         if (item?.type === VirtualItemTypes.ROW) {
           onRowClickRef.current?.(item.item);
         }
-        // If it's a section, do nothing (or could expand/collapse)
       },
       [getItem, onRowClickRef],
     ),
     onScrollToRow: useCallback(
       (virtualIndex: number, align: "start" | "end" | "center") => {
-        // Scroll virtualizer to bring row into view with proper alignment
         scrollToIndex(virtualIndex, { align });
 
-        // Trigger pagination if near the end
         if (hasNextPage && !isFetchingNextPage && virtualIndex >= virtualItemCount - 5) {
           onLoadMoreRef.current?.();
         }
       },
       [scrollToIndex, hasNextPage, isFetchingNextPage, virtualItemCount, onLoadMoreRef],
     ),
-    disabled: !onRowClick, // Only enable if rows are clickable
-    containerRef: scrollRef, // For finding and focusing row elements
+    disabled: !onRowClick,
+    containerRef: scrollRef,
   });
 
-  // Extract header labels for skeleton (memoized)
-  // NOTE: This must be called BEFORE any early returns to comply with React's rules of hooks
   const headerLabels = useMemo(() => {
     return visibleColumnIds.map((id) => {
       const col = columns.find((c) => {
@@ -482,13 +330,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
     });
   }, [visibleColumnIds, columns]);
 
-  // ==========================================================================
-  // Ready State Management
-  // ==========================================================================
-  // Readiness is simple: we have data or we're loading
-  // Column sizing uses fallbacks, so no "sizing ready" state needed
-
-  // Empty state
   if (!isLoading && allItems.length === 0 && emptyContent) {
     return <div className={cn("flex min-h-[200px] items-center justify-center", className)}>{emptyContent}</div>;
   }
@@ -506,7 +347,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
         ref={scrollRef}
         className={cn("data-table-scroll overflow-auto", scrollClassName)}
       >
-        {/* Skeleton only during initial data loading */}
         {showSkeleton && (
           <TableSkeleton
             columnCount={visibleColumnCount}
@@ -517,7 +357,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
             showHeader={stickyHeaders}
           />
         )}
-        {/* Table renders immediately - sizing uses fallbacks until measured */}
         {!showSkeleton && (
           <>
             <table
@@ -528,7 +367,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
               className={cn("contain-layout-style data-table min-w-full border-collapse text-sm", className)}
               style={columnSizingHook.cssVariables}
             >
-              {/* Table Header */}
               <thead
                 role="rowgroup"
                 className={cn(
@@ -550,14 +388,8 @@ export function DataTable<TData, TSectionMeta = unknown>({
                         const isFixed = fixedColumns.includes(header.id);
                         const isSortable = header.column.getCanSort();
                         const isSorted = header.column.getIsSorted();
-
-                        // Cache CSS variable string (avoid multiple getColumnCSSValue calls)
                         const cssWidth = getColumnCSSValue(header.id);
-
-                        // Use stable handler - no function allocation per render
                         const onSort = () => handleHeaderSort(header.id, isSortable, isSorted);
-
-                        // Check if column supports resizing (respects enableResizing: false in columnDef)
                         const isResizable = header.column.getCanResize();
 
                         const cellContent = (
@@ -575,7 +407,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
                               }
                               onSort={onSort}
                             />
-                            {/* Resize handle - uses @use-gesture/react for gesture handling */}
                             {isResizable && (
                               <ResizeHandle
                                 header={header}
@@ -588,7 +419,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
                           </>
                         );
 
-                        // Use headerIndex from map (O(1)) instead of indexOf (O(n))
                         const colIndex = headerIndex + 1;
 
                         if (isFixed) {
@@ -629,7 +459,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
                 </tr>
               </thead>
 
-              {/* Virtualized Table Body */}
               <VirtualTableBody<TData, TSectionMeta>
                 virtualRows={virtualRows}
                 totalHeight={totalHeight}
@@ -650,7 +479,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
               />
             </table>
 
-            {/* Floating loading indicator for pagination */}
             {isFetchingNextPage && (
               <div className="sticky right-0 bottom-0 left-0 flex items-center justify-center bg-gradient-to-t from-white via-white to-transparent py-4 dark:from-zinc-950 dark:via-zinc-950">
                 <div className="flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-300">
@@ -679,7 +507,6 @@ export function DataTable<TData, TSectionMeta = unknown>({
               </div>
             )}
 
-            {/* End of results indicator - show when all data loaded and not fetching */}
             {!hasNextPage && !isFetchingNextPage && allItems.length > 0 && (
               <div
                 className="flex items-center justify-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500"
