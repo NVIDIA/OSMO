@@ -28,8 +28,16 @@ export async function register() {
     // Only enable in development with mock mode
     if (process.env.NEXT_PUBLIC_MOCK_API === "true" && process.env.NODE_ENV === "development") {
       const { server } = await import("@/mocks/server");
-      server.listen({ onUnhandledRequest: "bypass" });
+      server.listen({
+        onUnhandledRequest: (req, print) => {
+          // Log unhandled requests to help debug
+          if (req.url.includes("/api/")) {
+            console.log(`[MSW] Unhandled: ${req.method} ${req.url}`);
+          }
+        },
+      });
       console.log("[MSW] Server-side mocking enabled");
+      console.log(`[MSW] Handlers registered: ${server.listHandlers().length}`);
     }
   }
 }
