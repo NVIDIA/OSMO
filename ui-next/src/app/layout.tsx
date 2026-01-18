@@ -16,6 +16,7 @@
 
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/shadcn/sonner";
@@ -58,6 +59,37 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#09090b" },
   ],
 };
+
+/**
+ * Minimal loading fallback for initial app load.
+ * Shown briefly while client providers hydrate.
+ * Uses inline styles to avoid CSS loading delay.
+ */
+function AppLoadingFallback() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "100vh",
+        backgroundColor: "#09090b", // zinc-950
+      }}
+    >
+      <div
+        style={{
+          width: "40px",
+          height: "40px",
+          border: "3px solid #27272a", // zinc-800
+          borderTopColor: "#76b900", // NVIDIA green
+          borderRadius: "50%",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 export default function RootLayout({
   children,
@@ -103,7 +135,11 @@ export default function RootLayout({
           WebkitTextSizeAdjust: "100%",
         }}
       >
-        <Providers>{children}</Providers>
+        {/* Suspense boundary required for cacheComponents (Next.js 16) */}
+        {/* Client providers use useState which needs Suspense for prerendering */}
+        <Suspense fallback={<AppLoadingFallback />}>
+          <Providers>{children}</Providers>
+        </Suspense>
         <Toaster
           richColors
           position="bottom-right"
