@@ -23,6 +23,7 @@ import type { ConnectionStatus } from "./types";
 
 /** CSS classes for each connection status */
 export const STATUS_DOT_STYLES: Record<ConnectionStatus, string> = {
+  mounting: "bg-blue-400 animate-pulse",
   idle: "bg-zinc-500",
   connecting: "bg-amber-400",
   connected: "bg-emerald-400",
@@ -32,6 +33,7 @@ export const STATUS_DOT_STYLES: Record<ConnectionStatus, string> = {
 
 /** Human-readable labels for each status */
 export const STATUS_LABELS: Record<ConnectionStatus, string> = {
+  mounting: "Mounting...",
   idle: "Idle",
   connecting: "Connecting...",
   connected: "Connected",

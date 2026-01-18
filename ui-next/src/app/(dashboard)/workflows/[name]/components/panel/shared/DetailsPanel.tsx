@@ -30,6 +30,11 @@
  * - Used as a sibling to the DAG canvas in a flexbox layout
  * - DAG and Panel are completely decoupled
  *
+ * Edge Strip:
+ * - Always visible on left side of panel (both collapsed and expanded)
+ * - Contains: expand/collapse button, workflow quick links, shell sessions
+ * - Provides consistent UI and eliminates separate collapsed content
+ *
  * Content Views:
  * - WorkflowDetails: Workflow-level info (base layer)
  * - GroupDetails: Task list with search, sort, filter
@@ -37,23 +42,24 @@
  *
  * Keyboard Navigation:
  * - Escape → Collapse panel (URL navigation handles back via browser)
- * - Enter → Expand panel (when focused on collapsed strip)
+ * - Enter → Expand panel (when focused on edge strip button)
  */
 
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import { FileText, BarChart3, Activity } from "lucide-react";
-import { SidePanel, PanelCollapsedStrip, PanelHeader, PanelCollapseButton, PanelTitle } from "@/components/panel";
+import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
+import { FileText, BarChart3, Activity, ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
+import { useEventCallback } from "usehooks-ts";
+import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
 import { WorkflowDetails } from "../workflow/WorkflowDetails";
 import { GroupDetails } from "../group/GroupDetails";
 import { TaskDetails } from "../task/TaskDetails";
 import type { DetailsPanelProps } from "../../../lib/panel-types";
 import { useAnnouncer } from "@/hooks";
-import { ShellActivityStrip, reconnectSession } from "@/components/shell";
+import { ShellSessionIcon, reconnectSession, useShellSessions } from "@/components/shell";
 import { useShellContext } from "../../shell";
 
 // NOTE: We intentionally do NOT use a focus trap here.
@@ -62,18 +68,38 @@ import { useShellContext } from "../../shell";
 // Focus traps are only appropriate for modal dialogs that block interaction.
 
 // ============================================================================
-// Workflow Quick Links (domain-specific collapsed content)
+// Workflow Edge Strip - Unified strip with expand, links, and shells
 // ============================================================================
 
-interface WorkflowQuickLinksProps {
+interface WorkflowEdgeStripProps {
   workflow?: WorkflowQueryResponse;
+  isCollapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  currentTaskId?: string;
+  onSelectSession?: (taskId: string) => void;
+  onDisconnectSession?: (taskId: string) => void;
+  onReconnectSession?: (taskId: string) => void;
+  onRemoveSession?: (taskId: string) => void;
 }
 
 /**
- * Quick action links shown in the collapsed strip.
- * This is workflow-specific content that uses PanelCollapsedStrip's slot.
+ * Unified edge strip that's always visible on the left side of the panel.
+ * Contains: expand/collapse button, workflow quick links, shell session icons.
+ * Same appearance whether panel is collapsed or expanded - provides consistency.
  */
-const WorkflowQuickLinks = memo(function WorkflowQuickLinks({ workflow }: WorkflowQuickLinksProps) {
+const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
+  workflow,
+  isCollapsed,
+  onToggleCollapsed,
+  currentTaskId,
+  onSelectSession,
+  onDisconnectSession,
+  onReconnectSession,
+  onRemoveSession,
+}: WorkflowEdgeStripProps) {
+  const { sessions } = useShellSessions();
+
+  // Build workflow quick links
   const quickLinks = useMemo(() => {
     if (!workflow) return [];
     return [
@@ -83,44 +109,147 @@ const WorkflowQuickLinks = memo(function WorkflowQuickLinks({ workflow }: Workfl
     ].filter((link) => link.url);
   }, [workflow]);
 
-  if (quickLinks.length === 0) return null;
+  // Shell session handlers - stable callbacks using data attributes
+  const handleSessionClick = useEventCallback((e: MouseEvent<HTMLButtonElement>) => {
+    const taskId = e.currentTarget.dataset.taskId;
+    if (taskId) {
+      onSelectSession?.(taskId);
+    }
+  });
+
+  const handleSelect = useEventCallback((taskId: string) => {
+    onSelectSession?.(taskId);
+  });
+
+  const handleDisconnect = useEventCallback((taskId: string) => {
+    onDisconnectSession?.(taskId);
+  });
+
+  const handleReconnect = useEventCallback((taskId: string) => {
+    onReconnectSession?.(taskId);
+  });
+
+  const handleRemove = useEventCallback((taskId: string) => {
+    onRemoveSession?.(taskId);
+  });
+
+  // Handle keyboard navigation: Enter toggles the panel
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onToggleCollapsed?.();
+      }
+    },
+    [onToggleCollapsed],
+  );
+
+  const hasQuickLinks = quickLinks.length > 0;
+  const hasShellSessions = sessions.length > 0;
 
   return (
-    <>
-      {/* Separator */}
-      <div className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700" />
-
-      {/* Quick action links */}
-      <div className="flex flex-col items-center space-y-1">
-        {quickLinks.map((link) => {
-          const Icon = link.icon;
-          return (
-            <Tooltip key={link.id}>
-              <TooltipTrigger asChild>
-                <a
-                  href={link.url!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className={cn(
-                    "flex size-8 items-center justify-center rounded-lg",
-                    "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
-                    "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
-                    "transition-colors",
-                  )}
-                >
-                  <Icon
-                    className="size-4"
+    <TooltipProvider delayDuration={300}>
+      <div className="flex h-full flex-col items-center py-3">
+        {/* Expand/Collapse button */}
+        {onToggleCollapsed && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleCollapsed}
+                onKeyDown={handleKeyDown}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg",
+                  "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+                  "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                  "transition-colors",
+                  "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                  "focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900",
+                  "focus-visible:outline-none",
+                  "focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800",
+                )}
+                aria-label={isCollapsed ? "Expand panel (Enter)" : "Collapse panel (Enter)"}
+              >
+                {isCollapsed ? (
+                  <ArrowLeftFromLine
+                    className="size-4 shrink-0"
                     aria-hidden="true"
                   />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent side="left">{link.label}</TooltipContent>
-            </Tooltip>
-          );
-        })}
+                ) : (
+                  <ArrowRightFromLine
+                    className="size-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{isCollapsed ? "Expand panel" : "Collapse panel"}</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Workflow quick links */}
+        {hasQuickLinks && (
+          <>
+            <div
+              className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700"
+              aria-hidden="true"
+            />
+            <div className="flex flex-col items-center space-y-1">
+              {quickLinks.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <Tooltip key={link.id}>
+                    <TooltipTrigger asChild>
+                      <a
+                        href={link.url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                          "flex size-8 items-center justify-center rounded-lg",
+                          "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
+                          "dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
+                          "transition-colors",
+                        )}
+                      >
+                        <Icon
+                          className="size-4"
+                          aria-hidden="true"
+                        />
+                      </a>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">{link.label}</TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Shell session icons */}
+        {hasShellSessions && (
+          <>
+            <div
+              className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700"
+              aria-hidden="true"
+            />
+            {sessions.map((session) => (
+              <ShellSessionIcon
+                key={session.taskId}
+                session={session}
+                isActive={session.taskId === currentTaskId}
+                onClick={handleSessionClick}
+                onSelect={() => handleSelect(session.taskId)}
+                onDisconnect={() => handleDisconnect(session.taskId)}
+                onReconnect={() => handleReconnect(session.taskId)}
+                onRemove={() => handleRemove(session.taskId)}
+                data-task-id={session.taskId}
+              />
+            ))}
+          </>
+        )}
       </div>
-    </>
+    </TooltipProvider>
   );
 });
 
@@ -134,7 +263,6 @@ export const DetailsPanel = memo(function DetailsPanel({
   group,
   allGroups,
   task,
-  onClose,
   onBackToGroup,
   onBackToWorkflow,
   onSelectTask,
@@ -189,7 +317,7 @@ export const DetailsPanel = memo(function DetailsPanel({
         ? `Group details: ${group?.name}`
         : `Task details: ${task?.name}`;
 
-  // Handle selecting a shell session from activity strip (opens panel + shell tab)
+  // Handle selecting a shell session from edge strip (opens panel + shell tab)
   const handleSelectShellSession = useCallback(
     (taskId: string) => {
       // Expand the panel if collapsed
@@ -243,20 +371,20 @@ export const DetailsPanel = memo(function DetailsPanel({
     [removeShell],
   );
 
-  // Collapsed content with workflow quick links and shell activity strip
-  // Focus management is handled by SidePanel via onTransitionEnd
-  const collapsedContent = onToggleCollapsed ? (
-    <PanelCollapsedStrip onExpand={onToggleCollapsed}>
-      <WorkflowQuickLinks workflow={workflow} />
-      <ShellActivityStrip
-        currentTaskId={task?.task_uuid}
-        onSelectSession={handleSelectShellSession}
-        onDisconnectSession={handleDisconnectSession}
-        onReconnectSession={handleReconnectSession}
-        onRemoveSession={handleRemoveSession}
-      />
-    </PanelCollapsedStrip>
-  ) : undefined;
+  // Unified edge strip - always visible on left side
+  // Contains: expand/collapse button, workflow links, shell sessions
+  const edgeContent = (
+    <WorkflowEdgeStrip
+      workflow={workflow}
+      isCollapsed={isCollapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      currentTaskId={task?.task_uuid}
+      onSelectSession={handleSelectShellSession}
+      onDisconnectSession={handleDisconnectSession}
+      onReconnectSession={handleReconnectSession}
+      onRemoveSession={handleRemoveSession}
+    />
+  );
 
   return (
     <SidePanel
@@ -264,7 +392,7 @@ export const DetailsPanel = memo(function DetailsPanel({
       onWidthChange={onPanelResize}
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}
-      collapsedContent={collapsedContent}
+      edgeContent={edgeContent}
       onEscapeKey={handleEscapeKey}
       aria-label={ariaLabel}
       className="dag-details-panel"
@@ -276,7 +404,6 @@ export const DetailsPanel = memo(function DetailsPanel({
       {view === "workflow" && workflow && (
         <WorkflowDetails
           workflow={workflow}
-          onClose={onToggleCollapsed ?? onClose}
           onCancel={onCancelWorkflow}
           onPanelResize={onPanelResize}
           isDetailsExpanded={isDetailsExpanded}
@@ -291,7 +418,6 @@ export const DetailsPanel = memo(function DetailsPanel({
           allGroups={allGroups}
           onSelectTask={onSelectTask}
           onSelectGroup={onSelectGroup}
-          onClose={onToggleCollapsed ?? onClose}
           onBack={onBackToWorkflow}
           onPanelResize={onPanelResize}
           isDetailsExpanded={isDetailsExpanded}
@@ -310,7 +436,6 @@ export const DetailsPanel = memo(function DetailsPanel({
           onBackToWorkflow={onBackToWorkflow}
           onSelectTask={onSelectTask}
           onSelectGroup={onSelectGroup}
-          onClose={onToggleCollapsed ?? onClose}
           onPanelResize={onPanelResize}
           isDetailsExpanded={isDetailsExpanded}
           onToggleDetailsExpanded={onToggleDetailsExpanded}
@@ -320,13 +445,10 @@ export const DetailsPanel = memo(function DetailsPanel({
         />
       )}
 
-      {/* Fallback content (loading/error states) - with minimal header for collapse */}
+      {/* Fallback content (loading/error states) - with minimal header */}
       {fallbackContent && (
         <>
-          <PanelHeader
-            title={<PanelTitle>{workflow?.name ?? "Workflow Details"}</PanelTitle>}
-            actions={<PanelCollapseButton onCollapse={onToggleCollapsed ?? onClose} />}
-          />
+          <PanelHeader title={<PanelTitle>{workflow?.name ?? "Workflow Details"}</PanelTitle>} />
           {fallbackContent}
         </>
       )}

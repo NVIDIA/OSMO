@@ -12,61 +12,83 @@
  * Interactive shell for exec into running task containers.
  * Zero-chrome design with contextual overlays.
  *
+ * Public API:
+ * - ShellTerminal: Main terminal component (wraps xterm.js + WebSocket)
+ * - ShellSessionIcon: Individual session icon with status
+ * - StatusDot: Connection status indicator
+ * - useShellSessions: React hook for session state
+ * - Session cache utilities for managing connections
+ *
  * Usage:
  * ```tsx
  * import { ShellTerminal } from "@/components/shell";
  *
  * <ShellTerminal
+ *   taskId={task.task_uuid}
  *   workflowName="my-workflow"
  *   taskName="train-model"
  * />
  * ```
  */
 
-// Main Component
+// =============================================================================
+// Components
+// =============================================================================
+
+/** Main terminal component - renders xterm.js with WebSocket connection */
 export { ShellTerminal } from "./ShellTerminal";
 
-// Overlay Components
-export { ShellConnecting } from "./ShellConnecting";
-export { ShellSearch } from "./ShellSearch";
-
-// Activity Components
-export { ShellActivityStrip } from "./ShellActivityStrip";
+/** Individual session icon with status indicator and context menu */
 export { ShellSessionIcon } from "./ShellSessionIcon";
+
+/** Connection status dot indicator */
 export { StatusDot, STATUS_DOT_STYLES, STATUS_LABELS, type StatusDotProps } from "./StatusDot";
 
+// =============================================================================
 // Hooks
-export { useShell } from "./use-shell";
-export { useWebSocketShell } from "./use-websocket-shell";
+// =============================================================================
+
+/** React hook for accessing shell session state */
 export { useShellSessions, useShellSession } from "./use-shell-sessions";
 
-// Session Cache (for managing persistent shell sessions)
+// =============================================================================
+// Session Cache API
+// =============================================================================
+
 export {
+  // Intent management (Phase 1: what to render)
+  openShellIntent,
+  hasShellIntent,
+  getShellIntent,
+  // Connection management
   disconnectSession,
   disposeSession,
+  reconnectSession,
+  // Status queries
   hasSession,
   hasActiveConnection,
   hadPreviousConnection,
   getSessionStatus,
   getSessionError,
+  // Status updates
   updateSessionStatus,
+  // Reconnect handler registration
   registerReconnectHandler,
   unregisterReconnectHandler,
-  reconnectSession,
 } from "./shell-session-cache";
 
+export type { ShellIntent } from "./shell-session-cache";
+
+// =============================================================================
 // Types
-export type {
-  ConnectionStatus as ConnectionStatusType,
-  ShellTerminalProps,
-  ShellTerminalRef,
-  UseShellReturn,
-  UseWebSocketShellReturn,
-  SearchOptions,
-  SearchResultInfo,
-} from "./types";
+// =============================================================================
+
+export type { ConnectionStatus as ConnectionStatusType, ShellTerminalProps, ShellTerminalRef } from "./types";
 
 export type { ShellSessionSnapshot } from "./shell-session-cache";
 
+// =============================================================================
 // Constants
-export { SHELL_THEME, SHELL_CONFIG, SHELL_OPTIONS } from "./types";
+// =============================================================================
+
+export { SHELL_OPTIONS } from "./types";

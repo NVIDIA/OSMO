@@ -82,6 +82,16 @@ export interface SidePanelProps {
   /** Additional class for the panel */
   className?: string;
 
+  // Edge content (always visible)
+  /**
+   * Content to render on the left edge of the panel (always visible).
+   * Useful for shell activity indicators, quick actions, etc.
+   * Typically renders as a thin vertical strip.
+   */
+  edgeContent?: React.ReactNode;
+  /** Width of the edge content strip (default: 40px) */
+  edgeWidth?: number | string;
+
   // Collapsible mode
   /** Whether the panel is currently collapsed (controlled) */
   isCollapsed?: boolean;
@@ -126,6 +136,9 @@ export function SidePanel({
   children,
   "aria-label": ariaLabel,
   className,
+  // Edge content (always visible)
+  edgeContent,
+  edgeWidth = PANEL.COLLAPSED_WIDTH_PX,
   // Collapsible mode
   isCollapsed = false,
   onToggleCollapsed,
@@ -332,11 +345,14 @@ export function SidePanel({
 
   const effectiveCollapsedContent = collapsedContent ?? defaultCollapsedContent;
 
+  // Calculate edge width value for CSS
+  const edgeWidthPx = typeof edgeWidth === "number" ? `${edgeWidth}px` : edgeWidth;
+
   return (
     <aside
       ref={panelRef}
       className={cn(
-        "relative flex shrink-0 flex-col overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+        "relative flex shrink-0 overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
         // Disable transitions during drag for smooth 60fps resizing
         isDragging ? "transition-none" : "transition-[width] duration-200 ease-out",
         className,
@@ -354,7 +370,7 @@ export function SidePanel({
       role="complementary"
       aria-label={ariaLabel}
     >
-      {/* Resize Handle - positioned at panel's left edge */}
+      {/* Resize Handle - positioned at panel's left edge (before edge strip) */}
       {!isCollapsed && (
         <ResizeHandle
           bindResizeHandle={bindResizeHandle}
@@ -366,36 +382,49 @@ export function SidePanel({
         />
       )}
 
-      {/* Collapsed content */}
-      {/* Use inert to fully disable keyboard navigation and close tooltips when expanded */}
-      {effectiveCollapsedContent && (
+      {/* Edge content - always visible on left side */}
+      {edgeContent && (
         <div
-          ref={collapsedContentRef}
-          className={cn(
-            "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
-            isCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
-          // inert removes from tab order and accessibility tree when panel is expanded
-          inert={!isCollapsed ? true : undefined}
-          onTransitionEnd={handleCollapsedTransitionEnd}
+          className="flex h-full shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-700"
+          style={{ width: edgeWidthPx }}
         >
-          {effectiveCollapsedContent}
+          {edgeContent}
         </div>
       )}
 
-      {/* Panel content */}
-      {/* Use inert to fully disable keyboard navigation when panel is collapsed */}
-      <div
-        ref={panelContentRef}
-        className={cn(
-          "flex h-full w-full min-w-0 flex-col overflow-hidden transition-opacity duration-200 ease-out",
-          isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
+      {/* Main content area */}
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Collapsed content */}
+        {/* Use inert to fully disable keyboard navigation and close tooltips when expanded */}
+        {effectiveCollapsedContent && (
+          <div
+            ref={collapsedContentRef}
+            className={cn(
+              "absolute inset-0 overflow-hidden transition-opacity duration-200 ease-out",
+              isCollapsed ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+            // inert removes from tab order and accessibility tree when panel is expanded
+            inert={!isCollapsed ? true : undefined}
+            onTransitionEnd={handleCollapsedTransitionEnd}
+          >
+            {effectiveCollapsedContent}
+          </div>
         )}
-        // inert removes from tab order and accessibility tree when panel is collapsed
-        inert={isCollapsed ? true : undefined}
-        onTransitionEnd={handlePanelTransitionEnd}
-      >
-        {children}
+
+        {/* Panel content */}
+        {/* Use inert to fully disable keyboard navigation when panel is collapsed */}
+        <div
+          ref={panelContentRef}
+          className={cn(
+            "flex h-full w-full min-w-0 flex-col overflow-hidden transition-opacity duration-200 ease-out",
+            isCollapsed ? "pointer-events-none opacity-0" : "opacity-100",
+          )}
+          // inert removes from tab order and accessibility tree when panel is collapsed
+          inert={isCollapsed ? true : undefined}
+          onTransitionEnd={handlePanelTransitionEnd}
+        >
+          {children}
+        </div>
       </div>
     </aside>
   );
