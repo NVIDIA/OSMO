@@ -47,10 +47,16 @@
 // Server-side fetch functions
 // These are still available for use in Server Actions, Route Handlers,
 // or if you want to add blocking SSR prefetch for specific pages
-export { fetchPools, fetchPoolByName, prefetchPools } from "./pools";
-export { fetchResources, fetchResourcesByPool, prefetchResources } from "./resources";
-export { fetchWorkflows, fetchWorkflowByName, prefetchWorkflows } from "./workflows";
-export { fetchVersion } from "./version";
+export { fetchPools, fetchPoolByName, prefetchPools, prefetchPoolsForDashboard } from "./pools";
+export { fetchResources, fetchResourcesByPool, prefetchResources, prefetchResourcesList } from "./resources";
+export {
+  fetchWorkflows,
+  fetchWorkflowByName,
+  prefetchWorkflows,
+  prefetchWorkflowsList,
+  prefetchWorkflowByName,
+} from "./workflows";
+export { fetchVersion, prefetchVersion } from "./version";
 
 // Re-export types for convenience
 export type { Pool, PoolsResponse } from "../adapter/types";

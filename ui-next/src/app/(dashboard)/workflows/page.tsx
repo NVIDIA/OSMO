@@ -26,26 +26,41 @@ export const metadata: Metadata = {
 };
 
 /**
- * Workflows Page (Streaming SSR)
+ * Workflows Page (Streaming SSR with Server Prefetch)
  *
- * Architecture: Streaming SSR for optimal UX
- * - Page shell renders immediately (fast TTFB, instant first paint)
- * - WorkflowsPageContent streams in via Suspense as data loads
- * - TanStack Query handles data fetching, caching, and background refetching
+ * Architecture: Hybrid streaming for optimal UX
+ * 1. Page shell + skeleton stream immediately (fast TTFB)
+ * 2. WorkflowsWithData suspends while prefetching on server
+ * 3. When API responds, content streams in and replaces skeleton
+ * 4. Client hydrates with data already in cache (no client fetch!)
+ *
+ * nuqs Compatibility:
+ * - URL params passed to async component for query key matching
+ * - Client's nuqs hooks read same params → cache hit!
  */
 
 import { Suspense } from "react";
-import { WorkflowsPageContent } from "./workflows-page-content";
 import { WorkflowsPageSkeleton } from "./workflows-page-skeleton";
+import { WorkflowsWithData } from "./workflows-with-data";
 
 // =============================================================================
-// Streaming SSR - Fast TTFB + Progressive Content
+// Types
 // =============================================================================
 
-export default function WorkflowsPage() {
+interface WorkflowsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+// =============================================================================
+// Streaming SSR - Fast TTFB + Server Prefetch
+// =============================================================================
+
+export default function WorkflowsPage({ searchParams }: WorkflowsPageProps) {
+  // No await - returns immediately with skeleton
+  // WorkflowsWithData suspends and streams when data is ready
   return (
     <Suspense fallback={<WorkflowsPageSkeleton />}>
-      <WorkflowsPageContent />
+      <WorkflowsWithData searchParams={searchParams} />
     </Suspense>
   );
 }
