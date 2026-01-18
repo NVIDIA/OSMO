@@ -32,6 +32,7 @@ import { useState, useMemo, useCallback, memo } from "react";
 import { Check, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
 import { DataTable, TableToolbar, type SortState } from "@/components/data-table";
+import { SeparatedParts } from "@/components/panel";
 import { useSharedPreferences } from "@/stores";
 import { STATUS_SORT_ORDER } from "../../../lib/status";
 import { calculateDuration, formatDuration } from "../../../lib/workflow-types";
@@ -237,7 +238,7 @@ export const GroupDetails = memo(function GroupDetails({
 
   // Status content for header (Row 2) - clean, no error message here
   const statusContent = (
-    <div className="flex items-center gap-1.5 text-xs">
+    <SeparatedParts className="text-xs">
       <span
         className={cn(
           "flex items-center gap-1.5",
@@ -254,12 +255,9 @@ export const GroupDetails = memo(function GroupDetails({
         <span className="font-medium">{groupStatus.label}</span>
       </span>
       {groupDuration !== null && (
-        <>
-          <span className="text-gray-400 dark:text-zinc-600">·</span>
-          <span className="text-gray-500 dark:text-zinc-400">{formatDuration(groupDuration)}</span>
-        </>
+        <span className="text-gray-500 dark:text-zinc-400">{formatDuration(groupDuration)}</span>
       )}
-    </div>
+    </SeparatedParts>
   );
 
   // Menu content (columns submenu in header dropdown)

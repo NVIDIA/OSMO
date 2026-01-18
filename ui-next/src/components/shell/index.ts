@@ -35,7 +35,10 @@
 // Components
 // =============================================================================
 
-/** Main terminal component - renders xterm.js with WebSocket connection */
+/**
+ * Main terminal component - LAZY LOADED (~480KB code-split).
+ * xterm.js only loads when the shell is actually rendered.
+ */
 export { ShellTerminal } from "./ShellTerminal";
 
 /** Individual session icon with status indicator and context menu */

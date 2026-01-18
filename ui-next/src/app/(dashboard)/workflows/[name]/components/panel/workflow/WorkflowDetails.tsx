@@ -32,11 +32,10 @@
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
-import { ExternalLink, FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History } from "lucide-react";
-import { Button } from "@/components/shadcn/button";
+import { FileText, BarChart3, Activity, Package, XCircle, Tag, Info, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
-import { PanelTabs, type PanelTab } from "@/components/panel";
+import { PanelTabs, LinksSection, EmptyTabPrompt, TabPanel, SeparatedParts, type PanelTab } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import { formatDuration } from "../../../lib/workflow-types";
 import { getStatusIcon } from "../../../lib/status";
@@ -57,14 +56,8 @@ const STYLES = {
   sectionHeader: "text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase",
   /** Sub-header styling (e.g., Tags label) */
   subHeader: "text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium",
-  /** Inline separator dot */
-  separator: "text-muted-foreground/50",
-  /** Divider styling */
-  divider: "border-border",
   /** Tag pill styling */
   tagPill: "rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground",
-  /** External link styling */
-  link: "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted",
   /** Priority badge variants */
   priority: {
     HIGH: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -124,12 +117,11 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
   }, [workflow.duration, workflow.start_time, workflow.end_time, isRunning, now]);
 
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <SeparatedParts className="gap-2 text-xs">
       <span className={cn("flex items-center gap-1 font-medium", statusStyles.text)}>
         {getStatusIcon(workflow.status, "size-3.5")}
         {workflow.status}
       </span>
-      <span className={STYLES.separator}>·</span>
       <span
         className={cn(
           "rounded px-1 py-0.5 text-xs font-medium",
@@ -138,13 +130,8 @@ const StatusDisplay = memo(function StatusDisplay({ workflow }: { workflow: Work
       >
         {workflow.priority}
       </span>
-      {duration !== null && (
-        <>
-          <span className={STYLES.separator}>·</span>
-          <span className="text-muted-foreground font-mono">{formatDuration(duration)}</span>
-        </>
-      )}
-    </div>
+      {duration !== null && <span className="text-muted-foreground font-mono">{formatDuration(duration)}</span>}
+    </SeparatedParts>
   );
 });
 
@@ -197,123 +184,18 @@ const Details = memo(function Details({ workflow }: { workflow: WorkflowQueryRes
   );
 });
 
-/** Links section for Overview tab */
-const Links = memo(function Links({ workflow }: { workflow: WorkflowQueryResponse }) {
-  const links = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      description: "Kubernetes details",
-      url: workflow.dashboard_url,
-      icon: BarChart3,
-    },
-    { id: "grafana", label: "Grafana", description: "Metrics & monitoring", url: workflow.grafana_url, icon: Activity },
-    { id: "outputs", label: "Outputs", description: "Artifacts & results", url: workflow.outputs, icon: Package },
-  ].filter((link) => link.url);
-
-  if (links.length === 0) return null;
-
-  return (
-    <section>
-      <h3 className={STYLES.sectionHeader}>Links</h3>
-      <Card className="gap-0 overflow-hidden py-0">
-        <CardContent className="divide-border divide-y p-0">
-          {links.map((link) => {
-            const Icon = link.icon;
-            return (
-              <a
-                key={link.id}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:bg-muted/50 flex items-center gap-3 p-3 transition-colors"
-              >
-                <Icon className="text-muted-foreground size-4 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">{link.label}</div>
-                  <div className="text-muted-foreground text-xs">{link.description}</div>
-                </div>
-                <ExternalLink className="text-muted-foreground/50 size-3.5 shrink-0" />
-              </a>
-            );
-          })}
-        </CardContent>
-      </Card>
-    </section>
-  );
-});
-
-/** Logs tab content */
-const LogsTab = memo(function LogsTab({ workflow }: { workflow: WorkflowQueryResponse }) {
-  return (
-    <div className="flex flex-col items-center gap-4 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
-        <FileText className="size-6 text-gray-400 dark:text-zinc-500" />
-      </div>
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Workflow Logs</h3>
-        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
-          View stdout/stderr output from the workflow execution
-        </p>
-      </div>
-      {workflow.logs ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2"
-          asChild
-        >
-          <a
-            href={workflow.logs}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <FileText className="mr-1.5 size-3.5" />
-            Open in New Tab
-          </a>
-        </Button>
-      ) : (
-        <p className="text-xs text-gray-400 dark:text-zinc-500">No logs available</p>
-      )}
-    </div>
-  );
-});
-
-/** Events tab content */
-const EventsTab = memo(function EventsTab({ workflow }: { workflow: WorkflowQueryResponse }) {
-  return (
-    <div className="flex flex-col items-center gap-4 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-800">
-        <History className="size-6 text-gray-400 dark:text-zinc-500" />
-      </div>
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 dark:text-zinc-100">Kubernetes Events</h3>
-        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-zinc-400">
-          Pod scheduling, container lifecycle, and resource events
-        </p>
-      </div>
-      {workflow.events ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2"
-          asChild
-        >
-          <a
-            href={workflow.events}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <History className="mr-1.5 size-3.5" />
-            View Events
-          </a>
-        </Button>
-      ) : (
-        <p className="text-xs text-gray-400 dark:text-zinc-500">No events available</p>
-      )}
-    </div>
-  );
-});
+/** Links configuration for workflow */
+const WORKFLOW_LINKS = (workflow: WorkflowQueryResponse) => [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    description: "Kubernetes details",
+    url: workflow.dashboard_url,
+    icon: BarChart3,
+  },
+  { id: "grafana", label: "Grafana", description: "Metrics & monitoring", url: workflow.grafana_url, icon: Activity },
+  { id: "outputs", label: "Outputs", description: "Artifacts & results", url: workflow.outputs, icon: Package },
+];
 
 /** Overview tab content */
 interface OverviewTabProps {
@@ -336,7 +218,10 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }:
       </section>
 
       <Details workflow={workflow} />
-      <Links workflow={workflow} />
+      <LinksSection
+        title="Links"
+        links={WORKFLOW_LINKS(workflow)}
+      />
 
       {/* Actions section */}
       {canCancel && onCancel && (
@@ -425,30 +310,48 @@ export const WorkflowDetails = memo(function WorkflowDetails({
 
       {/* Tab Content */}
       <div className="relative flex-1 overflow-hidden bg-white dark:bg-zinc-900">
-        {/* Overview tab */}
-        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "overview" && "invisible")}>
-          <div className="p-4 pb-16">
-            <OverviewTab
-              workflow={workflow}
-              canCancel={canCancel}
-              onCancel={onCancel}
-            />
-          </div>
-        </div>
+        <TabPanel
+          tab="overview"
+          activeTab={activeTab}
+          padding="with-bottom"
+        >
+          <OverviewTab
+            workflow={workflow}
+            canCancel={canCancel}
+            onCancel={onCancel}
+          />
+        </TabPanel>
 
-        {/* Logs tab */}
-        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "logs" && "invisible")}>
-          <div className="flex h-full items-center justify-center p-4">
-            <LogsTab workflow={workflow} />
-          </div>
-        </div>
+        <TabPanel
+          tab="logs"
+          activeTab={activeTab}
+          centered
+          className="p-4"
+        >
+          <EmptyTabPrompt
+            icon={FileText}
+            title="Workflow Logs"
+            description="View stdout/stderr output from the workflow execution"
+            url={workflow.logs}
+            emptyText="No logs available"
+          />
+        </TabPanel>
 
-        {/* Events tab */}
-        <div className={cn("absolute inset-0 overflow-y-auto", activeTab !== "events" && "invisible")}>
-          <div className="flex h-full items-center justify-center p-4">
-            <EventsTab workflow={workflow} />
-          </div>
-        </div>
+        <TabPanel
+          tab="events"
+          activeTab={activeTab}
+          centered
+          className="p-4"
+        >
+          <EmptyTabPrompt
+            icon={History}
+            title="Kubernetes Events"
+            description="Pod scheduling, container lifecycle, and resource events"
+            url={workflow.events}
+            buttonLabel="View Events"
+            emptyText="No events available"
+          />
+        </TabPanel>
       </div>
     </div>
   );

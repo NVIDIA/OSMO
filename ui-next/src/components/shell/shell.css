@@ -138,68 +138,6 @@
 }
 
 /* =============================================================================
-   Connect Card (Idle State)
-   ============================================================================= */
-
-.shell-connect-card {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--shell-bg-overlay);
-  backdrop-filter: blur(4px);
-
-  /* Performance: Prep GPU for animation */
-  will-change: opacity;
-
-  /* Fade in animation */
-  animation: shell-fade-in var(--shell-transition-normal) forwards;
-}
-
-.shell-connect-card-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 24px 32px;
-  background: #18181b;
-  border: 1px solid var(--shell-border);
-  border-radius: var(--shell-border-radius);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-}
-
-.shell-connect-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  background: #27272a;
-  border-radius: 50%;
-}
-
-.shell-connect-card-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--shell-fg);
-}
-
-.shell-connect-card-actions {
-  margin-top: 4px;
-}
-
-.shell-connect-button-group {
-  display: flex;
-}
-
-.shell-connect-card-hint {
-  font-size: 11px;
-  color: var(--shell-fg-dim);
-}
-
-/* =============================================================================
    Connecting State
    ============================================================================= */
 
@@ -462,7 +400,6 @@
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  .shell-connect-card,
   .shell-connecting,
   .shell-reconnecting,
   .shell-reconnect-button,

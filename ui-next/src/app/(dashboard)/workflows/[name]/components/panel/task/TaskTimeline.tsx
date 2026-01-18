@@ -28,7 +28,13 @@
 import { memo, useMemo } from "react";
 import type { TaskQueryResponse } from "../../../lib/workflow-types";
 import { getStatusCategory } from "../../../lib/status";
-import { Timeline, type TimelinePhase, parseTime, createPhaseDurationCalculator } from "../shared/Timeline";
+import {
+  Timeline,
+  type TimelinePhase,
+  parseTime,
+  createPhaseDurationCalculator,
+  finalizeTimelinePhases,
+} from "../shared/Timeline";
 import { useTick } from "@/hooks";
 
 // ============================================================================
@@ -156,61 +162,14 @@ export const TaskTimeline = memo(function TaskTimeline({ task, showHeader, heade
       });
     }
 
-    // Sort phases by start time to ensure chronological order
-    result.sort((a, b) => {
-      if (!a.time) return 1; // Phases without start time go to the end
-      if (!b.time) return -1;
-      return a.time.getTime() - b.time.getTime();
+    // Finalize: sort and recalculate durations/statuses
+    return finalizeTimelinePhases(result, {
+      calculatePhaseDuration,
+      endTime,
+      isRunning,
+      isCompleted,
+      isFailed,
     });
-
-    // Recalculate duration and status to ensure contiguous segments
-    // Each phase's end time should be the next phase's start time
-    for (let i = 0; i < result.length; i++) {
-      const phase = result[i];
-      const nextPhase = result[i + 1];
-      const prevPhase = result[i - 1];
-      const isLastPhase = i === result.length - 1;
-      // Check if next phase is a terminal indicator (no time, just state)
-      const nextIsTerminal = nextPhase && !nextPhase.time;
-
-      if (nextPhase?.time) {
-        // This phase ends when the next phase starts - recalculate duration
-        const rawDuration = calculatePhaseDuration(phase.time, nextPhase.time);
-        phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
-        // Any phase followed by another phase is completed
-        phase.status = "completed";
-      } else if (nextIsTerminal) {
-        // Work phase followed by terminal indicator (Running/Done/Failed)
-        // Don't show duration here - the terminal phase shows it to avoid redundancy
-        phase.duration = null;
-        phase.status = "completed";
-      } else if (isLastPhase) {
-        // Terminal phases (done/failed/running) are state indicators
-        const isTerminalPhase = phase.id === "done" || phase.id === "failed" || phase.id === "running";
-        if (isTerminalPhase) {
-          // For "running" state: calculate duration from previous phase start to now
-          // This gives it proportional visual weight representing "running for X time"
-          if (phase.id === "running" && prevPhase?.time) {
-            phase.duration = calculatePhaseDuration(prevPhase.time, null);
-          } else {
-            // Done/Failed are instantaneous milestones
-            phase.duration = null;
-          }
-        } else {
-          // Last work phase (no terminal after): ends at task end time or now
-          const rawDuration = calculatePhaseDuration(phase.time, endTime);
-          phase.duration = rawDuration !== null ? Math.max(1, rawDuration) : null;
-        }
-        // Last phase status depends on task state
-        if (isRunning && !endTime) {
-          phase.status = "active";
-        } else if (endTime) {
-          phase.status = isCompleted ? "completed" : isFailed ? "failed" : "completed";
-        }
-      }
-    }
-
-    return result;
   }, [
     schedulingStart,
     initializingStart,

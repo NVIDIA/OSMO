@@ -33,7 +33,7 @@ import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter";
 import { getResourceAllocationTypeDisplay } from "../../lib/constants";
-import { PanelHeader, PanelTitle, PanelHeaderActions } from "@/components/panel";
+import { PanelHeader, PanelTitle, PanelHeaderActions, SeparatedParts } from "@/components/panel";
 
 export interface ResourcePanelHeaderProps {
   resource: Resource;
@@ -60,26 +60,21 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({
 
   // Build subtitle content with platform, backend, and pool count
   const subtitleContent = (
-    <>
+    <SeparatedParts>
       <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
         <Cpu className="size-3" />
         {resource.platform}
       </span>
-      <span className="text-zinc-400 dark:text-zinc-600">·</span>
       <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
         <Server className="size-3" />
         {resource.backend}
       </span>
       {resource.poolMemberships.length > 0 && (
-        <>
-          <span className="text-zinc-400 dark:text-zinc-600">·</span>
-          <span className="text-zinc-500 dark:text-zinc-400">
-            {resource.poolMemberships.length} pool
-            {resource.poolMemberships.length !== 1 ? "s" : ""}
-          </span>
-        </>
+        <span className="text-zinc-500 dark:text-zinc-400">
+          {resource.poolMemberships.length} pool{resource.poolMemberships.length !== 1 ? "s" : ""}
+        </span>
       )}
-    </>
+    </SeparatedParts>
   );
 
   return (
