@@ -14,13 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflows Toolbar
- *
- * Contains FilterBar with filter chips and status presets.
- * Wraps the generic TableToolbar component.
- */
-
 "use client";
 
 import { memo, useMemo } from "react";
@@ -41,10 +34,6 @@ import {
 } from "../lib/workflow-search-fields";
 import { STATUS_STYLES, type StatusCategory } from "../lib/workflow-constants";
 
-// =============================================================================
-// Status Icons
-// =============================================================================
-
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
   pending: Loader2,
@@ -54,10 +43,6 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
   unknown: AlertTriangle,
 };
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface WorkflowsToolbarProps {
   workflows: WorkflowListEntry[];
   searchChips: SearchChip[];
@@ -66,20 +51,12 @@ export interface WorkflowsToolbarProps {
   resultsCount?: ResultsCount;
 }
 
-// =============================================================================
-// Status Preset Configuration
-// =============================================================================
-
 const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
   { id: "running", label: "Running" },
   { id: "waiting", label: "Waiting" },
   { id: "completed", label: "Completed" },
   { id: "failed", label: "Failed" },
 ];
-
-// =============================================================================
-// User Toggle Component
-// =============================================================================
 
 interface UserToggleProps {
   showAllUsers: boolean;
@@ -103,10 +80,6 @@ const UserToggle = memo(function UserToggle({ showAllUsers, onToggle }: UserTogg
     </Tooltip>
   );
 });
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const WorkflowsToolbar = memo(function WorkflowsToolbar({
   workflows,

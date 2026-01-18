@@ -16,25 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * FilterBar Component
- *
- * Intelligent search input with chip-based filters, autocomplete suggestions,
- * and support for field-specific queries (pool:, platform:, backend:, etc.).
- *
- * Built on cmdk (via shadcn/ui Command) for:
- * - Keyboard navigation (↑↓, Enter, Escape)
- * - Fuzzy search filtering
- * - Accessibility (ARIA)
- * - Focus management
- *
- * Architecture:
- * - lib/: Core business logic (types, useChips, useSuggestions, filterByChips)
- * - hooks/: React state management (useChips, useSuggestions)
- * - components.tsx: ChipLabel, PresetButton/Group (core UI)
- * - This file: Main component integrating cmdk with chip/preset logic
- */
-
 "use client";
 
 import { useState, useRef, useCallback, useMemo, memo } from "react";
@@ -51,10 +32,6 @@ import { useChips, useSuggestions } from "./hooks";
 // UI components and styles
 import { inputStyles, chipStyles, dropdownStyles } from "./styles";
 import { ChipLabel, PresetContent } from "./components";
-
-// ============================================================================
-// Component
-// ============================================================================
 
 function FilterBarInner<T>({
   data,

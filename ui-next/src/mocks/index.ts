@@ -14,20 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * MSW Mock API
- *
- * Architecture:
- * - All mocking happens server-side via MSW Node (see server.ts)
- * - Client requests go through Next.js rewrites → proxy → MSW intercepts
- * - No browser-side MSW needed - same code path as production
- *
- * Usage:
- * 1. Set NEXT_PUBLIC_MOCK_API=true in .env.local
- * 2. Or run: pnpm dev:mock
- *
- * Console API (in browser devtools):
- *   __mockConfig.help()  // See all options
- */
+// MSW mocks - server-side only. See server.ts for handler setup.
 
 export { handlers } from "./handlers";

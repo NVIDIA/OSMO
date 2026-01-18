@@ -22,81 +22,44 @@ import { useRafCallback, useIsomorphicLayoutEffect } from "@react-hookz/web";
 import { useResizeObserver, useEventCallback } from "usehooks-ts";
 import { naturalCompare } from "@/lib/utils";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface UseExpandableChipsOptions<T = string> {
-  /** Array of items to display */
   items: T[];
-  /** Whether items should be sorted alphabetically (default: true for strings) */
   sortAlphabetically?: boolean;
-  /** Key extractor for non-string items */
   getKey?: (item: T) => string;
 }
 
 export interface UseExpandableChipsResult<T = string> {
-  /** Ref for the visible container */
   containerRef: RefObject<HTMLDivElement | null>;
-  /** Ref for the hidden measurement container */
   measureRef: RefObject<HTMLDivElement | null>;
-  /** Whether the list is currently expanded */
   expanded: boolean;
-  /** Toggle expansion state */
   setExpanded: (expanded: boolean) => void;
-  /** Number of items visible when collapsed */
   visibleCount: number;
-  /** Sorted items array */
   sortedItems: T[];
-  /** Items currently displayed based on expansion state */
   displayedItems: T[];
-  /** Number of items hidden in overflow */
   overflowCount: number;
 }
-
-// =============================================================================
-// Helpers
-// =============================================================================
 
 function isStringArray<T>(items: T[]): items is (T & string)[] {
   return items.length > 0 && typeof items[0] === "string";
 }
 
-/**
- * Get the number of characters in "+N" for a given overflow count.
- * Used to estimate overflow button width dynamically.
- */
 function getOverflowCharCount(overflow: number): number {
-  // "+1" = 2 chars, "+10" = 3 chars, "+100" = 4 chars
   return 1 + String(overflow).length;
 }
 
-// =============================================================================
-// Hook
-// =============================================================================
-
-/**
- * Hook for expandable chip/pill lists with responsive overflow.
- *
- * Uses CSS-driven measurement with dynamic +N width calculation.
- * Optimized for 60fps performance with batched DOM reads and RAF throttling.
- */
+// CSS-driven measurement with dynamic +N width. RAF-throttled for 60fps.
 export function useExpandableChips<T = string>({
   items,
   sortAlphabetically,
   getKey,
 }: UseExpandableChipsOptions<T>): UseExpandableChipsResult<T> {
-  // Keyed expanded state - uses items reference as key
-  // When items changes (new array), expanded auto-resets to false
   const [expandedState, setExpandedState] = useState<{ items: T[]; value: boolean }>({
     items,
     value: false,
   });
 
-  // Derive actual expanded value - if items reference changed, reset to false
   const expanded = expandedState.items === items ? expandedState.value : false;
 
-  // Stable setter that updates with current items reference
   const setExpanded = useEventCallback((value: boolean) => {
     setExpandedState({ items, value });
   });
@@ -119,10 +82,6 @@ export function useExpandableChips<T = string>({
     return items;
   }, [items, shouldSort, getKey]);
 
-  // ==========================================================================
-  // CSS-Driven Measurement with Dynamic +N Calculation
-  // ==========================================================================
-
   const calculateVisibleCount = useCallback(() => {
     const container = containerRef.current;
     const measure = measureRef.current;
@@ -132,7 +91,6 @@ export function useExpandableChips<T = string>({
       return itemCount;
     }
 
-    // === BATCH ALL DOM READS FIRST (avoid layout thrashing) ===
     const containerWidth = container.offsetWidth;
     if (containerWidth === 0) return itemCount;
 
@@ -143,22 +101,16 @@ export function useExpandableChips<T = string>({
     const chips = measure.querySelectorAll<HTMLElement>("[data-chip]");
     if (chips.length === 0) return itemCount;
 
-    // Pre-read all chip widths into array (single layout pass)
     const chipWidths: number[] = [];
     for (let i = 0; i < chips.length; i++) {
       chipWidths.push(chips[i].offsetWidth);
     }
 
-    // Read overflow button measurements
-    // We measure "+1" (2 chars) as baseline to calculate per-character width
     const overflowBtn = measure.querySelector<HTMLElement>("[data-overflow]");
     const baseOverflowWidth = overflowBtn?.offsetWidth || 0;
-    const baseCharCount = 2; // "+1" = 2 characters
-    // Estimate character width from the measured button
-    // Button padding stays constant, only text width changes
-    const charWidth = baseOverflowWidth / (baseCharCount + 1.5); // +1.5 accounts for padding ratio
+    const baseCharCount = 2;
+    const charWidth = baseOverflowWidth / (baseCharCount + 1.5);
 
-    // === NOW CALCULATE (no more DOM reads) ===
     let accumulatedWidth = 0;
     let count = 0;
 
@@ -166,14 +118,10 @@ export function useExpandableChips<T = string>({
       const chipWidth = chipWidths[i];
       const gapWidth = count > 0 ? gap : 0;
       const isLast = i === chipWidths.length - 1;
-
-      // Dynamic overflow calculation: if we stop here, overflow = remaining items
       const potentialOverflow = itemCount - (i + 1);
 
-      // Calculate the actual overflow button width for this potential overflow count
       let overflowReserve = 0;
       if (!isLast && potentialOverflow > 0) {
-        // Estimate overflow button width based on character count
         const overflowCharCount = getOverflowCharCount(potentialOverflow);
         const charDiff = overflowCharCount - baseCharCount;
         const dynamicOverflowWidth = baseOverflowWidth + charDiff * charWidth;
@@ -191,21 +139,16 @@ export function useExpandableChips<T = string>({
     return Math.max(1, count);
   }, [sortedItems]);
 
-  // RAF-throttled recalculation for smooth 60fps resize handling
   const [scheduleRecalculate] = useRafCallback(() => {
     setVisibleCount(calculateVisibleCount());
   });
 
-  // Initial calculation on mount (when not expanded)
-  // useIsomorphicLayoutEffect runs synchronously after DOM mutations but before paint,
-  // which is the correct timing for DOM measurements to avoid visual flicker
   useIsomorphicLayoutEffect(() => {
     if (!expanded) {
       setVisibleCount(calculateVisibleCount());
     }
   }, [calculateVisibleCount, expanded]);
 
-  // Observe container resize and recalculate using useResizeObserver
   useResizeObserver({
     ref: containerRef as RefObject<HTMLElement>,
     onResize: () => {
@@ -215,10 +158,6 @@ export function useExpandableChips<T = string>({
     },
     box: "border-box",
   });
-
-  // ==========================================================================
-  // Return (computed values, no DOM access)
-  // ==========================================================================
 
   const displayedItems = expanded ? sortedItems : sortedItems.slice(0, visibleCount);
   const overflowCount = sortedItems.length - visibleCount;
