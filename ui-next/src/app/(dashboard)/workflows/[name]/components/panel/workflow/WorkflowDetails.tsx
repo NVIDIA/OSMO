@@ -338,22 +338,25 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel }:
       <Details workflow={workflow} />
       <Links workflow={workflow} />
 
-      {/* Cancel action */}
+      {/* Actions section */}
       {canCancel && onCancel && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
-            "text-red-600 ring-1 ring-red-200 ring-inset",
-            "hover:bg-red-50 hover:text-red-700",
-            "dark:text-red-400 dark:ring-red-800",
-            "dark:hover:bg-red-950/50 dark:hover:text-red-300",
-          )}
-        >
-          <XCircle className="size-4" />
-          Cancel Workflow
-        </button>
+        <section>
+          <h3 className={STYLES.sectionHeader}>Actions</h3>
+          <button
+            type="button"
+            onClick={onCancel}
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+              "text-red-600 ring-1 ring-red-200 ring-inset",
+              "hover:bg-red-50 hover:text-red-700",
+              "dark:text-red-400 dark:ring-red-800",
+              "dark:hover:bg-red-950/50 dark:hover:text-red-300",
+            )}
+          >
+            <XCircle className="size-4" />
+            Cancel Workflow
+          </button>
+        </section>
       )}
     </div>
   );
