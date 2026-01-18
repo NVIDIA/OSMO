@@ -67,7 +67,6 @@ const getRowId = (task: TaskWithDuration) => task.name;
 // =============================================================================
 
 interface GroupDetailsInternalProps extends GroupDetailsProps {
-  onClose: () => void;
   /** Navigate back to workflow details */
   onBack?: () => void;
   onPanelResize: (pct: number) => void;
@@ -80,7 +79,6 @@ export const GroupDetails = memo(function GroupDetails({
   allGroups,
   onSelectTask,
   onSelectGroup,
-  onClose,
   onBack,
   onPanelResize,
   isDetailsExpanded,
@@ -335,7 +333,6 @@ export const GroupDetails = memo(function GroupDetails({
         subtitle={`${stats.total} tasks`}
         statusContent={statusContent}
         breadcrumbs={breadcrumbs.length > 0 ? breadcrumbs : undefined}
-        onClose={onClose}
         onPanelResize={onPanelResize}
         menuContent={menuContent}
         expandableContent={expandableContent}

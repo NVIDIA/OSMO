@@ -57,8 +57,6 @@ export interface DetailsPanelProps {
   allGroups: GroupWithLayout[];
   /** The selected task (only for task view) */
   task: TaskQueryResponse | null;
-  /** Callback when panel is closed/collapsed */
-  onClose: () => void;
   /** Callback when navigating back from task to group */
   onBackToGroup: () => void;
   /** Callback when navigating back from group to workflow */
@@ -230,8 +228,6 @@ export interface DetailsPanelHeaderProps {
    * @deprecated Use `breadcrumbs` array for multi-level navigation.
    */
   onBack?: () => void;
-  /** Close button handler */
-  onClose: () => void;
   /** Panel resize callback for snap presets */
   onPanelResize?: (pct: number) => void;
   /** Additional menu content */

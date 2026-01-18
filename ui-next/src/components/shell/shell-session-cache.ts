@@ -9,20 +9,53 @@
 /**
  * Shell Session Cache
  *
- * Manages shell sessions (terminal + connection) outside of React's lifecycle.
- * Sessions are stored by a unique key (typically taskId UUID) and persist when
- * navigating within a workflow page.
+ * Central state management for shell sessions. All shell state is managed here,
+ * and React components subscribe via useSyncExternalStore.
  *
- * Architecture:
- * - Each session bundles a Terminal instance with its WebSocket connection
- * - When navigating away, both terminal and WebSocket are preserved
- * - When returning, the same session is reattached without creating a new PTY
+ * ════════════════════════════════════════════════════════════════════════════
+ * LIFECYCLE PHASES
+ * ════════════════════════════════════════════════════════════════════════════
  *
- * Lifecycle:
- * 1. User opens shell → createSession() creates session with Terminal + WebSocket
- * 2. User navigates away → updateSessionContainer(null) detaches from DOM
- * 3. User returns → reattachTerminal() attaches Terminal to new container
- * 4. User closes shell / exit → disposeSession() cleans up everything
+ * Phase 1: INTENT (user clicks Connect)
+ *   → openShellIntent() adds entry to shellIntents Map
+ *   → UI snapshot includes intent with status "mounting"
+ *   → ShellContainer sees intent → renders TaskShell component
+ *
+ * Phase 2: SESSION (TaskShell mounts, terminal created)
+ *   → createSession() moves metadata from intent to session
+ *   → Terminal and WebSocket are now live
+ *   → Intent is kept for reference (metadata source)
+ *
+ * Phase 3: NAVIGATION (user views different task)
+ *   → updateSessionContainer(null) detaches terminal from DOM
+ *   → Session persists in cache with terminal buffer intact
+ *   → User returns → reattachTerminal() reattaches to new container
+ *
+ * Phase 4: DISPOSED (user removes session)
+ *   → disposeShell() cleans up session + removes intent
+ *   → Terminal, WebSocket, and all resources released
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ * DATA FLOW
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ *   ShellContext (thin wrapper)
+ *         │
+ *         ▼
+ *   openShellIntent() ──────► shellIntents Map
+ *         │                         │
+ *         │                         ▼
+ *         │               getShellsSnapshot()  ◄──── useShellSessions()
+ *         │                         │
+ *         ▼                         ▼
+ *   ShellContainer ◄─────── sessions + intents merged
+ *         │
+ *         ▼
+ *   TaskShell mounts
+ *         │
+ *         ▼
+ *   createSession() ──────► sessionCache Map
+ *
  */
 
 import type { Terminal, IDisposable } from "@xterm/xterm";
@@ -128,7 +161,27 @@ export interface ShellSession {
 // Cache Store (Module Scope)
 // =============================================================================
 
-/** Map of sessionKey -> ShellSession */
+/**
+ * Shell intent - metadata for a shell the user wants to render.
+ * Created when user clicks "Connect", before TaskShell component mounts.
+ */
+export interface ShellIntent {
+  /** Task UUID - unique identifier */
+  taskId: string;
+  /** Task name for display */
+  taskName: string;
+  /** Workflow name for the exec API */
+  workflowName: string;
+  /** Shell executable (e.g., /bin/bash) */
+  shell: string;
+  /** Timestamp when intent was created */
+  createdAt: number;
+}
+
+/** Map of taskId -> ShellIntent (what the UI wants to render) */
+const shellIntents = new Map<string, ShellIntent>();
+
+/** Map of sessionKey -> ShellSession (actual terminal instances) */
 const sessionCache = new Map<string, ShellSession>();
 
 /** Subscribers for cache changes (for React useSyncExternalStore) */
@@ -139,6 +192,7 @@ let cachedSnapshot: ShellSessionSnapshot[] = [];
 
 /**
  * Session snapshot for UI components (excludes non-serializable fields).
+ * Merges both intents and sessions into a unified view.
  */
 export interface ShellSessionSnapshot {
   key: string;
@@ -149,23 +203,52 @@ export interface ShellSessionSnapshot {
   status: ConnectionStatus;
   error: string | null;
   createdAt: number;
+  /** Whether this has a live terminal instance */
+  hasTerminal: boolean;
 }
 
 /**
- * Notify all subscribers of cache changes.
+ * Rebuild and notify - called when intents or sessions change.
  */
 function notifySubscribers(): void {
-  // Update cached snapshot
-  cachedSnapshot = Array.from(sessionCache.values()).map((s) => ({
-    key: s.key,
-    taskId: s.key, // key is the taskId
-    taskName: s.taskName,
-    workflowName: s.workflowName,
-    shell: s.shell,
-    status: s.connection.status,
-    error: s.connection.error,
-    createdAt: s.createdAt,
-  }));
+  // Build unified snapshot: sessions + intents (that don't have sessions yet)
+  const snapshots: ShellSessionSnapshot[] = [];
+
+  // Add all intents (as the source of what should be rendered)
+  for (const [taskId, intent] of shellIntents) {
+    const session = sessionCache.get(taskId);
+
+    if (session) {
+      // Intent has a session - use session's status
+      snapshots.push({
+        key: taskId,
+        taskId,
+        taskName: intent.taskName,
+        workflowName: intent.workflowName,
+        shell: intent.shell,
+        status: session.connection.status,
+        error: session.connection.error,
+        createdAt: intent.createdAt,
+        hasTerminal: true,
+      });
+    } else {
+      // Intent doesn't have a session yet - it's mounting
+      snapshots.push({
+        key: taskId,
+        taskId,
+        taskName: intent.taskName,
+        workflowName: intent.workflowName,
+        shell: intent.shell,
+        status: "mounting",
+        error: null,
+        createdAt: intent.createdAt,
+        hasTerminal: false,
+      });
+    }
+  }
+
+  cachedSnapshot = snapshots;
+
   // Notify React
   for (const callback of subscribers) {
     callback();
@@ -181,10 +264,50 @@ export function subscribe(callback: () => void): () => void {
 }
 
 /**
- * Get current snapshot of all sessions (for useSyncExternalStore).
+ * Get current snapshot of all shells (for useSyncExternalStore).
+ * Returns intents merged with session state.
  */
 export function getSessionsSnapshot(): ShellSessionSnapshot[] {
   return cachedSnapshot;
+}
+
+// =============================================================================
+// Shell Intents (Phase 1: User wants to render a shell)
+// =============================================================================
+
+/**
+ * Open a shell intent. Called when user clicks "Connect".
+ * This triggers ShellContainer to render TaskShell.
+ */
+export function openShellIntent(taskId: string, taskName: string, workflowName: string, shell: string): void {
+  if (shellIntents.has(taskId)) {
+    // Already have an intent for this task
+    return;
+  }
+
+  shellIntents.set(taskId, {
+    taskId,
+    taskName,
+    workflowName,
+    shell,
+    createdAt: Date.now(),
+  });
+
+  notifySubscribers();
+}
+
+/**
+ * Check if an intent exists for a task.
+ */
+export function hasShellIntent(taskId: string): boolean {
+  return shellIntents.has(taskId);
+}
+
+/**
+ * Get the intent for a task.
+ */
+export function getShellIntent(taskId: string): ShellIntent | undefined {
+  return shellIntents.get(taskId);
 }
 
 // =============================================================================
@@ -342,13 +465,10 @@ export function disconnectSession(key: string): void {
 }
 
 /**
- * Dispose a session and remove it from the cache.
- * Cleans up terminal, WebSocket, and all resources.
+ * Dispose a session's resources (terminal, WebSocket, addons).
+ * Internal helper - does not remove intent or notify.
  */
-export function disposeSession(key: string): void {
-  const session = sessionCache.get(key);
-  if (!session) return;
-
+function disposeSessionResources(session: ShellSession): void {
   // Close WebSocket if open
   if (session.connection.webSocket) {
     try {
@@ -384,9 +504,23 @@ export function disposeSession(key: string): void {
   } catch {
     // Terminal may already be disposed
   }
+}
 
-  // Remove from cache
-  sessionCache.delete(key);
+/**
+ * Dispose a session and remove it from the cache.
+ * Also removes the corresponding intent.
+ * This is the main cleanup function for removing a shell completely.
+ */
+export function disposeSession(key: string): void {
+  const session = sessionCache.get(key);
+  if (session) {
+    disposeSessionResources(session);
+    sessionCache.delete(key);
+  }
+
+  // Also remove the intent
+  shellIntents.delete(key);
+
   notifySubscribers();
 }
 

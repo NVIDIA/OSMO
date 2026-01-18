@@ -60,5 +60,4 @@ export {
   useShellPortal,
   useShellContext,
   type ShellContainerProps,
-  type ActiveShell,
 } from "./shell";

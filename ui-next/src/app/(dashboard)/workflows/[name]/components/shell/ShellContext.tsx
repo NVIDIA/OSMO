@@ -9,47 +9,37 @@
 /**
  * ShellContext
  *
- * Manages which shells should be rendered (separate from actual session state).
- * This context handles the "intent to render" while the session cache handles
- * the actual terminal/WebSocket instances.
+ * Thin React wrapper around the shell session cache.
+ * Provides actions for managing shells. State comes from useShellSessions().
  *
- * Separation of Concerns:
- * - ShellContext: "What shells should be rendered" (triggers component mounting)
- * - Session Cache: "Terminal + WebSocket instances" (created when component mounts)
+ * The actual state is managed in shell-session-cache.ts:
+ * - shellIntents Map: what the UI wants to render
+ * - sessionCache Map: actual terminal/WebSocket instances
  *
- * Flow:
- * 1. User clicks Connect → connectShell() adds to activeShells
- * 2. ShellContainer sees activeShells → renders TaskShell for each
- * 3. TaskShell mounts → useShell creates session in cache (with terminal)
- * 4. User disconnects → disconnectOnly() closes WebSocket but keeps in list
- * 5. User removes → removeShell() removes from activeShells + disposes session
+ * This context just provides convenient action functions that
+ * delegate to the cache module.
+ *
+ * @see shell-session-cache.ts for lifecycle documentation
  */
 
 "use client";
 
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
-import { disconnectSession, disposeSession } from "@/components/shell";
+import { createContext, useContext, useCallback, useMemo, type ReactNode } from "react";
+import {
+  openShellIntent,
+  hasShellIntent,
+  disconnectSession,
+  disposeSession,
+  useShellSessions,
+} from "@/components/shell";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-/** Shell that should be rendered */
-export interface ActiveShell {
-  /** Task UUID - unique identifier */
-  taskId: string;
-  /** Task name for display */
-  taskName: string;
-  /** Shell executable (e.g., /bin/bash) */
-  shell: string;
-}
-
 interface ShellContextValue {
-  /** Shells that should be rendered */
-  activeShells: ActiveShell[];
-
   /** Request a shell to be rendered (called by TaskDetails on Connect click) */
-  connectShell: (taskId: string, taskName: string, shell: string) => void;
+  connectShell: (taskId: string, taskName: string, workflowName: string, shell: string) => void;
 
   /** Disconnect only - closes WebSocket but keeps session in list for reconnect */
   disconnectOnly: (taskId: string) => void;
@@ -57,7 +47,7 @@ interface ShellContextValue {
   /** Remove a shell from rendering and dispose its session */
   removeShell: (taskId: string) => void;
 
-  /** Check if a shell is active for a given task */
+  /** Check if a shell intent exists for a given task */
   hasActiveShell: (taskId: string) => boolean;
 
   /** Disconnect all shells (called on page leave) */
@@ -75,57 +65,45 @@ const ShellContext = createContext<ShellContextValue | null>(null);
 // =============================================================================
 
 export function ShellProvider({ children }: { children: ReactNode }) {
-  const [activeShells, setActiveShells] = useState<ActiveShell[]>([]);
+  // Subscribe to session changes so we can iterate over all shells for disconnectAll
+  const { sessions } = useShellSessions();
 
-  const connectShell = useCallback((taskId: string, taskName: string, shell: string) => {
-    setActiveShells((prev) => {
-      // Don't add if already exists
-      if (prev.some((s) => s.taskId === taskId)) {
-        return prev;
-      }
-      return [...prev, { taskId, taskName, shell }];
-    });
+  const connectShell = useCallback((taskId: string, taskName: string, workflowName: string, shell: string) => {
+    // Delegate to cache - adds to shellIntents Map
+    openShellIntent(taskId, taskName, workflowName, shell);
   }, []);
 
   const disconnectOnly = useCallback((taskId: string) => {
-    // Disconnect WebSocket but keep session in cache and activeShells
-    // Session remains visible in activity strip with "disconnected" status
+    // Delegate to cache - closes WebSocket but keeps session/intent
     disconnectSession(taskId);
   }, []);
 
   const removeShell = useCallback((taskId: string) => {
-    // Remove from active shells
-    setActiveShells((prev) => prev.filter((s) => s.taskId !== taskId));
-    // Dispose the session in cache (cleans up terminal + WebSocket)
+    // Delegate to cache - disposes session AND removes intent
     disposeSession(taskId);
   }, []);
 
-  const hasActiveShell = useCallback(
-    (taskId: string) => {
-      return activeShells.some((s) => s.taskId === taskId);
-    },
-    [activeShells],
-  );
+  const hasActiveShell = useCallback((taskId: string) => {
+    // Delegate to cache - checks if intent exists
+    return hasShellIntent(taskId);
+  }, []);
 
   const disconnectAll = useCallback(() => {
-    // Dispose all sessions
-    for (const shell of activeShells) {
+    // Dispose all shells from current snapshot
+    for (const shell of sessions) {
       disposeSession(shell.taskId);
     }
-    // Clear state
-    setActiveShells([]);
-  }, [activeShells]);
+  }, [sessions]);
 
   const value = useMemo<ShellContextValue>(
     () => ({
-      activeShells,
       connectShell,
       disconnectOnly,
       removeShell,
       hasActiveShell,
       disconnectAll,
     }),
-    [activeShells, connectShell, disconnectOnly, removeShell, hasActiveShell, disconnectAll],
+    [connectShell, disconnectOnly, removeShell, hasActiveShell, disconnectAll],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
