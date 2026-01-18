@@ -14,22 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Mock Data Generators
- *
- * All generators use status enums from @/lib/api/generated.ts to prevent drift.
- * Generation is deterministic and memory-efficient (on-demand, not stored).
- *
- * Key properties for infinite streaming:
- * - Same index/name always produces the same data (deterministic)
- * - Supports "infinite" pagination (bounded only by configured total)
- * - No items stored in memory - regenerated on each request
- * - Efficient for testing pagination boundaries
- */
-
-// ============================================================================
-// Core Workflow Entities
-// ============================================================================
+// Deterministic mock data generators - on-demand, not stored in memory
 
 export {
   WorkflowGenerator,
@@ -45,10 +30,6 @@ export {
   type MockTask,
   type Priority,
 } from "./workflow-generator";
-
-// ============================================================================
-// Infrastructure (all support infinite pagination)
-// ============================================================================
 
 export {
   PoolGenerator,
@@ -69,17 +50,9 @@ export {
   getResourceTotalGlobal,
 } from "./resource-generator";
 
-// ============================================================================
-// Observability
-// ============================================================================
-
 export { LogGenerator, logGenerator, type GeneratedLogLine } from "./log-generator";
 
 export { EventGenerator, eventGenerator, type GeneratedEvent } from "./event-generator";
-
-// ============================================================================
-// Storage (all support infinite pagination)
-// ============================================================================
 
 export {
   BucketGenerator,
@@ -101,10 +74,6 @@ export {
   type GeneratedDatasetCollection,
 } from "./dataset-generator";
 
-// ============================================================================
-// User & Profile
-// ============================================================================
-
 export {
   ProfileGenerator,
   profileGenerator,
@@ -112,10 +81,6 @@ export {
   type GeneratedProfileSettings,
   type GeneratedApiKey,
 } from "./profile-generator";
-
-// ============================================================================
-// Interactive Features
-// ============================================================================
 
 export {
   PortForwardGenerator,
@@ -126,9 +91,5 @@ export {
 } from "./portforward-generator";
 
 export { PTYSimulator, ptySimulator, type PTYSession, type PTYScenario } from "./pty-simulator";
-
-// ============================================================================
-// Configuration (from seed)
-// ============================================================================
 
 export { MOCK_CONFIG, DEFAULT_VOLUME, HIGH_VOLUME, LOW_VOLUME } from "../seed";

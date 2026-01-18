@@ -14,39 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SidePanel Component
- *
- * A simplified side panel for master/detail layouts.
- * Unlike ResizablePanel (overlay model), SidePanel is designed to be used
- * as a sibling to the main content in a flexbox layout.
- *
- * Features:
- * - Resizable width via drag handle (percentage of container)
- * - Collapsible to edge strip
- * - Escape key handling
- * - Smooth transitions
- * - Accessible with proper ARIA attributes
- *
- * The panel is a flex child, not an overlay. The parent container should use
- * flexbox layout, and the sibling (main content) will naturally resize.
- *
- * @example
- * ```tsx
- * <div className="flex h-full">
- *   <div className="min-w-0 flex-1">{mainContent}</div>
- *   <SidePanel
- *     width={panelPct}
- *     onWidthChange={setPanelPct}
- *     isCollapsed={isCollapsed}
- *     onToggleCollapsed={toggleCollapsed}
- *   >
- *     <PanelContent />
- *   </SidePanel>
- * </div>
- * ```
- */
-
 "use client";
 
 import { useRef, useMemo, useEffect, useCallback, type RefObject } from "react";
@@ -60,80 +27,27 @@ import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "./resize-handle";
 import { PANEL } from "./panel-header-controls";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface SidePanelProps {
-  /** Current width as percentage (0-100) */
   width: number;
-  /** Callback when width changes during resize */
   onWidthChange: (width: number) => void;
-  /** Minimum width percentage */
   minWidth?: number;
-  /** Maximum width percentage */
   maxWidth?: number;
-  /** Minimum width in pixels (prevents too-narrow panels) */
   minWidthPx?: number;
-  /** Panel content */
   children: React.ReactNode;
-  /** Accessible label for the panel */
   "aria-label"?: string;
-  /** Additional class for the panel */
   className?: string;
-
-  // Edge content (always visible)
-  /**
-   * Content to render on the left edge of the panel (always visible).
-   * Useful for shell activity indicators, quick actions, etc.
-   * Typically renders as a thin vertical strip.
-   */
   edgeContent?: React.ReactNode;
-  /** Width of the edge content strip (default: 40px) */
   edgeWidth?: number | string;
-
-  // Collapsible mode
-  /** Whether the panel is currently collapsed (controlled) */
   isCollapsed?: boolean;
-  /** Callback to toggle collapsed state */
   onToggleCollapsed?: () => void;
-  /** Content to render when collapsed (slot for domain-specific content) */
   collapsedContent?: React.ReactNode;
-  /** Width when collapsed (default: 40px) */
   collapsedWidth?: number | string;
-
-  // Escape key handling
-  /** Custom escape key handler */
   onEscapeKey?: () => void;
-
-  // Toggle hotkey
-  /**
-   * Keyboard shortcut to toggle panel expand/collapse (e.g., "mod+]").
-   * Uses react-hotkeys-hook syntax: mod = Cmd on Mac, Ctrl on Windows/Linux.
-   * Only works when onToggleCollapsed is provided.
-   */
   toggleHotkey?: string;
-
-  /** Ref to the parent container (for resize calculations) */
   containerRef?: RefObject<HTMLDivElement | null>;
-
-  /** Callback when drag state changes (for coordinating with viewport centering) */
   onDraggingChange?: (isDragging: boolean) => void;
-
-  /**
-   * Optional ref to override focus behavior when panel expands.
-   * - undefined (default): use default behavior (focus first focusable element)
-   * - HTMLElement: focus that specific element
-   * - null: skip focus entirely (useful when another component handles its own focus)
-   *
-   * The ref is automatically reset to undefined after the transition.
-   */
   focusTargetRef?: React.MutableRefObject<HTMLElement | null | undefined>;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export function SidePanel({
   width,

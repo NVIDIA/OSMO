@@ -14,15 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Workflow Table Column Definitions
- *
- * TanStack Table column definitions for the workflows table.
- * Contains JSX cell renderers - colocated with workflows-data-table.tsx.
- *
- * NOTE: Only submit_time is sortable (backend limitation).
- * See BACKEND_TODOS.md for details on backend ordering constraints.
- */
+// NOTE: Only submit_time is sortable (backend limitation)
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowUp, ArrowDown, Minus } from "lucide-react";
@@ -33,10 +25,6 @@ import { WORKFLOW_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type WorkflowColumnId } fro
 import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay, type StatusCategory } from "../../lib/workflow-constants";
 import { formatDuration } from "../../[name]/lib/workflow-types";
 
-// =============================================================================
-// Status Icons
-// =============================================================================
-
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,
   pending: Loader2,
@@ -46,30 +34,17 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
   unknown: AlertTriangle,
 };
 
-// =============================================================================
-// Priority Icons
-// =============================================================================
-
 const PRIORITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HIGH: ArrowUp,
   NORMAL: Minus,
   LOW: ArrowDown,
 };
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/** Get column minimum size from rem-based config */
 function getMinSize(id: WorkflowColumnId): number {
   const col = WORKFLOW_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-/**
- * Format timestamp to succinct ISO format in user timezone.
- * Examples: "1/10 2:30p" (same year) or "1/10/25 2:30p" (different year)
- */
 function formatSuccinctDate(isoString: string): string {
   const date = new Date(isoString);
   const now = new Date();
@@ -86,9 +61,6 @@ function formatSuccinctDate(isoString: string): string {
   return `${month}/${day}/${date.getFullYear() % 100} ${hour12}:${minutes}${ampm}`;
 }
 
-/**
- * Format timestamp to full date string for tooltip.
- */
 function formatFullDate(isoString: string): string {
   const date = new Date(isoString);
   return date.toLocaleString(undefined, {
@@ -101,18 +73,6 @@ function formatFullDate(isoString: string): string {
   });
 }
 
-// =============================================================================
-// Column Definitions Factory
-// =============================================================================
-
-/**
- * Create TanStack Table column definitions for workflows.
- *
- * Uses plain object notation (not helper.accessor) for correct type inference.
- * Only submit_time is sortable (backend limitation - hardcoded ORDER BY submit_time).
- *
- * @returns Array of column definitions compatible with DataTable
- */
 export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[] {
   return [
     {

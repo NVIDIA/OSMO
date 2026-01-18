@@ -14,15 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Column Sizing Hook
- *
- * React hook for managing column sizing with TanStack Table.
- * Handles initial sizing, container resize, user resize, and auto-fit.
- *
- * @see https://tanstack.com/table/v8/docs/guide/column-sizing
- */
-
 import { useCallback, useRef, useMemo, useEffect, useState } from "react";
 import type { ColumnSizingState, ColumnSizingInfoState } from "@tanstack/react-table";
 import { useSyncedRef, useIsomorphicLayoutEffect, useRafCallback, usePrevious } from "@react-hookz/web";
@@ -39,74 +30,36 @@ import {
 } from "../utils/column-sizing";
 import { PreferenceModes, type PreferenceMode } from "../constants";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface UseColumnSizingOptions {
-  /** Visible column IDs (for CSS variable generation) */
   columnIds: string[];
-  /** Container ref for adding/removing is-resizing class during drag */
   containerRef?: React.RefObject<HTMLElement | null>;
-  /** Table element ref for direct DOM updates during resize */
   tableRef?: React.RefObject<HTMLTableElement | null>;
-  /** Column size configurations (min and preferred widths in rem) */
   columnConfigs?: readonly ColumnSizeConfig[];
-  /** User sizing preferences from persistence */
   sizingPreferences?: ColumnSizingPreferences;
-  /** Callback when user manually resizes a column or auto-fits */
   onPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
-  /** Minimum sizes per column (in pixels) */
   minSizes?: Record<string, number>;
-  /** Configured/default sizes per column (in pixels, from column config) */
   configuredSizes?: Record<string, number>;
-  /** Debounce delay for resize observer (ms) */
   resizeDebounceMs?: number;
-  /**
-   * Data length for triggering content width measurement.
-   * When this changes (and > 0), NO_TRUNCATE columns will be remeasured.
-   */
   dataLength?: number;
-  /**
-   * Whether data is still loading (skeleton visible).
-   * Measurement is deferred until loading completes.
-   */
   isLoading?: boolean;
 }
 
 export interface UseColumnSizingResult {
-  /** Column sizing state - pass to TanStack Table */
   columnSizing: ColumnSizingState;
-  /** Handler for TanStack's onColumnSizingChange */
   onColumnSizingChange: (updater: ColumnSizingState | ((old: ColumnSizingState) => ColumnSizingState)) => void;
-  /** Column sizing info state - pass to TanStack Table */
   columnSizingInfo: ColumnSizingInfoState;
-  /** Handler for TanStack's onColumnSizingInfoChange */
   onColumnSizingInfoChange: (
     updater: ColumnSizingInfoState | ((old: ColumnSizingInfoState) => ColumnSizingInfoState),
   ) => void;
-
-  /** Start resizing a column. Returns starting width. */
   startResize: (columnId: string) => number;
-  /** Update column width during drag (RAF-throttled) */
   updateResize: (columnId: string, newWidth: number) => void;
-  /** End resizing and persist preferences */
   endResize: () => void;
-  /** Set a single column's size */
   setColumnSize: (columnId: string, size: number) => void;
-  /** Auto-fit column to content (double-click) */
   autoFit: (columnId: string, measuredWidth: number) => void;
-  /** Whether initial sizing has been calculated */
   isInitialized: boolean;
-  /** Trigger recalculation */
   recalculate: () => void;
-  /** CSS variables for column widths */
   cssVariables: React.CSSProperties;
 }
-
-// =============================================================================
-// Constants
-// =============================================================================
 
 const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
   startOffset: null,
@@ -117,10 +70,6 @@ const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
   columnSizingStart: [],
 };
 
-// =============================================================================
-// Re-exports for external use
-// =============================================================================
-
 export {
   calculateColumnWidths,
   getRemToPx,
@@ -128,19 +77,11 @@ export {
   getTruncationThreshold,
 } from "../utils/column-sizing";
 
-// =============================================================================
-// Resizing Context (for tracking resize state)
-// =============================================================================
-
 interface ResizingContext {
   columnId: string;
   startWidth: number;
   beforeResize: ColumnSizingState;
 }
-
-// =============================================================================
-// Hook
-// =============================================================================
 
 export function useColumnSizing({
   columnIds,

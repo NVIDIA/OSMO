@@ -68,14 +68,8 @@ import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/gen
 
 import { MOCK_CONFIG, type WorkflowPatterns } from "../seed";
 
-// Re-export status and priority enums
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
-// ============================================================================
-// Mock Types (spec-compatible but simplified for mock generation)
-// ============================================================================
-
-/** Priority type derived from generated WorkflowPriority enum */
 export type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
 
 export interface MockTask {
@@ -153,16 +147,9 @@ export interface MockWorkflow {
   events_url: string;
 }
 
-// ============================================================================
-// Generator Configuration
-// ============================================================================
-
 interface GeneratorConfig {
-  /** Total items available (for pagination) */
   total: number;
-  /** Base seed for deterministic generation */
   baseSeed: number;
-  /** Patterns for realistic data */
   patterns: WorkflowPatterns;
 }
 
@@ -171,10 +158,6 @@ const DEFAULT_CONFIG: GeneratorConfig = {
   baseSeed: 12345,
   patterns: MOCK_CONFIG.workflows,
 };
-
-// ============================================================================
-// Generator Class
-// ============================================================================
 
 export class WorkflowGenerator {
   private config: GeneratorConfig;
@@ -1468,27 +1451,12 @@ export class WorkflowGenerator {
   }
 }
 
-// ============================================================================
-// Singleton instance for convenience
-// ============================================================================
-
 export const workflowGenerator = new WorkflowGenerator();
 
-// ============================================================================
-// Configuration helpers
-// ============================================================================
-
-/**
- * Set the total number of workflows for infinite pagination testing.
- * Can be set to any number - items are generated on demand.
- */
 export function setWorkflowTotal(total: number): void {
   workflowGenerator.total = total;
 }
 
-/**
- * Get current workflow total.
- */
 export function getWorkflowTotal(): number {
   return workflowGenerator.total;
 }

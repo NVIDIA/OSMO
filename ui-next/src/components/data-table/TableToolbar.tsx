@@ -31,10 +31,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { useSharedPreferences, type SearchChip } from "@/stores";
 import { FilterBar, type SearchField, type SearchPreset, type ResultsCount } from "@/components/filter-bar";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface ColumnDefinition {
   id: string;
   label: string;
@@ -72,35 +68,6 @@ export interface TableToolbarProps<T> {
   resultsCount?: ResultsCount;
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
-/**
- * TableToolbar - Shared toolbar for data tables.
- *
- * Provides:
- * - FilterBar with chip filtering
- * - Compact mode toggle
- * - Column visibility dropdown
- * - Slot for additional controls via children
- *
- * @example
- * ```tsx
- * <TableToolbar
- *   data={pools}
- *   searchFields={poolSearchFields}
- *   columns={OPTIONAL_COLUMNS}
- *   visibleColumnIds={visibleColumnIds}
- *   onToggleColumn={toggleColumn}
- *   searchChips={searchChips}
- *   onSearchChipsChange={setSearchChips}
- *   placeholder="Search pools..."
- * >
- *   <DisplayModeToggle />
- * </TableToolbar>
- * ```
- */
 function TableToolbarInner<T>({
   data,
   searchFields,

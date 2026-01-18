@@ -1,12 +1,4 @@
-/**
- * React Query hooks with automatic transformation to ideal types.
- *
- * UI components should use these hooks instead of the generated ones.
- * These hooks:
- * - Call the generated API hooks
- * - Transform responses to ideal types
- * - Return clean, well-typed data
- */
+// React Query hooks with transformation to ideal types. Use these instead of generated hooks.
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -39,15 +31,6 @@ import {
 } from "./pools-shim";
 import type { PaginationParams } from "@/lib/api/pagination";
 
-// =============================================================================
-// Pool Hooks
-// =============================================================================
-
-/**
- * Fetch all pools.
- * Returns ideal Pool[] type with proper numbers and typed fields.
- * Also includes sharingGroups for pools that share physical capacity.
- */
 export function usePools() {
   const query = useGetPoolQuotasApiPoolQuotaGet({ all_pools: true });
 
@@ -65,26 +48,7 @@ export function usePools() {
   };
 }
 
-// =============================================================================
-// Filtered Pools Hook (with shim for server-side filtering)
-// =============================================================================
-
-/**
- * Fetch pools with filtering support.
- *
- * CURRENT: Uses client-side filtering shim (pools-shim.ts)
- * FUTURE: When backend supports filtering, pass params to API directly
- *
- * Issue: BACKEND_TODOS.md#12
- *
- * SHIM ARCHITECTURE:
- * - Base query uses stable key (no filter params) so data is cached once
- * - Filters are applied client-side in useMemo from cached data
- * - When backend supports filtering, query key will include params and
- *   filtering moves server-side
- *
- * @param params - Filter parameters (status, platform, backend, search, sharedWith)
- */
+// SHIM: Client-side filtering until backend supports it (Issue: BACKEND_TODOS.md#12)
 export function useFilteredPools(params: PoolFilterParams = {}) {
   // SHIM: Use stable query key without filter params
   // This ensures we don't refetch when filters change - filtering is client-side
@@ -119,13 +83,8 @@ export function useFilteredPools(params: PoolFilterParams = {}) {
   };
 }
 
-// Re-export types for consumers
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
 
-/**
- * Fetch a single pool by name.
- * Returns ideal Pool type or null if not found.
- */
 export function usePool(poolName: string) {
   const query = useGetPoolQuotasApiPoolQuotaGet({
     pools: [poolName],
@@ -145,14 +104,6 @@ export function usePool(poolName: string) {
   };
 }
 
-// =============================================================================
-// Resource Hooks
-// =============================================================================
-
-/**
- * Fetch resources for a specific pool.
- * Returns ideal Resource[] with proper capacity types.
- */
 export function usePoolResources(poolName: string) {
   const query = useGetResourcesApiResourcesGet({
     pools: [poolName],
@@ -173,10 +124,6 @@ export function usePoolResources(poolName: string) {
   };
 }
 
-/**
- * Fetch all resources across all pools.
- * Returns ideal Resource[] with proper capacity types.
- */
 export function useAllResources() {
   const query = useGetResourcesApiResourcesGet({
     all_pools: true,
@@ -197,17 +144,7 @@ export function useAllResources() {
   };
 }
 
-// =============================================================================
-// Version Hook
-// =============================================================================
-
-/**
- * Fetch OSMO version information.
- * Returns ideal Version type.
- *
- * SSR: Version is prefetched at the dashboard layout level (layout.tsx)
- * so this hook finds data in cache during SSR.
- */
+// SSR: Version is prefetched at dashboard layout level
 export function useVersion() {
   const query = useGetVersionApiVersionGet({
     query: {
@@ -228,26 +165,11 @@ export function useVersion() {
   };
 }
 
-// =============================================================================
-// Resource Detail Hook
-// =============================================================================
-
 import type { PoolMembership, Resource, TaskConfig, Pool } from "./types";
 import type { ResourcesResponse } from "../generated";
 import type { PaginatedResourcesResult } from "./resources-shim";
 
-// =============================================================================
-// Paginated Resource Functions
-// =============================================================================
-
-/**
- * Fetch resources across all pools with filtering and pagination.
- *
- * CURRENT: Uses client-side pagination and filtering shim (fetches all, filters/returns pages)
- * FUTURE: When backend supports pagination/filtering, this will pass through params
- *
- * Issue: BACKEND_TODOS.md#11
- */
+// SHIM: Client-side pagination until backend supports it (Issue: BACKEND_TODOS.md#11)
 export async function fetchResources(
   params: {
     pools?: string[];
@@ -262,25 +184,10 @@ export async function fetchResources(
   );
 }
 
-/**
- * Invalidate resources cache - call after mutations that affect resources.
- */
 export { invalidateResourcesCache };
-
-/**
- * Get available filter options from the cached (unfiltered) resources.
- */
 export { getResourceFilterOptions };
 
-/**
- * Extract pool memberships from a ResourcesResponse for a specific resource.
- *
- * WORKAROUND: When querying /api/resources with specific pools, the response's
- * `pool_platform_labels` only contains memberships for those pools. To get ALL
- * memberships for a resource, we must query with `all_pools=true`.
- *
- * Issue: BACKEND_TODOS.md#7
- */
+// WORKAROUND: Must query all_pools=true to get full memberships (Issue: BACKEND_TODOS.md#7)
 function extractPoolMemberships(data: unknown, resourceName: string): PoolMembership[] {
   let backendResources: ResourcesResponse["resources"] = [];
   try {
@@ -309,18 +216,7 @@ function extractPoolMemberships(data: unknown, resourceName: string): PoolMember
   return memberships;
 }
 
-/**
- * Hook for resource detail panel.
- *
- * Encapsulates all business logic for displaying resource details:
- * - Fetches full pool memberships for all resources
- * - Fetches all pools to get platform configs
- * - Computes unique pool names for display
- * - Extracts task config for each pool the resource belongs to
- *
- * IDEAL: Backend provides single `/api/resources/{name}` endpoint with all data.
- * Issue: BACKEND_TODOS.md#9
- */
+// IDEAL: Backend provides /api/resources/{name} (Issue: BACKEND_TODOS.md#9)
 export function useResourceDetail(
   resource: Resource | null,
   /** Pool context - used to determine initial selected pool */
@@ -411,42 +307,23 @@ export function useResourceDetail(
   };
 }
 
-// =============================================================================
-// Workflow Hooks
-// =============================================================================
-
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "../generated";
 import { normalizeWorkflowTimestamps } from "./utils";
 
 interface UseWorkflowParams {
-  /** Workflow name (unique identifier) */
   name: string;
-  /** Whether to fetch full task details (default: true) */
   verbose?: boolean;
 }
 
 interface UseWorkflowReturn {
-  /** The workflow data with normalized timestamps */
   workflow: WorkflowQueryResponse | null;
-  /** Loading state */
   isLoading: boolean;
-  /** Error state */
   error: Error | null;
-  /** Refetch function */
   refetch: () => void;
-  /** Whether the workflow was found */
   isNotFound: boolean;
 }
 
-/**
- * Fetch a single workflow by name.
- *
- * Returns ideal WorkflowQueryResponse with:
- * - All timestamps normalized to have explicit UTC timezone (Issue: BACKEND_TODOS.md#16)
- * - Parsed from string response (Issue: BACKEND_TODOS.md#1)
- *
- * UI components receive clean data and can use `new Date(str)` directly.
- */
+// WORKAROUND: Timestamps need normalization (Issue: BACKEND_TODOS.md#16) and string parsing (Issue: BACKEND_TODOS.md#1)
 export function useWorkflow({ name, verbose = true }: UseWorkflowParams): UseWorkflowReturn {
   const { data, isLoading, error, refetch } = useGetWorkflowApiWorkflowNameGet(name, { verbose });
 
