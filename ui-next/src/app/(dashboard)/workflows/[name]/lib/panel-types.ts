@@ -22,7 +22,7 @@
 
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 import type { TaskQueryResponse, GroupWithLayout } from "./workflow-types";
-import type { TaskTab } from "../hooks/use-navigation-state";
+import type { TaskTab, WorkflowTab } from "../hooks/use-navigation-state";
 
 // ============================================================================
 // Panel View Types
@@ -109,6 +109,16 @@ export interface DetailsPanelProps {
    * Updates the URL with the new tab value.
    */
   setSelectedTab?: (tab: TaskTab) => void;
+  /**
+   * Currently selected workflow tab (URL-synced).
+   * Defaults to "overview" when not specified.
+   */
+  selectedWorkflowTab?: WorkflowTab;
+  /**
+   * Callback to change the selected workflow tab.
+   * Updates the URL with the new tab value.
+   */
+  setSelectedWorkflowTab?: (tab: WorkflowTab) => void;
 }
 
 /**

@@ -32,7 +32,7 @@
  *
  * Edge Strip:
  * - Always visible on left side of panel (both collapsed and expanded)
- * - Contains: expand/collapse button, workflow quick links, shell sessions
+ * - Contains: expand/collapse button, workflow tab quick actions, shell sessions
  * - Provides consistent UI and eliminates separate collapsed content
  *
  * Content Views:
@@ -48,7 +48,8 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
-import { FileText, BarChart3, Activity, ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
+import { FileText, Info, History, ArrowLeftFromLine, ArrowRightFromLine, type LucideIcon } from "lucide-react";
+import type { WorkflowTab } from "../../../hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
 import { SidePanel, PanelHeader, PanelTitle } from "@/components/panel";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
@@ -71,10 +72,19 @@ import { useShellContext } from "../../shell";
 // Workflow Edge Strip - Unified strip with expand, links, and shells
 // ============================================================================
 
+/** Generic quick action for the edge strip */
+interface QuickAction {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}
+
 interface WorkflowEdgeStripProps {
-  workflow?: WorkflowQueryResponse;
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** Generic quick actions to display */
+  quickActions?: QuickAction[];
   currentTaskId?: string;
   onSelectSession?: (taskId: string) => void;
   onDisconnectSession?: (taskId: string) => void;
@@ -84,13 +94,13 @@ interface WorkflowEdgeStripProps {
 
 /**
  * Unified edge strip that's always visible on the left side of the panel.
- * Contains: expand/collapse button, workflow quick links, shell session icons.
+ * Contains: expand/collapse button, quick actions, shell session icons.
  * Same appearance whether panel is collapsed or expanded - provides consistency.
  */
 const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
-  workflow,
   isCollapsed,
   onToggleCollapsed,
+  quickActions,
   currentTaskId,
   onSelectSession,
   onDisconnectSession,
@@ -98,16 +108,6 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   onRemoveSession,
 }: WorkflowEdgeStripProps) {
   const { sessions } = useShellSessions();
-
-  // Build workflow quick links
-  const quickLinks = useMemo(() => {
-    if (!workflow) return [];
-    return [
-      { id: "logs", url: workflow.logs, icon: FileText, label: "Logs" },
-      { id: "dashboard", url: workflow.dashboard_url, icon: BarChart3, label: "Dashboard" },
-      { id: "grafana", url: workflow.grafana_url, icon: Activity, label: "Grafana" },
-    ].filter((link) => link.url);
-  }, [workflow]);
 
   // Shell session handlers - stable callbacks using data attributes
   const handleSessionClick = useEventCallback((e: MouseEvent<HTMLButtonElement>) => {
@@ -144,7 +144,7 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
     [onToggleCollapsed],
   );
 
-  const hasQuickLinks = quickLinks.length > 0;
+  const hasQuickActions = quickActions && quickActions.length > 0;
   const hasShellSessions = sessions.length > 0;
 
   return (
@@ -187,24 +187,22 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
           </Tooltip>
         )}
 
-        {/* Workflow quick links */}
-        {hasQuickLinks && (
+        {/* Quick actions */}
+        {hasQuickActions && (
           <>
             <div
               className="my-3 h-px w-5 bg-zinc-200 dark:bg-zinc-700"
               aria-hidden="true"
             />
             <div className="flex flex-col items-center space-y-1">
-              {quickLinks.map((link) => {
-                const Icon = link.icon;
+              {quickActions.map((action) => {
+                const Icon = action.icon;
                 return (
-                  <Tooltip key={link.id}>
+                  <Tooltip key={action.id}>
                     <TooltipTrigger asChild>
-                      <a
-                        href={link.url!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
+                      <button
+                        type="button"
+                        onClick={action.onClick}
                         className={cn(
                           "flex size-8 items-center justify-center rounded-lg",
                           "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700",
@@ -216,9 +214,9 @@ const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
                           className="size-4"
                           aria-hidden="true"
                         />
-                      </a>
+                      </button>
                     </TooltipTrigger>
-                    <TooltipContent side="left">{link.label}</TooltipContent>
+                    <TooltipContent side="left">{action.label}</TooltipContent>
                   </Tooltip>
                 );
               })}
@@ -280,6 +278,8 @@ export const DetailsPanel = memo(function DetailsPanel({
   onShellTabChange,
   selectedTab,
   setSelectedTab,
+  selectedWorkflowTab,
+  setSelectedWorkflowTab,
 }: DetailsPanelProps) {
   const announce = useAnnouncer();
   const { disconnectOnly, removeShell } = useShellContext();
@@ -371,13 +371,37 @@ export const DetailsPanel = memo(function DetailsPanel({
     [removeShell],
   );
 
+  // Navigate to a workflow tab, going back to workflow view if needed
+  const navigateToWorkflowTab = useEventCallback((tab: WorkflowTab) => {
+    // Expand panel if collapsed
+    if (isCollapsed && onToggleCollapsed) {
+      onToggleCollapsed();
+    }
+    // Navigate back to workflow view if we're on group or task
+    if (view !== "workflow" && onBackToWorkflow) {
+      onBackToWorkflow();
+    }
+    // Set the workflow tab
+    setSelectedWorkflowTab?.(tab);
+  });
+
+  // Build quick actions for the edge strip
+  const quickActions: QuickAction[] = useMemo(() => {
+    if (!workflow) return [];
+    return [
+      { id: "overview", icon: Info, label: "Workflow Overview", onClick: () => navigateToWorkflowTab("overview") },
+      { id: "logs", icon: FileText, label: "Workflow Logs", onClick: () => navigateToWorkflowTab("logs") },
+      { id: "events", icon: History, label: "Workflow Events", onClick: () => navigateToWorkflowTab("events") },
+    ];
+  }, [workflow, navigateToWorkflowTab]);
+
   // Unified edge strip - always visible on left side
-  // Contains: expand/collapse button, workflow links, shell sessions
+  // Contains: expand/collapse button, quick actions, shell sessions
   const edgeContent = (
     <WorkflowEdgeStrip
-      workflow={workflow}
       isCollapsed={isCollapsed}
       onToggleCollapsed={onToggleCollapsed}
+      quickActions={quickActions}
       currentTaskId={task?.task_uuid}
       onSelectSession={handleSelectShellSession}
       onDisconnectSession={handleDisconnectSession}
@@ -408,6 +432,8 @@ export const DetailsPanel = memo(function DetailsPanel({
           onPanelResize={onPanelResize}
           isDetailsExpanded={isDetailsExpanded}
           onToggleDetailsExpanded={onToggleDetailsExpanded}
+          selectedTab={selectedWorkflowTab}
+          setSelectedTab={setSelectedWorkflowTab}
         />
       )}
 
