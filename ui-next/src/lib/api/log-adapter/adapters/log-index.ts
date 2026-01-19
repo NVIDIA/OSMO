@@ -235,7 +235,7 @@ export class LogIndex {
     if (opts.search) {
       const pattern = opts.searchRegex ? opts.search : this.escapeRegex(opts.search);
       const regex = new RegExp(pattern, "i");
-      candidates = candidates.filter((e) => regex.test(e.line));
+      candidates = candidates.filter((e) => regex.test(e.message));
     }
 
     return candidates;

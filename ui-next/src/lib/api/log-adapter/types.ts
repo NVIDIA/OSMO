@@ -36,8 +36,23 @@ export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 /**
  * IO type for log output streams.
  * Identifies the source of the log line.
+ *
+ * Matches backend IOType enum from redis.py:
+ * - stdout/stderr: User process output
+ * - osmo_ctrl: OSMO control messages
+ * - download/upload: Data transfer progress
+ * - dump: Raw output (no timestamp/prefix - e.g., progress bars, tqdm)
  */
-export type LogIOType = "stdout" | "stderr" | "osmo_ctrl" | "download" | "upload";
+export type LogIOType = "stdout" | "stderr" | "osmo_ctrl" | "download" | "upload" | "dump";
+
+/**
+ * High-level source type for log filtering.
+ * Distinguishes between user container output and system (OSMO) output.
+ *
+ * - user: stdout, stderr, dump (user's code/process output)
+ * - osmo: osmo_ctrl, download, upload (system/infrastructure messages, shown as "System" in UI)
+ */
+export type LogSourceType = "user" | "osmo";
 
 /**
  * Labels attached to log entries - the key to Loki compatibility.
@@ -57,6 +72,10 @@ export interface LogLabels {
   level?: LogLevel;
   /** Log output stream type */
   io_type?: LogIOType;
+  /** High-level source: user container vs OSMO infrastructure */
+  source?: LogSourceType;
+  /** Original level prefix that was stripped (e.g., "INFO: "), for reconstruction */
+  level_prefix?: string;
   /** Extensible for future labels */
   [key: string]: string | undefined;
 }
@@ -70,8 +89,8 @@ export interface LogEntry {
   id: string;
   /** Timestamp (Loki uses nanoseconds, we normalize to Date) */
   timestamp: Date;
-  /** Raw log line as stored */
-  line: string;
+  /** Message content (without timestamp, task prefix, etc.) */
+  message: string;
   /** Structured labels - the key to Loki compatibility */
   labels: LogLabels;
 }

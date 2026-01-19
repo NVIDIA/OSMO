@@ -40,16 +40,24 @@ export function LogViewerPlayground() {
   // Playground state
   const [scenario, setScenario] = useState<LogScenario>("normal");
 
-  // Register page with scenario selector in the header
-  usePage({
-    title: "Log Viewer",
-    breadcrumbs: [{ label: "Experimental", href: "/experimental" }],
-    headerActions: (
+  // Memoize header actions to prevent infinite re-render loop
+  // The usePage hook uses headerActions as a useMemo dependency, so passing
+  // a new JSX element on every render causes infinite updates.
+  const headerActions = useMemo(
+    () => (
       <ScenarioSelector
         value={scenario}
         onChange={setScenario}
       />
     ),
+    [scenario],
+  );
+
+  // Register page with scenario selector in the header
+  usePage({
+    title: "Log Viewer",
+    breadcrumbs: [{ label: "Experimental", href: "/experimental" }],
+    headerActions,
   });
 
   return (

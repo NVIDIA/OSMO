@@ -51,6 +51,10 @@ interface SharedPreferencesState {
   panelWidthPct: number;
   /** Whether panel header details are expanded (unified across workflow/group/task views) */
   detailsExpanded: boolean;
+  /** Whether the left navigation sidebar is open (expanded) or collapsed */
+  sidebarOpen: boolean;
+  /** Whether the workflow details panel (right side) is collapsed by default */
+  detailsPanelCollapsed: boolean;
 }
 
 interface SharedPreferencesActions {
@@ -68,6 +72,14 @@ interface SharedPreferencesActions {
   toggleDetailsExpanded: () => void;
   /** Set details expanded state explicitly */
   setDetailsExpanded: (expanded: boolean) => void;
+  /** Toggle sidebar open/collapsed state */
+  toggleSidebarOpen: () => void;
+  /** Set sidebar open state explicitly */
+  setSidebarOpen: (open: boolean) => void;
+  /** Toggle details panel collapsed state */
+  toggleDetailsPanelCollapsed: () => void;
+  /** Set details panel collapsed state explicitly */
+  setDetailsPanelCollapsed: (collapsed: boolean) => void;
   /** Reset to defaults */
   reset: () => void;
 }
@@ -89,6 +101,8 @@ export const initialState: SharedPreferencesState = {
   compactMode: false,
   panelWidthPct: DEFAULT_PANEL_WIDTH_PCT,
   detailsExpanded: false,
+  sidebarOpen: true,
+  detailsPanelCollapsed: false,
 };
 
 // =============================================================================
@@ -162,6 +176,42 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
             },
             false,
             "setDetailsExpanded",
+          ),
+
+        toggleSidebarOpen: () =>
+          set(
+            (state) => {
+              state.sidebarOpen = !state.sidebarOpen;
+            },
+            false,
+            "toggleSidebarOpen",
+          ),
+
+        setSidebarOpen: (open) =>
+          set(
+            (state) => {
+              state.sidebarOpen = open;
+            },
+            false,
+            "setSidebarOpen",
+          ),
+
+        toggleDetailsPanelCollapsed: () =>
+          set(
+            (state) => {
+              state.detailsPanelCollapsed = !state.detailsPanelCollapsed;
+            },
+            false,
+            "toggleDetailsPanelCollapsed",
+          ),
+
+        setDetailsPanelCollapsed: (collapsed) =>
+          set(
+            (state) => {
+              state.detailsPanelCollapsed = collapsed;
+            },
+            false,
+            "setDetailsPanelCollapsed",
           ),
 
         reset: () => set(initialState, false, "reset"),

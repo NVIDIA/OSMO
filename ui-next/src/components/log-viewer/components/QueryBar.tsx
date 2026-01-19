@@ -10,8 +10,8 @@
 
 import { memo, useMemo } from "react";
 import { FilterBar, type SearchField, type SearchChip, type SearchPreset } from "@/components/filter-bar";
-import type { LogEntry, LogLevel, LogIOType } from "@/lib/api/log-adapter";
-import { LOG_LEVELS, LOG_IO_TYPES, LOG_LEVEL_LABELS, LOG_IO_TYPE_LABELS } from "@/lib/api/log-adapter";
+import type { LogEntry, LogLevel, LogSourceType } from "@/lib/api/log-adapter";
+import { LOG_LEVELS, LOG_LEVEL_LABELS, LOG_SOURCE_TYPES, LOG_SOURCE_TYPE_LABELS } from "@/lib/api/log-adapter";
 import { getLevelDotClasses } from "../lib/level-utils";
 import { cn } from "@/lib/utils";
 
@@ -56,13 +56,13 @@ function createLogFields(showTaskFilter: boolean): SearchField<LogEntry>[] {
       hint: "Filter by severity",
     },
     {
-      id: "io_type",
+      id: "source",
       label: "Source",
       prefix: "source:",
-      getValues: () => [...LOG_IO_TYPES],
+      getValues: () => [...LOG_SOURCE_TYPES],
       exhaustive: true,
-      match: (entry, value) => entry.labels.io_type === value,
-      hint: "stdout, stderr, etc.",
+      match: (entry, value) => entry.labels.source === value,
+      hint: "User or OSMO logs",
     },
     {
       id: "text",
@@ -70,7 +70,7 @@ function createLogFields(showTaskFilter: boolean): SearchField<LogEntry>[] {
       prefix: "text:",
       getValues: () => [], // Free text, no autocomplete
       freeFormHint: "Search in log message",
-      match: (entry, value) => entry.line.toLowerCase().includes(value.toLowerCase()),
+      match: (entry, value) => entry.message.toLowerCase().includes(value.toLowerCase()),
     },
   ];
 
@@ -123,15 +123,15 @@ function LevelPresetContent({ level, active }: LevelPresetContentProps) {
 }
 
 // =============================================================================
-// IO Type Preset Renderer
+// Source Type Preset Renderer
 // =============================================================================
 
-interface IOTypePresetContentProps {
-  ioType: LogIOType;
+interface SourcePresetContentProps {
+  source: LogSourceType;
   active: boolean;
 }
 
-function IOTypePresetContent({ ioType, active }: IOTypePresetContentProps) {
+function SourcePresetContent({ source, active }: SourcePresetContentProps) {
   return (
     <span
       className={cn(
@@ -141,7 +141,7 @@ function IOTypePresetContent({ ioType, active }: IOTypePresetContentProps) {
           : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
       )}
     >
-      {LOG_IO_TYPE_LABELS[ioType]}
+      {LOG_SOURCE_TYPE_LABELS[source]}
     </span>
   );
 }
@@ -179,16 +179,16 @@ function QueryBarInner({
       ),
     }));
 
-    const ioTypePresets: SearchPreset[] = (["stdout", "stderr"] as const).map((ioType) => ({
-      id: `io-${ioType}`,
+    const sourcePresets: SearchPreset[] = LOG_SOURCE_TYPES.map((source) => ({
+      id: `source-${source}`,
       chip: {
-        field: "io_type",
-        value: ioType,
-        label: `Source: ${LOG_IO_TYPE_LABELS[ioType]}`,
+        field: "source",
+        value: source,
+        label: `Source: ${LOG_SOURCE_TYPE_LABELS[source]}`,
       },
       render: ({ active }) => (
-        <IOTypePresetContent
-          ioType={ioType}
+        <SourcePresetContent
+          source={source}
           active={active}
         />
       ),
@@ -196,7 +196,7 @@ function QueryBarInner({
 
     return [
       { label: "Levels", items: levelPresets },
-      { label: "Source", items: ioTypePresets },
+      { label: "Source", items: sourcePresets },
     ];
   }, []);
 
