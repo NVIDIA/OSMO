@@ -90,6 +90,9 @@ export interface UseLogQueryReturn {
 
 /**
  * Creates a stable query key for log queries.
+ * Note: Scenario differentiation is handled by the adapter's internal cache.
+ * The adapter caches by workflowId + devParams, so different scenarios get
+ * different cache entries even with the same React Query key.
  */
 function createLogQueryKey(params: UseLogQueryParams): readonly unknown[] {
   return [
