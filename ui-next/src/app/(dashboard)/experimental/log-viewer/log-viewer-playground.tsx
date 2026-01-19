@@ -17,6 +17,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { usePage } from "@/components/chrome";
 import { LogViewer, useLogViewerStore } from "@/components/log-viewer";
 import {
@@ -31,14 +32,28 @@ import type { SearchChip } from "@/components/filter-bar";
 import { ScenarioSelector, type LogScenario } from "./components/scenario-selector";
 
 /**
+ * Valid scenario values for URL parsing.
+ */
+const SCENARIO_VALUES = ["normal", "error-heavy", "high-volume", "empty", "streaming"] as const;
+
+/**
  * Log Viewer Playground
  *
  * Main client component for the experimental log viewer page.
  * Provides a full-page log viewer with scenario selection in the header.
+ * Scenario is synced to URL via nuqs for easy sharing and debugging.
  */
 export function LogViewerPlayground() {
-  // Playground state
-  const [scenario, setScenario] = useState<LogScenario>("normal");
+  // URL-synced scenario state using nuqs
+  // URL: /experimental/log-viewer?scenario=streaming
+  const [scenario, setScenario] = useQueryState(
+    "scenario",
+    parseAsStringLiteral(SCENARIO_VALUES).withDefault("normal").withOptions({
+      shallow: true,
+      history: "replace",
+      clearOnDefault: true,
+    }),
+  );
 
   // Memoize header actions to prevent infinite re-render loop
   // The usePage hook uses headerActions as a useMemo dependency, so passing
@@ -50,7 +65,7 @@ export function LogViewerPlayground() {
         onChange={setScenario}
       />
     ),
-    [scenario],
+    [scenario, setScenario],
   );
 
   // Register page with scenario selector in the header
@@ -91,7 +106,7 @@ function LogViewerContainer({ scenario }: { scenario: LogScenario }) {
       config={adapterConfig}
       key={scenario}
     >
-      <LogViewerContainerInner />
+      <LogViewerContainerInner scenario={scenario} />
     </LogAdapterProvider>
   );
 }
@@ -99,8 +114,12 @@ function LogViewerContainer({ scenario }: { scenario: LogScenario }) {
 /**
  * Inner container that uses the log adapter hooks.
  * Separated to ensure hooks are called within the provider context.
+ *
+ * Note: The key={scenario} on LogAdapterProvider ensures this component
+ * fully remounts when scenario changes, resetting all state including
+ * React Query's useQuery hooks.
  */
-function LogViewerContainerInner() {
+function LogViewerContainerInner({ scenario }: { scenario: LogScenario }) {
   // Filter chips state (for URL sync demonstration)
   const [filterChips, setFilterChips] = useState<SearchChip[]>([]);
 
@@ -108,20 +127,27 @@ function LogViewerContainerInner() {
   const isTailing = useLogViewerStore((s) => s.isTailing);
 
   // Fetch initial log data using the adapter hooks
+  // Include scenario in workflowId to ensure different scenarios get different React Query cache entries
+  const workflowIdWithScenario = `${MOCK_WORKFLOW_ID}__${scenario}`;
+
   const {
     entries: queryEntries,
     isLoading,
     error,
     refetch,
   } = useLogQuery({
-    workflowId: MOCK_WORKFLOW_ID,
+    workflowId: workflowIdWithScenario,
     enabled: true,
   });
 
   // Live tailing hook - appends new entries as they stream in
+  // Always use streaming scenario for tailing in the mock playground
+  // (In production, the backend handles streaming natively)
+  const tailDevParams = useMemo(() => ({ log_scenario: "streaming" }), []);
   const { entries: tailEntries } = useLogTail({
     workflowId: MOCK_WORKFLOW_ID,
-    enabled: isTailing, // Only tail when tailing is enabled in the store
+    enabled: isTailing,
+    devParams: tailDevParams,
   });
 
   // Combine query entries with tail entries
@@ -145,7 +171,7 @@ function LogViewerContainerInner() {
 
   // Get histogram data from the adapter
   const { buckets: histogramBuckets, intervalMs: histogramIntervalMs } = useLogHistogram({
-    workflowId: MOCK_WORKFLOW_ID,
+    workflowId: workflowIdWithScenario,
     enabled: !isLoading,
   });
 
@@ -161,7 +187,7 @@ function LogViewerContainerInner() {
   // Get facet data - use stable array reference to avoid re-renders
   const facetFields = useMemo(() => ["level", "source", "task"], []);
   const { facets } = useLogFacets({
-    workflowId: MOCK_WORKFLOW_ID,
+    workflowId: workflowIdWithScenario,
     fields: facetFields,
     enabled: !isLoading,
   });

@@ -90,6 +90,7 @@ export function useLogFacets(params: UseLogFacetsParams): UseLogFacetsReturn {
   const fields = params.fields ?? FACETABLE_FIELDS;
 
   // Build stable query key
+  // Note: Scenario differentiation is handled by the adapter's internal cache
   const queryKey = useMemo(
     () => [
       "logs",
