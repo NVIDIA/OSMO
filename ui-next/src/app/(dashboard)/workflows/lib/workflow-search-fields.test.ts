@@ -34,14 +34,14 @@ import {
   isPresetActive,
   togglePreset,
 } from "./workflow-search-fields";
-import type { SrcServiceCoreWorkflowObjectsListEntry } from "@/lib/api/generated";
+import type { WorkflowListEntry as WorkflowListEntryType } from "@/lib/api/adapter";
 import type { SearchChip } from "@/stores";
 
 // =============================================================================
 // Test Helpers
 // =============================================================================
 
-type WorkflowListEntry = SrcServiceCoreWorkflowObjectsListEntry;
+type WorkflowListEntry = WorkflowListEntryType;
 
 /**
  * Create a minimal workflow entry for testing search.

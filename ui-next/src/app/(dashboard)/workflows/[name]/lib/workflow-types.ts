@@ -24,12 +24,8 @@
  * rather than relying on backend-provided layout hints.
  */
 
-import {
-  TaskGroupStatus,
-  type GroupQueryResponse,
-  type TaskQueryResponse,
-  type WorkflowQueryResponse,
-} from "@/lib/api/generated";
+import { TaskGroupStatus } from "@/lib/api/generated";
+import type { GroupQueryResponse, TaskQueryResponse, WorkflowQueryResponse } from "@/lib/api/adapter";
 import { isTaskOngoing } from "@/lib/api/status-metadata.generated";
 
 // Re-export backend types for convenience
@@ -81,7 +77,7 @@ export interface WorkflowWithLayout extends Omit<WorkflowQueryResponse, "groups"
 // Topological Level Computation
 // ============================================================================
 
-// Re-export from adapter layer (canonical implementation)
+// Re-export from layout module (canonical implementation)
 export {
   transformGroups,
   computeFullUpstreamDependencies,
@@ -90,7 +86,7 @@ export {
   getRootGroups,
   getLeafGroups,
   type TopologicalLevelOptions,
-} from "./workflow-adapter";
+} from "./workflow-layout";
 
 // ============================================================================
 // Status Helpers

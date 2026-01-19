@@ -33,13 +33,13 @@
 import { useMemo } from "react";
 import type { SearchChip } from "@/stores";
 import { usePaginatedData, type PaginationParams, type PaginatedResponse } from "@/lib/api/pagination";
-import type { WorkflowListEntry } from "../lib/workflow-search-fields";
+import type { WorkflowListEntry } from "@/lib/api/adapter";
 import {
   fetchPaginatedWorkflows,
   buildWorkflowsQueryKey,
-  hasActiveFilters,
+  hasActiveWorkflowFilters,
   type WorkflowFilterParams,
-} from "../lib/workflows-shim";
+} from "@/lib/api/adapter";
 
 // =============================================================================
 // Types
@@ -125,7 +125,7 @@ export function useWorkflowsData({
     // For FilterBar suggestions, we use the currently loaded workflows
     // This provides a reasonable suggestion pool without fetching all data
     allWorkflows: workflows,
-    hasActiveFilters: hasActiveFilters(searchChips),
+    hasActiveFilters: hasActiveWorkflowFilters(searchChips),
     total: totalCount ?? workflows.length,
     filteredTotal: filteredCount ?? workflows.length,
     isLoading,
