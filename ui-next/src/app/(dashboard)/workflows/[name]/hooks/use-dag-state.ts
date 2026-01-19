@@ -57,7 +57,7 @@ import { useUnmount } from "usehooks-ts";
 import { useEventCallback } from "usehooks-ts";
 import { VIEWPORT, type LayoutDirection } from "@/components/dag";
 import type { GroupWithLayout, TaskQueryResponse, GroupQueryResponse } from "../lib/workflow-types";
-import { transformGroups as defaultTransformGroups } from "../lib/workflow-adapter";
+import { transformGroups as defaultTransformGroups } from "../lib/workflow-layout";
 import {
   calculateLayout as defaultCalculateLayout,
   computeInitialExpandedGroups as defaultComputeInitialExpandedGroups,
