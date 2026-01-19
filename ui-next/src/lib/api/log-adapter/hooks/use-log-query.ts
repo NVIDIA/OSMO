@@ -24,7 +24,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, startTransition, useState } from "react";
+import { useCallback, useMemo, useEffect, startTransition, useState } from "react";
 
 import type { LogQuery, LogQueryResult, LogEntry, LogLevel, LogIOType } from "../types";
 import { LOG_QUERY_DEFAULTS } from "../constants";
@@ -162,7 +162,7 @@ export function useLogQuery(params: UseLogQueryParams): UseLogQueryReturn {
   });
 
   // Update accumulated entries when query succeeds
-  useMemo(() => {
+  useEffect(() => {
     if (query.data) {
       startTransition(() => {
         if (!cursor) {
