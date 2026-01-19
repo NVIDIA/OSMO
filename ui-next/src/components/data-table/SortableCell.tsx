@@ -21,6 +21,7 @@
 import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
+import { useMounted } from "@/hooks";
 import type { SortableCellProps } from "./types";
 
 /**
@@ -28,6 +29,9 @@ import type { SortableCellProps } from "./types";
  *
  * Wraps content in a sortable container with drag handles and visual feedback.
  * Used for optional (reorderable) columns in the table header.
+ *
+ * Note: We use useMounted to delay applying dnd-kit attributes until after
+ * hydration to prevent SSR/client mismatch on aria-describedby IDs.
  */
 export const SortableCell = memo(function SortableCell({
   id,
@@ -37,6 +41,7 @@ export const SortableCell = memo(function SortableCell({
   width: cssVarWidth,
   colIndex,
 }: SortableCellProps) {
+  const mounted = useMounted();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   // Style uses CSS variable width; minWidth and flexShrink prevent size jitter during drag
@@ -56,12 +61,17 @@ export const SortableCell = memo(function SortableCell({
       ? { scope: "col" as const, "aria-colindex": colIndex }
       : { role: "columnheader" as const, "aria-colindex": colIndex };
 
+  // Only apply dnd-kit attributes after hydration to prevent SSR mismatch
+  // on aria-describedby (dnd-kit generates different IDs on server vs client)
+  const dndAttributes = mounted ? attributes : {};
+  const dndListeners = mounted ? listeners : {};
+
   return (
     <Component
       ref={setNodeRef}
       data-column-id={id}
-      {...attributes}
-      {...listeners}
+      {...dndAttributes}
+      {...dndListeners}
       {...accessibilityProps}
       style={style}
       className={cn(
