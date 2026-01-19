@@ -14,33 +14,26 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { redirect } from "next/navigation";
-import { Suspense } from "react";
-import { LogViewerPlaygroundLoader } from "./log-viewer-playground-loader";
+"use client";
+
+import dynamic from "next/dynamic";
 
 /**
- * Log Viewer Experimental Page
+ * Client-side loader for the LogViewerPlayground.
  *
- * A dedicated playground for developing and testing the log viewer component.
- * This page is only accessible in development mode.
+ * Uses dynamic import with SSR disabled to avoid hydration mismatches
+ * from Radix UI components (Select, ToggleGroup) that render differently
+ * on server vs client due to portal usage and state management.
  */
-export default function LogViewerExperimentalPage() {
-  // Redirect to home in production
-  if (process.env.NODE_ENV === "production") {
-    redirect("/");
-  }
-
-  return (
-    <Suspense fallback={<LogViewerLoadingSkeleton />}>
-      <LogViewerPlaygroundLoader />
-    </Suspense>
-  );
-}
-
-function LogViewerLoadingSkeleton() {
-  return (
+const LogViewerPlayground = dynamic(() => import("./log-viewer-playground").then((m) => m.LogViewerPlayground), {
+  ssr: false,
+  loading: () => (
     <div className="flex h-full items-center justify-center p-6">
       <div className="text-muted-foreground text-sm">Loading log viewer playground...</div>
     </div>
-  );
+  ),
+});
+
+export function LogViewerPlaygroundLoader() {
+  return <LogViewerPlayground />;
 }

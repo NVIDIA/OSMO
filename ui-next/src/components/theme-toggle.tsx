@@ -28,7 +28,12 @@ export function ThemeToggle() {
   // from Radix UI's ID generation
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" className="relative" disabled>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="relative"
+        disabled
+      >
         <Sun className="h-4 w-4" />
         <span className="sr-only">Toggle theme</span>
       </Button>

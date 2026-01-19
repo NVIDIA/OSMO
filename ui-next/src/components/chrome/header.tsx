@@ -84,6 +84,9 @@ export function Header() {
             <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{pageConfig.title}</span>
           </>
         )}
+
+        {/* Custom header actions from page */}
+        {pageConfig?.headerActions && <div className="ml-4 flex items-center">{pageConfig.headerActions}</div>}
       </nav>
 
       {/* Right: Search, Theme, User */}
