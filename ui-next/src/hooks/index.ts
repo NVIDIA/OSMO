@@ -88,3 +88,6 @@ export { useTick, useTickController, useLiveDuration, calculateLiveDuration } fr
 
 // Server Actions (optimistic UI)
 export { useOptimisticAction, useServerAction } from "./use-optimistic-action";
+
+// Client-only rendering (hydration safety)
+export { useMounted } from "./use-mounted";
