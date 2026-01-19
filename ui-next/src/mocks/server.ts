@@ -25,6 +25,7 @@ import {
   bucketGenerator,
   datasetGenerator,
   profileGenerator,
+  getLogScenario,
   type MockGroup,
 } from "./generators";
 
@@ -246,13 +247,66 @@ export const server = setupServer(
     });
   }),
 
-  ...createDualHandler("get", "/api/workflow/:name/logs", async ({ params }) => {
+  ...createDualHandler("get", "/api/workflow/:name/logs", async ({ params, request }) => {
     await delay(MOCK_DELAY);
     const name = params.name as string;
+    const url = new URL(request.url);
+
+    // Read scenario from URL params (dev-only feature for testing)
+    const scenarioName = url.searchParams.get("log_scenario") ?? "normal";
+
+    const scenario = getLogScenario(scenarioName);
     const workflow = workflowGenerator.getByName(name);
     const taskNames = workflow?.groups.flatMap((g) => g.tasks.map((t) => t.name)) || ["main"];
-    const logs = logGenerator.generateWorkflowLogs(name, taskNames, workflow?.status || "RUNNING");
-    return HttpResponse.text(logs);
+
+    // Generate logs based on scenario
+    const logs = logGenerator.generateForScenario(name, scenarioName, taskNames);
+
+    // For streaming scenario, use ReadableStream + TransformStream for delayed chunks
+    // Per MSW docs: https://mswjs.io/docs/http/mocking-responses/streaming/
+    // Use TransformStream to inject latency between chunks (not async in ReadableStream)
+    if (scenario.features.streaming) {
+      const logLines = logs.split("\n").filter(Boolean).slice(0, 50); // Cap for mock
+      const encoder = new TextEncoder();
+      const streamDelay = scenario.features.streamDelayMs ?? 100;
+
+      // Create source stream with all log lines
+      const sourceStream = new ReadableStream({
+        start(controller) {
+          for (const line of logLines) {
+            controller.enqueue(encoder.encode(line + "\n"));
+          }
+          controller.close();
+        },
+      });
+
+      // Create latency transform stream to add delays between chunks
+      const latencyStream = new TransformStream({
+        async transform(chunk, controller) {
+          await delay(streamDelay);
+          controller.enqueue(chunk);
+        },
+      });
+
+      return new Response(sourceStream.pipeThrough(latencyStream), {
+        headers: {
+          "Content-Type": "text/plain; charset=us-ascii",
+          "X-Content-Type-Options": "nosniff",
+          "Transfer-Encoding": "chunked",
+          "X-Log-Scenario": scenarioName,
+        },
+      });
+    }
+
+    // For non-streaming scenarios, return all logs at once
+    return new Response(logs, {
+      headers: {
+        "Content-Type": "text/plain; charset=us-ascii",
+        "X-Content-Type-Options": "nosniff",
+        "X-Log-Scenario": scenarioName,
+        "X-Log-Count": logs.split("\n").filter(Boolean).length.toString(),
+      },
+    });
   }),
 
   ...createDualHandler("get", "/api/workflow/:name/events", async ({ params }) => {

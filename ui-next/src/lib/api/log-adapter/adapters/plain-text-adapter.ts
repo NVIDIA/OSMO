@@ -47,7 +47,7 @@ export interface PlainTextAdapterConfig {
   baseUrl?: string;
   /** Custom fetch function for testing */
   fetchFn?: typeof fetch;
-  /** Dev-only URL params to append to all requests (e.g., { log_scenario: "error-heavy" }) */
+  /** Optional URL params to append to all requests */
   devParams?: Record<string, string>;
 }
 
@@ -55,8 +55,8 @@ export interface PlainTextAdapterConfig {
  * Cache entry for loaded logs.
  */
 interface LogCache {
-  /** Workflow ID */
-  workflowId: string;
+  /** Full cache key (workflowId + devParams) */
+  cacheKey: string;
   /** Log index with all entries */
   index: LogIndex;
   /** When the cache was last updated */
@@ -191,13 +191,28 @@ export class PlainTextAdapter implements LogAdapter {
   // ===========================================================================
 
   /**
-   * Invalidates the cache for a workflow.
+   * Invalidates the cache for a workflow (with current devParams).
    * Call this when new logs are expected (e.g., streaming workflow).
    *
    * @param workflowId - Workflow ID to invalidate
    */
   invalidateCache(workflowId: string): void {
-    this.cache.delete(workflowId);
+    const cacheKey = this.createCacheKey(workflowId);
+    this.cache.delete(cacheKey);
+  }
+
+  /**
+   * Invalidates ALL cache entries for a workflow (all scenarios).
+   * Use when you want to clear all cached data for a workflow.
+   *
+   * @param workflowId - Workflow ID prefix to invalidate
+   */
+  invalidateAllForWorkflow(workflowId: string): void {
+    for (const key of this.cache.keys()) {
+      if (key === workflowId || key.startsWith(`${workflowId}?`)) {
+        this.cache.delete(key);
+      }
+    }
   }
 
   /**
@@ -208,12 +223,13 @@ export class PlainTextAdapter implements LogAdapter {
   }
 
   /**
-   * Checks if a workflow's logs are cached.
+   * Checks if a workflow's logs are cached (with current devParams).
    *
    * @param workflowId - Workflow ID to check
    */
   isCached(workflowId: string): boolean {
-    return this.cache.has(workflowId);
+    const cacheKey = this.createCacheKey(workflowId);
+    return this.cache.has(cacheKey);
   }
 
   // ===========================================================================
@@ -221,10 +237,24 @@ export class PlainTextAdapter implements LogAdapter {
   // ===========================================================================
 
   /**
+   * Creates a cache key that includes both workflowId and devParams.
+   * This ensures different scenarios get different cache entries.
+   */
+  private createCacheKey(workflowId: string): string {
+    const devParamsStr = Object.entries(this.config.devParams)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join("&");
+    return devParamsStr ? `${workflowId}?${devParamsStr}` : workflowId;
+  }
+
+  /**
    * Gets or loads the log index for a workflow.
+   * Cache key includes devParams so different scenarios are cached separately.
    */
   private async getOrLoadIndex(workflowId: string): Promise<LogIndex> {
-    let cached = this.cache.get(workflowId);
+    const cacheKey = this.createCacheKey(workflowId);
+    let cached = this.cache.get(cacheKey);
 
     if (!cached) {
       // Load logs for the first time
@@ -235,13 +265,13 @@ export class PlainTextAdapter implements LogAdapter {
       index.addEntries(entries);
 
       cached = {
-        workflowId,
+        cacheKey,
         index,
         lastUpdated: new Date(),
         isStreaming: false, // Could be determined from workflow status
       };
 
-      this.cache.set(workflowId, cached);
+      this.cache.set(cacheKey, cached);
     }
 
     return cached.index;
@@ -253,7 +283,7 @@ export class PlainTextAdapter implements LogAdapter {
   private async fetchLogs(workflowId: string): Promise<string> {
     let url = `${this.config.baseUrl}/api/workflow/${encodeURIComponent(workflowId)}/logs`;
 
-    // Append dev params for testing (e.g., log_scenario)
+    // Append optional URL params
     if (this.config.devParams && Object.keys(this.config.devParams).length > 0) {
       const params = new URLSearchParams(this.config.devParams);
       url += `?${params.toString()}`;

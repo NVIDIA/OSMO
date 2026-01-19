@@ -30,6 +30,10 @@ interface ScenarioConfig {
   volume: string;
 }
 
+/**
+ * UI configuration for each log scenario.
+ * Matches the 5 core scenarios defined in log-scenarios.ts.
+ */
 const SCENARIO_CONFIGS: Record<LogScenario, ScenarioConfig> = {
   normal: {
     label: "Normal",
@@ -38,43 +42,23 @@ const SCENARIO_CONFIGS: Record<LogScenario, ScenarioConfig> = {
   },
   "error-heavy": {
     label: "Error Heavy",
-    description: "30% errors, 20% warnings",
+    description: "~30% errors, ~20% warnings",
     volume: "500-1k lines",
   },
   "high-volume": {
     label: "High Volume",
-    description: "Large workflow for perf testing",
-    volume: "100k+ lines",
+    description: "Performance testing",
+    volume: "50k+ lines",
   },
   empty: {
     label: "Empty",
-    description: "Zero logs",
+    description: "Zero logs (empty state)",
     volume: "0 lines",
   },
   streaming: {
     label: "Streaming",
-    description: "Trickle 1-5 lines/sec",
-    volume: "Unbounded",
-  },
-  retries: {
-    label: "Retries",
-    description: "Tasks with retry-1, retry-2",
-    volume: "1k lines",
-  },
-  multiline: {
-    label: "Multiline",
-    description: "Stack traces, JSON blobs",
-    volume: "500 lines",
-  },
-  ansi: {
-    label: "ANSI Codes",
-    description: "ANSI escape codes",
-    volume: "200 lines",
-  },
-  mixed: {
-    label: "Mixed IOTypes",
-    description: "All IOTypes interleaved",
-    volume: "2k lines",
+    description: "Live tailing simulation",
+    volume: "~10 lines/sec",
   },
 };
 

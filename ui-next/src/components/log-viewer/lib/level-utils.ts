@@ -54,20 +54,20 @@ export function getLevelLabel(level: LogLevel | undefined): string {
 }
 
 /**
- * Get abbreviated level label (3-4 chars) for compact display.
+ * Get level label for display.
  */
 export function getLevelAbbrev(level: LogLevel | undefined): string {
   switch (level) {
     case "debug":
-      return "DBG";
+      return "DEBUG";
     case "info":
-      return "INF";
+      return "INFO";
     case "warn":
-      return "WRN";
+      return "WARN";
     case "error":
-      return "ERR";
+      return "ERROR";
     case "fatal":
-      return "FTL";
+      return "FATAL";
     default:
       return "???";
   }
