@@ -241,14 +241,6 @@ export class PoolGenerator {
   }
 
   /**
-   * Generate all pools (for backward compatibility).
-   * Use generatePage() for large totals.
-   */
-  generateAll(): PoolResourceUsage[] {
-    return this.generatePage(0, this.config.total).entries;
-  }
-
-  /**
    * Get pool by name.
    */
   getByName(name: string): PoolResourceUsage | null {
@@ -289,16 +281,6 @@ export class PoolGenerator {
       names.push(name);
     }
     return names;
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 

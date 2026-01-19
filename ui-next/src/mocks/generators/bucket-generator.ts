@@ -22,6 +22,7 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Types
@@ -168,13 +169,6 @@ export class BucketGenerator {
   }
 
   /**
-   * Generate all buckets (for backward compatibility).
-   */
-  generateAllBuckets(): GeneratedBucket[] {
-    return this.generateBucketPage(0, this.config.totalBuckets).entries;
-  }
-
-  /**
    * Generate artifacts for a workflow with pagination.
    */
   generateWorkflowArtifacts(
@@ -183,7 +177,7 @@ export class BucketGenerator {
     limit: number = 20,
     offset: number = 0,
   ): GeneratedArtifactList {
-    faker.seed(this.config.baseSeed + this.hashString(bucketName + workflowName));
+    faker.seed(this.config.baseSeed + hashString(bucketName + workflowName));
 
     const prefix = `workflows/${workflowName}/`;
     const total = this.config.artifactsPerWorkflow;
@@ -195,7 +189,7 @@ export class BucketGenerator {
     const end = Math.min(offset + limit, total);
 
     for (let i = start; i < end; i++) {
-      faker.seed(this.config.baseSeed + this.hashString(bucketName + workflowName) + i);
+      faker.seed(this.config.baseSeed + hashString(bucketName + workflowName) + i);
 
       const type = types[i % types.length];
       const config = BUCKET_PATTERNS.artifactTypes[type];
@@ -252,7 +246,7 @@ export class BucketGenerator {
       return this.generateBucket(index);
     }
     // Generate from hash
-    const hash = this.hashString(name);
+    const hash = hashString(name);
     const bucket = this.generateBucket(Math.abs(hash) % this.config.totalBuckets);
     return { ...bucket, name };
   }
@@ -278,16 +272,6 @@ export class BucketGenerator {
       ".parquet": "application/octet-stream",
     };
     return types[ext] || "application/octet-stream";
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 

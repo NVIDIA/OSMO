@@ -14,97 +14,54 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Deterministic mock data generators - on-demand, not stored in memory
+/**
+ * Mock Data Generators - Public API
+ *
+ * This module exports only what is actively used by handlers and tests.
+ * Generators are singletons with deterministic seeding for reproducible data.
+ *
+ * Internal implementation details (classes, types) are NOT exported here.
+ * This keeps the public API clean and makes it easier to refactor internals.
+ */
 
-export {
-  WorkflowGenerator,
-  workflowGenerator,
-  setWorkflowTotal,
-  getWorkflowTotal,
-  // Re-exported generated enums
-  WorkflowStatus,
-  TaskGroupStatus,
-  // Mock types
-  type MockWorkflow,
-  type MockGroup,
-  type MockTask,
-  type Priority,
-} from "./workflow-generator";
+// =============================================================================
+// Singleton Instances (used by handlers)
+// =============================================================================
 
-export {
-  PoolGenerator,
-  poolGenerator,
-  setPoolTotal,
-  getPoolTotal,
-  PoolStatus,
-  type PoolResourceUsage,
-  type PoolResponse,
-} from "./pool-generator";
+export { workflowGenerator } from "./workflow-generator";
+export { poolGenerator } from "./pool-generator";
+export { resourceGenerator } from "./resource-generator";
+export { logGenerator } from "./log-generator";
+export { eventGenerator } from "./event-generator";
+export { bucketGenerator } from "./bucket-generator";
+export { datasetGenerator } from "./dataset-generator";
+export { profileGenerator } from "./profile-generator";
+export { portForwardGenerator } from "./portforward-generator";
+export { ptySimulator, type PTYSession, type PTYScenario } from "./pty-simulator";
 
+// =============================================================================
+// Volume Setters/Getters (used by mock-config server action)
+// =============================================================================
+
+export { setWorkflowTotal, getWorkflowTotal } from "./workflow-generator";
+export { setPoolTotal, getPoolTotal } from "./pool-generator";
 export {
-  ResourceGenerator,
-  resourceGenerator,
   setResourcePerPool,
   getResourcePerPool,
   setResourceTotalGlobal,
   getResourceTotalGlobal,
 } from "./resource-generator";
+export { setBucketTotal, getBucketTotal } from "./bucket-generator";
+export { setDatasetTotal, getDatasetTotal } from "./dataset-generator";
 
-export { LogGenerator, logGenerator, type GeneratedLogLine } from "./log-generator";
+// =============================================================================
+// Log Scenarios (used by handlers and scenario-selector UI)
+// =============================================================================
 
-export {
-  LOG_SCENARIOS,
-  getLogScenario,
-  getLogScenarioNames,
-  isValidScenario,
-  setLogScenario,
-  getActiveScenario,
-  resetLogScenario,
-  getActiveScenarioConfig,
-  type LogScenarioName,
-  type LogScenarioConfig,
-  type LogVolumeConfig,
-  type LogFeatureConfig,
-} from "./log-scenarios";
+export { getLogScenario, getLogScenarioNames, type LogScenarioName } from "./log-scenarios";
 
-export { EventGenerator, eventGenerator, type GeneratedEvent } from "./event-generator";
+// =============================================================================
+// Configuration (used by generators internally)
+// =============================================================================
 
-export {
-  BucketGenerator,
-  bucketGenerator,
-  setBucketTotal,
-  getBucketTotal,
-  type GeneratedBucket,
-  type GeneratedArtifact,
-  type GeneratedArtifactList,
-} from "./bucket-generator";
-
-export {
-  DatasetGenerator,
-  datasetGenerator,
-  setDatasetTotal,
-  getDatasetTotal,
-  type GeneratedDataset,
-  type GeneratedDatasetVersion,
-  type GeneratedDatasetCollection,
-} from "./dataset-generator";
-
-export {
-  ProfileGenerator,
-  profileGenerator,
-  type GeneratedProfile,
-  type GeneratedProfileSettings,
-  type GeneratedApiKey,
-} from "./profile-generator";
-
-export {
-  PortForwardGenerator,
-  portForwardGenerator,
-  type GeneratedPortForwardSession,
-  type GeneratedPortForwardRequest,
-  type GeneratedPortForwardResponse,
-} from "./portforward-generator";
-
-export { PTYSimulator, ptySimulator, type PTYSession, type PTYScenario } from "./pty-simulator";
-
-export { MOCK_CONFIG, DEFAULT_VOLUME, HIGH_VOLUME, LOW_VOLUME } from "../seed";
+export { MOCK_CONFIG } from "../seed";

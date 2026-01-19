@@ -14,6 +14,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// MSW mocks - server-side only. See server.ts for handler setup.
+/**
+ * MSW Mocks - Public API
+ *
+ * This module exports:
+ * - `handlers`: Array of MSW request handlers for browser mocking
+ * - `server`: MSW server for Node.js testing (Vitest)
+ *
+ * Usage in tests:
+ *   import { server } from '@/mocks';
+ *   beforeAll(() => server.listen());
+ *   afterEach(() => server.resetHandlers());
+ *   afterAll(() => server.close());
+ *
+ * Usage in browser (via MockProvider):
+ *   The MockProvider component sets up browser mocking automatically.
+ */
 
 export { handlers } from "./handlers";
+export { server } from "./server";

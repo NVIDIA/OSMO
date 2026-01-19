@@ -22,6 +22,7 @@
 
 import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG, type EventPatterns, type MockVolume } from "../seed";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Types
@@ -74,7 +75,7 @@ export class EventGenerator {
     startTime?: string,
     endTime?: string,
   ): GeneratedEvent[] {
-    faker.seed(this.baseSeed + this.hashString(workflowName));
+    faker.seed(this.baseSeed + hashString(workflowName));
 
     const events: GeneratedEvent[] = [];
     let currentTime = new Date(submitTime);
@@ -161,7 +162,7 @@ export class EventGenerator {
     startTime?: string,
     endTime?: string,
   ): GeneratedEvent[] {
-    faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
+    faker.seed(this.baseSeed + hashString(workflowName + taskName));
 
     const events: GeneratedEvent[] = [];
     const objectName = `${workflowName}/${taskName}`;
@@ -250,16 +251,6 @@ export class EventGenerator {
         namespace: "default",
       },
     };
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 

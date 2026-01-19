@@ -22,6 +22,7 @@
 
 import { faker } from "@faker-js/faker";
 import { MOCK_CONFIG } from "../seed";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Types
@@ -81,7 +82,7 @@ export class ProfileGenerator {
    * Generate a user profile
    */
   generateProfile(username?: string): GeneratedProfile {
-    faker.seed(this.baseSeed + (username ? this.hashString(username) : 0));
+    faker.seed(this.baseSeed + (username ? hashString(username) : 0));
 
     const user = username || faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
     const firstName = user.split(".")[0] || user;
@@ -106,7 +107,7 @@ export class ProfileGenerator {
    * Generate user settings
    */
   generateSettings(username?: string): GeneratedProfileSettings {
-    faker.seed(this.baseSeed + (username ? this.hashString(username) : 0) + 1000);
+    faker.seed(this.baseSeed + (username ? hashString(username) : 0) + 1000);
 
     const pools = MOCK_CONFIG.pools.names;
 
@@ -164,22 +165,8 @@ export class ProfileGenerator {
     return keys;
   }
 
-  // --------------------------------------------------------------------------
-  // Private helpers
-  // --------------------------------------------------------------------------
-
   private capitalize(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 

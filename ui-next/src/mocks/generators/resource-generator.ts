@@ -25,8 +25,8 @@
 
 import { faker } from "@faker-js/faker";
 import { BackendResourceType, type ResourcesEntry } from "@/lib/api/generated";
-
 import { MOCK_CONFIG, type ResourcePatterns } from "../seed";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Generator Configuration
@@ -80,7 +80,7 @@ export class ResourceGenerator {
    * DETERMINISTIC: Same pool + index always produces the same resource.
    */
   generate(poolName: string, index: number): ResourcesEntry {
-    faker.seed(this.config.baseSeed + this.hashString(poolName) + index);
+    faker.seed(this.config.baseSeed + hashString(poolName) + index);
 
     const gpuType = faker.helpers.arrayElement(this.config.patterns.gpuTypes);
     const gpuTotal = faker.helpers.arrayElement(this.config.patterns.gpusPerNode);
@@ -265,20 +265,6 @@ export class ResourceGenerator {
     return { resources, total };
   }
 
-  /**
-   * Generate all resources for a pool (for backward compatibility).
-   */
-  generateForPool(poolName: string): ResourcesEntry[] {
-    return this.generatePage(poolName, 0, this.config.perPool).resources;
-  }
-
-  /**
-   * Generate resources for all pools.
-   */
-  generateAll(poolNames: string[]): ResourcesEntry[] {
-    return this.generateGlobalPage(poolNames, 0, this.config.totalGlobal).resources;
-  }
-
   // --------------------------------------------------------------------------
   // Private helpers
   // --------------------------------------------------------------------------
@@ -312,16 +298,6 @@ export class ResourceGenerator {
     }
 
     return conditions;
-  }
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 

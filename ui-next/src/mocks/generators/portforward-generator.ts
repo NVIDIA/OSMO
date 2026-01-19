@@ -21,6 +21,7 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { hashString } from "../utils";
 
 // ============================================================================
 // Types
@@ -87,7 +88,7 @@ export class PortForwardGenerator {
    * Create a new port forward session
    */
   createSession(workflowName: string, taskName: string, remotePort: number): GeneratedPortForwardResponse {
-    faker.seed(this.baseSeed + this.hashString(workflowName + taskName + remotePort));
+    faker.seed(this.baseSeed + hashString(workflowName + taskName + remotePort));
 
     // Simulate occasional failures
     if (faker.datatype.boolean({ probability: 0.1 })) {
@@ -155,42 +156,6 @@ export class PortForwardGenerator {
       return true;
     }
     return false;
-  }
-
-  /**
-   * Get common ports for UI suggestions
-   */
-  getCommonPorts(): { port: number; service: string }[] {
-    return PORT_FORWARD_PATTERNS.commonPorts;
-  }
-
-  /**
-   * Generate a webserver/port forward response (for backward compatibility)
-   */
-  generateWebserverResponse(workflowName: string, taskName: string): { router_address: string; session_key: string } {
-    faker.seed(this.baseSeed + this.hashString(workflowName + taskName));
-
-    const routerDomain = faker.helpers.arrayElement(PORT_FORWARD_PATTERNS.routerDomains);
-    const sessionKey = faker.string.alphanumeric(32);
-
-    return {
-      router_address: `https://${routerDomain}`,
-      session_key: sessionKey,
-    };
-  }
-
-  // --------------------------------------------------------------------------
-  // Private helpers
-  // --------------------------------------------------------------------------
-
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
   }
 }
 
