@@ -258,30 +258,35 @@ export const handlers = [
     };
 
     // For streaming scenario, return ReadableStream with trickled output
+    // Uses HttpResponse from MSW for proper lifecycle management
+    // @see https://mswjs.io/docs/network-behavior/streaming/
     if (scenario.features.streaming) {
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (scenario.features.streamDelayMs ?? 200);
+      const encoder = new TextEncoder();
+
+      // Create the async generator outside the stream to avoid closure issues
+      const generator = logGenerator.createStream(name, scenario, taskNames);
 
       const stream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder();
-          const generator = logGenerator.createStream(name, scenario, taskNames);
-
-          try {
-            for await (const chunk of generator) {
-              controller.enqueue(encoder.encode(chunk));
-              // Apply delay between chunks to simulate real streaming
-              await new Promise((resolve) => setTimeout(resolve, streamDelay));
-            }
-          } catch {
-            // Stream was likely cancelled by client
-          } finally {
+        async pull(controller) {
+          const { value, done } = await generator.next();
+          if (done) {
             controller.close();
+            return;
           }
+          controller.enqueue(encoder.encode(value));
+          // Apply delay between chunks to simulate real streaming
+          await new Promise((resolve) => setTimeout(resolve, streamDelay));
+        },
+        cancel() {
+          // Properly close the generator when stream is cancelled
+          generator.return(undefined);
         },
       });
 
+      // Use HttpResponse from MSW for proper lifecycle management
       // Response headers match real backend from workflow_service.py:706-707
-      return new Response(stream, {
+      return new HttpResponse(stream, {
         headers: {
           "Content-Type": "text/plain; charset=us-ascii",
           "X-Content-Type-Options": "nosniff",
@@ -300,8 +305,9 @@ export const handlers = [
     // Apply filters (matches real backend behavior)
     logs = filterLogs(logs);
 
+    // Use HttpResponse.text() from MSW for proper lifecycle management
     // Response headers match real backend from workflow_service.py:706-707
-    return new Response(logs, {
+    return HttpResponse.text(logs, {
       headers: {
         "Content-Type": "text/plain; charset=us-ascii",
         "X-Content-Type-Options": "nosniff",
@@ -831,8 +837,23 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n") : "  - name: main\n    image: nvcr
   // Auth
   // ==========================================================================
 
-  // NOTE: /api/auth/login was removed - not a real backend endpoint
-  // Auth endpoints are: /api/auth/refresh_token, /api/auth/access_token, etc.
+  // Backend auth endpoint - returns login configuration
+  // Called directly by getLoginInfo() in lib/auth/login-info.ts
+  // Uses regex to match both relative and absolute URLs (for server-side requests)
+  http.get(/.*\/api\/auth\/login$/, async () => {
+    await delay(MOCK_DELAY);
+
+    // Return auth disabled for mock mode
+    return HttpResponse.json({
+      auth_enabled: false,
+      device_endpoint: "",
+      device_client_id: "",
+      browser_endpoint: "",
+      browser_client_id: "mock-client",
+      token_endpoint: "",
+      logout_endpoint: "",
+    });
+  }),
 
   // Next.js API routes for auth (these intercept client requests before they reach the server)
   http.get("/auth/login_info", async () => {
