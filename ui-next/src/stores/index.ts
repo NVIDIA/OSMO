@@ -64,4 +64,11 @@ export {
   initialState as sharedPreferencesInitialState,
   type SharedPreferencesStore,
   type DisplayMode,
+  // Hydration-safe selectors (use these for values in initial render)
+  useDisplayMode,
+  useCompactMode,
+  useSidebarOpen,
+  useDetailsExpanded,
+  useDetailsPanelCollapsed,
+  usePanelWidthPct,
 } from "./shared-preferences-store";
