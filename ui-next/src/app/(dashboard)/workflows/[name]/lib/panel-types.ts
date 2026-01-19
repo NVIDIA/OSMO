@@ -20,7 +20,7 @@
  * Unified types for the DetailsPanel component system.
  */
 
-import type { WorkflowQueryResponse } from "@/lib/api/generated";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter";
 import type { TaskQueryResponse, GroupWithLayout } from "./workflow-types";
 import type { TaskTab, WorkflowTab } from "../hooks/use-navigation-state";
 
